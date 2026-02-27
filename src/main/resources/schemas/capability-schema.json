@@ -663,7 +663,14 @@
           "type": "array",
           "description": "List of exposed server adapters",
           "items": {
-            "$ref": "#/$defs/ExposesApi"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ExposesApi"
+              },
+              {
+                "$ref": "#/$defs/ExposesMcp"
+              }
+            ]
           },
           "minItems": 1
         },
@@ -732,6 +739,162 @@
         "type",
         "port",
         "namespace"
+      ],
+      "additionalProperties": false
+    },
+    "ExposesMcp": {
+      "type": "object",
+      "description": "MCP Server exposition configuration. Exposes tools over MCP Streamable HTTP transport.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "mcp"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique identifier for this exposed MCP server"
+        },
+        "description": {
+          "type": "string",
+          "description": "A meaningful description of this MCP server's purpose. Used as the server instructions sent during MCP initialization."
+        },
+        "tools": {
+          "type": "array",
+          "description": "List of MCP tools exposed by this server",
+          "items": {
+            "$ref": "#/$defs/McpTool"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "type",
+        "port",
+        "namespace",
+        "tools"
+      ],
+      "additionalProperties": false
+    },
+    "McpTool": {
+      "type": "object",
+      "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Technical name for the tool. Used as the MCP tool name."
+        },
+        "description": {
+          "type": "string",
+          "description": "A meaningful description of the tool. Used for agent discovery. Remember, in a world of agents, context is king."
+        },
+        "inputParameters": {
+          "type": "array",
+          "description": "Tool input parameters. These become the MCP tool's input schema (JSON Schema).",
+          "items": {
+            "$ref": "#/$defs/McpToolInputParameter"
+          }
+        },
+        "call": {
+          "type": "string",
+          "description": "For simple cases, the reference to the consumed operation. Format: {namespace}.{operationId}.",
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+        },
+        "with": {
+          "$ref": "#/$defs/WithInjector"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperationStep"
+          },
+          "minItems": 1
+        },
+        "mappings": {
+          "type": "array",
+          "description": "Maps step outputs to the tool's output parameters.",
+          "items": {
+            "$ref": "#/$defs/StepOutputMapping"
+          }
+        },
+        "outputParameters": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "call"
+          ],
+          "properties": {
+            "outputParameters": {
+              "items": {
+                "$ref": "#/$defs/MappedOutputParameter"
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "steps"
+          ],
+          "properties": {
+            "mappings": true,
+            "outputParameters": {
+              "items": {
+                "$ref": "#/$defs/OrchestratedOutputParameter"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "McpToolInputParameter": {
+      "type": "object",
+      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierExtended",
+          "description": "Name of the parameter. Becomes a property name in the tool's input schema."
+        },
+        "type": {
+          "type": "string",
+          "description": "The expected data type of the parameter.",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "array",
+            "object"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "A meaningful description of the parameter. Used for agent discovery and tool documentation."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the parameter is required. Defaults to true.",
+          "default": true
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "description"
       ],
       "additionalProperties": false
     },

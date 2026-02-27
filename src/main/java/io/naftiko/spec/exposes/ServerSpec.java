@@ -29,7 +29,8 @@ import io.naftiko.spec.InputParameterSpec;
     property = "type" // The name of the JSON property holding the type identifier
 )
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = ApiServerSpec.class, name = "api")
+    @JsonSubTypes.Type(value = ApiServerSpec.class, name = "api"),
+    @JsonSubTypes.Type(value = McpServerSpec.class, name = "mcp")
 })
 public abstract class ServerSpec {
 

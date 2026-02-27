@@ -69,6 +69,46 @@ capability:
                           type: "string"
                           mapping: "$.properties.Comments.rich_text[0].text.content"
 
+    - type: "mcp"
+      address: "localhost"
+      port: 9091
+      namespace: "notion-mcp"
+      description: "MCP server exposing Notion database query capabilities for pre-release participant management."
+
+      tools:
+        - name: "query-database"
+          description: "Query the Notion pre-release participants database to retrieve committed participants with their name, company, title, location, owner, participation status and comments."
+          call: "notion.query-db"
+          with:
+            datasource_id: "2fe4adce-3d02-8028-bec8-000bfb5cafa2"
+          outputParameters:
+            - type: "array"
+              mapping: "$.results"
+              items:
+                - type: "object"
+                  properties:
+                    name:
+                      type: "string"
+                      mapping: "$.properties.Name.title[0].text.content"
+                    company:
+                      type: "string"
+                      mapping: "$.properties.Company.rich_text[0].text.content"
+                    title:
+                      type: "string"
+                      mapping: "$.properties.Title.rich_text[0].text.content"
+                    location:
+                      type: "string"
+                      mapping: "$.properties.Location.rich_text[0].text.content"
+                    owner:
+                      type: "string"
+                      mapping: "$.properties.Owner.people[0].name"
+                    participation_status:
+                      type: "string"
+                      mapping: "$.properties.Participation Status.select.name"
+                    comments:
+                      type: "string"
+                      mapping: "$.properties.Comments.rich_text[0].text.content"
+
   consumes:
     - type: "http"
       description: "Notion API integration for accessing pre-release participant data stored in Notion."
@@ -76,14 +116,16 @@ capability:
       baseUri: "https://api.notion.com/v1/"
       authentication:
         type: "bearer"
-        token: "{{notion_token}}"
+        token: "{{notion_api_key}}"
       inputParameters:
+        - name: "notion_api_key"
+          in: "environment"
         - name: "Notion-Version"
           in: "header"
           value: "2025-09-03"
 
       resources:
-        - path: "data_sources/{{notion_projects_db_id}}/query"
+        - path: "data_sources/{{datasource_id}}/query"
           name: "query"
           label: "Query database resource"
           operations:

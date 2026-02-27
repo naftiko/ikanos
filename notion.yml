@@ -113,7 +113,11 @@ capability:
 
   consumes:
     - type: "http"
+<<<<<<<< HEAD:src/main/resources/schemas/tutorial/step4b-structure.yml
+      description: "Forwarded requests from the /notion/{path} resource, to be sent to the Notion API"
+========
       description: "Notion API integration for accessing pre-release participant data stored in Notion."
+>>>>>>>> 76f0fc9 (feat: First implementation of the MCP server adapter):notion.yml
       namespace: "notion"
       baseUri: "https://api.notion.com/v1/"
       authentication:

@@ -15,6 +15,7 @@ package io.naftiko.spec.exposes;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -35,6 +36,7 @@ public class ApiServerCallSpec {
         this(null, null);
     }
 
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public ApiServerCallSpec(String operation) {
         this(operation, null);
     }

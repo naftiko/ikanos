@@ -1,0 +1,64 @@
+---
+naftiko: "0.4"
+info:
+  label: "MCP Test Capability"
+  description: "Test capability for MCP Server Adapter deserialization and wiring"
+  tags:
+    - Test
+    - MCP
+  created: "2026-02-26"
+  modified: "2026-02-26"
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9095
+      namespace: "test-mcp"
+      description: "Test MCP server for validating adapter deserialization and tool wiring."
+
+      tools:
+        - name: "query-database"
+          description: "Query the test database to retrieve committed participants."
+          call: "mock-api.query-db"
+          with:
+            datasource_id: "test-db-id-123"
+          outputParameters:
+            - type: "array"
+              mapping: "$.results"
+              items:
+                - type: "object"
+                  properties:
+                    name:
+                      type: "string"
+                      mapping: "$.properties.Name.title[0].text.content"
+                    status:
+                      type: "string"
+                      mapping: "$.properties.Status.select.name"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-api"
+      baseUri: "http://localhost:8080/v1/"
+      inputParameters:
+        - name: "Content-Type"
+          in: "header"
+          value: "application/json"
+
+      resources:
+        - path: "databases/{{datasource_id}}/query"
+          name: "query"
+          label: "Query database resource"
+          operations:
+            - method: "POST"
+              name: "query-db"
+              label: "Query Database"
+              body: |
+                {
+                  "filter": {
+                    "property": "Status",
+                    "select": {
+                      "equals": "Committed"
+                    }
+                  }
+                }

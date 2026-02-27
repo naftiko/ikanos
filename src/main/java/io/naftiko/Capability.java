@@ -22,11 +22,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.engine.exposes.ApiServerAdapter;
+import io.naftiko.engine.exposes.McpServerAdapter;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
@@ -54,6 +56,8 @@ public class Capability {
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if ("api".equals(serverSpec.getType())) {
                 this.serverAdapters.add(new ApiServerAdapter(this, (ApiServerSpec) serverSpec));
+            } else if ("mcp".equals(serverSpec.getType())) {
+                this.serverAdapters.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
             }
         }
 

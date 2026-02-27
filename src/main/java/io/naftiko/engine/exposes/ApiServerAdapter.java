@@ -14,6 +14,9 @@
 package io.naftiko.engine.exposes;
 
 import org.restlet.Restlet;
+import org.restlet.Server;
+import org.restlet.data.Protocol;
+import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
 import io.naftiko.Capability;
@@ -26,8 +29,14 @@ import io.naftiko.spec.exposes.ApiServerSpec;
  */
 public class ApiServerAdapter extends ServerAdapter {
 
+    private final Server server;
+    private final Router router;
+
     public ApiServerAdapter(Capability capability, ApiServerSpec serverSpec) {
         super(capability, serverSpec);
+        this.server = new Server(Protocol.HTTP, serverSpec.getAddress(), serverSpec.getPort());
+        this.router = new Router();
+        this.server.setNext(this.router);
 
         for (ApiServerResourceSpec res : getApiServerSpec().getResources()) {
             String pathTemplate = toUriTemplate(res.getPath());
@@ -39,6 +48,24 @@ public class ApiServerAdapter extends ServerAdapter {
 
     public ApiServerSpec getApiServerSpec() {
         return (ApiServerSpec) getSpec();
+    }
+
+    public Server getServer() {
+        return server;
+    }
+
+    public Router getRouter() {
+        return router;
+    }
+
+    @Override
+    public void start() throws Exception {
+        getServer().start();
+    }
+
+    @Override
+    public void stop() throws Exception {
+        getServer().stop();
     }
 
 }
