@@ -296,7 +296,7 @@ public class McpToolHandler {
                         }
 
                         // Set authentication and headers
-                        ctx.clientAdapter.setChallengeResponse(ctx.clientRequest,
+                        ctx.clientAdapter.setChallengeResponse(null, ctx.clientRequest,
                                 ctx.clientRequest.getResourceRef().toString(), parameters);
                         ctx.clientAdapter.setHeaders(ctx.clientRequest);
                         return ctx;
