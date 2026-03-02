@@ -27,6 +27,12 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     private volatile String template;
 
+    /**
+     * Value of the parameter. Can be a static value or an expression resolved from the execution
+     * context (e.g. {@code $this.namespace.param}).
+     */
+    private volatile String value;
+
     public InputParameterSpec() {
         super();
     }
@@ -61,6 +67,14 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setTemplate(String template) {
         this.template = template;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 
 }

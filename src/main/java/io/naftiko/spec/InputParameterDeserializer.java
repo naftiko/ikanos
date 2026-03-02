@@ -61,6 +61,10 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
             spec.setConstant(node.get("const").asText());
         }
 
+        if (node.has("value")) {
+            spec.setValue(node.get("value").asText());
+        }
+
         if (node.has("selector")) {
             spec.setSelector(node.get("selector").asText());
         }

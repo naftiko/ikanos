@@ -65,6 +65,10 @@ public class InputParameterSerializer extends JsonSerializer<InputParameterSpec>
             node.put("const", spec.getConstant());
         }
 
+        if (spec.getValue() != null) {
+            node.put("value", spec.getValue());
+        }
+
         if (spec.getSelector() != null) {
             node.put("selector", spec.getSelector());
         }
@@ -177,6 +181,10 @@ public class InputParameterSerializer extends JsonSerializer<InputParameterSpec>
 
         if (spec.getConstant() != null) {
             node.put("const", spec.getConstant());
+        }
+
+        if (spec.getValue() != null) {
+            node.put("value", spec.getValue());
         }
 
         if (spec.getSelector() != null) {

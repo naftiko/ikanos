@@ -155,7 +155,9 @@ public class Resolver {
                 String in = spec.getIn() == null ? "body" : spec.getIn();
                 Object val = null;
 
-                if (spec.getConstant() != null) {
+                if (spec.getValue() != null) {
+                    val = spec.getValue();
+                } else if (spec.getConstant() != null) {
                     val = spec.getConstant();
                 } else if (spec.getTemplate() != null) {
                     val = Resolver.resolveMustacheTemplate(spec.getTemplate(), parameters);
