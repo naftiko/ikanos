@@ -744,11 +744,17 @@
     },
     "ExposesMcp": {
       "type": "object",
-      "description": "MCP Server exposition configuration. Exposes tools over MCP Streamable HTTP transport.",
+      "description": "MCP Server exposition configuration. Exposes tools over MCP transport (Streamable HTTP or stdio).",
       "properties": {
         "type": {
           "type": "string",
           "const": "mcp"
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["http", "stdio"],
+          "default": "http",
+          "description": "The MCP transport to use. 'http' (default) exposes a Streamable HTTP server; 'stdio' uses stdin/stdout JSON-RPC for local IDE integration."
         },
         "address": {
           "$ref": "#/$defs/Address"
@@ -777,10 +783,24 @@
       },
       "required": [
         "type",
-        "port",
         "namespace",
         "tools"
       ],
+      "if": {
+        "properties": {
+          "transport": { "const": "stdio" }
+        },
+        "required": ["transport"]
+      },
+      "then": {
+        "properties": {
+          "address": false,
+          "port": false
+        }
+      },
+      "else": {
+        "required": ["port"]
+      },
       "additionalProperties": false
     },
     "McpTool": {

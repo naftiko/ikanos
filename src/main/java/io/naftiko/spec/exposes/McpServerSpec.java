@@ -20,10 +20,18 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 /**
  * MCP Server Specification Element.
  * 
- * Defines an MCP server that exposes tools over Streamable HTTP transport.
+ * Defines an MCP server that exposes tools over a configurable transport.
+ * Supported transports:
+ * <ul>
+ *   <li>{@code http} (default) — Streamable HTTP via Jetty, for networked deployments</li>
+ *   <li>{@code stdio} — stdin/stdout JSON-RPC, for local IDE development</li>
+ * </ul>
  * Each tool maps to one or more consumed HTTP operations.
  */
 public class McpServerSpec extends ServerSpec {
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String transport;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String namespace;
@@ -43,6 +51,21 @@ public class McpServerSpec extends ServerSpec {
         this.namespace = namespace;
         this.description = description;
         this.tools = new CopyOnWriteArrayList<>();
+    }
+
+    /**
+     * Returns the transport type. Defaults to {@code "http"} when not set.
+     */
+    public String getTransport() {
+        return transport != null ? transport : "http";
+    }
+
+    public void setTransport(String transport) {
+        this.transport = transport;
+    }
+
+    public boolean isStdio() {
+        return "stdio".equals(getTransport());
     }
 
     public String getNamespace() {

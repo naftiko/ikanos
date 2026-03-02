@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
-import io.naftiko.engine.Converter;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
@@ -168,9 +167,13 @@ public class McpToolHandler {
                     true, null, null);
         }
 
+        // Buffer entity text before any mapping to avoid double-read issues
+        String responseText = found.clientResponse.getEntity().getText();
+
         // Apply output parameter mappings if defined
-        if (toolSpec.getOutputParameters() != null && !toolSpec.getOutputParameters().isEmpty()) {
-            String mapped = mapOutputParameters(toolSpec, found);
+        if (toolSpec.getOutputParameters() != null && !toolSpec.getOutputParameters().isEmpty()
+                && responseText != null && !responseText.isEmpty()) {
+            String mapped = mapOutputParameters(toolSpec, responseText);
             if (mapped != null) {
                 return new McpSchema.CallToolResult(
                         List.of(new McpSchema.TextContent(mapped)), isError, null, null);
@@ -178,24 +181,22 @@ public class McpToolHandler {
         }
 
         // Fall back to raw response
-        String responseText = found.clientResponse.getEntity().getText();
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(responseText != null ? responseText : "")),
                 isError, null, null);
     }
 
     /**
-     * Map client response to the tool's declared outputParameters and return a JSON string.
-     * Returns null when mapping could not be applied.
+     * Map pre-buffered response text to the tool's declared outputParameters and return a JSON
+     * string. Returns null when mapping could not be applied.
      */
-    private String mapOutputParameters(McpServerToolSpec toolSpec, HandlingContext found)
+    private String mapOutputParameters(McpServerToolSpec toolSpec, String responseText)
             throws IOException {
-        if (found == null || found.clientResponse == null
-                || found.clientResponse.getEntity() == null) {
+        if (responseText == null || responseText.isEmpty()) {
             return null;
         }
 
-        JsonNode root = Converter.convertToJson(null, null, found.clientResponse.getEntity());
+        JsonNode root = mapper.readTree(responseText);
 
         for (OutputParameterSpec outputParameter : toolSpec.getOutputParameters()) {
             JsonNode mapped = Resolver.resolveOutputMappings(outputParameter, root, mapper);
