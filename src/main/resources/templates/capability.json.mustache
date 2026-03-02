@@ -1,0 +1,49 @@
+{
+  "naftiko": "0.4",
+  "info": {
+    "label": "{{capabilityName}}",
+    "description": "business-description-of-your-capability"
+  },
+  "capability": {
+    "exposes": [
+      {
+        "type": "api",
+        "namespace": "documentation",
+        "port": {{port}},
+        "resources": [
+          {
+            "path": "/path-identifier-for-this-resource/{{path}}",
+            "label": "name-of-your-capability-resource",
+            "description": "description-of-your-capability-resource",
+            "forward": {
+              "targetNamespace": "consumer-namespace",
+              "trustedHeaders": [
+                "custom-header-you-want-to-forward"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "consumes": [
+      {
+        "type": "http",
+        "namespace": "consumer-namespace",
+        "description": "description-of-the-targeted-consumer",
+        "baseUri": "{{baseUri}}",
+        "resources": [
+          {
+            "name": "users",
+            "path":  "users/me",
+            "operations": [
+              {
+                "name": "get-my-user",
+                "method": "GET"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

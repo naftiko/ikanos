@@ -16,7 +16,6 @@ package io.naftiko.cli;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
-import io.naftiko.cli.enums.CapabilityType;
 import io.naftiko.cli.enums.FileFormat;
 
 import java.io.*;
@@ -27,8 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class FileGenerator {
-    public static void generateCapabilityFile(String capabilityName, CapabilityType template, FileFormat format, String targetUri, String port) throws IOException {
-        String templatePath = "templates/capability." + template.pathName + "." + format.pathName + ".mustache";
+    public static void generateCapabilityFile(String capabilityName, FileFormat format, String baseUri, String port) throws IOException {
+        String templatePath = "templates/capability." + format.pathName + ".mustache";
         String outputFileName = capabilityName + ".capability." + format.pathName;
         
         // Load template from resources.
@@ -44,8 +43,8 @@ public class FileGenerator {
         Map<String, Object> scope = new HashMap<>();
         scope.put("capabilityName", capabilityName);
         scope.put("port", port);
-        scope.put("targetUri", targetUri);
-        scope.put("username", "{{username}}"); // Let this keyword as is.
+        scope.put("baseUri", baseUri);
+        scope.put("path", "{{path}}"); // Let this keyword as is.
         Path outputPath = Paths.get(outputFileName);
         try (Writer writer = Files.newBufferedWriter(outputPath)) {
             mustache.execute(scope, writer);
