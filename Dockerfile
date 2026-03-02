@@ -15,8 +15,5 @@ WORKDIR /app
 # Copy the built jar from the build stage
 COPY --from=build /app/target/capability.jar app.jar
 
-# Copy a default naftiko.yaml into the image (Optional fallback)
-COPY naftiko.yaml /app/naftiko.yaml
-
 # Set the entrypoint to run the jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
