@@ -64,9 +64,17 @@ public class ValidateCommand implements Runnable {
                 System.exit(1);
             }
             JsonNode schemaNode = new ObjectMapper().readTree(schemaInputStream);
-            
-            // Create JSON Schema validator
-            JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+
+            // Create JSON Schema validator. Read version from $schema of file.
+            JsonSchemaFactory factory;
+            JsonNode schemaField = schemaNode.get("$schema");
+            if (schemaField != null && schemaField.asText().contains("2020-12")) {
+                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            } else if (schemaField != null && schemaField.asText().contains("2019-09")) {
+                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V201909);
+            } else {
+                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+            }
             JsonSchema schema = factory.getSchema(schemaNode);
             
             // Validate.

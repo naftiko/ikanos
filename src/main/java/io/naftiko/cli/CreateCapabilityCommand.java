@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-import io.naftiko.cli.enums.CapabilityType;
 import io.naftiko.cli.enums.FileFormat;
 
 @Command(
@@ -44,18 +43,14 @@ public class CreateCapabilityCommand implements Runnable {
                 System.exit(1);
             }
 
-            // Capability template.
-            List<String> templates = Arrays.asList(CapabilityType.PASS_THRU.label, CapabilityType.REST_ADAPTER.label);
-            String template = InteractiveMenu.showMenu("Choose the capability template:", templates);
-
             // File format.
             List<String> formats = Arrays.asList(FileFormat.YAML.label, FileFormat.JSON.label);
             String format = InteractiveMenu.showMenu("Choose file format:", formats);
 
-            // Target URI.
+            // Base URI.
             System.out.print("Type the targted URI: ");
-            String targetUri = scanner.nextLine().trim();
-            if (targetUri.isEmpty()) {
+            String baseUri = scanner.nextLine().trim();
+            if (baseUri.isEmpty()) {
                 System.err.println("Error: targetUri cannot be empty");
                 System.exit(1);
             }
@@ -68,8 +63,8 @@ public class CreateCapabilityCommand implements Runnable {
                 System.exit(1);
             }
             
-            System.out.println("Creating capability: " + capabilityName + " " + template + " " + format + " " + targetUri + " " + port);
-            FileGenerator.generateCapabilityFile(capabilityName, CapabilityType.valueOfLabel(template), FileFormat.valueOfLabel(format), targetUri, port);
+            System.out.println("Creating capability: " + capabilityName + " " + format + " " + baseUri + " " + port);
+            FileGenerator.generateCapabilityFile(capabilityName, FileFormat.valueOfLabel(format), baseUri, port);
             
             scanner.close();
         } catch (IOException e) {

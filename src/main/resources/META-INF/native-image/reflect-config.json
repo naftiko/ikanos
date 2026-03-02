@@ -1,0 +1,103 @@
+[
+  {
+    "name": "com.networknt.schema.TypeValidator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.networknt.schema.BaseJsonValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ValidatorTypeCode",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.StringValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NumberValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.IntegerValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ArrayValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ObjectValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.BooleanValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NullValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.EnumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ConstValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.OneOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AnyOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AllOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NotValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.RequiredValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AdditionalPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.RefValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ItemsValidator202012",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinItemsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinimumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MaximumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PatternValidator",
+    "allDeclaredConstructors": true
+  }
+]

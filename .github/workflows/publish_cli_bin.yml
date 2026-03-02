@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-native:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
@@ -23,8 +25,6 @@ jobs:
           - os: windows-latest
             artifact_name: naftiko-cli-windows-amd64.exe
     
-    runs-on: ${{ matrix.os }}
-    
     permissions:
       contents: write
     
@@ -36,7 +36,7 @@ jobs:
         uses: graalvm/setup-graalvm@v1
         with:
           java-version: '21'
-          distribution: 'graalvm-community'
+          distribution: 'graalvm'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: 'true'
       
