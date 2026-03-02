@@ -29,13 +29,24 @@ import io.naftiko.spec.exposes.McpServerToolSpec;
 /**
  * MCP Server Adapter implementation.
  * 
- * Sets up a Jetty HTTP server with the MCP Streamable HTTP transport,
- * exposing tools defined in the MCP server specification. Each tool maps
- * to consumed HTTP operations via the shared HttpClientAdapter infrastructure.
+ * Supports two transports, selected via the spec's {@code transport} field:
+ * <ul>
+ *   <li>{@code http} (default) — Jetty-based Streamable HTTP server</li>
+ *   <li>{@code stdio} — stdin/stdout JSON-RPC for local IDE integration</li>
+ * </ul>
+ * 
+ * In both modes, tool definitions and the {@link McpToolHandler} are shared.
+ * Only the I/O layer differs.
  */
 public class McpServerAdapter extends ServerAdapter {
 
-    private final Server jettyServer;
+    /** Jetty server — only initialized for HTTP transport */
+    private Server jettyServer;
+
+    /** Stdio handler and thread — only initialized for stdio transport */
+    private volatile StdioJsonRpcHandler stdioHandler;
+    private volatile Thread stdioThread;
+
     private final McpToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
 
@@ -48,10 +59,20 @@ public class McpServerAdapter extends ServerAdapter {
             this.tools.add(buildMcpTool(toolSpec));
         }
 
-        // Create the tool handler
+        // Create the tool handler (transport-agnostic)
         this.toolHandler = new McpToolHandler(capability, serverSpec.getTools());
 
-        // Set up Jetty server
+        if (serverSpec.isStdio()) {
+            initStdioTransport();
+        } else {
+            initHttpTransport(serverSpec);
+        }
+    }
+
+    /**
+     * Initialize the Streamable HTTP transport (Jetty).
+     */
+    private void initHttpTransport(McpServerSpec serverSpec) {
         this.jettyServer = new Server();
         ServerConnector connector = new ServerConnector(jettyServer);
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
@@ -64,6 +85,14 @@ public class McpServerAdapter extends ServerAdapter {
 
         // Set the MCP handler
         jettyServer.setHandler(new JettyMcpStreamableHandler(this));
+    }
+
+    /**
+     * Initialize the stdio transport (stdin/stdout JSON-RPC).
+     */
+    private void initStdioTransport() {
+        McpProtocolDispatcher dispatcher = new McpProtocolDispatcher(this);
+        this.stdioHandler = new StdioJsonRpcHandler(dispatcher);
     }
 
     /**
@@ -117,15 +146,31 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void start() throws Exception {
-        jettyServer.start();
-        System.out.println("MCP Server started on "
-                + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort()
-                + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        if (getMcpServerSpec().isStdio()) {
+            stdioThread = new Thread(stdioHandler, "mcp-stdio");
+            stdioThread.setDaemon(true);
+            stdioThread.start();
+            System.err.println("MCP Server started on stdio"
+                    + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        } else {
+            jettyServer.start();
+            System.out.println("MCP Server started on "
+                    + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort()
+                    + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        }
     }
 
     @Override
     public void stop() throws Exception {
-        jettyServer.stop();
+        if (getMcpServerSpec().isStdio()) {
+            if (stdioHandler != null) {
+                stdioHandler.shutdown();
+            }
+        } else {
+            if (jettyServer != null) {
+                jettyServer.stop();
+            }
+        }
     }
 
 }
