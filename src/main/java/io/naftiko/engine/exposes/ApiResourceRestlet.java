@@ -390,33 +390,42 @@ public class ApiResourceRestlet extends Restlet {
 
                 if (httpAdapter.getHttpClientSpec().getNamespace()
                         .equals(forwardSpec.getTargetNamespace())) {
-                    // Prepare the HTTP client request
-                    String path = (String) request.getAttributes().get("path");
-                    String targetRef = httpAdapter.getHttpClientSpec().getBaseUri() + path;
-                    Request clientRequest = new Request(request.getMethod(), targetRef);
-                    clientRequest.setEntity(request.getEntity());
+                    try {
+                        // Prepare the HTTP client request
+                        String path = (String) request.getAttributes().get("path");
+                        String targetRef = httpAdapter.getHttpClientSpec().getBaseUri() + path;
+                        Request clientRequest = new Request(request.getMethod(), targetRef);
+                        clientRequest.setEntity(request.getEntity());
 
-                    // Copy trusted headers from the original request to the client request
-                    copyTrustedHeaders(request, clientRequest,
-                            getResourceSpec().getForward().getTrustedHeaders());
+                        // Copy trusted headers from the original request to the client request
+                        copyTrustedHeaders(request, clientRequest,
+                                getResourceSpec().getForward().getTrustedHeaders());
 
-                    // Resolve HTTP client input parameters for authentication template resolution
-                    Map<String, Object> parameters = new ConcurrentHashMap<>();
-                    Resolver.resolveInputParametersToRequest(clientRequest,
-                            httpAdapter.getHttpClientSpec().getInputParameters(), parameters);
+                        // Prepare parameters map for template resolution
+                        Map<String, Object> parameters = new ConcurrentHashMap<>();
+                        
+                        // Set any authentication needed on the client request
+                        Response clientResponse = new Response(clientRequest);
+                        httpAdapter.setChallengeResponse(request, clientRequest,
+                                clientRequest.getResourceRef().toString(), parameters);
+                        httpAdapter.setHeaders(clientRequest);
+                        
+                        // Apply HTTP client input parameters last to ensure they take precedence
+                        Resolver.resolveInputParametersToRequest(clientRequest,
+                                httpAdapter.getHttpClientSpec().getInputParameters(), parameters);
 
-                    // Set any authentication needed on the client request
-                    Response clientResponse = new Response(clientRequest);
-                    httpAdapter.setChallengeResponse(request, clientRequest,
-                            clientRequest.getResourceRef().toString(), parameters);
-                    httpAdapter.setHeaders(clientRequest);
-
-                    // Send the request to the target endpoint
-                    httpAdapter.getHttpClient().handle(clientRequest, clientResponse);
-                    response.setStatus(clientResponse.getStatus());
-                    response.setEntity(clientResponse.getEntity());
-                    response.commit();
-                    return true;
+                        // Send the request to the target endpoint
+                        httpAdapter.getHttpClient().handle(clientRequest, clientResponse);
+                        response.setStatus(clientResponse.getStatus());
+                        response.setEntity(clientResponse.getEntity());
+                        response.commit();
+                        return true;
+                    } catch (Exception e) {
+                        response.setStatus(Status.SERVER_ERROR_INTERNAL);
+                        response.setEntity("Error while handling an HTTP client call\n\n" + e.toString(),
+                                MediaType.TEXT_PLAIN);
+                        return true;
+                    }
                 }
             }
         }

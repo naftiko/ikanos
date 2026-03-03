@@ -142,6 +142,13 @@ public class Resolver {
 
     /**
      * Apply a list of input parameter specs to a client request (headers and query params).
+     * 
+     * Resolution priority for parameter values:
+     * 1. 'value' field - resolved with Mustache template syntax ({{paramName}}) for dynamic resolution
+     * 2. 'const' field - used as-is, no template resolution applied
+     * 3. 'template' field - resolved with Mustache syntax
+     * 4. Parameters map - direct lookup by parameter name
+     * 5. Environment variables - for 'environment' location
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
@@ -156,8 +163,10 @@ public class Resolver {
                 Object val = null;
 
                 if (spec.getValue() != null) {
-                    val = spec.getValue();
+                    // Resolve Mustache templates in value, allowing dynamic parameter resolution
+                    val = Resolver.resolveMustacheTemplate(spec.getValue(), parameters);
                 } else if (spec.getConstant() != null) {
+                    // Use constant value as-is (no template resolution)
                     val = spec.getConstant();
                 } else if (spec.getTemplate() != null) {
                     val = Resolver.resolveMustacheTemplate(spec.getTemplate(), parameters);

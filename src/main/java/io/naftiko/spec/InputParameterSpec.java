@@ -28,8 +28,9 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String template;
 
     /**
-     * Value of the parameter. Can be a static value or an expression resolved from the execution
-     * context (e.g. {@code $this.namespace.param}).
+     * Value of the parameter. Supports Mustache template syntax ({{paramName}}) for dynamic
+     * resolution from the execution context. Provides an alternative to 'const' that allows
+     * parameter variable substitution. Takes precedence over 'const'.
      */
     private volatile String value;
 
