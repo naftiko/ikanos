@@ -752,7 +752,10 @@
         },
         "transport": {
           "type": "string",
-          "enum": ["http", "stdio"],
+          "enum": [
+            "http",
+            "stdio"
+          ],
           "default": "http",
           "description": "The MCP transport to use. 'http' (default) exposes a Streamable HTTP server; 'stdio' uses stdin/stdout JSON-RPC for local IDE integration."
         },
@@ -786,21 +789,33 @@
         "namespace",
         "tools"
       ],
-      "if": {
-        "properties": {
-          "transport": { "const": "stdio" }
+      "oneOf": [
+        {
+          "properties": {
+            "transport": {
+              "const": "stdio"
+            }
+          },
+          "required": [
+            "transport"
+          ],
+          "not": {
+            "required": [
+              "port"
+            ]
+          }
         },
-        "required": ["transport"]
-      },
-      "then": {
-        "properties": {
-          "address": false,
-          "port": false
+        {
+          "properties": {
+            "transport": {
+              "const": "http"
+            }
+          },
+          "required": [
+            "port"
+          ]
         }
-      },
-      "else": {
-        "required": ["port"]
-      },
+      ],
       "additionalProperties": false
     },
     "McpTool": {

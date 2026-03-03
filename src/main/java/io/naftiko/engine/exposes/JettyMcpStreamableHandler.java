@@ -18,12 +18,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.io.Content;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.util.Callback;
+import org.restlet.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -81,6 +83,7 @@ public class JettyMcpStreamableHandler extends Handler.Abstract {
             String body = Content.Source.asString(request, StandardCharsets.UTF_8);
 
             if (body == null || body.isBlank()) {
+                Context.getCurrentLogger().log(Level.WARNING, "Error processing request. Missing or empty body");
                 ObjectNode error = dispatcher.buildJsonRpcError(null, -32700,
                         "Parse error: empty body");
                 writeJson(response, callback, 200, error);
@@ -117,6 +120,7 @@ public class JettyMcpStreamableHandler extends Handler.Abstract {
 
             return true;
         } catch (JsonProcessingException e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
             ObjectNode error = dispatcher.buildJsonRpcError(null, -32700,
                     "Parse error: " + e.getMessage());
             try {
@@ -126,6 +130,7 @@ public class JettyMcpStreamableHandler extends Handler.Abstract {
             }
             return true;
         } catch (Exception e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
             ObjectNode error = dispatcher.buildJsonRpcError(null, -32603,
                     "Internal error: " + e.getMessage());
             try {

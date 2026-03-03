@@ -18,8 +18,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.spec.InputParameterSpec;
@@ -31,12 +33,12 @@ import io.naftiko.spec.exposes.McpServerToolSpec;
  * 
  * Supports two transports, selected via the spec's {@code transport} field:
  * <ul>
- *   <li>{@code http} (default) — Jetty-based Streamable HTTP server</li>
- *   <li>{@code stdio} — stdin/stdout JSON-RPC for local IDE integration</li>
+ * <li>{@code http} (default) — Jetty-based Streamable HTTP server</li>
+ * <li>{@code stdio} — stdin/stdout JSON-RPC for local IDE integration</li>
  * </ul>
  * 
- * In both modes, tool definitions and the {@link McpToolHandler} are shared.
- * Only the I/O layer differs.
+ * In both modes, tool definitions and the {@link McpToolHandler} are shared. Only the I/O layer
+ * differs.
  */
 public class McpServerAdapter extends ServerAdapter {
 
@@ -55,6 +57,8 @@ public class McpServerAdapter extends ServerAdapter {
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
+        Context.getCurrentLogger().log(Level.INFO, "Building MCP Tool definitions from the spec");
+
         for (McpServerToolSpec toolSpec : serverSpec.getTools()) {
             this.tools.add(buildMcpTool(toolSpec));
         }
@@ -80,7 +84,8 @@ public class McpServerAdapter extends ServerAdapter {
         connector.setPort(serverSpec.getPort());
 
         // TODO: Make idle timeout configurable
-        connector.setIdleTimeout(120000); // 2 minutes — tool calls may involve upstream HTTP requests
+        connector.setIdleTimeout(120000); // 2 minutes — tool calls may involve upstream HTTP
+                                          // requests
         jettyServer.addConnector(connector);
 
         // Set the MCP handler
@@ -96,8 +101,8 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Build an MCP Tool from a tool spec.
-     * Converts input parameters to a JSON Schema map for the tool's inputSchema.
+     * Build an MCP Tool from a tool spec. Converts input parameters to a JSON Schema map for the
+     * tool's inputSchema.
      */
     private McpSchema.Tool buildMcpTool(McpServerToolSpec toolSpec) {
         // Build JSON Schema properties from input parameters
@@ -108,9 +113,13 @@ public class McpServerAdapter extends ServerAdapter {
             for (InputParameterSpec param : toolSpec.getInputParameters()) {
                 Map<String, Object> property = new HashMap<>();
                 property.put("type", param.getType() != null ? param.getType() : "string");
+
                 if (param.getDescription() != null) {
                     property.put("description", param.getDescription());
                 }
+
+                Context.getCurrentLogger().log(Level.INFO,
+                        "Adding parameter to schema: " + param.getName());
                 schemaProperties.put(param.getName(), property);
 
                 // By default, all parameters are required unless explicitly marked otherwise
@@ -119,17 +128,12 @@ public class McpServerAdapter extends ServerAdapter {
         }
 
         // Build the input schema using McpSchema.JsonSchema
-        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(
-                "object",
+        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema("object",
                 schemaProperties.isEmpty() ? null : schemaProperties,
-                required.isEmpty() ? null : required,
-                null, null, null);
+                required.isEmpty() ? null : required, null, null, null);
 
-        return McpSchema.Tool.builder()
-                .name(toolSpec.getName())
-                .description(toolSpec.getDescription())
-                .inputSchema(inputSchema)
-                .build();
+        return McpSchema.Tool.builder().name(toolSpec.getName())
+                .description(toolSpec.getDescription()).inputSchema(inputSchema).build();
     }
 
     public McpServerSpec getMcpServerSpec() {
@@ -150,13 +154,19 @@ public class McpServerAdapter extends ServerAdapter {
             stdioThread = new Thread(stdioHandler, "mcp-stdio");
             stdioThread.setDaemon(true);
             stdioThread.start();
-            System.err.println("MCP Server started on stdio"
+            System.err.println("MCP Server started on stdio" + " (namespace: "
+                    + getMcpServerSpec().getNamespace() + ")");
+            Context.getCurrentLogger().log(Level.INFO, "MCP Server started on stdio"
                     + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
         } else {
             jettyServer.start();
-            System.out.println("MCP Server started on "
-                    + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort()
-                    + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+            System.out.println("MCP Server started on " + getMcpServerSpec().getAddress() + ":"
+                    + getMcpServerSpec().getPort() + " (namespace: "
+                    + getMcpServerSpec().getNamespace() + ")");
+            Context.getCurrentLogger().log(Level.INFO,
+                    "MCP Server started on " + getMcpServerSpec().getAddress() + ":"
+                            + getMcpServerSpec().getPort() + " (namespace: "
+                            + getMcpServerSpec().getNamespace() + ")");
         }
     }
 
@@ -165,10 +175,14 @@ public class McpServerAdapter extends ServerAdapter {
         if (getMcpServerSpec().isStdio()) {
             if (stdioHandler != null) {
                 stdioHandler.shutdown();
+                stdioThread.join(5000); // Wait for the stdio thread to finish
+                Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on stdio");
             }
         } else {
             if (jettyServer != null) {
                 jettyServer.stop();
+                Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on "
+                        + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort());
             }
         }
     }

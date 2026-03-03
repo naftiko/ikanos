@@ -20,6 +20,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.logging.Level;
+import org.restlet.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -83,6 +85,9 @@ public class StdioJsonRpcHandler implements Runnable {
                         output.flush();
                     }
                 } catch (JsonProcessingException e) {
+                    Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
+
+
                     // Malformed JSON — write parse error response
                     ObjectNode errorResponse = dispatcher.buildJsonRpcError(
                             null, -32700, "Parse error: " + e.getMessage());
@@ -90,6 +95,7 @@ public class StdioJsonRpcHandler implements Runnable {
                         output.println(dispatcher.getMapper().writeValueAsString(errorResponse));
                         output.flush();
                     } catch (JsonProcessingException ignored) {
+                        Context.getCurrentLogger().log(Level.SEVERE, "Error serializing error response", ignored);
                         // Cannot serialize the error response — nothing more we can do
                     }
                 }
@@ -97,6 +103,7 @@ public class StdioJsonRpcHandler implements Runnable {
         } catch (IOException e) {
             if (running) {
                 System.err.println("MCP stdio error: " + e.getMessage());
+                Context.getCurrentLogger().log(Level.SEVERE, "MCP stdio error", e);
             }
         }
     }
@@ -109,6 +116,7 @@ public class StdioJsonRpcHandler implements Runnable {
         try {
             input.close();
         } catch (IOException ignored) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error closing input stream", ignored);
             // Best-effort close to interrupt the read loop
         }
     }
