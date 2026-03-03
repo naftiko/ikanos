@@ -1,0 +1,32 @@
+naftiko: "0.4"
+info:
+  label: "register"
+  description: "Business description of your capability"
+capability:
+  exposes:
+  - type: "api"
+    namespace: "documentation"
+    port: 8081
+    resources:
+    - path: "/notion/{{path}}"
+      label: "Notion API Pass-thru Proxy"
+      description: "A proxy to forward requests to the Notion API while the capability is being configured"
+      forward:
+        targetNamespace: "notion"
+        trustedHeaders:
+        - "Notion-Version"
+  consumes:
+  - type: "http"
+    namespace: "notion"
+    description: "Notion base API"
+    baseUri: "http://host.docker.internal:8080/rest/Notion+API/1.0.0/"
+    authentication:
+        type: "basic"
+        username: "scott"
+        password: "tiger"
+    resources:
+    - name: "users"
+      path:  "users/me"
+      operations:
+      - name: get-my-user
+        method: GET

@@ -65,3 +65,27 @@ jobs:
           files: target/${{ matrix.artifact_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  test-binary:
+    name: Test binary with register.capability.yml
+    needs: build-native
+    runs-on: macos-latest  # pour tester uniquement sur macOS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4  # récup le register.capability.yml
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: naftiko-cli-macos-arm64
+          path: ./bin
+
+      - name: Make binary executable
+        run: chmod +x ./bin/naftiko-cli-macos-arm64
+
+      - name: Run binary with register.capability.yml
+        run: |
+          output=$(./bin/naftiko-cli-macos-arm64 v src/test/resources/register.capability.yml)
+          exit_code=$?
+          echo "Output: $output"
+          echo "Exit code: $exit_code"
