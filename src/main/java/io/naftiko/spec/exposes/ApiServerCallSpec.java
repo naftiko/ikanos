@@ -32,18 +32,26 @@ public class ApiServerCallSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile Map<String, Object> with;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String description;
+
     public ApiServerCallSpec() {
-        this(null, null);
+        this(null, null, null);
     }
 
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public ApiServerCallSpec(String operation) {
-        this(operation, null);
+        this(operation, null, null);
     }
 
     public ApiServerCallSpec(String operation, Map<String, Object> with) {
+        this(operation, with, null);
+    }
+
+    public ApiServerCallSpec(String operation, Map<String, Object> with, String description) {
         this.operation = operation;
         this.with = with != null ? new ConcurrentHashMap<>(with) : new ConcurrentHashMap<>();
+        this.description = description;
     }
 
     public String getOperation() {
@@ -60,6 +68,14 @@ public class ApiServerCallSpec {
 
     public void setWith(Map<String, Object> with) {
         this.with = with != null ? new ConcurrentHashMap<>(with) : new ConcurrentHashMap<>();
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     /**

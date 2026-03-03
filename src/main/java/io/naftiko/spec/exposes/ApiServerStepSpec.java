@@ -32,17 +32,25 @@ public class ApiServerStepSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile Map<String, Object> with;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String description;
+
     public ApiServerStepSpec() {
-        this(null, null);
+        this(null, null, null);
     }
 
     public ApiServerStepSpec(ApiServerCallSpec call) {
-        this(call, null);
+        this(call, null, null);
     }
 
     public ApiServerStepSpec(ApiServerCallSpec call, Map<String, Object> with) {
+        this(call, with, null);
+    }
+
+    public ApiServerStepSpec(ApiServerCallSpec call, Map<String, Object> with, String description) {
         this.call = call;
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.description = description;
     }
 
     public ApiServerCallSpec getCall() {
@@ -59,6 +67,14 @@ public class ApiServerStepSpec {
 
     public void setWith(Map<String, Object> with) {
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
 }
