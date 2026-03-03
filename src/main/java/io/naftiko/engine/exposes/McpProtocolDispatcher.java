@@ -15,6 +15,8 @@ package io.naftiko.engine.exposes;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import org.restlet.Context;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -81,6 +83,7 @@ public class McpProtocolDispatcher {
                             "Method not found: " + rpcMethod);
             }
         } catch (Exception e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
             return buildJsonRpcError(null, -32603, "Internal error: " + e.getMessage());
         }
     }
@@ -121,12 +124,15 @@ public class McpProtocolDispatcher {
         for (McpSchema.Tool tool : adapter.getTools()) {
             ObjectNode toolNode = mapper.createObjectNode();
             toolNode.put("name", tool.name());
+            
             if (tool.description() != null) {
                 toolNode.put("description", tool.description());
             }
+
             if (tool.inputSchema() != null) {
                 toolNode.set("inputSchema", mapper.valueToTree(tool.inputSchema()));
             }
+
             toolsArray.add(toolNode);
         }
 
@@ -149,15 +155,15 @@ public class McpProtocolDispatcher {
             Map<String, Object> arguments = argumentsNode != null
                     ? mapper.treeToValue(argumentsNode, Map.class)
                     : new ConcurrentHashMap<>();
-
             McpSchema.CallToolResult toolResult =
                     adapter.getToolHandler().handleToolCall(toolName, arguments);
-
             ObjectNode result = mapper.valueToTree(toolResult);
             return buildJsonRpcResult(id, result);
         } catch (IllegalArgumentException e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             return buildJsonRpcError(id, -32602, "Invalid params: " + e.getMessage());
         } catch (Exception e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             // Tool execution error — return as a tool result with isError=true
             ObjectNode result = mapper.createObjectNode();
             ArrayNode content = result.putArray("content");
@@ -175,9 +181,12 @@ public class McpProtocolDispatcher {
     ObjectNode buildJsonRpcResult(JsonNode id, JsonNode result) {
         ObjectNode envelope = mapper.createObjectNode();
         envelope.put("jsonrpc", JSONRPC_VERSION);
+        Context.getCurrentLogger().log(Level.INFO, "Building JSON-RPC result for id: " + id);
+
         if (id != null) {
             envelope.set("id", id);
         }
+        
         envelope.set("result", result);
         return envelope;
     }
@@ -188,6 +197,8 @@ public class McpProtocolDispatcher {
     ObjectNode buildJsonRpcError(JsonNode id, int code, String message) {
         ObjectNode envelope = mapper.createObjectNode();
         envelope.put("jsonrpc", JSONRPC_VERSION);
+        Context.getCurrentLogger().log(Level.INFO, "Building JSON-RPC error for id: " + id);
+
         if (id != null) {
             envelope.set("id", id);
         } else {

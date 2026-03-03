@@ -220,15 +220,18 @@ public class McpToolHandler {
         }
 
         Map<String, Object> merged = new HashMap<>();
+
         if (requestParams != null) {
             merged.putAll(requestParams);
         }
+        
         if (call.getWith() != null) {
             merged.putAll(call.getWith());
         }
 
         if (call.getOperation() != null) {
             String[] tokens = call.getOperation().split("\\.");
+            
             if (tokens.length == 2) {
                 return findClientRequestFor(tokens[0], tokens[1], merged);
             }
