@@ -13,6 +13,10 @@
  */
 package io.naftiko.spec;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Naftiko Specification Root, including version and capabilities
  */
@@ -22,11 +26,15 @@ public class NaftikoSpec {
 
     private volatile InfoSpec info;
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<ExternalRefSpec> externalRefs;
+
     private volatile CapabilitySpec capability;
 
     public NaftikoSpec(String naftiko, InfoSpec info, CapabilitySpec capability) {
         this.naftiko = naftiko;
         this.info = info;
+        this.externalRefs = new CopyOnWriteArrayList<>();
         this.capability = capability;
     }
 
@@ -48,6 +56,10 @@ public class NaftikoSpec {
 
     public void setInfo(InfoSpec info) {
         this.info = info;
+    }
+
+    public List<ExternalRefSpec> getExternalRefs() {
+        return externalRefs;
     }
 
     public CapabilitySpec getCapability() {
