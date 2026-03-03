@@ -3,8 +3,8 @@ name: Validate JSON Structure Schema
 on:
   push:
     paths:
-      - 'src/main/resources/schema/**'
-      - '!src/main/resources/schema/examples/**'
+      - 'src/main/resources/schemas/**'
+      - '!src/main/resources/schemas/examples/**'
 
 jobs:
   validate-schema:
