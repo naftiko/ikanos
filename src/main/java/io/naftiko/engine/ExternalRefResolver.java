@@ -129,11 +129,15 @@ public class ExternalRefResolver {
         for (Map.Entry<String, String> keyMapping : ref.getKeys().entrySet()) {
             String injectionKey = keyMapping.getKey(); // e.g., "api_token"
             String sourceKey = keyMapping.getValue(); // e.g., "API_TOKEN"
-
             String value = props.getProperty(sourceKey);
+
             if (value == null) {
                 throw new IllegalArgumentException("Key '" + sourceKey
                         + "' not found in external ref properties file: " + file.getAbsolutePath());
+            }else if (injectedVars.containsKey(sourceKey)) {
+                throw new IllegalArgumentException("Key '" + sourceKey
+                        + "' is already defined in injected variables, cannot override with value from: "
+                        + file.getAbsolutePath());
             }
 
             injectedVars.put(injectionKey, value);
@@ -159,9 +163,15 @@ public class ExternalRefResolver {
         for (Map.Entry<String, String> keyMapping : ref.getKeys().entrySet()) {
             String injectionKey = keyMapping.getKey(); // e.g., "notion_token"
             String sourceKey = keyMapping.getValue(); // e.g., "NOTION_INTEGRATION_TOKEN"
-
             JsonNode value = root.at("/" + sourceKey.replace(".", "/"));
+            
             if (value != null && !value.isMissingNode() && !value.isNull()) {
+                if (injectedVars.containsKey(injectionKey)) {
+                    throw new IllegalArgumentException("Key '" + injectionKey
+                            + "' is already defined in injected variables, cannot override with value from: "
+                            + file.getAbsolutePath());
+                }
+                
                 injectedVars.put(injectionKey, value.asText());
             } else {
                 throw new IllegalArgumentException("Key '" + sourceKey
