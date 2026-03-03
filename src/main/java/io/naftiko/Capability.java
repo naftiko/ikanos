@@ -15,10 +15,12 @@ package io.naftiko;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.naftiko.engine.ExternalRefResolver;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.engine.exposes.ApiServerAdapter;
@@ -39,9 +41,27 @@ public class Capability {
     private volatile NaftikoSpec spec;
     private volatile List<ServerAdapter> serverAdapters;
     private volatile List<ClientAdapter> clientAdapters;
+    private volatile Map<String, Object> externalRefVariables;
 
-    public Capability(NaftikoSpec spec) {
+    public Capability(NaftikoSpec spec) throws Exception {
+        this(spec, null);
+    }
+
+    /**
+     * Creates a capability with an optional capability directory for external ref file resolution.
+     * 
+     * @param spec The Naftiko specification
+     * @param capabilityDir Directory containing the capability file (null for default)
+     * @throws Exception if external refs cannot be resolved
+     */
+    public Capability(NaftikoSpec spec, String capabilityDir) throws Exception {
         this.spec = spec;
+
+        // Resolve external references early for injection into adapters
+        ExternalRefResolver refResolver = new ExternalRefResolver();
+        this.externalRefVariables = refResolver.resolveExternalRefs(
+                spec.getExternalRefs(),
+                capabilityDir != null ? capabilityDir : ".");
 
         // Initialize client adapters first
         this.clientAdapters = new CopyOnWriteArrayList<>();
@@ -84,6 +104,16 @@ public class Capability {
         return serverAdapters;
     }
 
+    /**
+     * Returns the map of resolved external reference variables.
+     * These are injected into parameter resolution contexts.
+     * 
+     * @return Map of variable name to resolved value
+     */
+    public Map<String, Object> getExternalRefVariables() {
+        return externalRefVariables;
+    }
+
     public void start() throws Exception {
         for (ClientAdapter adapter : getClientAdapters()) {
             adapter.start();
@@ -124,7 +154,9 @@ public class Capability {
                 // Ignore unknown properties to handle potential Restlet framework classes
                 mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
-                Capability capability = new Capability(spec);
+                // Pass the capability directory for external ref file resolution
+                String capabilityDir = file.getParent();
+                Capability capability = new Capability(spec, capabilityDir);
                 capability.start();
                 System.out.println("Capability started successfully.");
             } catch (Exception e) {
