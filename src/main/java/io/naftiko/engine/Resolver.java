@@ -13,6 +13,7 @@
  */
 package io.naftiko.engine;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.restlet.Request;
@@ -55,7 +56,8 @@ public class Resolver {
             return template;
         }
 
-        return Mustache.compiler().defaultValue("").compile(template).execute(parameters);
+        return Mustache.compiler().defaultValue("").compile(template)
+            .execute(new HashMap<>(parameters));
     }
 
     /**
@@ -178,7 +180,7 @@ public class Resolver {
 
                 if (val == null) {
                     continue;
-                }else{
+                } else if (parameters != null) {
                     parameters.put(spec.getName(), val);
                 }
 

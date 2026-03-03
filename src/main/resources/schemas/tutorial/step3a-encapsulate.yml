@@ -2,7 +2,7 @@
 ---
 naftiko: "0.4"
 info:
-  label: "Tutorial - Step 3a - Forwarding API Resource"
+  label: "Tutorial - Step 3a - Encapsulating HTTP source"
   description: "This is a sample capability specification to demonstrate the features of Naftiko"
   tags:
     - Naftiko

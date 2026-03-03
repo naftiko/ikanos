@@ -73,7 +73,7 @@ public class HttpClientAdapter extends ClientAdapter {
     public void setHeaders(Request request) {
         // Set any default headers from the input parameters
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
-            if ("header".equals(param.getIn())) {
+            if ("header".equalsIgnoreCase(param.getIn()) && param.getConstant() != null) {
                 request.getHeaders().set(param.getName(), param.getConstant());
             }
         }
@@ -120,7 +120,7 @@ public class HttpClientAdapter extends ClientAdapter {
                             (BearerAuthenticationSpec) authenticationSpec;
                     challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_OAUTH_BEARER);
                     challengeResponse.setRawValue(
-                            Resolver.resolveMustacheTemplate(bearerAuth.getToken(), parameters));
+                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), parameters));
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
 

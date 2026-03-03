@@ -403,16 +403,17 @@ public class ApiResourceRestlet extends Restlet {
 
                         // Prepare parameters map for template resolution
                         Map<String, Object> parameters = new ConcurrentHashMap<>();
+
+                        // Resolve client input parameters first so authentication templates
+                        // (e.g. bearer token from environment) can be resolved correctly
+                        Resolver.resolveInputParametersToRequest(clientRequest,
+                            httpAdapter.getHttpClientSpec().getInputParameters(), parameters);
                         
                         // Set any authentication needed on the client request
                         Response clientResponse = new Response(clientRequest);
                         httpAdapter.setChallengeResponse(request, clientRequest,
                                 clientRequest.getResourceRef().toString(), parameters);
                         httpAdapter.setHeaders(clientRequest);
-                        
-                        // Apply HTTP client input parameters last to ensure they take precedence
-                        Resolver.resolveInputParametersToRequest(clientRequest,
-                                httpAdapter.getHttpClientSpec().getInputParameters(), parameters);
 
                         // Send the request to the target endpoint
                         httpAdapter.getHttpClient().handle(clientRequest, clientResponse);
