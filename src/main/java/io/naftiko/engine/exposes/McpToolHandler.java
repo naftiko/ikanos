@@ -34,7 +34,9 @@ import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.exposes.ApiServerCallSpec;
-import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.OperationStepSpec;
+import io.naftiko.spec.exposes.OperationStepCallSpec;
+import io.naftiko.spec.exposes.OperationStepLookupSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 
 /**
@@ -106,26 +108,34 @@ public class McpToolHandler {
             }
         } else if (toolSpec.getSteps() != null && !toolSpec.getSteps().isEmpty()) {
             // Step orchestration mode
-            for (ApiServerStepSpec step : toolSpec.getSteps()) {
-                Map<String, Object> stepParams = new ConcurrentHashMap<>(parameters);
+            for (OperationStepSpec step : toolSpec.getSteps()) {
+                if (step instanceof OperationStepCallSpec) {
+                    OperationStepCallSpec callStep = (OperationStepCallSpec) step;
+                    Map<String, Object> stepParams = new ConcurrentHashMap<>(parameters);
 
-                // Merge step-level 'with' parameters
-                if (step.getWith() != null) {
-                    stepParams.putAll(step.getWith());
-                }
+                    // Merge step-level 'with' parameters
+                    if (callStep.getWith() != null) {
+                        stepParams.putAll(callStep.getWith());
+                    }
 
-                // Merge call-level 'with' parameters (call level takes precedence)
-                if (step.getCall() != null && step.getCall().getWith() != null) {
-                    stepParams.putAll(step.getCall().getWith());
-                }
+                    if (callStep.getCall() != null) {
+                        String[] tokens = callStep.getCall().split("\\.");
+                        if (tokens.length == 2) {
+                            found = findClientRequestFor(tokens[0], tokens[1], stepParams);
+                        }
+                    }
 
-                found = findClientRequestFor(step.getCall(), stepParams);
-
-                if (found != null) {
-                    found.handle();
+                    if (found != null) {
+                        found.handle();
+                    } else {
+                        throw new IllegalArgumentException("Invalid call format in step: "
+                                + (callStep.getCall() != null ? callStep.getCall() : "null"));
+                    }
+                } else if (step instanceof OperationStepLookupSpec) {
+                    // Lookup steps will be handled in a future implementation
+                    throw new UnsupportedOperationException("Lookup steps are not yet supported in MCP tools");
                 } else {
-                    throw new IllegalArgumentException("Invalid call format in step: "
-                            + (step.getCall() != null ? step.getCall().getOperation() : "null"));
+                    throw new IllegalArgumentException("Unknown step type: " + step.getClass().getName());
                 }
             }
         } else {

@@ -29,7 +29,7 @@ public class ApiServerOperationSpec extends OperationSpec {
     private volatile ApiServerCallSpec call;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<ApiServerStepSpec> steps;
+    private final List<OperationStepSpec> steps;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile Map<String, Object> with;
@@ -57,7 +57,7 @@ public class ApiServerOperationSpec extends OperationSpec {
         this.steps = new CopyOnWriteArrayList<>();
     }
 
-    public List<ApiServerStepSpec> getSteps() {
+    public List<OperationStepSpec> getSteps() {
         return steps;
     }
 

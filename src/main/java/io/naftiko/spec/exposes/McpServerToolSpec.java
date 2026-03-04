@@ -43,7 +43,7 @@ public class McpServerToolSpec {
     private volatile Map<String, Object> with;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<ApiServerStepSpec> steps;
+    private final List<OperationStepSpec> steps;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
@@ -96,7 +96,7 @@ public class McpServerToolSpec {
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;
     }
 
-    public List<ApiServerStepSpec> getSteps() {
+    public List<OperationStepSpec> getSteps() {
         return steps;
     }
 

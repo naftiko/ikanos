@@ -22,18 +22,22 @@ import org.restlet.data.Reference;
 import org.restlet.data.Status;
 import io.naftiko.Capability;
 import io.naftiko.engine.Converter;
+import io.naftiko.engine.LookupExecutor;
 import io.naftiko.engine.Resolver;
+import io.naftiko.engine.StepExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.exposes.ApiServerCallSpec;
+import io.naftiko.spec.exposes.OperationStepCallSpec;
+import io.naftiko.spec.exposes.OperationStepLookupSpec;
 import io.naftiko.spec.exposes.ApiServerForwardSpec;
 import io.naftiko.spec.exposes.ApiServerOperationSpec;
 import io.naftiko.spec.exposes.ApiServerResourceSpec;
 import io.naftiko.spec.exposes.ApiServerSpec;
-import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.OperationStepSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -134,47 +138,93 @@ public class ApiResourceRestlet extends Restlet {
                         return true;
                     }
                 } else {
-                    for (ApiServerStepSpec step : serverOp.getSteps()) {
-                        // Merge step-level 'with' parameters if present
-                        Map<String, Object> stepParams = new ConcurrentHashMap<>(inputParameters);
-                        
-                        // First merge step-level 'with' parameters
-                        if (step.getWith() != null) {
-                            stepParams.putAll(step.getWith());
-                        }
-                        
-                        // Then merge call-level 'with' parameters (call level takes precedence)
-                        if (step.getCall() != null && step.getCall().getWith() != null) {
-                            stepParams.putAll(step.getCall().getWith());
-                        }
+                    // Orchestrated mode - execute steps in sequence
+                    StepExecutionContext stepContext = new StepExecutionContext();
+                    ObjectMapper mapper = new ObjectMapper();
+                    
+                    for (OperationStepSpec step : serverOp.getSteps()) {
+                        if (step instanceof OperationStepCallSpec) {
+                            OperationStepCallSpec callStep = (OperationStepCallSpec) step;
+                            // Merge step-level 'with' parameters if present
+                            Map<String, Object> stepParams = new ConcurrentHashMap<>(inputParameters);
+                            
+                            // First merge step-level 'with' parameters
+                            if (callStep.getWith() != null) {
+                                stepParams.putAll(callStep.getWith());
+                            }
 
-                        try {
-                            found = findClientRequestFor(step.getCall(), stepParams);
-                        } catch (IllegalArgumentException e) {
-                            response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-                            response.setEntity(
-                                    "Error resolving request parameters: " + e.getMessage(),
-                                    MediaType.TEXT_PLAIN);
-                            return true;
-                        }
-
-                        if (found != null) {
                             try {
-                                // Send the request to the target endpoint
-                                found.handle();
-                            } catch (Exception e) {
-                                response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                                response.setEntity("Error while handling an HTTP client call\n\n"
-                                        + e.toString(), MediaType.TEXT_PLAIN);
+                                if (callStep.getCall() != null) {
+                                    String[] tokens = callStep.getCall().split("\\.");
+                                    if (tokens.length == 2) {
+                                        found = findClientRequestFor(tokens[0], tokens[1], stepParams);
+                                    }
+                                }
+                            } catch (IllegalArgumentException e) {
+                                response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                                response.setEntity(
+                                        "Error resolving request parameters: " + e.getMessage(),
+                                        MediaType.TEXT_PLAIN);
                                 return true;
                             }
-                        } else {
-                            response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-                            response.setEntity("Invalid call format: "
-                                    + (step.getCall() != null ? step.getCall().getOperation()
-                                            : "null"),
-                                    MediaType.TEXT_PLAIN);
-                            return true;
+
+                            if (found != null) {
+                                try {
+                                    // Send the request to the target endpoint
+                                    found.handle();
+                                    
+                                    // Store the call step output for lookup references
+                                    if (found.clientResponse != null && found.clientResponse.getEntity() != null) {
+                                        try {
+                                            JsonNode stepOutput = mapper.readTree(found.clientResponse.getEntity().getText());
+                                            stepContext.storeStepOutput(callStep.getName(), stepOutput);
+                                        } catch (Exception ignoreJsonParseError) {
+                                            // If response is not JSON, store as null
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    response.setStatus(Status.SERVER_ERROR_INTERNAL);
+                                    response.setEntity("Error while handling an HTTP client call\n\n"
+                                            + e.toString(), MediaType.TEXT_PLAIN);
+                                    return true;
+                                }
+                            } else {
+                                response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                                response.setEntity("Invalid call format: "
+                                        + (callStep.getCall() != null ? callStep.getCall() : "null"),
+                                        MediaType.TEXT_PLAIN);
+                                return true;
+                            }
+                        } else if (step instanceof OperationStepLookupSpec) {
+                            OperationStepLookupSpec lookupStep = (OperationStepLookupSpec) step;
+                            
+                            // Get the output from the previous (index) step
+                            JsonNode indexData = stepContext.getStepOutput(lookupStep.getIndex());
+                            if (indexData == null) {
+                                response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                                response.setEntity("Lookup step references non-existent step: " + lookupStep.getIndex(),
+                                        MediaType.TEXT_PLAIN);
+                                return true;
+                            }
+                            
+                            // Resolve the lookup value (may contain template expressions)
+                            String resolvedLookupValue = Resolver.resolveMustacheTemplate(
+                                    lookupStep.getLookupValue(), inputParameters);
+                            
+                            // Execute lookup operation
+                            JsonNode lookupResult = LookupExecutor.executeLookup(
+                                    indexData,
+                                    lookupStep.getMatch(),
+                                    resolvedLookupValue,
+                                    lookupStep.getOutputParameters());
+                            
+                            if (lookupResult != null) {
+                                // Store lookup result for subsequent references
+                                stepContext.storeStepOutput(lookupStep.getName(), lookupResult);
+                            } else {
+                                // Lookup returned no match - store null
+                                stepContext.storeStepOutput(lookupStep.getName(), null);
+                            }
                         }
                     }
 
