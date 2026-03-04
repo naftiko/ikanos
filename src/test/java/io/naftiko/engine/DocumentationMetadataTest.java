@@ -27,6 +27,7 @@ import io.naftiko.spec.exposes.ApiServerOperationSpec;
 import io.naftiko.spec.exposes.ApiServerResourceSpec;
 import io.naftiko.spec.exposes.ApiServerStepSpec;
 import io.naftiko.spec.exposes.ApiServerCallSpec;
+import io.naftiko.spec.exposes.OperationStepCallSpec;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -135,8 +136,7 @@ public class DocumentationMetadataTest {
 
     @Test
     public void testFormatOperationDocumentation() {
-        ApiServerCallSpec call = new ApiServerCallSpec("db.fetchUser", null);
-        ApiServerStepSpec step = new ApiServerStepSpec(call, null, "Fetch user from database");
+        OperationStepCallSpec step = new OperationStepCallSpec("Fetch user from database", "db.fetchUser");
         operation.getSteps().add(step);
         
         String doc = DocumentationMetadata.formatOperationDocumentation(resource, operation);
@@ -156,6 +156,14 @@ public class DocumentationMetadataTest {
         ApiServerStepSpec step = new ApiServerStepSpec(call, null, "Fetch user by ID");
         
         assertEquals("Fetch user by ID", step.getDescription());
+    }
+
+    @Test
+    public void testOperationStepCallSpecWithName() {
+        OperationStepCallSpec step = new OperationStepCallSpec("Fetch user by ID", "getUser");
+        
+        assertEquals("Fetch user by ID", step.getName());
+        assertEquals("getUser", step.getCall());
     }
 
     @Test
