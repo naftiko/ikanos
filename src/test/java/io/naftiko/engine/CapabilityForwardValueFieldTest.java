@@ -40,6 +40,8 @@ public class CapabilityForwardValueFieldTest {
 
     private Capability capability;
     private ApiServerSpec serverSpec;
+    
+    @SuppressWarnings("unused")
     private ApiServerResourceSpec resourceSpec;
 
     @BeforeEach

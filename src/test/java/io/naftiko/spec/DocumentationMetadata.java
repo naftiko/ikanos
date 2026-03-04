@@ -16,11 +16,11 @@ package io.naftiko.spec;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import io.naftiko.spec.InputParameterSpec;
-import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.ApiServerOperationSpec;
 import io.naftiko.spec.exposes.ApiServerResourceSpec;
 import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.OperationStepSpec;
+import io.naftiko.spec.exposes.OperationStepCallSpec;
 
 /**
  * Manages documentation metadata for capability specifications.
@@ -131,6 +131,38 @@ public class DocumentationMetadata {
     }
 
     /**
+     * Extracts step documentation from new OperationStepSpec hierarchy.
+     * 
+     * @param steps List of operation steps
+     * @return List of step documentation with descriptions
+     */
+    public static List<Map<String, Object>> extractStepDocumentationFromOperationSteps(List<OperationStepSpec> steps) {
+        List<Map<String, Object>> stepDocs = new java.util.ArrayList<>();
+        
+        if (steps != null) {
+            for (int i = 0; i < steps.size(); i++) {
+                OperationStepSpec step = steps.get(i);
+                if (step != null) {
+                    Map<String, Object> stepDoc = new HashMap<>();
+                    stepDoc.put("index", i);
+                    stepDoc.put("name", step.getName() != null ? step.getName() : "");
+                    
+                    if (step instanceof OperationStepCallSpec) {
+                        OperationStepCallSpec callStep = (OperationStepCallSpec) step;
+                        if (callStep.getCall() != null) {
+                            stepDoc.put("operation", callStep.getCall());
+                        }
+                    }
+                    
+                    stepDocs.add(stepDoc);
+                }
+            }
+        }
+        
+        return stepDocs;
+    }
+
+    /**
      * Creates a human-readable summary of operation documentation.
      * 
      * @param resource The resource specification
@@ -155,12 +187,17 @@ public class DocumentationMetadata {
             if (operation.getSteps() != null && !operation.getSteps().isEmpty()) {
                 doc.append("\nSteps:\n");
                 for (int i = 0; i < operation.getSteps().size(); i++) {
-                    ApiServerStepSpec step = operation.getSteps().get(i);
+                    OperationStepSpec step = operation.getSteps().get(i);
                     doc.append("  ").append(i + 1).append(". ");
-                    if (step.getDescription() != null && !step.getDescription().isEmpty()) {
-                        doc.append(step.getDescription());
-                    } else if (step.getCall() != null) {
-                        doc.append("Call: ").append(step.getCall().getOperation());
+                    if (step.getName() != null && !step.getName().isEmpty()) {
+                        doc.append(step.getName());
+                    } else if (step instanceof OperationStepCallSpec) {
+                        OperationStepCallSpec callStep = (OperationStepCallSpec) step;
+                        if (callStep.getCall() != null) {
+                            doc.append("Call: ").append(callStep.getCall());
+                        } else {
+                            doc.append("(No description)");
+                        }
                     } else {
                         doc.append("(No description)");
                     }
