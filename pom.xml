@@ -62,6 +62,7 @@
             <artifactId>json-path</artifactId>
             <version>2.9.0</version>
         </dependency>
+        <!-- Jackson Core - explicitly set version for compatibility -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
@@ -128,11 +129,10 @@
             <version>0.5.5</version>
         </dependency>
 
-        <!-- JUnit 5 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.10.2</version>
+            <version>6.0.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -157,18 +157,15 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire : runs JUnit 5 unit tests -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <!-- Required for JUnit 5 -->
                     <useModulePath>false</useModulePath>
                 </configuration>
             </plugin>
 
-            <!-- JaCoCo : coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -176,20 +173,19 @@
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
-                        <goals><goal>prepare-agent</goal></goals>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
                     </execution>
                     <execution>
                         <id>report</id>
                         <phase>test</phase>
-                        <goals><goal>report</goal></goals>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
-<plugin>
-    <groupId>org.sonarsource.scanner.maven</groupId>
-    <artifactId>sonar-maven-plugin</artifactId>
-    <version>4.0.0.4121</version>
-</plugin>
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -199,14 +195,18 @@
                     <execution>
                         <id>capability</id>
                         <phase>package</phase>
-                        <goals><goal>shade</goal></goals>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
                         <configuration>
                             <outputFile>${project.build.directory}/capability.jar</outputFile>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>io.naftiko.Capability</mainClass>
                                 </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                             </transformers>
                             <filters>
                                 <filter>
@@ -223,14 +223,18 @@
                     <execution>
                         <id>cli</id>
                         <phase>package</phase>
-                        <goals><goal>shade</goal></goals>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
                         <configuration>
                             <outputFile>${project.build.directory}/cli.jar</outputFile>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>io.naftiko.Cli</mainClass>
                                 </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                             </transformers>
                             <filters>
                                 <filter>
@@ -248,8 +252,7 @@
             </plugin>
         </plugins>
     </build>
-
-    <!-- Single <profiles> block — GraalVM native build only -->
+    <!-- Profile for GraalVM native build -->
     <profiles>
         <profile>
             <id>native</id>
@@ -262,7 +265,9 @@
                         <executions>
                             <execution>
                                 <id>build-cli-native</id>
-                                <goals><goal>compile-no-fork</goal></goals>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
                                 <phase>package</phase>
                                 <configuration>
                                     <mainClass>io.naftiko.Cli</mainClass>
