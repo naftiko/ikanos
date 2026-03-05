@@ -81,6 +81,10 @@
               "$ref": "#/$defs/IdentifierKebab",
               "description": "A unique identifier for this external reference."
             },
+            "description": {
+              "type": "string",
+              "description": "Used to provide *meaningful* information about the external reference. Remember, in a world of agents, context is king."
+            },
             "type": {
               "type": "string",
               "enum": [

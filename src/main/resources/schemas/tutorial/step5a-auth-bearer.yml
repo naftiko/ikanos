@@ -15,6 +15,14 @@ info:
       fullName: "Navi"
       email: "navi@naftiko.io"
 
+externalRefs:
+  - name: "api-auth"
+    type: "variables"
+    description: "Runtime variables for API bearer token authentication. Set NAFTIKO_API_TOKEN environment variable before running this capability."
+    resolution: "runtime"
+    keys:
+      naftiko_api_token: "NAFTIKO_API_TOKEN"
+
 capability:
   exposes:
     - type: "api"

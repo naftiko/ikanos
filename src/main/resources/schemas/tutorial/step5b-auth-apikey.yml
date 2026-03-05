@@ -15,6 +15,14 @@ info:
       fullName: "Navi"
       email: "navi@naftiko.io"
 
+externalRefs:
+  - name: "api-auth"
+    type: "variables"
+    description: "Runtime variables for API key authentication. Set NAFTIKO_API_KEY environment variable before running this capability."
+    resolution: "runtime"
+    keys:
+      naftiko_api_key: "NAFTIKO_API_KEY"
+
 capability:
   exposes:
     - type: "api"

@@ -16,7 +16,9 @@ package io.naftiko.engine.exposes;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.restlet.Restlet;
 import org.restlet.Server;
 import org.restlet.data.Protocol;
@@ -32,6 +34,8 @@ import io.naftiko.engine.Resolver;
 import io.naftiko.spec.consumes.AuthenticationSpec;
 import io.naftiko.spec.consumes.BasicAuthenticationSpec;
 import io.naftiko.spec.consumes.DigestAuthenticationSpec;
+import io.naftiko.spec.ExternalRefSpec;
+import io.naftiko.spec.ExternalRefKeysSpec;
 import io.naftiko.spec.exposes.ApiServerResourceSpec;
 import io.naftiko.spec.exposes.ApiServerSpec;
 
@@ -71,7 +75,9 @@ public class ApiServerAdapter extends ServerAdapter {
             return buildChallengeAuthenticator(authentication, next);
         }
 
-        return new ApiServerAuthenticationRestlet(authentication, next);
+        // Extract allowed variable names from capability's external refs
+        Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
+        return new ApiServerAuthenticationRestlet(authentication, next, allowedVariables);
     }
 
     private Restlet buildChallengeAuthenticator(AuthenticationSpec authentication, Restlet next) {
@@ -165,6 +171,31 @@ public class ApiServerAdapter extends ServerAdapter {
 
     public Router getRouter() {
         return router;
+    }
+
+    /**
+     * Extracts all allowed variable names from the capability spec's external references.
+     * These are the variable names defined in the externalRefs keys mapping.
+     * 
+     * @param spec The Naftiko spec
+     * @return Set of allowed variable names from externalRefs declarations
+     */
+    private static Set<String> extractAllowedVariables(io.naftiko.spec.NaftikoSpec spec) {
+        Set<String> allowed = new HashSet<>();
+        
+        if (spec == null || spec.getExternalRefs() == null) {
+            return allowed;
+        }
+        
+        for (ExternalRefSpec ref : spec.getExternalRefs()) {
+            ExternalRefKeysSpec keysSpec = ref.getKeys();
+            if (keysSpec != null && keysSpec.getKeys() != null) {
+                // The keys are the variable names used for template injection
+                allowed.addAll(keysSpec.getKeys().keySet());
+            }
+        }
+        
+        return allowed;
     }
 
     @Override

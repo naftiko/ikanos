@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.restlet.Request;
@@ -39,10 +40,17 @@ public class ApiServerAuthenticationRestlet extends Restlet {
 
     private final AuthenticationSpec authentication;
     private final Restlet next;
+    private final Set<String> allowedVariables;
 
     public ApiServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next) {
+        this(authentication, next, null);
+    }
+
+    public ApiServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
+            Set<String> allowedVariables) {
         this.authentication = authentication;
         this.next = next;
+        this.allowedVariables = allowedVariables != null ? allowedVariables : Set.of();
     }
 
     @Override
@@ -145,6 +153,12 @@ public class ApiServerAuthenticationRestlet extends Restlet {
 
         while (matcher.find()) {
             String variableName = matcher.group(1);
+            
+            // Only resolve variables that are explicitly declared in externalRefs
+            if (!allowedVariables.isEmpty() && !allowedVariables.contains(variableName)) {
+                continue;
+            }
+            
             String envValue = System.getenv(variableName);
 
             if (envValue != null) {
