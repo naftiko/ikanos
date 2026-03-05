@@ -13,13 +13,25 @@
  */
 package io.naftiko.engine.exposes;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
 import org.restlet.Restlet;
 import org.restlet.Server;
 import org.restlet.data.Protocol;
+import org.restlet.data.ChallengeScheme;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
+import org.restlet.security.ChallengeAuthenticator;
+import org.restlet.security.SecretVerifier;
+import org.restlet.security.Verifier;
 import io.naftiko.Capability;
+import io.naftiko.engine.Resolver;
+import io.naftiko.spec.consumes.AuthenticationSpec;
+import io.naftiko.spec.consumes.BasicAuthenticationSpec;
+import io.naftiko.spec.consumes.DigestAuthenticationSpec;
 import io.naftiko.spec.exposes.ApiServerResourceSpec;
 import io.naftiko.spec.exposes.ApiServerSpec;
 
@@ -36,7 +48,6 @@ public class ApiServerAdapter extends ServerAdapter {
         super(capability, serverSpec);
         this.server = new Server(Protocol.HTTP, serverSpec.getAddress(), serverSpec.getPort());
         this.router = new Router();
-        this.server.setNext(this.router);
 
         for (ApiServerResourceSpec res : getApiServerSpec().getResources()) {
             String pathTemplate = toUriTemplate(res.getPath());
@@ -44,6 +55,104 @@ public class ApiServerAdapter extends ServerAdapter {
             TemplateRoute route = getRouter().attach(pathTemplate, resourceRestlet);
             route.getTemplate().getVariables().put("path", new Variable(Variable.TYPE_URI_PATH));
         }
+
+        this.server.setNext(buildServerChain(serverSpec));
+    }
+
+    private Restlet buildServerChain(ApiServerSpec serverSpec) {
+        Restlet next = this.router;
+        AuthenticationSpec authentication = serverSpec.getAuthentication();
+
+        if (authentication == null || authentication.getType() == null) {
+            return next;
+        }
+
+        if ("basic".equals(authentication.getType()) || "digest".equals(authentication.getType())) {
+            return buildChallengeAuthenticator(authentication, next);
+        }
+
+        return new ApiServerAuthenticationRestlet(authentication, next);
+    }
+
+    private Restlet buildChallengeAuthenticator(AuthenticationSpec authentication, Restlet next) {
+        ChallengeScheme scheme = "digest".equals(authentication.getType())
+                ? ChallengeScheme.HTTP_DIGEST
+                : ChallengeScheme.HTTP_BASIC;
+
+        ChallengeAuthenticator authenticator =
+                new ChallengeAuthenticator(this.router.getContext(), false, scheme, "naftiko");
+        authenticator.setVerifier(new SecretVerifier() {
+
+            @Override
+            public int verify(String identifier, char[] secret) {
+                String expectedUsername = null;
+                char[] expectedPassword = null;
+
+                if (authentication instanceof BasicAuthenticationSpec basic) {
+                    expectedUsername = resolveTemplate(basic.getUsername());
+                    expectedPassword = resolveTemplateChars(basic.getPassword());
+                } else if (authentication instanceof DigestAuthenticationSpec digest) {
+                    expectedUsername = resolveTemplate(digest.getUsername());
+                    expectedPassword = resolveTemplateChars(digest.getPassword());
+                }
+
+                if (expectedUsername == null || expectedPassword == null || identifier == null
+                        || secret == null) {
+                    return Verifier.RESULT_INVALID;
+                }
+
+                boolean usernameMatches = secureEquals(expectedUsername, identifier);
+                boolean passwordMatches = secureEquals(expectedPassword, secret);
+
+                return (usernameMatches && passwordMatches) ? Verifier.RESULT_VALID
+                        : Verifier.RESULT_INVALID;
+            }
+        });
+        authenticator.setNext(next);
+        return authenticator;
+    }
+
+    private static String resolveTemplate(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        Map<String, Object> env = new HashMap<>();
+
+        if (value.contains("{{") && value.contains("}}")) {
+            for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+                env.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return Resolver.resolveMustacheTemplate(value, env);
+    }
+
+    private static char[] resolveTemplateChars(char[] value) {
+        if (value == null) {
+            return null;
+        }
+
+        String resolved = resolveTemplate(new String(value));
+        return resolved == null ? null : resolved.toCharArray();
+    }
+
+    private static boolean secureEquals(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+
+        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
+                actual.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static boolean secureEquals(char[] expected, char[] actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+
+        return MessageDigest.isEqual(new String(expected).getBytes(StandardCharsets.UTF_8),
+                new String(actual).getBytes(StandardCharsets.UTF_8));
     }
 
     public ApiServerSpec getApiServerSpec() {

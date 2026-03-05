@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../capability-schema.json
+---
+naftiko: "0.4"
+info:
+  label: "Tutorial - Step 5b - API Server Authentication (API Key)"
+  description: "This sample demonstrates server-side API key authentication on an exposed API adapter."
+  tags:
+    - Naftiko
+    - Tutorial
+    - Authentication
+  created: "2026-03-04"
+  modified: "2026-03-04"
+  stakeholders:
+    - role: "editor"
+      fullName: "Navi"
+      email: "navi@naftiko.io"
+
+capability:
+  exposes:
+    - type: "api"
+      address: "localhost"
+      port: 9090
+      namespace: "tutorial"
+      authentication:
+        type: "apikey"
+        key: "X-API-Key"
+        value: "{{naftiko_api_key}}"
+        placement: "header"
+      resources:
+        - path: "/hello"
+          name: "hello"
+          label: "Protected hello"
+          description: "Simple protected endpoint requiring API key"
+          operations:
+            - method: "GET"
+              outputParameters:
+                - type: "string"
+                  const: "Hello, Authenticated World!"

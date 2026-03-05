@@ -21,11 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.engine.consumes.HttpClientAdapter;
-import io.naftiko.engine.exposes.ApiServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.InputParameterSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
 import org.restlet.Request;
 import org.restlet.data.Method;
 import java.io.File;
@@ -39,10 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CapabilityForwardValueFieldTest {
 
     private Capability capability;
-    private ApiServerSpec serverSpec;
-    
-    @SuppressWarnings("unused")
-    private ApiServerResourceSpec resourceSpec;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -55,11 +48,7 @@ public class CapabilityForwardValueFieldTest {
         NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
 
         capability = new Capability(spec);
-
-        ApiServerAdapter adapter = (ApiServerAdapter) capability.getServerAdapters().get(0);
-        serverSpec = (ApiServerSpec) adapter.getSpec();
-        resourceSpec = serverSpec.getResources().get(0);
-    }
+    }   
 
     @Test
     public void testValueFieldResolutionInForwardSpec() throws Exception {
