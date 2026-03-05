@@ -1,0 +1,149 @@
+name: Maven Tests + SonarQube
+
+on:
+  push:
+    branches:
+      - 'feat/variablize-and-add-test-yml-ressources'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-analyze:
+    name: Unit Tests + JaCoCo + SonarQube
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests + JaCoCo coverage
+        run: mvn test --no-transfer-progress
+
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 14
+
+      - name: Start SonarQube
+        run: |
+          docker run -d --name sonarqube \
+            -p 9000:9000 \
+            -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
+            sonarqube:community
+
+      - name: Wait for SonarQube
+        run: |
+          echo "Waiting for SonarQube..."
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s http://localhost:9000/api/system/status 2>/dev/null \
+              | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+            echo "Attempt $i — status: $STATUS"
+            [ "$STATUS" = "UP" ] && echo "SonarQube is UP!" && break
+            sleep 10
+          done
+
+      - name: Generate SonarQube token
+        run: |
+          # admin:admin est valide au premier démarrage — on en profite pour générer un token
+          TOKEN_RESP=$(curl -s -u admin:admin -X POST \
+            "http://localhost:9000/api/user_tokens/generate" \
+            -d "name=ci-token&type=GLOBAL_ANALYSIS_TOKEN")
+          echo "Response: $(echo $TOKEN_RESP | sed 's/"token":"[^"]*"/"token":"***"/')"
+
+          TOKEN=$(echo "$TOKEN_RESP" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+          echo "Token length: ${#TOKEN}"
+          echo "$TOKEN" > /tmp/sonar_token.txt
+
+      - name: SonarQube Scan
+        run: |
+          SONAR_TOKEN=$(cat /tmp/sonar_token.txt | tr -d '[:space:]')
+          echo "Token length: ${#SONAR_TOKEN}"
+
+          docker run --rm \
+            --network="host" \
+            -e SONAR_TOKEN="$SONAR_TOKEN" \
+            -v "${{ github.workspace }}:/usr/src" \
+            sonarsource/sonar-scanner-cli \
+            -Dsonar.projectKey=io.naftiko:framework \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.java.binaries=target/classes \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            -Dsonar.host.url=http://localhost:9000
+
+      - name: Wait for analysis to complete
+        run: sleep 15
+
+      - name: Export SonarQube report
+        run: |
+          mkdir -p sonar-report
+          AUTH="admin:admin"
+          PROJECT="io.naftiko:framework"
+          BASE="http://localhost:9000"
+
+          curl -s -u $AUTH "$BASE/api/issues/search?componentKeys=$PROJECT&ps=500" -o sonar-report/issues.json
+          curl -s -u $AUTH "$BASE/api/measures/component?component=$PROJECT&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc,sqale_rating,reliability_rating,security_rating" -o sonar-report/measures.json
+          curl -s -u $AUTH "$BASE/api/qualitygates/project_status?projectKey=$PROJECT" -o sonar-report/quality-gate.json
+
+          QG=$(cat sonar-report/quality-gate.json | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "# SonarQube Report — $(date '+%Y-%m-%d %H:%M')" > sonar-report/summary.md
+          echo "## Quality Gate: $QG" >> sonar-report/summary.md
+          echo "" >> sonar-report/summary.md
+          echo "## Measures" >> sonar-report/summary.md
+          echo '```json' >> sonar-report/summary.md
+          cat sonar-report/measures.json >> sonar-report/summary.md
+          echo '```' >> sonar-report/summary.md
+
+      - name: Upload SonarQube report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sonarqube-report
+          path: sonar-report/
+          retention-days: 14
+          
+      - name: Run Trivy scan
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/project" \
+            aquasec/trivy:latest fs /project \
+            --scanners vuln,secret,misconfig \
+            --format table \
+            --output /project/trivy-report.txt \
+            --exit-code 0
+          cat trivy-report.txt
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+          retention-days: 14
+
+      - name: Run Gitleaks scan
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/path" \
+            zricethezav/gitleaks:latest detect \
+            --source /path \
+            --report-format json \
+            --report-path /path/gitleaks-report.json \
+            --exit-code 0
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 14
