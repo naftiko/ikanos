@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - 'src/main/resources/schemas/**'
+      - 'src/test/resources'
   pull_request:
     paths:
       - 'src/main/resources/schemas/**'
+      - 'src/test/resources'
   workflow_dispatch:
 
 jobs:
@@ -33,9 +35,21 @@ jobs:
       - name: Validate YAML examples
         working-directory: ${{ github.workspace }}
         run: |
-          for file in src/main/resources/schemas/{tutorial,examples}/*.{yaml,yml}; do
-            [ -f "$file" ] || continue
-            echo "Validating $file..."
-            npx --prefix .github ajv validate -s src/main/resources/schemas/capability-schema.json -d "$file" --spec=draft2020  --strict-schema=false
+          PATHS=(
+            "src/main/resources/schemas/tutorial"
+            "src/main/resources/schemas/examples"
+            "src/test/resources"
+          )
+          
+          for dir in "${PATHS[@]}"; do
+            for file in "$dir"/*.{yaml,yml}; do
+              [ -f "$file" ] || continue
+              echo "Validating $file..."
+              npx --prefix .github ajv validate \
+                -s src/main/resources/schemas/capability-schema.json \
+                -d "$file" \
+                --spec=draft2020 \
+                --strict-schema=false
+            done
           done
           
