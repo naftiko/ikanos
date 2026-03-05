@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================
 # pr-check.sh — Run all checks before opening a PR
+# usage : from root run 'bash ./src/main/resources/scripts/pr-check-mac-linux.sh'
 # Compatible: Mac, Linux (apt/yum/dnf/brew)
 # ============================================================
 

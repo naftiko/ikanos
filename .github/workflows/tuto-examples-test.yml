@@ -15,18 +15,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Pull Naftiko Docker image
-        run: docker pull ghcr.io/naftiko/framework:latest
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build framework
+        run: mvn package -DskipTests -q
 
       - name: Run Naftiko with My First Capability
         run: |
-          docker run -d \
-            -p 8081:8081 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-1-my-first-capability.yml:/app/step-1-my-first-capability.yml \
-            --name my_first_capability \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-1-my-first-capability.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-1-my-first-capability.yml \
+            > /tmp/step1.log 2>&1 &
           sleep 2
 
       - name: Consume /hello endpoint - My First Capability
@@ -40,23 +42,17 @@ jobs:
 
       - name: Show logs - My First Capability
         if: always()
-        run: docker logs my_first_capability
+        run: cat /tmp/step1.log
 
-      - name: Stop My First Capability container
+      - name: Stop My First Capability
         if: always()
-        run: |
-          docker stop my_first_capability
-          docker rm my_first_capability
+        run: fuser -k 8081/tcp || true
 
       - name: Run Naftiko with Forwarding API Resource
         run: |
-          docker run -d \
-            -p 8081:8081 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-2-forwarding-api-resource.yml:/app/step-2-forwarding-api-resource.yml \
-            --name forwarding_api_resource \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-2-forwarding-api-resource.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-2-forwarding-api-resource.yml \
+            > /tmp/step2.log 2>&1 &
           sleep 2
 
       - name: Consume /notion/users/me endpoint - Forwarding API Resource
@@ -73,24 +69,17 @@ jobs:
 
       - name: Show logs - Forwarding API Resource
         if: always()
-        run: docker logs forwarding_api_resource
+        run: cat /tmp/step2.log
 
-      - name: Stop Forwarding API Resource container
+      - name: Stop Forwarding API Resource
         if: always()
-        run: |
-          docker stop forwarding_api_resource
-          docker rm forwarding_api_resource
+        run: fuser -k 8081/tcp || true
 
       - name: Run Naftiko with Encapsulating Headers
         run: |
-          docker run -d \
-            -p 8081:8081 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-3-encapsulating-headers.yml:/app/step-3-encapsulating-headers.yml \
-            --env notion_api_key=$NOTION_API_KEY \
-            --name encapsulating_headers \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-3-encapsulating-headers.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-3-encapsulating-headers.yml \
+            > /tmp/step3.log 2>&1 &
           sleep 2
 
       - name: Consume /notion/users/me endpoint - Encapsulating Headers
@@ -104,24 +93,17 @@ jobs:
 
       - name: Show logs - Encapsulating Headers
         if: always()
-        run: docker logs encapsulating_headers
+        run: cat /tmp/step3.log
 
-      - name: Stop Encapsulating Headers container
+      - name: Stop Encapsulating Headers
         if: always()
-        run: |
-          docker stop encapsulating_headers
-          docker rm encapsulating_headers
+        run: fuser -k 8081/tcp || true
 
       - name: Run Naftiko with Filter Response
         run: |
-          docker run -d \
-            -p 8081:8081 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-4-filter-reponse.yml:/app/step-4-filter-reponse.yml \
-            --env notion_api_key=$NOTION_API_KEY \
-            --name filter_response \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-4-filter-reponse.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-4-filter-reponse.yml \
+            > /tmp/step4.log 2>&1 &
           sleep 2
 
       - name: Consume /notion/users/me endpoint - Filter Response
@@ -135,24 +117,17 @@ jobs:
 
       - name: Show logs - Filter Response
         if: always()
-        run: docker logs filter_response
+        run: cat /tmp/step4.log
 
-      - name: Stop Step - Filter Response
+      - name: Stop Filter Response
         if: always()
-        run: |
-          docker stop filter_response
-          docker rm filter_response
+        run: fuser -k 8081/tcp || true
 
       - name: Run Naftiko with Multi Steps
         run: |
-          docker run -d \
-            -p 8081:8081 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-5-multi-steps.yml:/app/step-5-multi-steps.yml \
-            --env notion_api_key=$NOTION_API_KEY \
-            --name multi_steps \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-5-multi-steps.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-5-multi-steps.yml \
+            > /tmp/step5.log 2>&1 &
           sleep 2
 
       - name: Consume /notion/my-full-user endpoint - Multi Steps
@@ -166,24 +141,22 @@ jobs:
 
       - name: Show logs - Multi Steps
         if: always()
-        run: docker logs multi_steps
+        run: cat /tmp/step5.log
 
-      - name: Stop Multi Steps container
+      - name: Stop Multi Steps
         if: always()
+        run: fuser -k 8081/tcp || true
+
+      - name: Install yq
         run: |
-          docker stop multi_steps
-          docker rm multi_steps
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
 
       - name: Run Naftiko with MCP Server
         run: |
-          docker run -d \
-            -p 9091:9091 \
-            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-6-mcp.yml:/app/step-6-mcp.yml \
-            --env notion_api_key=$NOTION_API_KEY \
-            --name mcp_server \
-            ghcr.io/naftiko/framework:latest \
-            /app/step-6-mcp.yml
-          # Wait for the Naftiko framework to fully start before hitting the endpoint
+          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
+            src/main/resources/schemas/tutorial/step-6-mcp.yml \
+            > /tmp/step6.log 2>&1 &
           sleep 2
 
       - name: Calling MCP server
@@ -193,10 +166,7 @@ jobs:
             exit 1
           fi
           echo "MCP server ready"
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq          
+
       - name: Test MCP tools/list
         run: |
           RESPONSE=$(curl -s -f -X POST http://localhost:9091 \
@@ -224,12 +194,10 @@ jobs:
           done <<< "$EXPECTED_NAMES"
           echo "tools/list validation passed: $ACTUAL_COUNT tool(s) matched"
 
-      - name: Show logs MCP Server
+      - name: Show logs - MCP Server
         if: always()
-        run: docker logs mcp_server
+        run: cat /tmp/step6.log
 
-      - name: Stop MCP Server container
+      - name: Stop MCP Server
         if: always()
-        run: |
-          docker stop mcp_server
-          docker rm mcp_server
+        run: fuser -k 9091/tcp || true
