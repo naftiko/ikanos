@@ -247,7 +247,7 @@ public class ApiResourceRestlet extends Restlet {
                 response.setStatus(Status.SUCCESS_NO_CONTENT);
             }
         } catch (Exception e) {
-            getContext().getLogger().warning("Error building mock response: " + e);
+            Context.getCurrentLogger().warning("Error building mock response: " + e);
             response.setStatus(Status.SERVER_ERROR_INTERNAL);
             response.setEntity("Error building mock response: " + e.getMessage(),
                     MediaType.TEXT_PLAIN);
@@ -343,7 +343,7 @@ public class ApiResourceRestlet extends Restlet {
                     response.setEntity(found.clientResponse.getEntity());
                 }
             } catch (Exception e) {
-                getContext().getLogger().warning("Failed to map output parameters: " + e);
+                Context.getCurrentLogger().warning("Failed to map output parameters: " + e);
                 response.setStatus(Status.SERVER_ERROR_INTERNAL);
                 response.setEntity("Failed to map output parameters: " + e.getMessage(),
                         MediaType.TEXT_PLAIN);
@@ -400,7 +400,7 @@ public class ApiResourceRestlet extends Restlet {
                         response.commit();
                         return true;
                     } catch (Exception e) {
-                        getContext().getLogger().warning("Error while handling HTTP client call in forward mode: " + e);
+                        Context.getCurrentLogger().warning("Error while handling HTTP client call in forward mode: " + e);
                         response.setStatus(Status.SERVER_ERROR_INTERNAL);
                         response.setEntity(
                                 "Error while handling an HTTP client call\n\n" + e.toString(),
