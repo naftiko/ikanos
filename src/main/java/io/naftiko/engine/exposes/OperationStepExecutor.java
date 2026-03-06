@@ -24,6 +24,8 @@ import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.naftiko.Capability;
 import io.naftiko.engine.LookupExecutor;
 import io.naftiko.engine.Resolver;
@@ -31,6 +33,7 @@ import io.naftiko.engine.StepExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.spec.InputParameterSpec;
+import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
 import io.naftiko.spec.exposes.ApiServerOperationSpec;
@@ -157,8 +160,16 @@ public class OperationStepExecutor {
                     if (lastContext.clientResponse != null
                             && lastContext.clientResponse.getEntity() != null) {
                         try {
-                            JsonNode stepOutput = mapper
-                                    .readTree(lastContext.clientResponse.getEntity().getText());
+                            if (!(lastContext.clientResponse
+                                    .getEntity() instanceof StringRepresentation)) {
+                                lastContext.clientResponse.setEntity(new StringRepresentation(
+                                        lastContext.clientResponse.getEntity().getText(),
+                                        lastContext.clientResponse.getEntity().getMediaType()));
+                            }
+
+                            JsonNode rawOutput = mapper
+                                    .readTree(lastContext.clientResponse.getEntity().getReader());
+                            JsonNode stepOutput = resolveStepOutput(lastContext, rawOutput);
                             stepContext.storeStepOutput(callStep.getName(), stepOutput);
                             addStepOutputToParameters(runtimeParameters, callStep.getName(),
                                     stepOutput);
@@ -246,6 +257,47 @@ public class OperationStepExecutor {
     }
 
     /**
+     * Resolve the output visible to subsequent steps.
+     *
+     * When consumed operation output parameters are defined, expose the projected object so
+     * templates can reference declared names like {{step-name.userid}}.
+     */
+    private JsonNode resolveStepOutput(HandlingContext context, JsonNode rawOutput) {
+        if (rawOutput == null) {
+            return NullNode.instance;
+        }
+
+        if (context == null || context.clientOperation == null
+                || context.clientOperation.getOutputParameters() == null
+                || context.clientOperation.getOutputParameters().isEmpty()) {
+            return rawOutput;
+        }
+
+        ObjectNode projected = mapper.createObjectNode();
+        JsonNode unnamed = null;
+
+        for (OutputParameterSpec outputParameter : context.clientOperation.getOutputParameters()) {
+            JsonNode mapped = Resolver.resolveOutputMappings(outputParameter, rawOutput, mapper);
+
+            if (mapped == null) {
+                mapped = NullNode.instance;
+            }
+
+            if (outputParameter.getName() != null && !outputParameter.getName().isBlank()) {
+                projected.set(outputParameter.getName(), mapped);
+            } else if (unnamed == null) {
+                unnamed = mapped;
+            }
+        }
+
+        if (!projected.isEmpty()) {
+            return projected;
+        }
+
+        return unnamed != null ? unnamed : rawOutput;
+    }
+
+    /**
      * Find and construct a client request context for a call specification.
      */
     public HandlingContext findClientRequestFor(ServerCallSpec call,
@@ -308,6 +360,7 @@ public class OperationStepExecutor {
                         HandlingContext ctx = new HandlingContext();
                         ctx.clientRequest = new Request();
                         ctx.clientAdapter = clientAdapter;
+                        ctx.clientOperation = clientOp;
                         ctx.clientResponse = new Response(ctx.clientRequest);
 
                         // Apply client-level and operation-level input parameters
@@ -353,6 +406,7 @@ public class OperationStepExecutor {
      */
     public static class HandlingContext {
         public HttpClientAdapter clientAdapter;
+        public HttpClientOperationSpec clientOperation;
         public Request clientRequest;
         public Response clientResponse;
 

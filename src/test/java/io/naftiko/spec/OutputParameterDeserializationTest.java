@@ -85,4 +85,36 @@ public class OutputParameterDeserializationTest {
     assertEquals("string", companyProperty.getType(), "company type should be 'string'");
   }
 
+  @Test
+  public void testConsumedOutputParameterUsesValueField() throws Exception {
+    String yamlSnippet = """
+        name: userid
+        type: string
+        value: $.id
+        """;
+
+    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
+
+    assertEquals("userid", spec.getName(), "Name should be parsed");
+    assertEquals("string", spec.getType(), "Type should be parsed");
+    assertEquals("$.id", spec.getMapping(), "Value alias should populate mapping");
+  }
+
+  @Test
+  public void testNamedOutputSerializesAsValue() throws Exception {
+    OutputParameterSpec spec = new OutputParameterSpec();
+    spec.setName("userid");
+    spec.setType("string");
+    spec.setMapping("$.id");
+
+    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    String yaml = mapper.writeValueAsString(spec);
+
+    assertTrue(yaml.contains("value: \"$.id\"") || yaml.contains("value: $.id"),
+        "Named output should serialize using value field");
+    assertFalse(yaml.contains("mapping:"),
+        "Named output should not serialize using mapping field");
+  }
+
 }

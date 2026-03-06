@@ -54,7 +54,14 @@ public class OutputParameterSerializer extends JsonSerializer<OutputParameterSpe
         }
 
         if (spec.getMapping() != null) {
-            node.put("mapping", spec.getMapping());
+            // Spec alignment:
+            // - ConsumedOutputParameter (named) uses "value"
+            // - Mapped output parameters use "mapping"
+            if (spec.getName() != null && !spec.getName().isBlank()) {
+                node.put("value", spec.getMapping());
+            } else {
+                node.put("mapping", spec.getMapping());
+            }
         }
 
         if (spec.getConstant() != null) {
