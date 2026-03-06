@@ -98,7 +98,7 @@ ExposesMcp
 ├── namespace
 ├── description
 └── tools[]                          ← only primitive today
-    ├── name, description
+    ├── name, label, description
     ├── inputParameters[]
     ├── call / steps / with
     └── outputParameters[]
@@ -113,16 +113,16 @@ ExposesMcp
 ├── namespace
 ├── description
 ├── tools[]                          ← unchanged
-│   ├── name, description
+│   ├── name, label, description
 │   ├── inputParameters[]
 │   ├── call / steps / with
 │   └── outputParameters[]
 ├── resources[]                      ← NEW
-│   ├── name, uri, description, mimeType
+│   ├── name, label, uri, description, mimeType
 │   ├── Dynamic: call / steps / with
 │   └── Static:  location
 └── prompts[]                        ← NEW
-    ├── name, description
+    ├── name, label, description
     ├── arguments[]
     └── template / location
 ```
@@ -139,21 +139,22 @@ API Adapter                   MCP Adapter (current)          MCP Adapter (propos
 ExposesApi                    ExposesMcp                     ExposesMcp
 ├─ resources[]                ├─ tools[]                     ├─ tools[]
 │  ├─ path                    │  ├─ name                     │  ├─ name
-│  ├─ description             │  ├─ description              │  ├─ description
-│  ├─ operations[]            │  ├─ inputParameters[]        │  ├─ inputParameters[]
+│  ├─ description             │  ├─ label                    │  ├─ label
+│  ├─ operations[]            │  ├─ description              │  ├─ description
+│                             │  ├─ inputParameters[]        │  ├─ inputParameters[]
 │  │  ├─ method               │  ├─ call / steps             │  ├─ call / steps
 │  │  ├─ call / steps         │  ├─ with                     │  ├─ with
 │  │  └─ outputParameters[]   │  └─ outputParameters[]       │  └─ outputParameters[]
 │  └─ forward                 │                              │
 │                             │                              ├─ resources[]          ← NEW
-│                             │                              │  ├─ name, uri
+│                             │                              │  ├─ name, label, uri
 │                             │                              │  ├─ description
 │                             │                              │  ├─ mimeType
 │                             │                              │  ├─ call / steps      (dynamic)
 │                             │                              │  └─ location          (static)
 │                             │                              │
 │                             │                              └─ prompts[]            ← NEW
-│                             │                                 ├─ name, description
+│                             │                                 ├─ name, label, description
 │                             │                                 ├─ arguments[]
 │                             │                                 └─ template / location
 ```
@@ -183,6 +184,7 @@ Dynamic resources are backed by consumed HTTP operations. They use the same orch
 ```yaml
 resources:
   - name: "current-config"
+    label: "Current Configuration"
     uri: "config://app/current"
     description: "Current application configuration"
     mimeType: "application/json"
@@ -196,6 +198,7 @@ When an agent reads this resource, the MCP server executes the consumed operatio
 ```yaml
 resources:
   - name: "user-summary"
+    label: "User Summary"
     uri: "data://users/summary"
     description: "Aggregated user summary from multiple API calls"
     mimeType: "application/json"
@@ -225,6 +228,7 @@ Static resources are served from local files. The `location` property is a `file
 ```yaml
 resources:
   - name: "api-docs"
+    label: "API Documentation"
     uri: "docs://api/reference"
     description: "API reference documentation"
     mimeType: "text/markdown"
@@ -300,6 +304,7 @@ Prompt content declared directly in YAML. Arguments are injected via `{{arg}}` p
 ```yaml
 prompts:
   - name: "summarize-data"
+    label: "Summarize Data"
     description: "Summarize API response data for the user"
     arguments:
       - name: "data"
@@ -472,10 +477,38 @@ Add two optional arrays to the existing `ExposesMcp` definition:
 
 **Changes from current schema:**
 - Description updated to mention resources and prompts
+- `McpTool` should include a required `label` for human-readable display name
 - Added `resources` (optional array of `McpResource`)
 - Added `prompts` (optional array of `McpPrompt`)
 - `tools` remains required (future revision may relax this)
 - Transport rules unchanged
+
+### Amendment 1b: Update `McpTool` — Add `label`
+
+Extend `McpTool` with a display label that maps to MCP descriptor `title`:
+
+```json
+{
+  "McpTool": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "$ref": "#/$defs/IdentifierExtended",
+        "description": "Technical name for the tool. Used as identifier in MCP tool calls."
+      },
+      "label": {
+        "type": "string",
+        "description": "Human-readable display name of the tool. Mapped to MCP 'title' in tools/list responses."
+      },
+      "description": {
+        "type": "string",
+        "description": "A meaningful description of the tool and when to use it. Used for agent discovery."
+      }
+    },
+    "required": ["name", "label", "description"]
+  }
+}
+```
 
 ---
 
@@ -490,6 +523,10 @@ Add two optional arrays to the existing `ExposesMcp` definition:
       "name": {
         "$ref": "#/$defs/IdentifierExtended",
         "description": "Technical name for the resource. Used as identifier in MCP resource listings."
+      },
+      "label": {
+        "type": "string",
+        "description": "Human-readable display name of the resource. Mapped to MCP 'title' in protocol responses."
       },
       "uri": {
         "type": "string",
@@ -543,6 +580,7 @@ Add two optional arrays to the existing `ExposesMcp` definition:
     },
     "required": [
       "name",
+      "label",
       "uri",
       "description"
     ],
@@ -590,7 +628,8 @@ Add two optional arrays to the existing `ExposesMcp` definition:
 ```
 
 **Design notes:**
-- `name`, `uri`, `description` are always required
+- `name`, `label`, `uri`, `description` are always required
+- `label` is author-facing in Naftiko and maps to MCP descriptor `title`
 - Exactly one source: `call` (simple dynamic), `steps` (orchestrated dynamic), or `location` (static)
 - Dynamic resources reuse `WithInjector`, `OperationStep`, `StepOutputMapping`, `MappedOutputParameter`, and `OrchestratedOutputParameter` — no new execution types
 - `location` uses `file:///` URI with the same pattern as `ExposedSkill.location` in the Agent Skills proposal
@@ -610,6 +649,10 @@ Add two optional arrays to the existing `ExposesMcp` definition:
       "name": {
         "$ref": "#/$defs/IdentifierExtended",
         "description": "Technical name for the prompt. Used as identifier in MCP prompt listings."
+      },
+      "label": {
+        "type": "string",
+        "description": "Human-readable display name of the prompt. Mapped to MCP 'title' in protocol responses."
       },
       "description": {
         "type": "string",
@@ -640,6 +683,7 @@ Add two optional arrays to the existing `ExposesMcp` definition:
     },
     "required": [
       "name",
+      "label",
       "description"
     ],
     "oneOf": [
@@ -670,6 +714,10 @@ Add two optional arrays to the existing `ExposesMcp` definition:
       "name": {
         "$ref": "#/$defs/IdentifierExtended",
         "description": "Argument name. Becomes a {{name}} placeholder in the template."
+      },
+      "label": {
+        "type": "string",
+        "description": "The display name of the argument. Used for agent discovery."
       },
       "description": {
         "type": "string",
@@ -752,11 +800,29 @@ Only advertise capabilities that are configured:
 
 | Method | Purpose | Request Params | Response |
 |--------|---------|----------------|----------|
+| `tools/list` | List all tools | — | `{ tools: McpToolDescriptor[] }` |
 | `resources/list` | List all resources | — | `{ resources: McpResourceDescriptor[] }` |
 | `resources/read` | Read resource content | `{ uri: string }` | `{ contents: [{ uri, mimeType?, text? , blob? }] }` |
 | `resources/templates/list` | List resource templates | — | `{ resourceTemplates: McpResourceTemplateDescriptor[] }` |
 | `prompts/list` | List all prompts | — | `{ prompts: McpPromptDescriptor[] }` |
 | `prompts/get` | Render a prompt | `{ name: string, arguments?: object }` | `{ messages: [{ role, content: { type, text } }] }` |
+
+### `tools/list` Response
+
+```json
+{
+  "tools": [
+    {
+      "name": "get-weather",
+      "title": "Get Weather",
+      "description": "Get current weather for a city",
+      "inputSchema": {
+        "type": "object"
+      }
+    }
+  ]
+}
+```
 
 ### `resources/list` Response
 
@@ -766,12 +832,14 @@ Only advertise capabilities that are configured:
     {
       "uri": "config://app/current",
       "name": "current-config",
+      "title": "Current Configuration",
       "description": "Current application configuration",
       "mimeType": "application/json"
     },
     {
       "uri": "docs://api/reference/index.md",
       "name": "api-docs",
+      "title": "API Documentation",
       "description": "API reference documentation",
       "mimeType": "text/markdown"
     }
@@ -797,6 +865,8 @@ For static resources with `location`, each file in the directory is listed as a 
 
 For binary content, use `blob` (base64-encoded) instead of `text`.
 
+Note: Naftiko schema uses `label`; MCP protocol descriptors expose the same value as `title` (tools, resources, and prompts).
+
 ### `resources/templates/list` Response
 
 Resources whose `uri` contains `{param}` placeholders are advertised as templates:
@@ -807,6 +877,7 @@ Resources whose `uri` contains `{param}` placeholders are advertised as template
     {
       "uriTemplate": "data://users/{userId}/profile",
       "name": "user-profile",
+      "title": "User Profile",
       "description": "User profile by ID",
       "mimeType": "application/json"
     }
@@ -821,6 +892,7 @@ Resources whose `uri` contains `{param}` placeholders are advertised as template
   "prompts": [
     {
       "name": "summarize-data",
+      "title": "Summarize Data",
       "description": "Summarize API response data for the user",
       "arguments": [
         {
@@ -904,7 +976,7 @@ capability:
               outputParameters:
                 - name: "temp"
                   type: "number"
-                  value: "$.main.temp"
+                  value: "{{$.main.temp}}"
 
   exposes:
     - type: "mcp"
@@ -917,6 +989,7 @@ capability:
       # ── Tools (existing) ──
       tools:
         - name: "get-weather"
+          label: "Get Weather"
           description: "Get current weather for a city"
           inputParameters:
             - name: "city"
@@ -927,12 +1000,13 @@ capability:
             q: "{{city}}"
           outputParameters:
             - type: "number"
-              mapping: "$.main.temp"
+              mapping: "{{temp}}"
 
       # ── Resources (NEW) ──
       resources:
         # Dynamic: backed by consumed operation
         - name: "current-weather"
+          label: "Current Weather"
           uri: "weather://cities/{city}/current"
           description: "Current weather data for a city"
           mimeType: "application/json"
@@ -942,6 +1016,7 @@ capability:
 
         # Static: served from local files
         - name: "weather-guide"
+          label: "Weather Guide"
           uri: "docs://weather/guide"
           description: "Guide to interpreting weather data and units"
           mimeType: "text/markdown"
@@ -951,6 +1026,7 @@ capability:
       prompts:
         # Inline template
         - name: "forecast-summary"
+          label: "Forecast Summary"
           description: "Generate a natural-language weather summary"
           arguments:
             - name: "city"
@@ -965,6 +1041,7 @@ capability:
 
         # File-based template
         - name: "weather-report"
+          label: "Weather Report"
           description: "Detailed weather report prompt for multiple cities"
           arguments:
             - name: "cities"
@@ -1003,17 +1080,20 @@ capability:
 
       tools:
         - name: "ping"
+          label: "Ping"
           description: "Health check"
           call: "placeholder.ping"
 
       resources:
         - name: "api-reference"
+          label: "API Reference"
           uri: "docs://api/reference"
           description: "Complete API reference documentation"
           mimeType: "text/markdown"
           location: "file:///etc/naftiko/docs/api-reference"
 
         - name: "changelog"
+          label: "Changelog"
           uri: "docs://api/changelog"
           description: "API changelog and release notes"
           mimeType: "text/markdown"
@@ -1021,6 +1101,7 @@ capability:
 
       prompts:
         - name: "analyze-endpoint"
+          label: "Analyze Endpoint"
           description: "Analyze an API endpoint for best practices"
           arguments:
             - name: "endpoint"
@@ -1057,6 +1138,10 @@ capability:
       resources:
         - path: "databases/{{datasource_id}}/query"
           name: "query"
+          inputParameters:
+            - name: "datasource_id"
+              type: "string"
+              description: "Identifier"
           operations:
             - method: "POST"
               name: "query-db"
@@ -1075,9 +1160,10 @@ capability:
       namespace: "notion-mcp"
       description: "Notion MCP server"
 
-      # Existing tools — unchanged
+      # Existing tools — now include label metadata
       tools:
         - name: "query-database"
+          label: "Query Database"
           description: "Query Notion pre-release participants"
           call: "notion.query-db"
           with:
@@ -1095,6 +1181,7 @@ capability:
       # NEW: Resources
       resources:
         - name: "database-schema"
+          label: "Database Schema"
           uri: "notion://databases/pre-release/schema"
           description: "Schema of the pre-release participants database"
           mimeType: "application/json"
@@ -1105,6 +1192,7 @@ capability:
       # NEW: Prompts
       prompts:
         - name: "participant-outreach"
+          label: "Participant Outreach"
           description: "Draft outreach message to pre-release participants"
           arguments:
             - name: "participant_name"
@@ -1147,11 +1235,20 @@ Prompt argument values are substituted into templates literally. The MCP server 
 
 ## Validation Rules
 
+### Tool Validation
+
+| Rule | Scope | Description |
+|------|-------|-------------|
+| **Unique name** | tools[] | Each tool `name` MUST be unique within the MCP server |
+| **Unique label** | tools[] | Each tool `label` SHOULD be unique within the MCP server for clear UI display |
+| **Call or steps** | McpTool | At least one execution source (`call` or `steps`) MUST be present |
+
 ### Resource Validation
 
 | Rule | Scope | Description |
 |------|-------|-------------|
 | **Unique name** | resources[] | Each resource `name` MUST be unique within the MCP server |
+| **Unique label** | resources[] | Each resource `label` SHOULD be unique within the MCP server for clear UI display |
 | **Unique URI** | resources[] | Each resource `uri` MUST be unique within the MCP server |
 | **Single source** | McpResource | Exactly one of `call`, `steps`, or `location` MUST be present |
 | **Call reference** | McpResource.call | MUST reference a valid `{namespace}.{operationId}` in consumes |
@@ -1163,6 +1260,7 @@ Prompt argument values are substituted into templates literally. The MCP server 
 | Rule | Scope | Description |
 |------|-------|-------------|
 | **Unique name** | prompts[] | Each prompt `name` MUST be unique within the MCP server |
+| **Unique label** | prompts[] | Each prompt `label` SHOULD be unique within the MCP server for clear UI display |
 | **Single source** | McpPrompt | Exactly one of `template` or `location` MUST be present |
 | **Location scheme** | McpPrompt.location | MUST start with `file:///` |
 | **Location exists** | McpPrompt.location | The resolved file MUST exist at startup |
@@ -1177,11 +1275,13 @@ When a `skill` adapter derives a tool `from` an `mcp` adapter, only tools are de
 ## Implementation Roadmap
 
 ### Phase 1: Schema & Spec
+- Update `McpTool` definition to require `label`
 - Add `McpResource`, `McpPrompt`, `McpPromptArgument`, `McpPromptMessage` definitions to `capability-schema.json`
 - Update `ExposesMcp` with optional `resources` and `prompts` arrays
 - Update specification document (README.md) with new object sections
 
 ### Phase 2: Spec Classes
+- Update `McpServerToolSpec.java` with `label` and serialization/deserialization coverage
 - Create `McpServerResourceSpec.java` (parallel to `McpServerToolSpec`)
 - Create `McpServerPromptSpec.java`
 - Update `McpServerSpec.java` with `List<McpServerResourceSpec> resources` and `List<McpServerPromptSpec> prompts`
@@ -1215,7 +1315,7 @@ This proposal is **fully backward compatible**:
 
 1. **`resources` is optional** — existing MCP adapters without resources continue to work unchanged
 2. **`prompts` is optional** — existing MCP adapters without prompts continue to work unchanged
-3. **`tools` unchanged** — no modifications to `McpTool`, `McpToolInputParameter`, or tool execution
+3. **Tool execution unchanged** — `McpTool` adds metadata (`label`) only; no changes to execution semantics
 4. **Protocol backward compatible** — existing `tools/list` and `tools/call` methods unchanged; new methods return `-32601` (method not found) only if the client calls them on a server that doesn't support them
 5. **`initialize` additive** — capabilities object adds `resources`/`prompts` alongside existing `tools`; clients that don't understand them ignore them
 
