@@ -1,0 +1,653 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Skills Specification - Schema Amendments",
+  "description": "Schema amendments to capability-schema.json for skill adapter support. The skill adapter is a metadata and catalog layer — skills declare tools derived from sibling api and mcp adapters or defined as local file instructions. Derived tools are not executed by the skill adapter; AI clients invoke the source adapters directly.",
+  "version": "4.0.0",
+  "metadata": {
+    "created": "2026-03-05",
+    "framework": "Naftiko",
+    "adapter_type": "skill",
+    "pattern": "Skill metadata & catalog adapter (peer to api, mcp). Skills declare tools (derived or instruction-based) — does not execute derived tools."
+  },
+  "amendments": {
+    "description": "Apply these type definitions to capability-schema.json. Skills declare tools derived from sibling api and mcp adapters or defined as local file instructions. Skills can also stand alone as purely descriptive (no tools). Full Agent Skills Spec frontmatter metadata on ExposedSkill. Location property for supporting files."
+  },
+  "types": {
+    "ExposesSkills": {
+      "$id": "#/definitions/ExposesSkills",
+      "type": "object",
+      "title": "ExposesSkills",
+      "description": "Skill server adapter — skills declare tools derived from sibling adapters or as local file instructions. Metadata and catalog layer peer to api and mcp. Predefined GET-only REST endpoints for discovery and distribution.",
+      "additionalProperties": false,
+      "required": ["type", "port", "namespace", "skills"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "skill",
+          "description": "Must be 'skill' to create a skill catalog server"
+        },
+        "address": {
+          "type": "string",
+          "description": "Server bind address (e.g., '0.0.0.0', '127.0.0.1')",
+          "examples": ["0.0.0.0", "127.0.0.1"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Server port"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Unique identifier for this skill server"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this skill server"
+        },
+        "authentication": {
+          "$ref": "#/definitions/Authentication",
+          "description": "Optional: Require authentication for all endpoints"
+        },
+        "skills": {
+          "type": "array",
+          "description": "Array of skill definitions. Each skill declares tools (derived from sibling adapters or local file instructions), or stands alone as purely descriptive.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/ExposedSkill"
+          }
+        },
+        "cors": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional: CORS settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable CORS. Default: true"
+            },
+            "allowedOrigins": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Allowed origins. Default: ['*']"
+            },
+            "allowedMethods": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Allowed methods. Default: ['GET', 'HEAD', 'OPTIONS']"
+            }
+          }
+        }
+      }
+    },
+    "ExposedSkill": {
+      "$id": "#/definitions/ExposedSkill",
+      "type": "object",
+      "title": "ExposedSkill",
+      "description": "A skill definition. Declares tools derived from sibling api or mcp adapters or defined as local file instructions. Can also stand alone as purely descriptive (no tools). Supports full Agent Skills Spec frontmatter metadata.",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Skill identifier (kebab-case)"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "What the skill does and when to use it. Used for agent discovery."
+        },
+        "license": {
+          "type": "string",
+          "description": "License identifier (e.g., MIT, Apache-2.0) — Agent Skills Spec metadata"
+        },
+        "compatibility": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Compatibility notes and requirements — Agent Skills Spec metadata"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Arbitrary key-value metadata (author, category, tags, ecosystem, etc.)"
+        },
+        "allowed-tools": {
+          "type": "string",
+          "description": "Space-delimited list of pre-approved tool names — Agent Skills Spec metadata"
+        },
+        "argument-hint": {
+          "type": "string",
+          "description": "Hint text shown when agents invoke this skill via slash command — Agent Skills Spec metadata"
+        },
+        "user-invocable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether agents can invoke this skill as a slash command — Agent Skills Spec metadata"
+        },
+        "disable-model-invocation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to prevent auto-loading this skill based on context — Agent Skills Spec metadata"
+        },
+        "location": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^file:///",
+          "description": "file:/// URI to a directory containing SKILL.md and supporting files/folders. Served through the /contents and /download endpoints."
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tools provided by this skill. Each tool is derived from a sibling api or mcp adapter via 'from', or defined as a local file instruction relative to the skill's location directory.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/SkillTool"
+          }
+        }
+      }
+    },
+    "SkillTool": {
+      "$id": "#/definitions/SkillTool",
+      "type": "object",
+      "title": "SkillTool",
+      "description": "A tool declared within a skill. Derived from a sibling api or mcp adapter via 'from', or defined as a local file instruction relative to the skill's location directory.",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "oneOf": [
+        { "required": ["from"] },
+        { "required": ["instruction"] }
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Tool identifier (kebab-case)"
+        },
+        "description": {
+          "type": "string",
+          "description": "What the tool does. Used for agent discovery."
+        },
+        "from": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Derive this tool from a sibling api or mcp adapter. The adapter type (api/mcp) is inferred from the resolved target.",
+          "required": ["namespace", "action"],
+          "properties": {
+            "namespace": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+              "description": "Sibling exposes[].namespace of type 'api' or 'mcp'. No derivation from other skill adapters."
+            },
+            "action": {
+              "type": "string",
+              "description": "Operation name (api) or tool name (mcp) in the source adapter"
+            }
+          }
+        },
+        "instruction": {
+          "type": "string",
+          "description": "File path relative to the skill's location directory containing the tool instruction. The skill must have a location configured."
+        }
+      }
+    }
+  },
+  "predefined_endpoints": {
+    "description": "Auto-generated GET-only endpoints created by ExposesSkills adapter. The skill server provides discovery and distribution — no tool execution.",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/skills",
+        "description": "List all skills with tool summaries",
+        "response": {
+          "type": "object",
+          "properties": {
+            "count": { "type": "integer" },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "license": { "type": "string" },
+                  "tools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of tool names declared by this skill"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/skills/{name}",
+        "description": "Get skill metadata including tool catalog. Tools are either derived (with invocationRef for direct invocation) or instruction-based (with file path to instruction).",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "description": "Skill name"
+          }
+        ],
+        "response": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "license": { "type": "string" },
+            "compatibility": { "type": "string" },
+            "argument-hint": { "type": "string" },
+            "metadata": { "type": "object" },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "type": { "type": "string", "enum": ["derived", "instruction"], "description": "Tool source type" },
+                  "invocationRef": {
+                    "type": "object",
+                    "description": "Present on derived tools. Reference to the source adapter and action for direct invocation.",
+                    "properties": {
+                      "targetNamespace": { "type": "string", "description": "Source adapter namespace" },
+                      "action": { "type": "string", "description": "Operation or tool name in the source adapter" },
+                      "mode": { "type": "string", "enum": ["api", "mcp"], "description": "Source adapter type" }
+                    }
+                  },
+                  "inputSchema": {
+                    "type": "object",
+                    "description": "Present on derived tools. JSON Schema from source operation/tool input parameters."
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "description": "Present on instruction tools. File path relative to the skill's location directory."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/skills/{name}/download",
+        "description": "Download skill package as ZIP from the skill's location directory (SKILL.md + supporting files). Returns 404 if no location is configured.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "response": {
+          "type": "binary",
+          "mimeType": "application/zip"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/skills/{name}/contents",
+        "description": "List files in skill's location directory. Returns 404 if no location is configured.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "response": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "size": { "type": "integer" },
+                  "type": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/skills/{name}/contents/{file}",
+        "description": "Get individual skill file content from the skill's location directory. Returns 404 if no location is configured.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "description": "File path (URL encoded)"
+          }
+        ],
+        "response": {
+          "type": "string",
+          "description": "File content (MIME type based on file extension)"
+        }
+      }
+    ]
+  },
+  "path_validation": {
+    "description": "Security constraints for path parameters",
+    "rules": [
+      {
+        "parameter": "name",
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "description": "Alphanumeric with underscores and hyphens only"
+      },
+      {
+        "parameter": "file",
+        "pattern": "^(?!\\.\\./)(.+)$",
+        "description": "No path traversal (../ not allowed). URL encoded."
+      }
+    ],
+    "security": [
+      {
+        "rule": "Validate all path segments",
+        "description": "Reject any path containing ../, ..\\, or null bytes"
+      },
+      {
+        "rule": "Character whitelist only",
+        "description": "Only allow [a-zA-Z0-9._/-] in file paths"
+      },
+      {
+        "rule": "Size limits",
+        "description": "ZIP download limit: 500MB. File content limit: 10MB."
+      },
+      {
+        "rule": "Location URI validation",
+        "description": "Only file:/// scheme permitted. Resolved path must stay within allowed base directories. No relative path components (..) allowed."
+      }
+    ]
+  },
+  "tool_validation_rules": {
+    "description": "Validation and behavior rules for ExposedSkill.tools",
+    "validation": [
+      {
+        "rule": "Tools are optional",
+        "constraint": "tools is optional — a skill can be purely descriptive (metadata + location only). When tools is present, it must contain at least one entry."
+      },
+      {
+        "rule": "Tool source required",
+        "constraint": "Each tool must have exactly one of 'from' (derived) or 'instruction' (local file)."
+      },
+      {
+        "rule": "From namespace resolution",
+        "constraint": "Every from.namespace must resolve to exactly one sibling exposes[].namespace of type api or mcp."
+      },
+      {
+        "rule": "No recursive derivation",
+        "constraint": "from.namespace must not reference a skill-type expose. Only api and mcp adapters can be sources."
+      },
+      {
+        "rule": "From action validation",
+        "constraint": "from.action must exist as an operation (api) or tool (mcp) in the resolved source adapter."
+      },
+      {
+        "rule": "Instruction requires location",
+        "constraint": "If a tool uses 'instruction', the skill must have a location configured. The instruction path is relative to the location directory."
+      },
+      {
+        "rule": "Unique tool names",
+        "constraint": "Tool names must be unique within a skill."
+      }
+    ],
+    "derived_tool_response_shape": {
+      "description": "Derived tools include an invocationRef so agents can invoke the source adapter directly. No tool execution happens through the skill server.",
+      "example": {
+        "name": "get-orders",
+        "description": "Retrieve orders",
+        "type": "derived",
+        "invocationRef": {
+          "targetNamespace": "public-api",
+          "action": "get-orders",
+          "mode": "api"
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "description": "Copied from source operation/tool input parameters"
+        }
+      }
+    },
+    "instruction_tool_response_shape": {
+      "description": "Instruction tools reference a local file in the skill's location directory. Agents read the instruction content via the /contents endpoint.",
+      "example": {
+        "name": "interpret-data",
+        "description": "Guide for interpreting analysis results",
+        "type": "instruction",
+        "instruction": "instructions/interpret-data.md"
+      }
+    }
+  },
+  "capability_schema_updates": {
+    "description": "Apply the following changes to capability-schema.json",
+    "changes": [
+      {
+        "location": "definitions.Capability.properties.exposes.items.oneOf",
+        "action": "add",
+        "value": { "$ref": "#/definitions/ExposesSkills" },
+        "description": "Add ExposesSkills to exposed server types union"
+      },
+      {
+        "location": "definitions",
+        "action": "add_definitions",
+        "values": [
+          "ExposesSkills",
+          "ExposedSkill",
+          "SkillTool"
+        ],
+        "description": "Add new type definitions to schema"
+      }
+    ]
+  },
+  "validation_examples": {
+    "valid_tools_from_api": {
+      "_comment": "Tools derived from a sibling API adapter",
+      "type": "skill",
+      "address": "0.0.0.0",
+      "port": 8080,
+      "namespace": "my-skills",
+      "skills": [
+        {
+          "name": "order-management",
+          "description": "Manage customer orders through the API",
+          "license": "Apache-2.0",
+          "location": "file:///etc/naftiko/skills/order-management",
+          "tools": [
+            {
+              "name": "list-orders",
+              "description": "List all customer orders",
+              "from": { "namespace": "public-api", "action": "list-orders" }
+            },
+            {
+              "name": "create-order",
+              "description": "Create a new customer order",
+              "from": { "namespace": "public-api", "action": "create-order" }
+            }
+          ]
+        }
+      ]
+    },
+    "valid_tools_mixed": {
+      "_comment": "Mix of derived tools (API + MCP) and instruction tools",
+      "type": "skill",
+      "address": "0.0.0.0",
+      "port": 8080,
+      "namespace": "unified-skills",
+      "skills": [
+        {
+          "name": "data-intelligence",
+          "description": "Unified data tools from REST and MCP adapters plus local instructions",
+          "allowed-tools": "run-analysis quick-stats interpret-data",
+          "argument-hint": "Describe the analysis you need",
+          "location": "file:///etc/naftiko/skills/data-intelligence",
+          "tools": [
+            {
+              "name": "run-analysis",
+              "description": "Run a full data analysis",
+              "from": { "namespace": "analytics-rest", "action": "run-analysis" }
+            },
+            {
+              "name": "quick-stats",
+              "description": "Run quick statistical analysis",
+              "from": { "namespace": "analytics-mcp", "action": "quick-stats" }
+            },
+            {
+              "name": "interpret-data",
+              "description": "Guide for interpreting analysis results",
+              "instruction": "instructions/interpret-data.md"
+            }
+          ]
+        }
+      ]
+    },
+    "valid_full_frontmatter": {
+      "_comment": "Full Agent Skills Spec frontmatter with all metadata properties",
+      "type": "skill",
+      "address": "0.0.0.0",
+      "port": 8080,
+      "namespace": "weather-skills",
+      "skills": [
+        {
+          "name": "weather-forecast",
+          "description": "Look up weather forecasts by location name or coordinates",
+          "license": "MIT",
+          "compatibility": "Requires network access to weather and geocoding APIs",
+          "argument-hint": "Describe the location you want a forecast for",
+          "user-invocable": true,
+          "disable-model-invocation": false,
+          "allowed-tools": "get-forecast resolve-and-forecast interpret-weather",
+          "metadata": {
+            "author": "weather-team",
+            "category": "weather",
+            "version": "1.0.0"
+          },
+          "location": "file:///etc/naftiko/skills/weather-forecast",
+          "tools": [
+            {
+              "name": "get-forecast",
+              "description": "Get weather forecast for a city",
+              "from": { "namespace": "weather-rest", "action": "get-forecast" }
+            },
+            {
+              "name": "resolve-and-forecast",
+              "description": "Resolve a place name to coordinates then fetch forecast",
+              "from": { "namespace": "weather-mcp", "action": "resolve-and-forecast" }
+            },
+            {
+              "name": "interpret-weather",
+              "description": "Guide for reading and interpreting weather data",
+              "instruction": "interpret-weather.md"
+            }
+          ]
+        }
+      ]
+    },
+    "valid_instruction_only": {
+      "_comment": "Skill with only instruction-based tools",
+      "type": "skill",
+      "address": "0.0.0.0",
+      "port": 8080,
+      "namespace": "docs-skills",
+      "skills": [
+        {
+          "name": "coding-guidelines",
+          "description": "Company coding guidelines and best practices for AI agents",
+          "license": "proprietary",
+          "compatibility": "All projects",
+          "argument-hint": "Ask about coding standards",
+          "location": "file:///etc/naftiko/skills/coding-guidelines",
+          "metadata": {
+            "author": "platform-team",
+            "category": "documentation"
+          },
+          "tools": [
+            {
+              "name": "naming-conventions",
+              "description": "Naming conventions for variables, functions, and classes",
+              "instruction": "naming-conventions.md"
+            },
+            {
+              "name": "error-handling",
+              "description": "Error handling patterns and best practices",
+              "instruction": "error-handling.md"
+            }
+          ]
+        }
+      ]
+    },
+    "valid_descriptive_only": {
+      "_comment": "Purely descriptive skill — metadata + supporting files, no tools",
+      "type": "skill",
+      "address": "0.0.0.0",
+      "port": 8080,
+      "namespace": "docs-skills",
+      "skills": [
+        {
+          "name": "onboarding-guide",
+          "description": "New developer onboarding guide",
+          "license": "proprietary",
+          "location": "file:///etc/naftiko/skills/onboarding",
+          "metadata": {
+            "author": "platform-team",
+            "category": "onboarding"
+          }
+        }
+      ]
+    },
+    "invalid_from_recursive": {
+      "_comment": "Invalid: from references another skill adapter",
+      "error": "Cannot derive from skill-type adapters (no recursive derivation)",
+      "example": {
+        "name": "recursive-tool",
+        "description": "Attempting recursive derivation",
+        "tools": [
+          {
+            "name": "bad-tool",
+            "description": "Tool from another skill",
+            "from": { "namespace": "other-skill-server", "action": "some-tool" }
+          }
+        ]
+      }
+    },
+    "invalid_instruction_no_location": {
+      "_comment": "Invalid: instruction tool without skill location",
+      "error": "Instruction tools require the skill to have a location configured",
+      "example": {
+        "name": "no-location",
+        "description": "Skill with instruction tool but no location",
+        "tools": [
+          {
+            "name": "guide",
+            "description": "A guide",
+            "instruction": "guide.md"
+          }
+        ]
+      }
+    }
+  }
+}
