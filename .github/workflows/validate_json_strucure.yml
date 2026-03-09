@@ -5,7 +5,7 @@ on:
     paths:
       - 'src/main/resources/schemas/**'
       - '!src/main/resources/schemas/examples/**'
-
+  workflow_dispatch:
 jobs:
   validate-schema:
     runs-on: ubuntu-latest
