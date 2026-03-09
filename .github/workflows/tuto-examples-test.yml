@@ -1,0 +1,220 @@
+name: Test tutorial steps
+
+on:
+  push:
+    branches:
+      - 'feat/automating-tuto-examples-testing'
+    paths:
+      - 'src/main/**'
+      - 'pom.xml'
+  workflow_dispatch:
+
+jobs:
+  test-tutorial:
+    runs-on: ubuntu-latest
+    env:
+      NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull Naftiko Docker image
+        run: docker pull ghcr.io/naftiko/framework:latest
+
+      - name: Run Naftiko - My First Capability
+        run: |
+          docker run -d \
+            -p 8081:8081 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-1-my-first-capability.yml:/app/step-1-my-first-capability.yml \
+            --name naftiko_my_first_capability \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-1-my-first-capability.yml
+
+      - name: Wait for /hello endpoint - My First Capability
+        run: |
+          echo "Waiting for /hello endpoint..."
+          RESPONSE=$(curl -s -f --connect-timeout 5 --max-time 30 http://localhost:8081/hello || true)
+          if [[ -n "$RESPONSE" ]]; then
+            echo "My First Capability endpoint responded:"
+            echo "$RESPONSE"
+          else
+            echo "My First Capability endpoint did not respond in time"
+            docker logs naftiko_my_first_capability
+            exit 1
+          fi
+
+      - name: Show logs - My First Capability
+        if: always()
+        run: docker logs naftiko_my_first_capability
+
+      - name: Stop container - My First Capability
+        if: always()
+        run: |
+          docker stop naftiko_my_first_capability
+          docker rm naftiko_my_first_capability
+
+      - name: Run Naftiko - Forwarding API Resource
+        run: |
+          docker run -d \
+            -p 8081:8081 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-2-forwarding-api-resource.yml:/app/step-2-forwarding-api-resource.yml \
+            --name naftiko_forwarding_api_resource \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-2-forwarding-api-resource.yml
+
+      - name: Wait for /notion/users/me endpoint - Forwarding API Resource
+        run: |
+          echo "Waiting for /notion/users/me endpoint..."
+          RESPONSE=$(curl -s -f --connect-timeout 5 --max-time 30 \
+            -H "Authorization: Bearer $NOTION_API_KEY" \
+            -H "Notion-Version: 2025-09-03" \
+            http://localhost:8081/notion/users/me || true)
+          if [[ -n "$RESPONSE" ]]; then
+            echo "Forwarding API Resource endpoint responded:"
+            echo "$RESPONSE"
+          else
+            echo "Forwarding API Resource endpoint did not respond in time"
+            docker logs naftiko_forwarding_api_resource
+            exit 1
+          fi
+
+      - name: Show logs - Forwarding API Resource
+        if: always()
+        run: docker logs naftiko_forwarding_api_resource
+
+      - name: Stop container - Forwarding API Resource
+        if: always()
+        run: |
+          docker stop naftiko_forwarding_api_resource
+          docker rm naftiko_forwarding_api_resource
+
+      - name: Run Naftiko - Encapsulating Headers
+        run: |
+          docker run -d \
+            -p 8081:8081 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-3-encapsulating-headers.yml:/app/step-3-encapsulating-headers.yml \
+            --env notion_api_key=$NOTION_API_KEY \
+            --name naftiko_encapsulating_headers \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-3-encapsulating-headers.yml
+
+      - name: Wait for /notion/users/me endpoint - Encapsulating Headers
+        run: |
+          echo "Waiting for /notion/users/me endpoint..."
+          RESPONSE=$(curl -s -f --connect-timeout 5 --max-time 30 http://localhost:8081/notion/users/me || true)
+          if [[ -n "$RESPONSE" ]]; then
+            echo "Encapsulating Headers endpoint responded:"
+            echo "$RESPONSE"
+          else
+            echo "Encapsulating Headers endpoint did not respond in time"
+            docker logs naftiko_encapsulating_headers
+            exit 1
+          fi
+
+      - name: Show logs - Encapsulating Headers
+        if: always()
+        run: docker logs naftiko_encapsulating_headers
+
+      - name: Stop container - Encapsulating Headers
+        if: always()
+        run: |
+          docker stop naftiko_encapsulating_headers
+          docker rm naftiko_encapsulating_headers
+
+      - name: Run Naftiko - Filter Response
+        run: |
+          docker run -d \
+            -p 8081:8081 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-4-filter-reponse.yml:/app/step-4-filter-reponse.yml \
+            --env notion_api_key=$NOTION_API_KEY \
+            --name naftiko_filter_response \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-4-filter-reponse.yml
+
+      - name: Wait for /notion/users/me endpoint - Filter Response
+        run: |
+          echo "Waiting for /notion/users/me endpoint..."
+          RESPONSE=$(curl -s -f --connect-timeout 5 --max-time 30 http://localhost:8081/notion/users/me || true)
+          if [[ -n "$RESPONSE" ]]; then
+            echo "Filter Response endpoint responded:"
+            echo "$RESPONSE"
+          else
+            echo "Filter Response endpoint did not respond in time"
+            docker logs naftiko_filter_response
+            exit 1
+          fi
+
+      - name: Show logs - Filter Response
+        if: always()
+        run: docker logs naftiko_filter_response
+
+      - name: Stop container - Filter Response
+        if: always()
+        run: |
+          docker stop naftiko_filter_response
+          docker rm naftiko_filter_response
+
+      - name: Run Naftiko - Multi Steps
+        run: |
+          docker run -d \
+            -p 8081:8081 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-5-multi-steps.yml:/app/step-5-multi-steps.yml \
+            --env notion_api_key=$NOTION_API_KEY \
+            --name naftiko_multi_steps \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-5-multi-steps.yml
+
+      - name: Wait for /notion/my-full-user endpoint - Multi Steps
+        run: |
+          echo "Waiting for /notion/my-full-user endpoint..."
+          RESPONSE=$(curl -s -f --connect-timeout 5 --max-time 30 http://localhost:8081/notion/my-full-user || true)
+          if [[ -n "$RESPONSE" ]]; then
+            echo "Multi Steps endpoint responded:"
+            echo "$RESPONSE"
+          else
+            echo "Multi Steps endpoint did not respond in time"
+            docker logs naftiko_multi_steps
+            exit 1
+          fi
+
+      - name: Show logs - Multi Steps
+        if: always()
+        run: docker logs naftiko_multi_steps
+
+      - name: Stop container - Multi Steps
+        if: always()
+        run: |
+          docker stop naftiko_multi_steps
+          docker rm naftiko_multi_steps
+
+      - name: Run Naftiko - MCP Server
+        run: |
+          docker run -d \
+            -p 9091:9091 \
+            -v ${{ github.workspace }}/src/main/resources/schemas/tutorial/step-6-mcp.yml:/app/step-6-mcp.yml \
+            --env notion_api_key=$NOTION_API_KEY \
+            --name naftiko_mcp_server \
+            ghcr.io/naftiko/framework:latest \
+            /app/step-6-mcp.yml
+
+      - name: Wait for MCP server - MCP Server
+        run: |
+          echo "Waiting for MCP server on port 9091..."
+          if nc -z -w30 localhost 9091; then
+            echo "MCP Server ready!"
+          else
+            echo "MCP Server did not start in time"
+            docker logs naftiko_mcp_server
+            exit 1
+          fi
+
+      - name: Show logs - MCP Server
+        if: always()
+        run: docker logs naftiko_mcp_server
+
+      - name: Stop container - MCP Server
+        if: always()
+        run: |
+          docker stop naftiko_mcp_server
+          docker rm naftiko_mcp_server
