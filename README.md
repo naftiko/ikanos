@@ -17,7 +17,7 @@ While the framework itself is developed in Java and can be extended to support n
 - :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
 - :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/wiki/Contribute)
-
+- :ocean: [FAQ](https://github.com/naftiko/framework/wiki/FAQ)
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).
 
