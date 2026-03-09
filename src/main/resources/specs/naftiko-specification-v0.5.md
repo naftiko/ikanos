@@ -68,21 +68,7 @@ Three specifications that work better together.
 | --- | --- | --- | --- | --- |
 | **Focus** | Defines *what* your API is — the contract, the schema, the structure. | Defines *how* API calls are sequenced — the workflows between endpoints. | Defines *how* to use your API — the scenarios, the runnable collections. | Defines *what* a capability consumes and exposes — the integration intent. |
 | **Scope** | Single API surface | Workflows across one or more APIs | Runnable collections of API calls | Modular capability spanning multiple APIs |
-| **Key strengths** | ✓ Endpoints & HTTP methods
-✓ Request/response schemas
-✓ Authentication requirements
-✓ Data types & validation
-✓ SDK & docs generation | ✓ Multi-step sequences
-✓ Step dependencies & data flow
-✓ Success/failure criteria
-✓ Reusable workflow definitions | ✓ Runnable, shareable collections
-✓ Pre-request scripts & tests
-✓ Environment variables
-✓ Living, executable docs | ✓ Consume/expose duality
-✓ Namespace-based routing
-✓ Orchestration & forwarding
-✓ AI-driven discovery
-✓ Composable capabilities |
+| **Key strengths** | ✓ Endpoints & HTTP methods, ✓ Request/response schemas, ✓ Authentication requirements, ✓ Data types & validation, ✓ SDK & docs generation | ✓ Multi-step sequences, ✓ Step dependencies & data flow, ✓ Success/failure criteria, ✓ Reusable workflow definitions | ✓ Runnable, shareable collections, ✓ Pre-request scripts & tests, ✓ Environment variables, ✓ Living, executable docs | ✓ Consume/expose duality, ✓ Namespace-based routing, ✓ Orchestration & forwarding, ✓ AI-driven discovery, ✓ Composable capabilities |
 | **Analogy** | The *parts list* and dimensions | The *assembly sequence* between parts | The *step-by-step assembly guide* you can run | The *product blueprint* — what goes in, what comes out |
 | **Best used when you need to…** | Define & document an API contract, generate SDKs, validate payloads | Describe multi-step API workflows with dependencies | Share runnable API examples, test workflows, onboard developers | Declare a composable capability that consumes sources and exposes unified interfaces |
 
