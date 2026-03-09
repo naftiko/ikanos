@@ -1,0 +1,16 @@
+naftiko: "0.5"
+capability:
+  exposes:
+    - type: "api"
+      port: 8081
+      namespace: "tutorial"
+      resources:
+        - path: "/hello"
+          name: "hello"
+          label: "My first resource"
+          description: "This is a resource to demonstrate a simple Hello, World! API endpoint"
+          operations:
+            - method: "GET"
+              outputParameters:
+                - type: "string"
+                  const: "Hello, World!"

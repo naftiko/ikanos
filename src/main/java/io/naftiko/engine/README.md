@@ -33,12 +33,17 @@ There are 3 ways to use the Framework Engine, depending on your goal.
 * Create your capability configuration file.\
   The Framework Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally according to the [specification](/src/main/resources/schemas/README.md). This file must be a yaml or json file (yaml, yml, and json extensions are supported).
 
-* Local hosts in your capability configuration file.\
-  If your capability reffers to some local hosts, be carefull to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will reffer to the container and not your local machine.
-  For example:
-  ```bash
-  baseUri: "http://host.docker.internal:8080/api/"
-  ```
+* Localhost in your capability configuration file.
+  * If your capability reffers to some local hosts, be carefull to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will reffer to the container and not your local machine.\
+    For example:
+    ```bash
+    baseUri: "http://host.docker.internal:8080/api/"
+    ```
+  * In the same way, if your capability expose a local host, be careful to not use 'localhost', but '0.0.0.0' instead. Else requests to localhost coming from outside of the container won't succeed.\
+    For example:
+    ```bash
+    address: "0.0.0.0"
+    ```
 
 #### Run the Framework Engine as a docker container
 * Use a docker volume.\

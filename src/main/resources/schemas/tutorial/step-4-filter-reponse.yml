@@ -1,0 +1,47 @@
+naftiko: "0.5"
+capability:
+  exposes:
+    - type: "api"
+      port: 8081
+      namespace: "sample"
+      resources:
+        - path: "/notion/users/me"
+          description: "This resource is for the specific path /notion/users/me and restricted to nested operations."
+          forward:
+            targetNamespace: notion
+          operations:
+            - method: "GET"
+              call: "notion.get-me"
+              outputParameters:
+                - type: "object"
+                  properties:
+                    id:
+                      type: "string"
+                      mapping: "$.id"
+                    name:
+                      type: "string"
+                      mapping: "$.name"
+                    type:
+                      type: "string"
+                      mapping: "$.type"
+
+  consumes:
+    - type: "http"
+      description: "Forwarded requests from the /notion/{path} resource, to be sent to the Notion API"
+      namespace: "notion"
+      baseUri: "https://api.notion.com/v1/"
+      authentication:
+        type: "bearer"
+        token: "{{notion_api_key}}"
+      inputParameters:
+        - name: "notion_api_key"
+          in: "environment"
+        - name: "Notion-Version"
+          in: "header"
+          value: "2025-09-03"
+      resources:
+        - path: "users/me"
+          name: "users-me"
+          operations:
+            - method: "GET"
+              name: "get-me"

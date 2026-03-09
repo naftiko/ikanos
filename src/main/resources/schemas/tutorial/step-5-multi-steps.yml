@@ -1,0 +1,68 @@
+naftiko: "0.5"
+info:
+  label: "Tutorial - Step 5 - Multi steps"
+  description: "This capability is based on two resources called one after the other. The second step takes an output value of the first one as argument (user_id)"
+  tags:
+    - Naftiko
+    - Tutorial
+  created: "2026-02-26"
+  modified: "2026-03-04"
+  stakeholders:
+    - role: "editor"
+      fullName: "Navi"
+      email: "navi@naftiko.io"
+
+capability:
+  exposes:
+    - type: "api"
+      port: 8081
+      namespace: "my-capability"
+      resources:
+        - path: "/notion/my-full-user"
+          description: "This resource is for the specific path /notion/my-full-user and restricted to nested operations."
+          forward:
+            targetNamespace: notion
+          operations:
+            - method: "GET"
+              steps:
+                - name: "fetch-me-user"
+                  type: "call"
+                  call: "notion.get-me"
+                - name: "fetch-user-by-id"
+                  type: "call"
+                  call: "notion.get-user"
+                  with:
+                    user_id: "{{fetch-me-user.userid}}"
+
+  consumes:
+    - type: "http"
+      description: "Forwarded requests from the /notion/{path} resource, to be sent to the Notion API"
+      namespace: "notion"
+      baseUri: "https://api.notion.com/v1/"
+      authentication:
+        type: "bearer"
+        token: "{{notion_api_key}}"
+      inputParameters:
+        - name: "notion_api_key"
+          in: "environment"
+        - name: "Notion-Version"
+          in: "header"
+          value: "2025-09-03"
+      resources:
+        - path: "users/me"
+          name: "users-me"
+          operations:
+            - method: "GET"
+              name: "get-me"
+              outputParameters:
+                - name: "userid"
+                  type: "string"
+                  value: "$.id"
+        - path: "users/{{user_id}}"
+          name: "users-by-id"
+          inputParameters:
+            - name: "user_id"
+              in: "path"
+          operations:
+            - method: "GET"
+              name: "get-user"
