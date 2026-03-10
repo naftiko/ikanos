@@ -13,7 +13,6 @@
  */
 package io.naftiko.engine.exposes;
 
-import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

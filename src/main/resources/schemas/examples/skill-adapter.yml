@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../capability-schema.json
 ---
 naftiko: "0.5"
 info:
@@ -19,6 +20,10 @@ capability:
               outputParameters:
                 - type: object
                   mapping: $.current
+                  properties:
+                    temperature: { type: number, mapping: $.temperature_2m }
+                    windspeed: { type: number, mapping: $.windspeed_10m }
+                    weathercode: { type: number, mapping: $.weathercode }
 
         - path: /weather/alerts
           description: "Active weather alerts"
@@ -29,6 +34,11 @@ capability:
               outputParameters:
                 - type: array
                   mapping: $.alerts
+                  items:
+                    - type: object
+                      properties:
+                        title: { type: string, mapping: $.title }
+                        severity: { type: string, mapping: $.severity }
 
     - type: mcp
       port: 3001
@@ -47,6 +57,10 @@ capability:
           outputParameters:
             - type: object
               mapping: $.current
+              properties:
+                temperature: { type: number, mapping: $.temperature_2m }
+                windspeed: { type: number, mapping: $.windspeed_10m }
+                weathercode: { type: number, mapping: $.weathercode }
 
     - type: skill
       port: 4000

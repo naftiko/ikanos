@@ -209,7 +209,6 @@ public class CapabilitySkillIntegrationTest {
         Map<String, Object> body = JSON.readValue(response.body(), Map.class);
         assertEquals("onboarding-guide", body.get("name"));
 
-        @SuppressWarnings("unchecked")
         List<?> tools = (List<?>) body.get("tools");
         assertNotNull(tools);
         assertTrue(tools.isEmpty(), "Descriptive skill should have empty tools array");
