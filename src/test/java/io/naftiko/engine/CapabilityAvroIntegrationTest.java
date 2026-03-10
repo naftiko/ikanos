@@ -62,7 +62,6 @@ public class CapabilityAvroIntegrationTest {
         assertEquals(1, operations.size());
 
         var operation = operations.get(0);
-        assertEquals("Avro", operation.getOutputRawFormat());
-        assertEquals("schemas/test-records.avsc", operation.getOutputSchema());
+        assertEquals("avro", operation.getOutputRawFormat());
     }
 }

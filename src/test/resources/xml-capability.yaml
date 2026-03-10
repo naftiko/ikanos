@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
 ---
-naftiko: "0.3"
+naftiko: "0.5"
 info:
   label: "XML Test Capability"
   description: "Test capability for XML parsing from API responses"
@@ -23,8 +24,7 @@ capability:
           description: "Test resource that parses XML responses"
           operations:
             - method: "GET"
-              call:
-                operation: "mock-xml.get-users"
+              call: "mock-xml.get-users"
               outputParameters:
                 - type: "array"
                   mapping: "$.root.user"
@@ -48,7 +48,7 @@ capability:
       inputParameters:
         - name: "User-Agent"
           in: "header"
-          const: "Naftiko/0.3"
+          value: "Naftiko/0.5"
 
       resources:
         - path: "api/users"
@@ -58,4 +58,4 @@ capability:
             - method: "GET"
               name: "get-users"
               label: "Get Users"
-              outputRawFormat: "XML"
+              outputRawFormat: "xml"

@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
 ---
-naftiko: "0.3"
+naftiko: "0.5"
 info:
   label: "CSV Test Capability"
   description: "Test capability for CSV parsing from API responses"
@@ -23,8 +24,7 @@ capability:
           description: "Test resource that parses CSV responses"
           operations:
             - method: "GET"
-              call:
-                operation: "mock-csv.get-users"
+              call: "mock-csv.get-users"
               outputParameters:
                 - type: "array"
                   mapping: "$"
@@ -48,7 +48,7 @@ capability:
       inputParameters:
         - name: "User-Agent"
           in: "header"
-          const: "Naftiko/0.3"
+          value: "Naftiko/0.5"
 
       resources:
         - path: "api/users"
@@ -58,4 +58,4 @@ capability:
             - method: "GET"
               name: "get-users"
               label: "Get Users"
-              outputRawFormat: "CSV"
+              outputRawFormat: "csv"

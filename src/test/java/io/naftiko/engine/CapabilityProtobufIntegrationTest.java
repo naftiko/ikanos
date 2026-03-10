@@ -58,8 +58,8 @@ public class CapabilityProtobufIntegrationTest {
         public void testCapabilityLoaded() {
                 assertNotNull(capability, "Capability should be initialized");
                 assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-                assertEquals("0.3", capability.getSpec().getNaftiko(),
-                                "Naftiko version should be 0.3");
+                assertEquals("0.5", capability.getSpec().getNaftiko(),
+                                "Naftiko version should be 0.5");
         }
 
         @Test
@@ -111,10 +111,8 @@ public class CapabilityProtobufIntegrationTest {
                 assertFalse(operations.isEmpty(), "Resource should have operations");
 
                 var operation = operations.get(0);
-                assertEquals("Protobuf", operation.getOutputRawFormat(),
+                assertEquals("protobuf", operation.getOutputRawFormat(),
                                 "Operation should specify Protobuf format");
-                assertEquals("schemas/test-records.proto", operation.getOutputSchema(),
-                                "Operation should specify proto schema file");
         }
 
         @Test

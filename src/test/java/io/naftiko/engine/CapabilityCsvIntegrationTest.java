@@ -57,7 +57,7 @@ public class CapabilityCsvIntegrationTest {
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
         assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-        assertEquals("0.3", capability.getSpec().getNaftiko(), "Naftiko version should be 0.3");
+        assertEquals("0.5", capability.getSpec().getNaftiko(), "Naftiko version should be 0.5");
     }
 
     @Test

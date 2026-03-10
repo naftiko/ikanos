@@ -1,34 +1,39 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
+---
+naftiko: "0.5"
 capability:
-  naftiko: "0.3"
   exposes:
-    - type: api
-      address: localhost
-      port: 0
+    - type: "api"
+      address: "localhost"
+      port: 8082
+      namespace: "test-http"
       resources:
-        - path: /search
+        - path: "/search"
           operations:
-            - method: POST
-              name: search
-              call:
-                operation: testns.search
+            - method: "POST"
+              name: "search"
+              call: "testns.search"
               inputParameters:
-                - name: userId
-                  in: body
-                  template: $.user.id
+                - name: "userId"
+                  in: "body"
+                  type: "string"
+                  description: "User ID extracted from request body"
+                  value: "$.user.id"
   consumes:
-    - type: http
-      namespace: testns
-      baseUri: http://example.com
+    - type: "http"
+      namespace: "testns"
+      baseUri: "http://example.com"
       inputParameters:
-        - name: X-API-Key
-          in: header
-          const: "ABC123"
+        - name: "X-API-Key"
+          in: "header"
+          value: "ABC123"
       resources:
-        - path: /items
+        - path: "/items"
+          name: "items"
           operations:
-            - method: POST
-              name: search
+            - method: "POST"
+              name: "search"
               inputParameters:
-                - name: q
-                  in: query
-                  template: "{{userId}}"
+                - name: "q"
+                  in: "query"
+                  value: "{{userId}}"
