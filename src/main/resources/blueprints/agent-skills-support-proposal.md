@@ -231,16 +231,16 @@ capability:
             - name: "get-forecast"
               description: "Get weather forecast for a city"
               from:
-                namespace: "weather-rest"     # Sibling API adapter
-                action: "get-forecast"        # Operation name
+                sourceNamespace: "weather-rest"     # Sibling API adapter
+                action: "get-forecast"              # Operation name
             - name: "resolve-and-forecast"
               description: "Resolve a place name to coordinates, then fetch forecast"
               from:
-                namespace: "weather-mcp"      # Sibling MCP adapter
-                action: "resolve-and-forecast" # Tool name
+                sourceNamespace: "weather-mcp"      # Sibling MCP adapter
+                action: "resolve-and-forecast"      # Tool name
             - name: "interpret-weather"
               description: "Guide for reading and interpreting weather data"
-              instruction: "interpret-weather.md"  # Local file in location dir
+              instruction: "interpret-weather.md"   # Local file in location dir
 ```
 
 **How agents use this:**
@@ -301,18 +301,18 @@ skills:
       - name: "list-orders"
         description: "List all customer orders"
         from:
-          namespace: "public-api"
+          sourceNamespace: "public-api"
           action: "list-orders"
       - name: "create-order"
         description: "Create a new customer order"
         from:
-          namespace: "public-api"
+          sourceNamespace: "public-api"
           action: "create-order"
       # Derived from sibling MCP adapter
       - name: "summarize-order"
         description: "Generate an AI summary of an order"
         from:
-          namespace: "assistant-mcp"
+          sourceNamespace: "assistant-mcp"
           action: "summarize-order"
       # Local file instruction
       - name: "order-policies"
@@ -325,7 +325,7 @@ skills:
 A tool with `from` references a specific operation or tool in a sibling adapter:
 
 **Tool declaration rules:**
-1. `from.namespace` must resolve to a sibling `exposes[]` entry of type `api` or `mcp`
+1. `from.sourceNamespace` must resolve to a sibling `exposes[]` entry of type `api` or `mcp`
 2. `from.action` must match an operation name (api) or tool name (mcp) in the resolved adapter
 3. Adapter type is inferred from the resolved target
 4. Each derived tool includes an `invocationRef` in the response so agents can invoke the source adapter directly
@@ -398,12 +398,12 @@ skills:
       - name: "run-analysis"
         description: "Run a full data analysis"
         from:
-          namespace: "analytics-rest"
+          sourceNamespace: "analytics-rest"
           action: "run-analysis"
       - name: "quick-stats"
         description: "Run quick statistical analysis"
         from:
-          namespace: "analytics-mcp"
+          sourceNamespace: "analytics-mcp"
           action: "quick-stats"
       - name: "interpret-data"
         description: "Guide for interpreting analysis results"
@@ -456,7 +456,7 @@ skills:
       - name: "get-forecast"
         description: "Get weather forecast"
         from:
-          namespace: "weather-rest"
+          sourceNamespace: "weather-rest"
           action: "get-forecast"
       - name: "interpret-weather"
         description: "Guide for interpreting weather data"
@@ -614,7 +614,7 @@ The SKILL.md file at the location can contain the same frontmatter properties as
       "type": "object",
       "description": "Derive this tool from a sibling api or mcp adapter.",
       "properties": {
-        "namespace": {
+        "sourceNamespace": {
           "type": "string",
           "description": "Sibling exposes[].namespace (must be type api or mcp)"
         },
@@ -623,7 +623,7 @@ The SKILL.md file at the location can contain the same frontmatter properties as
           "description": "Operation name (api) or tool name (mcp) in the source adapter"
         }
       },
-      "required": ["namespace", "action"],
+      "required": ["sourceNamespace", "action"],
       "additionalProperties": false
     },
     "instruction": {
@@ -1103,12 +1103,12 @@ capability:
             - name: "get-forecast"
               description: "Get weather forecast for a city"
               from:
-                namespace: "weather-rest"
+                sourceNamespace: "weather-rest"
                 action: "get-forecast"
             - name: "resolve-and-forecast"
               description: "Resolve a place name to coordinates, then fetch forecast"
               from:
-                namespace: "weather-mcp"
+                sourceNamespace: "weather-mcp"
                 action: "resolve-and-forecast"
             - name: "interpret-weather"
               description: "Guide for reading and interpreting weather data"
@@ -1297,17 +1297,17 @@ capability:
             - name: "list-orders"
               description: "List all customer orders"
               from:
-                namespace: "public-api"
+                sourceNamespace: "public-api"
                 action: "list-orders"
             - name: "get-order"
               description: "Get details of a specific order"
               from:
-                namespace: "public-api"
+                sourceNamespace: "public-api"
                 action: "get-order"
             - name: "create-order"
               description: "Create a new customer order"
               from:
-                namespace: "public-api"
+                sourceNamespace: "public-api"
                 action: "create-order"
 
         - name: "order-admin"
@@ -1317,7 +1317,7 @@ capability:
             - name: "cancel-order"
               description: "Cancel an existing order"
               from:
-                namespace: "public-api"
+                sourceNamespace: "public-api"
                 action: "cancel-order"
 ```
 
@@ -1434,12 +1434,12 @@ capability:
             - name: "run-analysis"
               description: "Run a full data analysis via REST"
               from:
-                namespace: "analytics-rest"
+                sourceNamespace: "analytics-rest"
                 action: "run-analysis"
             - name: "quick-stats"
               description: "Run quick statistical analysis via MCP"
               from:
-                namespace: "analytics-mcp"
+                sourceNamespace: "analytics-mcp"
                 action: "quick-stats"
             - name: "analysis-methodology"
               description: "Guide for choosing the right analysis approach"
@@ -1591,8 +1591,8 @@ spec:
 
 1. `tools` is optional — a skill can be purely descriptive (metadata + `location` only, no tools)
 2. Each tool must specify exactly one source: `from` (derived) or `instruction` (local file)
-3. For derived tools (`from`), `namespace` must resolve to exactly one sibling `exposes[].namespace` of type `api` or `mcp`
-4. Referencing a `skill`-type adapter from `from.namespace` is invalid (no recursive derivation)
+3. For derived tools (`from`), `sourceNamespace` must resolve to exactly one sibling `exposes[].namespace` of type `api` or `mcp`
+4. Referencing a `skill`-type adapter from `from.sourceNamespace` is invalid (no recursive derivation)
 5. For derived tools, `action` must exist as an operation name (api) or tool name (mcp) in the resolved adapter
 6. For instruction tools, the skill must have a `location` configured — the instruction path is resolved relative to it
 7. Tool `name` values must be unique within a skill
