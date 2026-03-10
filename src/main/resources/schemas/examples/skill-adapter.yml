@@ -77,7 +77,7 @@ capability:
             - name: current-conditions
               description: "Get current weather conditions for a specific location"
               from:
-                namespace: weather-api
+                sourceNamespace: weather-api
                 action: get-current
             - name: climate-guide
               description: "Reference guide for interpreting climate data and weather patterns"
@@ -91,7 +91,7 @@ capability:
             - name: active-alerts
               description: "List active severe weather alerts for a region"
               from:
-                namespace: weather-mcp
+                sourceNamespace: weather-mcp
                 action: get-current-weather
             - name: alert-response-guide
               description: "Guide for responding to severe weather alerts"
