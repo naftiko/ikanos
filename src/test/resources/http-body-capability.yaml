@@ -1,31 +1,31 @@
+naftiko: "0.5"
 capability:
-  naftiko: "0.3"
   exposes:
-    - type: api
-      address: localhost
+    - type: "api"
+      address: "localhost"
       port: 0
       resources:
-        - path: /users
+        - path: "/users"
           operations:
-            - method: POST
-              name: create-user
+            - method: "POST"
+              name: "create-user"
               call:
-                operation: testns.create
+                operation: "testns.create"
               inputParameters:
-                - name: userId
-                  in: body
-                  template: $.user.id
-                - name: userName
-                  in: body
-                  template: $.user.name
+                - name: "userId"
+                  in: "body"
+                  template: "$.user.id"
+                - name: "userName"
+                  in: "body"
+                  template: "$.user.name"
   consumes:
-    - type: http
-      namespace: testns
-      baseUri: http://example.com
+    - type: "http"
+      namespace: "testns"
+      baseUri: "http://example.com"
       resources:
-        - path: /create
+        - path: "/create"
           operations:
-            - method: POST
-              name: create
+            - method: "POST"
+              name: "create"
               body: |
                 {"id":"{{userId}}","name":"{{userName}}"}

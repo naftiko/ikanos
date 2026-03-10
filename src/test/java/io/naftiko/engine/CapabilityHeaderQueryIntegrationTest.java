@@ -89,8 +89,8 @@ public class CapabilityHeaderQueryIntegrationTest {
                 clientAdapter.getHttpClientSpec().getInputParameters().get(0);
         assertEquals("X-API-Key", firstSpec.getName(),
                 "First client input parameter name should be X-API-Key");
-        assertEquals("ABC123", firstSpec.getConstant(),
-                "First client input parameter constant should be ABC123");
+        assertEquals("ABC123", firstSpec.getValue(),
+                "First client input parameter value should be ABC123");
         // Apply client-level inputParameters to a fresh request
         Request helperReq =
                 new Request(Method.POST, "http://example.com/items");

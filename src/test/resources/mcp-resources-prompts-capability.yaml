@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
 ---
 naftiko: "0.5"
 info:
@@ -27,7 +28,12 @@ capability:
           outputParameters:
             - type: "array"
               mapping: "$.results"
-
+              items:
+                - type: "object"
+                  properties:
+                    id:
+                      type: "string"
+                      mapping: "$.id"
       resources:
         - name: "database-schema"
           label: "Database Schema"

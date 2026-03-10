@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
 ---
-naftiko: "0.3"
+naftiko: "0.5"
 info:
   label: "Avro Test Capability"
   description: "Test capability for Avro message decoding from API responses"
@@ -23,8 +24,7 @@ capability:
           description: "Test resource that parses Avro messages"
           operations:
             - method: "GET"
-              call:
-                operation: "mock-avro.get-records"
+              call: "mock-avro.get-records"
               outputParameters:
                 - type: "array"
                   mapping: "$.records"
@@ -48,7 +48,7 @@ capability:
       inputParameters:
         - name: "Accept"
           in: "header"
-          const: "application/avro"
+          value: "application/avro"
 
       resources:
         - path: "api/records"
@@ -58,5 +58,4 @@ capability:
             - method: "GET"
               name: "get-records"
               label: "Get Records"
-              outputRawFormat: "Avro"
-              outputSchema: "schemas/test-records.avsc"
+              outputRawFormat: "avro"

@@ -1,5 +1,6 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
 ---
-naftiko: "0.3"
+naftiko: "0.5"
 info:
   label: "Protobuf Test Capability"
   description: "Test capability for Protobuf message decoding from API responses"
@@ -23,8 +24,7 @@ capability:
           description: "Test resource that parses Protobuf messages"
           operations:
             - method: "GET"
-              call:
-                operation: "mock-proto.get-records"
+              call: "mock-proto.get-records"
               outputParameters:
                 - type: "array"
                   mapping: "$.records"
@@ -48,7 +48,7 @@ capability:
       inputParameters:
         - name: "Accept"
           in: "header"
-          const: "application/protobuf"
+          value: "application/protobuf"
 
       resources:
         - path: "api/records"
@@ -58,5 +58,4 @@ capability:
             - method: "GET"
               name: "get-records"
               label: "Get Records"
-              outputRawFormat: "Protobuf"
-              outputSchema: "schemas/test-records.proto"
+              outputRawFormat: "protobuf"
