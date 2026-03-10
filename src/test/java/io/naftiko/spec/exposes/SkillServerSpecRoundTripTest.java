@@ -113,7 +113,7 @@ public class SkillServerSpecRoundTripTest {
         assertEquals("List all orders in the system", tool.getDescription());
         assertNotNull(tool.getFrom(), "from should be present");
         assertNull(tool.getInstruction(), "instruction should be null for derived tool");
-        assertEquals("orders-rest", tool.getFrom().getNamespace());
+        assertEquals("orders-rest", tool.getFrom().getSourceNamespace());
         assertEquals("list-orders", tool.getFrom().getAction());
     }
 

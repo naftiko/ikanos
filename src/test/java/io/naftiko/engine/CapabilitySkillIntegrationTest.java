@@ -106,7 +106,7 @@ public class CapabilitySkillIntegrationTest {
         var skill = spec.getSkills().get(0);
         assertEquals("order-management", skill.getName());
         assertEquals(2, skill.getTools().size());
-        assertEquals("orders-rest", skill.getTools().get(0).getFrom().getNamespace());
+        assertEquals("orders-rest", skill.getTools().get(0).getFrom().getSourceNamespace());
         assertEquals("order-guide.md", skill.getTools().get(1).getInstruction());
     }
 
