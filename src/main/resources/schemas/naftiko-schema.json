@@ -671,6 +671,9 @@
               },
               {
                 "$ref": "#/$defs/ExposesMcp"
+              },
+              {
+                "$ref": "#/$defs/ExposesSkill"
               }
             ]
           },
@@ -1853,6 +1856,173 @@
       },
       "required": [
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "ExposesSkill": {
+      "type": "object",
+      "description": "Skill server adapter — metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "skill"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique identifier for this skill server"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this skill server's purpose"
+        },
+        "authentication": {
+          "$ref": "#/$defs/Authentication"
+        },
+        "skills": {
+          "type": "array",
+          "description": "Array of skill definitions. Each skill declares tools from sibling adapters or local file instructions, or stands alone as purely descriptive.",
+          "items": {
+            "$ref": "#/$defs/ExposedSkill"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "type",
+        "port",
+        "namespace",
+        "skills"
+      ],
+      "additionalProperties": false
+    },
+    "ExposedSkill": {
+      "type": "object",
+      "description": "A skill definition with full Agent Skills Spec frontmatter. Declares tools derived from sibling api or mcp adapters or defined as local file instructions, or stands alone as purely descriptive (no tools).",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Skill identifier (kebab-case, 1-64 chars)"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "What the skill does and when to use it. Used for agent discovery."
+        },
+        "license": {
+          "type": "string",
+          "description": "License identifier (e.g., MIT, Apache-2.0)"
+        },
+        "compatibility": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Compatibility notes and requirements"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Arbitrary key-value metadata (author, category, tags, ecosystem, etc.)"
+        },
+        "allowed-tools": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Space-delimited list of pre-approved tool names (Agent Skills Spec)"
+        },
+        "argument-hint": {
+          "type": "string",
+          "description": "Hint text shown when agents invoke this skill via slash command (Agent Skills Spec)"
+        },
+        "user-invocable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether agents can invoke this skill as a slash command (Agent Skills Spec)"
+        },
+        "disable-model-invocation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to prevent auto-loading this skill based on context (Agent Skills Spec)"
+        },
+        "location": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^file:///",
+          "description": "file:/// URI to a directory containing SKILL.md and supporting files. Required when any tool uses 'instruction'."
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tools declared by this skill. Each tool is derived from a sibling adapter or is a local file instruction.",
+          "items": {
+            "$ref": "#/$defs/SkillTool"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "SkillTool": {
+      "type": "object",
+      "description": "A tool declared within a skill. Exactly one of 'from' (derived from a sibling api or mcp adapter) or 'instruction' (local file path relative to the skill's location) must be specified.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Tool identifier (kebab-case)"
+        },
+        "description": {
+          "type": "string",
+          "description": "What the tool does. Used for agent discovery."
+        },
+        "from": {
+          "type": "object",
+          "description": "Derive this tool from a sibling api or mcp adapter.",
+          "properties": {
+            "namespace": {
+              "type": "string",
+              "description": "Namespace of a sibling exposes[] entry of type api or mcp"
+            },
+            "action": {
+              "type": "string",
+              "description": "Operation name (api) or tool name (mcp) in the source adapter"
+            }
+          },
+          "required": [
+            "namespace",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "instruction": {
+          "type": "string",
+          "description": "File path relative to the skill's location directory containing the tool instruction content"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "from"
+          ]
+        },
+        {
+          "required": [
+            "instruction"
+          ]
+        }
       ],
       "additionalProperties": false
     }
