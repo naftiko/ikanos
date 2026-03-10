@@ -27,12 +27,17 @@ To use Naftiko Framework, you must install and then run its engine.
 * Create your capability configuration file.\
   The Naftiko Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally. You can use [this "Hello, World!" example](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/tutorial/step1-hello-world.yml) to start with and then move to the [Tutorial](https://github.com/naftiko/framework/wiki/Tutorial) and later to the comprehensive [Naftiko Specification](https://github.com/naftiko/framework/wiki/Specification). This file must be a YAML file (yaml and yml extensions are supported).
 
-* Local hosts in your capability configuration file.\
-  If your capability refers to some local hosts, be careful to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will refer to the container and not your local machine.
-  For example:
-  ```bash
-  baseUri: "http://host.docker.internal:8080/api/"
-  ```
+* Localhost in your capability configuration file.
+  * If your capability reffers to some local hosts, be carefull to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will reffer to the container and not your local machine.\
+    For example:
+    ```bash
+    baseUri: "http://host.docker.internal:8080/api/"
+    ```
+  * In the same way, if your capability expose a local host, be careful to not use 'localhost', but '0.0.0.0' instead. Else requests to localhost coming from outside of the container won't succeed.\
+    For example:
+    ```bash
+    address: "0.0.0.0"
+    ```
 
 ### Run Naftiko Engine as a Docker container
 * Use a Docker volume.\
