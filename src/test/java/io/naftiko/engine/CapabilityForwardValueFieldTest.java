@@ -70,25 +70,25 @@ public class CapabilityForwardValueFieldTest {
         assertFalse(httpAdapter.getHttpClientSpec().getInputParameters().isEmpty(),
                 "HTTP client spec should have input parameters configured");
 
-        // Find the value and const input parameters
+        // Find the value input parameters
         InputParameterSpec valueParam = null;
-        InputParameterSpec constParam = null;
+        InputParameterSpec keyParam = null;
 
         for (InputParameterSpec param : httpAdapter.getHttpClientSpec().getInputParameters()) {
             if ("X-API-Version".equals(param.getName())) {
                 valueParam = param;
             } else if ("X-API-Key".equals(param.getName())) {
-                constParam = param;
+                keyParam = param;
             }
         }
 
         assertNotNull(valueParam, "X-API-Version parameter with 'value' field should exist");
-        assertNotNull(constParam, "X-API-Key parameter with 'const' field should exist");
+        assertNotNull(keyParam, "X-API-Key parameter with 'value' field should exist");
 
         assertEquals("2026-03-03", valueParam.getValue(),
                 "X-API-Version 'value' field should be set to '2026-03-03'");
-        assertEquals("secret-key-123", constParam.getConstant(),
-                "X-API-Key 'const' field should be set to 'secret-key-123'");
+        assertEquals("secret-key-123", keyParam.getValue(),
+                "X-API-Key 'value' field should be set to 'secret-key-123'");
     }
 
     @Test
@@ -125,7 +125,7 @@ public class CapabilityForwardValueFieldTest {
 
         assertNotNull(apiKeyHeader, "X-API-Key header should be set");
         assertEquals("secret-key-123", apiKeyHeader,
-                "X-API-Key header should have the value from 'const' field");
+            "X-API-Key header should have the value from 'value' field");
 
         // Verify that both values were added to parameters map for template resolution
         assertTrue(parameters.containsKey("X-API-Version"),

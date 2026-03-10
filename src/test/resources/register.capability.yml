@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=../../main/resources/schemas/capability-schema.json
+---
 naftiko: "0.5"
 info:
   label: "register"
