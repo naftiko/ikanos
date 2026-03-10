@@ -30,7 +30,8 @@ import io.naftiko.spec.InputParameterSpec;
 )
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ApiServerSpec.class, name = "api"),
-    @JsonSubTypes.Type(value = McpServerSpec.class, name = "mcp")
+    @JsonSubTypes.Type(value = McpServerSpec.class, name = "mcp"),
+    @JsonSubTypes.Type(value = SkillServerSpec.class, name = "skill")
 })
 public abstract class ServerSpec {
 
