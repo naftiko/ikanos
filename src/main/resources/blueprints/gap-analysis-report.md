@@ -3,6 +3,7 @@
 **Framework Version**: 0.5  
 **Analysis Date**: March 5, 2026  
 **Scope**: Complete gap analysis of Naftiko specification features against Java implementation
+**Source**: Generated with GitHub Copilot / Claude Sonnnet 4.6
 
 ---
 
