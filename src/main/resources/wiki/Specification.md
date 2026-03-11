@@ -51,6 +51,8 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **MCP Server**: An exposition adapter that exposes capability operations as MCP tools, enabling AI agent integration via Streamable HTTP or stdio transport.
 
+**Skill Server**: An exposition adapter that exposes a read-only catalog of agent skills — metadata, tool references, and supporting files — over predefined HTTP endpoints. Skills describe how to invoke tools in sibling API or MCP adapters.
+
 **ExternalRef**: A declaration of an external reference providing variables to the capability. Two variants: file-resolved (for development) and runtime-resolved (for production). Variables are explicitly declared via a `keys` map.
 
 ### 1.3 Related Specifications.
@@ -187,7 +189,7 @@ Defines the technical configuration of the capability.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is an API Expose (`type: "api"`) or an MCP Expose (`type: "mcp"`). |
+| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is an API Expose (`type: "api"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 
 #### 3.4.2 Rules
@@ -484,6 +486,127 @@ tools:
     with:
       database_id: "$this.tools.database_id"
 ```
+
+-#### 3.5.9 Skill Expose
+-
+-Skill exposition configuration. Exposes a read-only catalog of agent skills with metadata, tool definitions, and supporting files.
+-
+-> New in schema v0.5.
+-> 
+-
+-**Fixed Fields:**
+-
+-| Field Name | Type | Description |
+-| --- | --- | --- |
+-| **type** | `string` | **REQUIRED**. MUST be `"skill"`. |
+-| **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
+-| **port** | `integer` | **REQUIRED**. Port number. MUST be between 1 and 65535. |
+-| **namespace** | `string` | **REQUIRED**. Unique identifier for this skill catalog. |
+-| **description** | `string` | *Recommended*. Description of this skill catalog. |
+-| **skills** | `ExposedSkill[]` | **REQUIRED**. List of skills (minimum 1). |
+-
+-**Predefined Endpoints:**
+-
+-| Method | Path | Description |
+-| --- | --- | --- |
+-| `GET` | `/skills` | List all skills with their tool name summaries. |
+-| `GET` | `/skills/{name}` | Full skill metadata and tool catalog with invocation references. |
+-| `GET` | `/skills/{name}/download` | ZIP archive of the skill's `location` directory. |
+-| `GET` | `/skills/{name}/contents` | File listing of the skill's `location` directory. |
+-| `GET` | `/skills/{name}/contents/{file}` | Serve an individual file from the skill's `location` directory. |
+-
+-**Rules:**
+-
+-- The `type` field MUST be `"skill"`.
+-- The `namespace` field is mandatory and MUST be unique across all exposes entries.
+-- The `skills` array MUST contain at least one entry.
+-- Each skill's tools must include exactly one of `from` (derived from a sibling adapter) or `instruction` (path to a local file).
+-- `from` tool references MUST resolve to a sibling `api` or `mcp` adapter namespace.
+-- `instruction` tools require the skill's `location` field to be set.
+-- No additional properties are allowed.
+-
+-#### 3.5.10 ExposedSkill Object
+-
+-A skill definition within a Skill Expose.
+-
+-**Fixed Fields:**
+-
+-| Field Name | Type | Description |
+-| --- | --- | --- |
+-| **name** | `string` | **REQUIRED**. Unique name for this skill within the catalog. |
+-| **description** | `string` | **REQUIRED**. A meaningful description of the skill's purpose. |
+-| **license** | `string` | SPDX license identifier (e.g. `"Apache-2.0"`). |
+-| **compatibility** | `string` | Comma-separated list of compatible AI models/agents (e.g. `"claude-3-5-sonnet,gpt-4o"`). |
+-| **metadata** | `Map<string, string>` | Arbitrary string key-value metadata pairs. |
+-| **allowed-tools** | `string` | Comma-separated list of tool names to include. If omitted, all tools are included. |
+-| **argument-hint** | `string` | Guidance for AI agents on when to use this skill. |
+-| **user-invocable** | `boolean` | Whether the skill can be directly invoked by users. |
+-| **disable-model-invocation** | `boolean` | Whether AI models can invoke this skill autonomously. |
+-| **location** | `string` | `file:///` URI to the local directory containing skill support files. Required if any tool uses `instruction`. |
+-| **tools** | `SkillTool[]` | List of tools in this skill. May be empty for purely descriptive skills. |
+-
+-#### 3.5.11 SkillTool Object
+-
+-A tool declared within a skill. Exactly one of `from` or `instruction` MUST be specified.
+-
+-**Fixed Fields:**
+-
+-| Field Name | Type | Description |
+-| --- | --- | --- |
+-| **name** | `string` | **REQUIRED**. Technical name for the tool. |
+-| **description** | `string` | **REQUIRED**. A meaningful description of what the tool does. |
+-| **from** | `SkillToolFrom` | Derived tool targeting a sibling adapter operation. |
+-| **instruction** | `string` | Path to an instruction file relative to the skill's `location` directory. |
+-
+-**SkillToolFrom Fields:**
+-
+-| Field Name | Type | Description |
+-| --- | --- | --- |
+-| **namespace** | `string` | **REQUIRED**. Namespace of the sibling `api` or `mcp` adapter. |
+-| **action** | `string` | **REQUIRED**. Operation or tool name within the referenced namespace. |
+-
+-**Rules:**
+-
+-- Exactly one of `from` or `instruction` MUST be present â€” not both, not neither.
+-- `from.namespace` MUST reference a sibling `api` or `mcp` adapter.
+-- `instruction` is a relative file path from the skill's `location` directory.
+-
+-#### 3.5.12 Skill Expose Example
+-
+-```yaml
+-type: skill
+-port: 4000
+-namespace: weather-skills
+-description: "Weather forecast and climate analysis skill catalog"
+-skills:
+-  - name: weather-forecast
+-    description: "Real-time weather data and forecasting"
+-    license: Apache-2.0
+-    compatibility: "claude-3-5-sonnet,gpt-4o"
+-    argument-hint: "Use when the user asks about weather, forecast, or climate"
+-    location: "file:///opt/skills/weather-forecast"
+-    tools:
+-      - name: current-conditions
+-        description: "Get current weather conditions for a location"
+-        from:
+-          namespace: weather-api
+-          action: get-current
+-      - name: climate-guide
+-        description: "Reference guide for climate data interpretation"
+-        instruction: "climate-interpretation-guide.md"
+-
+-  - name: alert-monitoring
+-    description: "Severe weather alerts and monitoring guidance"
+-    location: "file:///opt/skills/alert-monitoring"
+-    tools:
+-      - name: active-alerts
+-        description: "List active severe weather alerts for a region"
+-        from:
+-          namespace: weather-api
+-          action: list-alerts
+-```
+-
+ ---
 
 ---
 
