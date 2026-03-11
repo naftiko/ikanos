@@ -1,8 +1,17 @@
 # Naftiko Specification
 
-**Version 0.4**
+Version: 0.5
+Created by: Thomas Eskenazi
+Category: Sepcification
+Last updated time: March 5, 2026 12:40 PM
+Reviewers: Kin Lane, Jerome Louvel, Jérémie Tarnaud, Antoine Buhl
+Status: Draft
 
-**Publication Date:** February 2026
+# Naftiko Specification v0.5
+
+**Version 0.5**
+
+**Publication Date:** March 2026
 
 ---
 
@@ -42,8 +51,6 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **MCP Server**: An exposition adapter that exposes capability operations as MCP tools, enabling AI agent integration via Streamable HTTP or stdio transport.
 
-**Skill Server**: An exposition adapter that exposes a read-only catalog of agent skills — metadata, tool references, and supporting files — over predefined HTTP endpoints. Skills describe how to invoke tools in sibling API or MCP adapters.
-
 **ExternalRef**: A declaration of an external reference providing variables to the capability. Two variants: file-resolved (for development) and runtime-resolved (for production). Variables are explicitly declared via a `keys` map.
 
 ### 1.3 Related Specifications.
@@ -61,7 +68,7 @@ Three specifications that work better together.
 | --- | --- | --- | --- | --- |
 | **Focus** | Defines *what* your API is — the contract, the schema, the structure. | Defines *how* API calls are sequenced — the workflows between endpoints. | Defines *how* to use your API — the scenarios, the runnable collections. | Defines *what* a capability consumes and exposes — the integration intent. |
 | **Scope** | Single API surface | Workflows across one or more APIs | Runnable collections of API calls | Modular capability spanning multiple APIs |
-| **Key strengths** | ✓ Endpoints & HTTP methods<br />✓ Request/response schemas<br />✓ Authentication requirements<br />✓ Data types & validation<br />✓ SDK & docs generation | ✓ Multi-step sequences<br />✓ Step dependencies & data flow<br />✓ Success/failure criteria<br />✓ Reusable workflow definitions | ✓ Runnable, shareable collections<br />✓ Pre-request scripts & tests<br />✓ Environment variables<br />✓ Living, executable docs | ✓ Consume/expose duality<br />✓ Namespace-based routing<br />✓ Orchestration & forwarding<br />✓ AI-driven discovery<br />✓ Composable capabilities |
+| **Key strengths** | ✓ Endpoints & HTTP methods, ✓ Request/response schemas, ✓ Authentication requirements, ✓ Data types & validation, ✓ SDK & docs generation | ✓ Multi-step sequences, ✓ Step dependencies & data flow, ✓ Success/failure criteria, ✓ Reusable workflow definitions | ✓ Runnable, shareable collections, ✓ Pre-request scripts & tests, ✓ Environment variables, ✓ Living, executable docs | ✓ Consume/expose duality, ✓ Namespace-based routing, ✓ Orchestration & forwarding, ✓ AI-driven discovery, ✓ Composable capabilities |
 | **Analogy** | The *parts list* and dimensions | The *assembly sequence* between parts | The *step-by-step assembly guide* you can run | The *product blueprint* — what goes in, what comes out |
 | **Best used when you need to…** | Define & document an API contract, generate SDKs, validate payloads | Describe multi-step API workflows with dependencies | Share runnable API examples, test workflows, onboard developers | Declare a composable capability that consumes sources and exposes unified interfaces |
 
@@ -92,15 +99,15 @@ This is the root object of the Naftiko document.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.4"` for this version. |
-| **info** | `Info` | **REQUIRED**. Metadata about the capability. |
+| **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.5"` for this version. |
+| **info** | `Info` | *Recommended*. Metadata about the capability. |
 | **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
 | **externalRefs** | `ExternalRef[]` | List of external references for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.1.2 Rules
 
-- The `naftiko` field MUST be present and MUST have the value `"0.4"` for documents conforming to this version of the specification.
-- Both `info` and `capability` objects MUST be present.
+- The `naftiko` field MUST be present and MUST have the value `"0.5"` for documents conforming to this version of the specification.
+- The `capability` object MUST be present. The `info` object is recommended.
 - The `externalRefs` field is OPTIONAL. When present, it MUST contain at least one entry.
 - No additional properties are allowed at the root level.
 
@@ -115,7 +122,7 @@ Provides metadata about the capability.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **label** | `string` | **REQUIRED**. The display name of the capability. |
-| **description** | `string` | **REQUIRED**. A description of the capability. The more meaningful it is, the easier for agent discovery. |
+| **description** | `string` | *Recommended*. A description of the capability. The more meaningful it is, the easier for agent discovery. |
 | **tags** | `string[]` | List of tags to help categorize the capability for discovery and filtering. |
 | **created** | `string` | Date the capability was created (format: `YYYY-MM-DD`). |
 | **modified** | `string` | Date the capability was last modified (format: `YYYY-MM-DD`). |
@@ -123,7 +130,7 @@ Provides metadata about the capability.
 
 #### 3.2.2 Rules
 
-- Both `label` and `description` are mandatory.
+- The `label` field is mandatory. The `description` field is recommended to improve agent discovery.
 - No additional properties are allowed.
 
 #### 3.2.3 Info Object Example
@@ -180,13 +187,14 @@ Defines the technical configuration of the capability.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is an API Expose (`type: "api"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
+| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is an API Expose (`type: "api"`) or an MCP Expose (`type: "mcp"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 
 #### 3.4.2 Rules
 
-- The `exposes` array MUST contain at least one entry.
-- The `consumes` array MUST contain at least one entry.
+- At least one of `exposes` or `consumes` MUST be present.
+- When present, the `exposes` array MUST contain at least one entry.
+- When present, the `consumes` array MUST contain at least one entry.
 - Each `consumes` entry MUST include both `baseUri` and `namespace` fields.
 - There are several types of exposed adapters and consumed sources objects, all will be described in following objects.
 - No additional properties are allowed.
@@ -244,12 +252,15 @@ capability:
 
 Describes a server adapter that exposes functionality.
 
-> Update (schema v0.5): Three exposition adapter types are now supported — **API** (`type: "api"`), **MCP** (`type: "mcp"`), and **Skill** (`type: "skill"`). Legacy `httpProxy` / `rest` exposition types are not part of the JSON Schema anymore.
+> Update (schema v0.5): Two exposition adapter types are now supported — **API** (`type: "api"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` / `rest` exposition types are not part of the JSON Schema anymore.
 > 
 
 #### 3.5.1 API Expose
 
 API exposition configuration.
+
+> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **API** (`type: "api"`, this section) and **MCP** (`type: "mcp"`, see §3.5.4). The `type` field acts as discriminator.
+> 
 
 **Fixed Fields:**
 
@@ -271,7 +282,7 @@ An exposed resource with **operations** and/or **forward** configuration.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **path** | `string` | **REQUIRED**. Path of the resource (supports `param` placeholders). |
-| **description** | `string` | **REQUIRED**. Used to provide *meaningful* information about the resource. In a world of agents, context is king. |
+| **description** | `string` | *Recommended*. Used to provide *meaningful* information about the resource. In a world of agents, context is king. |
 | **name** | `string` | Technical name for the resource (used for references, pattern `^[a-zA-Z0-9-]+$`). |
 | **label** | `string` | Display name for the resource (likely used in UIs). |
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the resource. |
@@ -280,18 +291,127 @@ An exposed resource with **operations** and/or **forward** configuration.
 
 #### 3.5.3 Rules
 
-- Both `description` and `path` are mandatory.
+- The `path` field is mandatory. The `description` field is recommended to provide meaningful context for agent discovery.
 - At least one of `operations` or `forward` MUST be present. Both can coexist on the same resource.
 - if both `operations` or `forward` are present, in case of conflict, `operations` takes precendence on `forward`.
 - No additional properties are allowed.
 
-#### 3.5.4 Address Validation Patterns
+#### 3.5.4 MCP Expose
+
+MCP Server exposition configuration. Exposes capability operations as MCP tools over Streamable HTTP or stdio transport.
+
+> New in schema v0.5.
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"mcp"`. |
+| **transport** | `string` | Transport protocol. One of: `"http"` (default), `"stdio"`. `"http"` exposes a Streamable HTTP server; `"stdio"` uses stdin/stdout JSON-RPC for local IDE integration. |
+| **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
+| **port** | `integer` | **REQUIRED when transport is `"http"`**. Port number (1–65535). MUST NOT be present when transport is `"stdio"`. |
+| **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed MCP server. |
+| **description** | `string` | *Recommended*. A meaningful description of the MCP server's purpose. Sent as server instructions during MCP initialization. |
+| **tools** | `McpTool[]` | **REQUIRED**. List of MCP tools exposed by this server (minimum 1). |
+
+**Rules:**
+
+- The `type` field MUST be `"mcp"`.
+- The `namespace` field is mandatory and MUST be unique across all exposes entries.
+- The `tools` array is mandatory and MUST contain at least one entry.
+- When `transport` is `"http"` (or omitted, since `"http"` is the default), the `port` field is required.
+- When `transport` is `"stdio"`, the `port` field MUST NOT be present.
+- No additional properties are allowed.
+
+#### 3.5.5 McpTool Object
+
+An MCP tool definition. Each tool maps to one or more consumed HTTP operations, similar to ExposedOperation but adapted for the MCP protocol (no HTTP method, tool-oriented input schema).
+
+> The McpTool supports the same two modes as ExposedOperation: **simple** (direct `call` + `with`) and **orchestrated** (multi-step with `steps` + `mappings`).
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **description** | `string` | **REQUIRED**. A meaningful description of the tool. Essential for agent discovery. |
+| **inputParameters** | `McpToolInputParameter[]` | Tool input parameters. These become the MCP tool's input schema (JSON Schema). |
+| **call** | `string` | **Simple mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
+| **with** | `WithInjector` | **Simple mode only**. Parameter injection for the called operation. |
+| **steps** | `OperationStep[]` | **Orchestrated mode only. REQUIRED** (at least 1 step). Sequence of calls to consumed operations. |
+| **mappings** | `StepOutputMapping[]` | **Orchestrated mode only**. Maps step outputs to the tool's output parameters. |
+| **outputParameters** (simple) | `MappedOutputParameter[]` | **Simple mode**. Output parameters mapped from the consumed operation response. |
+| **outputParameters** (orchestrated) | `OrchestratedOutputParameter[]` | **Orchestrated mode**. Output parameters with name and type. |
+
+**Modes:**
+
+**Simple mode** — direct call to a single consumed operation:
+
+- `call` is **REQUIRED**
+- `with` is optional
+- `outputParameters` are `MappedOutputParameter[]`
+- `steps` MUST NOT be present
+
+**Orchestrated mode** — multi-step orchestration:
+
+- `steps` is **REQUIRED** (at least 1 entry)
+- `mappings` is optional
+- `outputParameters` are `OrchestratedOutputParameter[]`
+- `call` and `with` MUST NOT be present
+
+**Rules:**
+
+- Both `name` and `description` are mandatory.
+- Exactly one of the two modes MUST be used (simple or orchestrated).
+- In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
+- In orchestrated mode, the `steps` array MUST contain at least one entry.
+- The `$this` context reference works the same as for ExposedOperation: `$this.{mcpNamespace}.{paramName}` accesses the tool's input parameters.
+- No additional properties are allowed.
+
+#### 3.5.6 McpToolInputParameter Object
+
+Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition.
+
+> Unlike `ExposedInputParameter`, MCP tool parameters have no `in` field (no HTTP location concept) and include a `required` flag.
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Parameter name. Becomes a property name in the tool's input schema. MUST match pattern `^[a-zA-Z0-9-_*]+$`. |
+| **type** | `string` | **REQUIRED**. Data type. One of: `string`, `number`, `integer`, `boolean`, `array`, `object`. |
+| **description** | `string` | **REQUIRED**. A meaningful description of the parameter. Used for agent discovery and tool documentation. |
+| **required** | `boolean` | Whether the parameter is required. Defaults to `true`. |
+
+**Rules:**
+
+- The `name`, `type`, and `description` fields are all mandatory.
+- The `type` field MUST be one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"array"`, `"object"`.
+- The `required` field defaults to `true` when omitted.
+- No additional properties are allowed.
+
+**McpToolInputParameter Example:**
+
+```yaml
+- name: database_id
+  type: string
+  description: The unique identifier of the Notion database
+- name: page_size
+  type: number
+  description: Number of results per page (max 100)
+  required: false
+```
+
+#### 3.5.7 Address Validation Patterns
 
 - **Hostname**: `^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
 - **IPv4**: `^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
 - **IPv6**: `^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$`
 
-#### 3.5.5 Exposes Object Examples
+#### 3.5.8 Exposes Object Examples
 
 **API Expose with operations:**
 
@@ -365,132 +485,13 @@ tools:
       database_id: "$this.tools.database_id"
 ```
 
-#### 3.5.9 Skill Expose
-
-Skill exposition configuration. Exposes a read-only catalog of agent skills with metadata, tool definitions, and supporting files.
-
-> New in schema v0.5.
-> 
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **type** | `string` | **REQUIRED**. MUST be `"skill"`. |
-| **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
-| **port** | `integer` | **REQUIRED**. Port number. MUST be between 1 and 65535. |
-| **namespace** | `string` | **REQUIRED**. Unique identifier for this skill catalog. |
-| **description** | `string` | *Recommended*. Description of this skill catalog. |
-| **skills** | `ExposedSkill[]` | **REQUIRED**. List of skills (minimum 1). |
-
-**Predefined Endpoints:**
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/skills` | List all skills with their tool name summaries. |
-| `GET` | `/skills/{name}` | Full skill metadata and tool catalog with invocation references. |
-| `GET` | `/skills/{name}/download` | ZIP archive of the skill's `location` directory. |
-| `GET` | `/skills/{name}/contents` | File listing of the skill's `location` directory. |
-| `GET` | `/skills/{name}/contents/{file}` | Serve an individual file from the skill's `location` directory. |
-
-**Rules:**
-
-- The `type` field MUST be `"skill"`.
-- The `namespace` field is mandatory and MUST be unique across all exposes entries.
-- The `skills` array MUST contain at least one entry.
-- Each skill's tools must include exactly one of `from` (derived from a sibling adapter) or `instruction` (path to a local file).
-- `from` tool references MUST resolve to a sibling `api` or `mcp` adapter namespace.
-- `instruction` tools require the skill's `location` field to be set.
-- No additional properties are allowed.
-
-#### 3.5.10 ExposedSkill Object
-
-A skill definition within a Skill Expose.
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Unique name for this skill within the catalog. |
-| **description** | `string` | **REQUIRED**. A meaningful description of the skill's purpose. |
-| **license** | `string` | SPDX license identifier (e.g. `"Apache-2.0"`). |
-| **compatibility** | `string` | Comma-separated list of compatible AI models/agents (e.g. `"claude-3-5-sonnet,gpt-4o"`). |
-| **metadata** | `Map<string, string>` | Arbitrary string key-value metadata pairs. |
-| **allowed-tools** | `string` | Comma-separated list of tool names to include. If omitted, all tools are included. |
-| **argument-hint** | `string` | Guidance for AI agents on when to use this skill. |
-| **user-invocable** | `boolean` | Whether the skill can be directly invoked by users. |
-| **disable-model-invocation** | `boolean` | Whether AI models can invoke this skill autonomously. |
-| **location** | `string` | `file:///` URI to the local directory containing skill support files. Required if any tool uses `instruction`. |
-| **tools** | `SkillTool[]` | List of tools in this skill. May be empty for purely descriptive skills. |
-
-#### 3.5.11 SkillTool Object
-
-A tool declared within a skill. Exactly one of `from` or `instruction` MUST be specified.
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Technical name for the tool. |
-| **description** | `string` | **REQUIRED**. A meaningful description of what the tool does. |
-| **from** | `SkillToolFrom` | Derived tool targeting a sibling adapter operation. |
-| **instruction** | `string` | Path to an instruction file relative to the skill's `location` directory. |
-
-**SkillToolFrom Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **namespace** | `string` | **REQUIRED**. Namespace of the sibling `api` or `mcp` adapter. |
-| **action** | `string` | **REQUIRED**. Operation or tool name within the referenced namespace. |
-
-**Rules:**
-
-- Exactly one of `from` or `instruction` MUST be present — not both, not neither.
-- `from.namespace` MUST reference a sibling `api` or `mcp` adapter.
-- `instruction` is a relative file path from the skill's `location` directory.
-
-#### 3.5.12 Skill Expose Example
-
-```yaml
-type: skill
-port: 4000
-namespace: weather-skills
-description: "Weather forecast and climate analysis skill catalog"
-skills:
-  - name: weather-forecast
-    description: "Real-time weather data and forecasting"
-    license: Apache-2.0
-    compatibility: "claude-3-5-sonnet,gpt-4o"
-    argument-hint: "Use when the user asks about weather, forecast, or climate"
-    location: "file:///opt/skills/weather-forecast"
-    tools:
-      - name: current-conditions
-        description: "Get current weather conditions for a location"
-        from:
-          namespace: weather-api
-          action: get-current
-      - name: climate-guide
-        description: "Reference guide for climate data interpretation"
-        instruction: "climate-interpretation-guide.md"
-
-  - name: alert-monitoring
-    description: "Severe weather alerts and monitoring guidance"
-    location: "file:///opt/skills/alert-monitoring"
-    tools:
-      - name: active-alerts
-        description: "List active severe weather alerts for a region"
-        from:
-          namespace: weather-api
-          action: list-alerts
-```
-
 ---
 
 ### 3.6 Consumes Object
 
 Describes a client adapter for consuming external APIs.
 
-> Update (schema v0.4): `targetUri` is now `baseUri`. The `headers` field has been removed — use `inputParameters` with `in: "header"` instead.
+> Update (schema v0.5): `targetUri` is now `baseUri`. The `headers` field has been removed — use `inputParameters` with `in: "header"` instead.
 > 
 
 #### 3.6.1 Fixed Fields
@@ -501,7 +502,7 @@ Describes a client adapter for consuming external APIs.
 | **namespace** | `string` | Path suffix used for routing from exposes. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **baseUri** | `string` | **REQUIRED**. Base URI for the consumed API. Must be a valid http(s) URL (no `path` placeholder in the schema). |
 | **authentication** | Authentication Object | Authentication configuration. Defaults to `"inherit"`. |
-| **description** | `string` | **REQUIRED**. A description of the consumed API. The more meaningful it is, the easier for agent discovery. |
+| **description** | `string` | *Recommended*. A description of the consumed API. The more meaningful it is, the easier for agent discovery. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters applied to all operations in this consumed API. |
 | **resources** | [ConsumedHttpResource Object] | **REQUIRED**. List of API resources. |
 
@@ -511,7 +512,7 @@ Describes a client adapter for consuming external APIs.
 - The `baseUri` field is required.
 - The `namespace` field is required and MUST be unique across all consumes entries.
 - The `namespace` value MUST match the pattern `^[a-zA-Z0-9-]+$` (alphanumeric and hyphens only).
-- The `description` field is required.
+- The `description` field is recommended to improve agent discovery.
 - The `resources` array is required and MUST contain at least one entry.
 
 #### 3.6.3 Base URI Format
@@ -661,7 +662,7 @@ outputParameters:
 
 Describes an operation exposed on an exposed resource.
 
-> Update (schema v0.4): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
+> Update (schema v0.5): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
 > 
 
 #### 3.9.1 Fixed Fields
@@ -864,7 +865,7 @@ body: |
 
 ### 3.11 InputParameter Objects
 
-> Update (schema v0.4): The single `InputParameter` object has been split into two distinct types: **ConsumedInputParameter** (used in consumes) and **ExposedInputParameter** (used in exposes, with additional `type` and `description` fields required).
+> Update (schema v0.5): The single `InputParameter` object has been split into two distinct types: **ConsumedInputParameter** (used in consumes) and **ExposedInputParameter** (used in exposes, with additional `type` and `description` fields required).
 > 
 
 #### 3.11.1 ConsumedInputParameter Object
@@ -901,7 +902,7 @@ Used in consumed resources and operations.
 
 #### 3.11.2 ExposedInputParameter Object
 
-Used in exposed resources and operations. Extends the consumed variant with `type` and `description` (both required) for agent discoverability, plus an optional `pattern` for validation.
+Used in exposed resources and operations. Extends the consumed variant with `type` (required) and `description` (recommended) for agent discoverability, plus an optional `pattern` for validation.
 
 **Fixed Fields:**
 
@@ -909,17 +910,17 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Parameter name. MUST match pattern `^[a-zA-Z0-9-*]+$`. |
 | **in** | `string` | **REQUIRED**. Parameter location. Valid values: `"query"`, `"header"`, `"path"`, `"cookie"`, `"body"`. |
-| **type** | `string` | **REQUIRED**. Data type of the parameter. One of: `string`, `number`, `boolean`, `object`, `array`. |
-| **description** | `string` | **REQUIRED**. Human-readable description of the parameter. Essential for agent discovery. |
+| **type** | `string` | **REQUIRED**. Data type of the parameter. One of: `string`, `number`, `integer`, `boolean`, `object`, `array`. |
+| **description** | `string` | *Recommended*. Human-readable description of the parameter. Provides valuable context for agent discovery. |
 | **pattern** | `string` | Optional regex pattern for parameter value validation. |
 | **value** | `string` | Default value or JSONPath reference. |
 
 **Rules:**
 
-- All of `name`, `in`, `type`, and `description` are mandatory.
+- The `name`, `in`, and `type` fields are mandatory. The `description` field is recommended for agent discovery.
 - The `name` field MUST match the pattern `^[a-zA-Z0-9-*]+$`.
 - The `in` field MUST be one of: `"query"`, `"header"`, `"path"`, `"cookie"`, `"body"`.
-- The `type` field MUST be one of: `"string"`, `"number"`, `"boolean"`, `"object"`, `"array"`.
+- The `type` field MUST be one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`.
 - No additional properties are allowed.
 
 **ExposedInputParameter Example:**
@@ -940,7 +941,7 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
 
 ### 3.12 OutputParameter Objects
 
-> Update (schema v0.4): The single `OutputParameter` object has been split into three distinct types: **ConsumedOutputParameter** (used in consumed operations), **MappedOutputParameter** (used in simple-mode exposed operations), and **OrchestratedOutputParameter** (used in orchestrated-mode exposed operations).
+> Update (schema v0.5): The single `OutputParameter` object has been split into three distinct types: **ConsumedOutputParameter** (used in consumed operations), **MappedOutputParameter** (used in simple-mode exposed operations), and **OrchestratedOutputParameter** (used in orchestrated-mode exposed operations).
 > 
 
 #### 3.12.1 ConsumedOutputParameter Object
@@ -987,7 +988,7 @@ Used in **simple mode** exposed operations. Maps a value from the consumed respo
 
 **Subtypes by type:**
 
-- **`string`**, **`number`**, **`boolean`**: `mapping` is a JsonPath string (e.g. `$.login`)
+- **`string`**, **`number`**, **`boolean`**: `mapping` is a JSONPath string (e.g. `$.login`)
 - **`object`**: `mapping` is `{ properties: { key: MappedOutputParameter, ... } }` — recursive
 - **`array`**: `mapping` is `{ items: MappedOutputParameter }` — recursive
 
@@ -1072,7 +1073,7 @@ outputParameters:
           type: string
 ```
 
-#### 3.12.4 JsonPath roots (extensions)
+#### 3.12.4 JSONPath roots (extensions)
 
 In a consumed resource, **`$`** refers to the *raw response payload* of the consumed operation (after decoding based on `outputRawFormat`). The root `$` gives direct access to the JSON response body.
 
@@ -1109,7 +1110,7 @@ Example, if you consider the following JSON response :
 
 Describes a single step in an orchestrated operation. `OperationStep` is a `oneOf` between two subtypes: **OperationStepCall** and **OperationStepLookup**, both sharing a common **OperationStepBase**.
 
-> Update (schema v0.4): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
+> Update (schema v0.5): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
 > 
 
 #### 3.13.1 OperationStepBase (shared fields)
@@ -1155,7 +1156,7 @@ Performs a lookup against the output of a previous call step, matching values an
 | **name** | `string` | **REQUIRED**. Step name (from base). |
 | **index** | `string` | **REQUIRED**. Name of a previous call step whose output serves as the lookup table. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **match** | `string` | **REQUIRED**. Name of the key field in the index to match against. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **lookupValue** | `string` | **REQUIRED**. JsonPath expression resolving to the value(s) to look up. |
+| **lookupValue** | `string` | **REQUIRED**. JSONPath expression resolving to the value(s) to look up. |
 | **outputParameters** | `string[]` | **REQUIRED**. List of field names to extract from the matched index entries (minimum 1 entry). |
 
 **Rules:**
@@ -1237,7 +1238,7 @@ Describes how to map the output of an operation step to the input of another ste
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **targetName** | `string` | **REQUIRED**. The name of the parameter to map to. It can be an input parameter of a next step or an output parameter of the exposed operation. |
-| **value** | `string` | **REQUIRED**. A JsonPath reference to the value to map from. E.g. `$.get-database.database_id`. |
+| **value** | `string` | **REQUIRED**. A JSONPath reference to the value to map from. E.g. `$.get-database.database_id`. |
 
 #### 3.14.2 Rules
 
@@ -1249,7 +1250,7 @@ Describes how to map the output of an operation step to the input of another ste
 A StepOutputMapping connects the **output parameters of a consumed operation** (called by the step) to the **output parameters of the exposed operation** (or to input parameters of subsequent steps).
 
 - **`targetName`** — refers to the `name` of an output parameter declared on the exposed operation, or the `name` of an input parameter of a subsequent step. The target parameter receives its value from the mapping.
-- **`value`** — a JsonPath expression where **`$`** is the root of the consumed operation's output parameters. The syntax `$.{outputParameterName}` references a named output parameter of the consumed operation called in this step.
+- **`value`** — a JSONPath expression where **`$`** is the root of the consumed operation's output parameters. The syntax `$.{outputParameterName}` references a named output parameter of the consumed operation called in this step.
 
 #### 3.14.4 End-to-end example
 
@@ -1322,7 +1323,7 @@ mappings:
 
 Describes how `$this` references work in `with` (WithInjector) and other expression contexts.
 
-> Update (schema v0.4): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). This section now documents the `$this` expression root, which is used within `WithInjector` values.
+> Update (schema v0.5): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). This section now documents the `$this` expression root, which is used within `WithInjector` values.
 > 
 
 #### 3.15.1 The `$this` root
@@ -1451,7 +1452,7 @@ authentication:
 
 Defines forwarding configuration for an exposed resource to pass requests through to a consumed namespace.
 
-> Update (schema v0.4): Renamed from `ForwardHeaders` to `ForwardConfig`. The `targetNamespaces` array has been replaced by a single `targetNamespace` string.
+> Update (schema v0.5): Renamed from `ForwardHeaders` to `ForwardConfig`. The `targetNamespaces` array has been replaced by a single `targetNamespace` string.
 > 
 
 #### 3.17.1 Fixed Fields
@@ -1485,7 +1486,7 @@ forward:
 
 Defines parameter injection for simple-mode exposed operations. Used with the `with` field on an ExposedOperation to inject values into the called consumed operation.
 
-> New in schema v0.4.
+> New in schema v0.5.
 > 
 
 #### 3.18.1 Shape
@@ -1532,7 +1533,7 @@ Loads variables from a local file. Intended for **local development only**.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Unique identifier (kebab-case). MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **description** | `string` | **REQUIRED**. Used to provide *meaningful* information about the external reference. In a world of agents, context is king. |
+| **description** | `string` | *Recommended*. Used to provide *meaningful* information about the external reference. In a world of agents, context is king. |
 | **type** | `string` | **REQUIRED**. MUST be `"environment"`. |
 | **resolution** | `string` | **REQUIRED**. MUST be `"file"`. |
 | **uri** | `string` | **REQUIRED**. URI pointing to the file (e.g. `file:///path/to/env.json`). |
@@ -1540,7 +1541,7 @@ Loads variables from a local file. Intended for **local development only**.
 
 **Rules:**
 
-- All fields (`name`, `description`, `type`, `resolution`, `uri`, `keys`) are mandatory.
+- The `name`, `type`, `resolution`, `uri`, and `keys` fields are mandatory. The `description` field is recommended.
 - No additional properties are allowed.
 
 #### 3.19.2 Runtime-Resolved ExternalRef
@@ -1595,6 +1596,7 @@ Example: `{"notion_token": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTI
 - Each `name` value MUST be unique across all `externalRefs` entries.
 - The `name` value MUST NOT collide with any `consumes` namespace to avoid ambiguity.
 - The `keys` map MUST contain at least one entry.
+- Variable names (keys in the `keys` map) SHOULD be unique across all `externalRefs` entries. If the same variable name appears in multiple entries, the expression MUST use the qualified form `{{name.variable}}` (where `name` is the `name` of the `externalRefs` entry) to disambiguate which source provides the value.
 - No additional properties are allowed on either variant.
 
 <aside>
@@ -1685,9 +1687,9 @@ authentication:
 
 # Input parameter with header value from external ref
 inputParameters:
-  - name: Authorization
+  - name: Notion-Version
     in: header
-    value: "Bearer {{api_key}}"
+    value: "{{notion_version}}"
 
 # Corresponding externalRefs declaration
 externalRefs:
@@ -1710,7 +1712,7 @@ The simplest capability: forward incoming requests to a consumed API without any
 
 ```yaml
 ---
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Notion Proxy"
   description: "Pass-through proxy to the Notion API for development and debugging"
@@ -1753,7 +1755,7 @@ A single exposed operation that directly calls a consumed operation, maps parame
 
 ```yaml
 ---
-naftiko: "0.4"
+naftiko: "0.5"
 externalRefs:
   - name: "env"
     type: "environment"
@@ -1833,7 +1835,7 @@ An exposed operation that chains two consumed operations using named steps and `
 
 ```yaml
 ---
-naftiko: "0.4"
+naftiko: "0.5"
 externalRefs:
   - name: "env"
     type: "environment"
@@ -1943,7 +1945,7 @@ Demonstrates a `lookup` step that cross-references the output of a previous call
 
 ```yaml
 ---
-naftiko: "0.4"
+naftiko: "0.5"
 externalRefs:
   - name: "env"
     type: "environment"
@@ -2043,7 +2045,7 @@ Combines forward proxy, simple-mode operations, orchestrated multi-step with loo
 
 ```yaml
 ---
-naftiko: "0.4"
+naftiko: "0.5"
 externalRefs:
   - name: "env"
     type: "environment"
@@ -2243,9 +2245,74 @@ capability:
 
 ---
 
+### 4.6 MCP capability (tool exposition)
+
+Exposes a single MCP tool over Streamable HTTP that calls a consumed operation, making it discoverable by AI agents via the MCP protocol.
+
+```yaml
+---
+naftiko: "0.5"
+externalRefs:
+  - name: "env"
+    type: "environment"
+    keys:
+      notion_token: "NOTION_TOKEN"
+info:
+  label: "Notion MCP Tools"
+  description: "Exposes Notion database retrieval as an MCP tool"
+
+capability:
+  exposes:
+    - type: "mcp"
+      port: 3001
+      namespace: "notion-tools"
+      description: "Notion database tools for AI agents"
+      tools:
+        - name: "get-database"
+          description: "Retrieve metadata about a Notion database by its ID"
+          inputParameters:
+            - name: "database_id"
+              type: "string"
+              description: "The unique identifier of the Notion database"
+          call: "notion.get-database"
+          with:
+            database_id: "$this.notion-tools.database_id"
+          outputParameters:
+            - type: "string"
+              mapping: "$.dbName"
+
+  consumes:
+    - type: "http"
+      namespace: "notion"
+      description: "Notion public API"
+      baseUri: "https://api.notion.com/v1"
+      authentication:
+        type: "bearer"
+        token: "{{notion_token}}"
+      inputParameters:
+        - name: "Notion-Version"
+          in: "header"
+          value: "2022-06-28"
+      resources:
+        - name: "databases"
+          path: "/databases/{database_id}"
+          operations:
+            - name: "get-database"
+              method: "GET"
+              inputParameters:
+                - name: "database_id"
+                  in: "path"
+              outputParameters:
+                - name: "dbName"
+                  type: "string"
+                  value: "$.title[0].text.content"
+```
+
+---
+
 ## 5. Versioning
 
-The Naftiko Specification uses semantic versioning. The `naftiko` field in the Naftiko Object specifies the exact version of the specification (e.g., `"0.4"`). 
+The Naftiko Specification uses semantic versioning. The `naftiko` field in the Naftiko Object specifies the exact version of the specification (e.g., `"0.5"`). 
 
 Tools processing Naftiko documents MUST validate this field to ensure compatibility with the specification version they support.
 
