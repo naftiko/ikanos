@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
 ---
 naftiko: "0.5"
 info:
