@@ -115,8 +115,9 @@ public class Resolver {
                         return null;
                     }
 
-                    // If template looks like a JSONPath ($...), extract from JSON body
-                    String tmpl = spec.getTemplate();
+                    // Prefer `value` for JSONPath extraction while keeping `template` backward
+                    // compatible for existing specs.
+                    String tmpl = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
 
                     if (tmpl != null && tmpl.trim().startsWith("$")) {
                         JsonNode extracted = Converter.jsonPathExtract(root, tmpl.trim());
