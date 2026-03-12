@@ -29,7 +29,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.OperationStepExecutor;
-import io.naftiko.engine.exposes.OperationStepExecutor.HandlingContext;
 import io.naftiko.spec.exposes.mcp.McpServerResourceSpec;
 
 /**

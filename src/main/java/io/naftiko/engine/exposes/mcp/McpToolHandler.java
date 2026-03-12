@@ -22,7 +22,6 @@ import java.util.logging.Logger;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.OperationStepExecutor;
-import io.naftiko.engine.exposes.OperationStepExecutor.HandlingContext;
 import io.naftiko.spec.exposes.mcp.McpServerToolSpec;
 
 /**
