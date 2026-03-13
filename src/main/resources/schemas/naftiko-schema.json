@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://naftiko.io/schemas/v0.5/capability.json",
+  "$id": "https://naftiko.io/schemas/v0.5/naftiko.json",
   "name": "Naftiko Specification",
   "description": "This Schema should be used to describe and validate Naftiko Capabilities",
   "type": "object",
@@ -12,6 +12,20 @@
     },
     "info": {
       "$ref": "#/$defs/Info"
+    },
+    "consumes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ConsumesHttp"
+          },
+          {
+            "$ref": "#/$defs/ImportedConsumesHttp"
+          }
+        ]
+      },
+      "minItems": 1
     },
     "externalRefs": {
       "type": "array",
@@ -25,12 +39,45 @@
       "$ref": "#/$defs/Capability"
     }
   },
-  "required": [
-    "naftiko",
-    "capability"
+  "oneOf": [
+    {
+      "required": [
+        "naftiko",
+        "capability"
+      ]
+    },
+    {
+      "required": [
+        "naftiko",
+        "consumes"
+      ]
+    }
   ],
   "additionalProperties": false,
   "$defs": {
+    "ImportedConsumesHttp": {
+      "type": "object",
+      "description": "A globally imported consumed HTTP adapter. Discriminant: 'location' field present.",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "URI to the source consumes file"
+        },
+        "import": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Namespace in the source consumes file"
+        },
+        "as": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Optional local alias for the imported namespace"
+        }
+      },
+      "required": [
+        "location",
+        "import"
+      ],
+      "additionalProperties": false
+    },
     "ExternalRef": {
       "oneOf": [
         {
@@ -683,7 +730,14 @@
           "type": "array",
           "description": "Consumed client adapters",
           "items": {
-            "$ref": "#/$defs/ConsumesHttp"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ConsumesHttp"
+              },
+              {
+                "$ref": "#/$defs/ImportedConsumesHttp"
+              }
+            ]
           },
           "minItems": 1
         }
@@ -1027,7 +1081,9 @@
       ],
       "oneOf": [
         {
-          "required": ["call"],
+          "required": [
+            "call"
+          ],
           "type": "object",
           "properties": {
             "outputParameters": {
@@ -1037,10 +1093,16 @@
               }
             }
           },
-          "not": { "required": ["location"] }
+          "not": {
+            "required": [
+              "location"
+            ]
+          }
         },
         {
-          "required": ["steps"],
+          "required": [
+            "steps"
+          ],
           "type": "object",
           "properties": {
             "mappings": true,
@@ -1051,14 +1113,28 @@
               }
             }
           },
-          "not": { "required": ["location"] }
+          "not": {
+            "required": [
+              "location"
+            ]
+          }
         },
         {
-          "required": ["location"],
+          "required": [
+            "location"
+          ],
           "not": {
             "anyOf": [
-              { "required": ["call"] },
-              { "required": ["steps"] }
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
             ]
           }
         }
@@ -1111,12 +1187,24 @@
       ],
       "oneOf": [
         {
-          "required": ["template"],
-          "not": { "required": ["location"] }
+          "required": [
+            "template"
+          ],
+          "not": {
+            "required": [
+              "location"
+            ]
+          }
         },
         {
-          "required": ["location"],
-          "not": { "required": ["template"] }
+          "required": [
+            "location"
+          ],
+          "not": {
+            "required": [
+              "template"
+            ]
+          }
         }
       ],
       "additionalProperties": false
@@ -1155,7 +1243,10 @@
       "properties": {
         "role": {
           "type": "string",
-          "enum": ["user", "assistant"],
+          "enum": [
+            "user",
+            "assistant"
+          ],
           "description": "The role of the message sender."
         },
         "content": {
@@ -1163,7 +1254,10 @@
           "description": "The message content. Supports {{arg}} placeholders for argument substitution."
         }
       },
-      "required": ["role", "content"],
+      "required": [
+        "role",
+        "content"
+      ],
       "additionalProperties": false
     },
     "ExposedResource": {

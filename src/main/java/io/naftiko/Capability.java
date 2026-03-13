@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.engine.ExternalRefResolver;
+import io.naftiko.engine.ConsumesImportResolver;
 import io.naftiko.spec.ExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
@@ -60,6 +61,12 @@ public class Capability {
      */
     public Capability(NaftikoSpec spec, String capabilityDir) throws Exception {
         this.spec = spec;
+
+        // Resolve consumes imports early before initializing adapters
+        if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
+            ConsumesImportResolver importResolver = new ConsumesImportResolver();
+            importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);
+        }
 
         // Resolve external references early for injection into adapters
         ExternalRefResolver refResolver = new ExternalRefResolver();

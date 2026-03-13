@@ -16,6 +16,7 @@ package io.naftiko.spec;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.naftiko.spec.consumes.ClientSpec;
 
 /**
  * Naftiko Specification Root, including version and capabilities
@@ -30,12 +31,16 @@ public class NaftikoSpec {
     private final List<ExternalRefSpec> externalRefs;
 
     private volatile CapabilitySpec capability;
+    
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<ClientSpec> consumes;
 
     public NaftikoSpec(String naftiko, InfoSpec info, CapabilitySpec capability) {
         this.naftiko = naftiko;
         this.info = info;
         this.externalRefs = new CopyOnWriteArrayList<>();
         this.capability = capability;
+        this.consumes = new CopyOnWriteArrayList<>();
     }
 
     public NaftikoSpec() {
@@ -68,6 +73,10 @@ public class NaftikoSpec {
 
     public void setCapability(CapabilitySpec capability) {
         this.capability = capability;
+    }
+    
+    public List<ClientSpec> getConsumes() {
+        return consumes;
     }
 
 }
