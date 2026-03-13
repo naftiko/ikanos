@@ -14,20 +14,12 @@
 package io.naftiko.spec.consumes;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
- * Base Exposed Adapter Specification Element
+ * Base Consumed Adapter Specification Element
  */
-@JsonTypeInfo(
-    use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY, // Include the type identifier as a property in the JSON
-    property = "type" // The name of the JSON property holding the type identifier
-)
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = HttpClientSpec.class, name = "http")
-})
+@JsonDeserialize(using = ClientSpecDeserializer.class)
 public abstract class ClientSpec {
 
     private volatile String type;

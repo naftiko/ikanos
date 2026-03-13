@@ -16,11 +16,14 @@ package io.naftiko.spec.consumes;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.InputParameterSpec;
 
 /**
  * Specification Element of consumed HTTP adapter endpoints
  */
+@JsonDeserialize(using = JsonDeserializer.None.class)
 public class HttpClientSpec extends ClientSpec {
 
     private volatile String baseUri;
