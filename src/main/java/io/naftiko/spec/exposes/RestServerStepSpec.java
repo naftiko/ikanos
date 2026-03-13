@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * A step contains a call specification that defines which operation to invoke
  * and what parameters to pass to it.
  */
-public class ApiServerStepSpec {
+public class RestServerStepSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ServerCallSpec call;
@@ -35,19 +35,19 @@ public class ApiServerStepSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String description;
 
-    public ApiServerStepSpec() {
+    public RestServerStepSpec() {
         this(null, null, null);
     }
 
-    public ApiServerStepSpec(ServerCallSpec call) {
+    public RestServerStepSpec(ServerCallSpec call) {
         this(call, null, null);
     }
 
-    public ApiServerStepSpec(ServerCallSpec call, Map<String, Object> with) {
+    public RestServerStepSpec(ServerCallSpec call, Map<String, Object> with) {
         this(call, with, null);
     }
 
-    public ApiServerStepSpec(ServerCallSpec call, Map<String, Object> with, String description) {
+    public RestServerStepSpec(ServerCallSpec call, Map<String, Object> with, String description) {
         this.call = call;
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;
         this.description = description;

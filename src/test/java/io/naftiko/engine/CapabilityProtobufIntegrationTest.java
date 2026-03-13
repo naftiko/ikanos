@@ -25,7 +25,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 import java.io.File;
 import java.io.InputStream;
 
@@ -154,11 +154,11 @@ public class CapabilityProtobufIntegrationTest {
 
                 var exposes = spec.getCapability().getExposes();
                 assertEquals(1, exposes.size(), "Should have one expose server");
-                ApiServerSpec apiServer = (ApiServerSpec) exposes.get(0);
-                assertEquals("test-protobuf", apiServer.getNamespace(),
+                RestServerSpec restServer = (RestServerSpec) exposes.get(0);
+                assertEquals("test-protobuf", restServer.getNamespace(),
                                 "Server namespace should be test-protobuf");
 
-                var resources = apiServer.getResources();
+                var resources = restServer.getResources();
                 assertEquals(1, resources.size(), "Should have one resource");
                 assertEquals("/proto/records", resources.get(0).getPath(),
                                 "Resource path should be /proto/records");

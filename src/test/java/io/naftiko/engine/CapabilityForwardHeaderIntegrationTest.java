@@ -31,11 +31,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import io.naftiko.Capability;
-import io.naftiko.engine.exposes.ApiResourceRestlet;
-import io.naftiko.engine.exposes.ApiServerAdapter;
+import io.naftiko.engine.exposes.RestResourceRestlet;
+import io.naftiko.engine.exposes.RestServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 
 public class CapabilityForwardHeaderIntegrationTest {
 
@@ -70,7 +70,7 @@ public class CapabilityForwardHeaderIntegrationTest {
                     naftiko: \"0.4\"
                     capability:
                       exposes:
-                        - type: \"api\"
+                        - type: \"rest\"
                           address: \"localhost\"
                           port: 0
                           namespace: \"sample\"
@@ -96,17 +96,17 @@ public class CapabilityForwardHeaderIntegrationTest {
             NaftikoSpec spec = mapper.readValue(yaml, NaftikoSpec.class);
 
             Capability capability = new Capability(spec);
-            ApiServerAdapter adapter = (ApiServerAdapter) capability.getServerAdapters().get(0);
-            ApiServerSpec serverSpec = (ApiServerSpec) adapter.getSpec();
-            ApiServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
-            ApiResourceRestlet restlet = new ApiResourceRestlet(capability, serverSpec, resourceSpec);
+            RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(0);
+            RestServerSpec serverSpec = (RestServerSpec) adapter.getSpec();
+            RestServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
+            RestResourceRestlet restlet = new RestResourceRestlet(capability, serverSpec, resourceSpec);
 
                 Request request = new Request(org.restlet.data.Method.GET,
                   "http://localhost/notion/pages");
             request.getAttributes().put("path", "pages");
             Response response = new Response(request);
 
-            Method forwardMethod = ApiResourceRestlet.class.getDeclaredMethod("handleFromForwardSpec",
+            Method forwardMethod = RestResourceRestlet.class.getDeclaredMethod("handleFromForwardSpec",
                     Request.class, Response.class);
             forwardMethod.setAccessible(true);
             boolean handled = (boolean) forwardMethod.invoke(restlet, request, response);

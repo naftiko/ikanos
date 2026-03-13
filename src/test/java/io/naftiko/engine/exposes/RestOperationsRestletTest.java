@@ -20,9 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Unit tests for ApiOperationsRestlet, particularly the Mustache template resolution functionality.
+ * Unit tests for RestOperationsRestlet, particularly the Mustache template resolution functionality.
  */
-public class ApiOperationsRestletTest {
+public class RestOperationsRestletTest {
 
     /**
      * Test that null template returns null.

@@ -1,7 +1,7 @@
 naftiko: "0.5"
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 8081
       namespace: "sample"
       resources:

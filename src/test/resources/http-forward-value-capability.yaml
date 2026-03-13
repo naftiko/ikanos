@@ -9,7 +9,7 @@ info:
 
 capability:
   exposes:
-    - type: api
+    - type: rest
       address: localhost
       port: 8083
       namespace: sample

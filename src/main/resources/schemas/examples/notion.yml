@@ -27,7 +27,7 @@ externalRefs:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       address: "localhost"
       port: 9090
       namespace: "sample"

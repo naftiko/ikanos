@@ -26,14 +26,14 @@ import io.naftiko.engine.ConsumesImportResolver;
 import io.naftiko.spec.ExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
-import io.naftiko.engine.exposes.ApiServerAdapter;
+import io.naftiko.engine.exposes.RestServerAdapter;
 import io.naftiko.engine.exposes.McpServerAdapter;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.engine.exposes.SkillServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
@@ -93,8 +93,8 @@ public class Capability {
         }
 
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
-            if ("api".equals(serverSpec.getType())) {
-                this.serverAdapters.add(new ApiServerAdapter(this, (ApiServerSpec) serverSpec));
+            if ("rest".equals(serverSpec.getType())) {
+                this.serverAdapters.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));
             } else if ("mcp".equals(serverSpec.getType())) {
                 this.serverAdapters.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
             } else if ("skill".equals(serverSpec.getType())) {

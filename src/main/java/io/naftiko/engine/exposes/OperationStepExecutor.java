@@ -38,9 +38,9 @@ import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
-import io.naftiko.spec.exposes.ApiServerOperationSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerOperationSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.OperationStepCallSpec;
 import io.naftiko.spec.exposes.OperationStepLookupSpec;
@@ -53,7 +53,7 @@ import io.naftiko.spec.exposes.OperationStepLookupSpec;
  * - Finding the appropriate client adapter and operation
  * - Executing the client request
  * 
- * Used by both ApiResourceRestlet and McpToolHandler to avoid duplication.
+ * Used by both RestResourceRestlet and McpToolHandler to avoid duplication.
  */
 public class OperationStepExecutor {
 
@@ -70,8 +70,8 @@ public class OperationStepExecutor {
      * server-level, resource-level and operation-level InputParameterSpec entries.
      */
     public Map<String, Object> resolveInputParametersFromRequest(Request request,
-            ApiServerSpec serverSpec, ApiServerResourceSpec resourceSpec,
-            ApiServerOperationSpec serverOp) {
+            RestServerSpec serverSpec, RestServerResourceSpec resourceSpec,
+            RestServerOperationSpec serverOp) {
         Map<String, Object> params = new ConcurrentHashMap<>();
         JsonNode tmpRoot = null;
 

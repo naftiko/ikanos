@@ -21,23 +21,23 @@ import io.naftiko.spec.consumes.AuthenticationSpec;
 /**
  * Web API Server Specification Element
  */
-public class ApiServerSpec extends ServerSpec {
+public class RestServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String namespace;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<ApiServerResourceSpec> resources;
+    private final List<RestServerResourceSpec> resources;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile AuthenticationSpec authentication;
 
-    public ApiServerSpec() {
+    public RestServerSpec() {
         this(null, 0, null);
     }
 
-    public ApiServerSpec(String address, int port, String namespace) {
-        super("api", address, port);
+    public RestServerSpec(String address, int port, String namespace) {
+        super("rest", address, port);
         this.namespace = namespace;
         this.resources = new CopyOnWriteArrayList<>();
     }
@@ -50,7 +50,7 @@ public class ApiServerSpec extends ServerSpec {
         this.namespace = namespace;
     }
 
-    public List<ApiServerResourceSpec> getResources() {
+    public List<RestServerResourceSpec> getResources() {
         return resources;
     }
 

@@ -23,7 +23,7 @@ import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
 import io.naftiko.Capability;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.ExposedSkillSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
@@ -44,7 +44,7 @@ import io.naftiko.spec.exposes.SkillToolSpec;
  * </ul>
  *
  * <p>At construction time the adapter validates that every tool in every skill either references a
- * sibling {@code api}/{@code mcp} namespace (via {@code from}) or points to an instruction file
+ * sibling {@code rest}/{@code mcp} namespace (via {@code from}) or points to an instruction file
  * (via {@code instruction}) — never both and never neither.</p>
  */
 public class SkillServerAdapter extends ServerAdapter {
@@ -76,7 +76,7 @@ public class SkillServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Builds a lookup map from namespace name to adapter type ({@code "api"} or {@code "mcp"})
+     * Builds a lookup map from namespace name to adapter type ({@code "rest"} or {@code "mcp"})
      * by scanning the sibling {@link ServerSpec} entries in the capability. The skill adapter
      * itself is excluded.
      */
@@ -87,10 +87,10 @@ public class SkillServerAdapter extends ServerAdapter {
             if (spec == selfSpec) {
                 continue;
             }
-            if (spec instanceof ApiServerSpec) {
-                String ns = ((ApiServerSpec) spec).getNamespace();
+            if (spec instanceof RestServerSpec) {
+                String ns = ((RestServerSpec) spec).getNamespace();
                 if (ns != null) {
-                    map.put(ns, "api");
+                    map.put(ns, "rest");
                 }
             } else if (spec instanceof McpServerSpec) {
                 String ns = ((McpServerSpec) spec).getNamespace();

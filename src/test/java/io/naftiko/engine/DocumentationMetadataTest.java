@@ -23,9 +23,9 @@ import java.util.Map;
 import io.naftiko.spec.DocumentationMetadata;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
-import io.naftiko.spec.exposes.ApiServerOperationSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.RestServerOperationSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerStepSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
 import io.naftiko.spec.exposes.OperationStepCallSpec;
 
@@ -37,14 +37,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class DocumentationMetadataTest {
 
-    private ApiServerResourceSpec resource;
-    private ApiServerOperationSpec operation;
+    private RestServerResourceSpec resource;
+    private RestServerOperationSpec operation;
 
     @BeforeEach
     public void setUp() {
-        resource = new ApiServerResourceSpec("/users", null, null, "User management endpoints", null);
+        resource = new RestServerResourceSpec("/users", null, null, "User management endpoints", null);
         
-        operation = new ApiServerOperationSpec(resource, "GET", "getUser", "Get User");
+        operation = new RestServerOperationSpec(resource, "GET", "getUser", "Get User");
         operation.setDescription("Retrieves a user by ID");
     }
 
@@ -60,11 +60,11 @@ public class DocumentationMetadataTest {
 
     @Test
     public void testExtractResourceDocumentationWithMultipleOperations() {
-        ApiServerOperationSpec op1 = new ApiServerOperationSpec(resource, "GET", "list", "List Users");
+        RestServerOperationSpec op1 = new RestServerOperationSpec(resource, "GET", "list", "List Users");
         op1.setDescription("List all users");
         resource.getOperations().add(op1);
         
-        ApiServerOperationSpec op2 = new ApiServerOperationSpec(resource, "POST", "create", "Create User");
+        RestServerOperationSpec op2 = new RestServerOperationSpec(resource, "POST", "create", "Create User");
         op2.setDescription("Create a new user");
         resource.getOperations().add(op2);
         
@@ -108,14 +108,14 @@ public class DocumentationMetadataTest {
 
     @Test
     public void testExtractStepDocumentation() {
-        List<ApiServerStepSpec> steps = new ArrayList<>();
+        List<RestServerStepSpec> steps = new ArrayList<>();
         
         ServerCallSpec call1 = new ServerCallSpec("users.get", null, "Fetch user details");
-        ApiServerStepSpec step1 = new ApiServerStepSpec(call1, null, "Retrieve user information");
+        RestServerStepSpec step1 = new RestServerStepSpec(call1, null, "Retrieve user information");
         steps.add(step1);
         
         ServerCallSpec call2 = new ServerCallSpec("users.audit", null);
-        ApiServerStepSpec step2 = new ApiServerStepSpec(call2, null, "Log the access");
+        RestServerStepSpec step2 = new RestServerStepSpec(call2, null, "Log the access");
         steps.add(step2);
         
         List<Map<String, Object>> stepDocs = DocumentationMetadata.extractStepDocumentation(steps);
@@ -151,9 +151,9 @@ public class DocumentationMetadataTest {
     }
 
     @Test
-    public void testApiServerStepSpecWithDescription() {
+    public void testRestServerStepSpecWithDescription() {
         ServerCallSpec call = new ServerCallSpec("getUser");
-        ApiServerStepSpec step = new ApiServerStepSpec(call, null, "Fetch user by ID");
+        RestServerStepSpec step = new RestServerStepSpec(call, null, "Fetch user by ID");
         
         assertEquals("Fetch user by ID", step.getDescription());
     }
@@ -167,7 +167,7 @@ public class DocumentationMetadataTest {
     }
 
     @Test
-    public void testApiServerCallSpecWithDescription() {
+    public void testRestServerCallSpecWithDescription() {
         ServerCallSpec call = new ServerCallSpec("users.get", new HashMap<>(), "Retrieve a user");
         
         assertEquals("Retrieve a user", call.getDescription());

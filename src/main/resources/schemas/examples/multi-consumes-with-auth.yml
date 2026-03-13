@@ -7,7 +7,7 @@ info:
 capability:
   exposes:
   - namespace: "local-api"
-    type: api
+    type: rest
     address: "localhost"
     port: 8080
     resources: 

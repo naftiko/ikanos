@@ -3,7 +3,7 @@
 naftiko: "0.5"
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       address: "localhost"
       port: 8084
       namespace: "test-http-body"

@@ -7,7 +7,7 @@ info:
 
 capability:
   exposes:
-    - type: api
+    - type: rest
       port: 3000
       namespace: weather-api
       resources:

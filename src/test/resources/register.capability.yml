@@ -6,7 +6,7 @@ info:
   description: "Business description of your capability"
 capability:
   exposes:
-  - type: "api"
+  - type: "rest"
     namespace: "documentation"
     port: 8081
     resources:

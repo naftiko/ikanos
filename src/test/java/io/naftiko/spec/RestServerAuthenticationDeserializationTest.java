@@ -22,12 +22,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.spec.consumes.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 
-public class ApiServerAuthenticationDeserializationTest {
+public class RestServerAuthenticationDeserializationTest {
 
     @Test
-    public void shouldDeserializeApiServerBearerAuthentication() throws Exception {
+    public void shouldDeserializeRestServerBearerAuthentication() throws Exception {
         String yaml = """
                 naftiko: 0.4
                 info:
@@ -35,7 +35,7 @@ public class ApiServerAuthenticationDeserializationTest {
                   description: Test
                 capability:
                   exposes:
-                    - type: api
+                    - type: rest
                       namespace: test
                       port: 8080
                       authentication:
@@ -52,17 +52,17 @@ public class ApiServerAuthenticationDeserializationTest {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         NaftikoSpec spec = mapper.readValue(yaml, NaftikoSpec.class);
 
-        ApiServerSpec apiServer = (ApiServerSpec) spec.getCapability().getExposes().get(0);
+        RestServerSpec restServer = (RestServerSpec) spec.getCapability().getExposes().get(0);
 
-        assertNotNull(apiServer.getAuthentication(), "Authentication should be present");
-        assertInstanceOf(BearerAuthenticationSpec.class, apiServer.getAuthentication(),
+        assertNotNull(restServer.getAuthentication(), "Authentication should be present");
+        assertInstanceOf(BearerAuthenticationSpec.class, restServer.getAuthentication(),
                 "Authentication should be bearer type");
-        assertEquals("bearer", apiServer.getAuthentication().getType());
-        assertEquals("{{api_token}}", ((BearerAuthenticationSpec) apiServer.getAuthentication()).getToken());
+        assertEquals("bearer", restServer.getAuthentication().getType());
+        assertEquals("{{api_token}}", ((BearerAuthenticationSpec) restServer.getAuthentication()).getToken());
     }
 
     @Test
-    public void shouldDeserializeApiServerApiKeyAuthentication() throws Exception {
+    public void shouldDeserializeRestServerApiKeyAuthentication() throws Exception {
         String yaml = """
                 naftiko: 0.4
                 info:
@@ -70,7 +70,7 @@ public class ApiServerAuthenticationDeserializationTest {
                   description: Test
                 capability:
                   exposes:
-                    - type: api
+                    - type: rest
                       namespace: test
                       port: 8080
                       authentication:
@@ -89,12 +89,12 @@ public class ApiServerAuthenticationDeserializationTest {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         NaftikoSpec spec = mapper.readValue(yaml, NaftikoSpec.class);
 
-        ApiServerSpec apiServer = (ApiServerSpec) spec.getCapability().getExposes().get(0);
+        RestServerSpec restServer = (RestServerSpec) spec.getCapability().getExposes().get(0);
 
-        assertNotNull(apiServer.getAuthentication(), "Authentication should be present");
-        assertInstanceOf(ApiKeyAuthenticationSpec.class, apiServer.getAuthentication(),
+        assertNotNull(restServer.getAuthentication(), "Authentication should be present");
+        assertInstanceOf(ApiKeyAuthenticationSpec.class, restServer.getAuthentication(),
                 "Authentication should be api key type");
-        ApiKeyAuthenticationSpec apiKey = (ApiKeyAuthenticationSpec) apiServer.getAuthentication();
+        ApiKeyAuthenticationSpec apiKey = (ApiKeyAuthenticationSpec) restServer.getAuthentication();
         assertEquals("apikey", apiKey.getType());
         assertEquals("X-API-Key", apiKey.getKey());
         assertEquals("abc123", apiKey.getValue());

@@ -169,7 +169,7 @@ public class CapabilitySkillIntegrationTest {
         assertNotNull(invRef);
         assertEquals("orders-rest", invRef.get("targetNamespace"));
         assertEquals("list-orders", invRef.get("action"));
-        assertEquals("api", invRef.get("mode"));
+        assertEquals("rest", invRef.get("mode"));
 
         // Instruction tool has instruction path
         Map<String, Object> instructionTool = tools.get(1);
