@@ -6,7 +6,7 @@ info:
   description: "This is a capability enabling consumption of Notion API."
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       address: "localhost"
       namespace: "notion-api-proxy"
       port: 8080

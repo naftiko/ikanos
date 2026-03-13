@@ -714,7 +714,7 @@
           "items": {
             "oneOf": [
               {
-                "$ref": "#/$defs/ExposesApi"
+                "$ref": "#/$defs/ExposesRest"
               },
               {
                 "$ref": "#/$defs/ExposesMcp"
@@ -762,13 +762,13 @@
       ],
       "additionalProperties": false
     },
-    "ExposesApi": {
+    "ExposesRest": {
       "type": "object",
-      "description": "API exposition configuration",
+      "description": "REST exposition configuration",
       "properties": {
         "type": {
           "type": "string",
-          "const": "api"
+          "const": "rest"
         },
         "address": {
           "$ref": "#/$defs/Address"

@@ -19,17 +19,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Specification Element for forwarding trusted headers
  */
-public class ApiServerForwardSpec {
+public class RestServerForwardSpec {
 
     private volatile String targetNamespace;
 
     private final List<String> trustedHeaders;
 
-    public ApiServerForwardSpec() {
+    public RestServerForwardSpec() {
         this(null);
     }
 
-    public ApiServerForwardSpec(String targetNamespace) {
+    public RestServerForwardSpec(String targetNamespace) {
         this.targetNamespace = targetNamespace;
         this.trustedHeaders = new CopyOnWriteArrayList<>();
     }

@@ -16,9 +16,9 @@ package io.naftiko.spec;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import io.naftiko.spec.exposes.ApiServerOperationSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.RestServerOperationSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerStepSpec;
 import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.OperationStepCallSpec;
 
@@ -34,7 +34,7 @@ public class DocumentationMetadata {
      * @param resource The resource specification
      * @return Map containing resource documentation
      */
-    public static Map<String, Object> extractResourceDocumentation(ApiServerResourceSpec resource) {
+    public static Map<String, Object> extractResourceDocumentation(RestServerResourceSpec resource) {
         Map<String, Object> docs = new HashMap<>();
         
         if (resource != null) {
@@ -43,9 +43,9 @@ public class DocumentationMetadata {
             
             // Extract operation descriptions
             Map<String, String> operations = new HashMap<>();
-            List<ApiServerOperationSpec> ops = resource.getOperations();
+            List<RestServerOperationSpec> ops = resource.getOperations();
             if (ops != null) {
-                for (ApiServerOperationSpec op : ops) {
+                for (RestServerOperationSpec op : ops) {
                     if (op != null && op.getName() != null) {
                         operations.put(op.getName(), op.getDescription() != null ? op.getDescription() : "");
                     }
@@ -104,12 +104,12 @@ public class DocumentationMetadata {
      * @param steps List of operation steps
      * @return List of step documentation with descriptions
      */
-    public static List<Map<String, Object>> extractStepDocumentation(List<ApiServerStepSpec> steps) {
+    public static List<Map<String, Object>> extractStepDocumentation(List<RestServerStepSpec> steps) {
         List<Map<String, Object>> stepDocs = new java.util.ArrayList<>();
         
         if (steps != null) {
             for (int i = 0; i < steps.size(); i++) {
-                ApiServerStepSpec step = steps.get(i);
+                RestServerStepSpec step = steps.get(i);
                 if (step != null) {
                     Map<String, Object> stepDoc = new HashMap<>();
                     stepDoc.put("index", i);
@@ -169,8 +169,8 @@ public class DocumentationMetadata {
      * @param operation The operation specification
      * @return Formatted documentation string
      */
-    public static String formatOperationDocumentation(ApiServerResourceSpec resource,
-            ApiServerOperationSpec operation) {
+    public static String formatOperationDocumentation(RestServerResourceSpec resource,
+            RestServerOperationSpec operation) {
         StringBuilder doc = new StringBuilder();
         
         if (resource != null && operation != null) {

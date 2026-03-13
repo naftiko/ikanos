@@ -23,7 +23,7 @@ import io.naftiko.spec.OperationSpec;
 /**
  * API Operation Specification Element
  */
-public class ApiServerOperationSpec extends OperationSpec {
+public class RestServerOperationSpec extends OperationSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ServerCallSpec call;
@@ -34,23 +34,23 @@ public class ApiServerOperationSpec extends OperationSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile Map<String, Object> with;
 
-    public ApiServerOperationSpec() {
+    public RestServerOperationSpec() {
         this(null, null, null, null, null, null, null, null, null);
     }
 
-    public ApiServerOperationSpec(ApiServerResourceSpec parentResource, String method, String name, String label) {
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label) {
         this(parentResource, method, name, label, null, null, null, null, null);
     }
 
-    public ApiServerOperationSpec(ApiServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, ServerCallSpec call) {
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, ServerCallSpec call) {
         this(parentResource, method, name, label, description, outputRawFormat, null, call, null);
     }
 
-    public ApiServerOperationSpec(ApiServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call) {
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call) {
         this(parentResource, method, name, label, description, outputRawFormat, outputSchema, call, null);
     }
 
-    public ApiServerOperationSpec(ApiServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call, Map<String, Object> with) {
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call, Map<String, Object> with) {
         super(parentResource, method, name, label, description, outputRawFormat, outputSchema);
         this.call = call;
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;

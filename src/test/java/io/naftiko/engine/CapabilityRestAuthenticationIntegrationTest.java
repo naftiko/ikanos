@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
-import io.naftiko.engine.exposes.ApiServerAdapter;
+import io.naftiko.engine.exposes.RestServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 
-public class CapabilityApiAuthenticationIntegrationTest {
+public class CapabilityRestAuthenticationIntegrationTest {
 
     @Test
     public void bearerAuthenticationShouldReturnUnauthorizedWithoutTokenAndOkWithToken()
@@ -42,7 +42,7 @@ public class CapabilityApiAuthenticationIntegrationTest {
                   description: "Auth test"
                 capability:
                   exposes:
-                    - type: "api"
+                    - type: "rest"
                       address: "localhost"
                       port: 0
                       namespace: "sample"
@@ -92,7 +92,7 @@ public class CapabilityApiAuthenticationIntegrationTest {
                   description: "Auth test"
                 capability:
                   exposes:
-                    - type: "api"
+                    - type: "rest"
                       address: "localhost"
                       port: 0
                       namespace: "sample"
@@ -135,7 +135,7 @@ public class CapabilityApiAuthenticationIntegrationTest {
         NaftikoSpec spec = mapper.readValue(yaml, NaftikoSpec.class);
 
         Capability capability = new Capability(spec);
-        ApiServerAdapter adapter = (ApiServerAdapter) capability.getServerAdapters().get(0);
+        RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(0);
         return adapter.getServer().getNext();
     }
 }

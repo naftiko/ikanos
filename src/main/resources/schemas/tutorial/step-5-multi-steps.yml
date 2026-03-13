@@ -14,7 +14,7 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 8081
       namespace: "my-capability"
       resources:

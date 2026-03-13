@@ -22,28 +22,28 @@ import io.naftiko.spec.ResourceSpec;
 /**
  * API Resource Specification Element
  */
-public class ApiServerResourceSpec extends ResourceSpec {
+public class RestServerResourceSpec extends ResourceSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private volatile List<ApiServerOperationSpec> operations;
+    private volatile List<RestServerOperationSpec> operations;
 
-    private volatile ApiServerForwardSpec forward;
+    private volatile RestServerForwardSpec forward;
 
-    public ApiServerResourceSpec() {
+    public RestServerResourceSpec() {
         this(null, null, null, null, null);
     }
     
-    public ApiServerResourceSpec(String path) {
+    public RestServerResourceSpec(String path) {
         this(path, null, null, null, null);
     }
 
-    public ApiServerResourceSpec(String path, String name, String label, String description, ApiServerForwardSpec forward) {
+    public RestServerResourceSpec(String path, String name, String label, String description, RestServerForwardSpec forward) {
         super(path, name, label, description);
         this.operations = new CopyOnWriteArrayList<>();
         this.forward = forward;
     }
 
-    public List<ApiServerOperationSpec> getOperations() {
+    public List<RestServerOperationSpec> getOperations() {
         return operations;
     }
 
@@ -54,20 +54,20 @@ public class ApiServerResourceSpec extends ResourceSpec {
      * @JsonSetter ensures this method is called by Jackson during deserialization
      */
     @JsonSetter
-    public void setOperations(List<ApiServerOperationSpec> operations) {
+    public void setOperations(List<RestServerOperationSpec> operations) {
         this.operations = operations;
         if (operations != null) {
-            for (ApiServerOperationSpec operation : operations) {
+            for (RestServerOperationSpec operation : operations) {
                 operation.setParentResource(this);
             }
         }
     }
 
-    public ApiServerForwardSpec getForward() {
+    public RestServerForwardSpec getForward() {
         return forward;
     }
 
-    public void setForward(ApiServerForwardSpec forward) {
+    public void setForward(RestServerForwardSpec forward) {
         this.forward = forward;
     }
 

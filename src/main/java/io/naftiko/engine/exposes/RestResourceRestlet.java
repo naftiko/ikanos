@@ -25,10 +25,10 @@ import io.naftiko.engine.Resolver;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.HttpClientAdapter;
 import io.naftiko.spec.OutputParameterSpec;
-import io.naftiko.spec.exposes.ApiServerForwardSpec;
-import io.naftiko.spec.exposes.ApiServerOperationSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerForwardSpec;
+import io.naftiko.spec.exposes.RestServerOperationSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -39,15 +39,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Restlet that handles calls to an API resource
  */
-public class ApiResourceRestlet extends Restlet {
+public class RestResourceRestlet extends Restlet {
 
     private final Capability capability;
-    private final ApiServerSpec serverSpec;
-    private final ApiServerResourceSpec resourceSpec;
+    private final RestServerSpec serverSpec;
+    private final RestServerResourceSpec resourceSpec;
     private final OperationStepExecutor stepExecutor;
 
-    public ApiResourceRestlet(Capability capability, ApiServerSpec serverSpec,
-            ApiServerResourceSpec resourceSpec) {
+    public RestResourceRestlet(Capability capability, RestServerSpec serverSpec,
+            RestServerResourceSpec resourceSpec) {
         this.capability = capability;
         this.serverSpec = serverSpec;
         this.resourceSpec = resourceSpec;
@@ -79,7 +79,7 @@ public class ApiResourceRestlet extends Restlet {
     private boolean handleFromOperationSpec(Request request, Response response) {
         OperationStepExecutor.HandlingContext found = null;
 
-        for (ApiServerOperationSpec serverOp : getResourceSpec().getOperations()) {
+        for (RestServerOperationSpec serverOp : getResourceSpec().getOperations()) {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
 
@@ -174,7 +174,7 @@ public class ApiResourceRestlet extends Restlet {
      * Check if an operation can build a mock response using const values from outputParameters.
      * Returns true if the operation has at least one outputParameter with a const value.
      */
-    private boolean canBuildMockResponse(ApiServerOperationSpec serverOp) {
+    private boolean canBuildMockResponse(RestServerOperationSpec serverOp) {
         if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
             return false;
         }
@@ -231,7 +231,7 @@ public class ApiResourceRestlet extends Restlet {
     /**
      * Send a mock response using const values from outputParameters.
      */
-    private void sendMockResponse(ApiServerOperationSpec serverOp, Response response) {
+    private void sendMockResponse(RestServerOperationSpec serverOp, Response response) {
         try {
             ObjectMapper mapper = new ObjectMapper();
 
@@ -259,7 +259,7 @@ public class ApiResourceRestlet extends Restlet {
     /**
      * Build a JSON object with mock data from outputParameters const values.
      */
-    private JsonNode buildMockData(ApiServerOperationSpec serverOp, ObjectMapper mapper) {
+    private JsonNode buildMockData(RestServerOperationSpec serverOp, ObjectMapper mapper) {
         if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
             return null;
         }
@@ -330,7 +330,7 @@ public class ApiResourceRestlet extends Restlet {
         return NullNode.instance;
     }
 
-    private void sendResponse(ApiServerOperationSpec serverOp, Response response,
+    private void sendResponse(RestServerOperationSpec serverOp, Response response,
             OperationStepExecutor.HandlingContext found) {
         // Apply output mappings if present or forward the raw entity
         if (serverOp.getOutputParameters() != null && !serverOp.getOutputParameters().isEmpty()) {
@@ -364,7 +364,7 @@ public class ApiResourceRestlet extends Restlet {
         for (ClientAdapter adapter : getCapability().getClientAdapters()) {
             if (adapter instanceof HttpClientAdapter) {
                 HttpClientAdapter httpAdapter = (HttpClientAdapter) adapter;
-                ApiServerForwardSpec forwardSpec = getResourceSpec().getForward();
+                RestServerForwardSpec forwardSpec = getResourceSpec().getForward();
 
                 if (httpAdapter.getHttpClientSpec().getNamespace()
                         .equals(forwardSpec.getTargetNamespace())) {
@@ -438,7 +438,7 @@ public class ApiResourceRestlet extends Restlet {
      * 
      * Handles conversion to JSON if outputRawFormat is specified.
      */
-    private String mapOutputParameters(ApiServerOperationSpec serverOp,
+    private String mapOutputParameters(RestServerOperationSpec serverOp,
             OperationStepExecutor.HandlingContext found) throws IOException {
         if (found == null || found.clientResponse == null
                 || found.clientResponse.getEntity() == null) {
@@ -476,11 +476,11 @@ public class ApiResourceRestlet extends Restlet {
         return capability;
     }
 
-    public ApiServerSpec getServerSpec() {
+    public RestServerSpec getServerSpec() {
         return serverSpec;
     }
 
-    public ApiServerResourceSpec getResourceSpec() {
+    public RestServerResourceSpec getResourceSpec() {
         return resourceSpec;
     }
 

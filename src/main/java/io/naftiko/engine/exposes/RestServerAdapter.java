@@ -36,26 +36,26 @@ import io.naftiko.spec.consumes.BasicAuthenticationSpec;
 import io.naftiko.spec.consumes.DigestAuthenticationSpec;
 import io.naftiko.spec.ExternalRefSpec;
 import io.naftiko.spec.ExternalRefKeysSpec;
-import io.naftiko.spec.exposes.ApiServerResourceSpec;
-import io.naftiko.spec.exposes.ApiServerSpec;
+import io.naftiko.spec.exposes.RestServerResourceSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 
 /**
  * Implementation of the ServerAdapter abstract class that sets up an HTTP server using the Restlet
  * Framework acting as a spec-driven API server.
  */
-public class ApiServerAdapter extends ServerAdapter {
+public class RestServerAdapter extends ServerAdapter {
 
     private final Server server;
     private final Router router;
 
-    public ApiServerAdapter(Capability capability, ApiServerSpec serverSpec) {
+    public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
         this.server = new Server(Protocol.HTTP, serverSpec.getAddress(), serverSpec.getPort());
         this.router = new Router();
 
-        for (ApiServerResourceSpec res : getApiServerSpec().getResources()) {
+        for (RestServerResourceSpec res : getRestServerSpec().getResources()) {
             String pathTemplate = toUriTemplate(res.getPath());
-            Restlet resourceRestlet = new ApiResourceRestlet(capability, serverSpec, res);
+            Restlet resourceRestlet = new RestResourceRestlet(capability, serverSpec, res);
             TemplateRoute route = getRouter().attach(pathTemplate, resourceRestlet);
             route.getTemplate().getVariables().put("path", new Variable(Variable.TYPE_URI_PATH));
         }
@@ -63,7 +63,7 @@ public class ApiServerAdapter extends ServerAdapter {
         this.server.setNext(buildServerChain(serverSpec));
     }
 
-    private Restlet buildServerChain(ApiServerSpec serverSpec) {
+    private Restlet buildServerChain(RestServerSpec serverSpec) {
         Restlet next = this.router;
         AuthenticationSpec authentication = serverSpec.getAuthentication();
 
@@ -77,7 +77,7 @@ public class ApiServerAdapter extends ServerAdapter {
 
         // Extract allowed variable names from capability's external refs
         Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
-        return new ApiServerAuthenticationRestlet(authentication, next, allowedVariables);
+        return new RestServerAuthenticationRestlet(authentication, next, allowedVariables);
     }
 
     private Restlet buildChallengeAuthenticator(AuthenticationSpec authentication, Restlet next) {
@@ -161,8 +161,8 @@ public class ApiServerAdapter extends ServerAdapter {
                 new String(actual).getBytes(StandardCharsets.UTF_8));
     }
 
-    public ApiServerSpec getApiServerSpec() {
-        return (ApiServerSpec) getSpec();
+    public RestServerSpec getRestServerSpec() {
+        return (RestServerSpec) getSpec();
     }
 
     public Server getServer() {

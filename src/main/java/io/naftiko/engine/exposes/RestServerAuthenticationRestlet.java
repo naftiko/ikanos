@@ -33,7 +33,7 @@ import io.naftiko.spec.consumes.BearerAuthenticationSpec;
 /**
  * Restlet responsible for API server-side authentication for bearer and apikey schemes.
  */
-public class ApiServerAuthenticationRestlet extends Restlet {
+public class RestServerAuthenticationRestlet extends Restlet {
 
     private static final Pattern ENV_MUSTACHE =
             Pattern.compile("\\{\\{\\s*([A-Za-z0-9_\\-]+)\\s*\\}\\}");
@@ -42,11 +42,11 @@ public class ApiServerAuthenticationRestlet extends Restlet {
     private final Restlet next;
     private final Set<String> allowedVariables;
 
-    public ApiServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next) {
+    public RestServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next) {
         this(authentication, next, null);
     }
 
-    public ApiServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
+    public RestServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
             Set<String> allowedVariables) {
         this.authentication = authentication;
         this.next = next;
@@ -72,7 +72,7 @@ public class ApiServerAuthenticationRestlet extends Restlet {
                 break;
             default:
                 response.setStatus(Status.SERVER_ERROR_NOT_IMPLEMENTED);
-                response.setEntity("Unsupported API server authentication type: " + type,
+                response.setEntity("Unsupported REST server authentication type: " + type,
                         MediaType.TEXT_PLAIN);
                 return;
         }

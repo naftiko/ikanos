@@ -87,7 +87,7 @@ public class CapabilityImportIntegrationTest {
                 - location: "./json-api.consumes.yml"
                   import: "json-api"
               exposes:
-                - type: "api"
+                - type: "rest"
                   address: "localhost"
                   port: 9999
                   namespace: "proxy"
@@ -139,7 +139,7 @@ public class CapabilityImportIntegrationTest {
                 - location: "./external.consumes.yml"
                   import: "external-api"
               exposes:
-                - type: "api"
+                - type: "rest"
                   address: "localhost"
                   port: 9998
                   namespace: "proxy"
@@ -192,7 +192,7 @@ public class CapabilityImportIntegrationTest {
                   import: "api"
                   as: "my-api"
               exposes:
-                - type: "api"
+                - type: "rest"
                   address: "localhost"
                   port: 9997
                   namespace: "proxy"
@@ -228,7 +228,7 @@ public class CapabilityImportIntegrationTest {
                 - location: "./nonexistent.consumes.yml"
                   import: "api"
               exposes:
-                - type: "api"
+                - type: "rest"
                   address: "localhost"
                   port: 9996
                   namespace: "proxy"

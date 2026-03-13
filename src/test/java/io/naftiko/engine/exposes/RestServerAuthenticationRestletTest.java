@@ -25,7 +25,7 @@ import org.restlet.data.Status;
 import io.naftiko.spec.consumes.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;
 
-public class ApiServerAuthenticationRestletTest {
+public class RestServerAuthenticationRestletTest {
 
     @Test
     public void bearerShouldAuthorizeMatchingToken() {
@@ -40,7 +40,7 @@ public class ApiServerAuthenticationRestletTest {
             }
         };
 
-        ApiServerAuthenticationRestlet secured = new ApiServerAuthenticationRestlet(auth, next);
+        RestServerAuthenticationRestlet secured = new RestServerAuthenticationRestlet(auth, next);
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer token-123");
         Response response = new Response(request);
@@ -60,7 +60,7 @@ public class ApiServerAuthenticationRestletTest {
             public void handle(Request request, Response response) {
             }
         };
-        ApiServerAuthenticationRestlet secured = new ApiServerAuthenticationRestlet(auth, next);
+        RestServerAuthenticationRestlet secured = new RestServerAuthenticationRestlet(auth, next);
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer bad-token");
         Response response = new Response(request);
@@ -84,7 +84,7 @@ public class ApiServerAuthenticationRestletTest {
             }
         };
 
-        ApiServerAuthenticationRestlet secured = new ApiServerAuthenticationRestlet(auth, next);
+        RestServerAuthenticationRestlet secured = new RestServerAuthenticationRestlet(auth, next);
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "abc123");
         Response response = new Response(request);
@@ -106,7 +106,7 @@ public class ApiServerAuthenticationRestletTest {
             public void handle(Request request, Response response) {
             }
         };
-        ApiServerAuthenticationRestlet secured = new ApiServerAuthenticationRestlet(auth, next);
+        RestServerAuthenticationRestlet secured = new RestServerAuthenticationRestlet(auth, next);
         Request request = new Request(Method.GET, "http://localhost/test?api_key=wrong");
         Response response = new Response(request);
 
@@ -136,8 +136,8 @@ public class ApiServerAuthenticationRestletTest {
 
         // Create restlet WITHOUT allowed variables (empty set)
         // This means no external refs were declared
-        ApiServerAuthenticationRestlet secured = 
-            new ApiServerAuthenticationRestlet(auth, next, Set.of());
+        RestServerAuthenticationRestlet secured = 
+            new RestServerAuthenticationRestlet(auth, next, Set.of());
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer secret-token-from-env");
@@ -165,8 +165,8 @@ public class ApiServerAuthenticationRestletTest {
 
         // Create restlet WITH allowed variables set
         // This simulates externalRefs declaring this variable
-        ApiServerAuthenticationRestlet secured = 
-            new ApiServerAuthenticationRestlet(auth, next, Set.of("declared_token"));
+        RestServerAuthenticationRestlet secured = 
+            new RestServerAuthenticationRestlet(auth, next, Set.of("declared_token"));
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer my-token-123");
@@ -195,8 +195,8 @@ public class ApiServerAuthenticationRestletTest {
         };
 
         // Create restlet WITHOUT allowed variables (not declared in externalRefs)
-        ApiServerAuthenticationRestlet secured = 
-            new ApiServerAuthenticationRestlet(auth, next, Set.of());
+        RestServerAuthenticationRestlet secured = 
+            new RestServerAuthenticationRestlet(auth, next, Set.of());
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "actual-key-value");
@@ -222,8 +222,8 @@ public class ApiServerAuthenticationRestletTest {
         };
 
         // Create restlet WITH this variable in the allowed set
-        ApiServerAuthenticationRestlet secured = 
-            new ApiServerAuthenticationRestlet(auth, next, Set.of("my_declared_key"));
+        RestServerAuthenticationRestlet secured = 
+            new RestServerAuthenticationRestlet(auth, next, Set.of("my_declared_key"));
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "actual-key-value");
@@ -251,7 +251,7 @@ public class ApiServerAuthenticationRestletTest {
         };
 
         // Old-style instantiation without allowed variables
-        ApiServerAuthenticationRestlet secured = new ApiServerAuthenticationRestlet(auth, next);
+        RestServerAuthenticationRestlet secured = new RestServerAuthenticationRestlet(auth, next);
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer hardcoded-token");

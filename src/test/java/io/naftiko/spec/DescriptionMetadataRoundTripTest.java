@@ -19,7 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
-import io.naftiko.spec.exposes.ApiServerStepSpec;
+import io.naftiko.spec.exposes.RestServerStepSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,15 +40,15 @@ public class DescriptionMetadataRoundTripTest {
     }
 
     @Test
-    public void testApiServerStepSpecDescriptionYamlRoundTrip() throws Exception {
+    public void testRestServerStepSpecDescriptionYamlRoundTrip() throws Exception {
         ServerCallSpec call = new ServerCallSpec("users.fetch", null, "Retrieves user data");
-        ApiServerStepSpec step = new ApiServerStepSpec(call, null, "Fetch user information");
+        RestServerStepSpec step = new RestServerStepSpec(call, null, "Fetch user information");
         
         // Serialize to YAML string
         String yaml = yamlMapper.writeValueAsString(step);
         
         // Deserialize back
-        ApiServerStepSpec restored = yamlMapper.readValue(yaml, ApiServerStepSpec.class);
+        RestServerStepSpec restored = yamlMapper.readValue(yaml, RestServerStepSpec.class);
         
         assertEquals("Fetch user information", restored.getDescription());
         assertNotNull(restored.getCall());
@@ -57,7 +57,7 @@ public class DescriptionMetadataRoundTripTest {
     }
 
     @Test
-    public void testApiServerCallSpecDescriptionYamlRoundTrip() throws Exception {
+    public void testRestServerCallSpecDescriptionYamlRoundTrip() throws Exception {
         ServerCallSpec call = new ServerCallSpec("users.delete", null, "Remove a user permanently");
         
         // Serialize to YAML string
@@ -71,22 +71,22 @@ public class DescriptionMetadataRoundTripTest {
     }
 
     @Test
-    public void testApiServerStepSpecDescriptionJsonRoundTrip() throws Exception {
+    public void testRestServerStepSpecDescriptionJsonRoundTrip() throws Exception {
         ServerCallSpec call = new ServerCallSpec("logs.write", null);
-        ApiServerStepSpec step = new ApiServerStepSpec(call, null, "Write audit log");
+        RestServerStepSpec step = new RestServerStepSpec(call, null, "Write audit log");
         
         // Serialize to JSON string
         String json = jsonMapper.writeValueAsString(step);
         
         // Deserialize back
-        ApiServerStepSpec restored = jsonMapper.readValue(json, ApiServerStepSpec.class);
+        RestServerStepSpec restored = jsonMapper.readValue(json, RestServerStepSpec.class);
         
         assertEquals("Write audit log", restored.getDescription());
         assertEquals("logs.write", restored.getCall().getOperation());
     }
 
     @Test
-    public void testApiServerCallSpecWithoutDescriptionYamlRoundTrip() throws Exception {
+    public void testRestServerCallSpecWithoutDescriptionYamlRoundTrip() throws Exception {
         ServerCallSpec call = new ServerCallSpec("users.get");
         
         // Serialize to YAML string
@@ -101,7 +101,7 @@ public class DescriptionMetadataRoundTripTest {
 
     @Test
     public void testDescriptionExcludedWhenNullInSerialization() throws Exception {
-        ApiServerStepSpec step = new ApiServerStepSpec(new ServerCallSpec("test"), null, null);
+        RestServerStepSpec step = new RestServerStepSpec(new ServerCallSpec("test"), null, null);
         
         // Serialize to YAML
         String yaml = yamlMapper.writeValueAsString(step);
@@ -113,7 +113,7 @@ public class DescriptionMetadataRoundTripTest {
 
     @Test
     public void testDescriptionIncludedWhenPresentInSerialization() throws Exception {
-        ApiServerStepSpec step = new ApiServerStepSpec(new ServerCallSpec("test"), null, "Test operation");
+        RestServerStepSpec step = new RestServerStepSpec(new ServerCallSpec("test"), null, "Test operation");
         
         // Serialize to YAML
         String yaml = yamlMapper.writeValueAsString(step);
@@ -129,7 +129,7 @@ public class DescriptionMetadataRoundTripTest {
         String yamlContent = "call:\n  operation: users.get\n  description: Fetch user\n"
                 + "description: Get user step\n";
         
-        ApiServerStepSpec step = yamlMapper.readValue(yamlContent, ApiServerStepSpec.class);
+        RestServerStepSpec step = yamlMapper.readValue(yamlContent, RestServerStepSpec.class);
         
         assertEquals("Get user step", step.getDescription());
         assertEquals("users.get", step.getCall().getOperation());
