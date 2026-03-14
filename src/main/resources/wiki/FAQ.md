@@ -5,7 +5,7 @@ Welcome to the Naftiko Framework FAQ! This guide answers common questions from d
 ## ⛵ Getting Started
 
 ### Q: What is Naftiko Framework and why would I use it?
-**A:** Naftiko Framework is the first open-source platform for **Spec-Driven AI Integration**. Instead of writing boilerplate code to consume APIs and expose unified interfaces, you declare them in YAML. This enables:
+**A:** Naftiko Framework is the first open-source platform for **Spec-Driven Integration**. Instead of writing boilerplate code to consume HTTP APIs and expose unified interfaces, you declare them in YAML. This enables:
 - **API composability**: Combine multiple APIs into a single capability
 - **Format conversion**: Convert between JSON, XML, Avro, Protobuf, CSV, and YAML
 - **AI-ready integration**: Better context engineering for AI systems
@@ -33,12 +33,12 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 1. **Docker (recommended)**  
    ```bash
-   docker pull ghcr.io/naftiko/framework:v0.4
-   docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/framework:v0.4 /app/capability.yaml
+   docker pull ghcr.io/naftiko/framework:v0.5
+   docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/framework:v0.5 /app/capability.yaml
    ```
 
 2. **CLI tool** (for configuration and validation)  
-   Download the binary for [macOS](https://github.com/naftiko/framework/releases/download/v0.4/naftiko-cli-macos-arm64), [Linux](https://github.com/naftiko/framework/releases/download/v0.4/naftiko-cli-linux-amd64), or [Windows](https://github.com/naftiko/framework/releases/download/v0.4/naftiko-cli-windows-amd64.exe)
+   Download the binary for [macOS](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-macos-arm64), [Linux](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-linux-amd64), or [Windows](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-windows-amd64.exe)
 
 See the [Installation guide](https://github.com/naftiko/framework/wiki/Installation) for detailed setup instructions.
 
@@ -46,17 +46,17 @@ See the [Installation guide](https://github.com/naftiko/framework/wiki/Installat
 **A:** Use the CLI validation command:
 ```bash
 naftiko validate path/to/capability.yaml
-naftiko validate path/to/capability.yaml 0.4  # Specify schema version
+naftiko validate path/to/capability.yaml 0.5  # Specify schema version
 ```
 
 This checks your YAML against the Naftiko schema and reports any errors.
 
 ### Q: Which version of the schema should I use?
-**A:** Use the latest stable version: **0.4** (as of March 2026).
+**A:** Use the latest stable version: **0.5** (as of March 2026).
 
 Set it in your YAML:
 ```yaml
-naftiko: "0.4"
+naftiko: "0.5"
 ```
 
 ---
@@ -66,23 +66,23 @@ naftiko: "0.4"
 ### Q: What are "exposes" and "consumes"?
 **A:** These are the two essential parts of every capability:
 
-- **Exposes** - What your capability *provides* to callers (HTTP API or MCP server)
-- **Consumes** - What external APIs your capability *uses internally*
+- **Exposes** - What your capability *provides* to callers (REST, MCP or SKILL server)
+- **Consumes** - What HTTP APIs your capability *uses internally*
 
 Example: A capability that consumes the Notion API and GitHub API, then exposes them as a single unified REST endpoint or MCP tool.
 
-### Q: What's the difference between API and MCP exposure?
+### Q: What's the difference between REST and MCP exposure?
 **A:** 
 
-| Feature | API (REST) | MCP |
+| Feature | REST | MCP |
 |---------|-----------|-----|
-| **Protocol** | HTTP/REST | Model Context Protocol (JSON-RPC) |
+| **Protocol** | REpresentational State Transfer (JSON-HTTP) | Model Context Protocol (JSON-RPC) |
 | **Best for** | General-purpose integrations, web apps | AI agent-native integrations |
 | **Tool discovery** | Manual or via OpenAPI | Automatic via MCP protocol |
-| **Configuration** | `type: "api"` with resources/operations | `type: "mcp"` with tools |
+| **Configuration** | `type: "rest"` with resources/operations | `type: "mcp"` with tools |
 | **Default transport** | HTTP | stdio or HTTP (streamable) |
 
-**Use API** for traditional REST clients, web applications, or when you want standard HTTP semantics.  
+**Use REST** for traditional REST clients, web applications, or when you want standard HTTP semantics.  
 **Use MCP** when exposing capabilities to AI agents or Claude.
 
 ### Q: What is a "namespace"?
@@ -285,12 +285,12 @@ docker run -e GITHUB_TOKEN=ghp_xxx -e NOTION_TOKEN=secret_xxx ...
 
 > ⚠️ **Security note**: Use `resolution: runtime` in production (not `file`). Never commit secrets to your repository.
 
-### Q: Can I authenticate to exposed endpoints (API/MCP)?
+### Q: Can I authenticate to exposed endpoints (REST/MCP)?
 **A:** Yes, add `authentication` to your `exposes` block:
 
 ```yaml
 exposes:
-  - type: api
+  - type: rest
     port: 8081
     namespace: my-api
     authentication:
@@ -331,7 +331,7 @@ consumes:
 
 ---
 
-## 🗺️ API Design
+## 🗺️ REST API Design
 
 ### Q: How do I define resource paths with parameters?
 **A:** Use path parameters with curly braces:
@@ -399,7 +399,7 @@ This forwards `GET /github/repos/owner/name` to GitHub's `/repos/owner/name`.
 ## 📡 MCP-Specific
 
 ### Q: How do I expose a capability as an MCP tool?
-**A:** Use `type: mcp` in exposes instead of `type: api`:
+**A:** Use `type: mcp` in exposes instead of `type: rest`:
 
 ```yaml
 exposes:
@@ -419,15 +419,15 @@ exposes:
             mapping: $.results
 ```
 
-### Q: What's the difference between HTTP and stdio MCP transports?
+### Q: What's the difference between HTTP and Stdio MCP transports?
 **A:** 
 
 | Transport | Use Case | Setup |
 |-----------|----------|-------|
 | **HTTP** | Streamable HTTP transport, integrates with existing infrastructure | Specify `address` and `port` |
-| **stdio** | Direct process communication, native integration with Claude Desktop | No address/port needed |
+| **Stdio** | Direct process communication, native integration with Claude Desktop | No address/port needed |
 
-For Claude integration, stdio is typically preferred. HTTP is useful for remote or containerized deployments.
+For Claude integration, Stdio is typically preferred. HTTP is useful for remote or containerized deployments.
 
 ### Q: How do I expose MCP resources and prompts?
 **A:** Add `resources` and `prompts` sections to your MCP server:
@@ -461,7 +461,7 @@ MCP clients can then discover and use these resources dynamically.
 
 2. **Check the Docker logs:**
    ```bash
-   docker run ... ghcr.io/naftiko/framework:v0.4 /app/capability.yaml
+   docker run ... ghcr.io/naftiko/framework:v0.5 /app/capability.yaml
    # Look for error messages in the output
    ```
 
@@ -638,19 +638,19 @@ consumes:
 This way, Capability B can combine Capability A with other APIs.
 
 ### Q: How do I handle errors or retries?
-**A:** Naftiko currently doesn't have built-in retry logic in v0.4. Options:
+**A:** Naftiko currently doesn't have built-in retry logic in v0.5. Options:
 
 1. **At the HTTP client level** - use an API gateway with retry policies
 2. **In future versions** - this is on the roadmap
 
 Check the [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap) for planned features.
 
-### Q: Can I expose the same capability on both API and MCP?
+### Q: Can I expose the same capability on both REST and MCP?
 **A:** Yes! Add multiple entries to `exposes`:
 
 ```yaml
 exposes:
-  - type: api
+  - type: rest
     port: 8081
     namespace: rest-api
     resources: [...]
@@ -695,7 +695,7 @@ For production workloads:
        spec:
          containers:
          - name: naftiko
-           image: ghcr.io/naftiko/framework:v0.4
+           image: ghcr.io/naftiko/framework:v0.5
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -738,8 +738,8 @@ server {
 See the [Specification](https://github.com/naftiko/framework/wiki/Specification#13-related-specifications) for a detailed comparison.
 
 ### Q: Is the Naftiko Specification stable?
-**A:** Yes, v0.4 is stable as of March 2026. The specification follows semantic versioning:
-- **Major versions** (0.x.0) - breaking changes
+**A:** Yes, v0.5 is stable as of March 2026. The specification follows semantic versioning:
+- **Major versions** (1.x.x) - breaking changes
 - **Minor versions** (x.1.0) - new features, backward-compatible
 - **Patch versions** (x.x.1) - bug fixes
 
@@ -770,7 +770,7 @@ Check the naftiko field in your YAML to specify the version.
 
 ## 🚤 Common Use Cases
 
-### Q: I want to create a unified API that combines Notion + GitHub. How do I start?
+### Q: I want to create a unified REST API that combines Notion + GitHub. How do I start?
 **A:** 
 
 1. **Read the Tutorial** - particularly steps 2-5 on forwarding and orchestration

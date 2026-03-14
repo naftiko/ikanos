@@ -1,9 +1,9 @@
 # MCP Resources & Prompt Templates Support Proposal
 ## Extending the MCP Server Adapter with Resources and Prompts
 
-**Status**: Proposal  
-**Date**: March 5, 2026  
-**Key Concept**: Add MCP resources and prompt templates to the existing `mcp` server adapter, aligning with the MCP specification while maintaining consistency with the existing `api` adapter patterns and the Agent Skills proposal's `location`-based file serving.
+**Status**: Current implementation  
+**Date**: March 13, 2026  
+**Key Concept**: Add MCP resources and prompt templates to the existing `mcp` server adapter, aligning with the MCP specification while maintaining consistency with the existing `rest` adapter patterns and the Agent Skills proposal's `location`-based file serving.
 
 ---
 
@@ -134,7 +134,7 @@ ExposesMcp
 ### How the three primitives relate across adapters
 
 ```
-API Adapter                   MCP Adapter (current)          MCP Adapter (proposed)
+REST Adapter                   MCP Adapter (current)          MCP Adapter (proposed)
 ─────────────                 ─────────────────────          ──────────────────────
 ExposesApi                    ExposesMcp                     ExposesMcp
 ├─ resources[]                ├─ tools[]                     ├─ tools[]
@@ -159,9 +159,9 @@ ExposesApi                    ExposesMcp                     ExposesMcp
 │                             │                                 └─ template / location
 ```
 
-### Conceptual mapping: API adapter ↔ MCP adapter
+### Conceptual mapping: REST adapter ↔ MCP adapter
 
-| API Adapter concept | MCP Tool (existing) | MCP Resource (new) | MCP Prompt (new) |
+| REST Adapter concept | MCP Tool (existing) | MCP Resource (new) | MCP Prompt (new) |
 |---------------------|--------------------:|-------------------:|------------------:|
 | Resource path | Tool name | Resource URI | Prompt name |
 | Operation (GET/POST) | `call`/`steps` | `call`/`steps` or `location` | `template`/`location` |

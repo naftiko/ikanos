@@ -150,7 +150,7 @@ The exposed adapter is a published API contract. Two new fields signal network t
 
 ```yaml
 exposes:
-  - type: api
+  - type: rest
     port: 3000
     namespace: notion-writer
     lifecycle: production
@@ -258,7 +258,7 @@ Naftiko Spec Object              tags      labels     lifecycle
 ──────────────────────────────────────────────────────────────
 Info                              ✓ (existing)  ✓ (new)
 Consumes                          ✓ (new)
-Exposes (API adapter)             ✓ (new)                ✓ (new)
+Exposes (REST adapter)             ✓ (new)                ✓ (new)
 ExposedOperation                  ✓ (new)
 ConsumedHttpOperation             ✓ (new)
 ```
@@ -294,7 +294,7 @@ spec:
         email: jane.doe@example.com
   capability:
     exposes:
-      - type: api
+      - type: rest
         port: 3000
         namespace: notion-writer
         lifecycle: production
@@ -466,7 +466,7 @@ Both are implemented in the shared `@naftiko/rules` TypeScript package (see [Sec
 ### 5.2 Core Rules (Error Severity — Blocking)
 
 #### `naftiko-exposes-require-authentication`
-Every exposed API adapter must declare `authentication`. All exposed APIs must be authenticated.
+Every exposed REST adapter must declare `authentication`. All exposed APIs must be authenticated.
 
 - **Given**: `$.capability.exposes[*]`
 - **Check**: `authentication` field is present and truthy

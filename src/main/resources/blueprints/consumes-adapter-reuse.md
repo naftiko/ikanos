@@ -1,10 +1,10 @@
 ### Global import of consumed HTTP adapters with unified JSON Schema
 
-**Status** : Draft
+**Status** : Current implementation
 
-**Version** : 0.6
+**Version** : 0.5
 
-**Date** : March 11, 2026
+**Date** : March 13, 2026
 
 **Author** : @Thomas Eskenazi
 
@@ -224,7 +224,7 @@ capability:
       as: "hello-world-fr"
 
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 8082
       namespace: "proxy"
       resources:

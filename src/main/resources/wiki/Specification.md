@@ -254,12 +254,12 @@ capability:
 
 Describes a server adapter that exposes functionality.
 
-> Update (schema v0.5): Two exposition adapter types are now supported — **API** (`type: "api"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` / `rest` exposition types are not part of the JSON Schema anymore.
+> Update (schema v0.5): Two exposition adapter types are now supported — **API** (`type: "api"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` exposition types are not part of the JSON Schema anymore.
 > 
 
-#### 3.5.1 API Expose
+#### 3.5.1 REST Expose
 
-API exposition configuration.
+REST exposition configuration.
 
 > Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **API** (`type: "api"`, this section) and **MCP** (`type: "mcp"`, see §3.5.4). The `type` field acts as discriminator.
 > 
@@ -268,7 +268,7 @@ API exposition configuration.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **type** | `string` | **REQUIRED**. MUST be `"api"`. |
+| **type** | `string` | **REQUIRED**. MUST be `"rest"`. |
 | **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
 | **port** | `integer` | **REQUIRED**. Port number. MUST be between 1 and 65535. |
 | **authentication** | `Authentication` | Authentication configuration. |
@@ -415,7 +415,7 @@ Declares an input parameter for an MCP tool. These become properties in the tool
 
 #### 3.5.8 Exposes Object Examples
 
-**API Expose with operations:**
+**REST Expose with operations:**
 
 ```yaml
 type: api
@@ -434,7 +434,7 @@ resources:
             mapping: $.status
 ```
 
-**API Expose with forward:**
+**REST Expose with forward:**
 
 ```yaml
 type: api
@@ -449,7 +449,7 @@ resources:
         - Notion-Version
 ```
 
-**API Expose with both operations and forward:**
+**REST Expose with both operations and forward:**
 
 ```yaml
 type: api
@@ -521,7 +521,7 @@ Skill exposition configuration. Exposes a read-only catalog of agent skills with
 - The `namespace` field is mandatory and MUST be unique across all exposes entries.
 - The `skills` array MUST contain at least one entry.
 - Each skill's tools must include exactly one of `from` (derived from a sibling adapter) or `instruction` (path to a local file).
-- `from` tool references MUST resolve to a sibling `api` or `mcp` adapter namespace.
+- `from` tool references MUST resolve to a sibling `rest` or `mcp` adapter namespace.
 - `instruction` tools require the skill's `location` field to be set.
 - No additional properties are allowed.
 
@@ -562,13 +562,13 @@ A tool declared within a skill. Exactly one of `from` or `instruction` MUST be s
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **namespace** | `string` | **REQUIRED**. Namespace of the sibling `api` or `mcp` adapter. |
+| **namespace** | `string` | **REQUIRED**. Namespace of the sibling `rest` or `mcp` adapter. |
 | **action** | `string` | **REQUIRED**. Operation or tool name within the referenced namespace. |
 
 **Rules:**
 
 - Exactly one of `from` or `instruction` MUST be present â€” not both, not neither.
-- `from.namespace` MUST reference a sibling `api` or `mcp` adapter.
+- `from.namespace` MUST reference a sibling `rest` or `mcp` adapter.
 - `instruction` is a relative file path from the skill's `location` directory.
 
 #### 3.5.12 Skill Expose Example

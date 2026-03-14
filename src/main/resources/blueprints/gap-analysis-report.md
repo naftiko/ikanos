@@ -21,7 +21,7 @@ The Naftiko framework has **strong implementation coverage** of core specificati
 
 ## 1. EXPOSITION TYPES
 
-### 1.1 REST API Exposition (`type: api`)
+### 1.1 REST API Exposition (`type: rest`)
 
 **Spec Definition** (v0.5):
 - Address and port binding
@@ -33,7 +33,7 @@ The Naftiko framework has **strong implementation coverage** of core specificati
 **Implementation Status**: ✅ **FULLY IMPLEMENTED**
 
 **Implementation Details**:
-- **Location**: [engine/exposes/ApiServerAdapter.java](engine/exposes/ApiServerAdapter.java), [engine/exposes/ApiResourceRestlet.java](engine/exposes/ApiResourceRestlet.java)
+- **Location**: [engine/exposes/RestServerAdapter.java](engine/exposes/RestServerAdapter.java), [engine/exposes/RestResourceRestlet.java](engine/exposes/RestResourceRestlet.java)
 - **Server Framework**: Restlet + Jetty
 - **Features Implemented**:
   - Resource and operation path routing with placeholder support
@@ -47,8 +47,8 @@ The Naftiko framework has **strong implementation coverage** of core specificati
 **Code Examples**:
 ```java
 // API operation execution path:
-ApiServerAdapter.java -> startServer() -> creates Restlet chain
-ApiResourceRestlet.java -> handle() -> resolves input parameters
+RestServerAdapter.java -> startServer() -> creates Restlet chain
+RestResourceRestlet.java -> handle() -> resolves input parameters
 OperationStepExecutor.java -> executeSteps() -> orchestrates calls
 ```
 
@@ -306,7 +306,7 @@ operations:
 **Implementation Status**: ✅ **FULLY IMPLEMENTED**
 
 **Execution Flow**:
-1. [engine/exposes/ApiResourceRestlet.java](engine/exposes/ApiResourceRestlet.java) - handleFromOperationSpec()
+1. [engine/exposes/RestResourceRestlet.java](engine/exposes/RestResourceRestlet.java) - handleFromOperationSpec()
 2. Resolves input parameters from request
 3. Applies "with" parameter injection
 4. Finds consumed operation via namespace.operationName
@@ -499,7 +499,7 @@ Input parameters available in path, query, header, cookie, body, environment loc
 
 **Implementation Status**: ✅ **FULLY IMPLEMENTED**
 
-**For Exposed API/MCP**:
+**For Exposed REST/MCP**:
 ```java
 // From ExposedInputParameter spec
 - name: user_id
@@ -593,7 +593,7 @@ resources:
 - Allows selective header forwarding (allowlist)
 - Useful for API gateway/proxy patterns
 
-**Implementation**: [engine/exposes/ApiResourceRestlet.java](engine/exposes/ApiResourceRestlet.java)
+**Implementation**: [engine/exposes/RestResourceRestlet.java](engine/exposes/RestResourceRestlet.java)
 - Method: handleFromForwardSpec()
 - Finds target consumer namespace
 - Copies specified headers
@@ -601,7 +601,7 @@ resources:
 - Returns response directly
 
 **Extension**: New "ForwardValue" feature allows dynamic path/parameter modification:
-- [spec/exposes/ApiServerForwardSpec.java](spec/exposes/ApiServerForwardSpec.java)
+- [spec/exposes/RestServerForwardSpec.java](spec/exposes/RestServerForwardSpec.java)
 - Supports Mustache template resolution in forward parameters
 
 ---
@@ -665,7 +665,7 @@ steps:
 
 **Current Code**:
 - [engine/exposes/OperationStepExecutor.java](engine/exposes/OperationStepExecutor.java) - throws RuntimeException on step failure
-- [engine/exposes/ApiResourceRestlet.java](engine/exposes/ApiResourceRestlet.java) - catches and logs, returns error status
+- [engine/exposes/RestResourceRestlet.java](engine/exposes/RestResourceRestlet.java) - catches and logs, returns error status
 
 **Impact**: If any step in orchestration fails, entire operation fails with no recovery.
 

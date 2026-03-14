@@ -1,9 +1,9 @@
 # Agent Skills Specification Integration Proposal
 ## Skill Metadata & Catalog Adapter Architecture
 
-**Status**: Revised Proposal  
-**Date**: March 5, 2026  
-**Key Concept**: Dedicated `skill` server adapter — skills declare tools derived from sibling `api` and `mcp` adapters or defined as local file instructions. AI clients invoke adjacent adapters directly for derived tools.
+**Status**: Current implementation  
+**Date**: March 13, 2026  
+**Key Concept**: Dedicated `skill` server adapter — skills declare tools derived from sibling `rest` and `mcp` adapters or defined as local file instructions. AI clients invoke adjacent adapters directly for derived tools.
 
 ---
 
@@ -28,10 +28,10 @@
 
 ### What This Proposes
 
-Introduce a **dedicated `skill` server adapter** (alongside existing `api` and `mcp` adapters) enabling Naftiko capabilities to **describe skills and declare supporting tools**:
+Introduce a **dedicated `skill` server adapter** (alongside existing `rest` and `mcp` adapters) enabling Naftiko capabilities to **describe skills and declare supporting tools**:
 
 1. **Describe** skills with full [Agent Skills Spec](https://agentskills.io/specification) frontmatter metadata
-2. **Declare tools** — each tool is either derived from a sibling `api`/`mcp` adapter operation, or defined as a local file instruction
+2. **Declare tools** — each tool is either derived from a sibling `rest`/`mcp` adapter operation, or defined as a local file instruction
 3. **Distribute** skills through predefined GET endpoints for discovery, download, and file browsing
 4. **Locate** supporting files (SKILL.md, README, schemas) via a `location` property
 
@@ -39,18 +39,18 @@ Skills can be **purely descriptive** (metadata + supporting files only), declare
 
 ### Why a Dedicated Adapter?
 
-Just as the `mcp` adapter provides protocol-specific features despite HTTP being technically possible within `api`, the `skill` adapter provides:
+Just as the `mcp` adapter provides protocol-specific features despite HTTP being technically possible within `rest`, the `skill` adapter provides:
 
 - **Catalog Model**: Describe skills that declare tools from sibling adapters or local instructions, giving agents a unified discovery surface
 - **Agent Skills Spec Alignment**: Full frontmatter support (name, description, license, compatibility, allowed-tools, argument-hint, invocation controls)
 - **Supporting Files**: `location` property links to SKILL.md and supporting documentation accessible via REST endpoints
-- **Focused Responsibility**: Skill metadata concerns separate from tool execution (which stays with `api` and `mcp` adapters)
+- **Focused Responsibility**: Skill metadata concerns separate from tool execution (which stays with `rest` and `mcp` adapters)
 
 ### Business Value
 
 | Benefit | Impact | Users |
 |---------|--------|-------|
-| **Skill Cataloging** | Describe and organize tools from sibling API/MCP adapters and local instructions into discoverable skills | Developers |
+| **Skill Cataloging** | Describe and organize tools from sibling REST/MCP adapters and local instructions into discoverable skills | Developers |
 | **Agent Discovery** | Agents discover skill tools with rich metadata, then invoke sibling adapters directly or read instruction files | AI Agents |
 | **No Duplication** | Derive tools from existing adapters without redefining tool logic | Architects |
 | **Distribution** | Predefined REST endpoints for discovery, download, and file browsing | Organizations |
@@ -58,7 +58,7 @@ Just as the `mcp` adapter provides protocol-specific features despite HTTP being
 
 ### Key Design Decisions
 
-1. **Metadata-First**: Skills describe and declare tools — they do not execute them. Tool execution stays with the `api` and `mcp` adapters that own the tools.
+1. **Metadata-First**: Skills describe and declare tools — they do not execute them. Tool execution stays with the `rest` and `mcp` adapters that own the tools.
 
 2. **Per-Tool Declaration**: Each skill declares its tools individually via `tools[]`. Each tool specifies its source: `from` (derived from a sibling adapter) or `instruction` (a local file).
 
@@ -72,7 +72,7 @@ Just as the `mcp` adapter provides protocol-specific features despite HTTP being
 
 7. **`location` for Supporting Files**: A `file:///` URI pointing to a directory containing SKILL.md and supporting files/folders, served through the `/contents` and `/download` endpoints.
 
-8. **No Recursive Derivation**: Only sibling `api` or `mcp` adapters can be `from` sources — no derivation from other skill adapters.
+8. **No Recursive Derivation**: Only sibling `rest` or `mcp` adapters can be `from` sources — no derivation from other skill adapters.
 
 ### Risk Assessment
 
@@ -93,7 +93,7 @@ Just as the `mcp` adapter provides protocol-specific features despite HTTP being
 
 | Adapter | Purpose | Responsibility |
 |---------|---------|-----------------|
-| **`api`** | REST API Server | HTTP endpoints, resource operations, tool execution via REST |
+| **`rest`** | REST API Server | HTTP endpoints, resource operations, tool execution via REST |
 | **`mcp`** | MCP Protocol Server | MCP tools, stdio/HTTP transport, tool execution via MCP protocol |
 | **`skill`** (NEW) | Skill Catalog & Distribution | Agent skill metadata, tools (derived + instruction), supporting files |
 
@@ -104,7 +104,7 @@ Each server adapter has:
 
 ### Proposed Architecture
 
-The `skill` adapter is a **metadata and catalog layer** — it describes skills that declare tools from sibling `api` and `mcp` adapters or from local file instructions:
+The `skill` adapter is a **metadata and catalog layer** — it describes skills that declare tools from sibling `rest` and `mcp` adapters or from local file instructions:
 
 ```yaml
 capability:
@@ -152,8 +152,8 @@ capability:
                       value: "$.lon"
 
   exposes:
-    # API adapter — owns tool execution via REST
-    - type: "api"
+    # REST adapter — owns tool execution via REST
+    - type: "rest"
       address: "0.0.0.0"
       port: 9090
       namespace: "weather-rest"
@@ -231,7 +231,7 @@ capability:
             - name: "get-forecast"
               description: "Get weather forecast for a city"
               from:
-                sourceNamespace: "weather-rest"     # Sibling API adapter
+                sourceNamespace: "weather-rest"     # Sibling REST adapter
                 action: "get-forecast"              # Operation name
             - name: "resolve-and-forecast"
               description: "Resolve a place name to coordinates, then fetch forecast"
@@ -245,7 +245,7 @@ capability:
 
 **How agents use this:**
 1. Agent calls `GET /skills/weather-forecast` → receives tool catalog
-2. Agent sees `get-forecast` (derived) with `invocationRef: { targetNamespace: "weather-rest", mode: "api" }` → invokes `GET http://host:9090/forecast/London`
+2. Agent sees `get-forecast` (derived) with `invocationRef: { targetNamespace: "weather-rest", mode: "rest" }` → invokes `GET http://host:9090/forecast/London`
 3. Agent sees `resolve-and-forecast` (derived) with `invocationRef: { targetNamespace: "weather-mcp", mode: "mcp" }` → invokes via MCP protocol on port 9091
 4. Agent sees `interpret-weather` (instruction) → reads instruction content via `GET /skills/weather-forecast/contents/interpret-weather.md`
 
@@ -254,7 +254,7 @@ capability:
 ## Design Analogy
 
 ```
-API Adapter                   MCP Adapter                   SKILL Adapter
+REST Adapter                   MCP Adapter                   SKILL Adapter
 ─────────────                 ─────────────                 ──────────────
 ExposesApi                    ExposesMcp                    ExposesSkill
 ├─ resources[]                ├─ tools[]                    ├─ skills[]
@@ -271,7 +271,7 @@ ExposesApi                    ExposesMcp                    ExposesSkill
 
 | Adapter | First-class construct | Actionable units | Execution |
 |---------|----------------------|-----------------|-----------|
-| **`api`** | Resources | Operations | HTTP endpoints (call/steps/with) |
+| **`rest`** | Resources | Operations | HTTP endpoints (call/steps/with) |
 | **`mcp`** | (flat) | Tools | MCP protocol (call/steps/with) |
 | **`skill`** | Skills | Tools (derived + instruction) | **None** — agents invoke sibling adapters or read instruction files |
 
@@ -279,7 +279,7 @@ ExposesApi                    ExposesMcp                    ExposesSkill
 
 ## Skill Definition
 
-Skills provide rich metadata and a unified discovery surface. Each skill can declare one or more **tools**, where each tool is either **derived** from a sibling `api` or `mcp` adapter, or defined as a local **instruction** file. Skills can also stand alone as purely descriptive (no tools).
+Skills provide rich metadata and a unified discovery surface. Each skill can declare one or more **tools**, where each tool is either **derived** from a sibling `rest` or `mcp` adapter, or defined as a local **instruction** file. Skills can also stand alone as purely descriptive (no tools).
 
 ### Declaring Tools
 
@@ -297,7 +297,7 @@ skills:
     location: "file:///etc/naftiko/skills/order-management"
 
     tools:
-      # Derived from sibling API adapter
+      # Derived from sibling REST adapter
       - name: "list-orders"
         description: "List all customer orders"
         from:
@@ -325,7 +325,7 @@ skills:
 A tool with `from` references a specific operation or tool in a sibling adapter:
 
 **Tool declaration rules:**
-1. `from.sourceNamespace` must resolve to a sibling `exposes[]` entry of type `api` or `mcp`
+1. `from.sourceNamespace` must resolve to a sibling `exposes[]` entry of type `rest` or `mcp`
 2. `from.action` must match an operation name (api) or tool name (mcp) in the resolved adapter
 3. Adapter type is inferred from the resolved target
 4. Each derived tool includes an `invocationRef` in the response so agents can invoke the source adapter directly
@@ -339,7 +339,7 @@ A tool with `from` references a specific operation or tool in a sibling adapter:
   "invocationRef": {
     "targetNamespace": "public-api",
     "action": "list-orders",
-    "mode": "api"
+    "mode": "rest"
   },
   "inputSchema": {
     "type": "object",
@@ -533,7 +533,7 @@ The SKILL.md file at the location can contain the same frontmatter properties as
 ```json
 {
   "type": "object",
-  "description": "A skill definition. Declares tools derived from sibling api or mcp adapters or defined as local file instructions. Can also stand alone as purely descriptive (no tools). Supports full Agent Skills Spec frontmatter metadata. Skills describe tools — they do not execute them.",
+  "description": "A skill definition. Declares tools derived from sibling rest or mcp adapters or defined as local file instructions. Can also stand alone as purely descriptive (no tools). Supports full Agent Skills Spec frontmatter metadata. Skills describe tools — they do not execute them.",
   "properties": {
     "name": {
       "$ref": "#/$defs/IdentifierKebab",
@@ -600,7 +600,7 @@ The SKILL.md file at the location can contain the same frontmatter properties as
 ```json
 {
   "type": "object",
-  "description": "A tool declared within a skill. Derived from a sibling api or mcp adapter via 'from', or defined as a local file instruction.",
+  "description": "A tool declared within a skill. Derived from a sibling rest or mcp adapter via 'from', or defined as a local file instruction.",
   "properties": {
     "name": {
       "$ref": "#/$defs/IdentifierKebab",
@@ -612,11 +612,11 @@ The SKILL.md file at the location can contain the same frontmatter properties as
     },
     "from": {
       "type": "object",
-      "description": "Derive this tool from a sibling api or mcp adapter.",
+      "description": "Derive this tool from a sibling rest or mcp adapter.",
       "properties": {
         "sourceNamespace": {
           "type": "string",
-          "description": "Sibling exposes[].namespace (must be type api or mcp)"
+          "description": "Sibling exposes[].namespace (must be type rest or mcp)"
         },
         "action": {
           "type": "string",
@@ -702,7 +702,7 @@ Response: application/json
       "invocationRef": {
         "targetNamespace": "weather-rest",
         "action": "get-forecast",
-        "mode": "api"
+        "mode": "rest"
       },
       "inputSchema": {
         "type": "object",
@@ -784,7 +784,7 @@ If no `location` is configured, the download and contents endpoints return 404.
 |  EXPOSES                                                         |
 |  +---------------------------+  +---------------------------+    |
 |  | ExposesApi                |  | ExposesMcp                |    |
-|  | type: "api"               |  | type: "mcp"               |    |
+|  | type: "rest"               |  | type: "mcp"               |    |
 |  | port: 9090                |  | port: 9091                |    |
 |  | namespace: "weather-rest" |  | namespace: "weather-mcp"  |    |
 |  | resources / operations    |  | tools (call/steps/with)   |    |
@@ -812,7 +812,7 @@ If no `location` is configured, the download and contents endpoints return 404.
 
 ```
 +---------------------------+  +---------------------------+  +---------------------------+
-|     API Adapter           |  |     MCP Adapter           |  |     SKILL Adapter         |
+|     REST Adapter           |  |     MCP Adapter           |  |     SKILL Adapter         |
 |     (EXECUTES)            |  |     (EXECUTES)            |  |     (DESCRIBES)           |
 +---------------------------+  +---------------------------+  +---------------------------+
 | ExposesApi                |  | ExposesMcp                |  | ExposesSkill              |
@@ -868,7 +868,7 @@ AI Agent / Client
      |                               |    args: { place: "London" }
      v                               v
 +---------------------+    +---------------------+
-| API Adapter (9090)  |    | MCP Adapter (9091)  |
+| REST Adapter (9090)  |    | MCP Adapter (9091)  |
 | Executes via        |    | Executes via        |
 | call/steps/with     |    | call/steps/with     |
 +---------------------+    +---------------------+
@@ -1023,8 +1023,8 @@ capability:
                       value: "$.lon"
 
   exposes:
-    # API adapter — executes the forecast tool via REST
-    - type: "api"
+    # REST adapter — executes the forecast tool via REST
+    - type: "rest"
       address: "0.0.0.0"
       port: 9090
       namespace: "weather-rest"
@@ -1130,7 +1130,7 @@ curl http://localhost:8080/skills/weather-forecast/contents | jq '.'
 curl http://localhost:8080/skills/weather-forecast/contents/interpret-weather.md
 
 # Agent invokes derived tools DIRECTLY through source adapter:
-# Via REST API adapter:
+# Via REST REST adapter:
 curl http://localhost:9090/forecast/London | jq '.'
 
 # Via MCP adapter (using MCP protocol, not curl):
@@ -1174,7 +1174,7 @@ curl http://localhost:9090/forecast/London | jq '.'
       "invocationRef": {
         "targetNamespace": "weather-rest",
         "action": "get-forecast",
-        "mode": "api"
+        "mode": "rest"
       },
       "inputSchema": {
         "type": "object",
@@ -1213,7 +1213,7 @@ curl http://localhost:9090/forecast/London | jq '.'
 
 ---
 
-### Example 2: Order Management — Tools from API Adapter
+### Example 2: Order Management — Tools from REST Adapter
 
 **Scenario**: Catalog existing API operations as discoverable skill tools.
 
@@ -1222,7 +1222,7 @@ naftiko: "0.5"
 
 info:
   label: "Order Management Platform"
-  description: "Skills derived from existing API adapters"
+  description: "Skills derived from existing REST adapters"
 
 capability:
   consumes:
@@ -1258,8 +1258,8 @@ capability:
               name: "cancel-order"
 
   exposes:
-    # Sibling API adapter — executes tools
-    - type: "api"
+    # Sibling REST adapter — executes tools
+    - type: "rest"
       address: "0.0.0.0"
       port: 9090
       namespace: "public-api"
@@ -1281,7 +1281,7 @@ capability:
               name: "cancel-order"
               call: "orders-backend.cancel-order"
 
-    # Skill adapter — catalogs tools from API adapter
+    # Skill adapter — catalogs tools from REST adapter
     - type: "skill"
       address: "0.0.0.0"
       port: 8080
@@ -1335,7 +1335,7 @@ capability:
       "invocationRef": {
         "targetNamespace": "public-api",
         "action": "list-orders",
-        "mode": "api"
+        "mode": "rest"
       }
     },
     {
@@ -1345,7 +1345,7 @@ capability:
       "invocationRef": {
         "targetNamespace": "public-api",
         "action": "get-order",
-        "mode": "api"
+        "mode": "rest"
       }
     },
     {
@@ -1355,7 +1355,7 @@ capability:
       "invocationRef": {
         "targetNamespace": "public-api",
         "action": "create-order",
-        "mode": "api"
+        "mode": "rest"
       }
     }
   ]
@@ -1392,8 +1392,8 @@ capability:
                   value: "$.result"
 
   exposes:
-    # REST API adapter
-    - type: "api"
+    # REST REST adapter
+    - type: "rest"
       address: "0.0.0.0"
       port: 9090
       namespace: "analytics-rest"
@@ -1591,7 +1591,7 @@ spec:
 
 1. `tools` is optional — a skill can be purely descriptive (metadata + `location` only, no tools)
 2. Each tool must specify exactly one source: `from` (derived) or `instruction` (local file)
-3. For derived tools (`from`), `sourceNamespace` must resolve to exactly one sibling `exposes[].namespace` of type `api` or `mcp`
+3. For derived tools (`from`), `sourceNamespace` must resolve to exactly one sibling `exposes[].namespace` of type `rest` or `mcp`
 4. Referencing a `skill`-type adapter from `from.sourceNamespace` is invalid (no recursive derivation)
 5. For derived tools, `action` must exist as an operation name (api) or tool name (mcp) in the resolved adapter
 6. For instruction tools, the skill must have a `location` configured — the instruction path is resolved relative to it
@@ -1621,7 +1621,7 @@ spec:
 
 ## Why This Architecture Works
 
-1. **Clear Separation of Concerns**: Skills describe; `api` and `mcp` adapters execute. Each adapter does one thing well.
+1. **Clear Separation of Concerns**: Skills describe; `rest` and `mcp` adapters execute. Each adapter does one thing well.
 
 2. **No Duplication**: Derived tools reference operations already defined in adjacent adapters — no need to redefine tool logic. Instruction tools add knowledge without duplicating execution.
 
@@ -1631,6 +1631,6 @@ spec:
 
 5. **Direct Invocation**: Agents discover tools through the skill catalog, then invoke the source adapter directly — no proxy overhead, no execution complexity in the skill layer.
 
-6. **Composable**: A skill can declare derived tools from multiple sibling adapters (both `api` and `mcp`) and instruction tools from local files, providing a unified discovery surface.
+6. **Composable**: A skill can declare derived tools from multiple sibling adapters (both `rest` and `mcp`) and instruction tools from local files, providing a unified discovery surface.
 
 7. **Enterprise Ready**: Auth, metadata governance, and file distribution endpoints support internal hosting and access control.
