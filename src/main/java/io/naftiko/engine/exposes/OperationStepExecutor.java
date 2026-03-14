@@ -33,7 +33,7 @@ import io.naftiko.engine.LookupExecutor;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.StepExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
-import io.naftiko.engine.consumes.HttpClientAdapter;
+import io.naftiko.engine.consumes.http.HttpClientAdapter;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
