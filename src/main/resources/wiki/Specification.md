@@ -189,7 +189,7 @@ Defines the technical configuration of the capability.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is an API Expose (`type: "api"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
+| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is a REST Expose (`type: "rest"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 
 #### 3.4.2 Rules
@@ -214,7 +214,7 @@ When multiple `consumes` entries are present:
 ```yaml
 capability:
   exposes:
-    - type: api
+    - type: rest
       port: 3000
       namespace: tasks-api
       resources:
@@ -254,14 +254,14 @@ capability:
 
 Describes a server adapter that exposes functionality.
 
-> Update (schema v0.5): Two exposition adapter types are now supported — **API** (`type: "api"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` exposition types are not part of the JSON Schema anymore.
+> Update (schema v0.5): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` exposition types are not part of the JSON Schema anymore.
 > 
 
 #### 3.5.1 REST Expose
 
 REST exposition configuration.
 
-> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **API** (`type: "api"`, this section) and **MCP** (`type: "mcp"`, see §3.5.4). The `type` field acts as discriminator.
+> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section) and **MCP** (`type: "mcp"`, see §3.5.4). The `type` field acts as discriminator.
 > 
 
 **Fixed Fields:**
@@ -418,7 +418,7 @@ Declares an input parameter for an MCP tool. These become properties in the tool
 **REST Expose with operations:**
 
 ```yaml
-type: api
+type: rest
 port: 3000
 namespace: sample
 resources:
@@ -437,7 +437,7 @@ resources:
 **REST Expose with forward:**
 
 ```yaml
-type: api
+type: rest
 port: 8080
 namespace: proxy
 resources:
@@ -452,7 +452,7 @@ resources:
 **REST Expose with both operations and forward:**
 
 ```yaml
-type: api
+type: rest
 port: 9090
 namespace: hybrid
 resources:
@@ -1390,7 +1390,7 @@ And the exposed side of the capability:
 ```yaml
 # In exposes
 exposes:
-  - type: "api"
+  - type: "rest"
     address: "localhost"
     port: 9090
     namespace: "sample"
@@ -1845,7 +1845,7 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: api
       port: 8080
       namespace: "proxy"
       resources:
