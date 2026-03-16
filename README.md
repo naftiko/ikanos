@@ -5,15 +5,24 @@
 [![Trivy](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-trivy.json)](https://github.com/naftiko/framework/actions/workflows/quality-gate.yml)
 [![Gitleaks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-gitleaks.json)](https://github.com/naftiko/framework/actions/workflows/quality-gate.yml)
 
-Welcome to Naftiko Framework, the fist Open Source project for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration). It reinvents API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
-
-Each capability is a coarse piece of domain that consumes existing HTTP-based APIs, converts data formats like Protocol Buffer, XML, YAML, CSV and Avro into JSON, enabling better Context Engineering and API reusability critical to AI integration.
+Welcome to Naftiko Framework, the fist Open Source project for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
 
 <img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="600">
 
-Capabilities are declared using **YAML** files, configuring the Naftiko Engine provided as a **Docker** container. Clients can then consume the capability via the **MCP**, **SKILL** or **REST** servers exposed.
+Each capability is a coarse piece of domain that consumes existing HTTP-based APIs then exposes them in several protocols to enable AI integration and self-integrating agents. Naftiko Framework includes a specification, an engine and a CLI.
 
-While the framework itself is developed in Java and can be extended to support new protocols, developers just need to know YAML, JSONPath and Mustache templates to take full advantage of it. 
+| Feature | Description |
+|---|---|
+| Spec-Driven | Declare capabilities entirely in **YAML** — no Java required |
+| Multi-Protocol Servers | Expose capabilities via **MCP**, **SKILL**, or **REST** servers out of the box |
+| Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, and **Avro** payloads into JSON |
+| HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
+| Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
+| AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |
+| Docker Native | Ships as a ready-to-run **Docker** container |
+| Extensible | Open-source core extensible with new protocols and adapters |
+
+Here are additional documents to learn more:
 
 - :rowboat: [Installation](https://github.com/naftiko/framework/wiki/Installation)
 - :sailboat: [Tutorial](https://github.com/naftiko/framework/wiki/Tutorial)
