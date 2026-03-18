@@ -5,9 +5,9 @@ Welcome to the tutorial for Naftiko Framework. Starting with the simplest "Hello
 Please read the [installation instructions](https://github.com/naftiko/framework/wiki/Installation) to know how to run the Naftiko Engine with your capability file.
 
 ## 1. My first capability
-Start with a very basic capability returning "Hello, World!", using only a REST server adapter with constants.
+Start with a very basic capability returning "Hello, World!", using only an API server adapter with constants.
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 capability:
   exposes:
     - type: "api"
@@ -36,7 +36,7 @@ Congrats, you ran your first capability!
 ## 2. Forwarding API resource
 Add a "consumes" section to forward an existing API (Notion API in our example) and expose it as a capability.
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Tutorial - Step 2 - Forwarding API Resource"
 
@@ -86,7 +86,7 @@ It should display a JSON response similar to:
 ## 3. Encapsulating Headers
 Let's say you don't want to add headers when requesting the capability. For that you can define these headers as input parameters in the "consumes" section.
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Tutorial - Step 3 - Encapsulating Headers"
   description: "This is a sample capability specification to demonstrate the features of Naftiko"
@@ -123,7 +123,7 @@ Even now you can request your capability without any header.
 ## 4. Filter response
 If you want to get a more concise response with only the fields you need. for example: id, name, and type. You can define the output parameters for a specific operation.
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Tutorial - Step 4 - Filter response"
   description: "This is a sample capability specification to demonstrate the features of Naftiko"
@@ -187,10 +187,9 @@ In this case, if you execute the previous GET request on http://localhost:8081/n
 ```
 
 ## 5. Multi steps
-***This feature is not fully implemented in v0.4 (especially with regard to the transfer of variables between steps)***\
 You can define a specific capability that calls several endpoints to provide a consolidate result. For this example, you define a "GET my full user" capability which first call "users/me" (get me), then use the result userId to call "users/{{userId}}" (get user by id).
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Tutorial - Step 5 - Multi steps"
   description: "This capability is based on two resources called one after the other. The second step takes an output value of the first one as argument (user_id)"
@@ -262,7 +261,7 @@ You can execute a GET request on http://localhost:8081/notion/my-full-user and y
 ## 6. MCP
 If you want to expose your capability as MCP tool, this is possible.
 ```
-naftiko: "0.4"
+naftiko: "0.5"
 info:
   label: "Tutorial - Step 6 - MCP"
   description: "This is a sample capability specification to demonstrate the MCP exposition feature"

@@ -1,0 +1,270 @@
+# yaml-language-server: $schema=./ruleset-schema.json
+# Naftiko Spectral Ruleset v0.5
+#
+# A Spectral ruleset adapted to the Naftiko Specification v0.5.
+#
+# IMPORTANT:
+# - This ruleset intentionally avoids duplicating constraints already enforced
+#   by src/main/resources/schemas/naftiko-schema.json.
+# - It focuses on cross-object consistency, style hygiene, and security checks.
+# - It supports both full capabilities and shared consumes documents
+#   (root-level `consumes` without `capability`).
+#
+# Usage:
+#   npx @stoplight/spectral-cli lint my-capability.yml --ruleset naftiko-rules.yml
+#
+# Rules are organized into three categories:
+#   1. Structure & consistency      — validate cross-object constraints not covered by schema
+#   2. Quality & discoverability    — promote good description hygiene for agent discovery
+#   3. Security                     — guard against injection and unsafe content
+
+extends: []
+
+functionsDir: ./spectral-functions
+
+functions:
+  - unique-adapter-namespaces
+
+rules:
+
+  # ────────────────────────────────────────────────────────────────
+  # 1. STRUCTURE & CONSISTENCY
+  # ────────────────────────────────────────────────────────────────
+
+  naftiko-adapter-namespaces-unique:
+    message: "Namespaces must be globally unique across all adapters (consumed and exposed)."
+    description: >
+      The same namespace must not be reused across root `consumes`,
+      `capability.consumes`, and `capability.exposes`.
+      This prevents ambiguous routing and reference resolution.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: unique-adapter-namespaces
+
+  naftiko-consumes-baseuri-no-trailing-slash:
+    message: "The `consumes.baseUri` should not have a trailing slash."
+    description: >
+      A trailing slash on the baseUri can cause double-slash issues when the
+      resource path is appended (e.g. https://api.example.com//users).
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[*].baseUri"
+      - "$.capability.consumes[*].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  naftiko-consumed-resource-no-query-in-path:
+    message: "Consumed resource `path` must not contain a query string. Use `inputParameters` with `in: query` instead."
+    description: >
+      Query parameters belong in the inputParameters array with in: query,
+      not in the path string.
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[*].resources[*].path"
+      - "$.capability.consumes[*].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\\?"
+
+  naftiko-rest-resource-path-no-trailing-slash:
+    message: "Exposed resource `path` must not have a trailing slash."
+    description: >
+      Trailing slashes on resource paths can cause confusion in routing,
+      documentation, and client code generation.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  naftiko-rest-resource-path-no-query:
+    message: "Exposed resource `path` must not contain a query string. Use `inputParameters` with `in: query` instead."
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\\?"
+
+  naftiko-address-not-example:
+    message: "Server `address`, when present, should not be example.com."
+    description: >
+      Placeholder hosts are discouraged in production-bound capability documents.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest')].address"
+      - "$.capability.exposes[?(@.type == 'mcp')].address"
+      - "$.capability.exposes[?(@.type == 'skill')].address"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "example\\.com$"
+
+  # ────────────────────────────────────────────────────────────────
+  # 2. QUALITY & DISCOVERABILITY
+  # ────────────────────────────────────────────────────────────────
+
+  naftiko-info-tags:
+    message: "The `info.tags` array should be present and non-empty."
+    description: >
+      Tags help categorize the capability for discovery and filtering.
+      At least one tag improves agent cataloging.
+    severity: info
+    recommended: false
+    given: "$.info"
+    then:
+      field: "tags"
+      function: truthy
+
+  naftiko-consumes-description:
+    message: "Each `consumes` entry should have a `description` field."
+    description: >
+      A description of the consumed API improves agent understanding of
+      what external service is being used and why.
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'http')]"
+      - "$.capability.consumes[?(@.type == 'http')]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-rest-resource-description:
+    message: "Each exposed REST resource should have a `description` field."
+    description: >
+      Resource descriptions are used by agents to understand the purpose of
+      each endpoint. In a world of agents, context is king.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-rest-operation-description:
+    message: "Exposed REST operations should have a `description` field."
+    description: >
+      Analogous to operation-description in OAS. Descriptions help agents
+      understand which operations to invoke and when.
+    severity: info
+    recommended: false
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-mcp-description:
+    message: "MCP expose should have a `description` field (sent as server instructions during MCP initialization)."
+    description: >
+      The MCP server description is sent to AI agents as initialization
+      instructions. A meaningful description dramatically improves agent
+      understanding of available tools.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'mcp')]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-skill-description:
+    message: "Skill expose should have a `description` field."
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'skill')]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-steps-name-pattern:
+    message: "Orchestration step `name` should follow the pattern ^[A-Za-z0-9_-]+$."
+    description: >
+      Analogous to arazzo-step-stepId. Step names are used as references
+      within Mustache templates (e.g. {{step-name.output}}). Using a
+      consistent naming pattern prevents reference errors.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].steps[*].name"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].steps[*].name"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[A-Za-z0-9_-]+$"
+
+  # ────────────────────────────────────────────────────────────────
+  # 3. SECURITY
+  # ────────────────────────────────────────────────────────────────
+
+  naftiko-no-script-tags-in-markdown:
+    message: "Markdown fields must not contain <script> tags."
+    description: >
+      Analogous to no-script-tags-in-markdown (OAS) and arazzo-no-script-tags-in-markdown.
+      Protects against XSS attacks when capability documents from third parties
+      are rendered in HTML documentation or agent UIs.
+    severity: error
+    recommended: true
+    given:
+      - "$.info.description"
+      - "$.info.label"
+      - "$.capability.exposes[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
+      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
+      - "$.consumes[*].description"
+      - "$.capability.consumes[*].description"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "<script"
+
+  naftiko-no-eval-in-markdown:
+    message: "Markdown fields must not contain eval() calls."
+    description: >
+      Analogous to no-eval-in-markdown (OAS). Protects against JavaScript
+      injection attacks when description content is rendered in
+      HTML/JS-based documentation or agent tooling.
+    severity: error
+    recommended: true
+    given:
+      - "$.info.description"
+      - "$.info.label"
+      - "$.capability.exposes[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
+      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
+      - "$.consumes[*].description"
+      - "$.capability.consumes[*].description"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "eval\\("
+
+  naftiko-baseuri-not-example:
+    message: "The `consumes.baseUri` should not point to example.com."
+    description: >
+      Analogous to oas2-host-not-example and oas3-server-not-example.com.
+      Placeholder example.com URIs should never appear in production-bound
+      capability documents — use real service URLs instead.
+    severity: warn
+    recommended: false
+    given:
+      - "$.consumes[*].baseUri"
+      - "$.capability.consumes[*].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "example\\.com"
