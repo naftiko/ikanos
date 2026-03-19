@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./ruleset-schema.json
+# yaml-language-server: $schema=ruleset-schema.json
 # Naftiko Spectral Ruleset v0.5
 #
 # A Spectral ruleset adapted to the Naftiko Specification v0.5.
@@ -20,7 +20,7 @@
 
 extends: []
 
-functionsDir: ./spectral-functions
+functionsDir: ./functions
 
 functions:
   - unique-adapter-namespaces
