@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or improvement for the Naftiko Framework
+labels: ["new feature"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component does this feature relate to?
+      options:
+        - Core Engine
+        - CLI
+        - Protocol Adapters (MCP, SKILL, REST…)
+        - Spec & Schema
+        - Data Formats
+        - Docker / Deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem & Motivation
+      description: What is the current limitation? What problem does this solve?
+      placeholder: As a user/agent, I can't currently...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: |
+        Illustrate with a YAML snippet or usage example.
+        A partial or minimal example is fine — no need for a complete capability file.
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: agent-context
+    attributes:
+      label: Agent Context (optional)
+      description: |
+        If this issue was created by an AI agent, paste agent metadata here (YAML).
+        Example fields: agent_name, tool, run_id, confidence, source_event.
+      render: yaml
+    validations:
+      required: false

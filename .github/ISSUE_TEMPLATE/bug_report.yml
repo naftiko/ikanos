@@ -1,0 +1,95 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in the Naftiko Framework
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Core Engine
+        - CLI
+        - Protocol Adapters (MCP, SKILL, REST…)
+        - Spec & Schema
+        - Data Formats
+        - Docker / Deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+      placeholder: |
+        **Actual behavior:**
+        ...
+
+        **Expected behavior:**
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the issue
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: capability-file
+    attributes:
+      label: Capability File (if relevant)
+      description: Paste the content of your `.yml` capability file that triggers the issue
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs & Stacktrace
+      description: Paste relevant logs or stacktrace here
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Framework version
+      placeholder: Run `naftiko --version` or check the release tag (e.g. v0.4.1)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Docker
+        - JVM
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: agent-context
+    attributes:
+      label: Agent Context (optional)
+      description: |
+        If this issue was created by an AI agent, paste agent metadata here (YAML).
+        Example fields: agent_name, tool, run_id, confidence, source_event.
+      render: yaml
+    validations:
+      required: false
