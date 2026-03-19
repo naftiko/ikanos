@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-
     - name: update wiki data
       env:
         GH_WIKI_PUBLISH_TOKEN: ${{ secrets.GH_WIKI_PUBLISH_TOKEN }}
