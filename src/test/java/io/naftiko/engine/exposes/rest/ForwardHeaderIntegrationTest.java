@@ -17,19 +17,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.Method;
-import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.restlet.Application;
+import org.restlet.Component;
 import org.restlet.Request;
+import org.restlet.Restlet;
 import org.restlet.Response;
 import org.restlet.data.MediaType;
+import org.restlet.data.Protocol;
 import org.restlet.data.Status;
+import org.restlet.routing.Router;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
@@ -41,24 +43,23 @@ public class ForwardHeaderIntegrationTest {
     public void forwardShouldSetNotionVersionHeaderFromValueField() throws Exception {
         AtomicReference<String> receivedVersion = new AtomicReference<>();
 
-        HttpServer mockServer = HttpServer.create(new InetSocketAddress(0), 0);
-        int mockPort = mockServer.getAddress().getPort();
-        mockServer.createContext("/v1/pages", new HttpHandler() {
+      int mockPort = findFreePort();
+      Component mockServer = new Component();
+      mockServer.getServers().add(Protocol.HTTP, mockPort);
+      mockServer.getDefaultHost().attach(new Application() {
             @Override
-            public void handle(HttpExchange exchange) {
-                try {
-                    receivedVersion.set(exchange.getRequestHeaders().getFirst("Notion-Version"));
-                    byte[] body = "{\"ok\":true}".getBytes();
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(200, body.length);
-                    exchange.getResponseBody().write(body);
-                } catch (Exception ignored) {
-                } finally {
-                    try {
-                        exchange.close();
-                    } catch (Exception ignored) {
+        public Restlet createInboundRoot() {
+          Router router = new Router(getContext());
+          router.attach("/v1/pages", new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+              receivedVersion.set(request.getHeaders().getFirstValue("Notion-Version",
+                  true));
+              response.setStatus(Status.SUCCESS_OK);
+              response.setEntity("{\"ok\":true}", MediaType.APPLICATION_JSON);
                     }
-                }
+          });
+          return router;
             }
         });
         mockServer.start();
@@ -118,7 +119,13 @@ public class ForwardHeaderIntegrationTest {
             assertEquals("2025-09-03", receivedVersion.get(),
                     "Notion-Version should be set from inputParameters.value in forward mode");
         } finally {
-            mockServer.stop(0);
+          mockServer.stop();
         }
     }
+
+      private static int findFreePort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+          return socket.getLocalPort();
+        }
+      }
 }
