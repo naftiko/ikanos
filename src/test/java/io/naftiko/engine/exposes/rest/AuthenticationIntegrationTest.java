@@ -35,7 +35,7 @@ public class AuthenticationIntegrationTest {
     public void bearerAuthenticationShouldReturnUnauthorizedWithoutTokenAndOkWithToken()
             throws Exception {
         String yaml = """
-                naftiko: "0.4"
+                naftiko: "0.5"
                 info:
                   label: "Auth test"
                   description: "Auth test"
@@ -85,7 +85,7 @@ public class AuthenticationIntegrationTest {
     public void apiKeyAuthenticationShouldReturnUnauthorizedWithoutHeaderAndOkWithHeader()
             throws Exception {
         String yaml = """
-                naftiko: "0.4"
+                naftiko: "0.5"
                 info:
                   label: "Auth test"
                   description: "Auth test"
