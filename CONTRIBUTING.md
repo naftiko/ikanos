@@ -14,6 +14,31 @@
 
 ---
 
+## Local Bootstrap
+
+Before contributing, ensure your local environment has at least JDK 21 and Maven.
+
+**Required:** JDK 21, Maven 3.9+
+
+```bash
+java -version    # must be 21+
+mvn -version     # must be 3.9+
+```
+
+Trivy and Gitleaks are **not required locally** — they run automatically in CI. The `pr-check` scripts use them if installed, but `mvn clean test` is enough to validate your changes before a PR.
+
+If you still want to run the full pre-PR checks locally, install [Trivy](https://github.com/aquasecurity/trivy#installation) and [Gitleaks](https://github.com/zricethezav/gitleaks#installation), then run:
+
+```bash
+# Unix/macOS
+bash ./src/main/resources/scripts/pr-check-mac-linux.sh
+
+# Windows (PowerShell)
+.\src\main\resources\scripts\pr-check-wind.ps1
+```
+
+---
+
 ## Bugs & Features
 
 - Report bugs and suggest features in the [Issue Tracker](https://github.com/naftiko/framework/issues)
@@ -51,10 +76,10 @@
 - Run the local validation script before opening your PR:
 
         # Unix/macOS
-        ./scripts/pr-check.sh
+        bash ./src/main/resources/scripts/pr-check-mac-linux.sh
 
         # Windows (PowerShell)
-        .\scripts\pr-check.ps1
+        .\src\main\resources\scripts\pr-check-wind.ps1
 
 ### 3. Open a Pull Request
 
@@ -107,7 +132,8 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 | `src/main/resources/schemas/tutorial/` | Step-by-step tutorial capabilities (`step-1-` to `step-6-`) |
 | `src/test/resources/` | Test fixtures (not examples) |
 | `.github/workflows/` | CI/CD pipelines |
-| `scripts/pr-check.sh` | Local pre-PR validation script |
+| `src/main/resources/scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
+| `src/main/resources/scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
 | `CONTRIBUTING.md` | This file |
 
 ---
