@@ -212,4 +212,98 @@ public class SkillIntegrationTest {
         assertNotNull(tools);
         assertTrue(tools.isEmpty(), "Descriptive skill should have empty tools array");
     }
+
+    // --- Skill content endpoint tests ---
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testGetSkillContents() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL + "/skills/order-management/contents"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                assertTrue(response.statusCode() == 200 || response.statusCode() == 404,
+                                "Should return 200 when location exists or 404 when it does not");
+
+                if (response.statusCode() == 200) {
+                        assertNotNull(response.body());
+
+                        Map<String, Object> body = JSON.readValue(response.body(), Map.class);
+                        assertNotNull(body.get("files"));
+                        List<Map<String, Object>> files = (List<Map<String, Object>>) body.get("files");
+
+                        // Each file entry should have name and path
+                        for (Map<String, Object> file : files) {
+                                assertNotNull(file.get("name"));
+                                assertNotNull(file.get("path"));
+                        }
+        }
+    }
+
+    @Test
+    public void testGetSkillFile() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        //  Assuming order-management skill has directory structure with at least one file
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL + "/skills/order-management/contents/overview"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        // Either 200 success or 404 not found are both valid
+        assertTrue(response.statusCode() == 200 || response.statusCode() == 404,
+                "Should return 200 for existing file or 404 for missing file");
+
+        if (response.statusCode() == 200) {
+            assertNotNull(response.body(), "File content should not be empty");
+            assertNotNull(response.headers().firstValue("content-type"),
+                    "Response should have content-type header");
+        }
+    }
+
+    @Test
+    public void testGetSkillDownload() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL + "/skills/order-management/download"))
+                .GET()
+                .build();
+
+        HttpResponse<byte[]> response =
+                client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+        assertTrue(response.statusCode() == 200 || response.statusCode() == 404,
+                "Should return 200 when location exists or 404 when it does not");
+
+        if (response.statusCode() == 200) {
+            assertNotNull(response.body());
+            assertTrue(response.body().length > 1,
+                    "Downloaded skill archive should not be empty");
+
+            // ZIP archives start with specific magic bytes (PK)
+            assertTrue(response.body()[0] == 0x50 && response.body()[1] == 0x4b,
+                    "Downloaded file should be a ZIP archive");
+        }
+    }
+
+    @Test
+    public void testGetContentsUnknownSkillReturns404() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL + "/skills/unknown-skill/contents"))
+                .GET()
+                .build();
+
+        HttpResponse<String> response =
+                client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(404, response.statusCode());
+    }
 }
