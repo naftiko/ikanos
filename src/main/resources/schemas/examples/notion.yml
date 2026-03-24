@@ -20,8 +20,8 @@ binds:
     description: "Notion API credentials for accessing pre-release participant data stored in Notion."
     location: "file:///path/to/notion_env.json"
     keys:
-      notion_token: "NOTION_API_TOKEN"
-      notion_projects_db_id: "PROJECTS_DATABASE_ID"
+      NOTION_TOKEN: "NOTION_API_TOKEN"
+      NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
 
 capability:
   exposes:
