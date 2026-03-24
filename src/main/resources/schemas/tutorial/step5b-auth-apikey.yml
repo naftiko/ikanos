@@ -15,13 +15,11 @@ info:
       fullName: "Navi"
       email: "navi@naftiko.io"
 
-externalRefs:
-  - name: "api-auth"
-    type: "variables"
+binds:
+  - namespace: "api-auth"
     description: "Runtime variables for API key authentication. Set NAFTIKO_API_KEY environment variable before running this capability."
-    resolution: "runtime"
     keys:
-      naftiko_api_key: "NAFTIKO_API_KEY"
+      NAFTIKO_API_KEY: "NAFTIKO_API_KEY"
 
 capability:
   exposes:
@@ -32,7 +30,7 @@ capability:
       authentication:
         type: "apikey"
         key: "X-API-Key"
-        value: "{{naftiko_api_key}}"
+        value: "{{NAFTIKO_API_KEY}}"
         placement: "header"
       resources:
         - path: "/hello"
