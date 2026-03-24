@@ -22,9 +22,9 @@ binds:
     description: "Notion API credentials for accessing pre-release participant data stored in Notion."
     location: "file:///path/to/notion_env.json"
     keys:
-      notion_token: "NOTION_INTEGRATION_TOKEN"
-      notion_projects_db_id: "PROJECTS_DATABASE_ID"
-      notion_time_tracker_db_id: "TIME_TRACKER_DATABASE_ID"
+      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+      NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
+      NOTION_TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
       
 capability:
   exposes:
@@ -115,7 +115,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{notion_token}}"
+        token: "{{NOTION_TOKEN}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"
@@ -126,7 +126,7 @@ capability:
       resources:
         - name: "projects-db"
           label: "Projects Database"
-          path: "/databases/{{notion_projects_db_id}}/query"
+          path: "/databases/{{NOTION_PROJECTS_DB_ID}}/query"
           operations:
             - name: "query-projects"
               method: "POST"
@@ -151,7 +151,7 @@ capability:
 
         - name: "time-tracker-db"
           label: "Time Tracker Database"
-          path: "/databases/{{notion_time_tracker_db_id}}/query"
+          path: "/databases/{{NOTION_TIME_TRACKER_DB_ID}}/query"
           operations:
             - name: "query-entries"
               method: "POST"
