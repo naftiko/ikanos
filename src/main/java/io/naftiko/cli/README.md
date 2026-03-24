@@ -79,7 +79,7 @@ naftiko v path_to_your_capability_file
 ```
 By default, validation is performed on the latest schema version. If you want to test validation on a previous schema version, you can specify it as the second argument.
 ```bash
-# Validate the capability configuration file with the schema v0.3
-naftiko validate path_to_your_capability_file 0.3
+# Validate the capability configuration file with the schema v1.0.0-alpha1
+naftiko validate path_to_your_capability_file 1.0.0-alpha1
 ```
 The result will tell you if the file is valid or if there are any errors.

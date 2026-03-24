@@ -49,7 +49,7 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testNaftikoVersionLoaded() {
-        assertEquals("0.5", naftikoSpec.getNaftiko());
+        assertEquals("1.0.0-alpha1", naftikoSpec.getNaftiko());
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Naftiko Ruleset Reference
 
-Version: 0.5  
+Version: 1.0.0-alpha1  
 Category: Tooling  
 Last updated: March 2026
 

@@ -135,7 +135,7 @@ public class ResourceRestletTest {
 
     private static String minimalCapabilityYaml() {
         return """
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes:
                     - type: "rest"

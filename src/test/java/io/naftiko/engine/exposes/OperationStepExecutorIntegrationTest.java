@@ -60,7 +60,7 @@ public class OperationStepExecutorIntegrationTest {
 
         try {
             Capability capability = capabilityFromYaml("""
-                    naftiko: "0.5"
+                    naftiko: "1.0.0-alpha1"
                     capability:
                       exposes:
                         - type: "rest"
@@ -143,7 +143,7 @@ public class OperationStepExecutorIntegrationTest {
     @Test
     public void applyOutputMappingsShouldReturnFirstMappedValue() throws Exception {
         OperationStepExecutor executor = new OperationStepExecutor(capabilityFromYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes:
                     - type: "rest"

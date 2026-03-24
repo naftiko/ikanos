@@ -58,7 +58,7 @@ public class ProtobufIntegrationTest {
         public void testCapabilityLoaded() {
                 assertNotNull(capability, "Capability should be initialized");
                 assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-                assertEquals("0.5", capability.getSpec().getNaftiko(),
+                assertEquals("1.0.0-alpha1", capability.getSpec().getNaftiko(),
                                 "Naftiko version should be 0.5");
         }
 

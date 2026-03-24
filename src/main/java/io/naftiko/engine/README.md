@@ -18,7 +18,7 @@ There are 3 ways to use the Framework Engine, depending on your goal.
 #### Pull the Naftiko Framework Engine docker image
 * Naftiko provides a docker image hosted in GitHub packages plateform. It is public, so you can easily pull it locally.
   ```bash
-  # v0.5
+  # v1.0.0-alpha1
   docker pull ghcr.io/naftiko/framework:sha-a567562
 
   # If you want to play with the last snapshot

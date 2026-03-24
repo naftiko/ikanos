@@ -63,7 +63,7 @@ public class ConsumesImportResolverTest {
     public void testResolveSimpleImport() throws Exception {
         // Create source consumes file
         String sourceConsumesYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "notion"
@@ -98,7 +98,7 @@ public class ConsumesImportResolverTest {
     public void testResolveImportWithAlias() throws Exception {
         // Create two source consumes with same namespace
         String sourceEn = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "hello-world"
@@ -107,7 +107,7 @@ public class ConsumesImportResolverTest {
             """;
 
         String sourceFr = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "hello-world"
@@ -144,7 +144,7 @@ public class ConsumesImportResolverTest {
     @Test
     public void testResolveImportNamespaceNotFound() throws Exception {
         String sourceYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "api-v1"
@@ -168,7 +168,7 @@ public class ConsumesImportResolverTest {
     @Test
     public void testMixedImportsAndInlineConsumes() throws Exception {
         String sourceYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "external-api"
@@ -206,7 +206,7 @@ public class ConsumesImportResolverTest {
         Files.createDirectory(subdir);
 
         String sourceYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "nested"

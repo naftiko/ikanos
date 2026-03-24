@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
 ---
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 info:
   label: "CSV Test Capability"
   description: "Test capability for CSV parsing from API responses"
@@ -48,7 +48,7 @@ capability:
       inputParameters:
         - name: "User-Agent"
           in: "header"
-          value: "Naftiko/0.5"
+          value: "Naftiko/1.0.0-alpha1"
 
       resources:
         - path: "api/users"

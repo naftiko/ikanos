@@ -66,7 +66,7 @@ public class ImportIntegrationTest {
     public void testCapabilityLoadsWithImportedConsumes() throws Exception {
         // Create source consumes file
         String sourceConsumesYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "json-api"
@@ -78,7 +78,7 @@ public class ImportIntegrationTest {
 
         // Create capability with import
         String capabilityYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             info:
               label: "Test Capability"
               description: "Tests imported adapters"
@@ -114,7 +114,7 @@ public class ImportIntegrationTest {
     public void testCapabilityWithMixedConsumes() throws Exception {
         // Create source consumes
         String sourceConsumesYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "external-api"
@@ -126,7 +126,7 @@ public class ImportIntegrationTest {
 
         // Create capability with both inline and imported consumes
         String capabilityYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             info:
               label: "Mixed Capability"
               description: "Tests both inline and imported consumes"
@@ -170,7 +170,7 @@ public class ImportIntegrationTest {
     public void testCapabilityImportWithAlias() throws Exception {
         // Create source consumes
         String sourceConsumesYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             consumes:
               - type: "http"
                 namespace: "api"
@@ -182,7 +182,7 @@ public class ImportIntegrationTest {
 
         // Create capability with import using alias
         String capabilityYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             info:
               label: "Aliased Capability"
               description: "Tests import with alias"
@@ -219,7 +219,7 @@ public class ImportIntegrationTest {
     public void testCapabilityImportFileNotFound() throws Exception {
         // Create capability with non-existent import
         String capabilityYaml = """
-            naftiko: "0.5"
+            naftiko: "1.0.0-alpha1"
             info:
               label: "Bad Capability"
               description: "Bad import path"

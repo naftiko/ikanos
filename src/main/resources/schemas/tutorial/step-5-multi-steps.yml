@@ -1,4 +1,4 @@
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 info:
   label: "Tutorial - Step 5 - Multi steps"
   description: "This capability is based on two resources called one after the other. The second step takes an output value of the first one as argument (user_id)"

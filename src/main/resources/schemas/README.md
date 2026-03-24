@@ -1,6 +1,6 @@
 # Naftiko Specification
 
-**Version 0.4**
+**Version 1.0.0-alpha1**
 
 **Publication Date:** February 2026
 
@@ -88,14 +88,14 @@ This is the root object of the Naftiko document.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.4"` for this version. |
+| **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"1.0.0-alpha1"` for this version. |
 | **info** | `Info` | **REQUIRED**. Metadata about the capability. |
 | **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
 | **binds** | `Bind[]` | List of external sources the capability binds to for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.1.2 Rules
 
-- The `naftiko` field MUST be present and MUST have the value `"0.4"` for documents conforming to this version of the specification.
+- The `naftiko` field MUST be present and MUST have the value `"1.0.0-alpha1"` for documents conforming to this version of the specification.
 - Both `info` and `capability` objects MUST be present.
 - The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
 - No additional properties are allowed at the root level.
@@ -2068,7 +2068,7 @@ capability:
 
 ## 5. Versioning
 
-The Naftiko Specification uses semantic versioning. The `naftiko` field in the Naftiko Object specifies the exact version of the specification (e.g., `"0.4"`). 
+The Naftiko Specification uses semantic versioning. The `naftiko` field in the Naftiko Object specifies the exact version of the specification (e.g., `"1.0.0-alpha1"`). 
 
 Tools processing Naftiko documents MUST validate this field to ensure compatibility with the specification version they support.
 

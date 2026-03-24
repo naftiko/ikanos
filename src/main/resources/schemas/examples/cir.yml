@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../naftiko-schema.json
 ---
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 
 info:
   label: "CIR Time Export"

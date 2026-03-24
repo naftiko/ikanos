@@ -63,7 +63,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
-        assertEquals("0.5", capability.getSpec().getNaftiko(), "Naftiko version should be 0.5");
+        assertEquals("1.0.0-alpha1", capability.getSpec().getNaftiko(), "Naftiko version should be 0.5");
     }
 
     @Test

@@ -31,7 +31,7 @@ public class RestServerAdapterTest {
     @Test
     public void basicAuthShouldBuildChallengeAuthenticatorChain() throws Exception {
         RestServerAdapter adapter = adapterFromYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes:
                     - type: "rest"
@@ -57,7 +57,7 @@ public class RestServerAdapterTest {
     @Test
     public void digestAuthShouldBuildChallengeAuthenticatorChain() throws Exception {
         RestServerAdapter adapter = adapterFromYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes:
                     - type: "rest"
@@ -84,7 +84,7 @@ public class RestServerAdapterTest {
     @Test
     public void extractAllowedVariablesShouldReturnAllBindingKeys() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 binds:
                   - namespace: "env"
                     keys:

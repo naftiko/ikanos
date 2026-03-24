@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
 ---
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 info:
   label: "HTTP Forward with Value Field Test"
   description: "Test capability for forward spec with value field supporting Mustache templates"

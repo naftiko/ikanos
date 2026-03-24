@@ -1,6 +1,6 @@
 # Naftiko Specification
 
-Version: 0.5
+Version: 1.0.0-alpha1
 Created by: Thomas Eskenazi
 Category: Sepcification
 Last updated time: March 5, 2026 12:40 PM

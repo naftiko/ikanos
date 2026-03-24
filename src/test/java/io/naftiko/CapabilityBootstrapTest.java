@@ -27,7 +27,7 @@ public class CapabilityBootstrapTest {
     @Test
     public void constructorShouldFailWhenNoExposesDefined() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes: []
                   consumes: []
@@ -41,7 +41,7 @@ public class CapabilityBootstrapTest {
     @Test
     public void constructorShouldCreateServerAndClientAdapters() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 capability:
                   exposes:
                     - type: "rest"
@@ -74,7 +74,7 @@ public class CapabilityBootstrapTest {
     @Test
     public void constructorShouldResolveRuntimeBindings() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "0.5"
+                naftiko: "1.0.0-alpha1"
                 binds:
                   - namespace: "env"
                     keys:

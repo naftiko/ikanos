@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../naftiko-schema.json
 ---
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 info:
   label: "Weather Forecast Capability"
   description: "Exposes weather data via API, MCP, and skill catalog adapters"
