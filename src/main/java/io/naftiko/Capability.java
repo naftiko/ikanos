@@ -21,7 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.naftiko.engine.ExternalRefResolver;
+import io.naftiko.engine.BindingResolver;
 import io.naftiko.engine.ConsumesImportResolver;
 import io.naftiko.spec.ExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
@@ -46,18 +46,18 @@ public class Capability {
     private volatile NaftikoSpec spec;
     private volatile List<ServerAdapter> serverAdapters;
     private volatile List<ClientAdapter> clientAdapters;
-    private volatile Map<String, Object> externalRefVariables;
+    private volatile Map<String, Object> bindings;
 
     public Capability(NaftikoSpec spec) throws Exception {
         this(spec, null);
     }
 
     /**
-     * Creates a capability with an optional capability directory for external ref file resolution.
+     * Creates a capability with an optional capability directory for binding file resolution.
      * 
      * @param spec The Naftiko specification
      * @param capabilityDir Directory containing the capability file (null for default)
-     * @throws Exception if external refs cannot be resolved
+     * @throws Exception if bindings cannot be resolved
      */
     public Capability(NaftikoSpec spec, String capabilityDir) throws Exception {
         this.spec = spec;
@@ -68,19 +68,17 @@ public class Capability {
             importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);
         }
 
-        // Resolve external references early for injection into adapters
-        ExternalRefResolver refResolver = new ExternalRefResolver();
+        // Resolve bindings early for injection into adapters
+        BindingResolver bindingResolver = new BindingResolver();
         ExecutionContext context = new ExecutionContext() {
             @Override
             public String getVariable(String key) {
                 return System.getenv(key);
             }
         };
-        Map<String, String> resolvedRefs = refResolver.resolve(
-                spec.getExternalRefs(),
-                context);
+        Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);
         // Convert Map<String, String> to Map<String, Object> for compatibility
-        this.externalRefVariables = new HashMap<>(resolvedRefs);
+        this.bindings = new HashMap<>(resolvedBinds);
 
         // Initialize client adapters first
         this.clientAdapters = new CopyOnWriteArrayList<>();
@@ -126,13 +124,12 @@ public class Capability {
     }
 
     /**
-     * Returns the map of resolved external reference variables.
-     * These are injected into parameter resolution contexts.
+     * Returns the map of resolved bindings. These are injected into parameter resolution contexts.
      * 
      * @return Map of variable name to resolved value
      */
-    public Map<String, Object> getExternalRefVariables() {
-        return externalRefVariables;
+    public Map<String, Object> getBindings() {
+        return bindings;
     }
 
     public void start() throws Exception {
@@ -175,7 +172,7 @@ public class Capability {
                 // Ignore unknown properties to handle potential Restlet framework classes
                 mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
-                // Pass the capability directory for external ref file resolution
+                // Pass the capability directory for bind file resolution
                 String capabilityDir = file.getParent();
                 Capability capability = new Capability(spec, capabilityDir);
                 capability.start();

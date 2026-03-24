@@ -23,50 +23,47 @@ import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.naftiko.spec.BindingSpec;
+import io.naftiko.spec.BindingKeysSpec;
 import io.naftiko.spec.ExecutionContext;
-import io.naftiko.spec.ExternalRefKeysSpec;
-import io.naftiko.spec.ExternalRefSpec;
-import io.naftiko.spec.FileResolvedExternalRefSpec;
-import io.naftiko.spec.RuntimeResolvedExternalRefSpec;
 
 /**
- * Resolver for external references that supports both file-based and runtime-based injection.
- * File-based refs load configuration from JSON/YAML files.
- * Runtime-based refs extract values from an ExecutionContext (environment variables, secrets, etc.).
+ * Resolver for bindings that supports both file-based and runtime-based injection. File-based
+ * bindings load configuration from JSON/YAML files (when location is present). Runtime-based
+ * bindings extract values from an ExecutionContext (when location is absent).
  */
-public class ExternalRefResolver {
+public class BindingResolver {
 
     private final ObjectMapper yamlMapper;
     private final ObjectMapper jsonMapper;
 
-    public ExternalRefResolver() {
+    public BindingResolver() {
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.jsonMapper = new ObjectMapper();
     }
 
     /**
-     * Resolves all external references and returns a map of resolved variables.
+     * Resolves all bindings and returns a map of resolved variables.
      * 
-     * @param externalRefs List of external reference specifications to resolve
+     * @param binds List of bind specifications to resolve
      * @param context Execution context for runtime variable resolution
      * @return Map of variable name to resolved value
-     * @throws IOException if file-based ref cannot be read
+     * @throws IOException if file-based binding cannot be read
      */
-    public Map<String, String> resolve(Iterable<ExternalRefSpec> externalRefs, ExecutionContext context)
+    public Map<String, String> resolve(Iterable<BindingSpec> binds, ExecutionContext context)
             throws IOException {
         Map<String, String> resolved = new HashMap<>();
 
-        if (externalRefs == null) {
+        if (binds == null) {
             return resolved;
         }
 
-        for (ExternalRefSpec ref : externalRefs) {
-            if (ref instanceof FileResolvedExternalRefSpec) {
-                Map<String, String> fileVars = resolveFileReference((FileResolvedExternalRefSpec) ref);
+        for (BindingSpec binding : binds) {
+            if (binding.getLocation() != null && !binding.getLocation().isEmpty()) {
+                Map<String, String> fileVars = resolveFileBinding(binding);
                 resolved.putAll(fileVars);
-            } else if (ref instanceof RuntimeResolvedExternalRefSpec) {
-                Map<String, String> runtimeVars = resolveRuntimeReference((RuntimeResolvedExternalRefSpec) ref,
-                        context);
+            } else {
+                Map<String, String> runtimeVars = resolveRuntimeBinding(binding, context);
                 resolved.putAll(runtimeVars);
             }
         }
@@ -75,35 +72,35 @@ public class ExternalRefResolver {
     }
 
     /**
-     * Resolves a file-based external reference by reading the specified file and extracting variables
+     * Resolves a file-based binding by reading the specified file and extracting variables
      * according to the keys mapping. Supports JSON and YAML formats.
      * 
-     * @param ref The file-resolved external reference specification
+     * @param binding The binding specification with a location URI
      * @return Map of variable name to resolved value
      * @throws IOException if file cannot be read or key is missing
      */
-    public Map<String, String> resolveFileReference(FileResolvedExternalRefSpec ref) throws IOException {
-        if (ref.getUri() == null || ref.getUri().isEmpty()) {
-            throw new IOException("Invalid ExternalRef: missing uri");
+    public Map<String, String> resolveFileBinding(BindingSpec binding) throws IOException {
+        if (binding.getLocation() == null || binding.getLocation().isEmpty()) {
+            throw new IOException("Invalid bind: missing location");
         }
 
-        ExternalRefKeysSpec keysSpec = ref.getKeys();
+        BindingKeysSpec keysSpec = binding.getKeys();
         if (keysSpec == null || keysSpec.getKeys() == null || keysSpec.getKeys().isEmpty()) {
-            throw new IOException("Invalid ExternalRef: missing keys");
+            throw new IOException("Invalid bind: missing keys");
         }
 
         // Parse file content
-        Map<String, Object> fileContent = parseFileContent(ref.getUri());
+        Map<String, Object> fileContent = parseFileContent(binding.getLocation());
 
         // Extract variables using the key mappings
         Map<String, String> resolved = new HashMap<>();
         for (Map.Entry<String, String> mapping : keysSpec.getKeys().entrySet()) {
-            String variableName = mapping.getKey(); // e.g., "notion_token"
-            String fileKey = mapping.getValue(); // e.g., "NOTION_TOKEN"
+            String variableName = mapping.getKey();
+            String fileKey = mapping.getValue();
 
             Object value = fileContent.get(fileKey);
             if (value == null) {
-                throw new IOException("Invalid ExternalRef: key '" + fileKey + "' not found in file");
+                throw new IOException("Invalid bind: key '" + fileKey + "' not found in file");
             }
 
             resolved.put(variableName, String.valueOf(value));
@@ -113,29 +110,29 @@ public class ExternalRefResolver {
     }
 
     /**
-     * Resolves a runtime-based external reference by extracting variables from an ExecutionContext.
+     * Resolves a runtime-based binding by extracting variables from an ExecutionContext.
      * 
-     * @param ref The runtime-resolved external reference specification
+     * @param binding The bind specification without a location (runtime injection)
      * @param context The execution context providing variable values
      * @return Map of variable name to resolved value
      * @throws IOException if variable is missing
      */
-    public Map<String, String> resolveRuntimeReference(RuntimeResolvedExternalRefSpec ref,
-            ExecutionContext context) throws IOException {
-        ExternalRefKeysSpec keysSpec = ref.getKeys();
+    public Map<String, String> resolveRuntimeBinding(BindingSpec binding, ExecutionContext context)
+            throws IOException {
+        BindingKeysSpec keysSpec = binding.getKeys();
         if (keysSpec == null || keysSpec.getKeys() == null || keysSpec.getKeys().isEmpty()) {
-            throw new IOException("Invalid ExternalRef: missing keys");
+            throw new IOException("Invalid bind: missing keys");
         }
 
         Map<String, String> resolved = new HashMap<>();
         for (Map.Entry<String, String> mapping : keysSpec.getKeys().entrySet()) {
-            String variableName = mapping.getKey(); // e.g., "api_key"
-            String contextKey = mapping.getValue(); // e.g., "API_KEY"
+            String variableName = mapping.getKey();
+            String contextKey = mapping.getValue();
 
             String value = context.getVariable(contextKey);
             if (value == null) {
-                throw new IOException("Invalid ExternalRef: context variable '" + contextKey
-                        + "' not found");
+                throw new IOException(
+                        "Invalid bind: context variable '" + contextKey + "' not found");
             }
 
             resolved.put(variableName, value);
@@ -180,7 +177,7 @@ public class ExternalRefResolver {
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
-            throw new IOException("Failed to parse external ref file: " + e.getMessage(), e);
+            throw new IOException("Failed to parse bind file: " + e.getMessage(), e);
         }
     }
 

@@ -27,13 +27,13 @@
       },
       "minItems": 1
     },
-    "externalRefs": {
+    "binds": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/ExternalRef"
+        "$ref": "#/$defs/Binding"
       },
       "minItems": 1,
-      "description": "List of external references for variable injection and resource linking."
+      "description": "List of external sources the capability binds to for variable injection."
     },
     "capability": {
       "$ref": "#/$defs/Capability"
@@ -78,91 +78,48 @@
       ],
       "additionalProperties": false
     },
-    "ExternalRef": {
-      "oneOf": [
-        {
-          "type": "object",
-          "description": "File-resolved external reference",
-          "properties": {
-            "name": {
-              "$ref": "#/$defs/IdentifierKebab",
-              "description": "A unique identifier for this external reference."
-            },
-            "description": {
-              "type": "string",
-              "description": "Used to provide *meaningful* information about the external reference. Remember, in a world of agents, context is king."
-            },
-            "type": {
-              "type": "string",
-              "enum": [
-                "environment"
-              ]
-            },
-            "resolution": {
-              "type": "string",
-              "description": "The resolution strategy for this external reference. 'file' means that the reference will be resolved from a file at the specified URI during capability loading, and the extracted variables will be injected for use in the capability definition. 'runtime' means that the reference will be resolved at runtime from the execution context (e.g. environment variables, secrets manager, or any other context store), and the extracted variables will be injected for use in the capability definition. Default value is 'runtime'.",
-              "const": "file"
-            },
-            "uri": {
-              "type": "string"
-            },
-            "keys": {
-              "$ref": "#/$defs/ExternalRefKeys",
-              "description": "Map of key-value pairs that define the variables to be injected from the resolved external reference. Each key is the variable name used for injection, each value is the corresponding key in the resolved file content. E.g. {\"notion_token\": \"NOTION_INTEGRATION_TOKEN\"} means that the value of the NOTION_INTEGRATION_TOKEN field in the resolved JSON file will be injected as {{notion_token}} in the capability definition."
-            }
-          },
-          "required": [
-            "name",
-            "type",
-            "resolution",
-            "uri",
-            "keys"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "description": "Runtime-resolved external reference (default)",
-          "properties": {
-            "name": {
-              "$ref": "#/$defs/IdentifierKebab",
-              "description": "A unique identifier for this external reference."
-            },
-            "description": {
-              "type": "string",
-              "description": "Used to provide *meaningful* information about the external reference. Remember, in a world of agents, context is king."
-            },
-            "type": {
-              "type": "string",
-              "enum": [
-                "variables"
-              ]
-            },
-            "resolution": {
-              "type": "string",
-              "description": "The resolution strategy for this external reference. 'file' means that the reference will be resolved from a file at the specified URI during capability loading, and the extracted variables will be injected for use in the capability definition. 'runtime' means that the reference will be resolved at runtime from the execution context (e.g. environment variables, secrets manager, or any other context store), and the extracted variables will be injected for use in the capability definition. Default value is 'runtime'.",
-              "const": "runtime"
-            },
-            "keys": {
-              "$ref": "#/$defs/ExternalRefKeys",
-              "description": "Map of key-value pairs that define the variables to be injected from the external reference at runtime. Each key is the variable name used for injection, each value is the corresponding key in the runtime context. E.g. {\"notion_token\": \"NOTION_INTEGRATION_TOKEN\"} means that the value of the NOTION_INTEGRATION_TOKEN field in the runtime context will be injected as {{notion_token}} in the capability definition."
-            }
-          },
-          "required": [
-            "name",
-            "type",
-            "resolution",
-            "keys"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "ExternalRefKeys": {
+    "Binding": {
       "type": "object",
-      "description": "Map of key-value pairs that define the variables to be injected from the external reference. Each key is the variable name used for injection, each value is the corresponding key in the resolved file content or runtime context. E.g. {\"notion_token\": \"NOTION_INTEGRATION_TOKEN\"} means that the value of the NOTION_INTEGRATION_TOKEN field in the resolved JSON file or runtime context will be injected as {{notion_token}} in the capability definition.",
+      "description": "Declares that the capability binds to an external source of variables. Variables declared via 'keys' are injected using mustache-style expressions.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique identifier for this binding. Used as qualifier in expressions for disambiguation."
+        },
+        "description": {
+          "type": "string",
+          "description": "A meaningful description of the binding's purpose. In a world of agents, context is king."
+        },
+        "location": {
+          "$ref": "#/$defs/UriLocation",
+          "description": "URI identifying the value provider. The URI scheme expresses the resolution strategy (file://, vault://, github-secrets://, k8s-secret://, etc.). When omitted, values are injected by the runtime environment."
+        },
+        "keys": {
+          "$ref": "#/$defs/BindingKeys",
+          "description": "Map of variable names to keys in the resolved source. Each key is the variable name used for injection, each value is the corresponding key in the provider."
+        }
+      },
+      "required": [
+        "namespace",
+        "keys"
+      ],
+      "additionalProperties": false
+    },
+    "UriLocation": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://",
+      "description": "A URI with an explicit scheme identifying the resource provider."
+    },
+    "BindingVariableName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "description": "Variable name for binding injection (SCREAMING_SNAKE_CASE). Enforced for visual distinction from declared parameters in expressions."
+    },
+    "BindingKeys": {
+      "type": "object",
+      "description": "Map of variable names (SCREAMING_SNAKE_CASE) to source keys in the provider.",
       "propertyNames": {
-        "$ref": "#/$defs/IdentifierExtended"
+        "$ref": "#/$defs/BindingVariableName"
       },
       "additionalProperties": {
         "$ref": "#/$defs/IdentifierExtended"
@@ -708,6 +665,14 @@
       "type": "object",
       "description": "Capability technical configuration",
       "properties": {
+        "binds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Binding"
+          },
+          "minItems": 1,
+          "description": "External sources the capability binds to for variable injection."
+        },
         "exposes": {
           "type": "array",
           "description": "List of exposed server adapters",

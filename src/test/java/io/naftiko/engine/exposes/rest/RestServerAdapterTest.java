@@ -82,11 +82,11 @@ public class RestServerAdapterTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void extractAllowedVariablesShouldReturnAllExternalRefKeys() throws Exception {
+    public void extractAllowedVariablesShouldReturnAllBindingKeys() throws Exception {
         NaftikoSpec spec = parseYaml("""
                 naftiko: "0.5"
-                externalRefs:
-                  - type: variables
+                binds:
+                  - namespace: "env"
                     keys:
                       auth_token: AUTH_TOKEN
                       api_key: API_KEY

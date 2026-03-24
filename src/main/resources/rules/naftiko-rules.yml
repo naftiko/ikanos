@@ -23,7 +23,7 @@ extends: []
 functionsDir: ./functions
 
 functions:
-  - unique-adapter-namespaces
+  - unique-namespaces
 
 rules:
 
@@ -31,17 +31,19 @@ rules:
   # 1. STRUCTURE & CONSISTENCY
   # ────────────────────────────────────────────────────────────────
 
-  naftiko-adapter-namespaces-unique:
-    message: "Namespaces must be globally unique across all adapters (consumed and exposed)."
+  naftiko-namespaces-unique:
+    message: "Namespaces must be globally unique across all adapters and bindings."
     description: >
       The same namespace must not be reused across root `consumes`,
-      `capability.consumes`, and `capability.exposes`.
-      This prevents ambiguous routing and reference resolution.
+      `capability.consumes`, `capability.exposes`, root `binds`,
+      and `capability.binds`.
+      This prevents ambiguous routing, reference resolution, and
+      variable resolution.
     severity: error
     recommended: true
     given: "$"
     then:
-      function: unique-adapter-namespaces
+      function: unique-namespaces
 
   naftiko-consumes-baseuri-no-trailing-slash:
     message: "The `consumes.baseUri` should not have a trailing slash."

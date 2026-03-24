@@ -35,8 +35,9 @@ import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.consumes.AuthenticationSpec;
 import io.naftiko.spec.consumes.BasicAuthenticationSpec;
 import io.naftiko.spec.consumes.DigestAuthenticationSpec;
-import io.naftiko.spec.ExternalRefSpec;
-import io.naftiko.spec.ExternalRefKeysSpec;
+import io.naftiko.spec.BindingSpec;
+import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.BindingKeysSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 
@@ -175,21 +176,21 @@ public class RestServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Extracts all allowed variable names from the capability spec's external references.
-     * These are the variable names defined in the externalRefs keys mapping.
+     * Extracts all allowed variable names from the capability spec's bindings.
+     * These are the variable names defined in the binds keys mapping.
      * 
      * @param spec The Naftiko spec
-     * @return Set of allowed variable names from externalRefs declarations
+     * @return Set of allowed variable names from binds declarations
      */
-    private static Set<String> extractAllowedVariables(io.naftiko.spec.NaftikoSpec spec) {
+    private static Set<String> extractAllowedVariables(NaftikoSpec spec) {
         Set<String> allowed = new HashSet<>();
         
-        if (spec == null || spec.getExternalRefs() == null) {
+        if (spec == null || spec.getBinds() == null) {
             return allowed;
         }
         
-        for (ExternalRefSpec ref : spec.getExternalRefs()) {
-            ExternalRefKeysSpec keysSpec = ref.getKeys();
+        for (BindingSpec bind : spec.getBinds()) {
+            BindingKeysSpec keysSpec = bind.getKeys();
             if (keysSpec != null && keysSpec.getKeys() != null) {
                 // The keys are the variable names used for template injection
                 allowed.addAll(keysSpec.getKeys().keySet());

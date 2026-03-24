@@ -162,7 +162,7 @@ operations:
   - method: GET
     call: github.get-user
     with:
-      username: "{{github_username}}"   # From externalRefs
+      username: "{{github_username}}"   # From binds
       accept: "application/json"        # Static value
 ```
 
@@ -177,7 +177,7 @@ steps:
 ```
 
 The `with` object maps consumed operation parameter names to:
-- Variable references like `{{variable_name}}`  injected from externalRefs
+- Variable references like `{{VARIABLE_NAME}}`  injected from binds
 - Static strings or numbers - literal values
 
 ### Q: How do I extract values from API responses (output parameters)?
@@ -246,7 +246,7 @@ consumes:
     baseUri: https://api.github.com
     authentication:
       type: bearer
-      token: "{{github_token}}"      # Use token from externalRefs
+      token: "{{GITHUB_TOKEN}}"      # Use token from binds
 ```
 
 **Supported authentication types:**
@@ -256,26 +256,24 @@ consumes:
 - `digest` - HTTP Digest authentication
 
 ### Q: How do I manage secrets like API tokens?
-**A:** Use **externalRefs** to declare variables that are injected at runtime:
+**A:** Use **binds** to declare variables that are injected at runtime:
 
 ```yaml
-externalRefs:
-  - name: secrets
-    type: environment
-    resolution: runtime
+binds:
+  - namespace: secrets
     keys:
-      github_token: GITHUB_TOKEN      # Maps env var to template variable
-      notion_token: NOTION_TOKEN
+      GITHUB_TOKEN: GITHUB_TOKEN      # Maps env var to template variable
+      NOTION_TOKEN: NOTION_TOKEN
 
 consumes:
   - namespace: github
     authentication:
       type: bearer
-      token: "{{github_token}}"       # Use the injected variable
+      token: "{{GITHUB_TOKEN}}"       # Use the injected variable
   - namespace: notion
     authentication:
       type: bearer
-      token: "{{notion_token}}"
+      token: "{{NOTION_TOKEN}}"
 ```
 
 **At runtime, provide environment variables:**
@@ -283,7 +281,7 @@ consumes:
 docker run -e GITHUB_TOKEN=ghp_xxx -e NOTION_TOKEN=secret_xxx ...
 ```
 
-> ⚠️ **Security note**: Use `resolution: runtime` in production (not `file`). Never commit secrets to your repository.
+> ⚠️ **Security note**: Use runtime injection (omit `location`) in production. Never commit secrets to your repository.
 
 ### Q: Can I authenticate to exposed endpoints (REST/MCP)?
 **A:** Yes, add `authentication` to your `exposes` block:
@@ -500,7 +498,7 @@ MCP clients can then discover and use these resources dynamically.
 
 1. **Check parameter names match** - consumed parameter names must match keys in `with`
 2. **Verify parameter location** (`in: path`, `in: query`, `in: header`, etc.)
-3. **Check variable references** - ensure `{{variable_name}}` variables are defined in externalRefs
+3. **Check variable references** - ensure `{{VARIABLE_NAME}}` variables are defined in binds
 4. **Test without transformation** - use `forward` to proxy the request and see if underlying API works
 
 ### Q: Authentication is failing. How do I debug it?
@@ -509,7 +507,7 @@ MCP clients can then discover and use these resources dynamically.
 1. **Test credentials directly** - verify your token/key works with the API
 2. **Check token format** - ensure it's a valid token (not expired, wrong format, etc.)
 3. **Verify placement** - is the token in the right header/query/body?
-4. **Environment variables** - ensure the Docker environment variable matches the key name in `externalRefs`
+4. **Environment variables** - ensure the Docker environment variable matches the key name in `binds`
 5. **Quotes** - make sure tokens with special characters are properly quoted in YAML
 
 ---
@@ -607,22 +605,21 @@ outputParameters:
 **A:** Yes, use **Mustache-style `{{variable}}`** expressions:
 
 ```yaml
-externalRefs:
-  - name: env
-    type: environment
+binds:
+  - namespace: env
     keys:
-      api_key: API_KEY
-      base_url: API_BASE_URL
+      API_KEY: API_KEY
+      API_BASE_URL: API_BASE_URL
 
 consumes:
-  - baseUri: "{{base_url}}"
+  - baseUri: "{{API_BASE_URL}}"
     authentication:
       type: apikey
       key: X-API-Key
-      value: "{{api_key}}"
+      value: "{{API_KEY}}"
 ```
 
-Variables come from `externalRefs` and are injected at runtime.
+Variables come from `binds` and are injected at runtime.
 
 
 ### Q: Can I compose capabilities (capability calling another capability)?
@@ -709,7 +706,7 @@ For production workloads:
    ```
 
 2. **Docker Compose** - for simpler setups
-3. **Environment Variables** - inject secrets via `externalRefs` with `resolution: runtime`
+3. **Environment Variables** - inject secrets via `binds` (omit `location` for runtime injection)
 
 ### Q: Can I use Naftiko behind a reverse proxy (nginx, Envoy)?
 **A:** Yes, absolutely. Naftiko exposes standard HTTP endpoints, so it works with any reverse proxy.

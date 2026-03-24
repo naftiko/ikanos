@@ -22,18 +22,17 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import io.naftiko.spec.BindingSpec;
+import io.naftiko.spec.BindingKeysSpec;
 import io.naftiko.spec.ExecutionContext;
-import io.naftiko.spec.ExternalRefKeysSpec;
-import io.naftiko.spec.FileResolvedExternalRefSpec;
-import io.naftiko.spec.RuntimeResolvedExternalRefSpec;
 
-public class ExternalRefResolverTest {
+public class BindingResolverTest {
 
     @TempDir
     Path tempDir;
 
     @Test
-    public void resolveShouldLoadJsonAndYamlFileReferences() throws Exception {
+    public void resolveShouldLoadJsonAndYamlFileBindings() throws Exception {
         Path jsonFile = tempDir.resolve("secrets.json");
         Files.writeString(jsonFile, """
                 {"NOTION_TOKEN":"json-token"}
@@ -44,37 +43,37 @@ public class ExternalRefResolverTest {
                 API_KEY: yaml-key
                 """);
 
-        ExternalRefResolver resolver = new ExternalRefResolver();
+        BindingResolver resolver = new BindingResolver();
         Map<String, String> resolved = resolver.resolve(List.of(
-                fileRef(jsonFile, Map.of("notion_token", "NOTION_TOKEN")),
-                fileRef(yamlFile, Map.of("api_key", "API_KEY"))),
+                fileBind(jsonFile, Map.of("NOTION_TOKEN", "NOTION_TOKEN")),
+                fileBind(yamlFile, Map.of("API_KEY", "API_KEY"))),
                 key -> null);
 
-        assertEquals("json-token", resolved.get("notion_token"));
-        assertEquals("yaml-key", resolved.get("api_key"));
+        assertEquals("json-token", resolved.get("NOTION_TOKEN"));
+        assertEquals("yaml-key", resolved.get("API_KEY"));
     }
 
     @Test
-    public void resolveFileReferenceShouldFailWhenMappedKeyIsMissing() throws Exception {
+    public void resolveFileBindingShouldFailWhenMappedKeyIsMissing() throws Exception {
         Path jsonFile = tempDir.resolve("missing.json");
         Files.writeString(jsonFile, "{}\n");
 
-        ExternalRefResolver resolver = new ExternalRefResolver();
+        BindingResolver resolver = new BindingResolver();
 
         IOException error = assertThrows(IOException.class,
-                () -> resolver.resolveFileReference(
-                        fileRef(jsonFile, Map.of("notion_token", "NOTION_TOKEN"))));
+                () -> resolver.resolveFileBinding(
+                        fileBind(jsonFile, Map.of("NOTION_TOKEN", "NOTION_TOKEN"))));
 
-        assertEquals("Invalid ExternalRef: key 'NOTION_TOKEN' not found in file",
+        assertEquals("Invalid bind: key 'NOTION_TOKEN' not found in file",
                 error.getMessage());
     }
 
     @Test
-    public void resolveRuntimeReferenceShouldUseExecutionContextVariables() throws Exception {
-        ExternalRefResolver resolver = new ExternalRefResolver();
+    public void resolveRuntimeBindingShouldUseExecutionContextVariables() throws Exception {
+        BindingResolver resolver = new BindingResolver();
 
         Map<String, String> resolved = resolver.resolve(
-                List.of(runtimeRef(Map.of("api_key", "API_KEY"))),
+                List.of(runtimeBind(Map.of("API_KEY", "API_KEY"))),
                 new ExecutionContext() {
                     @Override
                     public String getVariable(String key) {
@@ -82,36 +81,36 @@ public class ExternalRefResolverTest {
                     }
                 });
 
-        assertEquals("runtime-value", resolved.get("api_key"));
+        assertEquals("runtime-value", resolved.get("API_KEY"));
     }
 
     @Test
-    public void resolveRuntimeReferenceShouldFailWhenVariableIsMissing() {
-        ExternalRefResolver resolver = new ExternalRefResolver();
+    public void resolveRuntimeBindingShouldFailWhenVariableIsMissing() {
+        BindingResolver resolver = new BindingResolver();
 
         IOException error = assertThrows(IOException.class,
-                () -> resolver.resolveRuntimeReference(runtimeRef(Map.of("api_key", "API_KEY")),
+                () -> resolver.resolveRuntimeBinding(runtimeBind(Map.of("API_KEY", "API_KEY")),
                         key -> null));
 
-        assertEquals("Invalid ExternalRef: context variable 'API_KEY' not found",
+        assertEquals("Invalid bind: context variable 'API_KEY' not found",
                 error.getMessage());
     }
 
-    private static FileResolvedExternalRefSpec fileRef(Path path, Map<String, String> keys) {
-        FileResolvedExternalRefSpec ref = new FileResolvedExternalRefSpec();
-        ref.setUri(toResolverFriendlyFileUri(path));
-        ref.setKeys(keysSpec(keys));
-        return ref;
+    private static BindingSpec fileBind(Path path, Map<String, String> keys) {
+        BindingSpec bind = new BindingSpec();
+        bind.setLocation(toResolverFriendlyFileUri(path));
+        bind.setKeys(keysSpec(keys));
+        return bind;
     }
 
-    private static RuntimeResolvedExternalRefSpec runtimeRef(Map<String, String> keys) {
-        RuntimeResolvedExternalRefSpec ref = new RuntimeResolvedExternalRefSpec();
-        ref.setKeys(keysSpec(keys));
-        return ref;
+    private static BindingSpec runtimeBind(Map<String, String> keys) {
+        BindingSpec bind = new BindingSpec();
+        bind.setKeys(keysSpec(keys));
+        return bind;
     }
 
-    private static ExternalRefKeysSpec keysSpec(Map<String, String> keys) {
-        ExternalRefKeysSpec spec = new ExternalRefKeysSpec();
+    private static BindingKeysSpec keysSpec(Map<String, String> keys) {
+        BindingKeysSpec spec = new BindingKeysSpec();
         spec.setKeys(keys);
         return spec;
     }

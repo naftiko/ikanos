@@ -19,19 +19,19 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * External Reference Keys Specification Element.
- * Maps variable names to keys in the resolved file content or runtime context.
+ * Binding Keys Specification Element.
+ * Maps variable names (SCREAMING_SNAKE_CASE) to source keys in the provider.
  * Uses @JsonAnySetter to allow arbitrary key-value pairs in the YAML/JSON.
  */
-public class ExternalRefKeysSpec {
+public class BindingKeysSpec {
 
     private Map<String, String> keys;
 
-    public ExternalRefKeysSpec() {
+    public BindingKeysSpec() {
         this.keys = new HashMap<>();
     }
 
-    public ExternalRefKeysSpec(Map<String, String> keys) {
+    public BindingKeysSpec(Map<String, String> keys) {
         this.keys = keys != null ? new HashMap<>(keys) : new HashMap<>();
     }
 
@@ -60,4 +60,3 @@ public class ExternalRefKeysSpec {
     }
 
 }
-

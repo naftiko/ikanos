@@ -116,7 +116,7 @@ Start from existing APIs and define reusable capabilities on top, so API investm
 
 How Naftiko achieves this technically:
 - Begin with consumed API declarations (`baseUri`, auth, resources, operations), then incrementally add exposed REST/MCP adapters.
-- Reuse existing security and configuration using `externalRefs` with file/runtime resolution and injected variables (e.g., `{{token}}`).
+- Reuse existing security and configuration using `binds` with file or runtime injection and injected variables (e.g., `{{API_TOKEN}}`).
 - Add format-aware parsing and mapping (JSON, YAML, XML, CSV, Avro, Protobuf support in the framework) to normalize diverse backends.
 
 ![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_capability_first.png)

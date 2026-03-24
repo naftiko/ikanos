@@ -102,13 +102,13 @@ npx @stoplight/spectral-cli lint "**/*.yml" --ruleset src/main/resources/rules/n
 
 These rules validate cross-object consistency and URL/path hygiene not fully covered by schema-only validation.
 
-#### `naftiko-adapter-namespaces-unique`
+#### `naftiko-namespaces-unique`
 
 - Severity: `error`
-- Scope: root `consumes`, `capability.consumes`, and `capability.exposes`
-- Purpose: enforce global namespace uniqueness across all consumed and exposed adapters.
+- Scope: root `consumes`, `capability.consumes`, `capability.exposes`, root `binds`, and `capability.binds`
+- Purpose: enforce global namespace uniqueness across all adapters and binds.
 
-Example: using `sales` in both a consumed adapter and an exposed adapter is invalid.
+Example: using `sales` in both a consumed adapter and an exposed adapter — or in both an adapter and a bind — is invalid.
 
 #### `naftiko-consumes-baseuri-no-trailing-slash`
 
@@ -204,7 +204,7 @@ These rules reduce injection risk in rendered documentation/UIs.
 
 | Naftiko Rule | Severity | Inspired By |
 |---|---|---|
-| `naftiko-adapter-namespaces-unique` | error | `arazzo-workflowId-unique`, `operation-operationId-unique` |
+| `naftiko-namespaces-unique` | error | `arazzo-workflowId-unique`, `operation-operationId-unique` |
 | `naftiko-consumes-baseuri-no-trailing-slash` | warn | `oas2-host-trailing-slash`, `oas3-server-trailing-slash` |
 | `naftiko-consumed-resource-no-query-in-path` | warn | `path-not-include-query` |
 | `naftiko-rest-resource-path-no-trailing-slash` | warn | `path-keys-no-trailing-slash` |

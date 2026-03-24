@@ -15,12 +15,10 @@ info:
       fullName: "John Doe"
       email: "john.doe@example.com"
 
-externalRefs:
-  - name: "notion-env"
-    type: "environment"
-    description: "External reference to Notion API for accessing pre-release participant data stored in Notion."
-    resolution: file
-    uri: "file:///path/to/notion_env.json"
+binds:
+  - namespace: "notion-env"
+    description: "Notion API credentials for accessing pre-release participant data stored in Notion."
+    location: "file:///path/to/notion_env.json"
     keys:
       notion_token: "NOTION_API_TOKEN"
       notion_projects_db_id: "PROJECTS_DATABASE_ID"

@@ -117,8 +117,8 @@ public class NaftikoSpectralRulesetTest {
             assertTrue(result.exitCode() != 0,
                 "Expected duplicate namespace document to fail linting, but it passed.\n"
                     + result.output());
-            assertTrue(result.output().contains("naftiko-adapter-namespaces-unique"),
-                "Expected lint output to reference naftiko-adapter-namespaces-unique.\n"
+            assertTrue(result.output().contains("naftiko-namespaces-unique"),
+                "Expected lint output to reference naftiko-namespaces-unique.\n"
                     + result.output());
         } finally {
             Files.deleteIfExists(tmpFile);

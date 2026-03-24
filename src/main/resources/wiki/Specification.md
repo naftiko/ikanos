@@ -53,7 +53,7 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **Skill Server**: An exposition adapter that exposes a read-only catalog of agent skills — metadata, tool references, and supporting files — over predefined HTTP endpoints. Skills describe how to invoke tools in sibling API or MCP adapters.
 
-**ExternalRef**: A declaration of an external reference providing variables to the capability. Two variants: file-resolved (for development) and runtime-resolved (for production). Variables are explicitly declared via a `keys` map.
+**Bind**: A declaration that the capability binds to an external source of variables. The `location` URI identifies the provider (file, vault, GitHub secrets, etc.). When `location` is omitted, values are injected by the runtime environment. Variables are explicitly declared via a `keys` map using SCREAMING_SNAKE_CASE names.
 
 ### 1.3 Related Specifications.
 
@@ -104,13 +104,13 @@ This is the root object of the Naftiko document.
 | **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.5"` for this version. |
 | **info** | `Info` | *Recommended*. Metadata about the capability. |
 | **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
-| **externalRefs** | `ExternalRef[]` | List of external references for variable injection. Each entry declares injected variables via a `keys` map. |
+| **binds** | `Bind[]` | List of bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.1.2 Rules
 
 - The `naftiko` field MUST be present and MUST have the value `"0.5"` for documents conforming to this version of the specification.
 - The `capability` object MUST be present. The `info` object is recommended.
-- The `externalRefs` field is OPTIONAL. When present, it MUST contain at least one entry.
+- The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
 - No additional properties are allowed at the root level.
 
 ---
@@ -650,7 +650,7 @@ namespace: github
 baseUri: https://api.github.com
 authentication:
   type: bearer
-  token: "{{github_token}}"
+  token: "{{GITHUB_TOKEN}}"
 inputParameters:
   - name: Accept
     in: header
@@ -1636,145 +1636,115 @@ with:
 
 ---
 
-### 3.19 ExternalRef Object
+### 3.19 Bind Object
 
-> **Updated**: ExternalRef is now a discriminated union (`oneOf`) with two variants — **file-resolved** (for local development) and **runtime-resolved** (for production). Variables are explicitly declared via a `keys` map.
+> **Updated**: `Bind` replaces the former `ExternalRef` discriminated union. The `type` and `resolution` fields have been removed. A single optional `location` URI field determines the provider. Variable names (left side of `keys`) use SCREAMING_SNAKE_CASE for visual distinction from declared parameters.
 > 
 
-Declares an external reference that provides variables to the capability. External references are declared at the root level of the Naftiko document via the `externalRefs` array.
-
-`ExternalRef` is a `oneOf` — exactly one of the two variants must be used.
-
-#### 3.19.1 File-Resolved ExternalRef
-
-Loads variables from a local file. Intended for **local development only**.
+Declares that the capability binds to an external source of variables. Bindings are declared at the root level of the Naftiko document via the `binds` array, or as a child of the `capability` object.
 
 **Fixed Fields:**
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Unique identifier (kebab-case). MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **description** | `string` | *Recommended*. Used to provide *meaningful* information about the external reference. In a world of agents, context is king. |
-| **type** | `string` | **REQUIRED**. MUST be `"environment"`. |
-| **resolution** | `string` | **REQUIRED**. MUST be `"file"`. |
-| **uri** | `string` | **REQUIRED**. URI pointing to the file (e.g. `file:///path/to/env.json`). |
-| **keys** | `ExternalRefKeys` | **REQUIRED**. Map of variable names to keys in the resolved file content. |
+| **namespace** | `string` | **REQUIRED**. Unique identifier for this binding (kebab-case). Used as qualifier in expressions for disambiguation. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **description** | `string` | *Recommended*. A meaningful description of the binding's purpose. In a world of agents, context is king. |
+| **location** | `string` (UriLocation) | URI identifying the value provider. The URI scheme expresses the resolution strategy (`file://`, `vault://`, `github-secrets://`, `k8s-secret://`, etc.). When omitted, values are injected by the runtime environment. MUST match pattern `^[a-zA-Z][a-zA-Z0-9+.-]*://` (RFC 3986 scheme). |
+| **keys** | `BindingKeys` | **REQUIRED**. Map of variable names (SCREAMING_SNAKE_CASE, `^[A-Z][A-Z0-9_]*$`) to source keys in the provider. |
 
 **Rules:**
 
-- The `name`, `type`, `resolution`, `uri`, and `keys` fields are mandatory. The `description` field is recommended.
-- No additional properties are allowed.
-
-#### 3.19.2 Runtime-Resolved ExternalRef
-
-Variables are injected by the execution environment at startup (default). The capability document does **not** specify where the values come from — this is delegated to the deployment platform.
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Unique identifier (kebab-case). MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **type** | `string` | **REQUIRED**. MUST be `"environment"`. |
-| **resolution** | `string` | **REQUIRED.** MUST be `"runtime"`. |
-| **keys** | `ExternalRefKeys` | **REQUIRED**. Map of variable names to keys in the runtime context. |
-
-**Rules:**
-
-- `name`, `type`, and `keys` are mandatory.
-- `resolution` is optional; when present MUST be `"runtime"`.
+- `namespace` and `keys` are mandatory.
+- `location` and `description` are optional.
 - No additional properties are allowed.
 
 Typical production providers include:
 
-- **HashiCorp Vault** — centralized secrets management
-- **Kubernetes Secrets** / **ConfigMaps** — native K8s secret injection
-- **AWS Secrets Manager** / **AWS SSM Parameter Store**
-- **Azure Key Vault**
-- **GCP Secret Manager**
-- **Docker Secrets** — for containerized deployments
-- **CI/CD pipeline variables** (GitHub Actions secrets, GitLab CI variables, etc.)
+- **HashiCorp Vault** — centralized secrets management (`vault://`)
+- **Kubernetes Secrets** / **ConfigMaps** — native K8s secret injection (`k8s-secret://`)
+- **AWS Secrets Manager** / **AWS SSM Parameter Store** (`aws-ssm://`)
+- **GitHub Actions Secrets** (`github-secrets://`)
+- **CI/CD pipeline variables** — runtime injection (location omitted)
 
-#### 3.19.3 ExternalRefKeys Object
+#### 3.19.1 BindingKeys Object
 
-A map of key-value pairs that define the variables to be injected from the external reference.
+A map of key-value pairs that define the variables to be injected from the binding.
 
-- Each **key** is the variable name used for injection (available as `\{\{key\}\}` in the capability definition)
-- Each **value** is the corresponding key in the resolved file content or runtime context
+- Each **key** is the variable name used for injection (SCREAMING_SNAKE_CASE, available as `\{\{KEY\}\}` in the capability definition)
+- Each **value** is the corresponding key in the resolved source or runtime context
 
-Example: `{"notion_token": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTION_INTEGRATION_TOKEN` in the source will be injected as `{{notion_token}}` in the capability definition.
+Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTION_INTEGRATION_TOKEN` in the source will be injected as `{{NOTION_TOKEN}}` in the capability definition.
 
 **Schema:**
 
 ```json
 {
   "type": "object",
+  "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
   "additionalProperties": { "type": "string" }
 }
 ```
 
-#### 3.19.4 Rules
+#### 3.19.2 Rules
 
-- Each `name` value MUST be unique across all `externalRefs` entries.
-- The `name` value MUST NOT collide with any `consumes` namespace to avoid ambiguity.
+- Each `namespace` value MUST be unique across all `binds` entries.
+- The `namespace` value MUST NOT collide with any `consumes` or `exposes` namespace to avoid ambiguity in expression resolution.
 - The `keys` map MUST contain at least one entry.
-- Variable names (keys in the `keys` map) SHOULD be unique across all `externalRefs` entries. If the same variable name appears in multiple entries, the expression MUST use the qualified form `{{name.variable}}` (where `name` is the `name` of the `externalRefs` entry) to disambiguate which source provides the value.
-- No additional properties are allowed on either variant.
+- Variable names (keys in the `keys` map) SHOULD be unique across all `binds` entries. If the same variable name appears in multiple entries, the expression MUST use the qualified form `{{namespace.VARIABLE}}` (where `namespace` is the `namespace` of the `binds` entry) to disambiguate which source provides the value.
+- When `location` is present, it MUST be a valid URI matching the `UriLocation` pattern.
+- When `location` is omitted, the runtime environment is responsible for injecting the values.
+- No additional properties are allowed.
 
 <aside>
 ⚠️
 
-**Security recommendation** — Never use `resolution: "file"` in production environments. File-based resolution exposes secret locations in the capability document and creates a risk of accidental secret leakage (e.g. committing `.env` files). Always use `resolution: "runtime"` in production, with secrets injected by a dedicated secrets manager.
+**Security recommendation** — Never use `location: "file://..."` in production environments. File-based resolution exposes secret locations in the capability document and creates a risk of accidental secret leakage (e.g. committing `.env` files). Always omit `location` in production, with secrets injected by a dedicated secrets manager.
 
 </aside>
 
-#### 3.19.5 ExternalRef Object Examples
+#### 3.19.3 Bind Object Examples
 
-**File resolution (development):**
+**File-based binding (development):**
 
 ```yaml
-externalRefs:
-  - name: "notion-env"
-    type: "environment"
-    description: "External reference to Notion API for accessing project data stored in Notion."
-    resolution: file
-    uri: "file:///path/to/notion_env.json"
+binds:
+  - namespace: "notion-env"
+    description: "Notion API credentials for local development."
+    location: "file:///path/to/notion_env.json"
     keys:
-      notion_token: "NOTION_INTEGRATION_TOKEN"
-      notion_projects_db_id: "PROJECTS_DATABASE_ID"
-      notion_time_tracker_db_id: "TIME_TRACKER_DATABASE_ID"
+      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+      NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
+      NOTION_TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
 ```
 
-**Runtime resolution (production):**
+**Runtime injection (production — location omitted):**
 
 ```yaml
-externalRefs:
-  - name: "secrets"
-    type: "environment"
-    resolution: runtime
+binds:
+  - namespace: "secrets"
     keys:
-      notion_token: "NOTION_INTEGRATION_TOKEN"
-      github_token: "GITHUB_TOKEN"
+      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+      GITHUB_TOKEN: "GITHUB_TOKEN"
 ```
 
-**Minimal runtime (resolution omitted — defaults to runtime):**
+**Minimal binding (runtime injection):**
 
 ```yaml
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      api_key: "API_KEY"
+      API_KEY: "API_KEY"
 ```
 
 ---
 
 ### 3.20 Expression Syntax
 
-Variables declared in `externalRefs` via the `keys` map are injected into the capability document using mustache-style `\{\{variable\}\}` expressions.
+Variables declared in `binds` via the `keys` map are injected into the capability document using mustache-style `\{\{variable\}\}` expressions.
 
 #### 3.20.1 Format
 
-The expression format is `\{\{key\}\}`, where `key` is a variable name declared in the `keys` map of an `externalRefs` entry.
+The expression format is `\{\{KEY\}\}`, where `KEY` is a variable name (SCREAMING_SNAKE_CASE) declared in the `keys` map of a `binds` entry.
 
 Expressions can appear in any `string` value within the document, including authentication tokens, header values, and input parameter values.
 
@@ -1782,12 +1752,12 @@ Expressions can appear in any `string` value within the document, including auth
 
 At runtime, expressions are resolved as follows:
 
-1. Find the `externalRefs` entry whose `keys` map contains the referenced variable name
+1. Find the `binds` entry whose `keys` map contains the referenced variable name
 2. Look up the corresponding source key in the `keys` map
-3. Resolve the source key value using the strategy defined by `resolution` (`file` lookup or `runtime` injection)
-4. Replace the `\{\{variable\}\}` expression with the resolved value
+3. Resolve the source key value using the strategy defined by the `location` (file lookup if present, runtime injection if absent)
+4. Replace the `\{\{KEY\}\}` expression with the resolved value
 
-If a referenced variable is not declared in any `externalRefs` entry's `keys`, the document MUST be considered invalid.
+If a referenced variable is not declared in any `binds` entry's `keys`, the document MUST be considered invalid.
 
 #### 3.20.3 Relationship with `$this`
 
@@ -1801,24 +1771,23 @@ The two expression systems are independent and MUST NOT be mixed.
 #### 3.20.4 Expression Examples
 
 ```yaml
-# Authentication token from external ref
+# Authentication token from binding
 authentication:
   type: bearer
-  token: "{{notion_token}}"
+  token: "{{NOTION_TOKEN}}"
 
-# Input parameter with header value from external ref
+# Input parameter with header value from binding
 inputParameters:
   - name: Notion-Version
     in: header
-    value: "{{notion_version}}"
+    value: "{{NOTION_VERSION}}"
 
-# Corresponding externalRefs declaration
-externalRefs:
-  - name: "env"
-    type: "environment"
+# Corresponding binds declaration
+binds:
+  - namespace: "env"
     keys:
-      notion_token: "NOTION_TOKEN"
-      api_key: "API_KEY"
+      NOTION_TOKEN: "NOTION_TOKEN"
+      API_KEY: "API_KEY"
 ```
 
 ---
@@ -1877,11 +1846,10 @@ A single exposed operation that directly calls a consumed operation, maps parame
 ```yaml
 ---
 naftiko: "0.5"
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      github_token: "GITHUB_TOKEN"
+      GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
   label: "GitHub User Lookup"
   description: "Exposes a simplified endpoint to retrieve GitHub user profiles"
@@ -1926,7 +1894,7 @@ capability:
       baseUri: "https://api.github.com"
       authentication:
         type: "bearer"
-        token: "{{github_token}}"
+        token: "{{GITHUB_TOKEN}}"
       resources:
         - name: "users"
           path: "/users/{username}"
@@ -1957,11 +1925,10 @@ An exposed operation that chains two consumed operations using named steps and `
 ```yaml
 ---
 naftiko: "0.5"
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      notion_token: "NOTION_TOKEN"
+      NOTION_TOKEN: "NOTION_TOKEN"
 info:
   label: "Database Inspector"
   description: "Retrieves a Notion database then queries its contents in a single exposed operation"
@@ -2018,7 +1985,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{notion_token}}"
+        token: "{{NOTION_TOKEN}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"
@@ -2067,11 +2034,10 @@ Demonstrates a `lookup` step that cross-references the output of a previous call
 ```yaml
 ---
 naftiko: "0.5"
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      hr_api_key: "HR_API_KEY"
+      HR_API_KEY: "HR_API_KEY"
 info:
   label: "Team Member Resolver"
   description: "Resolves team member details by matching email addresses from a project tracker"
@@ -2135,7 +2101,7 @@ capability:
       authentication:
         type: "apikey"
         key: "X-Api-Key"
-        value: "{{hr_api_key}}"
+        value: "{{HR_API_KEY}}"
         placement: "header"
       resources:
         - name: "employees"
@@ -2167,12 +2133,11 @@ Combines forward proxy, simple-mode operations, orchestrated multi-step with loo
 ```yaml
 ---
 naftiko: "0.5"
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      notion_token: "NOTION_TOKEN"
-      github_token: "GITHUB_TOKEN"
+      NOTION_TOKEN: "NOTION_TOKEN"
+      GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
   label: "Project Dashboard"
   description: "Aggregates project data from Notion and GitHub into a unified API, with a pass-through proxy for direct access"
@@ -2288,7 +2253,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{notion_token}}"
+        token: "{{NOTION_TOKEN}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"
@@ -2318,7 +2283,7 @@ capability:
       baseUri: "https://api.github.com"
       authentication:
         type: "bearer"
-        token: "{{github_token}}"
+        token: "{{GITHUB_TOKEN}}"
       resources:
         - name: "repos"
           path: "/repos/{owner}/{repo}"
@@ -2373,11 +2338,10 @@ Exposes a single MCP tool over Streamable HTTP that calls a consumed operation, 
 ```yaml
 ---
 naftiko: "0.5"
-externalRefs:
-  - name: "env"
-    type: "environment"
+binds:
+  - namespace: "env"
     keys:
-      notion_token: "NOTION_TOKEN"
+      NOTION_TOKEN: "NOTION_TOKEN"
 info:
   label: "Notion MCP Tools"
   description: "Exposes Notion database retrieval as an MCP tool"
@@ -2409,7 +2373,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{notion_token}}"
+        token: "{{NOTION_TOKEN}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"

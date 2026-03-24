@@ -72,11 +72,11 @@ public class CapabilityBootstrapTest {
     }
 
     @Test
-    public void constructorShouldResolveRuntimeExternalReferences() throws Exception {
+    public void constructorShouldResolveRuntimeBindings() throws Exception {
         NaftikoSpec spec = parseYaml("""
                 naftiko: "0.5"
-                externalRefs:
-                  - type: variables
+                binds:
+                  - namespace: "env"
                     keys:
                       env_path: PATH
                 capability:
@@ -95,7 +95,7 @@ public class CapabilityBootstrapTest {
 
         Capability capability = new Capability(spec);
 
-        Object value = capability.getExternalRefVariables().get("env_path");
+        Object value = capability.getBindings().get("env_path");
         assertTrue(value != null && !String.valueOf(value).isBlank());
     }
 

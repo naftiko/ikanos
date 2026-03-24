@@ -164,7 +164,7 @@ public class ServerAuthenticationRestletTest {
         };
 
         // Create restlet WITH allowed variables set
-        // This simulates externalRefs declaring this variable
+        // This simulates bindings declaring this variable
         ServerAuthenticationRestlet secured = 
             new ServerAuthenticationRestlet(auth, next, Set.of("declared_token"));
         
@@ -194,7 +194,7 @@ public class ServerAuthenticationRestletTest {
             }
         };
 
-        // Create restlet WITHOUT allowed variables (not declared in externalRefs)
+        // Create restlet WITHOUT allowed variables (not declared in bindings)
         ServerAuthenticationRestlet secured = 
             new ServerAuthenticationRestlet(auth, next, Set.of());
         

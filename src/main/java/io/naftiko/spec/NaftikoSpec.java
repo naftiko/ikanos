@@ -28,7 +28,7 @@ public class NaftikoSpec {
     private volatile InfoSpec info;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<ExternalRefSpec> externalRefs;
+    private final List<BindingSpec> binds;
 
     private volatile CapabilitySpec capability;
     
@@ -38,7 +38,7 @@ public class NaftikoSpec {
     public NaftikoSpec(String naftiko, InfoSpec info, CapabilitySpec capability) {
         this.naftiko = naftiko;
         this.info = info;
-        this.externalRefs = new CopyOnWriteArrayList<>();
+        this.binds = new CopyOnWriteArrayList<>();
         this.capability = capability;
         this.consumes = new CopyOnWriteArrayList<>();
     }
@@ -63,8 +63,8 @@ public class NaftikoSpec {
         this.info = info;
     }
 
-    public List<ExternalRefSpec> getExternalRefs() {
-        return externalRefs;
+    public List<BindingSpec> getBinds() {
+        return binds;
     }
 
     public CapabilitySpec getCapability() {

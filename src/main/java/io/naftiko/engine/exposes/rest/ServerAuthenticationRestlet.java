@@ -154,7 +154,7 @@ public class ServerAuthenticationRestlet extends Restlet {
         while (matcher.find()) {
             String variableName = matcher.group(1);
             
-            // Only resolve variables that are explicitly declared in externalRefs
+            // Only resolve variables that are explicitly declared in binds
             if (!allowedVariables.isEmpty() && !allowedVariables.contains(variableName)) {
                 continue;
             }

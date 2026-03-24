@@ -15,6 +15,7 @@ package io.naftiko.spec;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 
@@ -23,12 +24,19 @@ import io.naftiko.spec.exposes.ServerSpec;
  */
 public class CapabilitySpec {
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<BindingSpec> binds;
     private final List<ServerSpec> exposes;
     private final List<ClientSpec> consumes;
 
     public CapabilitySpec() {
+        this.binds = new CopyOnWriteArrayList<>();
         this.exposes = new CopyOnWriteArrayList<>();
         this.consumes = new CopyOnWriteArrayList<>();
+    }
+
+    public List<BindingSpec> getBinds() {
+        return binds;
     }
 
     public List<ServerSpec> getExposes() {
