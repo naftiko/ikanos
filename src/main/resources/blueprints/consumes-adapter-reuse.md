@@ -4,7 +4,7 @@
 
 **Version** : 0.5
 
-**Date** : March 13, 2026
+**Date** : March 24, 2026
 
 **Author** : @Thomas Eskenazi
 
@@ -280,7 +280,7 @@ The schema root is a **flat object** — all properties are declared directly at
       },
       "minItems": 1
     },
-    "externalRefs": { "type": "array", "items": { "$ref": "#/$defs/ExternalRef" } }
+    "binds": { "type": "array", "items": { "$ref": "#/$defs/Binding" }, "minItems": 1 }
   },
   "oneOf": [
     { "required": ["naftiko", "capability"] },
@@ -329,7 +329,7 @@ The schema root becomes a **flat object** with all properties declared directly 
       },
       "minItems": 1
     },
-    "externalRefs": { "type": "array", "items": { "$ref": "#/$defs/ExternalRef" } }
+    "binds": { "type": "array", "items": { "$ref": "#/$defs/Binding" }, "minItems": 1 }
   },
   "oneOf": [
     { "required": ["naftiko", "capability"] },

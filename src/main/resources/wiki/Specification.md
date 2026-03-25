@@ -2,10 +2,10 @@
 
 Version: 1.0.0-alpha1
 Created by: Thomas Eskenazi
-Category: Sepcification
-Last updated time: March 5, 2026 12:40 PM
+Category: Specification
+Last updated time: March 24, 2026 5:47 PM
 Reviewers: Kin Lane, Jerome Louvel, Jérémie Tarnaud, Antoine Buhl
-Status: Draft
+Status: Validated
 
 # Naftiko Specification v0.5
 
@@ -32,7 +32,7 @@ A Naftiko capability focuses on declaring the **integration intent** — what a 
 
 The JSON Schema for the Naftiko Specification is available in two forms:
 
-- **Raw file** — The schema source file is hosted on GitHub: [capability-schema.json](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/capability-schema.json)
+- **Raw file** — The schema source file is hosted on GitHub: [naftiko-schema.json](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/naftiko-schema.json)
 - **Interactive viewer** — A human-friendly viewer is available at: [Schema Viewer](https://naftiko.github.io/schema-viewer/)
 
 ### 1.2 Core Objects
@@ -51,9 +51,9 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **MCP Server**: An exposition adapter that exposes capability operations as MCP tools, enabling AI agent integration via Streamable HTTP or stdio transport.
 
-**Skill Server**: An exposition adapter that exposes a read-only catalog of agent skills — metadata, tool references, and supporting files — over predefined HTTP endpoints. Skills describe how to invoke tools in sibling API or MCP adapters.
+**Skill Server**: An exposition adapter that groups MCP tools into named skills, enabling structured discovery and invocation of capability operations by skill name.
 
-**Bind**: A declaration that the capability binds to an external source of variables. The `location` URI identifies the provider (file, vault, GitHub secrets, etc.). When `location` is omitted, values are injected by the runtime environment. Variables are explicitly declared via a `keys` map using SCREAMING_SNAKE_CASE names.
+**Bind**: A declaration of an external binding providing variables to the capability via a `keys` map. An optional `location` URI identifies the value provider (file, vault, runtime, etc.).
 
 ### 1.3 Related Specifications.
 
@@ -104,7 +104,7 @@ This is the root object of the Naftiko document.
 | **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.5"` for this version. |
 | **info** | `Info` | *Recommended*. Metadata about the capability. |
 | **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
-| **binds** | `Bind[]` | List of bindings for variable injection. Each entry declares injected variables via a `keys` map. |
+| **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.1.2 Rules
 
@@ -191,6 +191,7 @@ Defines the technical configuration of the capability.
 | --- | --- | --- |
 | **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is a REST Expose (`type: "rest"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
+| **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.4.2 Rules
 
@@ -199,6 +200,7 @@ Defines the technical configuration of the capability.
 - When present, the `consumes` array MUST contain at least one entry.
 - Each `consumes` entry MUST include both `baseUri` and `namespace` fields.
 - There are several types of exposed adapters and consumed sources objects, all will be described in following objects.
+- The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
 - No additional properties are allowed.
 
 #### 3.4.3 Namespace Uniqueness Rule
@@ -214,7 +216,7 @@ When multiple `consumes` entries are present:
 ```yaml
 capability:
   exposes:
-    - type: rest
+        - type: rest
       port: 3000
       namespace: tasks-api
       resources:
@@ -254,14 +256,14 @@ capability:
 
 Describes a server adapter that exposes functionality.
 
-> Update (schema v0.5): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` exposition types are not part of the JSON Schema anymore.
+> Update (schema v0.5): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` and `api` exposition types are not part of the JSON Schema anymore.
 > 
 
 #### 3.5.1 REST Expose
 
 REST exposition configuration.
 
-> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section) and **MCP** (`type: "mcp"`, see §3.5.4). The `type` field acts as discriminator.
+> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section), **MCP** (`type: "mcp"`, see §3.5.4), and **Skill** (`type: "skill"`, see §3.5.9). The `type` field acts as discriminator.
 > 
 
 **Fixed Fields:**
@@ -300,7 +302,7 @@ An exposed resource with **operations** and/or **forward** configuration.
 
 #### 3.5.4 MCP Expose
 
-MCP Server exposition configuration. Exposes capability operations as MCP tools over Streamable HTTP or stdio transport.
+MCP Server exposition configuration. Exposes capability operations as MCP tools, resources, and prompt templates over Streamable HTTP or stdio transport.
 
 > New in schema v0.5.
 > 
@@ -316,6 +318,8 @@ MCP Server exposition configuration. Exposes capability operations as MCP tools 
 | **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed MCP server. |
 | **description** | `string` | *Recommended*. A meaningful description of the MCP server's purpose. Sent as server instructions during MCP initialization. |
 | **tools** | `McpTool[]` | **REQUIRED**. List of MCP tools exposed by this server (minimum 1). |
+| **resources** | `McpResource[]` | List of MCP resources exposed by this server. Resources provide data that agents can read. Optional (minimum 1 entry when present). |
+| **prompts** | `McpPrompt[]` | List of MCP prompt templates exposed by this server. Prompts provide reusable, parameterized message templates for AI agents. Optional (minimum 1 entry when present). |
 
 **Rules:**
 
@@ -324,7 +328,19 @@ MCP Server exposition configuration. Exposes capability operations as MCP tools 
 - The `tools` array is mandatory and MUST contain at least one entry.
 - When `transport` is `"http"` (or omitted, since `"http"` is the default), the `port` field is required.
 - When `transport` is `"stdio"`, the `port` field MUST NOT be present.
+- When present, the `resources` array MUST contain at least one entry.
+- When present, the `prompts` array MUST contain at least one entry.
 - No additional properties are allowed.
+
+**MCP Initialize Capabilities:**
+
+During the MCP `initialize` handshake, the Naftiko runtime advertises the server's supported capability groups to the connecting client. The advertised capabilities are derived directly from the MCP Expose configuration:
+
+- **`tools`** — advertised when the `tools` array is present and contains at least one entry.
+- **`resources`** — advertised when the `resources` array is present and contains at least one entry.
+- **`prompts`** — advertised when the `prompts` array is present and contains at least one entry.
+
+Capability groups not declared in the configuration are omitted from the `initialize` response. Clients MUST NOT assume a capability is available unless it is explicitly advertised during initialization.
 
 #### 3.5.5 McpTool Object
 
@@ -338,6 +354,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **label** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
 | **description** | `string` | **REQUIRED**. A meaningful description of the tool. Essential for agent discovery. |
 | **inputParameters** | `McpToolInputParameter[]` | Tool input parameters. These become the MCP tool's input schema (JSON Schema). |
 | **call** | `string` | **Simple mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
@@ -369,7 +386,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 - Exactly one of the two modes MUST be used (simple or orchestrated).
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry.
-- The `$this` context reference works the same as for ExposedOperation: `$this.{mcpNamespace}.{paramName}` accesses the tool's input parameters.
+- Input parameters are accessed via namespace-qualified references of the form `{mcpNamespace}.{paramName}`.
 - No additional properties are allowed.
 
 #### 3.5.6 McpToolInputParameter Object
@@ -407,13 +424,292 @@ Declares an input parameter for an MCP tool. These become properties in the tool
   required: false
 ```
 
-#### 3.5.7 Address Validation Patterns
+#### 3.5.7 McpResource Object
+
+An MCP resource definition. Resources expose data that agents can **read** (but not invoke like tools). Two source types are supported: **dynamic** (backed by consumed HTTP operations) and **static** (served from local files).
+
+> New in schema v0.5.
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Technical name for the resource. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **label** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
+| **uri** | `string` | **REQUIRED**. The URI that identifies this resource in MCP. Can use any scheme (e.g. `config://app/current`, `docs://api/reference`). For resource templates, use `{param}` placeholders. |
+| **description** | `string` | *Recommended*. A meaningful description of the resource. In a world of agents, context is king. |
+| **mimeType** | `string` | MIME type of the resource content per RFC 6838 (e.g. `application/json`, `text/markdown`). Optional parameters are supported (e.g. `charset=utf-8`). |
+| **call** | `string` | **Dynamic mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
+| **with** | `WithInjector` | **Dynamic mode only**. Parameter injection for the called operation. |
+| **steps** | `OperationStep[]` | **Orchestrated dynamic mode only**. Sequence of calls to consumed operations (minimum 1). |
+| **mappings** | `StepOutputMapping[]` | **Orchestrated dynamic mode only**. Maps step outputs to the resource's output parameters. |
+| **outputParameters** | `MappedOutputParameter[]` or `OrchestratedOutputParameter[]` | Output parameters mapped from the consumed operation response. Type depends on mode (simple vs. orchestrated). |
+| **location** | `string` | **Static mode only**. A `file:///` URI pointing to a directory. Files under that directory are served as individual MCP resources with URIs auto-generated from the `uri` prefix and relative file paths. |
+
+**Modes:**
+
+**Dynamic mode** — backed by consumed HTTP operations (same orchestration model as McpTool):
+
+- Uses `call`/`steps`/`with`/`mappings`/`outputParameters`
+- `location` MUST NOT be present
+- Two sub-modes: **simple** (`call` + optional `with`) and **orchestrated** (`steps` + optional `mappings`)
+
+**Static mode** — served from local files:
+
+- `location` is **REQUIRED**: a `file:///` URI pointing to a directory
+- Files in the directory become individual MCP resources; URIs are auto-generated from the `uri` prefix and relative paths
+- `call`, `steps`, `with`, `mappings`, and `outputParameters` MUST NOT be present
+
+**Rules:**
+
+- The `name` and `uri` fields are mandatory. The `description` field is recommended for agent discovery.
+- Each resource `name` MUST be unique within the MCP server.
+- Each resource `uri` MUST be unique within the MCP server.
+- Exactly one of `call`/`steps` (dynamic) or `location` (static) MUST be present.
+- In dynamic simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
+- The `location` value MUST start with `file:///` and the resolved directory MUST exist at startup.
+- No additional properties are allowed.
+
+**McpResource Object Examples:**
+
+```yaml
+# Dynamic resource (simple mode)
+resources:
+  - name: current-config
+    label: Current Configuration
+    uri: config://app/current
+    description: "Current application configuration"
+    mimeType: application/json
+    call: config-api.get-config
+
+# Dynamic resource (orchestrated mode)
+resources:
+  - name: user-summary
+    label: User Summary
+    uri: data://users/summary
+    description: "Aggregated user summary from multiple API calls"
+    mimeType: application/json
+    steps:
+      - type: call
+        name: fetch-users
+        call: user-api.list-users
+      - type: call
+        name: fetch-stats
+        call: analytics-api.get-stats
+    outputParameters:
+      - name: users
+        type: array
+      - name: stats
+        type: object
+
+# Static resource (local files)
+resources:
+  - name: api-docs
+    label: API Documentation
+    uri: docs://api/reference
+    description: "API reference documentation served from local markdown files"
+    mimeType: text/markdown
+    location: file:///etc/naftiko/resources/api-docs
+```
+
+---
+
+#### 3.5.8 McpPrompt Object
+
+An MCP prompt template definition. Prompts provide reusable, parameterized message templates that AI agents can invoke to get pre-structured LLM conversation starters or guided interactions.
+
+> New in schema v0.5.
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Technical name for the prompt. Used as the MCP prompt name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **label** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
+| **description** | `string` | *Recommended*. A meaningful description of the prompt's purpose. Essential for agent discovery. |
+| **arguments** | `McpPromptArgument[]` | List of arguments accepted by this prompt template. These become the prompt's input schema. |
+| **messages** | `McpPromptMessage[]` | **REQUIRED**. List of messages that form the prompt template (minimum 1). Each message defines a role and its content. |
+
+**Rules:**
+
+- The `name` field is mandatory.
+- Each prompt `name` MUST be unique within the MCP server.
+- The `messages` array is mandatory and MUST contain at least one entry.
+- No additional properties are allowed.
+
+#### McpPromptArgument Object
+
+Declares an argument accepted by the prompt template.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Argument name. MUST match pattern `^[a-zA-Z0-9-_]+$`. |
+| **description** | `string` | *Recommended*. A meaningful description of the argument. |
+| **required** | `boolean` | Whether the argument is required. Defaults to `false`. |
+
+**Rules:**
+
+- The `name` field is mandatory.
+- Each argument `name` MUST be unique within the prompt.
+- No additional properties are allowed.
+
+#### McpPromptMessage Object
+
+Defines a single message in the prompt template. Messages can be static (inline `content`) or dynamic (backed by a consumed operation via `call` or `steps`).
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **role** | `string` | **REQUIRED**. The role of the message sender. One of: `"user"`, `"assistant"`. |
+| **content** | `string` | **Static mode**. Inline text content of the message. Argument placeholders use `{argumentName}` syntax. |
+| **call** | `string` | **Dynamic mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. |
+| **with** | `WithInjector` | **Dynamic mode only**. Parameter injection for the called operation. |
+| **steps** | `OperationStep[]` | **Orchestrated dynamic mode only**. Sequence of calls to consumed operations (minimum 1). |
+| **mappings** | `StepOutputMapping[]` | **Orchestrated dynamic mode only**. Maps step outputs to the message content. |
+| **outputParameters** | `MappedOutputParameter[]` or `OrchestratedOutputParameter[]` | **Dynamic mode**. Output parameters mapped from the consumed operation response. |
+
+**Rules:**
+
+- The `role` field is mandatory and MUST be one of `"user"` or `"assistant"`.
+- Exactly one of `content` (static) or `call`/`steps` (dynamic) MUST be present.
+- No additional properties are allowed.
+
+**McpPrompt Object Example:**
+
+```yaml
+prompts:
+  - name: code-review
+    label: Code Review Request
+    description: "Generates a structured code review prompt for a given pull request"
+    arguments:
+      - name: pr_title
+        description: "Title of the pull request"
+        required: true
+      - name: language
+        description: "Programming language of the code"
+        required: false
+    messages:
+      - role: user
+        content: "Please review the following pull request: {pr_title}. Focus on correctness, performance, and maintainability."
+      - role: assistant
+        content: "I'll review the pull request '{pr_title}' with attention to {language} best practices."
+```
+
+---
+
+#### 3.5.9 Skill Expose
+
+Skill Server exposition configuration. Groups MCP tools into named skills, providing a structured discovery layer for AI agents and orchestrators.
+
+> New in schema v0.5.
+> 
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"skill"`. |
+| **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed Skill Server. |
+| **port** | `integer` | Port number (1–65535). Optional. |
+| **description** | `string` | *Recommended*. A meaningful description of the Skill Server's purpose. |
+| **skills** | `ExposedSkill[]` | **REQUIRED**. List of skills exposed by this server (minimum 1). |
+
+**Rules:**
+
+- The `type` field MUST be `"skill"`.
+- The `namespace` field is mandatory and MUST be unique across all exposes entries.
+- The `skills` array is mandatory and MUST contain at least one entry.
+- No additional properties are allowed.
+
+#### ExposedSkill Object
+
+A named skill that groups one or more MCP tools.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Technical name for the skill. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **label** | `string` | Human-readable display name for the skill. |
+| **description** | `string` | *Recommended*. A meaningful description of the skill's purpose. Essential for agent discovery. |
+| **tools** | `SkillTool[]` | **REQUIRED**. List of MCP tools included in this skill (minimum 1). |
+
+**Rules:**
+
+- The `name` and `tools` fields are mandatory.
+- Each skill `name` MUST be unique within the Skill Server.
+- The `tools` array MUST contain at least one entry.
+- No additional properties are allowed.
+
+#### SkillTool Object
+
+A reference to an MCP tool included in a skill. By default, references a tool by name from the same capability. The optional `from` field allows referencing a tool from a different MCP server.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Name of the MCP tool to include. MUST match the `name` of an existing `McpTool` in the referenced MCP server. |
+| **from** | `SkillToolFrom` | Optional. Identifies the source MCP server when the tool originates from a different MCP expose entry. If omitted, the tool is resolved within the default MCP server namespace. |
+
+**Rules:**
+
+- The `name` field is mandatory.
+- When `from` is present, the `namespace` within `from` MUST reference a valid MCP expose `namespace` in the same capability.
+- No additional properties are allowed.
+
+#### SkillToolFrom Object
+
+Identifies the source MCP server for a skill tool reference.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **namespace** | `string` | The `namespace` of the MCP expose entry that owns the tool. |
+| **name** | `string` | The tool name in the source MCP server. When omitted, the enclosing `SkillTool.name` is used. |
+
+**Rules:**
+
+- No additional properties are allowed.
+
+**Skill Expose Example:**
+
+```yaml
+type: skill
+namespace: my-skills
+description: "Skill-based interface grouping Notion tools by domain"
+skills:
+  - name: database-ops
+    label: Database Operations
+    description: "Skills for reading and querying Notion databases"
+    tools:
+      - name: get-database
+      - name: query-database
+        from:
+          namespace: notion-tools
+  - name: page-ops
+    label: Page Operations
+    description: "Skills for creating and retrieving Notion pages"
+    tools:
+      - name: create-page
+      - name: get-page
+```
+
+---
+
+#### 3.5.10 Address Validation Patterns
 
 - **Hostname**: `^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
 - **IPv4**: `^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
 - **IPv6**: `^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$`
 
-#### 3.5.8 Exposes Object Examples
+#### 3.5.11 Exposes Object Examples
 
 **REST Expose with operations:**
 
@@ -484,126 +780,7 @@ tools:
         description: "The unique identifier of the database"
     call: api.get-database
     with:
-      database_id: "$this.tools.database_id"
-```
-
-#### 3.5.9 Skill Expose
-
-Skill exposition configuration. Exposes a read-only catalog of agent skills with metadata, tool definitions, and supporting files.
-
-> New in schema v0.5.
-> 
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **type** | `string` | **REQUIRED**. MUST be `"skill"`. |
-| **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
-| **port** | `integer` | **REQUIRED**. Port number. MUST be between 1 and 65535. |
-| **namespace** | `string` | **REQUIRED**. Unique identifier for this skill catalog. |
-| **description** | `string` | *Recommended*. Description of this skill catalog. |
-| **skills** | `ExposedSkill[]` | **REQUIRED**. List of skills (minimum 1). |
-
-**Predefined Endpoints:**
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/skills` | List all skills with their tool name summaries. |
-| `GET` | `/skills/{name}` | Full skill metadata and tool catalog with invocation references. |
-| `GET` | `/skills/{name}/download` | ZIP archive of the skill's `location` directory. |
-| `GET` | `/skills/{name}/contents` | File listing of the skill's `location` directory. |
-| `GET` | `/skills/{name}/contents/{file}` | Serve an individual file from the skill's `location` directory. |
-
-**Rules:**
-
-- The `type` field MUST be `"skill"`.
-- The `namespace` field is mandatory and MUST be unique across all exposes entries.
-- The `skills` array MUST contain at least one entry.
-- Each skill's tools must include exactly one of `from` (derived from a sibling adapter) or `instruction` (path to a local file).
-- `from` tool references MUST resolve to a sibling `rest` or `mcp` adapter namespace.
-- `instruction` tools require the skill's `location` field to be set.
-- No additional properties are allowed.
-
-#### 3.5.10 ExposedSkill Object
-
-A skill definition within a Skill Expose.
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Unique name for this skill within the catalog. |
-| **description** | `string` | **REQUIRED**. A meaningful description of the skill's purpose. |
-| **license** | `string` | SPDX license identifier (e.g. `"Apache-2.0"`). |
-| **compatibility** | `string` | Comma-separated list of compatible AI models/agents (e.g. `"claude-3-5-sonnet,gpt-4o"`). |
-| **metadata** | `Map<string, string>` | Arbitrary string key-value metadata pairs. |
-| **allowed-tools** | `string` | Comma-separated list of tool names to include. If omitted, all tools are included. |
-| **argument-hint** | `string` | Guidance for AI agents on when to use this skill. |
-| **user-invocable** | `boolean` | Whether the skill can be directly invoked by users. |
-| **disable-model-invocation** | `boolean` | Whether AI models can invoke this skill autonomously. |
-| **location** | `string` | `file:///` URI to the local directory containing skill support files. Required if any tool uses `instruction`. |
-| **tools** | `SkillTool[]` | List of tools in this skill. May be empty for purely descriptive skills. |
-
-#### 3.5.11 SkillTool Object
-
-A tool declared within a skill. Exactly one of `from` or `instruction` MUST be specified.
-
-**Fixed Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Technical name for the tool. |
-| **description** | `string` | **REQUIRED**. A meaningful description of what the tool does. |
-| **from** | `SkillToolFrom` | Derived tool targeting a sibling adapter operation. |
-| **instruction** | `string` | Path to an instruction file relative to the skill's `location` directory. |
-
-**SkillToolFrom Fields:**
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **namespace** | `string` | **REQUIRED**. Namespace of the sibling `rest` or `mcp` adapter. |
-| **action** | `string` | **REQUIRED**. Operation or tool name within the referenced namespace. |
-
-**Rules:**
-
-- Exactly one of `from` or `instruction` MUST be present â€” not both, not neither.
-- `from.namespace` MUST reference a sibling `rest` or `mcp` adapter.
-- `instruction` is a relative file path from the skill's `location` directory.
-
-#### 3.5.12 Skill Expose Example
-
-```yaml
-type: skill
-port: 4000
-namespace: weather-skills
-description: "Weather forecast and climate analysis skill catalog"
-skills:
-  - name: weather-forecast
-    description: "Real-time weather data and forecasting"
-    license: Apache-2.0
-    compatibility: "claude-3-5-sonnet,gpt-4o"
-    argument-hint: "Use when the user asks about weather, forecast, or climate"
-    location: "file:///opt/skills/weather-forecast"
-    tools:
-      - name: current-conditions
-        description: "Get current weather conditions for a location"
-        from:
-          sourceNamespace: weather-api
-          action: get-current
-      - name: climate-guide
-        description: "Reference guide for climate data interpretation"
-        instruction: "climate-interpretation-guide.md"
-
-  - name: alert-monitoring
-    description: "Severe weather alerts and monitoring guidance"
-    location: "file:///opt/skills/alert-monitoring"
-    tools:
-      - name: active-alerts
-        description: "List active severe weather alerts for a region"
-        from:
-          sourceNamespace: weather-api
-          action: list-alerts
+      database_id: "tools.database_id"
 ```
 
 ---
@@ -650,7 +827,7 @@ namespace: github
 baseUri: https://api.github.com
 authentication:
   type: bearer
-  token: "{{GITHUB_TOKEN}}"
+  token: "{{github_token}}"
 inputParameters:
   - name: Accept
     in: header
@@ -838,7 +1015,7 @@ method: GET
 label: Get User Profile
 call: github.get-user
 with:
-  username: $this.sample.username
+  username: sample.username
 outputParameters:
   - type: string
     mapping: $.login
@@ -862,7 +1039,7 @@ steps:
     name: fetch-db
     call: notion.get-database
     with:
-      database_id: "$this.sample.database_id"
+      database_id: "sample.database_id"
 mappings:
   - targetName: db_name
     value: "$.dbName"
@@ -1254,7 +1431,7 @@ Calls a consumed operation.
 | **type** | `string` | **REQUIRED**. MUST be `"call"`. |
 | **name** | `string` | **REQUIRED**. Step name (from base). |
 | **call** | `string` | **REQUIRED**. Reference to consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
-| **with** | `WithInjector` | Parameter injection for the called operation. Keys are parameter names, values are strings or numbers (static values or `$this` references). |
+| **with** | `WithInjector` | Parameter injection for the called operation. Keys are parameter names, values are strings or numbers (static values or namespace-qualified references, e.g. `{namespace}.{paramName}`). |
 
 **Rules:**
 
@@ -1306,7 +1483,7 @@ steps:
     name: fetch-db
     call: notion.get-database
     with:
-      database_id: $this.sample.database_id
+      database_id: sample.database_id
 ```
 
 **Lookup step (match against a previous call's output):**
@@ -1320,7 +1497,7 @@ steps:
     name: find-user
     index: list-users
     match: email
-    lookupValue: $this.sample.user_email
+    lookupValue: sample.user_email
     outputParameters:
       - login
       - id
@@ -1337,7 +1514,7 @@ steps:
     name: resolve-entry
     index: get-entries
     match: entry_id
-    lookupValue: $this.sample.target_id
+    lookupValue: sample.target_id
     outputParameters:
       - title
       - status
@@ -1345,7 +1522,7 @@ steps:
     name: post-result
     call: slack.post-message
     with:
-      text: $this.sample.title
+      text: sample.title
 ```
 
 ---
@@ -1382,7 +1559,7 @@ Consider a consumed operation `notion.get-database` that declares:
 name: "get-database"
 outputParameters:
   - name: "dbName"
-    value: "$.title[0].text.content"
+    value: "{{$.title[0].text.content}}"
 ```
 
 And the exposed side of the capability:
@@ -1416,16 +1593,16 @@ exposes:
                 name: "fetch-db"
                 call: "notion.get-database"
                 with:
-                  database_id: "$this.sample.database_id"
+                  database_id: "sample.database_id"
             mappings:
               - targetName: "db_name"
-                value: "$.dbName"
+                value: "{{$.dbName}}"
 ```
 
 Here is what happens at orchestration time:
 
 1. The step `fetch-db` calls `notion.get-database`, which extracts `dbName` and `dbId` from the raw response via its own output parameters.
-2. The `with` injector passes `database_id` from the exposed input parameter (`$this.sample.database_id`) to the consumed operation.
+2. The `with` injector passes `database_id` from the exposed input parameter (`sample.database_id`) to the consumed operation.
 3. The mapping `targetName: "db_name"` refers to the exposed operation's output parameter `db_name`.
 4. The mapping `value: "$.dbName"` resolves to the value of the consumed operation's output parameter named `dbName`.
 5. As a result, the exposed output `db_name` is populated with the value extracted by `$.dbName` (i.e. `title[0].text.content` from the raw Notion API response).
@@ -1435,40 +1612,36 @@ Here is what happens at orchestration time:
 ```yaml
 mappings:
   - targetName: "db_name"
-    value: "$.dbName"
+    value: "{{$.dbName}}"
 ```
 
 ---
 
-### 3.15 `$this` Context Reference
+### 3.15 Namespace Context Reference
 
-Describes how `$this` references work in `with` (WithInjector) and other expression contexts.
+Describes how namespace-qualified references work in `with` (WithInjector) and other expression contexts.
 
-> Update (schema v0.5): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). This section now documents the `$this` expression root, which is used within `WithInjector` values.
+> Update (schema v0.5): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). The former `$this` expression root has been removed — exposed input parameters are now referenced directly using a namespace-qualified path.
 > 
 
-#### 3.15.1 The `$this` root
+#### 3.15.1 Namespace-qualified references
 
-In a `with` (WithInjector) value — whether on an ExposedOperation (simple mode) or an OperationStepCall — the **`$this`** root references the *current capability execution context*, i.e. values already resolved during orchestration.
+In a `with` (WithInjector) value — whether on an ExposedOperation (simple mode) or an OperationStepCall — exposed input parameters are referenced using the path `{exposeNamespace}.{inputParameterName}`. This allows a step or a simple-mode call to receive values provided by the caller of the exposed operation.
 
-**`$this`** navigates the expose layer's input parameters using the path `$this.{exposeNamespace}.{inputParameterName}`. This allows a step or a simple-mode call to receive values that were provided by the caller of the exposed operation.
-
-- **`$this.{exposeNamespace}.{paramName}`** — accesses an input parameter of the exposed resource or operation identified by its namespace.
+- **`{exposeNamespace}.{paramName}`** — accesses an input parameter of the exposed resource or operation identified by its namespace.
 - The `{exposeNamespace}` corresponds to the `namespace` of the exposed API.
 - The `{paramName}` corresponds to the `name` of an input parameter declared on the exposed resource or operation.
 
 #### 3.15.2 Example
 
-If the exposed API has namespace `sample` and an input parameter `database_id` declared on its resource, then:
-
-- `$this.sample.database_id` resolves to the value of `database_id` provided by the caller.
+If the exposed API has namespace `sample` and an input parameter `database_id` declared on its resource:
 
 **Usage in a WithInjector:**
 
 ```yaml
 call: notion.get-database
 with:
-  database_id: $this.sample.database_id
+  database_id: sample.database_id
 ```
 
 ---
@@ -1612,16 +1785,16 @@ Defines parameter injection for simple-mode exposed operations. Used with the `w
 
 #### 3.18.1 Shape
 
-`WithInjector` is an object whose keys are parameter names and whose values are static values or `$this` references.
+`WithInjector` is an object whose keys are parameter names and whose values are static values or references.
 
 - Each key corresponds to a parameter `name` in the consumed operation's `inputParameters`.
-- Each value is a `string` or a `number`: either a static value or a `$this.{namespace}.{paramName}` reference.
+- Each value is a `string` or a `number`: either a static value or a namespace-qualified reference of the form `{namespace}.{paramName}`.
 
 #### 3.18.2 Rules
 
 - The keys MUST correspond to valid parameter names in the consumed operation being called.
 - Values can be strings or numbers.
-- String values can use the `$this` root to reference exposed input parameters (same as in OperationStepParameter).
+- String values can reference exposed input parameters using namespace-qualified expressions of the form `{exposeNamespace}.{paramName}`.
 - No additional constraints.
 
 #### 3.18.3 WithInjector Object Example
@@ -1629,7 +1802,7 @@ Defines parameter injection for simple-mode exposed operations. Used with the `w
 ```yaml
 call: github.get-user
 with:
-  username: $this.sample.username
+  username: sample.username
   Accept: "application/json"
   maxRetries: 3
 ```
@@ -1638,73 +1811,69 @@ with:
 
 ### 3.19 Bind Object
 
-> **Updated**: `Bind` replaces the former `ExternalRef` discriminated union. The `type` and `resolution` fields have been removed. A single optional `location` URI field determines the provider. Variable names (left side of `keys`) use SCREAMING_SNAKE_CASE for visual distinction from declared parameters.
+> **Updated**: The former `ExternalRef` discriminated union (file-resolved / runtime-resolved) has been replaced by a single **`Bind`** object. The `name` field is now `namespace`, `type` and `resolution` have been removed, and `uri` has been replaced by the optional `location` field. Variable names (keys in the `keys` map) now follow `SCREAMING_SNAKE_CASE` convention.
 > 
 
-Declares that the capability binds to an external source of variables. Bindings are declared at the root level of the Naftiko document via the `binds` array, or as a child of the `capability` object.
+Declares an external binding that provides variables to the capability. Bindings are declared at the root level of the Naftiko document via the `binds` array.
 
-**Fixed Fields:**
+#### 3.19.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **namespace** | `string` | **REQUIRED**. Unique identifier for this binding (kebab-case). Used as qualifier in expressions for disambiguation. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **description** | `string` | *Recommended*. A meaningful description of the binding's purpose. In a world of agents, context is king. |
-| **location** | `string` (UriLocation) | URI identifying the value provider. The URI scheme expresses the resolution strategy (`file://`, `vault://`, `github-secrets://`, `k8s-secret://`, etc.). When omitted, values are injected by the runtime environment. MUST match pattern `^[a-zA-Z][a-zA-Z0-9+.-]*://` (RFC 3986 scheme). |
-| **keys** | `BindingKeys` | **REQUIRED**. Map of variable names (SCREAMING_SNAKE_CASE, `^[A-Z][A-Z0-9_]*$`) to source keys in the provider. |
+| **namespace** | `string` | **REQUIRED**. Unique identifier for this binding (kebab-case). MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **description** | `string` | *Recommended*. A meaningful description of the binding. In a world of agents, context is king. |
+| **location** | `UriLocation` | Optional. A URI identifying the value provider (e.g. `file:///path/to/env.json`, `vault://secrets/myapp`). When omitted, values are injected by the runtime environment. |
+| **keys** | `BindingKeys` | **REQUIRED**. Map of `SCREAMING_SNAKE_CASE` variable names to keys in the resolved provider. |
 
-**Rules:**
+#### 3.19.2 Rules
 
-- `namespace` and `keys` are mandatory.
-- `location` and `description` are optional.
+- `namespace` and `keys` are mandatory. `description` is recommended.
+- Each `namespace` MUST be unique across all `binds` entries.
+- The `namespace` MUST NOT collide with any `consumes` namespace to avoid ambiguity.
+- The `keys` map MUST contain at least one entry.
+- Variable names (keys in the `keys` map) MUST follow `SCREAMING_SNAKE_CASE` (pattern `^[A-Z][A-Z0-9_]*$`).
+- Variable names SHOULD be unique across all `binds` entries. If the same variable name appears in multiple entries, use the qualified form `\{\{namespace.VARIABLE_NAME\}\}` to disambiguate.
 - No additional properties are allowed.
 
-Typical production providers include:
+#### 3.19.3 BindingKeys Object
 
-- **HashiCorp Vault** — centralized secrets management (`vault://`)
-- **Kubernetes Secrets** / **ConfigMaps** — native K8s secret injection (`k8s-secret://`)
-- **AWS Secrets Manager** / **AWS SSM Parameter Store** (`aws-ssm://`)
-- **GitHub Actions Secrets** (`github-secrets://`)
-- **CI/CD pipeline variables** — runtime injection (location omitted)
+A map of key-value pairs that declare the variables to be injected from the binding.
 
-#### 3.19.1 BindingKeys Object
+- Each **key** is the variable name (`SCREAMING_SNAKE_CASE`) used for injection (available as `\{\{VARIABLE_NAME\}\}` in the capability definition)
+- Each **value** is the corresponding key in the resolved provider (file, vault, runtime context, etc.)
 
-A map of key-value pairs that define the variables to be injected from the binding.
-
-- Each **key** is the variable name used for injection (SCREAMING_SNAKE_CASE, available as `\{\{KEY\}\}` in the capability definition)
-- Each **value** is the corresponding key in the resolved source or runtime context
-
-Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTION_INTEGRATION_TOKEN` in the source will be injected as `{{NOTION_TOKEN}}` in the capability definition.
+Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTION_INTEGRATION_TOKEN` in the provider will be injected as `\{\{NOTION_TOKEN\}\}` in the capability definition.
 
 **Schema:**
 
 ```json
 {
   "type": "object",
-  "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
   "additionalProperties": { "type": "string" }
 }
 ```
 
-#### 3.19.2 Rules
+#### 3.19.4 UriLocation
 
-- Each `namespace` value MUST be unique across all `binds` entries.
-- The `namespace` value MUST NOT collide with any `consumes` or `exposes` namespace to avoid ambiguity in expression resolution.
-- The `keys` map MUST contain at least one entry.
-- Variable names (keys in the `keys` map) SHOULD be unique across all `binds` entries. If the same variable name appears in multiple entries, the expression MUST use the qualified form `{{namespace.VARIABLE}}` (where `namespace` is the `namespace` of the `binds` entry) to disambiguate which source provides the value.
-- When `location` is present, it MUST be a valid URI matching the `UriLocation` pattern.
-- When `location` is omitted, the runtime environment is responsible for injecting the values.
-- No additional properties are allowed.
+A URI string that identifies the value provider for the binding. The scheme determines how the binding is resolved:
+
+- `file:///path/to/file.json` — local JSON file (for **development only**)
+- `vault://secrets/myapp` — HashiCorp Vault
+- `k8s://secrets/myapp` — Kubernetes Secrets
+- Any URI scheme recognized by the runtime environment
+
+When `location` is omitted, values are expected to be injected directly by the execution environment (e.g. environment variables, CI/CD secrets, platform secrets managers).
 
 <aside>
 ⚠️
 
-**Security recommendation** — Never use `location: "file://..."` in production environments. File-based resolution exposes secret locations in the capability document and creates a risk of accidental secret leakage (e.g. committing `.env` files). Always omit `location` in production, with secrets injected by a dedicated secrets manager.
+**Security recommendation** — `file:///` locations are intended for **local development only**. File-based resolution exposes secret locations in the capability document and creates a risk of accidental secret leakage (e.g. committing `.env` files to version control). Always prefer runtime injection or a dedicated secrets manager in production.
 
 </aside>
 
-#### 3.19.3 Bind Object Examples
+#### 3.19.5 Bind Object Examples
 
-**File-based binding (development):**
+**File location (development):**
 
 ```yaml
 binds:
@@ -1713,11 +1882,11 @@ binds:
     location: "file:///path/to/notion_env.json"
     keys:
       NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
-      NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
-      NOTION_TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
+      PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
+      TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
 ```
 
-**Runtime injection (production — location omitted):**
+**Runtime injection (production — no location):**
 
 ```yaml
 binds:
@@ -1727,24 +1896,29 @@ binds:
       GITHUB_TOKEN: "GITHUB_TOKEN"
 ```
 
-**Minimal binding (runtime injection):**
+**Multiple bindings:**
 
 ```yaml
 binds:
-  - namespace: "env"
+  - namespace: "notion-secrets"
+    description: "Notion API credentials"
     keys:
-      API_KEY: "API_KEY"
+      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+  - namespace: "github-secrets"
+    description: "GitHub API credentials"
+    keys:
+      GITHUB_TOKEN: "GITHUB_TOKEN"
 ```
 
 ---
 
 ### 3.20 Expression Syntax
 
-Variables declared in `binds` via the `keys` map are injected into the capability document using mustache-style `\{\{variable\}\}` expressions.
+Variables declared in `binds` via the `keys` map are injected into the capability document using mustache-style `\{\{VARIABLE_NAME\}\}` expressions.
 
 #### 3.20.1 Format
 
-The expression format is `\{\{KEY\}\}`, where `KEY` is a variable name (SCREAMING_SNAKE_CASE) declared in the `keys` map of a `binds` entry.
+The expression format is `\{\{VARIABLE_NAME\}\}`, where `VARIABLE_NAME` is a key declared in the `keys` map of a `binds` entry (SCREAMING_SNAKE_CASE).
 
 Expressions can appear in any `string` value within the document, including authentication tokens, header values, and input parameter values.
 
@@ -1754,40 +1928,40 @@ At runtime, expressions are resolved as follows:
 
 1. Find the `binds` entry whose `keys` map contains the referenced variable name
 2. Look up the corresponding source key in the `keys` map
-3. Resolve the source key value using the strategy defined by the `location` (file lookup if present, runtime injection if absent)
-4. Replace the `\{\{KEY\}\}` expression with the resolved value
+3. Resolve the source key value using the configured `location` (file-based lookup or runtime injection)
+4. Replace the `\{\{VARIABLE_NAME\}\}` expression with the resolved value
 
 If a referenced variable is not declared in any `binds` entry's `keys`, the document MUST be considered invalid.
 
-#### 3.20.3 Relationship with `$this`
+#### 3.20.3 Relationship with namespace-qualified references
 
-`\{\{variable\}\}` expressions and `$this` references serve different purposes:
+`\{\{VARIABLE_NAME\}\}` expressions and namespace-qualified references serve different purposes:
 
-- `\{\{variable\}\}` resolves **static configuration** from external references (secrets, environment variables) declared via `keys`
-- `$this.{exposeNamespace}.{paramName}` resolves **runtime orchestration** values from the expose layer's input parameters
+- `\{\{VARIABLE_NAME\}\}` resolves **static configuration** from bindings (secrets, environment variables) declared via `keys`
+- `{exposeNamespace}.{paramName}` resolves **runtime orchestration** values from the expose layer's input parameters
 
 The two expression systems are independent and MUST NOT be mixed.
 
 #### 3.20.4 Expression Examples
 
 ```yaml
-# Authentication token from binding
+# Authentication token from bind
 authentication:
   type: bearer
-  token: "{{NOTION_TOKEN}}"
+  token: "NOTION_TOKEN"
 
-# Input parameter with header value from binding
+# Input parameter with header value from bind
 inputParameters:
   - name: Notion-Version
     in: header
-    value: "{{NOTION_VERSION}}"
+    value: "API_VERSION"
 
 # Corresponding binds declaration
 binds:
-  - namespace: "env"
+  - namespace: "secrets"
     keys:
       NOTION_TOKEN: "NOTION_TOKEN"
-      API_KEY: "API_KEY"
+      API_VERSION: "NOTION_VERSION"
 ```
 
 ---
@@ -1814,7 +1988,7 @@ info:
 
 capability:
   exposes:
-    - type: api
+    - type: "rest"
       port: 8080
       namespace: "proxy"
       resources:
@@ -1833,7 +2007,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       resources:
         - name: "all"
-          path: "/{path}"
+          path: "/{{path}}"
           operations:
             - name: "any"
               method: "GET"
@@ -1861,11 +2035,11 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 3000
       namespace: "app"
       resources:
-        - path: "/users/{username}"
+        - path: "/users/{{username}}"
           description: "Look up a GitHub user by username"
           name: "user"
           inputParameters:
@@ -1878,14 +2052,14 @@ capability:
               label: "Get User"
               call: "github.get-user"
               with:
-                username: "$this.app.username"
+                username: "app.username"
               outputParameters:
                 - type: "string"
-                  mapping: "$.login"
+                  mapping: "{{$.login}}"
                 - type: "string"
-                  mapping: "$.email"
+                  mapping: "{{$.email}}"
                 - type: "number"
-                  mapping: "$.id"
+                  mapping: "{{$.id}}"
 
   consumes:
     - type: "http"
@@ -1894,7 +2068,7 @@ capability:
       baseUri: "https://api.github.com"
       authentication:
         type: "bearer"
-        token: "{{GITHUB_TOKEN}}"
+        token: "{{github_token}}"
       resources:
         - name: "users"
           path: "/users/{username}"
@@ -1909,13 +2083,13 @@ capability:
               outputParameters:
                 - name: "login"
                   type: "string"
-                  value: "$.login"
+                  value: "{{$.login}}"
                 - name: "email"
                   type: "string"
-                  value: "$.email"
+                  value: "{{$.email}}"
                 - name: "id"
                   type: "number"
-                  value: "$.id"
+                  value: "{{$.id}}"
 ```
 
 ### 4.3 Orchestrated capability (multi-step call)
@@ -1940,7 +2114,7 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 9090
       namespace: "inspector"
       resources:
@@ -1961,17 +2135,17 @@ capability:
                   name: "fetch-db"
                   call: "notion.get-database"
                   with:
-                    database_id: "$this.inspector.database_id"
+                    database_id: "inspector.database_id"
                 - type: "call"
                   name: "query-db"
                   call: "notion.query-database"
                   with:
-                    database_id: "$this.inspector.database_id"
+                    database_id: "inspector.database_id"
               mappings:
                 - targetName: "db_name"
-                  value: "$.fetch-db.dbName"
+                  value: "{{$.fetch-db.dbName}}"
                 - targetName: "row_count"
-                  value: "$.query-db.resultCount"
+                  value: "{{$.query-db.resultCount}}"
               outputParameters:
                 - name: "db_name"
                   type: "string"
@@ -1985,14 +2159,14 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{NOTION_TOKEN}}"
+        token: "{{notion_token}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"
           value: "2022-06-28"
       resources:
         - name: "databases"
-          path: "/databases/{database_id}"
+          path: "/databases/{{database_id}}"
           label: "Databases"
           operations:
             - name: "get-database"
@@ -2004,12 +2178,12 @@ capability:
               outputParameters:
                 - name: "dbName"
                   type: "string"
-                  value: "$.title[0].text.content"
+                  value: "{{$.title[0].text.content}}"
                 - name: "dbId"
                   type: "string"
-                  value: "$.id"
+                  value: "{{$.id}}"
         - name: "queries"
-          path: "/databases/{database_id}/query"
+          path: "/databases/{{database_id}}/query"
           label: "Database queries"
           operations:
             - name: "query-database"
@@ -2021,10 +2195,10 @@ capability:
               outputParameters:
                 - name: "resultCount"
                   type: "number"
-                  value: "$.results.length()"
+                  value: "{{$.results.length()}}"
                 - name: "results"
                   type: "array"
-                  value: "$.results"
+                  value: "{{$.results}}"
 ```
 
 ### 4.4 Orchestrated capability with lookup step
@@ -2049,7 +2223,7 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 4000
       namespace: "team"
       resources:
@@ -2073,7 +2247,7 @@ capability:
                   name: "find-member"
                   index: "list-members"
                   match: "email"
-                  lookupValue: "$this.team.email"
+                  lookupValue: "team.email"
                   outputParameters:
                     - "fullName"
                     - "department"
@@ -2101,7 +2275,7 @@ capability:
       authentication:
         type: "apikey"
         key: "X-Api-Key"
-        value: "{{HR_API_KEY}}"
+        value: "{{hr_api_key}}"
         placement: "header"
       resources:
         - name: "employees"
@@ -2157,7 +2331,7 @@ info:
 
 capability:
   exposes:
-    - type: "api"
+    - type: "rest"
       port: 9090
       namespace: "dashboard"
       resources:
@@ -2187,8 +2361,8 @@ capability:
               label: "Get Repository"
               call: "github.get-repo"
               with:
-                owner: "$this.dashboard.owner"
-                repo: "$this.dashboard.repo"
+                owner: "dashboard.owner"
+                repo: "dashboard.repo"
               outputParameters:
                 - type: "string"
                   mapping: "$.full_name"
@@ -2215,7 +2389,7 @@ capability:
                   name: "query-tasks"
                   call: "notion.query-database"
                   with:
-                    database_id: "$this.dashboard.database_id"
+                    database_id: "dashboard.database_id"
                 - type: "call"
                   name: "list-github-users"
                   call: "github.list-org-members"
@@ -2253,7 +2427,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{NOTION_TOKEN}}"
+        token: "{{notion_token}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"
@@ -2283,7 +2457,7 @@ capability:
       baseUri: "https://api.github.com"
       authentication:
         type: "bearer"
-        token: "{{GITHUB_TOKEN}}"
+        token: "{{github_token}}"
       resources:
         - name: "repos"
           path: "/repos/{owner}/{repo}"
@@ -2361,7 +2535,7 @@ capability:
               description: "The unique identifier of the Notion database"
           call: "notion.get-database"
           with:
-            database_id: "$this.notion-tools.database_id"
+            database_id: "notion-tools.database_id"
           outputParameters:
             - type: "string"
               mapping: "$.dbName"
@@ -2373,7 +2547,7 @@ capability:
       baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
-        token: "{{NOTION_TOKEN}}"
+        token: "{{notion_token}}"
       inputParameters:
         - name: "Notion-Version"
           in: "header"

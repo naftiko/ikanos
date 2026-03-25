@@ -2,7 +2,7 @@
 ## Skill Metadata & Catalog Adapter Architecture
 
 **Status**: Current implementation  
-**Date**: March 13, 2026  
+**Date**: March 24, 2026  
 **Key Concept**: Dedicated `skill` server adapter — skills declare tools derived from sibling `rest` and `mcp` adapters or defined as local file instructions. AI clients invoke adjacent adapters directly for derived tools.
 
 ---
@@ -967,12 +967,11 @@ info:
   label: "Weather Intelligence Skills"
   description: "Skills for weather forecasting — tools executed via adjacent adapters"
 
-externalRefs:
-  - name: "api-keys"
-    type: "variables"
-    resolution: "runtime"
+binds:
+  - namespace: "api-keys"
+    description: "Runtime variables for weather API authentication."
     keys:
-      weather_key: "WEATHER_API_KEY"
+      WEATHER_API_KEY: "WEATHER_API_KEY"
 
 capability:
   consumes:
@@ -982,7 +981,7 @@ capability:
       authentication:
         type: "apikey"
         key: "X-API-Key"
-        value: "{{weather_key}}"
+        value: "{{WEATHER_API_KEY}}"
         placement: "header"
       resources:
         - path: "forecast/{{location}}"
