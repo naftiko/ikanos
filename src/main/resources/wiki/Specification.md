@@ -1,21 +1,8 @@
 # Naftiko Specification
 
-Version: 1.0.0-alpha1
-Created by: Thomas Eskenazi
-Category: Specification
-Last updated time: March 24, 2026 5:47 PM
-Reviewers: Kin Lane, Jerome Louvel, Jérémie Tarnaud, Antoine Buhl
-Status: Validated
-
-# Naftiko Specification v0.5
-
-**Version 0.5**
+**Version:** 1.0.0-alpha1
 
 **Publication Date:** March 2026
-
----
-
-- **Table of Contents**
 
 ## 1. Introduction
 
