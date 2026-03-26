@@ -31,7 +31,7 @@ jobs:
           java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-1-my-first-capability.yml \
             > /tmp/step1.log 2>&1 &
-          sleep 2
+          sleep 10
 
       - name: Consume /hello endpoint - My First Capability
         run: |
@@ -55,7 +55,7 @@ jobs:
           java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-2-forwarding-api-resource.yml \
             > /tmp/step2.log 2>&1 &
-          sleep 3
+          sleep 10
 
       - name: Consume /notion/users/me endpoint - Forwarding API Resource
         run: |
@@ -82,7 +82,7 @@ jobs:
           notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-3-encapsulating-headers.yml \
             > /tmp/step3.log 2>&1 &
-          sleep 2
+          sleep 10
 
       - name: Consume /notion/users/me endpoint - Encapsulating Headers
         run: |
@@ -106,7 +106,7 @@ jobs:
           notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-4-filter-reponse.yml \
             > /tmp/step4.log 2>&1 &
-          sleep 2
+          sleep 10
 
       - name: Consume /notion/users/me endpoint - Filter Response
         run: |
@@ -130,7 +130,7 @@ jobs:
           notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-5-multi-steps.yml \
             > /tmp/step5.log 2>&1 &
-          sleep 2
+          sleep 10
 
       - name: Consume /notion/my-full-user endpoint - Multi Steps
         run: |
@@ -159,7 +159,7 @@ jobs:
           notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
             src/main/resources/schemas/tutorial/step-6-mcp.yml \
             > /tmp/step6.log 2>&1 &
-          sleep 2
+          sleep 10
 
       - name: Calling MCP server
         run: |
