@@ -1,11 +1,5 @@
 # Linting Capabilities
 
-Version: 1.0.0-alpha1  
-Category: Tooling  
-Last updated: March 2026
-
----
-
 ## Table of Contents
 
 - [Overview](#overview)
