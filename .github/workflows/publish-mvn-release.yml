@@ -1,0 +1,11 @@
+name: Publish Release to GitHub Packages
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dummy - always green
+        run: echo "ok"
