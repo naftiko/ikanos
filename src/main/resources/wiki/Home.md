@@ -1,4 +1,4 @@
-Welcome to Naftiko Framework, the fist Open Source project for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
+Welcome to Naftiko Framework, the first Open Source project for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
 
 <img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="600">
 
