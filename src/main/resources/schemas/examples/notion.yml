@@ -44,29 +44,29 @@ capability:
                 - type: "array"
                   mapping: "$.results"
                   items:
-                    - type: "object"
-                      properties:
-                        name:
-                          type: "string"
-                          mapping: "$.properties.Name.title[0].text.content"
-                        company:
-                          type: "string"
-                          mapping: "$.properties.Company.rich_text[0].text.content"
-                        title:
-                          type: "string"
-                          mapping: "$.properties.Title.rich_text[0].text.content"
-                        location:
-                          type: "string"
-                          mapping: "$.properties.Location.rich_text[0].text.content"
-                        owner:
-                          type: "string"
-                          mapping: "$.properties.Owner.people[0].name"
-                        participation_status:
-                          type: "string"
-                          mapping: "$.properties.Participation Status.select.name"
-                        comments:
-                          type: "string"
-                          mapping: "$.properties.Comments.rich_text[0].text.content"
+                    type: "object"
+                    properties:
+                      name:
+                        type: "string"
+                        mapping: "$.properties.Name.title[0].text.content"
+                      company:
+                        type: "string"
+                        mapping: "$.properties.Company.rich_text[0].text.content"
+                      title:
+                        type: "string"
+                        mapping: "$.properties.Title.rich_text[0].text.content"
+                      location:
+                        type: "string"
+                        mapping: "$.properties.Location.rich_text[0].text.content"
+                      owner:
+                        type: "string"
+                        mapping: "$.properties.Owner.people[0].name"
+                      participation_status:
+                        type: "string"
+                        mapping: "$.properties.Participation Status.select.name"
+                      comments:
+                        type: "string"
+                        mapping: "$.properties.Comments.rich_text[0].text.content"
 
     - type: "mcp"
       address: "localhost"
@@ -84,29 +84,29 @@ capability:
             - type: "array"
               mapping: "$.results"
               items:
-                - type: "object"
-                  properties:
-                    name:
-                      type: "string"
-                      mapping: "$.properties.Name.title[0].text.content"
-                    company:
-                      type: "string"
-                      mapping: "$.properties.Company.rich_text[0].text.content"
-                    title:
-                      type: "string"
-                      mapping: "$.properties.Title.rich_text[0].text.content"
-                    location:
-                      type: "string"
-                      mapping: "$.properties.Location.rich_text[0].text.content"
-                    owner:
-                      type: "string"
-                      mapping: "$.properties.Owner.people[0].name"
-                    participation_status:
-                      type: "string"
-                      mapping: "$.properties.Participation Status.select.name"
-                    comments:
-                      type: "string"
-                      mapping: "$.properties.Comments.rich_text[0].text.content"
+                type: "object"
+                properties:
+                  name:
+                    type: "string"
+                    mapping: "$.properties.Name.title[0].text.content"
+                  company:
+                    type: "string"
+                    mapping: "$.properties.Company.rich_text[0].text.content"
+                  title:
+                    type: "string"
+                    mapping: "$.properties.Title.rich_text[0].text.content"
+                  location:
+                    type: "string"
+                    mapping: "$.properties.Location.rich_text[0].text.content"
+                  owner:
+                    type: "string"
+                    mapping: "$.properties.Owner.people[0].name"
+                  participation_status:
+                    type: "string"
+                    mapping: "$.properties.Participation Status.select.name"
+                  comments:
+                    type: "string"
+                    mapping: "$.properties.Comments.rich_text[0].text.content"
 
   consumes:
     - type: "http"
