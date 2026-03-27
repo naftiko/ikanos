@@ -32,26 +32,26 @@ capability:
                 - type: "array"
                   mapping: "$.results"
                   items:
-                    - type: "object"
-                      properties:
-                        name:
-                          type: "string"
-                          const: "John Doe"
-                        company:
-                          type: "string"
-                          const: "Example Corp"
-                        title:
-                          type: "string"
-                          const: "Persona"
-                        location:
-                          type: "string"
-                          const: "Earth"
-                        owner:
-                          type: "string"
-                          const: "Naftiko"
-                        participation_status:
-                          type: "string"
-                          const: "Committed"
-                        comments:
-                          type: "string"
-                          const: "For mocking purposes only"
+                    type: "object"
+                    properties:
+                      name:
+                        type: "string"
+                        const: "John Doe"
+                      company:
+                        type: "string"
+                        const: "Example Corp"
+                      title:
+                        type: "string"
+                        const: "Persona"
+                      location:
+                        type: "string"
+                        const: "Earth"
+                      owner:
+                        type: "string"
+                        const: "Naftiko"
+                      participation_status:
+                        type: "string"
+                        const: "Committed"
+                      comments:
+                        type: "string"
+                        const: "For mocking purposes only"

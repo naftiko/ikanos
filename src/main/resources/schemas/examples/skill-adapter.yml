@@ -35,10 +35,10 @@ capability:
                 - type: array
                   mapping: $.alerts
                   items:
-                    - type: object
-                      properties:
-                        title: { type: string, mapping: $.title }
-                        severity: { type: string, mapping: $.severity }
+                    type: "object"
+                    properties:
+                      title: { type: string, mapping: $.title }
+                      severity: { type: string, mapping: $.severity }
 
     - type: mcp
       port: 3001
