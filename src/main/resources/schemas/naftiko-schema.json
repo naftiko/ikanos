@@ -418,7 +418,7 @@
             "mapping": true,
             "const": true,
             "items": {
-              "$ref": "#/$defs/MappedItemArray"
+              "$ref": "#/$defs/MappedOutputParameter"
             }
           },
           "required": [
@@ -427,14 +427,6 @@
           "unevaluatedProperties": false
         }
       ]
-    },
-    "MappedItemArray": {
-      "type": "array",
-      "description": "Describes the shape of items inside an array output parameter.",
-      "items": {
-        "$ref": "#/$defs/MappedOutputParameter"
-      },
-      "minItems": 1
     },
     "MappedOutputParameter": {
       "description": "Inline-mapped output parameter (simple mode). Used when the exposed operation has a single call + with.",
