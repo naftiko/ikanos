@@ -1,0 +1,12 @@
+name: Synchronize Schema and Rules to Fabric
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync-to-fabric:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dummy sync
+        run: echo "Dummy sync"
