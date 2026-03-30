@@ -1,0 +1,45 @@
+---
+naftiko: "1.0.0-alpha1"
+
+capability:
+  consumes:
+    - namespace: registry
+      type: http
+      baseUri: "https://registry.shipyard.dev/api/v1"
+      resources:
+        - name: ships
+          path: "/ships"
+          operations:
+            - name: list-ships
+              method: GET
+
+  exposes:
+    - type: mcp
+      port: 3001
+      namespace: shipyard-tools
+      description: "Shipyard MCP tools for fleet management"
+      tools:
+        - name: list-ships
+          description: "List ships in the shipyard"
+          call: registry.list-ships
+          outputParameters:
+            - type: array
+              mapping: "$."
+              items:
+                type: object
+                properties:
+                  imo:
+                    type: string
+                    mapping: "$.imo_number"
+                  name:
+                    type: string
+                    mapping: "$.vessel_name"
+                  type:
+                    type: string
+                    mapping: "$.vessel_type"
+                  flag:
+                    type: string
+                    mapping: "$.flag_code"
+                  status:
+                    type: string
+                    mapping: "$.operational_status"
