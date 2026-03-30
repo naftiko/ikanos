@@ -1,0 +1,67 @@
+# shared/registry-consumes.yaml (final — added get-voyage + cargo resource)
+naftiko: "1.0.0-alpha1"
+consumes:
+  - namespace: registry
+    type: http
+    baseUri: "https://registry.shipyard.dev/api/v1"
+    authentication:
+      type: bearer
+      token: "REGISTRY_TOKEN"
+    inputParameters:
+    - name: Registry-Version
+      in: header
+      value: "REGISTRY_VERSION"
+    resources:
+      - name: ships
+        path: "/ships"
+        operations:
+          - name: list-ships
+            method: GET
+            inputParameters:
+              - name: status
+                in: query
+            outputParameters:
+              - name: imo-number
+                type: string
+                value: "$.imo_number"
+      - name: ship
+        path: "/ships/{{imo_number}}"
+        operations:
+          - name: get-ship
+            method: GET
+            inputParameters:
+              - name: imo_number
+                in: path
+      - name: voyages
+        path: "/voyages"
+        operations:
+          - name: create-voyage
+            method: POST
+            body: |
+              {
+                "shipImo": "{{shipImo}}",
+                "departurePort": "{{departurePort}}",
+                "arrivalPort": "{{arrivalPort}}",
+                "departureDate": "{{departureDate}}",
+                "arrivalDate": "{{arrivalDate}}",
+                "crewIds": {{crewIds}},
+                "cargoIds": {{cargoIds}}
+              }
+      - name: voyage
+        path: "/voyages/{{voyageId}}"
+        operations:
+          - name: get-voyage
+            method: GET
+            inputParameters:
+              - name: voyageId
+                in: path
+      - name: crew
+        path: "/crew"
+        operations:
+          - name: list-crew
+            method: GET
+      - name: cargo
+        path: "/cargo"
+        operations:
+          - name: list-cargo
+            method: GET

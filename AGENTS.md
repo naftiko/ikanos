@@ -14,7 +14,7 @@
 |---|---|
 | `src/main/resources/schemas/naftiko-schema.json` | Naftiko JSON Schema (source of truth) |
 | `src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
-| `src/main/resources/schemas/tutorial/` | Step-by-step tutorial (`step-1-` to `step-6-`) |
+| `src/main/resources/schemas/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
 | `src/test/resources/` | Test fixtures (not examples) |
 | `src/main/resources/scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
 | `src/main/resources/scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
@@ -67,13 +67,24 @@ Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch
 When designing or modifying a Capability:
 
 **Do:**
-- Keep the [Naftiko Specification](src/main/resources/schemas/naftiko-schema.json) as first-class citizen
+- Keep the [Naftiko Specification](src/main/resources/schemas/naftiko-schema.json) and the [Naftiko Rules](src/main/resources/rules/naftiko-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
 - Look at `src/main/resources/schemas/examples/` for patterns before writing new capabilities
+- When renaming a consumed field for a lookup `match`, also add a `ConsumedOutputParameter` on the consumed operation to map the raw field name to a kebab-case name — otherwise the lookup has nothing to match against
 
 **Don't:**
 - Expose an `inputParameter` that is not used in any step
 - Declare consumed `outputParameters` that are not used in the exposed part
 - Prefix variables with the capability/namespace/resource name — they are already scoped, unless disambiguation is strictly needed
+- Set a type property for `inputParameter` in a rest consumes bloc
+- Use an `integer` type instead of a `number` type for `outputParameters` in a mcp exposes bloc
+- Bind two `exposes` adapters (e.g. `skill` and `rest`) to the same port
+- Use `items:` or nested `type:` on `McpToolInputParameter` for array-typed parameters — only `name`, `type`, `description`, and `required` are allowed
+- Use YAML list syntax (`- type: object`) for `items` in `MappedOutputParameterArray` — `items` is a single `MappedOutputParameter` object, not an array
+- Use snake_case identifiers where the schema expects `IdentifierKebab` (e.g. `match`, `name`, `namespace`) — use kebab-case
+- Use `operation` instead of `call` in steps — `operation` is not a valid property in `OperationStepCall`, only `call` is
+- Use `MappedOutputParameter` (with `mapping`, no `name`) when the tool/operation uses `steps` — use `OrchestratedOutputParameter` (with `name`, no `mapping`) instead
+- Use typed objects for lookup step `outputParameters` — they are plain string arrays of field names to extract (e.g. `- "fullName"`)
+- Put a `path` property on an `ExposedOperation` — extract multi-step operations with a different path into their own `ExposedResource`
 
 ## Contribution Workflow
 

@@ -1,0 +1,18 @@
+naftiko: "1.0.0-alpha1"
+consumes:
+  - namespace: legacy
+    type: http
+    baseUri: "https://legacy.dockyard.dev/api"
+    authentication:
+      type: apikey
+      key: X-Dock-Key
+      value: "DOCKYARD_API_KEY"
+    resources:
+      - name: vessels
+        path: "/vessels"
+        operations:
+          - name: list-vessels
+            method: GET
+            inputParameters:
+              - name: status
+                in: query
