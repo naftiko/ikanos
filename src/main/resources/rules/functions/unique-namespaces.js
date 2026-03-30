@@ -1,4 +1,4 @@
-module.exports = function uniqueNamespaces(targetVal) {
+export default function uniqueNamespaces(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
   }
