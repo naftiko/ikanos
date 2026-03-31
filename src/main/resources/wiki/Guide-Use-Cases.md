@@ -1,3 +1,5 @@
+# Guide - Use Cases
+
 Here is an overview of typical use cases where Naftiko Framework can help developers and supporting features available. Additional features are being added as described in the [roadmap](https://github.com/naftiko/framework/wiki/Roadmap).
 
 ## 1. AI integration
@@ -50,7 +52,29 @@ How Naftiko achieves this technically:
     - E.g. Adapt read-only POST queries into cacheable GET queries
   - [x] Convert XML, Avro, CSV payloads to JSON
 
-## 4. Compose AI context
+## 4. Elevate Google Sheets API
+
+Wrap Google Sheets as a capability so spreadsheet rows become a reusable, domain-specific API for traditional clients and AI agents.
+
+How Naftiko achieves this technically:
+- Consume the Google Sheets values endpoint in `consumes.resources.operations`, with templated `spreadsheet_id` and `range` path parameters plus API key injection through `binds`.
+- Transform raw row arrays from `$.values` into named objects using positional JSONPath mappings such as `$[0]`, `$[1]`, and `$[2]` inside typed `outputParameters`.
+- Expose the normalized result through `type: rest`, `type: mcp`, or both, so one spreadsheet integration serves both application and agent use cases.
+
+![Elevate GSheets API](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_elevate_gsheets_api.png)
+
+#### Key features
+- [x] Declarative Google Sheets API consumption
+  - [x] Templated spreadsheet ID and A1 range parameters
+  - [x] API key injection via externalized bind values
+- [x] Declarative row-to-object transformation
+  - [x] Positional JSONPath mapping from array columns to named fields
+  - [x] Typed JSON array exposure for downstream consumers
+- [x] Dual-channel exposure from one capability
+  - [x] REST resource exposure for conventional clients
+  - [x] MCP tool exposure for AI agents
+
+## 5. Compose AI context
 
 Combine data from multiple APIs into one capability to deliver richer, task-ready context to AI clients.
 
@@ -66,7 +90,7 @@ How Naftiko achieves this technically:
 - [x] Support for source capabilities
   - [x] Reuse consistent APIs and JSON payloads
 
-## 5. Rightsize a set of microservices
+## 6. Rightsize a set of microservices
 
 Create a simpler capability layer over many microservices to reduce client complexity and improve consistency.
 
@@ -83,7 +107,7 @@ How Naftiko achieves this technically:
     - [x] Convert YAML, Protobuf, payloads to JSON
     - [x] Support sequence of steps with calls
 
-## 6. Rightsize a monolith API
+## 7. Rightsize a monolith API
 
 Extract focused capabilities from a broad monolith API so consumers get only what they need for each use case.
 
@@ -94,7 +118,7 @@ How Naftiko achieves this technically:
 
 ![Rightsize monolith APIs](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_rightsize_monolith_apis.png)
 
-## 7. MCP-first design
+## 8. Capability-first context engineering
 
 Design capabilities first for MCP clients, then map them to underlying APIs for a clean AI-native integration model.
 
@@ -110,7 +134,7 @@ How Naftiko achieves this technically:
   - [x] Allow REST server adapter with no source HTTP adapter
   - [x] Use static value of output parameters as sample
 
-## 8. API-first design
+## 9. Capability-first API reusability
 
 Start from existing APIs and define reusable capabilities on top, so API investments can power new AI and app experiences.
 

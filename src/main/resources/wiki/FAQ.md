@@ -1,4 +1,4 @@
-Welcome to the Naftiko Framework FAQ! This guide answers common questions from developers who are learning, using, and contributing to Naftiko. For comprehensive technical details, see the [Specification](https://github.com/naftiko/framework/wiki/Specification).
+Welcome to the Naftiko Framework FAQ! This guide answers common questions from developers who are learning, using, and contributing to Naftiko. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules).
 
 ---
 
@@ -26,19 +26,19 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 ---
 
-## 🚢 Installation & Setup
+## :rowboat: Installation & Setup
 
 ### Q: How do I install Naftiko?
 **A:** There are two ways:
 
 1. **Docker (recommended)**  
    ```bash
-   docker pull ghcr.io/naftiko/framework:v0.5
-   docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/framework:v0.5 /app/capability.yaml
+  docker pull ghcr.io/naftiko/framework:v1.0.0-alpha1
+  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/framework:v1.0.0-alpha1 /app/capability.yaml
    ```
 
 2. **CLI tool** (for configuration and validation)  
-   Download the binary for [macOS](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-macos-arm64), [Linux](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-linux-amd64), or [Windows](https://github.com/naftiko/framework/releases/download/v0.5/naftiko-cli-windows-amd64.exe)
+  Download the binary for [macOS](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-macos-arm64), [Linux](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-linux-amd64), or [Windows](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-windows-amd64.exe)
 
 See the [Installation guide](https://github.com/naftiko/framework/wiki/Installation) for detailed setup instructions.
 
@@ -46,17 +46,17 @@ See the [Installation guide](https://github.com/naftiko/framework/wiki/Installat
 **A:** Use the CLI validation command:
 ```bash
 naftiko validate path/to/capability.yaml
-naftiko validate path/to/capability.yaml 0.5  # Specify schema version
+naftiko validate path/to/capability.yaml 1.0.0-alpha1  # Specify schema version
 ```
 
 This checks your YAML against the Naftiko schema and reports any errors.
 
 ### Q: Which version of the schema should I use?
-**A:** Use the latest stable version: **0.5** (as of March 2026).
+**A:** Use the current framework schema version: **1.0.0-alpha1**.
 
 Set it in your YAML:
 ```yaml
-naftiko: "0.5"
+naftiko: "1.0.0-alpha1"
 ```
 
 ---
@@ -459,7 +459,7 @@ MCP clients can then discover and use these resources dynamically.
 
 2. **Check the Docker logs:**
    ```bash
-   docker run ... ghcr.io/naftiko/framework:v0.5 /app/capability.yaml
+  docker run ... ghcr.io/naftiko/framework:v1.0.0-alpha1 /app/capability.yaml
    # Look for error messages in the output
    ```
 
@@ -553,7 +553,8 @@ Key directories:
 - `src/main/java/io/naftiko/`  Core engine code
 - `src/main/resources/schemas/`  JSON Schema definitions
 - `src/test/`  Unit and integration tests
-- `src/main/resources/specs/`  Specification proposals and examples
+- `src/main/resources/schemas/examples/`  Capability examples
+- `src/main/resources/tutorial/`  Tutorial capability files
 
 ### Q: What are the design guidelines for creating capabilities?
 **A:**
@@ -595,7 +596,7 @@ outputParameters:
 4. **Docker testing** - Build and run the Docker image with your capability
 
 ### Q: Which version of Java is required?
-**A:** Naftiko requires **Java 17 or later**. This is specified in the Maven configuration.
+**A:** Naftiko requires **Java 21 or later**. This is specified in the Maven configuration.
 
 ---
 
@@ -635,7 +636,7 @@ consumes:
 This way, Capability B can combine Capability A with other APIs.
 
 ### Q: How do I handle errors or retries?
-**A:** Naftiko currently doesn't have built-in retry logic in v0.5. Options:
+**A:** Naftiko currently doesn't have built-in retry logic in v1.0.0-alpha1. Options:
 
 1. **At the HTTP client level** - use an API gateway with retry policies
 2. **In future versions** - this is on the roadmap
@@ -692,7 +693,7 @@ For production workloads:
        spec:
          containers:
          - name: naftiko
-           image: ghcr.io/naftiko/framework:v0.5
+           image: ghcr.io/naftiko/framework:v1.0.0-alpha1
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -732,10 +733,10 @@ server {
 - **AI-driven discovery** - beyond what all three cover natively
 - **Namespace-based routing** - unique to Naftiko's runtime approach
 
-See the [Specification](https://github.com/naftiko/framework/wiki/Specification#13-related-specifications) for a detailed comparison.
+See the [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration) overview and the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema) for the formal model.
 
 ### Q: Is the Naftiko Specification stable?
-**A:** Yes, v0.5 is stable as of March 2026. The specification follows semantic versioning:
+**A:** The current public version is **1.0.0-alpha1**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
 - **Major versions** (1.x.x) - breaking changes
 - **Minor versions** (x.1.0) - new features, backward-compatible
 - **Patch versions** (x.x.1) - bug fixes
@@ -755,10 +756,11 @@ Check the naftiko field in your YAML to specify the version.
 ### Q: Are there examples I can reference?
 **A:** Yes! Several resources:
 
-- **[Tutorial](https://github.com/naftiko/framework/wiki/Tutorial-MCP)** - Step-by-step guides
+- **[Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)** - MCP foundations and step-by-step guide
+- **[Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)** - Agent Skills, REST, and fleet manifest
 - **[Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)** - Real-world examples
-- **Repository examples** - In `src/main/resources/specs/` and test resources
-- **Specification examples** - In the [Specification](https://github.com/naftiko/framework/wiki/Specification#4-complete-examples) (Section 4)
+- **Repository examples** - In `src/main/resources/schemas/examples/`, `src/main/resources/tutorial/`, and test resources
+- **Specification examples** - In the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema#4-complete-examples) (Section 4)
 
 ### Q: How often is Naftiko updated?
 **A:** Check the [Releases](https://github.com/naftiko/framework/wiki/Releases) page for version history. The project follows a regular release cadence with security updates prioritized.
@@ -770,7 +772,7 @@ Check the naftiko field in your YAML to specify the version.
 ### Q: I want to create a unified REST API that combines Notion + GitHub. How do I start?
 **A:** 
 
-1. **Read the Tutorial** - particularly steps 2-5 on forwarding and orchestration
+1. **Read the Tutorial** - particularly steps 1-6 for foundations and steps 7-10 for advanced needs
 2. **Define consumed sources** - GitHub and Notion APIs with auth
 3. **Design exposed resources** - endpoints that combine their data
 4. **Use multi-step orchestration** - call both APIs and map results
@@ -785,7 +787,7 @@ Check the naftiko field in your YAML to specify the version.
 4. **Test with Claude** - configure Claude Desktop with your MCP server
 5. **Publish** - share your capability spec with the community
 
-See the [Tutorial](https://github.com/naftiko/framework/wiki/Tutorial-MCP) Section 6 (MCP) for a full example.
+See [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1) for a full MCP example, then continue with [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2) for Skill and REST exposure.
 
 ### Q: I want to standardize data from multiple SaaS tools. How do I use Naftiko?
 **A:**
@@ -801,12 +803,17 @@ This is Naftiko's core strength for managing API sprawl.
 
 ## 🏝️ Additional Resources
 
--  **[Specification](https://github.com/naftiko/framework/wiki/Specification)** - Complete technical reference
--  **[Tutorial](https://github.com/naftiko/framework/wiki/Tutorial-MCP)** - Step-by-step learning guide
 -  **[Installation](https://github.com/naftiko/framework/wiki/Installation)** - Setup instructions
--  **[Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)** - Real-world examples
+-  **[Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration)** - Methodology overview
+-  **[Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)** - MCP foundations
+-  **[Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)** - Skills, REST, and fleet manifest
+-  **[Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)** - Real-world examples
+-  **[Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-Linting)** - Validation workflow and CLI usage
+-  **[Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema)** - Complete technical reference
+-  **[Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules)** - Validation and linting rules
+-  **[Releases](https://github.com/naftiko/framework/wiki/Releases)** - Version history
 -  **[Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)** - Future plans
--  **[Contribute](https://github.com/naftiko/framework/wiki/Contribute)** - How to contribute
+-  **[Contribute](https://github.com/naftiko/framework/wiki/Contribute)** - Become a contributor
 -  **[Discussions](https://github.com/orgs/naftiko/discussions)** - Community Q&A
 
 ---

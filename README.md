@@ -13,7 +13,7 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 
 | Feature | Description |
 |---|---|
-| Spec-Driven | Declare capabilities entirely in **YAML** — no Java required |
+| Spec-Driven Integration | Declare capabilities entirely in **YAML** — no Java required |
 | Multi-Protocol Servers | Expose capabilities via **MCP**, **SKILL**, or **REST** servers out of the box |
 | Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, and **Avro** payloads into JSON |
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
@@ -24,14 +24,17 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 
 Here are additional documents to learn more:
 
+- :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration)
 - :rowboat: [Installation](https://github.com/naftiko/framework/wiki/Installation)
-- :sailboat: [Tutorial](https://github.com/naftiko/framework/wiki/Tutorial)
-- :ship: [Use cases](https://github.com/naftiko/framework/wiki/Use-Cases)
-- :anchor: [Specification](https://github.com/naftiko/framework/wiki/Specification)
+- :sailboat: [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)
+- :speedboat: [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)
+- :ship: [Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)
+- :mag: [Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-Linting)
+- :anchor: [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema)
+- :triangular_ruler: [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules)
 - :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
 - :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/wiki/Contribute)
-- :mag: [Linting](https://github.com/naftiko/framework/wiki/Linting)
 - :ocean: [FAQ](https://github.com/naftiko/framework/wiki/FAQ)
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).

@@ -1,8 +1,8 @@
-# The Shipyard — Advanced Track
+# The Shipyard - Tutorial - Part 2
 
-This track picks up where the [main tutorial](Tutorial-MCP.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
+This track picks up where the [Tutorial - Part 1](Tutorial-MCP-Part-1.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
-Three topics are covered: grouping tools into **agent skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-step orchestration.
+Three topics are covered: exposing tools into **Agent Skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-steps orchestration.
 
 ---
 
@@ -11,6 +11,8 @@ Three topics are covered: grouping tools into **agent skills**, exposing the sam
 **`step-8-shipyard-skill-groups.yml`**
 
 > 📥 [step-8-shipyard-skill-groups.yml](../tutorial/step-8-shipyard-skill-groups.yml)
+
+MCP already gives an AI agent direct access to tools, inputs, and outputs. That is enough to execute operations, but not always enough to help the agent understand how a growing toolset is organized. **Agent Skills** add a business-facing layer on top of MCP: they group related tools, reduce discovery noise, and give the agent clearer context for planning the next action. For the broader model and specification, see the [Agent Skills website](https://agentskills.io/).
 
 Four tools and growing. A flat list works for now, but a real shipyard would have dozens. **Skills** group tools by business domain — so the agent discovers *capabilities*, not individual operations.
 
@@ -46,7 +48,27 @@ Four tools and growing. A flat list works for now, but a real shipyard would hav
 
 Skills don't redefine logic — they reference existing MCP tools via `from`. When the agent asks *"what can I do with voyages?"*, the skill layer answers instantly. Think of it as a table of contents for your toolbox.
 
-**What you learned:** `type: skill`, `skills`, `from` referencing, business-level discovery.
+### Discovering and installing skills remotely
+
+Once the engine is running, the SKILL adapter auto-exposes a read-only HTTP API that any remote agent can use to browse, inspect, and download skills — no manual file sharing required.
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /skills` | Catalog — count and summary of every skill with its tool names |
+| `GET /skills/{name}` | Full metadata, tool catalog, and `invocationRef` for each tool |
+| `GET /skills/{name}/download` | ZIP archive of the skill's `location` directory |
+| `GET /skills/{name}/contents` | File listing of the skill's `location` directory |
+| `GET /skills/{name}/contents/{file}` | Individual file from the skill's `location` directory |
+
+A typical agent workflow looks like this:
+
+1. **Discover** — call `GET http://localhost:3002/skills` to list available skills.
+2. **Inspect** — call `GET /skills/fleet-ops` to see what tools the skill offers and how to invoke them (the `invocationRef` tells the agent which sibling MCP or REST namespace to call).
+3. **Install** — call `GET /skills/fleet-ops/download` to pull a ZIP of the skill's instruction files. The agent extracts them locally and is ready to use the skill.
+
+Because the API is plain HTTP/JSON, it works for any client — another Naftiko capability, a custom orchestrator, or an AI agent that speaks HTTP.
+
+**What you learned:** `type: skill`, `skills`, `from` referencing, business-level discovery, skill API endpoints.
 
 ---
 
@@ -95,13 +117,13 @@ Same `call` + `with`, same consumes wiring — different protocol. The REST adap
 
 ---
 
-## Step 3 — The Fleet Manifest
+## Step 3 — Multi-step orchestration
 
 **`step-10-shipyard-fleet-manifest.yml`** — Consumes: `shared/step10-registry-consumes.yml`, `shared/legacy-consumes.yaml`
 
 > 📥 [step-10-shipyard-fleet-manifest.yml](../tutorial/step-10-shipyard-fleet-manifest.yml)
 
-The voyage is planned (main tutorial Step 6). The crew is confirmed (main tutorial Step 7). Now the operations team needs one document that has everything: ship details, crew names, cargo inventory — all resolved from raw IDs, all assembled server-side. The **Fleet Manifest**.
+The voyage is planned (tutorial Part 1, Step 6). The crew is confirmed (tutorial Part 1, Step 7). Now the operations team needs one document that has everything: ship details, crew names, cargo inventory — all resolved from raw IDs, all assembled capabilty-side. The **Fleet Manifest**.
 
 `get-voyage-manifest` is the capstone: **7 steps** — 4 API calls and 3 lookups:
 
@@ -170,8 +192,8 @@ One tool call. One complete manifest:
 }
 ```
 
-This step also adds `info` metadata (label, description, tags, dates) — because a production capability deserves a proper identity. And it updates the skill and REST layers one last time: `get-voyage-manifest` joins `voyage-ops`, and a new `GET /voyages/{voyageId}/manifest` endpoint appears.
+This step also adds `info` metadata (label, description, tags, dates) — because a production capability deserves a proper identity. And it updates the SKILL and REST layers one last time: `get-voyage-manifest` joins `voyage-ops`, and a new `GET /voyages/{voyageId}/manifest` endpoint appears.
 
-Everything from the main tutorial, plus skills and REST, converges here. Contract-first → wire → auth → shape → multi-source → write → lookup → skills → REST → **full orchestration.** That's the Shipyard.
+Everything from the main tutorial, plus SKILL and REST, converges here. Contract-first → wire → auth → shape → multi-source → write → lookup → skills → REST → **full orchestration.** That's the Shipyard.
 
 **What you learned:** Multi-lookup chaining, `info` metadata, consumes-level `outputParameters`, and that a complete maritime agent fits in a single YAML file.

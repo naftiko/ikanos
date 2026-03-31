@@ -6,7 +6,7 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 - [x] Declarative applied capability exposing Agent Skills
 - [x] Declarative MCP exposing Resources and Prompts (Tools only so far)
 
-### Enable API reuse
+### Enable API reusability
 - [x] Support for lookups as part of API call steps
 - [x] Authenticate API and MCP Server consumers and manage permissions
 - [x] Reusable source HTTP adapter declaration across capabilities
@@ -20,25 +20,24 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 - [ ] Publish Maven Artifacts to [Maven Central](https://central.sonatype.com/)
 - [ ] Publish Javadocs to [Javadoc.io](https://javadoc.io)
 - [ ] Publish Docker Image to [Docker Hub](https://hub.docker.com/)
-- [ ] Provide GitHub Action template based on [Super Linter](https://github.com/super-linter/super-linter)
+- [x] Provide GitHub Action template based on Mega Linter
 
 ## Version 1.0 - Second Alpha - May 11th :deciduous_tree:
 
 The goal of this version is to deliver a MVP to enable common AI integration use cases and grow our community.
 
 ### Rightsize AI context
-  - [ ] Add support for authentication in the MCP server adapter
   - [ ] Add mocking feature to MCP server adapter similar to REST server adapter
+  - [ ] Add tool annotations (readOnly, destructive, idempotent, openWorld)
+  - [ ] Add support for authentication in the MCP server adapter
   - [ ] Facilitate integration with MCP and AI gateways
   - [ ] Facilitate skills publication in skills marketplaces
 
-### Enable API reuse
+### Enable API reusability
   - [ ] Add HTML and Markdown data format support for HTTP consumption
   - [ ] Support Webhook server adapter for workflow automation
-  - [ ] Factorize capability core with "aggregates" of functions initially, entities and events later
-  - [ ] Add conditional steps, for-each steps, parallel-join
-  - [ ] Allow reuse of "binds" blocks across capabilities
   - [ ] Enable API token refresh flows
+  - [ ] Support HTTP cache control directives
   - [ ] Facilitate integration with API gateways
 
 ### Enable agent orchestration use case
@@ -46,11 +45,16 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 
 ### Core developer experience
 
+- [ ] Factorize capability core with functions initially, entities and events later
+- [ ] Allow reuse of "binds" blocks across capabilities
+- [ ] Add conditional steps, for-each steps, parallel-join
+- [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
 - [ ] OpenAPI-to-Naftiko import tooling — generate a starter capability YAML from an existing OpenAPI file
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
 - [ ] Provide Control port
   - [ ] Usable via REST API, usable via Naftiko CLI, packaged as capability
   - [ ] Usable via webapp as Docker Desktop Extension
+- [ ] Enhance support for tags and labels across capabilities
 
 ## Version 1.0 - First Beta - June :blossom:
 
@@ -79,10 +83,13 @@ The goal of this version is to release our first version ready for production.
 
 The goal of this version is to broaden the platform surface area based on production learnings.
 
-### Extend protocol support
+### Enhance API reusability
 - [ ] Add support for gRPC and tRPC as server adapters
-- [ ] Add support for SQL as client adapter
 - [ ] Add full resiliency patterns (rate limiter, time limiter, bulkhead, cache)
+
+### Enable SQL Data Access
+- [ ] Add support for SQL as client adapter
+- [ ] Support templatized SQL request with proper security
 
 ### Enterprise security
 - [ ] Facilitate integration with Keycloak, OpenFGA

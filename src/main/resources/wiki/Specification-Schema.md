@@ -1,4 +1,4 @@
-# Naftiko Specification
+# Naftiko Specification - Schema
 
 **Version:** 1.0.0-alpha1
 

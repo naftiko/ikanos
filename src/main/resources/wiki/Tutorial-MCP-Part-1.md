@@ -1,8 +1,8 @@
-# The Shipyard
+# The Shipyard - Tutorial - Part 1
 
-You run a maritime shipping company. You have ships, crews, voyages, cargo — and a handful of REST APIs that hold all that data. What you don't have is an AI agent that can actually *use* them.
+You run a maritime shipping company. You have ships, crews, voyages, cargo — and a handful of REST APIs that hold all that data. What you don't have is an AI agent that can actually *uses* them.
 
-That's what we're going to build. In 10 steps, you'll go from zero to a fully operational agent capability: listing ships, planning voyages, resolving crew by name, and assembling a complete fleet manifest — all described in a single YAML file that Naftiko turns into live MCP tools, REST endpoints, and agent skills.
+That's what we're going to build. Step-by-step, you'll go from zero to an operational agent capability: listing ships, planning voyages, resolving crew by name, and assembling a complete fleet manifest — all described in a single YAML file that Naftiko turns into live MCP tools, REST endpoints, and agent skills.
 
 No code. Just a spec. Let's go.
 
@@ -51,7 +51,7 @@ capability:
                 type: object
 ```
 
-Run the engine, connect an MCP client to `localhost:3001`, call `list-ships`. You get:
+Run the engine and connect an MCP client to `localhost:3001`. You can use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to browse tools and call them interactively — it's the fastest way to test during development. Call `list-ships`. You get:
 
 ```json
 [
@@ -404,4 +404,4 @@ All from one spec. No code. Welcome to Spec-Driven Integration.
 
 Ready to expose your tools as **agent skills**, add a **REST front door**, and assemble a full **Fleet Manifest** with multi-step orchestration?
 
-Continue with the [Advanced Track](Tutorial-MCP-Advanced.md).
+Continue with the [Tutorial - Part 2](Tutorial-MCP-Part-2.md).

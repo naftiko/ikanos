@@ -1,4 +1,4 @@
-# Naftiko Ruleset Reference
+# Naftiko Specification - Rules
 
 Version: 1.0.0-alpha1  
 Category: Tooling  
@@ -23,7 +23,7 @@ Last updated: March 2026
 
 ## Overview
 
-The Naftiko ruleset (`naftiko-rules.yml`) is a Spectral ruleset used to lint Naftiko YAML documents.
+The Naftiko rules (`naftiko-rules.yml`) is a Spectral ruleset used to lint Naftiko YAML documents.
 
 It is intentionally **complementary** to the JSON Schema, not a duplicate of it:
 
