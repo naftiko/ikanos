@@ -1,239 +1,180 @@
-name: Tutorial Examples Test
+name: Validate Shipyard tutorial examples
 
 on:
   push:
-    paths:
-      - 'src/main/**'
-      - 'pom.xml'
-  workflow_dispatch:
-
-env:
-  SLEEP_WAIT: 10
+    branches:
+      - 'feat/reworking-tuto'
 
 jobs:
-  test-tutorial:
+  run-tests:
     runs-on: ubuntu-latest
-    env:
-      NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Install jq & yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: 21
 
-      - name: Build framework
+      - name: Build project
         run: mvn package -DskipTests -q
 
-      - name: Run Naftiko with My First Capability
+
+
+      - name: Run tests
         run: |
-          java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-1-my-first-capability.yml \
-            > /tmp/step1.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
+          set -e
 
-      - name: Consume /hello endpoint - My First Capability
-        run: |
-          RESPONSE=$(curl -s -f http://localhost:8081/hello)
-          CURL_EXIT=$?
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT) - timeout or network error"
-            exit 1
-          fi
-          if [[ -z "$RESPONSE" ]]; then
-            echo "My First Capability endpoint returned an empty response"
-            exit 1
-          fi
-          echo "Response: $RESPONSE"
+          PID=""
 
-      - name: Show logs - My First Capability
-        if: always()
-        run: cat /tmp/step1.log
+          cleanup() {
+            if [ ! -z "$PID" ]; then
+              kill $PID 2>/dev/null || true
+              wait $PID 2>/dev/null || true
+              PID=""
+            fi
+          }
 
-      - name: Stop My First Capability
-        if: always()
-        run: fuser -k 8081/tcp || true
+          # Cleanup on any exit (crash, signal, success)
+          trap cleanup EXIT
 
-      - name: Run Naftiko with Forwarding API Resource
-        run: |
-          java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-2-forwarding-api-resource.yml \
-            > /tmp/step2.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
+          TEST_FILE=".github/tests/tests.yml"
+          TEST_COUNT=$(yq '.tests | length' $TEST_FILE)
 
-      - name: Consume /notion/users/me endpoint - Forwarding API Resource
-        run: |
-          HTTP_STATUS=$(curl -s -o /tmp/step2_response.json -w "%{http_code}" \
-            -H "Authorization: Bearer $NOTION_API_KEY" \
-            -H "Notion-Version: 2025-09-03" \
-            http://localhost:8081/notion/users/me)
-          CURL_EXIT=$?
-          echo "HTTP status: $HTTP_STATUS"
-          echo "Response body:"
-          cat /tmp/step2_response.json
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT)"
-            exit 1
-          fi
-          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
-            echo "Unexpected HTTP status: $HTTP_STATUS"
-            exit 1
-          fi
-      - name: Show logs - Forwarding API Resource
-        if: always()
-        run: cat /tmp/step2.log
+          echo "Running $TEST_COUNT tests..."
 
-      - name: Stop Forwarding API Resource
-        if: always()
-        run: fuser -k 8081/tcp || true
+          for i in $(seq 0 $(($TEST_COUNT - 1))); do
+            NAME=$(yq -r ".tests[$i].name" $TEST_FILE)
+            FILE=$(yq -r ".tests[$i].file" $TEST_FILE)
+            PORT=$(yq -r ".tests[$i].port" $TEST_FILE)
+            TOOL=$(yq -r ".tests[$i].tool // \"\"" $TEST_FILE)
+            SKIP=$(yq -r ".tests[$i].skip // false" $TEST_FILE)
 
-      - name: Run Naftiko with Encapsulating Headers
-        run: |
-          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-3-encapsulating-headers.yml \
-            > /tmp/step3.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
+            if [ "$SKIP" = "true" ]; then
+              echo "Skipping test: $NAME"
+              continue
+            fi
 
-      - name: Consume /notion/users/me endpoint - Encapsulating Headers
-        run: |
-          RESPONSE=$(curl -s -f http://localhost:8081/notion/users/me)
-          CURL_EXIT=$?
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT) - timeout or network error"
-            exit 1
-          fi
-          if [[ -z "$RESPONSE" ]]; then
-            echo "Encapsulating Headers endpoint returned an empty response"
-            exit 1
-          fi
-          echo "Response: $RESPONSE"
+            echo "-----------------------------------"
+            echo "Running test: $NAME"
+            echo "File: $FILE | Port: $PORT | Tool: $TOOL"
+            echo "-----------------------------------"
 
-      - name: Show logs - Encapsulating Headers
-        if: always()
-        run: cat /tmp/step3.log
+            ARGS=$(yq -o=json ".tests[$i].args // {}" $TEST_FILE)
 
-      - name: Stop Encapsulating Headers
-        if: always()
-        run: fuser -k 8081/tcp || true
+            # Start server with a timeout guard
+            timeout 120 java -jar target/capability.jar src/main/resources/schemas/tutorial/$FILE &
+            PID=$!
 
-      - name: Run Naftiko with Filter Response
-        run: |
-          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-4-filter-reponse.yml \
-            > /tmp/step4.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
+            echo "Waiting for MCP server on port $PORT..."
 
-      - name: Consume /notion/users/me endpoint - Filter Response
-        run: |
-          RESPONSE=$(curl -s -f http://localhost:8081/notion/users/me)
-          CURL_EXIT=$?
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT) - timeout or network error"
-            exit 1
-          fi
-          if [[ -z "$RESPONSE" ]]; then
-            echo "Filter Response endpoint returned an empty response"
-            exit 1
-          fi
-          echo "Response: $RESPONSE"
+            RESPONSE=""
+            for j in {1..30}; do
+              RESPONSE=$(curl -s http://localhost:$PORT \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "jsonrpc":"2.0",
+                  "id":1,
+                  "method":"tools/list",
+                  "params":{}
+                }' || true)
 
-      - name: Show logs - Filter Response
-        if: always()
-        run: cat /tmp/step4.log
+              if echo "$RESPONSE" | jq -e '.result.tools' > /dev/null 2>&1; then
+                echo "Server is ready"
+                break
+              fi
 
-      - name: Stop Filter Response
-        if: always()
-        run: fuser -k 8081/tcp || true
+              sleep 1
+            done
 
-      - name: Run Naftiko with Multi Steps
-        run: |
-          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-5-multi-steps.yml \
-            > /tmp/step5.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
-
-      - name: Consume /notion/my-full-user endpoint - Multi Steps
-        run: |
-          RESPONSE=$(curl -s -f http://localhost:8081/notion/my-full-user)
-          CURL_EXIT=$?
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT) - timeout or network error"
-            exit 1
-          fi
-          if [[ -z "$RESPONSE" ]]; then
-            echo "Multi Steps endpoint returned an empty response"
-            exit 1
-          fi
-          echo "Response: $RESPONSE"
-
-      - name: Show logs - Multi Steps
-        if: always()
-        run: cat /tmp/step5.log
-
-      - name: Stop Multi Steps
-        if: always()
-        run: fuser -k 8081/tcp || true
-
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Run Naftiko with MCP Server
-        run: |
-          notion_api_key=$NOTION_API_KEY java -jar target/capability.jar \
-            src/main/resources/schemas/tutorial/step-6-mcp.yml \
-            > /tmp/step6.log 2>&1 &
-          sleep ${{ env.SLEEP_WAIT }}
-
-      - name: Calling MCP server
-        run: |
-          if ! nc -z localhost 9091; then
-            echo "MCP server did not start in time"
-            exit 1
-          fi
-          echo "MCP server ready"
-
-      - name: Test MCP tools/list
-        run: |
-          RESPONSE=$(curl -s -f -X POST http://localhost:9091 \
-            -H "Content-Type: application/json" \
-            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
-          CURL_EXIT=$?
-          if [[ $CURL_EXIT -ne 0 ]]; then
-            echo "curl failed (exit code $CURL_EXIT) - timeout or network error"
-            exit 1
-          fi
-          if [[ -z "$RESPONSE" ]]; then
-            echo "MCP tools/list returned an empty response"
-            exit 1
-          fi
-          echo "Response: $RESPONSE"
-          CAPABILITY_FILE="${{ github.workspace }}/src/main/resources/schemas/tutorial/step-6-mcp.yml"
-          EXPECTED_COUNT=$(yq '.capability.exposes[0].tools | length' "$CAPABILITY_FILE")
-          EXPECTED_NAMES=$(yq '.capability.exposes[0].tools[].name' "$CAPABILITY_FILE")
-          ACTUAL_COUNT=$(echo "$RESPONSE" | jq '.result.tools | length')
-          if [[ "$ACTUAL_COUNT" != "$EXPECTED_COUNT" ]]; then
-            echo "Expected $EXPECTED_COUNT tool(s), got $ACTUAL_COUNT"
-            exit 1
-          fi
-          while IFS= read -r EXPECTED_NAME; do
-            FOUND=$(echo "$RESPONSE" | jq -r --arg name "$EXPECTED_NAME" '.result.tools[] | select(.name == $name) | .name')
-            if [[ -z "$FOUND" ]]; then
-              echo "Expected tool '$EXPECTED_NAME' not found in response"
+            # Fail if server never started
+            if ! echo "$RESPONSE" | jq -e '.result.tools' > /dev/null 2>&1; then
+              echo "Server failed to start on port $PORT"
+              cleanup
               exit 1
             fi
-          done <<< "$EXPECTED_NAMES"
-          echo "tools/list validation passed: $ACTUAL_COUNT tool(s) matched"
 
-      - name: Show logs - MCP Server
-        if: always()
-        run: cat /tmp/step6.log
+            # Determine test type
+            TYPE=$(yq -r ".tests[$i].type // \"mcp\"" $TEST_FILE)
 
-      - name: Stop MCP Server
-        if: always()
-        run: fuser -k 9091/tcp || true
+            if [ "$TYPE" = "rest" ]; then
+              METHOD=$(yq -r ".tests[$i].method" $TEST_FILE)
+              ENDPOINT_PATH=$(yq -r ".tests[$i].path" $TEST_FILE)   # ← fix: was PATH (reserved)
+              BODY=$(yq -o=json ".tests[$i].body // {}" $TEST_FILE)
+
+              echo "Calling REST endpoint: $METHOD $ENDPOINT_PATH"
+
+              if [ "$METHOD" = "GET" ]; then
+                RESPONSE=$(curl -s http://localhost:$PORT$ENDPOINT_PATH)
+              else
+                RESPONSE=$(curl -s -X $METHOD http://localhost:$PORT$ENDPOINT_PATH \
+                  -H "Content-Type: application/json" \
+                  -d "$BODY")
+              fi
+
+              DATA="$RESPONSE"
+
+            else
+              RESPONSE=$(curl -s http://localhost:$PORT \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"jsonrpc\": \"2.0\",
+                  \"id\": 1,
+                  \"method\": \"tools/call\",
+                  \"params\": {
+                    \"name\": \"$TOOL\",
+                    \"arguments\": $ARGS
+                  }
+                }")
+
+              DATA=$(echo "$RESPONSE" | jq -r '.result.content[0].text')
+            fi
+
+            echo "Parsed data:"
+            if ! echo "$DATA" | jq . ; then
+              echo "Invalid JSON returned"
+              echo "Raw response was: $RESPONSE"
+              cleanup
+              exit 1
+            fi
+
+            VALIDATION_COUNT=$(yq ".tests[$i].validations | length" $TEST_FILE)
+
+            for k in $(seq 0 $(($VALIDATION_COUNT - 1))); do
+              RULE=$(yq -r ".tests[$i].validations[$k].jq" $TEST_FILE)
+
+              echo "Running validation: $RULE"
+
+              if ! echo "$DATA" | jq -e "$RULE" > /dev/null; then
+                echo "Validation failed: $RULE"
+                echo "Data was: $DATA"
+                cleanup
+                exit 1
+              fi
+            done
+
+            echo "Test $NAME passed :)"
+
+            cleanup
+
+            # Wait for port to be released before next test
+            for j in {1..10}; do
+              if ! curl -s http://localhost:$PORT > /dev/null 2>&1; then
+                break
+              fi
+              sleep 1
+            done
+
+          done
+
+          echo "All tests passed !"

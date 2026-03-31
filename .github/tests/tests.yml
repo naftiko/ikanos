@@ -1,0 +1,236 @@
+tests:
+- name: step1-list-ships
+  file: step-1-shipyard-first-capability.yml
+  port: 3001
+  tool: list-ships
+  args: {}
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+  - jq: '.[0] | has("imo")'
+  - jq: '.[0] | has("name")'
+  - jq: '.[0] | has("type")'
+  - jq: '.[0] | has("flag")'
+  - jq: '.[0] | has("status")'
+
+- name: step2-list-ships-filter
+  file: step-2-shipyard-input-parameters.yml
+  port: 3001
+  tool: list-ships
+  args:
+    status: active
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+  - jq: '.[0] | has("imo")'
+
+- name: step2-get-ship
+  file: step-2-shipyard-input-parameters.yml
+  port: 3001
+  tool: get-ship
+  args:
+    imo_number: "IMO-9321483\""
+  validations:
+  - jq: 'has("imo")'
+  - jq: 'has("name")'
+  - jq: 'has("type")'
+  - jq: 'has("flag")'
+  - jq: 'has("status")'
+
+- name: step3-auth-list-ships
+  file: step-3-shipyard-auth-and-binds.yml
+  port: 3001
+  tool: list-ships
+  args: {}
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+
+- name: step3-auth-get-ship
+  file: step-3-shipyard-auth-and-binds.yml
+  port: 3001
+  tool: get-ship
+  args:
+    imo: "IMO-9321483"
+  validations:
+  - jq: 'type == "object"'
+  - jq: 'has("imo")'
+  - jq: 'has("specs")'
+  - jq: '.specs | has("yearBuilt")'
+  - jq: '.specs | has("tonnage")'
+
+- name: step4-get-ship-shaped
+  file: step-4-shipyard-output-shaping.yml
+  port: 3001
+  tool: get-ship
+  args:
+    imo: "IMO-9321483"
+  validations:
+  - jq: 'has("imo")'
+  - jq: 'has("name")'
+  - jq: 'has("type")'
+  - jq: 'has("flag")'
+  - jq: 'has("status")'
+  - jq: 'has("specs")'
+  - jq: '.specs | has("yearBuilt")'
+  - jq: '.specs | has("tonnage")'
+  - jq: '.specs | has("length")'
+
+- name: step5-list-ships
+  file: step-5-shipyard-multi-source.yml
+  port: 3001
+  tool: list-ships
+  args: {}
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+  - jq: '.[0] | has("imo")'
+
+- name: step5-list-legacy-vessels
+  file: step-5-shipyard-multi-source.yml
+  port: 3001
+  tool: list-legacy-vessels
+  args: {}
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+  - jq: '.[0] | has("vesselCode")'
+  - jq: '.[0] | has("name")'
+  - jq: '.[0] | has("type")'
+  - jq: '.[0] | has("flag")'
+  - jq: '.[0] | has("status")'
+
+- name: step6-create-voyage
+  file: step-6-shipyard-write-operations.yml
+  port: 3001
+  tool: create-voyage
+  args:
+    shipImo: "IMO-9321483"
+    departurePort: "Oslo"
+    arrivalPort: "Singapore"
+    departureDate: "2026-04-10"
+    arrivalDate: "2026-05-02"
+    crewIds: [ "CREW-001", "CREW-003" ]
+    cargoIds: [ "CARGO-2024-0451" ]
+  validations:
+  - jq: 'has("voyageId")'
+  - jq: 'has("shipImo")'
+  - jq: 'has("route")'
+  - jq: '.route | has("from")'
+  - jq: '.route | has("to")'
+  - jq: 'has("dates")'
+  - jq: '.dates | has("departure")'
+  - jq: '.dates | has("arrival")'
+  - jq: 'has("status")'
+  - jq: 'has("crewIds")'
+  - jq: '.crewIds | length > 0'
+
+- name: step7-skill-list-ships
+  file: step-7-shipyard-skill-groups.yml
+  port: 3001
+  tool: list-ships
+  args: {}
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+
+- name: step7-skill-create-voyage
+  file: step-7-shipyard-skill-groups.yml
+  port: 3007
+  tool: create-voyage
+  args:
+    shipImo: "IMO-9321483"
+    departurePort: "Oslo"
+    arrivalPort: "Singapore"
+    departureDate: "2026-04-10"
+    arrivalDate: "2026-05-02"
+    crewIds: [ "CREW-001", "CREW-003" ]
+    cargoIds: [ "CARGO-2024-0451" ]
+  validations:
+  - jq: 'has("voyageId")'
+  - jq: 'has("route")'
+  - jq: 'has("status")'
+
+- name: step8-rest-list-ships
+  type: rest
+  file: step-8-shipyard-rest-adapter.yml
+  port: 3001
+  method: GET
+  path: /ships
+  validations:
+  - jq: 'type == "array"'
+  - jq: 'length > 0'
+  - jq: '.[0] | has("imoNumber")'
+
+- name: step8-rest-get-ship
+  type: rest
+  file: step-8-shipyard-rest-adapter.yml
+  port: 3002
+  method: GET
+  path: /ships/IMO-9321483
+  validations:
+  - jq: 'has("imo")'
+  - jq: 'has("name")'
+  - jq: 'has("type")'
+
+- name: step8-rest-create-voyage
+  type: rest
+  file: step-8-shipyard-rest-adapter.yml
+  port: 3002
+  method: POST
+  path: /voyages
+  body:
+    shipImo: "IMO-9321483"
+    departurePort: "Oslo"
+    arrivalPort: "Singapore"
+    departureDate: "2026-04-10"
+    arrivalDate: "2026-05-02"
+    crewIds: [ "CREW-001", "CREW-003" ]
+    cargoIds: [ "CARGO-2024-0451" ]
+  validations:
+  - jq: 'has("voyageId")'
+  - jq: 'has("route")'
+  - jq: 'has("status")'
+
+- name: step9-get-ship-with-crew
+  file: step-9-shipyard-orchestrated-lookup.yml
+  port: 3001
+  tool: get-ship-with-crew
+  args:
+    imo: "IMO-9321483"
+  validations:
+  - jq: 'has("imo")'
+  - jq: 'has("name")'
+  - jq: 'has("crew")'
+  - jq: '.crew | type == "array"'
+  - jq: '.crew | length > 0'
+  - jq: '.crew[0] | has("fullName")'
+  - jq: '.crew[0] | has("role")'
+
+- name: step10-voyage-manifest
+  file: step-10-shipyard-fleet-manifest.yml
+  port: 3001
+  tool: get-voyage-manifest
+  args:
+    voyageId: "VOY-2026-042"
+  validations:
+  - jq: 'has("voyageId")'
+  - jq: 'has("status")'
+  - jq: 'has("route")'
+  - jq: '.route | has("from")'
+  - jq: '.route | has("to")'
+  - jq: 'has("ship")'
+  - jq: '.ship | has("name")'
+  - jq: '.ship | has("type")'
+  - jq: '.ship | has("flag")'
+  - jq: 'has("crew")'
+  - jq: '.crew | type == "array"'
+  - jq: '.crew | length > 0'
+  - jq: '.crew[0] | has("fullName")'
+  - jq: '.crew[0] | has("role")'
+  - jq: 'has("cargo")'
+  - jq: '.cargo | type == "array"'
+  - jq: '.cargo | length > 0'
+  - jq: '.cargo[0] | has("description")'
+  - jq: '.cargo[0] | has("weight")'
+  - jq: '.cargo[0] | has("hazardous")'
