@@ -85,7 +85,7 @@ tools:
         description: "IMO number of the ship"
     call: registry.get-ship
     with:
-      imo_number: shipyard-tools.imo
+      imo_number: "{{imo}}"
 ```
 
 The `with` keyword is the bridge: the agent says `imo`, the consumed API expects `imo_number` — `with` maps one to the other. On the consumes side, `status` becomes a query parameter (`GET /ships?status=active`) and `imo_number` fills a path template (`GET /ships/IMO-9321483`).
@@ -111,7 +111,7 @@ So far, we've been hitting the registry's **public endpoints** — they return 5
 ```yaml
 binds:
   - namespace: registry-env
-    location: "file:///./secrets.yaml"
+    location: "file:///./shared/secrets.yaml"
     keys:
       REGISTRY_TOKEN: "registry-bearer-token"
       REGISTRY_VERSION: "registry-api-version"
@@ -293,14 +293,6 @@ Until now, every tool was read-only. List, get, inspect. But Captain Erik Lindst
       required: false
       description: "List of cargo item IDs"
   call: registry.create-voyage
-  with:
-    shipImo: shipyard-tools.shipImo
-    departurePort: shipyard-tools.departurePort
-    arrivalPort: shipyard-tools.arrivalPort
-    departureDate: shipyard-tools.departureDate
-    arrivalDate: shipyard-tools.arrivalDate
-    crewIds: shipyard-tools.crewIds
-    cargoIds: shipyard-tools.cargoIds
 ```
 
 The response gets shaped too — flat fields like `departurePort`/`arrivalPort` become a clean `route` object:
@@ -316,6 +308,8 @@ The response gets shaped too — flat fields like `departurePort`/`arrivalPort` 
   "status": "planned"
 }
 ```
+
+> **Note:** All scalar fields in the response (`voyageId`, `shipImo`, `route`, `dates`, `status`) are dynamically echoed from your request by the mock server. Array fields (`crewIds`, `cargoIds`) are an exception — mock servers don't support dynamic array templating, so they return fixed example values instead.
 
 The agent went from observer to operator.
 

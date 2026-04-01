@@ -14,13 +14,13 @@ info:
 binds:
   - namespace: "registry-env"
     description: "Maritime Registry API credentials and config."
-    location: "file:///./secrets.yaml"
+    location: "file:///./shared/secrets.yaml"
     keys:
       REGISTRY_TOKEN: "registry-bearer-token"
       REGISTRY_VERSION: "registry-api-version"
   - namespace: "dockyard-env"
     description: "Legacy Dockyard API credentials."
-    location: "file:///./secrets.yaml"
+    location: "file:///./shared/secrets.yaml"
     keys:
       DOCKYARD_API_KEY: "dockyard-api-key"
 
@@ -78,7 +78,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: shipyard-tools.imo
+            imo_number: "{{imo}}"
           outputParameters:
             - type: object
               properties:
@@ -234,7 +234,7 @@ capability:
               type: call
               call: registry.get-ship
               with:
-                imo_number: shipyard-tools.imo
+                imo_number: "{{imo}}"
             - name: list-crew
               type: call
               call: registry.list-crew
@@ -485,7 +485,7 @@ capability:
                   description: "IMO number of the ship"
               call: registry.get-ship
               with:
-                imo_number: shipyard-api.imo
+                imo_number: "{{imo}}"
               outputParameters:
                 - type: object
                   properties:
@@ -531,7 +531,7 @@ capability:
                   type: call
                   call: registry.get-ship
                   with:
-                    imo_number: shipyard-api.imo
+                    imo_number: "{{imo}}"
                 - name: list-crew
                   type: call
                   call: registry.list-crew
@@ -809,3 +809,4 @@ capability:
                       type: number
                     - name: hazardous
                       type: boolean
+

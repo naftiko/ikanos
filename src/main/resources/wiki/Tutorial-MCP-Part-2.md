@@ -1,5 +1,7 @@
 # The Shipyard - Tutorial - Part 2
 
+> **Heads up — work in progress.** This part of the tutorial is published as a teaser. The capability files and concepts described here are not yet fully supported by the engine. They will become functional in an upcoming release.
+
 This track picks up where the [Tutorial - Part 1](Tutorial-MCP-Part-1.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
 Three topics are covered: exposing tools into **Agent Skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-steps orchestration.
