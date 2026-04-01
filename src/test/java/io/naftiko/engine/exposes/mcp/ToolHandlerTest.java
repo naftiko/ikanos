@@ -14,9 +14,16 @@
 package io.naftiko.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.naftiko.Capability;
+import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 
 public class ToolHandlerTest {
@@ -58,5 +65,37 @@ public class ToolHandlerTest {
         // Execution will fail beyond argument merging, but the tool is properly set up
         assertThrows(Exception.class, () -> handler.handleToolCall("test-tool",
                 Map.of("fromArgs", "fromArgsValue")));
+    }
+
+    /**
+     * Regression test for #204.
+     *
+     * Before the fix, 'with' values containing Mustache templates (e.g. {@code "{{imo}}"}) were
+     * inserted raw into the parameters map without resolution. This caused the HTTP URI
+     * {@code /ships/{{imo_number}}} to remain unresolved as {@code /ships/{{imo}}}, triggering
+     * an {@link IllegalArgumentException} about unresolved template parameters.
+     *
+     * After the fix, 'with' values are resolved as Mustache templates against the tool call
+     * arguments before merging, so {@code "{{imo}}"} becomes {@code "IMO-9321483"} and the URI
+     * resolves cleanly. The call may still fail at the HTTP level (no server), but must not
+     * throw an IllegalArgumentException about unresolved templates.
+     */
+    @Test
+    public void handleToolCallShouldResolveMustacheTemplatesInWithValues() throws Exception {
+        String resourcePath = "src/test/resources/tool-handler-with-mustache-capability.yaml";
+        File file = new File(resourcePath);
+        assertTrue(file.exists(), "Test capability file should exist at " + resourcePath);
+
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
+        Capability capability = new Capability(spec);
+
+        McpServerSpec mcpSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        ToolHandler handler = new ToolHandler(capability, mcpSpec.getTools());
+
+        // Must NOT throw IllegalArgumentException("Unresolved template parameters in URI: ...")
+        // (connection failure at HTTP level is acceptable — the template must be resolved first)
+        assertDoesNotThrow(() -> handler.handleToolCall("get-ship", Map.of("imo", "IMO-9321483")));
     }
 }
