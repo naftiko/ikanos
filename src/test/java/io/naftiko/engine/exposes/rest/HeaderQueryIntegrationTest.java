@@ -106,6 +106,8 @@ public class HeaderQueryIntegrationTest {
         String ref = clientRequest.getResourceRef().toString();
         assertTrue(ref.contains("q=999"),
                 "Query param q should be present with value 999; got: " + ref);
+        // Guard against JSONPath returning JsonNode.toString() instead of textValue(),
+        // which would produce q=%22999%22 (URL-encoded double quotes around the value).
         assertFalse(ref.contains("q=%22"),
                 "Query param value should not be double-quoted (JSONPath must return textValue, not toString); got: " + ref);
     }
