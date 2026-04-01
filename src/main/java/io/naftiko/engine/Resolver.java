@@ -56,8 +56,29 @@ public class Resolver {
             return template;
         }
 
-        return Mustache.compiler().defaultValue("").compile(template)
-            .execute(new HashMap<>(parameters));
+        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
+        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
+        Map<String, Object> serialized = new HashMap<>();
+        ObjectMapper jsonMapper = new ObjectMapper();
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            Object val = entry.getValue();
+            if (val instanceof java.util.Collection || val instanceof Object[]) {
+                try {
+                    serialized.put(entry.getKey(), jsonMapper.writeValueAsString(val));
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                    serialized.put(entry.getKey(), val);
+                }
+            } else {
+                serialized.put(entry.getKey(), val);
+            }
+        }
+
+        // escapeHTML(false): JMustache escapes HTML entities by default (e.g. " → &quot;).
+        // This is desirable for HTML output, but templates here produce JSON bodies or URI strings —
+        // never HTML. Without this, serialized array values like ["CREW-001"] would be rendered
+        // as [&quot;CREW-001&quot;], producing invalid JSON.
+        return Mustache.compiler().escapeHTML(false).defaultValue("").compile(template)
+            .execute(serialized);
     }
 
     /**

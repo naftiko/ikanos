@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -90,5 +91,45 @@ public class ResolverTest {
         assertEquals(2015, specs.path("yearBuilt").asInt());
         assertEquals(42000, specs.path("tonnage").asInt());
         assertEquals(229, specs.path("length").asInt());
+    }
+
+    /**
+     * Regression test for #213: array parameters in Mustache body templates must be
+     * JSON-serialized, not converted via toString().
+     *
+     * <p>Before the fix, passing a List as a parameter value produced [CREW-001, CREW-003]
+     * (no quotes), resulting in invalid JSON when substituted into a body template.</p>
+     */
+    @Test
+    public void resolveMustacheTemplateShouldJsonSerializeArrayParameters() {
+        String template = "{\"shipImo\": \"{{shipImo}}\", \"crewIds\": {{crewIds}}}";
+        Map<String, Object> params = Map.of(
+            "shipImo", "IMO-9321483",
+            "crewIds", List.of("CREW-001", "CREW-003")
+        );
+
+        String result = Resolver.resolveMustacheTemplate(template, params);
+
+        assertEquals("{\"shipImo\": \"IMO-9321483\", \"crewIds\": [\"CREW-001\",\"CREW-003\"]}", result);
+    }
+
+    /**
+     * Regression test for #213 (escapeHTML): Mustache HTML-escaping is disabled, so non-ASCII
+     * characters must pass through unchanged.
+     *
+     * <p>Before the fix, escapeHTML was enabled by default, which would have corrupted characters
+     * like ø (U+00F8) into their HTML entity equivalents.</p>
+     */
+    @Test
+    public void resolveMustacheTemplateShouldPreserveNonAsciiCharacters() {
+        String template = "{\"name\": \"{{name}}\", \"port\": \"{{port}}\"}";
+        Map<String, Object> params = Map.of(
+            "name", "Erik Lindstrøm",
+            "port", "Göteborg"
+        );
+
+        String result = Resolver.resolveMustacheTemplate(template, params);
+
+        assertEquals("{\"name\": \"Erik Lindstrøm\", \"port\": \"Göteborg\"}", result);
     }
 }
