@@ -104,7 +104,9 @@ public class HeaderQueryIntegrationTest {
 
         // Query param from operation-level inputParameters (q=999)
         String ref = clientRequest.getResourceRef().toString();
-        assertTrue(ref.contains("q=999") || ref.contains("q=%22?") == false,
+        assertTrue(ref.contains("q=999"),
                 "Query param q should be present with value 999; got: " + ref);
+        assertFalse(ref.contains("q=%22"),
+                "Query param value should not be double-quoted (JSONPath must return textValue, not toString); got: " + ref);
     }
 }

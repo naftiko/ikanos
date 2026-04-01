@@ -365,15 +365,17 @@ public class OperationStepExecutor {
                         ctx.clientOperation = clientOp;
                         ctx.clientResponse = new Response(ctx.clientRequest);
 
+                        ctx.clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
+                        ctx.clientRequest.setResourceRef(new Reference(
+                                Resolver.resolveMustacheTemplate(clientResUri, parameters)));
+
                         // Apply client-level and operation-level input parameters
+                        // NOTE: setResourceRef must be called first so that query params
+                        // (in: query) are appended to the correct base URI, not to null.
                         Resolver.resolveInputParametersToRequest(ctx.clientRequest,
                                 clientAdapter.getHttpClientSpec().getInputParameters(), parameters);
                         Resolver.resolveInputParametersToRequest(ctx.clientRequest,
                                 clientOp.getInputParameters(), parameters);
-
-                        ctx.clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
-                        ctx.clientRequest.setResourceRef(new Reference(
-                                Resolver.resolveMustacheTemplate(clientResUri, parameters)));
 
                         if (clientOp.getBody() != null) {
                             String resolvedBody;
