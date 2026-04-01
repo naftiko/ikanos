@@ -141,7 +141,7 @@ public class McpIntegrationTest {
         HttpClientAdapter httpClient = (HttpClientAdapter) clientAdapter;
         assertEquals("mock-api", httpClient.getHttpClientSpec().getNamespace(),
                 "Client namespace should be 'mock-api'");
-        assertEquals("http://localhost:8080/v1/",
+        assertEquals("http://localhost:8080/v1",
                 httpClient.getHttpClientSpec().getBaseUri(),
                 "Client baseUri should match spec");
     }

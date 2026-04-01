@@ -40,7 +40,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "mock-api"
-      baseUri: "http://localhost:8080/v1/"
+      baseUri: "http://localhost:8080/v1"
       inputParameters:
         - name: "Content-Type"
           in: "header"

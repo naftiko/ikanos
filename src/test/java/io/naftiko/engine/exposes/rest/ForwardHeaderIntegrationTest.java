@@ -83,7 +83,7 @@ public class ForwardHeaderIntegrationTest {
                       consumes:
                         - type: \"http\"
                           namespace: \"notion\"
-                          baseUri: \"http://localhost:%d/v1/\"
+                          baseUri: \"http://localhost:%d/v1\"
                           inputParameters:
                             - name: \"Notion-Version\"
                               in: \"header\"

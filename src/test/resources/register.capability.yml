@@ -21,7 +21,7 @@ capability:
   - type: "http"
     namespace: "notion"
     description: "Notion base API"
-    baseUri: "http://host.docker.internal:8080/rest/Notion+API/1.0.0/"
+    baseUri: "http://host.docker.internal:8080/rest/Notion+API/1.0.0"
     authentication:
         type: "basic"
         username: "scott"

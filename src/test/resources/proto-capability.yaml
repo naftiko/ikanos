@@ -44,7 +44,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "mock-proto"
-      baseUri: "http://localhost:8080/"
+      baseUri: "http://localhost:8080"
       inputParameters:
         - name: "Accept"
           in: "header"

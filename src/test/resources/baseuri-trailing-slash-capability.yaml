@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "BaseUri Trailing Slash Regression Test"
+  description: "Capability intentionally using a trailing-slash baseUri to test strict validation"
+  created: "2026-01-01"
+  modified: "2026-01-01"
+
+capability:
+  exposes:
+    - type: rest
+      address: localhost
+      port: 8080
+      namespace: test
+      resources:
+        - path: "/items/{path}"
+          description: "Forward requests to backend"
+          forward:
+            targetNamespace: backend
+
+  consumes:
+    - type: http
+      description: "Backend API with invalid trailing slash"
+      namespace: backend
+      baseUri: "https://api.example.com/v1/"
