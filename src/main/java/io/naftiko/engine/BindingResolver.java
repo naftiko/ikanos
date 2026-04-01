@@ -151,8 +151,14 @@ public class BindingResolver {
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseFileContent(String uriString) throws IOException {
         try {
-            URI uri = URI.create(uriString);
-            Path filePath = Paths.get(uri.getPath());
+            Path filePath;
+            if (uriString.startsWith("file:///./") || uriString.startsWith("file://./")) {
+                // Relative path: resolve against current working directory
+                String relative = uriString.replaceFirst("file:///\\./|file://\\./", "");
+                filePath = Path.of(System.getProperty("user.dir")).resolve(relative);
+            } else {
+                filePath = Path.of(URI.create(uriString));
+            }
 
             if (!Files.exists(filePath)) {
                 throw new IOException("File not found: " + filePath);
