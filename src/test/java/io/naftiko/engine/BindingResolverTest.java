@@ -96,6 +96,30 @@ public class BindingResolverTest {
                 error.getMessage());
     }
 
+    @Test
+    public void resolveFileBindingShouldSupportRelativePathWithDotSlash() throws Exception {
+        // Simulate file:///./subdir/secrets.yaml resolved against user.dir (cwd)
+        Path cwd = Path.of(System.getProperty("user.dir"));
+        Path subDir = cwd.resolve("test-binds-tmp");
+        Files.createDirectories(subDir);
+        Path secretsFile = subDir.resolve("secrets.yaml");
+        Files.writeString(secretsFile, "my-token: relative-value\n");
+
+        try {
+            BindingSpec bind = new BindingSpec();
+            bind.setLocation("file:///./test-binds-tmp/secrets.yaml");
+            bind.setKeys(keysSpec(Map.of("TOKEN", "my-token")));
+
+            BindingResolver resolver = new BindingResolver();
+            Map<String, String> resolved = resolver.resolveFileBinding(bind);
+
+            assertEquals("relative-value", resolved.get("TOKEN"));
+        } finally {
+            Files.deleteIfExists(secretsFile);
+            Files.deleteIfExists(subDir);
+        }
+    }
+
     private static BindingSpec fileBind(Path path, Map<String, String> keys) {
         BindingSpec bind = new BindingSpec();
         bind.setLocation(toResolverFriendlyFileUri(path));
@@ -116,10 +140,6 @@ public class BindingResolverTest {
     }
 
     private static String toResolverFriendlyFileUri(Path path) {
-        String normalized = path.toAbsolutePath().toString().replace('\\', '/');
-        if (normalized.length() > 2 && normalized.charAt(1) == ':') {
-            normalized = normalized.substring(2);
-        }
-        return "file://" + normalized;
+        return path.toAbsolutePath().toUri().toString();
     }
 }
