@@ -1,6 +1,6 @@
 # The Shipyard - Tutorial - Part 2
 
-> **Heads up — work in progress.** This part of the tutorial is published as a teaser. The capability files and concepts described here are not yet fully supported by the engine. They will become functional in an upcoming release.
+> **Heads up — Work in Progress.** This part of the tutorial is published as a teaser. The capability files and concepts described here are consistent with the Naftiko Specification but not yet fully supported by the engine. This will become functional in the next alpha release.
 
 This track picks up where the [Tutorial - Part 1](Tutorial-MCP-Part-1.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
