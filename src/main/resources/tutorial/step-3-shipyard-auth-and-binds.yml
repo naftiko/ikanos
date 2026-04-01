@@ -13,7 +13,7 @@ capability:
   consumes:
     - namespace: registry
       type: http
-      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
+      baseUri: "http://localhost:8080/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
       authentication:
         type: bearer
         token: "{{REGISTRY_TOKEN}}"
