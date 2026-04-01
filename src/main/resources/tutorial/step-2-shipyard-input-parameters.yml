@@ -39,7 +39,7 @@ capability:
               description: "Filter by operational status"
           call: registry.list-ships
           with:
-            status: shipyard-tools.status
+            status: "{{status}}"
           outputParameters:
             - type: array
               mapping: "$."
@@ -70,7 +70,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: shipyard-tools.imo
+            imo_number: "{{imo}}"
           outputParameters:
             - type: object
               properties:
