@@ -39,6 +39,11 @@ public class HttpClientSpec extends ClientSpec {
 
     public HttpClientSpec(String namespace, String baseUri, AuthenticationSpec authentication) {
         super("http", namespace);
+        // Validate: baseUri must not have a trailing slash per Naftiko specification
+        if (baseUri != null && baseUri.endsWith("/")) {
+            throw new IllegalArgumentException(
+                    "baseUri must not end with a trailing slash. Provided: '" + baseUri + "'");
+        }
         this.baseUri = baseUri;
         this.inputParameters = new CopyOnWriteArrayList<>();
         this.authentication = authentication;
@@ -58,6 +63,11 @@ public class HttpClientSpec extends ClientSpec {
     }
 
     public void setBaseUri(String baseUri) {
+        // Validate: baseUri must not have a trailing slash per Naftiko specification
+        if (baseUri != null && baseUri.endsWith("/")) {
+            throw new IllegalArgumentException(
+                    "baseUri must not end with a trailing slash. Provided: '" + baseUri + "'");
+        }
         this.baseUri = baseUri;
     }
 

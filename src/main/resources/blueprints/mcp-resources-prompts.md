@@ -963,7 +963,7 @@ capability:
     - type: "http"
       namespace: "weather-api"
       description: "OpenWeather API"
-      baseUri: "https://api.openweathermap.org/data/2.5/"
+      baseUri: "https://api.openweathermap.org/data/2.5"
       resources:
         - name: "weather"
           path: "weather"
@@ -1131,7 +1131,7 @@ capability:
     - type: "http"
       namespace: "notion"
       description: "Notion API v1"
-      baseUri: "https://api.notion.com/v1/"
+      baseUri: "https://api.notion.com/v1"
       authentication:
         type: "bearer"
         token: "{{notion_api_key}}"

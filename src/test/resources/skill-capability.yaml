@@ -53,7 +53,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "mock-orders"
-      baseUri: "http://localhost:9099/v1/"
+      baseUri: "http://localhost:9099/v1"
       resources:
         - name: "orders"
           path: "orders"

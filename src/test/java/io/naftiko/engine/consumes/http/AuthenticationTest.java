@@ -27,7 +27,7 @@ public class AuthenticationTest {
 
     @Test
     public void bearerAuthenticationShouldSetAuthorizationHeader() {
-        HttpClientSpec spec = new HttpClientSpec("notion", "https://api.notion.com/v1/", null);
+        HttpClientSpec spec = new HttpClientSpec("notion", "https://api.notion.com/v1", null);
 
         BearerAuthenticationSpec authentication = new BearerAuthenticationSpec();
         authentication.setType("bearer");

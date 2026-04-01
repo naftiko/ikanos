@@ -23,7 +23,7 @@ capability:
     - type: http
       description: "External API endpoint"
       namespace: external
-      baseUri: "https://api.example.com/v1/"
+      baseUri: "https://api.example.com/v1"
       inputParameters:
         - name: "X-API-Version"
           in: "header"

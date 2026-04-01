@@ -44,7 +44,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "mock-csv"
-      baseUri: "http://localhost:8080/"
+      baseUri: "http://localhost:8080"
       inputParameters:
         - name: "User-Agent"
           in: "header"

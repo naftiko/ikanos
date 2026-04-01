@@ -112,7 +112,7 @@ capability:
     # Consumed HTTP APIs (backing operations)
     - type: "http"
       namespace: "weather-api"
-      baseUri: "https://api.weather.com/v1/"
+      baseUri: "https://api.weather.com/v1"
       resources:
         - name: "forecast"
           path: "forecast/{{location}}"
@@ -129,7 +129,7 @@ capability:
 
     - type: "http"
       namespace: "geocoding-api"
-      baseUri: "https://geocode.example.com/"
+      baseUri: "https://geocode.example.com"
       resources:
         - name: "resolve"
           path: "resolve/{{query}}"
@@ -977,7 +977,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "weather-api"
-      baseUri: "https://api.weather.com/v1/"
+      baseUri: "https://api.weather.com/v1"
       authentication:
         type: "apikey"
         key: "X-API-Key"
@@ -999,7 +999,7 @@ capability:
 
     - type: "http"
       namespace: "geocoding-api"
-      baseUri: "https://geocode.example.com/"
+      baseUri: "https://geocode.example.com"
       resources:
         - path: "search/{{query}}"
           name: "search"
@@ -1227,7 +1227,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "orders-backend"
-      baseUri: "https://api.company.com/v2/"
+      baseUri: "https://api.company.com/v2"
       resources:
         - path: "orders"
           name: "orders"
@@ -1378,7 +1378,7 @@ capability:
   consumes:
     - type: "http"
       namespace: "analytics-api"
-      baseUri: "https://analytics.example.com/"
+      baseUri: "https://analytics.example.com"
       resources:
         - path: "analyze"
           name: "analyze"
