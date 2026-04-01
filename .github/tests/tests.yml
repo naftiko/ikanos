@@ -29,7 +29,7 @@ tests:
   port: 3001
   tool: get-ship
   args:
-    imo_number: "IMO-9321483\""
+    imo: "IMO-9321483"
   validations:
   - jq: 'has("imo")'
   - jq: 'has("name")'
@@ -55,9 +55,10 @@ tests:
   validations:
   - jq: 'type == "object"'
   - jq: 'has("imo")'
-  - jq: 'has("specs")'
-  - jq: '.specs | has("yearBuilt")'
-  - jq: '.specs | has("tonnage")'
+  - jq: 'has("name")'
+  - jq: 'has("type")'
+  - jq: 'has("flag")'
+  - jq: 'has("status")'
 
 - name: step4-get-ship-shaped
   file: step-4-shipyard-output-shaping.yml
