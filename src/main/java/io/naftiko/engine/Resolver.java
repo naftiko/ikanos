@@ -295,9 +295,15 @@ public class Resolver {
             for (OutputParameterSpec prop : spec.getProperties()) {
                 String propName = prop.getName();
                 String propMapping = prop.getMapping();
-                JsonNode val = Converter.jsonPathExtract(clientRoot, propMapping);
-                val = Converter.applyMaxLengthIfNeeded(prop, val);
-                if (val == null) {
+                JsonNode val;
+                if (propMapping == null && "object".equalsIgnoreCase(prop.getType())
+                        && prop.getProperties() != null && !prop.getProperties().isEmpty()) {
+                    val = resolveOutputMappings(prop, clientRoot, mapper);
+                } else {
+                    val = Converter.jsonPathExtract(clientRoot, propMapping);
+                    val = Converter.applyMaxLengthIfNeeded(prop, val);
+                }
+                if (val == null || val instanceof NullNode) {
                     outObj.putNull(propName);
                 } else {
                     outObj.set(propName, val);
