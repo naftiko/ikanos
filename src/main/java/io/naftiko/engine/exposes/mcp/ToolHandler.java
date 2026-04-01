@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
+import io.naftiko.engine.Resolver;
 import io.naftiko.engine.exposes.OperationStepExecutor;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 
@@ -63,13 +64,21 @@ public class ToolHandler {
             throw new IllegalArgumentException("Unknown tool: " + toolName);
         }
 
-        // Merge arguments with tool-level 'with' parameters
+        // Merge arguments with tool-level 'with' parameters.
+        // 'with' values are Mustache templates resolved against the tool arguments,
+        // allowing parameter renaming (e.g. imo → imo_number).
+        // Arguments take precedence for keys not present in 'with'.
         Map<String, Object> parameters = new HashMap<>();
         if (arguments != null) {
             parameters.putAll(arguments);
         }
         if (toolSpec.getWith() != null) {
-            parameters.putAll(toolSpec.getWith());
+            for (Map.Entry<String, Object> entry : toolSpec.getWith().entrySet()) {
+                Object resolved = entry.getValue() instanceof String
+                        ? Resolver.resolveMustacheTemplate((String) entry.getValue(), arguments)
+                        : entry.getValue();
+                parameters.put(entry.getKey(), resolved);
+            }
         }
 
         OperationStepExecutor.HandlingContext found;
