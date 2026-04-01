@@ -10,6 +10,12 @@ Closes #<!-- issue number -->
 
 ---
 
+## Tests
+
+<!-- Describe tests added or modified. If none, explain why. -->
+
+---
+
 ## Checklist
 
 - [ ] CI is green (build, tests, schema validation, security scans)
@@ -22,4 +28,13 @@ Closes #<!-- issue number -->
 ## Agent Context (optional)
 
 <!-- If this PR was created or assisted by an AI agent, provide metadata below (YAML) -->
-<!-- Example fields: agent_name, tool, run_id, confidence, source_event -->
+
+```yaml
+# agent_name:
+# llm:
+# tool:
+# confidence:          # low | medium | high
+# source_event:
+# discovery_method:    # runtime_observation | code_review | test_failure | user_report
+# review_focus:        # e.g. ClassName.java:line-range
+```

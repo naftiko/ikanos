@@ -86,3 +86,54 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - One logical change per PR — keep it atomic
 - CI must be green (build, tests, schema validation, Trivy, Gitleaks)
 - Do **not** use `git push --force` — use `--force-with-lease`
+
+## Bug Workflow (mandatory)
+
+When you identify a bug — whether discovered during development, debugging, or user-reported — follow these steps **in order** before writing any fix:
+
+### 1. Open an Issue
+
+Create a GitHub issue using the **Bug Report** template (`.github/ISSUE_TEMPLATE/bug_report.yml`).
+Fill in all required fields: component, description (actual vs expected), steps to reproduce, root cause if known, proposed fix.
+If the PR was created or assisted by an AI agent, fill in the **Agent Context** block.
+
+If you cannot create the issue directly (e.g. no `gh` CLI available, no API token), provide the user with all the elements needed to create it manually: suggested title, label, filled-in template body ready to paste. Do not proceed to step 2 until the user confirms the issue number.
+
+### 2. Create a dedicated branch from up-to-date `main`
+
+If there is any work in progress on the current branch (modified files, untracked files), save it first so nothing is lost and the user can return to it after the fix:
+
+```bash
+git stash push -m "wip: <description>" -- <only the relevant files>
+# or, if everything on the branch belongs to the in-progress work:
+git stash push -m "wip: <description>"
+```
+
+Note the stash ref or branch name so you can restore it later with `git stash pop` or `git checkout <branch>`.
+
+Then create the fix branch from up-to-date `main`:
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b fix/<short-description>
+```
+
+Never start a fix branch from a feature branch or a stale local `main`.
+When the fix is merged, remind the user to switch back to their original branch and restore the stash if needed.
+
+### 3. Write non-regression tests before committing the fix
+
+For every bug fix, two tests are required:
+
+**Unit test** — targets the smallest unit of code that contains the bug (method or class level). Place it in the test class corresponding to the fixed class (e.g. `ConverterTest`, `ResolverTest`). If the class has no test file yet, create one. If a test already covers the scenario but is wrong, fix the test first and explain why in a comment.
+
+**Integration test** — validates the fix end-to-end, typically loading a YAML capability fixture and exercising the full chain (deserialization → engine → output). Place the fixture in `src/test/resources/` and the test class in the package closest to the integration point (e.g. `io.naftiko.engine.exposes.mcp`).
+
+Run the full test suite before committing:
+
+```bash
+mvn test
+```
+
+All existing tests must stay green. If a pre-existing test fails, investigate before touching it.
