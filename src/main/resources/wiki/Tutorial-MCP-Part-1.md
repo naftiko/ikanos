@@ -228,6 +228,7 @@ capability:
 
   exposes:
     - type: mcp
+      address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
       port: 3001
       namespace: shipyard-tools
       tools:
