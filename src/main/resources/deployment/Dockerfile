@@ -4,9 +4,9 @@ FROM maven:3.9.12-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-
 # Build the jar
 RUN mvn clean package -DskipTests
+LABEL org.opencontainers.image.title="naftiko-cli"
 
 # Stage 2: Create the runtime image
 FROM eclipse-temurin:21-jre-alpine
