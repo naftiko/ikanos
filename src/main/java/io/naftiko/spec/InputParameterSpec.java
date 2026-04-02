@@ -28,6 +28,13 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String template;
 
     /**
+     * Whether this parameter is required. Defaults to {@code true} so that parameters without
+     * an explicit {@code required} field are treated as mandatory, preserving backward
+     * compatibility.
+     */
+    private volatile boolean required = true;
+
+    /**
      * Value of the parameter. Supports Mustache template syntax ({{paramName}}) for dynamic
      * resolution from the execution context. Provides an alternative to 'const' that allows
      * parameter variable substitution. Takes precedence over 'const'.
@@ -68,6 +75,14 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setTemplate(String template) {
         this.template = template;
+    }
+
+    public boolean isRequired() {
+        return required;
+    }
+
+    public void setRequired(boolean required) {
+        this.required = required;
     }
 
     public String getValue() {

@@ -202,6 +202,11 @@ public class Resolver {
 
                 if (val == null) {
                     continue;
+                } else if (val instanceof String && ((String) val).contains("{{")) {
+                    // Value still contains unresolved Mustache placeholders — the parameter
+                    // was not actually provided by the caller. Omit it from the request so
+                    // that optional parameters are not sent with their raw template text.
+                    continue;
                 } else if (parameters != null) {
                     parameters.put(spec.getName(), val);
                 }

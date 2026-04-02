@@ -116,10 +116,13 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
             }
         }
 
-        // Handle "required" array
+        // Handle "required": may be a boolean (per-parameter flag) or an array (JSON Schema
+        // object listing which child properties are required).
         if (node.has("required")) {
             JsonNode requiredNode = node.get("required");
-            if (requiredNode.isArray()) {
+            if (requiredNode.isBoolean()) {
+                spec.setRequired(requiredNode.asBoolean());
+            } else if (requiredNode.isArray()) {
                 requiredNode.forEach(item -> spec.getRequired().add(item.asText()));
             }
         }

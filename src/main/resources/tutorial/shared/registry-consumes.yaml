@@ -42,8 +42,3 @@ consumes:
                 "crewIds": {{crewIds}},
                 "cargoIds": {{cargoIds}}
               }
-      - name: crew
-        path: "/crew"
-        operations:
-          - name: list-crew
-            method: GET
