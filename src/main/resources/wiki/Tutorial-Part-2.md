@@ -1,6 +1,6 @@
 # The Shipyard - Tutorial - Part 2
 
-This track picks up where the [Tutorial - Part 1](Tutorial-MCP-Part-1.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
+This track picks up where the [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
 Three topics are covered: exposing tools into **Agent Skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-steps orchestration.
 

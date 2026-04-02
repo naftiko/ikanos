@@ -399,4 +399,4 @@ All from one spec. No code. Welcome to Spec-Driven Integration.
 
 Ready to expose your tools as **agent skills**, add a **REST front door**, and assemble a full **Fleet Manifest** with multi-step orchestration?
 
-Continue with the [Tutorial - Part 2](Tutorial-MCP-Part-2.md).
+Continue with the [Tutorial - Part 2](Tutorial-MCP-Part-2).

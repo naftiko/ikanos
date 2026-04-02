@@ -17,14 +17,14 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 
 Here are additional documents to learn more:
 
-- :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration)
+- :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration)
 - :rowboat: [Installation](https://github.com/naftiko/framework/wiki/Installation)
-- :sailboat: [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)
-- :speedboat: [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)
-- :ship: [Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)
-- :mag: [Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-Linting)
-- :anchor: [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema)
-- :triangular_ruler: [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules)
+- :sailboat: [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1)
+- :speedboat: [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2)
+- :ship: [Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-%E2%80%90-Use-Cases)
+- :mag: [Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-%E2%80%90-Linting)
+- :anchor: [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema)
+- :triangular_ruler: [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules)
 - :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
 - :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/wiki/Contribute)
