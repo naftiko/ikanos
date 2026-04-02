@@ -248,7 +248,7 @@ capability:
 
     - type: rest
       address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
-      port: 3002
+      port: 3003
       namespace: shipyard-api
       resources:
         - name: ships

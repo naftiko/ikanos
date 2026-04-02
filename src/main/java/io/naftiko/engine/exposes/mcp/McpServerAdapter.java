@@ -136,8 +136,9 @@ public class McpServerAdapter extends ServerAdapter {
                         "Adding parameter to schema: " + param.getName());
                 schemaProperties.put(param.getName(), property);
 
-                // By default, all parameters are required unless explicitly marked otherwise
-                required.add(param.getName());
+                if (param.isRequired()) {
+                    required.add(param.getName());
+                }
             }
         }
 

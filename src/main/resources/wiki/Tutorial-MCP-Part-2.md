@@ -1,7 +1,5 @@
 # The Shipyard - Tutorial - Part 2
 
-> **Heads up — Work in Progress.** This part of the tutorial is published as a teaser. The capability files and concepts described here are consistent with the Naftiko Specification but not yet fully supported by the engine. This will become functional in the next alpha release.
-
 This track picks up where the [Tutorial - Part 1](Tutorial-MCP-Part-1.md) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
 Three topics are covered: exposing tools into **Agent Skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-steps orchestration.
@@ -84,7 +82,7 @@ Not every consumer is an AI agent. Partner systems, dashboards, and mobile apps 
 
 ```yaml
 - type: rest
-  port: 3002
+  port: 3003
   namespace: shipyard-api
   resources:
     - name: ships
