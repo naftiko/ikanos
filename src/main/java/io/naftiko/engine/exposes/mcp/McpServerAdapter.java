@@ -72,7 +72,8 @@ public class McpServerAdapter extends ServerAdapter {
         }
 
         // Create the tool handler (transport-agnostic)
-        this.toolHandler = new ToolHandler(capability, serverSpec.getTools());
+        this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
+                serverSpec.getNamespace());
 
         // Create the resource handler (transport-agnostic)
         this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources());
