@@ -7,7 +7,7 @@ consumes:
       type: apikey
       key: X-Dock-Key
       placement: header
-      value: "DOCKYARD_API_KEY"
+      value: "{{DOCKYARD_API_KEY}}"
     resources:
       - name: vessels
         path: "/vessels"
