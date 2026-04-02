@@ -38,11 +38,18 @@ public class ToolHandler {
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
     private final OperationStepExecutor stepExecutor;
+    private final String exposeNamespace;
 
     public ToolHandler(Capability capability, List<McpServerToolSpec> tools) {
+        this(capability, tools, null);
+    }
+
+    public ToolHandler(Capability capability, List<McpServerToolSpec> tools,
+            String exposeNamespace) {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
         this.stepExecutor = new OperationStepExecutor(capability);
+        this.exposeNamespace = exposeNamespace;
 
         for (McpServerToolSpec tool : tools) {
             toolSpecs.put(tool.getName(), tool);
@@ -74,10 +81,16 @@ public class ToolHandler {
         }
         if (toolSpec.getWith() != null) {
             for (Map.Entry<String, Object> entry : toolSpec.getWith().entrySet()) {
-                Object resolved = entry.getValue() instanceof String
-                        ? Resolver.resolveMustacheTemplate((String) entry.getValue(), arguments)
-                        : entry.getValue();
-                parameters.put(entry.getKey(), resolved);
+                Object rawValue = entry.getValue();
+                if (rawValue instanceof String) {
+                    String strValue = (String) rawValue;
+                    Object resolved = resolveWithValue(strValue, arguments);
+                    if (resolved != null) {
+                        parameters.put(entry.getKey(), resolved);
+                    }
+                } else {
+                    parameters.put(entry.getKey(), rawValue);
+                }
             }
         }
 
@@ -144,6 +157,25 @@ public class ToolHandler {
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(responseText != null ? responseText : "")),
                 isError, null, null);
+    }
+
+    /**
+     * Resolve a {@code with} value. Handles two syntaxes:
+     * <ul>
+     *   <li>Namespace-qualified reference ({@code namespace.paramName}) per §3.15.1 —
+     *       resolved by looking up {@code paramName} in the caller's arguments.</li>
+     *   <li>Mustache template ({@code {{paramName}}}) — resolved via JMustache.</li>
+     * </ul>
+     *
+     * @return the resolved value, or {@code null} if the reference is a namespace-qualified
+     *         reference whose target parameter was not provided by the caller
+     */
+    private Object resolveWithValue(String value, Map<String, Object> arguments) {
+        if (exposeNamespace != null && value.startsWith(exposeNamespace + ".")) {
+            String paramName = value.substring(exposeNamespace.length() + 1);
+            return arguments != null ? arguments.get(paramName) : null;
+        }
+        return Resolver.resolveMustacheTemplate(value, arguments);
     }
 
     public Capability getCapability() {
