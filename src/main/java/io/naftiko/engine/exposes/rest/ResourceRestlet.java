@@ -24,6 +24,7 @@ import io.naftiko.engine.Converter;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.http.HttpClientAdapter;
+import io.naftiko.engine.exposes.MockResponseBuilder;
 import io.naftiko.engine.exposes.OperationStepExecutor;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.RestServerForwardSpec;
@@ -195,57 +196,7 @@ public class ResourceRestlet extends Restlet {
      * Returns true if the operation has at least one outputParameter with a const value.
      */
     boolean canBuildMockResponse(RestServerOperationSpec serverOp) {
-        if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
-            return false;
-        }
-
-        // Check if at least one output parameter has a const value
-        for (OutputParameterSpec param : serverOp.getOutputParameters()) {
-            if (param.getConstant() != null) {
-                return true;
-            }
-            // Check nested properties for const values
-            if (param.getProperties() != null && !param.getProperties().isEmpty()) {
-                for (OutputParameterSpec prop : param.getProperties()) {
-                    if (hasConstValue(prop)) {
-                        return true;
-                    }
-                }
-            }
-            // Check items for const values
-            if (param.getItems() != null && hasConstValue(param.getItems())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Recursively check if a parameter or its nested structure has any const values.
-     */
-    private boolean hasConstValue(OutputParameterSpec param) {
-        if (param == null) {
-            return false;
-        }
-
-        if (param.getConstant() != null) {
-            return true;
-        }
-
-        if (param.getProperties() != null) {
-            for (OutputParameterSpec prop : param.getProperties()) {
-                if (hasConstValue(prop)) {
-                    return true;
-                }
-            }
-        }
-
-        if (param.getItems() != null) {
-            return hasConstValue(param.getItems());
-        }
-
-        return false;
+        return MockResponseBuilder.canBuildMockResponse(serverOp.getOutputParameters());
     }
 
     /**
@@ -255,8 +206,7 @@ public class ResourceRestlet extends Restlet {
         try {
             ObjectMapper mapper = new ObjectMapper();
 
-            // Build a JSON response using const values from outputParameters
-            JsonNode mockRoot = buildMockData(serverOp, mapper);
+            JsonNode mockRoot = MockResponseBuilder.buildMockData(serverOp.getOutputParameters(), mapper);
 
             if (mockRoot != null) {
                 response.setStatus(Status.SUCCESS_OK);
@@ -274,80 +224,6 @@ public class ResourceRestlet extends Restlet {
         }
 
         response.commit();
-    }
-
-    /**
-     * Build a JSON object with mock data from outputParameters const values.
-     */
-    private JsonNode buildMockData(RestServerOperationSpec serverOp, ObjectMapper mapper) {
-        if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
-            return null;
-        }
-
-        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
-
-        for (OutputParameterSpec param : serverOp.getOutputParameters()) {
-            JsonNode paramValue = buildParameterValue(param, mapper);
-            if (paramValue != null && !(paramValue instanceof NullNode)) {
-                // Use the parameter name if available, otherwise use "value"
-                String fieldName = param.getName() != null ? param.getName() : "value";
-                result.set(fieldName, paramValue);
-            }
-        }
-
-        return result.size() > 0 ? result : null;
-    }
-
-    /**
-     * Build a JSON node for a single parameter, using const values or structures.
-     */
-    JsonNode buildParameterValue(OutputParameterSpec param, ObjectMapper mapper) {
-        if (param == null) {
-            return NullNode.instance;
-        }
-
-        // Handle const values directly
-        if (param.getConstant() != null) {
-            return mapper.getNodeFactory().textNode(param.getConstant());
-        }
-
-        String type = param.getType();
-
-        // Handle array types
-        if ("array".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ArrayNode arrayNode = mapper.createArrayNode();
-            OutputParameterSpec items = param.getItems();
-
-            if (items != null) {
-                // Create one mock item to demonstrate the structure
-                JsonNode itemValue = buildParameterValue(items, mapper);
-                if (itemValue != null && !(itemValue instanceof NullNode)) {
-                    arrayNode.add(itemValue);
-                }
-            }
-
-            return arrayNode;
-        }
-
-        // Handle object types
-        if ("object".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ObjectNode objectNode = mapper.createObjectNode();
-
-            if (param.getProperties() != null) {
-                for (OutputParameterSpec prop : param.getProperties()) {
-                    JsonNode propValue = buildParameterValue(prop, mapper);
-                    if (propValue != null && !(propValue instanceof NullNode)) {
-                        String propName = prop.getName() != null ? prop.getName() : "property";
-                        objectNode.set(propName, propValue);
-                    }
-                }
-            }
-
-            return objectNode.size() > 0 ? objectNode : NullNode.instance;
-        }
-
-        // For other types without const values, return null
-        return NullNode.instance;
     }
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,

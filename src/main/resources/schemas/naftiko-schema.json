@@ -852,7 +852,7 @@
     },
     "McpTool": {
       "type": "object",
-      "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations.",
+      "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations, or serves static mock responses using const values.",
       "properties": {
         "name": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -934,6 +934,28 @@
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
+          }
+        },
+        {
+          "required": [
+            "outputParameters"
+          ],
+          "type": "object",
+          "description": "Mock mode: serves static responses from const values in outputParameters. No consumes block required.",
+          "properties": {
+            "outputParameters": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/MappedOutputParameter"
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["call"] },
+              { "required": ["steps"] }
+            ]
           }
         }
       ],

@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../naftiko-schema.json
+#
+# Mock MCP Server — no consumes block required.
+# Tools return static values from const in outputParameters.
+#
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "Mock MCP Server"
+  description: "Demonstrates MCP tools that return static mock data without consuming any HTTP API"
+  tags:
+    - MCP
+    - Mock
+    - Example
+  created: "2026-04-03"
+  modified: "2026-04-03"
+  stakeholders:
+    - role: "editor"
+      fullName: "John Doe"
+      email: "john.doe@example.com"
+
+capability:
+  exposes:
+    - type: mcp
+      port: 3001
+      namespace: "mock-tools"
+      description: "Mock MCP server that returns constant values"
+      tools:
+        - name: say-hello
+          description: "Returns a greeting message"
+          inputParameters:
+            - name: name
+              type: string
+              required: true
+              description: "Name to greet"
+          outputParameters:
+            - name: message
+              type: string
+              const: "Hello, World!"
+
+        - name: get-company-info
+          description: "Returns static company information"
+          outputParameters:
+            - name: company
+              type: string
+              const: "Example Corp"
+            - name: industry
+              type: string
+              const: "Technology"
+            - name: founded
+              type: string
+              const: "2020"

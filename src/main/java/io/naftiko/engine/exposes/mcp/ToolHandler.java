@@ -19,9 +19,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.Resolver;
+import io.naftiko.engine.exposes.MockResponseBuilder;
 import io.naftiko.engine.exposes.OperationStepExecutor;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 
@@ -92,6 +95,12 @@ public class ToolHandler {
                     parameters.put(entry.getKey(), rawValue);
                 }
             }
+        }
+
+        // Mock mode: no call and no steps — return static const values
+        if (toolSpec.getCall() == null
+                && (toolSpec.getSteps() == null || toolSpec.getSteps().isEmpty())) {
+            return buildMockToolResult(toolSpec);
         }
 
         OperationStepExecutor.HandlingContext found;
@@ -177,6 +186,35 @@ public class ToolHandler {
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(responseText != null ? responseText : "")),
                 isError, null, null);
+    }
+
+    /**
+     * Build an MCP CallToolResult from static const values (mock mode).
+     */
+    McpSchema.CallToolResult buildMockToolResult(McpServerToolSpec toolSpec) {
+        if (!MockResponseBuilder.canBuildMockResponse(toolSpec.getOutputParameters())) {
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent(
+                            "Mock mode: no const values found in outputParameters")),
+                    true, null, null);
+        }
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode mockData = MockResponseBuilder.buildMockData(
+                    toolSpec.getOutputParameters(), mapper);
+
+            String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mockData);
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent(json)), false, null, null);
+        } catch (Exception e) {
+            logger.warning("Error building mock response for tool '" + toolSpec.getName()
+                    + "': " + e);
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent(
+                            "Error building mock response: " + e.getMessage())),
+                    true, null, null);
+        }
     }
 
     /**

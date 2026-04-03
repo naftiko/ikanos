@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "Mock MCP Capability"
+  description: "Test fixture for MCP mock mode — tools with const values, no consumes block"
+  tags:
+    - test
+    - mock
+  created: "2026-04-03"
+  modified: "2026-04-03"
+  stakeholders:
+    - role: "editor"
+      fullName: "Test Author"
+      email: "test@example.com"
+
+capability:
+  exposes:
+    - type: mcp
+      address: "localhost"
+      port: 9098
+      namespace: "mock-mcp"
+      description: "Mock MCP server for testing"
+      tools:
+        - name: say-hello
+          description: "Returns a static greeting"
+          inputParameters:
+            - name: name
+              type: string
+              required: true
+              description: "Name to greet"
+          outputParameters:
+            - name: message
+              type: string
+              const: "Hello, World!"
+
+        - name: get-profile
+          description: "Returns a static user profile"
+          outputParameters:
+            - name: company
+              type: string
+              const: "Naftiko"
+            - name: role
+              type: string
+              const: "Engineer"
+            - name: location
+              type: string
+              const: "Earth"

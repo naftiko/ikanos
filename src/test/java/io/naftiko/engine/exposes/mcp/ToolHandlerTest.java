@@ -21,10 +21,13 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
+import io.naftiko.spec.exposes.ServerCallSpec;
 
 public class ToolHandlerTest {
 
@@ -42,29 +45,30 @@ public class ToolHandlerTest {
     }
 
     @Test
-    public void handleToolCallShouldHandleNullArguments() {
+    public void handleToolCallShouldHandleNullArguments() throws Exception {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("test-tool");
+        tool.setCall(new ServerCallSpec("ns.op"));
         tool.setWith(Map.of("default_param", "default_value"));
-        // This will fail at execution because we have no real capability/steps setup,
-        // but it tests that null arguments are handled gracefully before that point
-        
+
         ToolHandler handler = new ToolHandler(null, List.of(tool));
 
-        assertThrows(Exception.class, () -> handler.handleToolCall("test-tool", null));
+        McpSchema.CallToolResult result = handler.handleToolCall("test-tool", null);
+        assertTrue(result.isError(), "Should return an error result when capability is null");
     }
 
     @Test
-    public void handleToolCallShouldMergeToolWithParameters() {
+    public void handleToolCallShouldMergeToolWithParameters() throws Exception {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("test-tool");
+        tool.setCall(new ServerCallSpec("ns.op"));
         tool.setWith(Map.of("fromTool", "fromToolValue"));
 
         ToolHandler handler = new ToolHandler(null, List.of(tool));
 
-        // Execution will fail beyond argument merging, but the tool is properly set up
-        assertThrows(Exception.class, () -> handler.handleToolCall("test-tool",
-                Map.of("fromArgs", "fromArgsValue")));
+        McpSchema.CallToolResult result = handler.handleToolCall("test-tool",
+                Map.of("fromArgs", "fromArgsValue"));
+        assertTrue(result.isError(), "Should return an error result when capability is null");
     }
 
     /**
@@ -97,5 +101,68 @@ public class ToolHandlerTest {
         // Must NOT throw IllegalArgumentException("Unresolved template parameters in URI: ...")
         // (connection failure at HTTP level is acceptable — the template must be resolved first)
         assertDoesNotThrow(() -> handler.handleToolCall("get-ship", Map.of("imo", "IMO-9321483")));
+    }
+
+    @Test
+    public void handleToolCallShouldReturnMockResponseWhenNoCallOrSteps() throws Exception {
+        McpServerToolSpec tool = new McpServerToolSpec();
+        tool.setName("mock-tool");
+        tool.setDescription("A mock tool");
+
+        OutputParameterSpec param = new OutputParameterSpec();
+        param.setName("message");
+        param.setType("string");
+        param.setConstant("Hello, World!");
+        tool.getOutputParameters().add(param);
+
+        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        McpSchema.CallToolResult result = handler.handleToolCall("mock-tool", Map.of());
+
+        assertFalse(result.isError(), "Mock response should not be an error");
+        assertNotNull(result.content());
+        assertFalse(result.content().isEmpty());
+
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue(text.contains("Hello, World!"));
+    }
+
+    @Test
+    public void handleToolCallShouldReturnMockObjectWithMultipleFields() throws Exception {
+        McpServerToolSpec tool = new McpServerToolSpec();
+        tool.setName("mock-profile");
+        tool.setDescription("Returns a mock profile");
+
+        OutputParameterSpec name = new OutputParameterSpec();
+        name.setName("name");
+        name.setType("string");
+        name.setConstant("John");
+
+        OutputParameterSpec role = new OutputParameterSpec();
+        role.setName("role");
+        role.setType("string");
+        role.setConstant("Engineer");
+
+        tool.getOutputParameters().add(name);
+        tool.getOutputParameters().add(role);
+
+        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        McpSchema.CallToolResult result = handler.handleToolCall("mock-profile", Map.of());
+
+        assertFalse(result.isError());
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue(text.contains("John"));
+        assertTrue(text.contains("Engineer"));
+    }
+
+    @Test
+    public void buildMockToolResultShouldReturnErrorWhenNoConstValues() {
+        McpServerToolSpec tool = new McpServerToolSpec();
+        tool.setName("empty-mock");
+        tool.setDescription("No const values");
+
+        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        McpSchema.CallToolResult result = handler.buildMockToolResult(tool);
+
+        assertTrue(result.isError(), "Should be an error when no const values found");
     }
 }
