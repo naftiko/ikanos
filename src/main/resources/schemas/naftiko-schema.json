@@ -895,6 +895,9 @@
             "$ref": "#/$defs/StepOutputMapping"
           }
         },
+        "hints": {
+          "$ref": "#/$defs/McpToolHints"
+        },
         "outputParameters": {
           "type": "array"
         }
@@ -934,6 +937,29 @@
           }
         }
       ],
+      "additionalProperties": false
+    },
+    "McpToolHints": {
+      "type": "object",
+      "description": "Optional hints describing tool behavior to MCP clients. All properties are advisory. Mapped to ToolAnnotations in the MCP protocol.",
+      "properties": {
+        "readOnly": {
+          "type": "boolean",
+          "description": "If true, the tool does not modify its environment. Default: false."
+        },
+        "destructive": {
+          "type": "boolean",
+          "description": "If true, the tool may perform destructive updates. Meaningful only when readOnly is false. Default: true."
+        },
+        "idempotent": {
+          "type": "boolean",
+          "description": "If true, calling the tool repeatedly with the same arguments has no additional effect. Meaningful only when readOnly is false. Default: false."
+        },
+        "openWorld": {
+          "type": "boolean",
+          "description": "If true, the tool may interact with external entities. Default: true."
+        }
+      },
       "additionalProperties": false
     },
     "McpToolInputParameter": {

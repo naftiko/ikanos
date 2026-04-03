@@ -343,6 +343,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 | **name** | `string` | **REQUIRED**. Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **label** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
 | **description** | `string` | **REQUIRED**. A meaningful description of the tool. Essential for agent discovery. |
+| **hints** | `McpToolHints` | Optional behavioral hints for MCP clients. Mapped to `ToolAnnotations` in the MCP protocol. See [3.5.5.1 McpToolHints Object](#3551-mctoolhints-object). |
 | **inputParameters** | `McpToolInputParameter[]` | Tool input parameters. These become the MCP tool's input schema (JSON Schema). |
 | **call** | `string` | **Simple mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
 | **with** | `WithInjector` | **Simple mode only**. Parameter injection for the called operation. |
@@ -375,6 +376,37 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 - In orchestrated mode, the `steps` array MUST contain at least one entry.
 - Input parameters are accessed via namespace-qualified references of the form `{mcpNamespace}.{paramName}`.
 - No additional properties are allowed.
+
+#### 3.5.5.1 McpToolHints Object
+
+Optional behavioral hints describing a tool to MCP clients. All properties are advisory — clients SHOULD NOT make trust decisions based on these values from untrusted servers. Mapped to `ToolAnnotations` in the MCP protocol wire format.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **readOnly** | `boolean` | If `true`, the tool does not modify its environment. Default: `false`. |
+| **destructive** | `boolean` | If `true`, the tool may perform destructive updates. Meaningful only when `readOnly` is `false`. Default: `true`. |
+| **idempotent** | `boolean` | If `true`, calling the tool repeatedly with the same arguments has no additional effect. Meaningful only when `readOnly` is `false`. Default: `false`. |
+| **openWorld** | `boolean` | If `true`, the tool may interact with external entities (e.g. web APIs). If `false`, the tool's domain is closed (e.g. local data). Default: `true`. |
+
+**Rules:**
+
+- All fields are optional. Omitted fields fall back to their defaults.
+- `destructive` and `idempotent` are only meaningful when `readOnly` is `false`.
+- No additional properties are allowed.
+
+**McpToolHints Example:**
+
+```yaml
+tools:
+  - name: get-current-weather
+    description: "Retrieve current weather conditions"
+    hints:
+      readOnly: true
+      openWorld: true
+    call: weather-api.get-current
+```
 
 #### 3.5.6 McpToolInputParameter Object
 

@@ -96,15 +96,20 @@ For each MCP tool:
 
 1. `name` (kebab-case / IdentifierKebab) is required and must be stable (used as the MCP tool name).
 2. `description` is required (agent discovery depends on it).
-3. If tool is simple:
+3. `hints` is optional — declares behavioral hints mapped to MCP `ToolAnnotations`:
+    - `readOnly` (bool) — tool does not modify its environment (default: false)
+    - `destructive` (bool) — tool may perform destructive updates (default: true, meaningful only when readOnly is false)
+    - `idempotent` (bool) — repeating the call has no additional effect (default: false, meaningful only when readOnly is false)
+    - `openWorld` (bool) — tool interacts with external entities (default: true)
+4. If tool is simple:
     - must define `call: {namespace}.{operationName}`
     - may define `with`
     - should define `outputParameters` (typed) when you want structured results.
-4. If tool is orchestrated:
+5. If tool is orchestrated:
     - must define `steps` (min 1), each step has `name`
     - may define `mappings`
     - `outputParameters` must use orchestrated output parameter objects (named + typed)
-5. Tool `inputParameters`:
+6. Tool `inputParameters`:
     - each parameter must have `name`, `type`, `description`
     - set `required: false` explicitly for optional params (default is true)
 

@@ -808,9 +808,10 @@ Check the naftiko field in your YAML to specify the version.
 
 1. **Use `type: mcp`** in `exposes`
 2. **Define `tools`** - each tool is an MCP tool your capability provides
-3. **Use stdio transport** - for native Claude Desktop integration
-4. **Test with Claude** - configure Claude Desktop with your MCP server
-5. **Publish** - share your capability spec with the community
+3. **Add `hints`** (optional) - declare behavioral hints like `readOnly`, `destructive`, `idempotent`, `openWorld` to help clients understand tool safety
+4. **Use stdio transport** - for native Claude Desktop integration
+5. **Test with Claude** - configure Claude Desktop with your MCP server
+6. **Publish** - share your capability spec with the community
 
 See [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1) for a full MCP example, then continue with [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2) for Skill and REST exposure.
 

@@ -48,6 +48,9 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile McpToolHintsSpec hints;
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<StepOutputMappingSpec> mappings;
 
@@ -122,6 +125,14 @@ public class McpServerToolSpec {
 
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
+    }
+
+    public McpToolHintsSpec getHints() {
+        return hints;
+    }
+
+    public void setHints(McpToolHintsSpec hints) {
+        this.hints = hints;
     }
 
 }

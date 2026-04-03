@@ -111,7 +111,9 @@ Specification directly.
 9. `ForwardConfig` requires `targetNamespace` (single string, not array)
    and `trustedHeaders` (at least one entry).
 10. MCP tools must have `name` and `description`. MCP tool input parameters
-    must have `name`, `type`, and `description`.
+    must have `name`, `type`, and `description`. Tools may declare optional
+    `hints` (readOnly, destructive, idempotent, openWorld) — these map to
+    MCP `ToolAnnotations` on the wire.
 11. ExposedOperation supports exactly two modes (oneOf): simple (`call` +
     optional `with`) or orchestrated (`steps` + optional `mappings`). Never
     mix fields from both modes.

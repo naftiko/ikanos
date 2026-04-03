@@ -98,6 +98,11 @@ Avoid:
 - Use tools for actions and resources for read-only data access.
 - Prefer small tools with crisp, typed `inputParameters`.
 - If an MCP tool becomes complex, switch to orchestration and document it clearly.
+- Use `hints` to signal tool behavior to clients:
+    - Set `readOnly: true` for tools that only read data (GET-like).
+    - Set `destructive: true` for tools that delete or overwrite (DELETE, PUT).
+    - Set `idempotent: true` for tools safe to retry.
+    - Set `openWorld: true` for tools calling external APIs; `false` for closed-domain tools (local data, caches).
 
 ## Orchestration guidelines (steps + mappings)
 

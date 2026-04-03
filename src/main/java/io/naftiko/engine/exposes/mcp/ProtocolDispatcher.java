@@ -165,6 +165,29 @@ public class ProtocolDispatcher {
                 toolNode.set("inputSchema", mapper.valueToTree(tool.inputSchema()));
             }
 
+            if (tool.annotations() != null) {
+                ObjectNode annotationsNode = mapper.createObjectNode();
+                McpSchema.ToolAnnotations ann = tool.annotations();
+                if (ann.title() != null) {
+                    annotationsNode.put("title", ann.title());
+                }
+                if (ann.readOnlyHint() != null) {
+                    annotationsNode.put("readOnlyHint", ann.readOnlyHint());
+                }
+                if (ann.destructiveHint() != null) {
+                    annotationsNode.put("destructiveHint", ann.destructiveHint());
+                }
+                if (ann.idempotentHint() != null) {
+                    annotationsNode.put("idempotentHint", ann.idempotentHint());
+                }
+                if (ann.openWorldHint() != null) {
+                    annotationsNode.put("openWorldHint", ann.openWorldHint());
+                }
+                if (!annotationsNode.isEmpty()) {
+                    toolNode.set("annotations", annotationsNode);
+                }
+            }
+
             toolsArray.add(toolNode);
         }
 

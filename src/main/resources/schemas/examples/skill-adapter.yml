@@ -47,6 +47,9 @@ capability:
       tools:
         - name: get-current-weather
           description: "Retrieve current weather conditions for a location"
+          hints:
+            readOnly: true
+            openWorld: true
           inputParameters:
             - name: location
               type: string

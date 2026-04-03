@@ -317,6 +317,22 @@ The response gets shaped too — flat fields like `departurePort`/`arrivalPort` 
 
 The agent went from observer to operator.
 
+> **💡 Tip: Tool hints.** Now that you have both read-only tools (`list-ships`, `get-ship`) and write tools (`create-voyage`), you can declare behavioral hints that help clients distinguish them:
+> ```yaml
+> - name: list-ships
+>   hints:
+>     readOnly: true
+>   # ...
+> - name: create-voyage
+>   hints:
+>     readOnly: false
+>     destructive: false
+>     idempotent: false
+>     openWorld: true
+>   # ...
+> ```
+> Hints map to MCP `ToolAnnotations` and are advisory — clients use them to decide which tools need confirmation, can be retried safely, etc. See [McpToolHints](https://github.com/naftiko/framework/wiki/Specification-Schema#3551-mctoolhints-object) in the spec.
+
 **What you learned:** `POST` operations, `body` template, array-type inputs, write tools.
 
 ---

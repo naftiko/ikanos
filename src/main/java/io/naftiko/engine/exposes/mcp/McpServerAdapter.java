@@ -28,6 +28,7 @@ import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
+import io.naftiko.spec.exposes.McpToolHintsSpec;
 
 /**
  * MCP Server Adapter implementation.
@@ -149,8 +150,31 @@ public class McpServerAdapter extends ServerAdapter {
                 schemaProperties.isEmpty() ? null : schemaProperties,
                 required.isEmpty() ? null : required, null, null, null);
 
+        // Build ToolAnnotations from spec hints and label
+        McpSchema.ToolAnnotations annotations = buildToolAnnotations(toolSpec);
+
         return McpSchema.Tool.builder().name(toolSpec.getName())
-                .description(toolSpec.getDescription()).inputSchema(inputSchema).build();
+                .description(toolSpec.getDescription()).inputSchema(inputSchema)
+                .annotations(annotations).build();
+    }
+
+    /**
+     * Build MCP ToolAnnotations from the tool spec's hints and label. Returns null if neither hints
+     * nor label are present.
+     */
+    McpSchema.ToolAnnotations buildToolAnnotations(McpServerToolSpec toolSpec) {
+        McpToolHintsSpec hints = toolSpec.getHints();
+        String label = toolSpec.getLabel();
+
+        if (hints == null && label == null) {
+            return null;
+        }
+
+        return new McpSchema.ToolAnnotations(label,
+                hints != null ? hints.getReadOnly() : null,
+                hints != null ? hints.getDestructive() : null,
+                hints != null ? hints.getIdempotent() : null,
+                hints != null ? hints.getOpenWorld() : null, null);
     }
 
     public McpServerSpec getMcpServerSpec() {
