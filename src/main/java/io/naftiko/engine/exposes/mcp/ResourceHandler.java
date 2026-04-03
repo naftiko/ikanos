@@ -253,9 +253,7 @@ public class ResourceHandler {
             Map<String, String> templateParams) throws Exception {
 
         Map<String, Object> parameters = new HashMap<>(templateParams);
-        if (spec.getWith() != null) {
-            parameters.putAll(spec.getWith());
-        }
+        OperationStepExecutor.mergeWithParameters(spec.getWith(), parameters);
 
         OperationStepExecutor.HandlingContext found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), parameters,
