@@ -51,11 +51,14 @@ public class ResourceHandler {
     private final Capability capability;
     private final List<McpServerResourceSpec> resourceSpecs;
     private final OperationStepExecutor stepExecutor;
+    private final String namespace;
 
-    public ResourceHandler(Capability capability, List<McpServerResourceSpec> resources) {
+    public ResourceHandler(Capability capability, List<McpServerResourceSpec> resources,
+            String namespace) {
         this.capability = capability;
         this.resourceSpecs = new ArrayList<>(resources);
         this.stepExecutor = new OperationStepExecutor(capability);
+        this.namespace = namespace;
     }
 
     /**
@@ -253,7 +256,7 @@ public class ResourceHandler {
             Map<String, String> templateParams) throws Exception {
 
         Map<String, Object> parameters = new HashMap<>(templateParams);
-        OperationStepExecutor.mergeWithParameters(spec.getWith(), parameters);
+        OperationStepExecutor.mergeWithParameters(spec.getWith(), parameters, namespace);
 
         OperationStepExecutor.HandlingContext found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), parameters,

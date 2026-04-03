@@ -154,7 +154,20 @@ public class Resolver {
                         }
                     }
 
-                    // Otherwise return raw body text
+                    // When a field name is given with no explicit path, extract that field
+                    // from the body by name so that named body parameters bind to individual
+                    // request fields (e.g. name: shipImo → $.shipImo).
+                    if (name != null && root.has(name)) {
+                        JsonNode field = root.get(name);
+                        if (field.isTextual()) {
+                            return field.asText();
+                        } else if (!field.isNull()) {
+                            return mapper.convertValue(field, Object.class);
+                        }
+                        return null;
+                    }
+
+                    // Otherwise return raw body node
                     return root;
                 }
             }

@@ -210,23 +210,37 @@ public class OperationStepExecutor {
     }
 
     /**
-     * Merges 'with' parameters into a target map, resolving any Mustache templates
-     * against the current state of the target map. This allows parameter renaming
-     * (e.g. {@code imo_number: "{{imo}}"}) using values already present in the map.
+     * Merges 'with' parameters into a target map, resolving values against the current state of
+     * the target map. Handles two value syntaxes:
+     * <ul>
+     *   <li>Mustache template ({@code {{paramName}}}) — resolved via JMustache.</li>
+     *   <li>Namespace-qualified reference ({@code namespace.paramName}) — resolved by looking up
+     *       {@code paramName} in the target map when a matching namespace prefix is provided.</li>
+     * </ul>
      *
-     * @param with   the 'with' map from a spec; may be null (no-op)
-     * @param target the map to merge into; Mustache resolution uses its current state
+     * @param with      the 'with' map from a spec; may be null (no-op)
+     * @param target    the map to merge into; resolution uses its current state
+     * @param namespace the expose namespace used to detect qualified references (e.g.
+     *                  {@code "shipyard-api"}); may be null to skip namespace resolution
      */
-    public static void mergeWithParameters(Map<String, Object> with,
-            Map<String, Object> target) {
+    public static void mergeWithParameters(Map<String, Object> with, Map<String, Object> target,
+            String namespace) {
         if (with == null) {
             return;
         }
         for (Map.Entry<String, Object> entry : with.entrySet()) {
             Object rawValue = entry.getValue();
             if (rawValue instanceof String rawStringValue) {
-                target.put(entry.getKey(),
-                        Resolver.resolveMustacheTemplate(rawStringValue, target));
+                if (namespace != null && rawStringValue.startsWith(namespace + ".")) {
+                    String paramName = rawStringValue.substring(namespace.length() + 1);
+                    Object resolved = target.get(paramName);
+                    if (resolved != null) {
+                        target.put(entry.getKey(), resolved);
+                    }
+                } else {
+                    target.put(entry.getKey(),
+                            Resolver.resolveMustacheTemplate(rawStringValue, target));
+                }
             } else {
                 target.put(entry.getKey(), rawValue);
             }
@@ -241,7 +255,7 @@ public class OperationStepExecutor {
         // Merge step-level 'with' parameters with base parameters
         Map<String, Object> stepParams = new ConcurrentHashMap<>(baseParameters);
 
-        mergeWithParameters(callStep.getWith(), stepParams);
+        mergeWithParameters(callStep.getWith(), stepParams, null);
 
         if (callStep.getCall() != null) {
             String[] tokens = callStep.getCall().split("\\.");
@@ -329,7 +343,7 @@ public class OperationStepExecutor {
             merged.putAll(requestParams);
         }
 
-        mergeWithParameters(call.getWith(), merged);
+        mergeWithParameters(call.getWith(), merged, null);
 
         if (call.getOperation() != null) {
             String[] tokens = call.getOperation().split("\\.");

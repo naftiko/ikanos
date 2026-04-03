@@ -36,7 +36,7 @@ public class ResourceHandlerSafetyTest {
                 Files.writeString(tempDir.resolve("secrets.txt"), "do-not-read\n");
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)));
+                List.of(staticResource("docs", "data://docs", docs)), null);
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> handler.read("data://docs/../secrets.txt"));
@@ -50,7 +50,7 @@ public class ResourceHandlerSafetyTest {
         Files.createDirectories(docs);
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)));
+                List.of(staticResource("docs", "data://docs", docs)), null);
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> handler.read("data://docs"));
@@ -65,7 +65,7 @@ public class ResourceHandlerSafetyTest {
         Files.writeString(docs.resolve("guide.md"), "# guide\n");
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)));
+                List.of(staticResource("docs", "data://docs", docs)), null);
 
         List<ResourceHandler.ResourceContent> content = handler.read("data://docs/guide.md");
 
