@@ -370,8 +370,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 
 **Mock mode** — static responses from `const` values (no consumed operations required):
 
-- `outputParameters` is **REQUIRED** (at least 1 entry), using `MockOutputParameter[]`
-- Each `MockOutputParameter` has `name`, `type`, and `const` (all required)
+- `outputParameters` is **REQUIRED** (at least 1 entry with `const` values)
 - `call` and `steps` MUST NOT be present
 - No `consumes` block is needed
 - Returns a fixed JSON response built from `const` values in `outputParameters`
