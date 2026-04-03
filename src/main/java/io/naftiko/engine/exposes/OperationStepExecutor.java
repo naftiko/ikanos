@@ -210,6 +210,30 @@ public class OperationStepExecutor {
     }
 
     /**
+     * Merges 'with' parameters into a target map, resolving any Mustache templates
+     * against the current state of the target map. This allows parameter renaming
+     * (e.g. {@code imo_number: "{{imo}}"}) using values already present in the map.
+     *
+     * @param with   the 'with' map from a spec; may be null (no-op)
+     * @param target the map to merge into; Mustache resolution uses its current state
+     */
+    public static void mergeWithParameters(Map<String, Object> with,
+            Map<String, Object> target) {
+        if (with == null) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : with.entrySet()) {
+            Object rawValue = entry.getValue();
+            if (rawValue instanceof String rawStringValue) {
+                target.put(entry.getKey(),
+                        Resolver.resolveMustacheTemplate(rawStringValue, target));
+            } else {
+                target.put(entry.getKey(), rawValue);
+            }
+        }
+    }
+
+    /**
      * Execute a single call step.
      */
     private HandlingContext executeCallStep(OperationStepCallSpec callStep,
@@ -217,17 +241,7 @@ public class OperationStepExecutor {
         // Merge step-level 'with' parameters with base parameters
         Map<String, Object> stepParams = new ConcurrentHashMap<>(baseParameters);
 
-        if (callStep.getWith() != null) {
-            for (Map.Entry<String, Object> entry : callStep.getWith().entrySet()) {
-                Object rawValue = entry.getValue();
-                if (rawValue instanceof String rawStringValue) {
-                    stepParams.put(entry.getKey(),
-                            Resolver.resolveMustacheTemplate(rawStringValue, stepParams));
-                } else {
-                    stepParams.put(entry.getKey(), rawValue);
-                }
-            }
-        }
+        mergeWithParameters(callStep.getWith(), stepParams);
 
         if (callStep.getCall() != null) {
             String[] tokens = callStep.getCall().split("\\.");
@@ -315,9 +329,7 @@ public class OperationStepExecutor {
             merged.putAll(requestParams);
         }
 
-        if (call.getWith() != null) {
-            merged.putAll(call.getWith());
-        }
+        mergeWithParameters(call.getWith(), merged);
 
         if (call.getOperation() != null) {
             String[] tokens = call.getOperation().split("\\.");
