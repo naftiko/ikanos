@@ -12,7 +12,7 @@ To use Naftiko Framework, you must install and then run its engine.
 ### Pull Naftiko's Docker image
 * Naftiko provides a docker image hosted in GitHub packages platform. It is public, so you can easily pull it locally.
   ```bash
-  # v1.0.0alpha1
+  # v1.0.0-alpha1
   docker pull ghcr.io/naftiko/framework:sha-770e515
 
   # If you want to play with the last snapshot
