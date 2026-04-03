@@ -76,7 +76,8 @@ public class McpServerAdapter extends ServerAdapter {
                 serverSpec.getNamespace());
 
         // Create the resource handler (transport-agnostic)
-        this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources());
+        this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),
+                serverSpec.getNamespace());
 
         // Create the prompt handler (transport-agnostic)
         this.promptHandler = new PromptHandler(serverSpec.getPrompts());

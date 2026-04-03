@@ -90,7 +90,8 @@ public class ResourceRestlet extends Restlet {
                         getResourceSpec(), serverOp);
 
                 // Include operation-level 'with' parameters for template resolution
-                OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters);
+                OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,
+                        getServerSpec().getNamespace());
 
                 if (serverOp.getCall() != null) {
                     try {
