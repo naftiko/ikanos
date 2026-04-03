@@ -45,9 +45,22 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Pattern;
+import org.commonmark.Extension;
+import org.commonmark.ext.gfm.tables.TableBlock;
+import org.commonmark.ext.gfm.tables.TableBody;
+import org.commonmark.ext.gfm.tables.TableCell;
+import org.commonmark.ext.gfm.tables.TableHead;
+import org.commonmark.ext.gfm.tables.TableRow;
+import org.commonmark.ext.gfm.tables.TablesExtension;
+import org.commonmark.node.AbstractVisitor;
+import org.commonmark.node.Code;
+import org.commonmark.node.HardLineBreak;
+import org.commonmark.node.Heading;
+import org.commonmark.node.Node;
+import org.commonmark.node.SoftLineBreak;
+import org.commonmark.node.Text;
+import org.commonmark.parser.Parser;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -92,7 +105,7 @@ public class Converter {
         } else if ("HTML".equalsIgnoreCase(format)) {
             root = Converter.convertHtmlToJson(entity.getReader(), schema);
         } else if ("MARKDOWN".equalsIgnoreCase(format)) {
-            root = Converter.convertMarkdownToJson(entity.getReader());
+            root = Converter.convertMarkdownToJson(entity.getReader(), schema);
         } else if ("JSON".equalsIgnoreCase(format) || format == null) {
             root = mapper.readTree(entity.getReader());
         } else {
@@ -201,23 +214,42 @@ public class Converter {
     }
 
     /**
-     * Convert Markdown input to JsonNode and extract front matter, tables, and sections.
+     * Convert Markdown input to JsonNode and extract front matter, tables, and sections using the
+     * commonmark parser with GFM tables extension.
      *
      * @param markdownReader Reader containing Markdown data
      * @return JsonNode with frontMatter, tables, and sections
      * @throws IOException if parsing fails
      */
     public static JsonNode convertMarkdownToJson(Reader markdownReader) throws IOException {
+        return convertMarkdownToJson(markdownReader, null);
+    }
+
+    /**
+     * Convert Markdown input to JsonNode and extract front matter, tables, and sections using the
+     * commonmark parser with GFM tables extension.
+     *
+     * @param markdownReader Reader containing Markdown data
+     * @param sectionFilter optional heading prefix to scope section extraction; when non-null, only
+     *        sections whose heading starts with this value are included
+     * @return JsonNode with frontMatter, tables, and sections
+     * @throws IOException if parsing fails
+     */
+    public static JsonNode convertMarkdownToJson(Reader markdownReader, String sectionFilter)
+            throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode result = mapper.createObjectNode();
 
         String markdown = readFully(markdownReader).replace("\r\n", "\n");
         MarkdownDocumentParts parts = splitMarkdownFrontMatter(markdown, mapper);
-        String bodyWithoutTables = removeMarkdownTables(parts.body());
+
+        List<Extension> extensions = List.of(TablesExtension.create());
+        Parser parser = Parser.builder().extensions(extensions).build();
+        Node document = parser.parse(parts.body());
 
         result.set("frontMatter", parts.frontMatter());
-        result.set("tables", extractMarkdownTables(parts.body(), mapper));
-        result.set("sections", extractMarkdownSections(bodyWithoutTables, mapper));
+        result.set("tables", extractTablesFromAst(document, mapper));
+        result.set("sections", extractSectionsFromAst(document, mapper, sectionFilter));
         return result;
     }
 
@@ -427,11 +459,7 @@ public class Converter {
 
     private static String readFully(Reader reader) throws IOException {
         StringWriter writer = new StringWriter();
-        char[] buffer = new char[4096];
-        int read;
-        while ((read = reader.read(buffer)) != -1) {
-            writer.write(buffer, 0, read);
-        }
+        reader.transferTo(writer);
         return writer.toString();
     }
 
@@ -471,19 +499,16 @@ public class Converter {
         Elements rowElements = table.select("tbody tr");
         if (rowElements.isEmpty()) {
             rowElements = table.select("tr");
-            if (!rowElements.isEmpty()) {
-                rowElements.remove(0);
-            }
         }
 
         for (Element rowElement : rowElements) {
-            Elements cells = rowElement.select("td, th");
-            if (cells.isEmpty()) {
+            // Skip any row containing at least one <th> — it is a header row.
+            if (!rowElement.select("th").isEmpty()) {
                 continue;
             }
 
-            // Skip header-only rows when tables are authored without explicit thead markup.
-            if (!rowElement.select("th").isEmpty() && rowElement.select("td").isEmpty()) {
+            Elements cells = rowElement.select("td");
+            if (cells.isEmpty()) {
                 continue;
             }
 
@@ -497,92 +522,128 @@ public class Converter {
         return rows;
     }
 
-    private static ArrayNode extractMarkdownTables(String body, ObjectMapper mapper) {
+    private static ArrayNode extractTablesFromAst(Node document, ObjectMapper mapper) {
         ArrayNode tables = mapper.createArrayNode();
-        String[] lines = body.split("\\n", -1);
 
-        int i = 0;
-        while (i < lines.length) {
-            if (i + 1 < lines.length && isMarkdownTableHeader(lines[i])
-                    && isMarkdownTableSeparator(lines[i + 1])) {
-                List<String> headers = sanitizeHeaders(parseMarkdownCells(lines[i]));
-                if (headers.isEmpty()) {
-                    i++;
-                    continue;
-                }
-
+        for (Node node = document.getFirstChild(); node != null; node = node.getNext()) {
+            if (node instanceof TableBlock table) {
+                List<String> headers = new ArrayList<>();
                 List<List<String>> rows = new ArrayList<>();
-                i += 2;
-                while (i < lines.length && isMarkdownTableRow(lines[i])) {
-                    rows.add(parseMarkdownCells(lines[i]));
-                    i++;
+
+                for (Node child = table.getFirstChild(); child != null;
+                        child = child.getNext()) {
+                    if (child instanceof TableHead) {
+                        Node headerRow = child.getFirstChild();
+                        if (headerRow instanceof TableRow) {
+                            for (Node cell = headerRow.getFirstChild(); cell != null;
+                                    cell = cell.getNext()) {
+                                if (cell instanceof TableCell) {
+                                    headers.add(collectText(cell).trim());
+                                }
+                            }
+                        }
+                    } else if (child instanceof TableBody) {
+                        for (Node row = child.getFirstChild(); row != null;
+                                row = row.getNext()) {
+                            if (row instanceof TableRow) {
+                                List<String> values = new ArrayList<>();
+                                for (Node cell = row.getFirstChild(); cell != null;
+                                        cell = cell.getNext()) {
+                                    if (cell instanceof TableCell) {
+                                        values.add(collectText(cell).trim());
+                                    }
+                                }
+                                rows.add(values);
+                            }
+                        }
+                    }
                 }
 
-                tables.add(mapRowsToTable(headers, rows, mapper));
-                continue;
+                List<String> sanitized = sanitizeHeaders(headers);
+                if (!sanitized.isEmpty()) {
+                    tables.add(mapRowsToTable(sanitized, rows, mapper));
+                }
             }
-            i++;
         }
 
         return tables;
     }
 
-    private static ArrayNode extractMarkdownSections(String body, ObjectMapper mapper) {
+    private static ArrayNode extractSectionsFromAst(Node document, ObjectMapper mapper,
+            String sectionFilter) {
         ArrayNode sections = mapper.createArrayNode();
-        String[] lines = body.split("\\n", -1);
-
-        Pattern headingPattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
 
         String currentHeading = null;
         int currentLevel = 0;
-        List<String> currentContent = new ArrayList<>();
+        List<Node> currentContentNodes = new ArrayList<>();
 
-        for (String line : lines) {
-            java.util.regex.Matcher matcher = headingPattern.matcher(line.trim());
-            if (matcher.matches()) {
-                if (currentHeading != null) {
+        for (Node node = document.getFirstChild(); node != null; node = node.getNext()) {
+            if (node instanceof Heading heading) {
+                if (currentHeading != null && matchesSectionFilter(currentHeading, sectionFilter)) {
                     sections.add(createSectionNode(currentHeading, currentLevel,
-                            toPlainText(String.join("\n", currentContent)), mapper));
+                            collectContentText(currentContentNodes), mapper));
                 }
-                currentHeading = matcher.group(2).trim();
-                currentLevel = matcher.group(1).length();
-                currentContent = new ArrayList<>();
-            } else if (currentHeading != null) {
-                currentContent.add(line);
+                currentHeading = collectText(heading).trim();
+                currentLevel = heading.getLevel();
+                currentContentNodes = new ArrayList<>();
+            } else if (currentHeading != null && !(node instanceof TableBlock)) {
+                currentContentNodes.add(node);
             }
         }
 
-        if (currentHeading != null) {
+        if (currentHeading != null && matchesSectionFilter(currentHeading, sectionFilter)) {
             sections.add(createSectionNode(currentHeading, currentLevel,
-                    toPlainText(String.join("\n", currentContent)), mapper));
+                    collectContentText(currentContentNodes), mapper));
         }
 
         return sections;
     }
 
-    private static String removeMarkdownTables(String body) {
-        String[] lines = body.split("\\n", -1);
-        StringBuilder builder = new StringBuilder();
+    private static boolean matchesSectionFilter(String heading, String sectionFilter) {
+        return sectionFilter == null || sectionFilter.isBlank()
+                || heading.startsWith(sectionFilter);
+    }
 
-        int i = 0;
-        while (i < lines.length) {
-            if (i + 1 < lines.length && isMarkdownTableHeader(lines[i])
-                    && isMarkdownTableSeparator(lines[i + 1])) {
-                i += 2;
-                while (i < lines.length && isMarkdownTableRow(lines[i])) {
-                    i++;
+    private static String collectText(Node node) {
+        StringBuilder sb = new StringBuilder();
+        node.accept(new AbstractVisitor() {
+            @Override
+            public void visit(Text text) {
+                sb.append(text.getLiteral());
+            }
+
+            @Override
+            public void visit(Code code) {
+                sb.append(code.getLiteral());
+            }
+
+            @Override
+            public void visit(SoftLineBreak softLineBreak) {
+                sb.append(' ');
+            }
+
+            @Override
+            public void visit(HardLineBreak hardLineBreak) {
+                sb.append('\n');
+            }
+        });
+        return sb.toString();
+    }
+
+    private static String collectContentText(List<Node> nodes) {
+        StringBuilder sb = new StringBuilder();
+
+        for (Node node : nodes) {
+            String text = collectText(node).trim();
+            if (!text.isEmpty()) {
+                if (sb.length() > 0) {
+                    sb.append('\n');
                 }
-                continue;
+                sb.append(text);
             }
-
-            builder.append(lines[i]);
-            if (i < lines.length - 1) {
-                builder.append('\n');
-            }
-            i++;
         }
 
-        return builder.toString();
+        return sb.toString().trim();
     }
 
     private static ObjectNode createSectionNode(String heading, int level, String content,
@@ -624,44 +685,6 @@ public class Converter {
         return headers;
     }
 
-    private static boolean isMarkdownTableHeader(String line) {
-        return line != null && line.contains("|") && parseMarkdownCells(line).size() >= 2;
-    }
-
-    private static boolean isMarkdownTableSeparator(String line) {
-        if (line == null || !line.contains("|")) {
-            return false;
-        }
-
-        for (String cell : parseMarkdownCells(line)) {
-            String trimmed = cell.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (!trimmed.matches("^:?-{3,}:?$") && !trimmed.matches("^-{3,}$")) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean isMarkdownTableRow(String line) {
-        return line != null && !line.trim().isEmpty() && line.contains("|")
-                && !isMarkdownTableSeparator(line);
-    }
-
-    private static List<String> parseMarkdownCells(String line) {
-        String normalized = line.trim();
-        if (normalized.startsWith("|")) {
-            normalized = normalized.substring(1);
-        }
-        if (normalized.endsWith("|")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-
-        return Arrays.stream(normalized.split("\\|", -1)).map(String::trim).toList();
-    }
-
     private static MarkdownDocumentParts splitMarkdownFrontMatter(String markdown, ObjectMapper mapper)
             throws IOException {
         ObjectNode frontMatter = mapper.createObjectNode();
@@ -683,15 +706,6 @@ public class Converter {
         }
 
         return new MarkdownDocumentParts(frontMatter, body);
-    }
-
-    private static String toPlainText(String markdownContent) {
-        String plain = markdownContent;
-        plain = plain.replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "");
-        plain = plain.replaceAll("\\[([^\\]]+)\\]\\([^)]*\\)", "$1");
-        plain = plain.replaceAll("[`*_~>#]", "");
-        plain = plain.replaceAll("\\n{3,}", "\n\n");
-        return plain.trim();
     }
 
     private record MarkdownDocumentParts(ObjectNode frontMatter, String body) {

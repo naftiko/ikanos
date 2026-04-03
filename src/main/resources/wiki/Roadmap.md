@@ -62,7 +62,6 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
   - [ ] Evolve MCP server adapter to support [server-side code mode like CloudFlare](https://www.reddit.com/r/mcp/comments/1o1wdfh/do_you_think_code_mode_will_supercede_mcp/)
 - [ ] Enhance API reusability
   - [ ] Add support for resiliency patterns (retry, circuit breaker, rate limiter, time limiter, bulkhead, cache, fallback)
-  - [ ] Publish reference bridge capabilities (RSS/Atom XML feeds, XML/SOAP, CSV/TSV/PSV, etc.)
 - [ ] Provide enhanced security
   - [ ] Facilitate authorization management
 - [ ] Incorporate community feedback

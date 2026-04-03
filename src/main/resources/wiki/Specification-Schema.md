@@ -910,7 +910,7 @@ Describes an operation that can be performed on a consumed resource.
 | **method** | `string` | **REQUIRED**. HTTP method. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. Default: `GET`. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters for the operation. |
 | **outputRawFormat** | `string` | The raw format of the response. One of: `json`, `xml`, `avro`, `protobuf`, `csv`, `tsv`, `psv`, `yaml`, `html`, `markdown`. Delimited formats: `csv` (comma), `tsv` (tab), `psv` (pipe). Default: `json`. |
-| **outputSchema** | `string` | Optional format-specific schema or selector. Used by `avro` and `protobuf` for schema file paths. For `html`, may contain a CSS selector used to scope extraction. |
+| **outputSchema** | `string` | Optional format-specific schema or selector. Used by `avro` and `protobuf` for schema file paths. For `html`, may contain a CSS selector used to scope table extraction. For `markdown`, may contain a heading prefix used to filter sections. |
 | **outputParameters** | `ConsumedOutputParameter[]` | Output parameters extracted from the response via JsonPath. |
 | **body** | `RequestBody` | Request body configuration. |
 

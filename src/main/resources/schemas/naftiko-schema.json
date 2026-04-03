@@ -1510,7 +1510,7 @@
         },
         "outputSchema": {
           "type": "string",
-          "description": "Optional format-specific schema or selector. Required for avro and protobuf as the schema file path. For html, this may contain a CSS selector used to scope extraction before table conversion."
+          "description": "Optional format-specific schema or selector. Required for avro and protobuf as the schema file path. For html, this may contain a CSS selector used to scope table extraction. For markdown, this may contain a heading prefix used to filter sections."
         },
         "outputParameters": {
           "type": "array",

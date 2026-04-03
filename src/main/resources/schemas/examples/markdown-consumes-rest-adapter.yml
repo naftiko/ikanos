@@ -41,3 +41,4 @@ capability:
             - method: "GET"
               name: "get-readme"
               outputRawFormat: "markdown"
+              outputSchema: "Overview"
