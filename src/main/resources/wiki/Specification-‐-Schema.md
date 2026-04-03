@@ -370,7 +370,8 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 
 **Mock mode** — static responses from `const` values (no consumed operations required):
 
-- `outputParameters` is **REQUIRED** (at least 1 entry with `const` values)
+- `outputParameters` is **REQUIRED** (at least 1 entry), using `MockOutputParameter[]`
+- Each `MockOutputParameter` has `name`, `type`, and `const` (all required)
 - `call` and `steps` MUST NOT be present
 - No `consumes` block is needed
 - Returns a fixed JSON response built from `const` values in `outputParameters`
@@ -448,6 +449,35 @@ Declares an input parameter for an MCP tool. These become properties in the tool
   type: number
   description: Number of results per page (max 100)
   required: false
+```
+
+#### 3.5.6b MockOutputParameter Object
+
+A named output parameter with a static `const` value, used in **mock mode** MCP tools. Mock tools return fixed JSON responses without consuming any HTTP API.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Name of the output field in the mock response JSON. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **type** | `string` | **REQUIRED**. Data type. One of: `string`, `number`, `boolean`. |
+| **const** | `string \| number \| boolean` | **REQUIRED**. Static value returned by the mock tool. |
+
+**Rules:**
+
+- All three fields (`name`, `type`, `const`) are mandatory.
+- No additional properties are allowed.
+
+**MockOutputParameter Example:**
+
+```yaml
+outputParameters:
+  - name: message
+    type: string
+    const: "Hello, World!"
+  - name: status-code
+    type: number
+    const: 200
 ```
 
 #### 3.5.7 McpResource Object

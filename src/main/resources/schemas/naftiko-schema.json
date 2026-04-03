@@ -448,6 +448,44 @@
         }
       ]
     },
+    "MockOutputParameter": {
+      "type": "object",
+      "description": "A named output parameter with a static const value for mock mode (no consumed operations).",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Name of the output field in the mock response JSON."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "const": {
+          "description": "Static value returned by the mock tool.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "const"
+      ],
+      "additionalProperties": false
+    },
     "OrchestratedOutputParameterBase": {
       "type": "object",
       "description": "Base for a named output parameter whose value is populated by step mappings during orchestration.",
@@ -947,7 +985,7 @@
               "type": "array",
               "minItems": 1,
               "items": {
-                "$ref": "#/$defs/MappedOutputParameter"
+                "$ref": "#/$defs/MockOutputParameter"
               }
             }
           },
