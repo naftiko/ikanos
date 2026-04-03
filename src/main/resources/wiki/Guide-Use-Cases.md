@@ -50,7 +50,7 @@ How Naftiko achieves this technically:
   - [x] Focus on source APIs with JSON payloads
   - [x] Change HTTP methods to expose proper semantics
     - E.g. Adapt read-only POST queries into cacheable GET queries
-  - [x] Convert XML, Avro, CSV payloads to JSON
+  - [x] Convert XML, Avro, CSV, TSV, PSV, HTML, Markdown payloads to JSON
 
 ## 4. Elevate Google Sheets API
 
@@ -141,6 +141,6 @@ Start from existing APIs and define reusable capabilities on top, so API investm
 How Naftiko achieves this technically:
 - Begin with consumed API declarations (`baseUri`, auth, resources, operations), then incrementally add exposed REST/MCP adapters.
 - Reuse existing security and configuration using `binds` with file or runtime injection and injected variables (e.g., `{{API_TOKEN}}`).
-- Add format-aware parsing and mapping (JSON, YAML, XML, CSV, Avro, Protobuf support in the framework) to normalize diverse backends.
+- Add format-aware parsing and mapping (JSON, YAML, XML, CSV, TSV, PSV, Avro, Protobuf, HTML, Markdown support in the framework) to normalize diverse backends.
 
 ![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_capability_first.png)

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "Markdown Feature Reader"
+  description: "Extracts feature rows from a markdown table"
+
+capability:
+  exposes:
+    - type: "rest"
+      address: "localhost"
+      port: 9090
+      namespace: "readme"
+      resources:
+        - path: "/features"
+          name: "features"
+          operations:
+            - method: "GET"
+              call: "docs.get-readme"
+              outputParameters:
+                - type: "array"
+                  mapping: "$.tables[0]"
+                  items:
+                    type: "object"
+                    properties:
+                      feature:
+                        type: "string"
+                        mapping: "$.Feature"
+                      status:
+                        type: "string"
+                        mapping: "$.Status"
+
+  consumes:
+    - type: "http"
+      namespace: "docs"
+      baseUri: "https://raw.githubusercontent.com"
+      resources:
+        - path: "/naftiko/framework/main/README.md"
+          name: "readme"
+          operations:
+            - method: "GET"
+              name: "get-readme"
+              outputRawFormat: "markdown"

@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "Markdown Test Capability"
+  description: "Test capability for Markdown parsing"
+  tags:
+    - Test
+    - Markdown
+  created: "2026-04-02"
+  modified: "2026-04-02"
+
+capability:
+  exposes:
+    - type: "rest"
+      address: "localhost"
+      port: 9094
+      namespace: "test-markdown"
+      resources:
+        - path: "/markdown/features"
+          name: "features"
+          operations:
+            - method: "GET"
+              call: "mock-markdown.get-readme"
+              outputParameters:
+                - type: "array"
+                  mapping: "$.tables[0]"
+                  items:
+                    type: "object"
+                    properties:
+                      feature:
+                        type: "string"
+                        mapping: "$.Feature"
+                      status:
+                        type: "string"
+                        mapping: "$.Status"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-markdown"
+      baseUri: "http://localhost:8080"
+      resources:
+        - path: "/api/readme"
+          name: "readme"
+          operations:
+            - method: "GET"
+              name: "get-readme"
+              outputRawFormat: "markdown"

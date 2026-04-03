@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "HTML Catalog Reader"
+  description: "Extracts product rows from an HTML table"
+
+capability:
+  exposes:
+    - type: "rest"
+      address: "localhost"
+      port: 9090
+      namespace: "catalog"
+      resources:
+        - path: "/products"
+          name: "products"
+          operations:
+            - method: "GET"
+              call: "vendor.get-products"
+              outputParameters:
+                - type: "array"
+                  mapping: "$.tables[0]"
+                  items:
+                    type: "object"
+                    properties:
+                      name:
+                        type: "string"
+                        mapping: "$.Name"
+                      price:
+                        type: "string"
+                        mapping: "$.Price"
+
+  consumes:
+    - type: "http"
+      namespace: "vendor"
+      baseUri: "https://vendor.example.com"
+      resources:
+        - path: "/catalog"
+          name: "catalog"
+          operations:
+            - method: "GET"
+              name: "get-products"
+              outputRawFormat: "html"
+              outputSchema: "table.products"

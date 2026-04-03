@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
@@ -42,6 +43,15 @@ import io.naftiko.spec.OutputParameterSpec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 /**
  * Utility class for converting between different data formats (XML, YAML, CSV, Protocol Buffer,
@@ -74,8 +84,15 @@ public class Converter {
             // YAML is text-based; use the reader to parse to JsonNode
             root = Converter.convertYamlToJson(entity.getReader());
         } else if ("CSV".equalsIgnoreCase(format)) {
-            // CSV is text-based; use the reader to parse to JsonNode
-            root = Converter.convertCsvToJson(entity.getReader());
+            root = Converter.convertDelimitedToJson(entity.getReader(), ',');
+        } else if ("TSV".equalsIgnoreCase(format)) {
+            root = Converter.convertDelimitedToJson(entity.getReader(), '\t');
+        } else if ("PSV".equalsIgnoreCase(format)) {
+            root = Converter.convertDelimitedToJson(entity.getReader(), '|');
+        } else if ("HTML".equalsIgnoreCase(format)) {
+            root = Converter.convertHtmlToJson(entity.getReader(), schema);
+        } else if ("MARKDOWN".equalsIgnoreCase(format)) {
+            root = Converter.convertMarkdownToJson(entity.getReader());
         } else if ("JSON".equalsIgnoreCase(format) || format == null) {
             root = mapper.readTree(entity.getReader());
         } else {
@@ -111,20 +128,23 @@ public class Converter {
     }
 
     /**
-     * Convert CSV input (reader) to a JsonNode (array of objects) using Jackson CSV support.
+     * Convert delimited text input to a JsonNode (array of objects) using Jackson CSV support.
+     * Supports any single-character column separator (comma for CSV, tab for TSV, pipe for PSV).
      * Assumes first row contains headers. Returns an ArrayNode where each element is an object
-     * mapping header->value for that row.
+     * mapping header-&gt;value for that row.
      *
-     * @param csvReader Reader containing CSV data
-     * @return JsonNode (ArrayNode) representing CSV rows
-     * @throws IOException if CSV parsing fails
+     * @param reader Reader containing delimited data
+     * @param separator the column separator character
+     * @return JsonNode (ArrayNode) representing parsed rows
+     * @throws IOException if parsing fails
      */
-    public static JsonNode convertCsvToJson(Reader csvReader) throws IOException {
+    public static JsonNode convertDelimitedToJson(Reader reader, char separator)
+            throws IOException {
         CsvMapper csvMapper = new CsvMapper();
-        CsvSchema schema = CsvSchema.emptySchema().withHeader();
+        CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(separator);
 
         MappingIterator<JsonNode> it =
-                csvMapper.readerFor(JsonNode.class).with(schema).readValues(csvReader);
+                csvMapper.readerFor(JsonNode.class).with(schema).readValues(reader);
 
         ObjectMapper mapper = new ObjectMapper();
         ArrayNode arr = mapper.createArrayNode();
@@ -135,6 +155,70 @@ public class Converter {
         }
 
         return arr;
+    }
+
+    /**
+     * Convert CSV input (reader) to a JsonNode (array of objects). Convenience delegation to
+     * {@link #convertDelimitedToJson(Reader, char)} with comma separator.
+     *
+     * @param csvReader Reader containing CSV data
+     * @return JsonNode (ArrayNode) representing CSV rows
+     * @throws IOException if CSV parsing fails
+     */
+    public static JsonNode convertCsvToJson(Reader csvReader) throws IOException {
+        return convertDelimitedToJson(csvReader, ',');
+    }
+
+    /**
+     * Convert HTML input to JsonNode using JSoup and a shared table contract.
+     *
+     * @param htmlReader Reader containing HTML data
+     * @param cssSelector optional selector provided via outputSchema
+     * @return JsonNode containing a tables array where each entry is an array of row objects
+     * @throws IOException if HTML parsing fails
+     */
+    public static JsonNode convertHtmlToJson(Reader htmlReader, String cssSelector)
+            throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode result = mapper.createObjectNode();
+        ArrayNode tables = mapper.createArrayNode();
+
+        Document document = Jsoup.parse(readFully(htmlReader));
+        Elements selectedTables = resolveHtmlTables(document, cssSelector);
+
+        for (Element table : selectedTables) {
+            List<String> headers = extractHtmlHeaders(table);
+            if (headers.isEmpty()) {
+                continue;
+            }
+
+            List<List<String>> rows = extractHtmlRows(table, headers);
+            tables.add(mapRowsToTable(headers, rows, mapper));
+        }
+
+        result.set("tables", tables);
+        return result;
+    }
+
+    /**
+     * Convert Markdown input to JsonNode and extract front matter, tables, and sections.
+     *
+     * @param markdownReader Reader containing Markdown data
+     * @return JsonNode with frontMatter, tables, and sections
+     * @throws IOException if parsing fails
+     */
+    public static JsonNode convertMarkdownToJson(Reader markdownReader) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode result = mapper.createObjectNode();
+
+        String markdown = readFully(markdownReader).replace("\r\n", "\n");
+        MarkdownDocumentParts parts = splitMarkdownFrontMatter(markdown, mapper);
+        String bodyWithoutTables = removeMarkdownTables(parts.body());
+
+        result.set("frontMatter", parts.frontMatter());
+        result.set("tables", extractMarkdownTables(parts.body(), mapper));
+        result.set("sections", extractMarkdownSections(bodyWithoutTables, mapper));
+        return result;
     }
 
     /**
@@ -339,5 +423,277 @@ public class Converter {
         result = result.replaceAll("\\.([^.\\[\\]]+\\s+[^.\\[\\]]*)(?=[\\].\\[$]|$)", ".['$1']");
 
         return result;
+    }
+
+    private static String readFully(Reader reader) throws IOException {
+        StringWriter writer = new StringWriter();
+        char[] buffer = new char[4096];
+        int read;
+        while ((read = reader.read(buffer)) != -1) {
+            writer.write(buffer, 0, read);
+        }
+        return writer.toString();
+    }
+
+    private static Elements resolveHtmlTables(Document document, String cssSelector) {
+        if (cssSelector == null || cssSelector.isBlank()) {
+            return document.select("table");
+        }
+
+        Elements scoped = document.select(cssSelector);
+        Elements tables = new Elements();
+        for (Element element : scoped) {
+            if ("table".equalsIgnoreCase(element.tagName())) {
+                tables.add(element);
+            } else {
+                tables.addAll(element.select("table"));
+            }
+        }
+        return tables;
+    }
+
+    private static List<String> extractHtmlHeaders(Element table) {
+        Elements headerCells = table.select("thead tr:first-child th");
+        if (headerCells.isEmpty()) {
+            headerCells = table.select("tr:first-child th");
+        }
+
+        List<String> headers = new ArrayList<>();
+        for (Element headerCell : headerCells) {
+            String header = headerCell.text().trim();
+            headers.add(header);
+        }
+        return sanitizeHeaders(headers);
+    }
+
+    private static List<List<String>> extractHtmlRows(Element table, List<String> headers) {
+        List<List<String>> rows = new ArrayList<>();
+        Elements rowElements = table.select("tbody tr");
+        if (rowElements.isEmpty()) {
+            rowElements = table.select("tr");
+            if (!rowElements.isEmpty()) {
+                rowElements.remove(0);
+            }
+        }
+
+        for (Element rowElement : rowElements) {
+            Elements cells = rowElement.select("td, th");
+            if (cells.isEmpty()) {
+                continue;
+            }
+
+            // Skip header-only rows when tables are authored without explicit thead markup.
+            if (!rowElement.select("th").isEmpty() && rowElement.select("td").isEmpty()) {
+                continue;
+            }
+
+            List<String> values = new ArrayList<>();
+            for (Element cell : cells) {
+                values.add(cell.text().trim());
+            }
+            rows.add(values);
+        }
+
+        return rows;
+    }
+
+    private static ArrayNode extractMarkdownTables(String body, ObjectMapper mapper) {
+        ArrayNode tables = mapper.createArrayNode();
+        String[] lines = body.split("\\n", -1);
+
+        int i = 0;
+        while (i < lines.length) {
+            if (i + 1 < lines.length && isMarkdownTableHeader(lines[i])
+                    && isMarkdownTableSeparator(lines[i + 1])) {
+                List<String> headers = sanitizeHeaders(parseMarkdownCells(lines[i]));
+                if (headers.isEmpty()) {
+                    i++;
+                    continue;
+                }
+
+                List<List<String>> rows = new ArrayList<>();
+                i += 2;
+                while (i < lines.length && isMarkdownTableRow(lines[i])) {
+                    rows.add(parseMarkdownCells(lines[i]));
+                    i++;
+                }
+
+                tables.add(mapRowsToTable(headers, rows, mapper));
+                continue;
+            }
+            i++;
+        }
+
+        return tables;
+    }
+
+    private static ArrayNode extractMarkdownSections(String body, ObjectMapper mapper) {
+        ArrayNode sections = mapper.createArrayNode();
+        String[] lines = body.split("\\n", -1);
+
+        Pattern headingPattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
+
+        String currentHeading = null;
+        int currentLevel = 0;
+        List<String> currentContent = new ArrayList<>();
+
+        for (String line : lines) {
+            java.util.regex.Matcher matcher = headingPattern.matcher(line.trim());
+            if (matcher.matches()) {
+                if (currentHeading != null) {
+                    sections.add(createSectionNode(currentHeading, currentLevel,
+                            toPlainText(String.join("\n", currentContent)), mapper));
+                }
+                currentHeading = matcher.group(2).trim();
+                currentLevel = matcher.group(1).length();
+                currentContent = new ArrayList<>();
+            } else if (currentHeading != null) {
+                currentContent.add(line);
+            }
+        }
+
+        if (currentHeading != null) {
+            sections.add(createSectionNode(currentHeading, currentLevel,
+                    toPlainText(String.join("\n", currentContent)), mapper));
+        }
+
+        return sections;
+    }
+
+    private static String removeMarkdownTables(String body) {
+        String[] lines = body.split("\\n", -1);
+        StringBuilder builder = new StringBuilder();
+
+        int i = 0;
+        while (i < lines.length) {
+            if (i + 1 < lines.length && isMarkdownTableHeader(lines[i])
+                    && isMarkdownTableSeparator(lines[i + 1])) {
+                i += 2;
+                while (i < lines.length && isMarkdownTableRow(lines[i])) {
+                    i++;
+                }
+                continue;
+            }
+
+            builder.append(lines[i]);
+            if (i < lines.length - 1) {
+                builder.append('\n');
+            }
+            i++;
+        }
+
+        return builder.toString();
+    }
+
+    private static ObjectNode createSectionNode(String heading, int level, String content,
+            ObjectMapper mapper) {
+        ObjectNode section = mapper.createObjectNode();
+        section.put("heading", heading);
+        section.put("level", level);
+        section.put("content", content);
+        return section;
+    }
+
+    private static ArrayNode mapRowsToTable(List<String> headers, List<List<String>> rows,
+            ObjectMapper mapper) {
+        ArrayNode table = mapper.createArrayNode();
+
+        for (List<String> row : rows) {
+            ObjectNode rowObject = mapper.createObjectNode();
+            for (int i = 0; i < headers.size(); i++) {
+                String value = i < row.size() ? row.get(i) : "";
+                rowObject.put(headers.get(i), value);
+            }
+            table.add(rowObject);
+        }
+
+        return table;
+    }
+
+    private static List<String> sanitizeHeaders(List<String> rawHeaders) {
+        List<String> headers = new ArrayList<>();
+        for (String rawHeader : rawHeaders) {
+            String header = rawHeader == null ? "" : rawHeader.trim();
+            headers.add(header);
+        }
+
+        if (headers.stream().allMatch(String::isBlank)) {
+            return List.of();
+        }
+
+        return headers;
+    }
+
+    private static boolean isMarkdownTableHeader(String line) {
+        return line != null && line.contains("|") && parseMarkdownCells(line).size() >= 2;
+    }
+
+    private static boolean isMarkdownTableSeparator(String line) {
+        if (line == null || !line.contains("|")) {
+            return false;
+        }
+
+        for (String cell : parseMarkdownCells(line)) {
+            String trimmed = cell.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (!trimmed.matches("^:?-{3,}:?$") && !trimmed.matches("^-{3,}$")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isMarkdownTableRow(String line) {
+        return line != null && !line.trim().isEmpty() && line.contains("|")
+                && !isMarkdownTableSeparator(line);
+    }
+
+    private static List<String> parseMarkdownCells(String line) {
+        String normalized = line.trim();
+        if (normalized.startsWith("|")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.endsWith("|")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return Arrays.stream(normalized.split("\\|", -1)).map(String::trim).toList();
+    }
+
+    private static MarkdownDocumentParts splitMarkdownFrontMatter(String markdown, ObjectMapper mapper)
+            throws IOException {
+        ObjectNode frontMatter = mapper.createObjectNode();
+        String body = markdown;
+
+        if (markdown.startsWith("---\n")) {
+            int endIndex = markdown.indexOf("\n---\n", 4);
+            if (endIndex > -1) {
+                String yamlBlock = markdown.substring(4, endIndex).trim();
+                body = markdown.substring(endIndex + 5);
+
+                if (!yamlBlock.isBlank()) {
+                    JsonNode parsed = new ObjectMapper(new YAMLFactory()).readTree(yamlBlock);
+                    if (parsed != null && parsed.isObject()) {
+                        frontMatter = (ObjectNode) parsed;
+                    }
+                }
+            }
+        }
+
+        return new MarkdownDocumentParts(frontMatter, body);
+    }
+
+    private static String toPlainText(String markdownContent) {
+        String plain = markdownContent;
+        plain = plain.replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "");
+        plain = plain.replaceAll("\\[([^\\]]+)\\]\\([^)]*\\)", "$1");
+        plain = plain.replaceAll("[`*_~>#]", "");
+        plain = plain.replaceAll("\\n{3,}", "\n\n");
+        return plain.trim();
+    }
+
+    private record MarkdownDocumentParts(ObjectNode frontMatter, String body) {
     }
 }

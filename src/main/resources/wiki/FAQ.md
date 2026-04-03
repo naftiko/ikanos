@@ -7,7 +7,7 @@ Welcome to the Naftiko Framework FAQ! This guide answers common questions from d
 ### Q: What is Naftiko Framework and why would I use it?
 **A:** Naftiko Framework is the first open-source platform for **Spec-Driven Integration**. Instead of writing boilerplate code to consume HTTP APIs and expose unified interfaces, you declare them in YAML. This enables:
 - **API composability**: Combine multiple APIs into a single capability
-- **Format conversion**: Convert between JSON, XML, Avro, Protobuf, CSV, and YAML
+- **Format conversion**: Convert between JSON, XML, Avro, Protobuf, CSV, TSV, PSV, HTML, Markdown, and YAML
 - **AI-ready integration**: Better context engineering for AI systems
 - **Reduced API sprawl**: Manage microservices and SaaS complexity
 

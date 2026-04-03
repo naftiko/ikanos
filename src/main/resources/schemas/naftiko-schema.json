@@ -1499,10 +1499,18 @@
             "avro",
             "protobuf",
             "csv",
-            "yaml"
+            "tsv",
+            "psv",
+            "yaml",
+            "html",
+            "markdown"
           ],
           "default": "json",
-          "description": "The raw format of the response from the consumed API. It is used to determine how to parse the response and extract the output parameters. Default value is json."
+          "description": "The raw format of the response from the consumed API. It is used to determine how to parse the response and extract the output parameters. Delimited formats: csv (comma), tsv (tab), psv (pipe). Default value is json."
+        },
+        "outputSchema": {
+          "type": "string",
+          "description": "Optional format-specific schema or selector. Required for avro and protobuf as the schema file path. For html, this may contain a CSS selector used to scope extraction before table conversion."
         },
         "outputParameters": {
           "type": "array",

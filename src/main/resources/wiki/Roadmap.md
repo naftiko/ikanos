@@ -1,4 +1,4 @@
-## Version 1.0 - First Alpha - March 30th, 2026 :seedling:
+## Version 1.0 - First Alpha - April 2nd, 2026 :seedling:
 
 The goal of this version is to deliver a MVP to enable common AI integration use cases and grow our community.
 
@@ -14,17 +14,17 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 
 ### Core developer experience
 - [x] Publish FAQ in the wiki
+- [x] Provide GitHub Action template based on Mega Linter
 - [ ] Publish Naftiko JSON Structure
 - [ ] Publish Naftiko Skill based on Naftiko CLI
 - [ ] Publish Naftiko Ruleset based on Spectral
 - [ ] Publish Maven Artifacts to [Maven Central](https://central.sonatype.com/)
 - [ ] Publish Javadocs to [Javadoc.io](https://javadoc.io)
 - [ ] Publish Docker Image to [Docker Hub](https://hub.docker.com/)
-- [x] Provide GitHub Action template based on Mega Linter
 
 ## Version 1.0 - Second Alpha - May 11th :deciduous_tree:
 
-The goal of this version is to deliver a MVP to enable common AI integration use cases and grow our community.
+The goal of this version is to solidify the MVP to enable common AI integration use cases and grow our community.
 
 ### Rightsize AI context
   - [ ] Add mocking feature to MCP server adapter similar to REST server adapter
@@ -37,6 +37,7 @@ The goal of this version is to deliver a MVP to enable common AI integration use
   - [ ] Add HTML and Markdown data format support for HTTP consumption
   - [ ] Support Webhook server adapter for workflow automation
   - [ ] Enable API token refresh flows
+  - [ ] Enhance support for tags and labels across capabilities
   - [ ] Support HTTP cache control directives
   - [ ] Facilitate integration with API gateways
 
@@ -51,10 +52,7 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 - [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
 - [ ] OpenAPI-to-Naftiko import tooling — generate a starter capability YAML from an existing OpenAPI file
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
-- [ ] Provide Control port
-  - [ ] Usable via REST API, usable via Naftiko CLI, packaged as capability
-  - [ ] Usable via webapp as Docker Desktop Extension
-- [ ] Enhance support for tags and labels across capabilities
+- [ ] Provide Control port usable via REST clients, Naftiko CLI
 
 ## Version 1.0 - First Beta - June :blossom:
 
@@ -64,11 +62,12 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
   - [ ] Evolve MCP server adapter to support [server-side code mode like CloudFlare](https://www.reddit.com/r/mcp/comments/1o1wdfh/do_you_think_code_mode_will_supercede_mcp/)
 - [ ] Enhance API reusability
   - [ ] Add support for resiliency patterns (retry, circuit breaker, rate limiter, time limiter, bulkhead, cache, fallback)
-  - [ ] Publish reference bridge capabilities (RSS/Atom XML feeds, XML/SOAP, CSV, etc.)
+  - [ ] Publish reference bridge capabilities (RSS/Atom XML feeds, XML/SOAP, CSV/TSV/PSV, etc.)
 - [ ] Provide enhanced security
   - [ ] Facilitate authorization management
 - [ ] Incorporate community feedback
-- [ ] Increase test coverage and overall quality
+- [ ] Complete test coverage and overall quality
+- [ ] Enhance traceability and debuggability of engine
 
 ## Version 1.0 - General Availability - September :apple:
 
@@ -78,6 +77,7 @@ The goal of this version is to release our first version ready for production.
 - [ ] Solidify the existing beta version scope
 - [ ] Increase test coverage and overall quality
 - [ ] Publish JSON Schema to [JSON Schema Store](https://www.schemastore.org/)
+- [ ] Profile and optimize engine for best latency and throughput
 
 ## Version 1.1 - December :snowflake:
 

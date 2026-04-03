@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "HTML Test Capability"
+  description: "Test capability for HTML table parsing"
+  tags:
+    - Test
+    - HTML
+  created: "2026-04-02"
+  modified: "2026-04-02"
+
+capability:
+  exposes:
+    - type: "rest"
+      address: "localhost"
+      port: 9093
+      namespace: "test-html"
+      resources:
+        - path: "/html/products"
+          name: "products"
+          operations:
+            - method: "GET"
+              call: "mock-html.get-products"
+              outputParameters:
+                - type: "array"
+                  mapping: "$.tables[0]"
+                  items:
+                    type: "object"
+                    properties:
+                      name:
+                        type: "string"
+                        mapping: "$.Name"
+                      price:
+                        type: "string"
+                        mapping: "$.Price"
+                      stock:
+                        type: "string"
+                        mapping: "$.Stock"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-html"
+      baseUri: "http://localhost:8080"
+      resources:
+        - path: "/api/products"
+          name: "products"
+          operations:
+            - method: "GET"
+              name: "get-products"
+              outputRawFormat: "html"
+              outputSchema: "table.products"

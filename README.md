@@ -15,7 +15,7 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 |---|---|
 | Spec-Driven Integration | Declare capabilities entirely in **YAML** — no Java required |
 | Multi-Protocol Servers | Expose capabilities via **MCP**, **SKILL**, or **REST** servers out of the box |
-| Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, and **Avro** payloads into JSON |
+| Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, **TSV**, **PSV**, **Avro**, **HTML**, and **Markdown** payloads into JSON |
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
 | Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |

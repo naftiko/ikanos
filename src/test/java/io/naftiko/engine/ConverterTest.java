@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -140,6 +142,143 @@ public class ConverterTest {
                 Converter.fixJsonPathWithSpaces("$.user details.email"));
     }
 
+    @Test
+    public void convertHtmlAndMarkdownShouldProduceSameTableContract() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Price</th><th>Stock</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Widget</td><td>$42</td><td>150</td></tr>
+                    <tr><td>Gadget</td><td>$99</td><td>30</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        String markdown = """
+                | Name | Price | Stock |
+                |------|-------|-------|
+                | Widget | $42 | 150 |
+                | Gadget | $99 | 30 |
+                """;
+
+        JsonNode htmlRoot = Converter.convertHtmlToJson(new StringReader(html), null);
+        JsonNode markdownRoot = Converter.convertMarkdownToJson(new StringReader(markdown));
+
+        assertEquals(htmlRoot.get("tables"), markdownRoot.get("tables"));
+        assertEquals("$42", htmlRoot.get("tables").get(0).get(0).get("Price").asText());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldApplyCssSelectorScoping() throws Exception {
+        String html = """
+                <div>
+                  <table class="ignored">
+                    <tr><th>Name</th><th>Stock</th></tr>
+                    <tr><td>Ignored</td><td>0</td></tr>
+                  </table>
+                  <table class="products">
+                    <tr><th>Name</th><th>Stock</th></tr>
+                    <tr><td>Kept</td><td>42</td></tr>
+                  </table>
+                </div>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), "table.products");
+
+        assertEquals(1, root.get("tables").size());
+        assertEquals("Kept", root.get("tables").get(0).get(0).get("Name").asText());
+    }
+
+    @Test
+    public void convertMarkdownToJsonShouldExtractFrontMatterTablesAndSections() throws Exception {
+        String markdown = """
+                ---
+                title: Release Notes
+                version: 2.1.0
+                ---
+
+                ## Overview
+                This **release** introduces [new features](https://example.com).
+
+                | Feature | Status |
+                |---------|--------|
+                | Search  | GA     |
+                """;
+
+        JsonNode root = Converter.convertMarkdownToJson(new StringReader(markdown));
+
+        assertEquals("Release Notes", root.get("frontMatter").get("title").asText());
+        assertEquals("2.1.0", root.get("frontMatter").get("version").asText());
+        assertEquals("GA", root.get("tables").get(0).get(0).get("Status").asText());
+        assertEquals("Overview", root.get("sections").get(0).get("heading").asText());
+        assertEquals("This release introduces new features.",
+                root.get("sections").get(0).get("content").asText());
+    }
+
+    @Test
+    public void convertToJsonShouldSupportHtmlAndMarkdownFormats() throws Exception {
+        StringRepresentation htmlEntity =
+                new StringRepresentation("<table><tr><th>Name</th></tr><tr><td>Alice</td></tr></table>",
+                        MediaType.TEXT_HTML);
+        StringRepresentation markdownEntity =
+                new StringRepresentation("| Name | Role |\n|------|------|\n| Alice | User |",
+                        MediaType.TEXT_PLAIN);
+
+        JsonNode htmlRoot = Converter.convertToJson("html", null, htmlEntity);
+        JsonNode markdownRoot = Converter.convertToJson("markdown", null, markdownEntity);
+
+        assertEquals("Alice", htmlRoot.get("tables").get(0).get(0).get("Name").asText());
+        assertEquals("Alice", markdownRoot.get("tables").get(0).get(0).get("Name").asText());
+    }
+
+    @Test
+    public void convertDelimitedToJsonShouldParseTabSeparatedValues() throws Exception {
+        String tsv = "id\tname\temail\n1\tAlice Smith\talice@example.com\n2\tBob Johnson\tbob@example.com\n";
+        JsonNode root = Converter.convertDelimitedToJson(new StringReader(tsv), '\t');
+
+        assertEquals(2, root.size());
+        assertEquals("1", root.get(0).get("id").asText());
+        assertEquals("Alice Smith", root.get(0).get("name").asText());
+        assertEquals("alice@example.com", root.get(0).get("email").asText());
+        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+    }
+
+    @Test
+    public void convertDelimitedToJsonShouldParsePipeSeparatedValues() throws Exception {
+        String psv = "id|name|email\n1|Alice Smith|alice@example.com\n2|Bob Johnson|bob@example.com\n";
+        JsonNode root = Converter.convertDelimitedToJson(new StringReader(psv), '|');
+
+        assertEquals(2, root.size());
+        assertEquals("1", root.get(0).get("id").asText());
+        assertEquals("Alice Smith", root.get(0).get("name").asText());
+        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+    }
+
+    @Test
+    public void convertToJsonShouldRouteTsvAndPsvFormats() throws Exception {
+        StringRepresentation tsvEntity =
+                new StringRepresentation("id\tname\n1\tAlice\n", MediaType.TEXT_PLAIN);
+        StringRepresentation psvEntity =
+                new StringRepresentation("id|name\n1|Alice\n", MediaType.TEXT_PLAIN);
+
+        JsonNode tsvRoot = Converter.convertToJson("tsv", null, tsvEntity);
+        JsonNode psvRoot = Converter.convertToJson("psv", null, psvEntity);
+
+        assertEquals("Alice", tsvRoot.get(0).get("name").asText());
+        assertEquals("Alice", psvRoot.get(0).get("name").asText());
+    }
+
+    @Test
+    public void convertCsvToJsonShouldDelegateToDelimited() throws Exception {
+        String csv = "id,name\n1,Alice\n";
+        JsonNode root = Converter.convertCsvToJson(new StringReader(csv));
+
+        assertEquals(1, root.size());
+        assertEquals("Alice", root.get(0).get("name").asText());
+    }
+
         @Test
         public void convertToJsonShouldSupportJsonWhenFormatIsNull() throws Exception {
                 StringRepresentation entity =
@@ -241,4 +380,141 @@ public class ConverterTest {
                 assertEquals(null, Converter.fixJsonPathWithSpaces(null));
                 assertEquals("$.user.email", Converter.fixJsonPathWithSpaces("$.user.email"));
         }
+
+    @Test
+    public void convertHtmlAndMarkdownShouldProduceSameTableContract() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Price</th><th>Stock</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Widget</td><td>$42</td><td>150</td></tr>
+                    <tr><td>Gadget</td><td>$99</td><td>30</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        String markdown = """
+                | Name | Price | Stock |
+                |------|-------|-------|
+                | Widget | $42 | 150 |
+                | Gadget | $99 | 30 |
+                """;
+
+        JsonNode htmlRoot = Converter.convertHtmlToJson(new StringReader(html), null);
+        JsonNode markdownRoot = Converter.convertMarkdownToJson(new StringReader(markdown));
+
+        assertEquals(htmlRoot.get("tables"), markdownRoot.get("tables"));
+        assertEquals("$42", htmlRoot.get("tables").get(0).get(0).get("Price").asText());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldApplyCssSelectorScoping() throws Exception {
+        String html = """
+                <div>
+                  <table class="ignored">
+                    <tr><th>Name</th><th>Stock</th></tr>
+                    <tr><td>Ignored</td><td>0</td></tr>
+                  </table>
+                  <table class="products">
+                    <tr><th>Name</th><th>Stock</th></tr>
+                    <tr><td>Kept</td><td>42</td></tr>
+                  </table>
+                </div>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), "table.products");
+
+        assertEquals(1, root.get("tables").size());
+        assertEquals("Kept", root.get("tables").get(0).get(0).get("Name").asText());
+    }
+
+    @Test
+    public void convertMarkdownToJsonShouldExtractFrontMatterTablesAndSections() throws Exception {
+        String markdown = """
+                ---
+                title: Release Notes
+                version: 2.1.0
+                ---
+
+                ## Overview
+                This **release** introduces [new features](https://example.com).
+
+                | Feature | Status |
+                |---------|--------|
+                | Search  | GA     |
+                """;
+
+        JsonNode root = Converter.convertMarkdownToJson(new StringReader(markdown));
+
+        assertEquals("Release Notes", root.get("frontMatter").get("title").asText());
+        assertEquals("2.1.0", root.get("frontMatter").get("version").asText());
+        assertEquals("GA", root.get("tables").get(0).get(0).get("Status").asText());
+        assertEquals("Overview", root.get("sections").get(0).get("heading").asText());
+        assertEquals("This release introduces new features.",
+                root.get("sections").get(0).get("content").asText());
+    }
+
+    @Test
+    public void convertToJsonShouldSupportHtmlAndMarkdownFormats() throws Exception {
+        StringRepresentation htmlEntity =
+                new StringRepresentation("<table><tr><th>Name</th></tr><tr><td>Alice</td></tr></table>",
+                        MediaType.TEXT_HTML);
+        StringRepresentation markdownEntity =
+                new StringRepresentation("| Name | Role |\n|------|------|\n| Alice | User |",
+                        MediaType.TEXT_PLAIN);
+
+        JsonNode htmlRoot = Converter.convertToJson("html", null, htmlEntity);
+        JsonNode markdownRoot = Converter.convertToJson("markdown", null, markdownEntity);
+
+        assertEquals("Alice", htmlRoot.get("tables").get(0).get(0).get("Name").asText());
+        assertEquals("Alice", markdownRoot.get("tables").get(0).get(0).get("Name").asText());
+    }
+
+    @Test
+    public void convertDelimitedToJsonShouldParseTabSeparatedValues() throws Exception {
+        String tsv = "id\tname\temail\n1\tAlice Smith\talice@example.com\n2\tBob Johnson\tbob@example.com\n";
+        JsonNode root = Converter.convertDelimitedToJson(new StringReader(tsv), '\t');
+
+        assertEquals(2, root.size());
+        assertEquals("1", root.get(0).get("id").asText());
+        assertEquals("Alice Smith", root.get(0).get("name").asText());
+        assertEquals("alice@example.com", root.get(0).get("email").asText());
+        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+    }
+
+    @Test
+    public void convertDelimitedToJsonShouldParsePipeSeparatedValues() throws Exception {
+        String psv = "id|name|email\n1|Alice Smith|alice@example.com\n2|Bob Johnson|bob@example.com\n";
+        JsonNode root = Converter.convertDelimitedToJson(new StringReader(psv), '|');
+
+        assertEquals(2, root.size());
+        assertEquals("1", root.get(0).get("id").asText());
+        assertEquals("Alice Smith", root.get(0).get("name").asText());
+        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+    }
+
+    @Test
+    public void convertToJsonShouldRouteTsvAndPsvFormats() throws Exception {
+        StringRepresentation tsvEntity =
+                new StringRepresentation("id\tname\n1\tAlice\n", MediaType.TEXT_PLAIN);
+        StringRepresentation psvEntity =
+                new StringRepresentation("id|name\n1|Alice\n", MediaType.TEXT_PLAIN);
+
+        JsonNode tsvRoot = Converter.convertToJson("tsv", null, tsvEntity);
+        JsonNode psvRoot = Converter.convertToJson("psv", null, psvEntity);
+
+        assertEquals("Alice", tsvRoot.get(0).get("name").asText());
+        assertEquals("Alice", psvRoot.get(0).get("name").asText());
+    }
+
+    @Test
+    public void convertCsvToJsonShouldDelegateToDelimited() throws Exception {
+        String csv = "id,name\n1,Alice\n";
+        JsonNode root = Converter.convertCsvToJson(new StringReader(csv));
+
+        assertEquals(1, root.size());
+        assertEquals("Alice", root.get(0).get("name").asText());
+    }
 }
