@@ -31,7 +31,7 @@ To use Naftiko Framework, you must install and then run its engine.
   * If your capability refers to some local hosts, be careful to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will refer to the container and not your local machine.\
     For example:
     ```bash
-    baseUri: "http://host.docker.internal:8080/api"
+    baseUri: "http://host.docker.internal:8080/api/"
     ```
   * In the same way, if your capability expose a local host, be careful to not use 'localhost', but '0.0.0.0' instead. Else requests to localhost coming from outside of the container won't succeed.\
     For example:
