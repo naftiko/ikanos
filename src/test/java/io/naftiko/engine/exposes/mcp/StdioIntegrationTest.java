@@ -39,7 +39,7 @@ public class StdioIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/mcp-stdio-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-stdio-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(),
@@ -217,7 +217,7 @@ public class StdioIntegrationTest {
     @Test
     public void testHttpTransportDefaultWhenNotSet() throws Exception {
         // Load the original MCP capability (no transport field)
-        String resourcePath = "src/test/resources/mcp-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists());
 

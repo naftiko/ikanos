@@ -21,6 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.naftiko.engine.AggregateRefResolver;
 import io.naftiko.engine.BindingResolver;
 import io.naftiko.engine.ConsumesImportResolver;
 import io.naftiko.spec.ExecutionContext;
@@ -67,6 +68,10 @@ public class Capability {
             ConsumesImportResolver importResolver = new ConsumesImportResolver();
             importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);
         }
+
+        // Resolve aggregate function refs before adapter initialization
+        AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();
+        aggregateRefResolver.resolve(spec);
 
         // Resolve bindings early for injection into adapters
         BindingResolver bindingResolver = new BindingResolver();

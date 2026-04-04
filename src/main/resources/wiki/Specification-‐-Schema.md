@@ -179,6 +179,7 @@ Defines the technical configuration of the capability.
 | **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is a REST Expose (`type: "rest"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 | **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
+| **aggregates** | `Aggregate[]` | Domain aggregates defining reusable functions. Adapter units (tools, operations) reference them via `ref`. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 
 #### 3.4.2 Rules
 
@@ -188,6 +189,7 @@ Defines the technical configuration of the capability.
 - Each `consumes` entry MUST include both `baseUri` and `namespace` fields.
 - There are several types of exposed adapters and consumed sources objects, all will be described in following objects.
 - The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
+- The `aggregates` field is OPTIONAL. When present, it MUST contain at least one entry. Aggregate namespaces MUST be unique.
 - No additional properties are allowed.
 
 #### 3.4.3 Namespace Uniqueness Rule
@@ -235,6 +237,163 @@ capability:
                 - name: taskId
                   type: string
                   value: $.data.id
+```
+
+---
+
+### 3.4.5 Aggregate Object
+
+A domain aggregate in the sense of [Domain-Driven Design (DDD)](https://en.wikipedia.org/wiki/Domain-driven_design#Building_blocks). Each aggregate groups reusable **functions** — transport-neutral invocable units that adapters reference via `ref`. This factorizes domain behavior so it is defined once and reused across REST, MCP, Skill, and future adapters without duplication.
+
+> New in schema v1.0.0-alpha1.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **label** | `string` | **REQUIRED**. Human-readable name for this aggregate (e.g. `"Forecast"`). |
+| **namespace** | `string` | **REQUIRED**. Machine-readable qualifier (`IdentifierKebab`). Used as the first segment in `ref` values (`{aggregate-namespace}.{function-name}`). |
+| **functions** | `AggregateFunction[]` | **REQUIRED**. Reusable invocable units within this aggregate (minimum 1). |
+
+**Rules:**
+
+- All three fields are mandatory.
+- The `namespace` MUST be unique across all aggregates.
+- No additional properties are allowed.
+
+#### 3.4.5.1 AggregateFunction Object
+
+A reusable invocable unit within an aggregate. Adapter units (MCP tools, REST operations) reference it via `ref: {aggregate-namespace}.{function-name}`. Referenced fields are merged into the adapter unit; adapter-local explicit fields override inherited ones.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **name** | `string` | **REQUIRED**. Function name (`IdentifierKebab`). Combined with aggregate namespace to form the ref target. |
+| **description** | `string` | **REQUIRED**. A meaningful description of the function. Inherited by adapter units that omit their own. |
+| **semantics** | `Semantics` | Transport-neutral behavioral metadata. Automatically derived into adapter-specific metadata (e.g. MCP hints). See [3.4.5.2 Semantics Object](#3452-semantics-object). |
+| **inputParameters** | `McpToolInputParameter[]` | Input parameters for this function. |
+| **call** | `string` | **Simple mode**. Reference to consumed operation (`{namespace}.{operationId}`). |
+| **with** | `WithInjector` | **Simple mode**. Parameter injection for the called operation. |
+| **steps** | `OperationStep[]` | **Orchestrated mode**. Sequence of calls to consumed operations (minimum 1). |
+| **mappings** | `StepOutputMapping[]` | **Orchestrated mode**. Maps step outputs to function output parameters. |
+| **outputParameters** (simple) | `MappedOutputParameter[]` | **Simple mode**. Output params mapped from consumed operation response. |
+| **outputParameters** (orchestrated) | `OrchestratedOutputParameter[]` | **Orchestrated mode**. Named, typed output parameters. |
+
+**Modes:**
+
+Same two modes as McpTool and ExposedOperation:
+
+- **Simple mode** — `call` is REQUIRED, `with` optional, `steps` MUST NOT be present.
+- **Orchestrated mode** — `steps` is REQUIRED, `mappings` optional, `call` and `with` MUST NOT be present.
+
+**Rules:**
+
+- `name` and `description` are mandatory.
+- Exactly one mode MUST be used.
+- Function names MUST be unique within an aggregate.
+- No chained refs — a function cannot itself use `ref`.
+- No additional properties are allowed.
+
+#### 3.4.5.2 Semantics Object
+
+Transport-neutral behavioral metadata for an invocable unit. These properties describe the function's intent independent of any transport protocol. The framework automatically derives adapter-specific metadata from semantics — for example, MCP tool `hints` are derived from `semantics` at capability load time (see [Semantics-to-Hints derivation](#3453-semantics-to-hints-derivation)).
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **safe** | `boolean` | If `true`, the function does not modify state. Default: `false`. |
+| **idempotent** | `boolean` | If `true`, repeating the call has no additional effect. Default: `false`. |
+| **cacheable** | `boolean` | If `true`, the result can be cached. Default: `false`. |
+
+**Rules:**
+
+- All fields are optional. Omitted fields fall back to their defaults.
+- No additional properties are allowed.
+
+#### 3.4.5.3 Semantics-to-Hints Derivation
+
+When an MCP tool references an aggregate function via `ref`, the function's `semantics` are automatically derived into MCP `hints` (`McpToolHints`). Explicit `hints` on the MCP tool override derived values field by field.
+
+**Mapping table:**
+
+| Aggregate `semantics` | Derived MCP `hints` | Rationale |
+| --- | --- | --- |
+| `safe: true` | `readOnly: true`, `destructive: false` | A safe function doesn't change state |
+| `safe: false` (or absent) | `readOnly: false` | Default — may have side effects |
+| `idempotent: true` | `idempotent: true` | Direct 1:1 mapping |
+| `cacheable` | *(not mapped)* | No MCP equivalent; informational for future adapters |
+| *(no semantic)* | `openWorld` not derived | `openWorld` is MCP-specific context; set explicitly at tool level |
+
+**Override rule:** Each non-null field in the tool-level `hints` wins over the derived value. Absent fields in the tool-level `hints` still inherit from semantics.
+
+#### 3.4.5.4 Aggregate Object Example
+
+```yaml
+capability:
+  aggregates:
+    - label: "Forecast"
+      namespace: "forecast"
+      functions:
+        - name: "get-forecast"
+          description: "Fetch current weather forecast for a location."
+          semantics:
+            safe: true
+            idempotent: true
+          inputParameters:
+            - name: "location"
+              type: "string"
+              description: "City name or coordinates"
+          call: "weather-api.get-forecast"
+          with:
+            location: "location"
+          outputParameters:
+            - type: "string"
+              mapping: "$.forecast"
+
+  exposes:
+    - type: "mcp"
+      namespace: "forecast-mcp"
+      tools:
+        # Minimal ref — name, description, call, params, outputs all inherited
+        - ref: "forecast.get-forecast"
+
+        # Override only the name; everything else inherited
+        - ref: "forecast.get-forecast"
+          name: "weather"
+
+        # Add MCP-specific openWorld hint; readOnly/destructive/idempotent derived
+        - ref: "forecast.get-forecast"
+          name: "weather-open"
+          hints:
+            openWorld: true
+
+    - type: "rest"
+      namespace: "forecast-rest"
+      resources:
+        - path: "/forecast/{location}"
+          name: "forecast"
+          description: "Forecast resource"
+          operations:
+            - ref: "forecast.get-forecast"
+              method: "GET"
+              inputParameters:
+                - name: "location"
+                  in: "path"
+                  type: "string"
+                  description: "City name or coordinates"
+
+  consumes:
+    - type: "http"
+      namespace: "weather-api"
+      baseUri: "https://api.weather.example.com/v1"
+      resources:
+        - path: "forecast"
+          name: "forecast"
+          operations:
+            - method: "GET"
+              name: "get-forecast"
 ```
 
 ---
@@ -333,17 +492,18 @@ Capability groups not declared in the configuration are omitted from the `initia
 
 An MCP tool definition. Each tool maps to one or more consumed HTTP operations, similar to ExposedOperation but adapted for the MCP protocol (no HTTP method, tool-oriented input schema).
 
-> The McpTool supports the same two modes as ExposedOperation: **simple** (direct `call` + `with`) and **orchestrated** (multi-step with `steps` + `mappings`).
+> The McpTool supports the same two modes as ExposedOperation: **simple** (direct `call` + `with`) and **orchestrated** (multi-step with `steps` + `mappings`). Additionally, a tool can use **`ref`** to reference an aggregate function, inheriting its fields.
 > 
 
 **Fixed Fields:**
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **name** | `string` | **REQUIRED**. Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
+| **name** | `string` | Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. **REQUIRED** unless `ref` is used (inherited from function). |
 | **label** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
-| **description** | `string` | **REQUIRED**. A meaningful description of the tool. Essential for agent discovery. |
-| **hints** | `McpToolHints` | Optional behavioral hints for MCP clients. Mapped to `ToolAnnotations` in the MCP protocol. See [3.5.5.1 McpToolHints Object](#3551-mctoolhints-object). |
+| **description** | `string` | A meaningful description of the tool. Essential for agent discovery. **REQUIRED** unless `ref` is used (inherited from function). |
+| **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
+| **hints** | `McpToolHints` | Optional behavioral hints for MCP clients. Mapped to `ToolAnnotations` in the MCP protocol. When `ref` is used, hints are automatically derived from the function's `semantics`; explicit values override derived ones. See [3.5.5.1 McpToolHints Object](#3551-mctoolhints-object). |
 | **inputParameters** | `McpToolInputParameter[]` | Tool input parameters. These become the MCP tool's input schema (JSON Schema). |
 | **call** | `string` | **Simple mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
 | **with** | `WithInjector` | **Simple mode only**. Parameter injection for the called operation. |
@@ -368,10 +528,18 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 - `outputParameters` are `OrchestratedOutputParameter[]`
 - `call` and `with` MUST NOT be present
 
+**Ref mode** — reference to an aggregate function:
+
+- `ref` is **REQUIRED**
+- All other fields are optional — inherited from the referenced function
+- Explicit fields override inherited ones (field-level merge)
+- `hints` are automatically derived from the function's `semantics` (see [3.4.5.3](#3453-semantics-to-hints-derivation))
+
 **Rules:**
 
-- Both `name` and `description` are mandatory.
-- Exactly one of the two modes MUST be used (simple or orchestrated).
+- Exactly one mode MUST be used: simple (`call`), orchestrated (`steps`), or ref (`ref`).
+- In simple and orchestrated modes, `name` and `description` are mandatory.
+- In ref mode, `name` and `description` are optional (inherited from the function).
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry.
 - Input parameters are accessed via namespace-qualified references of the form `{mcpNamespace}.{paramName}`.
@@ -981,6 +1149,8 @@ outputParameters:
 Describes an operation exposed on an exposed resource.
 
 > Update (schema v0.5): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
+>
+> Update (schema v1.0.0-alpha1): A third **ref mode** allows referencing an aggregate function, inheriting its fields. See [3.4.5 Aggregate Object](#345-aggregate-object).
 > 
 
 #### 3.9.1 Fixed Fields
@@ -990,9 +1160,10 @@ All fields available on ExposedOperation:
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **method** | `string` | **REQUIRED**. HTTP method. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. |
-| **name** | `string` | Technical name for the operation (pattern `^[a-zA-Z0-9-]+$`). **REQUIRED in orchestrated mode only.** |
+| **name** | `string` | Technical name for the operation (pattern `^[a-zA-Z0-9-]+$`). **REQUIRED in orchestrated mode.** Optional when `ref` is used (inherited from function). |
 | **label** | `string` | Display name for the operation (likely used in UIs). |
-| **description** | `string` | A longer description of the operation. Useful for agent discovery and documentation. |
+| **description** | `string` | A longer description of the operation. Useful for agent discovery and documentation. Optional when `ref` is used (inherited from function). |
+| **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the operation. |
 | **call** | `string` | **Simple mode only**. Direct reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
 | **with** | `WithInjector` | **Simple mode only**. Parameter injection for the called operation. |
@@ -1019,11 +1190,20 @@ All fields available on ExposedOperation:
 - `outputParameters` are `OrchestratedOutputParameter[]` (name + type)
 - `call` and `with` MUST NOT be present
 
+**Ref mode** — reference to an aggregate function:
+
+- `ref` is **REQUIRED**
+- `method` is still **REQUIRED** (transport-specific)
+- All other fields are optional — inherited from the referenced function
+- Explicit fields override inherited ones (field-level merge)
+- REST-specific fields like `inputParameters` with `in` location can be added to specialize the function for HTTP
+
 #### 3.9.3 Rules
 
-- Exactly one of the two modes MUST be used (simple or orchestrated).
+- Exactly one of the three modes MUST be used (simple, orchestrated, or ref).
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry. Each step references a consumed operation using `{namespace}.{operationName}`.
+- In ref mode, `ref` MUST resolve to an existing aggregate function at capability load time.
 - The `method` field is always required regardless of mode.
 
 #### 3.9.4 ExposedOperation Object Examples

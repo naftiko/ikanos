@@ -31,7 +31,7 @@ public class AvroIntegrationTest {
     @BeforeEach
     public void setUp() throws Exception {
         // Load the Avro capability from test resources
-        String resourcePath = "src/test/resources/avro-capability.yaml";
+        String resourcePath = "src/test/resources/formats/avro-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(), "Avro capability test file should exist at " + resourcePath);

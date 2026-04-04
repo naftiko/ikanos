@@ -41,7 +41,7 @@ public class McpIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/mcp-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(), "MCP capability test file should exist at " + resourcePath);

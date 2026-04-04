@@ -45,7 +45,7 @@ public class XmlIntegrationTest {
     @BeforeEach
     public void setUp() throws Exception {
         // Load the XML capability from test resources
-        String resourcePath = "src/test/resources/xml-capability.yaml";
+        String resourcePath = "src/test/resources/formats/xml-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(), "XML capability test file should exist at " + resourcePath);

@@ -40,7 +40,7 @@ public class CsvIntegrationTest {
     @BeforeEach
     public void setUp() throws Exception {
         // Load the CSV capability from test resources
-        String resourcePath = "src/test/resources/csv-capability.yaml";
+        String resourcePath = "src/test/resources/formats/csv-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(), "CSV capability test file should exist at " + resourcePath);

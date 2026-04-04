@@ -33,7 +33,7 @@ public class ProtocolDispatcherNegativeTest {
     @BeforeEach
     public void setUp() throws Exception {
         mapper = new ObjectMapper();
-        String resourcePath = "src/test/resources/mcp-resources-prompts-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-resources-prompts-capability.yaml";
         File file = new File(resourcePath);
         ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
         yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

@@ -76,6 +76,14 @@ When wrapping an API as MCP, design in this order:
     - simple mode: inline typed output parameters (`MappedOutputParameter`)
     - orchestrated mode: named typed outputs (`OrchestratedOutputParameter`) plus `mappings`
 
+4) If the same operation is also exposed via REST, consider using **aggregates**:
+
+- Define the function once in `capability.aggregates[]` (DDD Aggregate pattern)
+- Reference it from MCP tools with `ref: {namespace}.{function-name}`
+- Declare `semantics` (safe, idempotent, cacheable) on the function — the engine auto-derives MCP `hints`
+- Override only MCP-specific fields on the tool (e.g., explicit `hints` for `openWorld`)
+- `name` and `description` are inherited from the function unless overridden
+
 ## Constraints (aligned with schema + rules)
 
 ### Global constraints
@@ -95,12 +103,15 @@ When wrapping an API as MCP, design in this order:
 For each MCP tool:
 
 1. `name` (kebab-case / IdentifierKebab) is required and must be stable (used as the MCP tool name).
+   When using `ref`, `name` is optional — inherited from the aggregate function.
 2. `description` is required (agent discovery depends on it).
+   When using `ref`, `description` is optional — inherited from the aggregate function.
 3. `hints` is optional — declares behavioral hints mapped to MCP `ToolAnnotations`:
     - `readOnly` (bool) — tool does not modify its environment (default: false)
     - `destructive` (bool) — tool may perform destructive updates (default: true, meaningful only when readOnly is false)
     - `idempotent` (bool) — repeating the call has no additional effect (default: false, meaningful only when readOnly is false)
     - `openWorld` (bool) — tool interacts with external entities (default: true)
+    When using `ref` with `semantics` on the function, hints are auto-derived (safe→readOnly/destructive, idempotent→idempotent). Explicit hints override derived values.
 4. If tool is simple:
     - must define `call: {namespace}.{operationName}`
     - may define `with`
@@ -109,7 +120,10 @@ For each MCP tool:
     - must define `steps` (min 1), each step has `name`
     - may define `mappings`
     - `outputParameters` must use orchestrated output parameter objects (named + typed)
-6. Tool `inputParameters`:
+6. If tool uses `ref`:
+    - must define `ref: {namespace}.{function-name}` pointing to an aggregate function
+    - all other fields are optional — inherited from the function, explicit values override
+7. Tool `inputParameters`:
     - each parameter must have `name`, `type`, `description`
     - set `required: false` explicitly for optional params (default is true)
 

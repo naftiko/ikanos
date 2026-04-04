@@ -136,7 +136,7 @@ class JettyStreamableHandlerTest {
     }
 
     private static McpServerAdapter startAdapterOnFreePort() throws Exception {
-        String resourcePath = "src/test/resources/mcp-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-capability.yaml";
         NaftikoSpec spec = YAML.readValue(new File(resourcePath), NaftikoSpec.class);
         McpServerSpec mcpServerSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
         mcpServerSpec.setPort(findFreePort());
