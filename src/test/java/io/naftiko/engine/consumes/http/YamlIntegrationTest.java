@@ -44,7 +44,7 @@ public class YamlIntegrationTest {
     @BeforeEach
     public void setUp() throws Exception {
         // Load the YAML capability from test resources
-        String resourcePath = "src/test/resources/yaml-capability.yaml";
+        String resourcePath = "src/test/resources/formats/yaml-capability.yaml";
         File file = new File(resourcePath);
 
         assertTrue(file.exists(), "YAML capability test file should exist at " + resourcePath);

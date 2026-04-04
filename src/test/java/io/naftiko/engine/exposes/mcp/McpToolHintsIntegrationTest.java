@@ -41,7 +41,7 @@ public class McpToolHintsIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/mcp-hints-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-hints-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "MCP hints capability test file should exist");
 

@@ -83,7 +83,7 @@ public class ToolHandlerTest {
      */
     @Test
     public void handleToolCallShouldResolveMustacheTemplatesInWithValues() throws Exception {
-        String resourcePath = "src/test/resources/tool-handler-with-mustache-capability.yaml";
+        String resourcePath = "src/test/resources/mcp/mcp-tool-handler-with-mustache-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Test capability file should exist at " + resourcePath);
 

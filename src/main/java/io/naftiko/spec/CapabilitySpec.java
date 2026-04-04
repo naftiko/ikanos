@@ -29,10 +29,14 @@ public class CapabilitySpec {
     private final List<ServerSpec> exposes;
     private final List<ClientSpec> consumes;
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<AggregateSpec> aggregates;
+
     public CapabilitySpec() {
         this.binds = new CopyOnWriteArrayList<>();
         this.exposes = new CopyOnWriteArrayList<>();
         this.consumes = new CopyOnWriteArrayList<>();
+        this.aggregates = new CopyOnWriteArrayList<>();
     }
 
     public List<BindingSpec> getBinds() {
@@ -45,6 +49,10 @@ public class CapabilitySpec {
 
     public List<ClientSpec> getConsumes() {
         return consumes;
+    }
+
+    public List<AggregateSpec> getAggregates() {
+        return aggregates;
     }
 
 }

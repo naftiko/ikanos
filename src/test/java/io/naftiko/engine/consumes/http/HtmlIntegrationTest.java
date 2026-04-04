@@ -39,7 +39,7 @@ public class HtmlIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/html-capability.yaml";
+        String resourcePath = "src/test/resources/formats/html-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "HTML capability test file should exist at " + resourcePath);
 

@@ -39,7 +39,7 @@ public class ForwardValueFieldTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/http-forward-value-capability.yaml";
+        String resourcePath = "src/test/resources/http/http-forward-value-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Capability file should exist at " + resourcePath);
 

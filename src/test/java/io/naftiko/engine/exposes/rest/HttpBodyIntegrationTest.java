@@ -39,7 +39,7 @@ public class HttpBodyIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/http-body-capability.yaml";
+        String resourcePath = "src/test/resources/http/http-body-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "HTTP body capability file should exist at " + resourcePath);
 

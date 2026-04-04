@@ -24,6 +24,7 @@ functionsDir: ./functions
 
 functions:
   - unique-namespaces
+  - aggregate-semantics-consistency
 
 rules:
 
@@ -112,6 +113,31 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "example\\.com$"
+
+  naftiko-aggregate-function-description:
+    message: "Each aggregate function should have a `description` field."
+    description: >
+      Function descriptions are inherited by adapter units and improve agent
+      discoverability.
+    severity: warn
+    recommended: true
+    given: "$.capability.aggregates[*].functions[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  naftiko-aggregate-semantics-consistency:
+    message: "Aggregate function semantics must be consistent with MCP tool hints and REST operation methods."
+    description: >
+      When an MCP tool or REST operation references an aggregate function via `ref`,
+      any explicit hints or HTTP methods should not contradict the function's declared
+      semantics. For example, a safe function should not have destructive=true hints
+      or use a POST/DELETE method.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: aggregate-semantics-consistency
 
   # ────────────────────────────────────────────────────────────────
   # 2. QUALITY & DISCOVERABILITY

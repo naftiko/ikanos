@@ -43,7 +43,7 @@ public class ProtobufIntegrationTest {
         @BeforeEach
         public void setUp() throws Exception {
                 // Load the Protobuf capability from test resources
-                String resourcePath = "src/test/resources/proto-capability.yaml";
+                String resourcePath = "src/test/resources/formats/proto-capability.yaml";
                 File file = new File(resourcePath);
 
                 assertTrue(file.exists(),

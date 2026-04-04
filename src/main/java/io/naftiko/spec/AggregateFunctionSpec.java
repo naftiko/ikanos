@@ -11,33 +11,29 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.spec.exposes;
+package io.naftiko.spec;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.naftiko.spec.InputParameterSpec;
-import io.naftiko.spec.OutputParameterSpec;
+import io.naftiko.spec.exposes.OperationStepSpec;
+import io.naftiko.spec.exposes.ServerCallSpec;
 
 /**
- * MCP Tool Specification Element.
+ * Aggregate Function Specification Element.
  * 
- * Defines an MCP tool that maps to consumed HTTP operations.
- * Supports both simple call mode (call + with) and full orchestration (steps + mappings).
+ * A reusable invocable unit within an aggregate. Adapter units reference it via
+ * ref: aggregate-namespace.function-name.
  */
-public class McpServerToolSpec {
+public class AggregateFunctionSpec {
 
     private volatile String name;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String label;
-
     private volatile String description;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String ref;
+    private volatile SemanticsSpec semantics;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
@@ -51,23 +47,13 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile McpToolHintsSpec hints;
-
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<StepOutputMappingSpec> mappings;
+    private final List<Map<String, Object>> mappings;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
 
-    public McpServerToolSpec() {
-        this(null, null, null);
-    }
-
-    public McpServerToolSpec(String name, String label, String description) {
-        this.name = name;
-        this.label = label;
-        this.description = description;
+    public AggregateFunctionSpec() {
         this.inputParameters = new CopyOnWriteArrayList<>();
         this.steps = new CopyOnWriteArrayList<>();
         this.mappings = new CopyOnWriteArrayList<>();
@@ -82,20 +68,20 @@ public class McpServerToolSpec {
         this.name = name;
     }
 
-    public String getLabel() {
-        return label;
-    }
-
-    public void setLabel(String label) {
-        this.label = label;
-    }
-
     public String getDescription() {
         return description;
     }
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public SemanticsSpec getSemantics() {
+        return semantics;
+    }
+
+    public void setSemantics(SemanticsSpec semantics) {
+        this.semantics = semantics;
     }
 
     public List<InputParameterSpec> getInputParameters() {
@@ -122,28 +108,12 @@ public class McpServerToolSpec {
         return steps;
     }
 
-    public List<StepOutputMappingSpec> getMappings() {
+    public List<Map<String, Object>> getMappings() {
         return mappings;
     }
 
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
-    }
-
-    public McpToolHintsSpec getHints() {
-        return hints;
-    }
-
-    public void setHints(McpToolHintsSpec hints) {
-        this.hints = hints;
-    }
-
-    public String getRef() {
-        return ref;
-    }
-
-    public void setRef(String ref) {
-        this.ref = ref;
     }
 
 }

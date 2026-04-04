@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../naftiko-schema.json
+---
+naftiko: "1.0.0-alpha1"
+info:
+  label: "Weather Forecast (Aggregate)"
+  description: >
+    Demonstrates domain-driven factorization with aggregates.
+    A single Forecast aggregate function is defined once and referenced
+    by both MCP and REST adapters via ref.
+  tags:
+    - Weather
+    - Aggregate
+    - Example
+  created: "2026-04-03"
+  modified: "2026-04-03"
+
+capability:
+  aggregates:
+    - label: "Forecast"
+      namespace: "forecast"
+      functions:
+        - name: "get-forecast"
+          description: "Fetch current weather forecast for a location."
+          semantics:
+            safe: true
+            idempotent: true
+          inputParameters:
+            - name: "location"
+              type: "string"
+              description: "City name or coordinates (e.g. 'Paris' or '48.8566,2.3522')."
+          call: "weather-api.get-forecast"
+          with:
+            location: "location"
+          outputParameters:
+            - type: "object"
+              mapping: "$.forecast"
+              properties:
+                temperature:
+                  type: "number"
+                  mapping: "$.temperature"
+                condition:
+                  type: "string"
+                  mapping: "$.condition"
+
+  exposes:
+    # MCP adapter — inherits everything from the aggregate function.
+    # Hints are auto-derived from semantics: readOnly=true, destructive=false, idempotent=true.
+    - type: "mcp"
+      address: "localhost"
+      port: 3000
+      namespace: "forecast-mcp"
+      description: "MCP server exposing weather forecast tools."
+      tools:
+        - name: "get-forecast"
+          description: "Get the weather forecast for a location."
+          ref: "forecast.get-forecast"
+
+    # REST adapter — inherits call, with, and outputParameters.
+    # Adds REST-specific fields: method, path parameters.
+    - type: "rest"
+      address: "localhost"
+      port: 3001
+      namespace: "forecast-rest"
+      resources:
+        - path: "/forecast/{location}"
+          name: "forecast"
+          description: "Weather forecast resource."
+          operations:
+            - ref: "forecast.get-forecast"
+              method: "GET"
+              inputParameters:
+                - name: "location"
+                  in: "path"
+                  type: "string"
+                  description: "City name or coordinates."
+
+  consumes:
+    - type: "http"
+      namespace: "weather-api"
+      description: "External weather API"
+      baseUri: "https://api.weather.example/v1"
+      resources:
+        - path: "forecast"
+          name: "forecast"
+          operations:
+            - method: "GET"
+              name: "get-forecast"

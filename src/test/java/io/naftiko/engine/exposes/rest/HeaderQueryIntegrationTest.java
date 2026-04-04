@@ -41,7 +41,7 @@ public class HeaderQueryIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/http-header-query-capability.yaml";
+        String resourcePath = "src/test/resources/http/http-header-query-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Capability file should exist at " + resourcePath);
 

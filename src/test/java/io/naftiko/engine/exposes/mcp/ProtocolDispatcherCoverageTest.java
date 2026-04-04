@@ -32,7 +32,7 @@ class ProtocolDispatcherCoverageTest {
 
     @Test
     void dispatchShouldReturnInternalErrorWhenRequestIsNull() throws Exception {
-        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp-capability.yaml");
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
         ObjectNode response = dispatcher.dispatch(null);
 
@@ -43,7 +43,7 @@ class ProtocolDispatcherCoverageTest {
 
     @Test
     void initializeShouldAdvertiseOnlyToolsWhenNoResourcesOrPrompts() throws Exception {
-        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp-capability.yaml");
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
         JsonNode response = dispatcher.dispatch(JSON.readTree(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"));
@@ -56,7 +56,7 @@ class ProtocolDispatcherCoverageTest {
 
     @Test
     void toolsCallUnknownToolShouldReturnInvalidParams() throws Exception {
-        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp-capability.yaml");
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
         JsonNode response = dispatcher.dispatch(JSON.readTree("""
                 {
@@ -74,7 +74,7 @@ class ProtocolDispatcherCoverageTest {
     @Test
     void resourcesAndPromptsInvalidParamsShouldReturnExpectedErrors() throws Exception {
         ProtocolDispatcher dispatcher =
-                dispatcherFrom("src/test/resources/mcp-resources-prompts-capability.yaml");
+                dispatcherFrom("src/test/resources/mcp/mcp-resources-prompts-capability.yaml");
 
         JsonNode readNullParams = dispatcher.dispatch(JSON.readTree(
                 "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/read\"}"));
@@ -91,7 +91,7 @@ class ProtocolDispatcherCoverageTest {
 
     @Test
     void jsonRpcEnvelopeBuildersShouldHandleNullAndPresentIds() throws Exception {
-        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp-capability.yaml");
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
         ObjectNode resultNoId = dispatcher.buildJsonRpcResult(null, JSON.createObjectNode());
         assertEquals("2.0", resultNoId.path("jsonrpc").asText());
@@ -107,7 +107,7 @@ class ProtocolDispatcherCoverageTest {
 
         @Test
         void toolsCallShouldReturnIsErrorResultOnUnexpectedExecutionFailure() throws Exception {
-                ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp-capability.yaml");
+                ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
                 JsonNode response = dispatcher.dispatch(JSON.readTree("""
                                 {

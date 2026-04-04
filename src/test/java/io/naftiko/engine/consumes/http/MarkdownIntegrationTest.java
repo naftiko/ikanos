@@ -39,7 +39,7 @@ public class MarkdownIntegrationTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        String resourcePath = "src/test/resources/markdown-capability.yaml";
+        String resourcePath = "src/test/resources/formats/markdown-capability.yaml";
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Markdown capability test file should exist at " + resourcePath);
 

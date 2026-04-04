@@ -125,6 +125,70 @@ public class NaftikoSpectralRulesetTest {
         }
     }
 
+    @Test
+    public void semanticsConsistencyRuleShouldWarnWhenMcpHintsContradictSemantics()
+            throws IOException {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-semantics-inconsistent.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        assertTrue(result.exitCode() != 0,
+            "Expected inconsistent semantics document to produce warnings.\n"
+                + result.output());
+        String output = result.output();
+        assertTrue(output.contains("naftiko-aggregate-semantics-consistency"),
+            "Expected lint output to reference naftiko-aggregate-semantics-consistency.\n"
+                + output);
+        assertTrue(output.contains("readOnly=false"),
+            "Expected warning about readOnly=false contradicting safe=true.\n"
+                + output);
+        assertTrue(output.contains("destructive=true"),
+            "Expected warning about destructive=true contradicting safe=true.\n"
+                + output);
+    }
+
+    @Test
+    public void semanticsConsistencyRuleShouldWarnWhenRestMethodContradictsSafeSemantics()
+            throws IOException {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-semantics-inconsistent.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        assertTrue(result.exitCode() != 0,
+            "Expected inconsistent semantics document to produce warnings.\n"
+                + result.output());
+        String output = result.output();
+        assertTrue(output.contains("DELETE"),
+            "Expected warning about DELETE contradicting safe=true.\n"
+                + output);
+    }
+
+    @Test
+    public void semanticsConsistencyRuleShouldNotWarnWhenHintsAreConsistent()
+            throws IOException {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-semantics-consistent.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        String output = result.output();
+        assertTrue(
+            !output.contains("naftiko-aggregate-semantics-consistency"),
+            "Expected no semantics consistency warnings for consistent document.\n"
+                + output);
+    }
+
     private boolean isCommandAvailable(String command, String arg) {
         ProcessResult result = runCommand(command, arg);
         return result.exitCode() == 0;

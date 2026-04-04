@@ -25,9 +25,10 @@ is a single YAML file validated against the Naftiko JSON Schema (v1.0.0-alpha1).
 Key spec objects you will work with:
 
 - **Info** — metadata: label, description, tags, stakeholders
-- **Capability** — root technical config; contains `exposes` and `consumes`
+- **Capability** — root technical config; contains `exposes`, `consumes`, and `aggregates`
 - **Consumes** — HTTP client adapter: baseUri, namespace, resources, operations
 - **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), or Skill (`type: skill`)
+- **Aggregates** — DDD-inspired domain building blocks; each aggregate groups reusable functions under a namespace. Tools and operations reference functions via `ref`
 - **Binds** — variable injection from file (dev) or runtime (prod)
 - **Namespace** — unique identifier linking exposes to consumes via routing
 
@@ -50,6 +51,7 @@ for *how*.
 | "I want to proxy an API today and encapsulate it incrementally" | Read `references/proxy-then-customize.md` |
 | "I want to chain multiple HTTP calls to consumed APIs and expose the result into a single REST operation" | Read `references/chain-api-calls.md` |
 | "I need to go from local test credentials to production secrets" | Read `references/dev-to-production.md` |
+| "I want to define a domain function once and expose it via both REST and MCP" | Use `aggregates` with `ref` — read `references/design-guidelines.md` (Aggregate Design Guidelines) |
 | "I want to prototype a tool or endpoint before the backend exists" or "I want to return static or dynamic mock data" | Read `references/mock-capability.md` |
 | "I want to build a full-featured capability that does all of the above" | Read all stories in order, then use `assets/capability-example.yml` as structural reference |
 | "I have a YAML validation error" | Run `scripts/lint-capability.sh` — see **Lint workflow** below |
@@ -121,13 +123,15 @@ before writing any mock output parameters.
    replace `value` with `mapping`, and add `call` or `steps` — the
    exposed contract does not change.
    and `trustedHeaders` (at least one entry).
-10. MCP tools must have `name` and `description`. MCP tool input parameters
-    must have `name`, `type`, and `description`. Tools may declare optional
+10. MCP tools must have `name` and `description` (unless using `ref`, in which
+    case they are inherited from the referenced aggregate function). MCP tool input
+    parameters must have `name`, `type`, and `description`. Tools may declare optional
     `hints` (readOnly, destructive, idempotent, openWorld) — these map to
     MCP `ToolAnnotations` on the wire.
-11. ExposedOperation supports exactly two modes (oneOf): simple (`call` +
-    optional `with`) or orchestrated (`steps` + optional `mappings`). Never
-    mix fields from both modes.
+11. ExposedOperation supports three modes (oneOf): simple (`call` +
+    optional `with`), orchestrated (`steps` + optional `mappings`), or
+    ref (`ref` to an aggregate function). Never mix fields from
+    incompatible modes.
 12. Do not modify `scripts/lint-capability.sh` unless explicitly asked —
     it wraps Spectral with the correct ruleset and flags.
 13. Do not add properties that are not in the JSON Schema — the schema
@@ -141,9 +145,19 @@ before writing any mock output parameters.
 16. Do not prefix variable names with the capability, namespace, or
     resource name — variables are already scoped to their context.
     Redundant prefixes reduce readability without adding disambiguation.
-17. In mock mode, use `value` on output parameters — never `const`.
+17. When using `ref` on MCP tools or REST operations, the `ref` value must
+    follow the format `{aggregate-namespace}.{function-name}` and resolve
+    to an existing function in the capability's `aggregates` array.
+18. Do not chain `ref` through multiple levels of aggregates — `ref`
+    resolves to a function in a single aggregate, not transitively.
+19. Aggregate functions can declare `semantics` (safe, idempotent, cacheable).
+    When exposed via MCP, the engine auto-derives `hints` from semantics.
+    Explicit `hints` on the MCP tool override derived values.
+20. Do not duplicate a full function definition inline on both MCP tools
+    and REST operations — use `aggregates` + `ref` instead.
+21. In mock mode, use `value` on output parameters — never `const`.
     `const` is a JSON Schema keyword retained for validation and linting
     only; it has no effect at runtime.
-18. In mock mode, Mustache templates in `value` fields resolve only against
+22. In mock mode, Mustache templates in `value` fields resolve only against
     top-level input parameter names. Do not reference `with`-remapped
     consumed parameter names — those are not in scope for output resolution.

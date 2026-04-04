@@ -88,6 +88,9 @@ When designing or modifying a Capability:
 - Keep the [Naftiko Specification](src/main/resources/schemas/naftiko-schema.json) and the [Naftiko Rules](src/main/resources/rules/naftiko-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
 - Look at `src/main/resources/schemas/examples/` for patterns before writing new capabilities
 - When renaming a consumed field for a lookup `match`, also add a `ConsumedOutputParameter` on the consumed operation to map the raw field name to a kebab-case name — otherwise the lookup has nothing to match against
+- Use `aggregates` to define reusable domain functions when the same operation is exposed through multiple adapters (REST and MCP) — this follows the DDD Aggregate pattern: one definition, multiple projections
+- Declare `semantics` (safe, idempotent, cacheable) on aggregate functions to describe domain behavior — the engine derives MCP `hints` automatically
+- Override only adapter-specific fields when using `ref` (e.g., `method` for REST, `hints` for MCP) — let the rest be inherited from the function
 
 **Don't:**
 - Expose an `inputParameter` that is not used in any step
@@ -103,6 +106,8 @@ When designing or modifying a Capability:
 - Use `MappedOutputParameter` (with `mapping`, no `name`) when the tool/operation uses `steps` — use `OrchestratedOutputParameter` (with `name`, no `mapping`) instead
 - Use typed objects for lookup step `outputParameters` — they are plain string arrays of field names to extract (e.g. `- "fullName"`)
 - Put a `path` property on an `ExposedOperation` — extract multi-step operations with a different path into their own `ExposedResource`
+- Duplicate a full function definition inline on both MCP tools and REST operations — use `aggregates` + `ref` instead
+- Chain `ref` through multiple levels of aggregates — `ref` resolves to a function in a single aggregate, not transitively
 
 ## Contribution Workflow
 

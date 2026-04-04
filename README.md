@@ -18,6 +18,7 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, **TSV**, **PSV**, **Avro**, **HTML**, and **Markdown** payloads into JSON |
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
 | Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
+| Domain-Driven Aggregates | Define reusable domain functions once, expose via multiple adapters — inspired by **DDD** Aggregate pattern |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |
 | Docker Native | Ships as a ready-to-run **Docker** container |
 | Extensible | Open-source core extensible with new protocols and adapters |

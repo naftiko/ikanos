@@ -151,6 +151,76 @@ steps:
 
 ---
 
+## 🧱 Aggregates & Reuse (DDD-inspired)
+
+### Q: What are aggregates and why should I use them?
+**A:** Aggregates are **domain-centric building blocks** inspired by [Domain-Driven Design (DDD)](https://en.wikipedia.org/wiki/Domain-driven_design#Building_blocks). An aggregate groups reusable **functions** under a namespace that represents a coherent domain concept — similar to how a DDD Aggregate Root encapsulates a cluster of related entities.
+
+Use aggregates when:
+- The **same domain operation** (e.g., "get forecast") is exposed through multiple adapters (REST *and* MCP).
+- You want to maintain a **single source of truth** for function definitions (name, description, call chain, parameters).
+- You want **transport-neutral behavioral metadata** (semantics) that auto-maps to adapter-specific features.
+
+```yaml
+capability:
+  aggregates:
+    - label: Weather Forecast
+      namespace: forecast
+      functions:
+        - name: get-forecast
+          description: Retrieve weather forecast for a city
+          semantics:
+            safe: true
+            idempotent: true
+          call: weather-api.get-forecast
+          inputParameters:
+            - name: city
+              type: string
+              description: City name
+          outputParameters:
+            - type: object
+              mapping: $.forecast
+```
+
+### Q: How does `ref` work to reference an aggregate function?
+**A:** MCP tools and REST operations can reference an aggregate function using `ref: {namespace}.{function-name}`. The engine merges inherited fields from the function — you only specify what's different at the adapter level.
+
+```yaml
+exposes:
+  - type: mcp
+    tools:
+      - ref: forecast.get-forecast      # Inherits name, description, call, params
+      - ref: forecast.get-forecast       # Override description for MCP context
+        name: weather-lookup
+        description: Look up weather for a city (MCP-optimized)
+  - type: rest
+    resources:
+      - path: /forecast
+        operations:
+          - method: GET
+            ref: forecast.get-forecast   # Same function, REST adapter
+```
+
+**Merge rules:**
+- Explicit fields on the tool/operation **override** inherited fields from the function.
+- Fields not set on the tool/operation are **inherited** from the function.
+- `name` and `description` are optional when using `ref` — they default to the function's values.
+
+### Q: How do semantics map to MCP tool hints?
+**A:** Aggregate functions can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
+
+| Semantics | MCP Hint | Rule |
+|-----------|----------|------|
+| `safe: true` | `readOnly: true`, `destructive: false` | Safe operations don't modify state |
+| `safe: false` | `readOnly: false`, `destructive: true` | Unsafe operations may modify state |
+| `idempotent` | `idempotent` | Passed through directly |
+| `cacheable` | *(not mapped)* | No MCP equivalent |
+| *(not derived)* | `openWorld` | Must be set explicitly on the MCP tool |
+
+Explicit hints on the MCP tool **override** derived values, so you can fine-tune behavior per-tool.
+
+---
+
 ## 🔩 Configuration & Parameters
 
 ### Q: How do I inject input parameters into a consumed operation?
