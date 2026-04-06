@@ -22,6 +22,8 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Docker Native | Ships as a ready-to-run **Docker** container |
 | Extensible | Open-source core extensible with new protocols and adapters |
 
+***
+
 Here are additional documents to learn more:
 
 - :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration)
