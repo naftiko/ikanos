@@ -14,7 +14,7 @@ No code. Just a spec. Let's go.
 
 **`step-1-shipyard-first-capability.yml`**
 
-> 📥 [step-1-shipyard-first-capability.yml](../tutorial/step-1-shipyard-first-capability.yml)
+> 📥 [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml)
 
 The Maritime Registry at `registry.shipyard.dev` has a REST endpoint: `GET /ships`. It returns a list of ships. We want an agent to be able to call it. That's it — the absolute minimum.
 
@@ -70,7 +70,7 @@ That's your first tool. `consumes` declares where the data lives, `exposes` decl
 
 **`step-2-shipyard-input-parameters.yml`**
 
-> 📥 [step-2-shipyard-input-parameters.yml](../tutorial/step-2-shipyard-input-parameters.yml)
+> 📥 [step-2-shipyard-input-parameters.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-2-shipyard-input-parameters.yml)
 
 An agent that can only list *all* ships isn't very useful. We need two things: a way to **filter** the list (by status), and a way to **look up** a specific ship (by IMO number).
 
@@ -104,7 +104,7 @@ Now the agent can ask: *"Show me only the active ships"* and *"Tell me about the
 
 **`step-3-shipyard-auth-and-binds.yml`**
 
-> 📥 [step-3-shipyard-auth-and-binds.yml](../tutorial/step-3-shipyard-auth-and-binds.yml)
+> 📥 [step-3-shipyard-auth-and-binds.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-3-shipyard-auth-and-binds.yml)
 
 So far, we've been hitting the registry's **public endpoints** — they return 5 basic fields per ship. But the registry has much more: specs, dimensions, tonnage, crew assignments, certifications. That data sits behind a bearer token.
 
@@ -148,7 +148,7 @@ REGISTRY_VERSION: "2024-01-01"
 
 **`step-4-shipyard-output-shaping.yml`**
 
-> 📥 [step-4-shipyard-output-shaping.yml](../tutorial/step-4-shipyard-output-shaping.yml)
+> 📥 [step-4-shipyard-output-shaping.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-4-shipyard-output-shaping.yml)
 
 Now `get-ship` returns everything: year built, gross tonnage, length overall, beam, draft, classification society, certifications, crew assignments… An agent asking *"tell me about Northern Star"* doesn't need 30 fields. It needs a **ship card**.
 
@@ -210,7 +210,9 @@ The `specs` nested object is the key: `mapping: $.dimensions.length_overall` rea
 
 **`step-5-shipyard-multi-source.yml`** — Consumes: `shared/step5-registry-consumes.yaml`, `shared/legacy-consumes.yaml`
 
-> 📥 [step-5-shipyard-multi-source.yml](../tutorial/step-5-shipyard-multi-source.yml)
+> 📥 [step-5-shipyard-multi-source.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-5-shipyard-multi-source.yml)
+> 📥 [step5-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/step5-registry-consumes.yaml)
+> 📥 [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Data rarely lives in one place. The Shipyard's modern registry is clean, but there's also a **legacy Dockyard** — an older system with records for vessels that were never migrated. Different API, different auth (API key instead of bearer), different field names.
 
@@ -259,7 +261,9 @@ New tool: `list-legacy-vessels` — same pattern as `list-ships`, different sour
 
 **`step-6-shipyard-write-operations.yml`** — Consumes: `shared/step6-registry-consumes.yaml`, `shared/legacy-consumes.yaml`
 
-> 📥 [step-6-shipyard-write-operations.yml](../tutorial/step-6-shipyard-write-operations.yml)
+> 📥 [step-6-shipyard-write-operations.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-6-shipyard-write-operations.yml)
+> 📥 [step6-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/step6-registry-consumes.yaml)
+> 📥 [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Until now, every tool was read-only. List, get, inspect. But Captain Erik Lindström wants to **plan a voyage** — Oslo to Singapore, aboard the Northern Star, with his crew and cargo. The agent needs to *act*.
 
@@ -321,7 +325,9 @@ The agent went from observer to operator.
 
 **`step-7-shipyard-orchestrated-lookup.yml`** — Consumes: `shared/step7-registry-consumes.yml`, `shared/legacy-consumes.yaml`
 
-> 📥 [step-7-shipyard-orchestrated-lookup.yml](../tutorial/step-7-shipyard-orchestrated-lookup.yml)
+> 📥 [step-7-shipyard-orchestrated-lookup.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-7-shipyard-orchestrated-lookup.yml)
+> 📥 [step7-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/step7-registry-consumes.yaml)
+> 📥 [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Captain Erik is planning Oslo → Singapore. He insists on his cook: *"No Aiko, no departure."* The agent calls `get-ship` — but gets `assignedCrew: ["CREW-001", "CREW-003"]`. Raw IDs. Useless. Who is CREW-003? The captain needs *names*.
 
@@ -399,4 +405,4 @@ All from one spec. No code. Welcome to Spec-Driven Integration.
 
 Ready to expose your tools as **agent skills**, add a **REST front door**, and assemble a full **Fleet Manifest** with multi-step orchestration?
 
-Continue with the [Tutorial - Part 2](Tutorial-MCP-Part-2).
+Continue with the [Tutorial - Part 2](Tutorial-%E2%80%90-Part-2).

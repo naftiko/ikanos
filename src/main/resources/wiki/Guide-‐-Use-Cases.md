@@ -13,6 +13,19 @@ How Naftiko achieves this technically:
 
 ![Integrate AI](https://naftiko.github.io/docs/images/technology/use_case_AI_integration.png)
 
+#### Key features
+- [x] Declarative HTTP consumption with namespace-scoped adapters
+  - [x] Bearer, API key, basic, and digest authentication
+  - [x] Templated baseUri and path parameters
+- [x] Polyglot exposure from one capability
+  - [x] Agent skills exposure for AI agents
+  - [x] MCP tool exposure for AI agents
+  - [x] REST resource exposure for conventional clients
+- [x] Output shaping with typed parameters and JSONPath mapping
+  - [x] Nested object and array output parameters
+  - [x] Const values for computed fields
+- [x] Externalized secrets via `binds` (file, vault, environment)
+
 ## 2. Rightsize AI context
 
 Expose only the context an AI task needs, reducing noise, improving relevance, and keeping prompts efficient.
@@ -25,11 +38,16 @@ How Naftiko achieves this technically:
 ![Rightsize AI context](https://naftiko.github.io/docs/images/technology/use_case_context_engineering_rightsize_ai_context.png)
 
 #### Key features
-- [x] Declarative applied capability exposing MCP              
+- [x] Declarative applied capability exposing MCP
   - [x] Declarative applied capabilities with reused source capabilities
 - [x] Support for key MCP transport protocols
   - [x] MCP for Streaming HTTP (for remote MCP clients)
   - [x] MCP for Standard IO (for local MCP clients)
+- [x] Output shaping with typed parameters and JSONPath mapping
+  - [x] Fine-grained field selection and nested object mapping
+  - [x] Const values to inject static context
+- [x] Typed MCP tool input parameters with descriptions
+  - [x] Required/optional parameter declarations for agent discovery
 
 ## 3. Elevate an existing API
 
@@ -51,6 +69,10 @@ How Naftiko achieves this technically:
   - [x] Change HTTP methods to expose proper semantics
     - E.g. Adapt read-only POST queries into cacheable GET queries
   - [x] Convert XML, Avro, CSV, TSV, PSV, HTML, Markdown payloads to JSON
+- [x] Schema-based validation with Spectral rules
+  - [x] Namespace uniqueness, path conventions, and security checks
+- [x] Forward proxy for selective pass-through routing
+  - [x] Trusted header forwarding
 
 ## 4. Elevate Google Sheets API
 
@@ -87,8 +109,15 @@ How Naftiko achieves this technically:
 
 #### Key features
 - [x] Declarative source HTTP adapter and target MCP adapter
-- [x] Support for source capabilities
+- [x] Support for multiple consumed adapters with unique namespaces
   - [x] Reuse consistent APIs and JSON payloads
+- [x] Multi-step orchestration with ordered steps
+  - [x] Call steps to invoke consumed operations
+  - [x] Lookup steps for in-memory data joining
+  - [x] Step output bridging via `with` and `mappings`
+- [x] Composed output model from cross-source data
+  - [x] Named orchestrated output parameters
+  - [x] Nested objects and typed arrays
 
 ## 6. Rightsize a set of microservices
 
@@ -103,9 +132,14 @@ How Naftiko achieves this technically:
 
 #### Key features
 - [x] Declarative source HTTP adapter and target REST adapter
-  - [x] Finish support for source APIs with JSON payloads
-    - [x] Convert YAML, Protobuf, payloads to JSON
-    - [x] Support sequence of steps with calls
+  - [x] Support for source APIs with JSON payloads
+  - [x] Convert YAML, Protobuf, XML, Avro, and CSV payloads to JSON
+  - [x] Support sequence of steps with calls
+- [x] Multiple consumed adapters per capability
+  - [x] Namespace-scoped auth, headers, and base URI per adapter
+- [x] Unified parameter handling across microservices
+  - [x] Input parameters in query, header, path, cookie, and body
+  - [x] Regex pattern validation on string inputs
 
 ## 7. Rightsize a monolith API
 
@@ -117,6 +151,17 @@ How Naftiko achieves this technically:
 - Optionally forward selected routes with `forward.targetNamespace` to keep passthrough paths where full transformation is not needed.
 
 ![Rightsize monolith APIs](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_rightsize_monolith_apis.png)
+
+#### Key features
+- [x] Selective operation exposure from a broad API
+  - [x] Remap consumed operations to narrower exposed resources
+  - [x] Output filtering via typed parameters and JSONPath mapping
+- [x] Forward proxy for pass-through routes
+  - [x] `forward.targetNamespace` for direct routing
+  - [x] Trusted header forwarding for security
+- [x] Dual-channel exposure from one capability
+  - [x] REST resource exposure for conventional clients
+  - [x] MCP tool exposure for AI agents
 
 ## 8. Capability-first context engineering
 
@@ -130,9 +175,17 @@ How Naftiko achieves this technically:
 ![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_context_engineering_capability_first.png)
 
 #### Key features
-- [x] Declarative target API contract with mocking mode
-  - [x] Allow REST server adapter with no source HTTP adapter
-  - [x] Use static value of output parameters as sample
+- [x] Declarative MCP server with tools, resources, and prompts
+  - [x] Typed input parameters with descriptions for agent discovery
+  - [x] Static file-backed resources with MIME types
+  - [x] Prompt templates with argument placeholders
+- [x] Support for key MCP transport protocols
+  - [x] MCP for Streaming HTTP (for remote MCP clients)
+  - [x] MCP for Standard IO (for local MCP clients)
+- [x] Mock mode for MCP tools
+  - [x] Static const-valued outputs without consuming an API
+- [x] Multi-step orchestration wired to consumed operations
+  - [x] Call and lookup steps with cross-step output bridging
 
 ## 9. Capability-first API reusability
 
@@ -144,3 +197,16 @@ How Naftiko achieves this technically:
 - Add format-aware parsing and mapping (JSON, YAML, XML, CSV, TSV, PSV, Avro, Protobuf, HTML, Markdown support in the framework) to normalize diverse backends.
 
 ![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_capability_first.png)
+
+#### Key features
+- [x] Externalized secrets via `binds`
+  - [x] Support for file, vault, GitHub secrets, K8s secrets, and runtime injection
+  - [x] SCREAMING_SNAKE_CASE variable expressions
+- [x] Consumes import and reuse across capabilities
+  - [x] Import by location with optional namespace aliasing
+- [x] Format-aware response parsing and normalization
+  - [x] JSON, XML, YAML, CSV, Avro, and Protobuf to JSON conversion
+- [x] Multiple request body formats
+  - [x] JSON, XML, form URL encoded, multipart form
+- [x] Incremental adapter addition (REST, MCP, or Skill)
+  - [x] Skill server exposure with agent-compatible metadata

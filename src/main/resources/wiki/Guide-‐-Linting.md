@@ -32,7 +32,7 @@ Both tools can be run standalone or orchestrated together via [MegaLinter](https
 
 > **JSON Schema** catches "is this valid YAML?", **Spectral** catches "is this *good* YAML?"
 
-For a full reference of all Spectral rules, see the [Ruleset](https://github.com/naftiko/framework/wiki/Ruleset) page.
+For a full reference of all Spectral rules, see the [Ruleset](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules) page.
 
 ---
 
@@ -206,7 +206,7 @@ Catches semantic and style issues such as:
 | **Quality** | Missing `description` on consumes entries, REST resources, or operations |
 | **Security** | `<script>` tags or `eval(` in description fields |
 
-For the full list, see the [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules) page.
+For the full list, see the [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules) page.
 
 ---
 

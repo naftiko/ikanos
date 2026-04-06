@@ -27,14 +27,15 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 The goal of this version is to solidify the MVP to enable common AI integration use cases and grow our community.
 
 ### Rightsize AI context
-  - [ ] Add mocking feature to MCP server adapter similar to REST server adapter
-  - [ ] Add tool annotations (readOnly, destructive, idempotent, openWorld)
+  - [x] Add mocking feature to MCP server adapter similar to REST server adapter
+  - [x] Add tool annotations (readOnly, destructive, idempotent, openWorld)
   - [ ] Add support for authentication in the MCP server adapter
   - [ ] Facilitate integration with MCP and AI gateways
   - [ ] Facilitate skills publication in skills marketplaces
 
 ### Enable API reusability
-  - [ ] Add HTML and Markdown data format support for HTTP consumption
+  - [x] Add HTML and Markdown data format support for HTTP consumption
+  - [ ] Enable pagination at consumes and exposes level
   - [ ] Support Webhook server adapter for workflow automation
   - [ ] Enable API token refresh flows
   - [ ] Enhance support for tags and labels across capabilities
@@ -46,7 +47,7 @@ The goal of this version is to solidify the MVP to enable common AI integration 
 
 ### Core developer experience
 
-- [ ] Factorize capability core with functions initially, entities and events later
+- [x] Factorize capability core with functions initially, entities and events later
 - [ ] Allow reuse of "binds" blocks across capabilities
 - [ ] Add conditional steps, for-each steps, parallel-join
 - [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
@@ -62,6 +63,9 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
   - [ ] Evolve MCP server adapter to support [server-side code mode like CloudFlare](https://www.reddit.com/r/mcp/comments/1o1wdfh/do_you_think_code_mode_will_supercede_mcp/)
 - [ ] Enhance API reusability
   - [ ] Add support for resiliency patterns (retry, circuit breaker, rate limiter, time limiter, bulkhead, cache, fallback)
+  - [ ] Publish reference bridge capabilities (RSS/Atom XML feeds, XML/SOAP, CSV, etc.)
+- [ ] Enable capabilities governance
+  - [ ] Expand support for "tags" and "labels" in Naftiko Spec
 - [ ] Provide enhanced security
   - [ ] Facilitate authorization management
 - [ ] Incorporate community feedback
@@ -86,8 +90,9 @@ The goal of this version is to broaden the platform surface area based on produc
 - [ ] Add support for gRPC and tRPC as server adapters
 - [ ] Add full resiliency patterns (rate limiter, time limiter, bulkhead, cache)
 
-### Enable SQL Data Access
-- [ ] Add support for SQL as client adapter
+### Enable Data reusability
+- [ ] Add support for Singer, Airbyte and SQL as server adapters
+- [ ] Add support for FILE and SQL as client adapters
 - [ ] Support templatized SQL request with proper security
 
 ### Enterprise security

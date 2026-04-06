@@ -15,6 +15,8 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Docker Native | Ships as a ready-to-run **Docker** container |
 | Extensible | Open-source core extensible with new protocols and adapters |
 
+***
+
 Here are additional documents to learn more:
 
 - :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration)
@@ -25,10 +27,10 @@ Here are additional documents to learn more:
 - :mag: [Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-%E2%80%90-Linting)
 - :anchor: [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema)
 - :triangular_ruler: [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules)
+- :ocean: [FAQ](https://github.com/naftiko/framework/wiki/FAQ)
 - :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
 - :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
-- :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/wiki/Contribute)
-- :ocean: [FAQ](https://github.com/naftiko/framework/wiki/FAQ)
+- :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/blob/main/CONTRIBUTING.md)
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).
 

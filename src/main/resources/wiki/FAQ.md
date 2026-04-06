@@ -445,6 +445,31 @@ exposes:
 
 MCP clients can then discover and use these resources dynamically.
 
+### Q: Can I create MCP tools that return static mock data?
+**A:** Yes, starting in version 1.0.0 Alpha 2. Define `outputParameters` with `const` values and omit `call` and `steps`. The tool serves a fixed JSON response — no `consumes` block is needed:
+
+```yaml
+exposes:
+  - type: mcp
+    port: 3001
+    namespace: mock-tools
+    description: Mock MCP server
+    tools:
+      - name: say-hello
+        description: Returns a greeting
+        inputParameters:
+          - name: name
+            type: string
+            required: true
+            description: Name to greet
+        outputParameters:
+          - name: message
+            type: string
+            const: "Hello, World!"
+```
+
+This mirrors the REST mock pattern (`no-adapter.yml`) and is useful for prototyping, demos, and contract-first development.
+
 ---
 
 ## 🔭 Troubleshooting & Debugging

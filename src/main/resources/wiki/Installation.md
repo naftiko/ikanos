@@ -25,10 +25,10 @@ To use Naftiko Framework, you must install and then run its engine.
 
 ### Configure your own capability
 * Create your capability configuration file.\
-  The Naftiko Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally. You can use [this first Shipyard example](https://github.com/naftiko/framework/blob/main/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) to start with, continue with [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1) and [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2), and then move to the comprehensive [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules). This file must be a YAML file (yaml and yml extensions are supported).
+  The Naftiko Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally. You can use [this first Shipyard example](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) to start with, continue with [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) and [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2), and then move to the comprehensive [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules). This file must be a YAML file (yaml and yml extensions are supported).
 
 * Localhost in your capability configuration file.
-  * If your capability reffers to some local hosts, be carefull to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will reffer to the container and not your local machine.\
+  * If your capability refers to some local hosts, be careful to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will refer to the container and not your local machine.\
     For example:
     ```bash
     baseUri: "http://host.docker.internal:8080/api"

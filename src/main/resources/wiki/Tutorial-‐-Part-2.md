@@ -1,16 +1,16 @@
 # The Shipyard - Tutorial - Part 2
 
-This track picks up where the [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) left off. Complete Steps 1–7 of that tutorial before continuing here.
+This track picks up where the [Tutorial - Part 1](Tutorial-%E2%80%90-Part-1) left off. Complete Steps 1–7 of that tutorial before continuing here.
 
 Three topics are covered: exposing tools into **Agent Skills**, exposing the same capability as a **REST API**, and assembling a full **Fleet Manifest** using multi-steps orchestration.
 
 ---
 
-## Step 1 — Exposing tools as Agent Skills
+## Step 8 — Exposing tools as Agent Skills
 
 **`step-8-shipyard-skill-groups.yml`**
 
-> 📥 [step-8-shipyard-skill-groups.yml](../tutorial/step-8-shipyard-skill-groups.yml)
+> 📥 [step-8-shipyard-skill-groups.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-8-shipyard-skill-groups.yml)
 
 MCP already gives an AI agent direct access to tools, inputs, and outputs. That is enough to execute operations, but not always enough to help the agent understand how a growing toolset is organized. **Agent Skills** add a business-facing layer on top of MCP: they group related tools, reduce discovery noise, and give the agent clearer context for planning the next action. For the broader model and specification, see the [Agent Skills website](https://agentskills.io/).
 
@@ -72,11 +72,11 @@ Because the API is plain HTTP/JSON, it works for any client — another Naftiko 
 
 ---
 
-## Step 2 — A REST front door
+## Step 9 — A REST front door
 
 **`step-9-shipyard-rest-adapter.yml`**
 
-> 📥 [step-9-shipyard-rest-adapter.yml](../tutorial/step-9-shipyard-rest-adapter.yml)
+> 📥 [step-9-shipyard-rest-adapter.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-9-shipyard-rest-adapter.yml)
 
 Not every consumer is an AI agent. Partner systems, dashboards, and mobile apps still speak REST. One capability, two front doors:
 
@@ -117,11 +117,11 @@ Same `call` + `with`, same consumes wiring — different protocol. The REST adap
 
 ---
 
-## Step 3 — Multi-step orchestration
+## Step 10 — Multi-step orchestration
 
 **`step-10-shipyard-fleet-manifest.yml`** — Consumes: `shared/step10-registry-consumes.yml`, `shared/legacy-consumes.yaml`
 
-> 📥 [step-10-shipyard-fleet-manifest.yml](../tutorial/step-10-shipyard-fleet-manifest.yml)
+> 📥 [step-10-shipyard-fleet-manifest.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-10-shipyard-fleet-manifest.yml)
 
 The voyage is planned (tutorial Part 1, Step 6). The crew is confirmed (tutorial Part 1, Step 7). Now the operations team needs one document that has everything: ship details, crew names, cargo inventory — all resolved from raw IDs, all assembled capabilty-side. The **Fleet Manifest**.
 
