@@ -22,7 +22,7 @@ The goal of this version is to deliver a MVP to enable common AI integration use
 - [ ] Publish Javadocs to [Javadoc.io](https://javadoc.io)
 - [ ] Publish Docker Image to [Docker Hub](https://hub.docker.com/)
 
-## Version 1.0 - Second Alpha - May 11th :deciduous_tree:
+## Version 1.0 - Second Alpha - End of April :deciduous_tree:
 
 The goal of this version is to solidify the MVP to enable common AI integration use cases and grow our community.
 
@@ -30,32 +30,41 @@ The goal of this version is to solidify the MVP to enable common AI integration 
   - [x] Add mocking feature to MCP server adapter similar to REST server adapter
   - [x] Add tool annotations (readOnly, destructive, idempotent, openWorld)
   - [ ] Add support for authentication in the MCP server adapter
-  - [ ] Facilitate integration with MCP and AI gateways
-  - [ ] Facilitate skills publication in skills marketplaces
 
 ### Enable API reusability
   - [x] Add HTML and Markdown data format support for HTTP consumption
   - [ ] Enable pagination at consumes and exposes level
-  - [ ] Support Webhook server adapter for workflow automation
-  - [ ] Enable API token refresh flows
   - [ ] Enhance support for tags and labels across capabilities
+
+### Core developer experience
+
+- [x] Factorize capability core with functions initially, entities and events later
+- [ ] Allow reuse of "binds" blocks across capabilities
+- [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
+
+## Version 1.0 - Third Alpha - End of May :deciduous_tree:
+
+### Rightsize AI context
+  - [ ] Facilitate integration with MCP and AI gateways
+  - [ ] Facilitate skills publication in skills marketplaces
+
+### Enable API reusability
   - [ ] Support HTTP cache control directives
+  - [ ] Enable API token refresh flows
+  - [ ] Support Webhook server adapter for workflow automation
   - [ ] Facilitate integration with API gateways
 
 ### Enable agent orchestration use case
   - [ ] Support A2A server adapter with tool discovery and execution
 
 ### Core developer experience
-
-- [x] Factorize capability core with functions initially, entities and events later
-- [ ] Allow reuse of "binds" blocks across capabilities
+- [ ] Enhance traceability and debuggability of engine
 - [ ] Add conditional steps, for-each steps, parallel-join
-- [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
 - [ ] OpenAPI-to-Naftiko import tooling — generate a starter capability YAML from an existing OpenAPI file
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
 - [ ] Provide Control port usable via REST clients, Naftiko CLI
 
-## Version 1.0 - First Beta - June :blossom:
+## Version 1.0 - First Beta - End of June :blossom:
 
 The goal of this version is to deliver a stable MVP, including a stable Naftiko Specification.
 
@@ -70,7 +79,6 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
   - [ ] Facilitate authorization management
 - [ ] Incorporate community feedback
 - [ ] Complete test coverage and overall quality
-- [ ] Enhance traceability and debuggability of engine
 
 ## Version 1.0 - General Availability - September :apple:
 
