@@ -12,8 +12,8 @@ To use Naftiko Framework, you must install and then run its engine.
 ### Pull Naftiko's Docker image
 * Naftiko provides a docker image hosted in GitHub packages platform. It is public, so you can easily pull it locally.
   ```bash
-  # v1.0.0-alpha1
-  docker pull ghcr.io/naftiko/framework:sha-770e515
+  # {{RELEASE_TAG}}
+  docker pull ghcr.io/naftiko/framework:{{DOCKER_TAG}}
 
   # If you want to play with the last snapshot
   docker pull ghcr.io/naftiko/framework:latest
@@ -63,7 +63,7 @@ For the moment, CLI is only provided for Apple Silicon (with M chip).
 **Apple Silicon (M1/M2/M3/M4):**
 ```bash
 # Download the binary
-curl -L https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-macos-arm64 -o naftiko
+curl -L https://github.com/naftiko/framework/releases/download/{{RELEASE_TAG}}/naftiko-cli-macos-arm64 -o naftiko
 
 # Set binary as executable
 chmod +x naftiko
@@ -77,7 +77,7 @@ sudo mv naftiko /usr/local/bin/
 ### Linux
 ```bash
 # Download the binary
-curl -L https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-linux-amd64 -o naftiko
+curl -L https://github.com/naftiko/framework/releases/download/{{RELEASE_TAG}}/naftiko-cli-linux-amd64 -o naftiko
 
 # Set binary as executable
 chmod +x naftiko
@@ -94,7 +94,7 @@ PowerShell installation is recommended.
 New-Item -ItemType Directory -Force -Path "C:\Program Files\Naftiko"
 
 # Download the binary
-Invoke-WebRequest -Uri "https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-windows-amd64.exe" -OutFile "C:\Program Files\Naftiko\naftiko.exe"
+Invoke-WebRequest -Uri "https://github.com/naftiko/framework/releases/download/{{RELEASE_TAG}}/naftiko-cli-windows-amd64.exe" -OutFile "C:\Program Files\Naftiko\naftiko.exe"
 
 # Add to the system PATH
 $oldPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')

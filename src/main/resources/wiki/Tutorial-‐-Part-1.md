@@ -21,7 +21,7 @@ The Maritime Registry at `registry.shipyard.dev` has a REST endpoint: `GET /ship
 A capability needs two things: something to **consume** (the API) and something to **expose** (the tool).
 
 ```yaml
-naftiko: "1.0.0-alpha1"
+naftiko: "{{RELEASE_TAG}}"
 
 capability:
   consumes:
