@@ -3,42 +3,57 @@ name: Publish Wiki
 on:
   workflow_dispatch:
 
-
 jobs:
   Update-Wiki:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: update wiki data
+    - uses: actions/checkout@v3
+    - name: Get latest release tag
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        RELEASE_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+        if [ -z "$RELEASE_TAG" ] || [ "$RELEASE_TAG" = "null" ]; then
+          echo "Error: No release found. Exiting immediately!"
+          exit 1
+        fi
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+        echo "Debug RELEASE_TAG: $RELEASE_TAG"
+    - name: Compute Docker tag
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+      run: |
+        DOCKER_TAG=$(gh api /orgs/naftiko/packages/container/framework/versions \
+          --jq '[.[] | select(.metadata.container.tags[] | startswith("sha-"))] | .[0].metadata.container.tags[] | select(startswith("sha-"))' \
+          2>/dev/null || echo "latest")
+        echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+    - name: Update wiki data
       env:
         GH_WIKI_PUBLISH_TOKEN: ${{ secrets.GH_WIKI_PUBLISH_TOKEN }}
         WIKI_DIR: src/main/resources/wiki
       run: |
-        echo $GITHUB_ACTOR
         WIKI_COMMIT_MESSAGE='Automatically publish wiki'
         GIT_REPOSITORY_URL="https://${GH_WIKI_PUBLISH_TOKEN}@${GITHUB_SERVER_URL#https://}/$GITHUB_REPOSITORY.wiki.git"
 
-        echo "Checking out wiki repository"
-        tmp_dir=$(mktemp -d -t ci-XXXXXXXXXX)
-        (
-            cd "$tmp_dir" || exit 1
-            git init
-            git config user.name $GITHUB_ACTOR
-            git config user.email $GITHUB_ACTOR@users.noreply.github.com
-            git pull "$GIT_REPOSITORY_URL"
-            echo "Removing Files, ensuring deletion."
-            rm -r -f ./*
-        ) || exit 1
+        tmp_dir=$(mktemp -d)
 
-        echo "Copying contents of $WIKI_DIR"
-        cp -R $WIKI_DIR/. "$tmp_dir"
+        echo "Cloning wiki"
+        git clone "$GIT_REPOSITORY_URL" "$tmp_dir" 
 
-        echo "Committing and pushing changes"
-        (
-            cd "$tmp_dir" || exit 1
-            git add .
-            git commit -m "$WIKI_COMMIT_MESSAGE"
-            git push --set-upstream "$GIT_REPOSITORY_URL" master
-        ) || exit 1
+        rm -rf "$tmp_dir"/*
 
-        rm -rf "$tmp_dir"
+        echo "Copying files"
+        cp -R "$WIKI_DIR"/. "$tmp_dir"
+
+        echo "Replacing release tag and docker tag"
+        find "$tmp_dir" -name "*.md" -exec sed -i \
+          -e "s|{{RELEASE_TAG}}|$RELEASE_TAG|g" \
+          -e "s|{{DOCKER_TAG}}|$DOCKER_TAG|g" {} +
+
+        cd "$tmp_dir"
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+        git add .
+        git commit -m "$WIKI_COMMIT_MESSAGE" || echo "No changes"
+        git push

@@ -1,6 +1,6 @@
 # Naftiko Specification - Rules
 
-Version: 1.0.0-alpha1  
+Version: {{RELEASE_TAG}}
 Category: Tooling  
 Last updated: March 2026
 
@@ -30,7 +30,7 @@ It is intentionally **complementary** to the JSON Schema, not a duplicate of it:
 - JSON Schema enforces structural validity and required fields.
 - Spectral enforces cross-object consistency, style hygiene, and security hygiene.
 
-The current ruleset supports both document shapes allowed by Naftiko v0.5:
+The current ruleset supports both document shapes allowed by Naftiko {{RELEASE_TAG}} :
 
 1. Full capability documents (`naftiko` + `capability`, optionally root `consumes`)
 2. Shared consumes documents (`naftiko` + root `consumes`, without `capability`)
