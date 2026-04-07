@@ -26,6 +26,7 @@ import org.restlet.data.Reference;
 import org.restlet.representation.StringRepresentation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.naftiko.Capability;
@@ -44,6 +45,7 @@ import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.OperationStepCallSpec;
 import io.naftiko.spec.exposes.OperationStepLookupSpec;
+import io.naftiko.spec.exposes.StepOutputMappingSpec;
 
 /**
  * Executor for orchestrated operation steps.
@@ -192,9 +194,32 @@ public class OperationStepExecutor {
                     String resolvedLookupValue = Resolver.resolveMustacheTemplate(
                             lookupStep.getLookupValue(), runtimeParameters);
 
-                    JsonNode lookupResult = LookupExecutor.executeLookup(indexData,
-                            lookupStep.getMatch(), resolvedLookupValue,
-                            lookupStep.getOutputParameters());
+                    // Resolve lookup value from step context (JsonPath) when applicable
+                    JsonNode lookupValueNode = resolveJsonPathFromStepContext(
+                            lookupStep.getLookupValue(), stepContext);
+
+                    JsonNode lookupResult;
+                    if (lookupValueNode != null && lookupValueNode.isArray()) {
+                        // Multi-value lookup: collect results into an array
+                        ArrayNode resultArray = mapper.createArrayNode();
+                        for (JsonNode item : lookupValueNode) {
+                            JsonNode match = LookupExecutor.executeLookup(indexData,
+                                    lookupStep.getMatch(), item.asText(),
+                                    lookupStep.getOutputParameters());
+                            if (match != null) {
+                                resultArray.add(match);
+                            }
+                        }
+                        lookupResult = resultArray.isEmpty() ? null : resultArray;
+                    } else if (lookupValueNode != null) {
+                        lookupResult = LookupExecutor.executeLookup(indexData,
+                                lookupStep.getMatch(), lookupValueNode.asText(),
+                                lookupStep.getOutputParameters());
+                    } else {
+                        lookupResult = LookupExecutor.executeLookup(indexData,
+                                lookupStep.getMatch(), resolvedLookupValue,
+                                lookupStep.getOutputParameters());
+                    }
 
                     if (lookupResult != null) {
                         stepContext.storeStepOutput(lookupStep.getName(), lookupResult);
@@ -497,6 +522,81 @@ public class OperationStepExecutor {
             throw new IllegalArgumentException(
                     entityLabel + " has neither call nor steps defined");
         }
+    }
+
+    /**
+     * Resolve step output mappings into a composite JSON object.
+     *
+     * <p>Each mapping references a step output via a {@code $.<step-name>.<field-path>}
+     * expression. The resolved values are assembled into a single JSON object keyed by
+     * {@code targetName}.</p>
+     *
+     * @param mappings    the list of step output mappings to apply
+     * @param stepContext the execution context containing step outputs
+     * @return the composite JSON string, or {@code null} when no mapping resolved
+     */
+    public String resolveStepMappings(List<StepOutputMappingSpec> mappings,
+            StepExecutionContext stepContext) throws IOException {
+        if (mappings == null || mappings.isEmpty() || stepContext == null) {
+            return null;
+        }
+
+        ObjectNode result = mapper.createObjectNode();
+
+        for (StepOutputMappingSpec mapping : mappings) {
+            JsonNode resolved = resolveJsonPathFromStepContext(mapping.getValue(), stepContext);
+            if (resolved != null) {
+                result.set(mapping.getTargetName(), resolved);
+            }
+        }
+
+        return result.isEmpty() ? null : mapper.writeValueAsString(result);
+    }
+
+    /**
+     * Resolve a {@code $.<step-name>.<field-path>} expression against the step context.
+     *
+     * @param value       the path expression (e.g. {@code "$.get-ship.imo_number"})
+     * @param stepContext the execution context containing step outputs
+     * @return the resolved {@link JsonNode}, or {@code null} when the path cannot be resolved
+     */
+    JsonNode resolveJsonPathFromStepContext(String value, StepExecutionContext stepContext) {
+        if (value == null || !value.startsWith("$.") || stepContext == null) {
+            return null;
+        }
+
+        String path = value.substring(2);
+        int firstDot = path.indexOf('.');
+
+        String stepName;
+        String fieldPath;
+
+        if (firstDot == -1) {
+            stepName = path;
+            fieldPath = null;
+        } else {
+            stepName = path.substring(0, firstDot);
+            fieldPath = path.substring(firstDot + 1);
+        }
+
+        JsonNode stepOutput = stepContext.getStepOutput(stepName);
+        if (stepOutput == null) {
+            return null;
+        }
+
+        if (fieldPath == null || fieldPath.isEmpty()) {
+            return stepOutput;
+        }
+
+        JsonNode current = stepOutput;
+        for (String segment : fieldPath.split("\\.")) {
+            if (current == null || current.isNull()) {
+                return null;
+            }
+            current = current.get(segment);
+        }
+
+        return current;
     }
 
     /**

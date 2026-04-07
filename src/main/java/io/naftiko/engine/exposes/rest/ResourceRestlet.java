@@ -139,6 +139,19 @@ public class ResourceRestlet extends Restlet {
                         OperationStepExecutor.StepExecutionResult stepResult =
                                 stepExecutor.executeSteps(serverOp.getSteps(), inputParameters);
                         found = stepResult.lastContext;
+
+                        // Apply step output mappings if defined
+                        if (serverOp.getMappings() != null
+                                && !serverOp.getMappings().isEmpty()) {
+                            String mapped = stepExecutor.resolveStepMappings(
+                                    serverOp.getMappings(), stepResult.stepContext);
+                            if (mapped != null) {
+                                response.setStatus(Status.SUCCESS_OK);
+                                response.setEntity(mapped, MediaType.APPLICATION_JSON);
+                                response.commit();
+                                return true;
+                            }
+                        }
                     } catch (IllegalArgumentException e) {
                         Context.getCurrentLogger().warning("Invalid argument in orchestrated steps: " + e);
                         response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
@@ -149,6 +162,13 @@ public class ResourceRestlet extends Restlet {
                         response.setStatus(Status.SERVER_ERROR_INTERNAL);
                         response.setEntity(
                                 "Error while handling an HTTP client call\n\n" + e.toString(),
+                                MediaType.TEXT_PLAIN);
+                        return true;
+                    } catch (IOException e) {
+                        Context.getCurrentLogger().warning("Error resolving step output mappings: " + e);
+                        response.setStatus(Status.SERVER_ERROR_INTERNAL);
+                        response.setEntity(
+                                "Error resolving step output mappings\n\n" + e.toString(),
                                 MediaType.TEXT_PLAIN);
                         return true;
                     }

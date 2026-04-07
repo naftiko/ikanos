@@ -49,6 +49,9 @@ public class McpServerToolSpec {
     private final List<OperationStepSpec> steps;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<StepOutputMappingSpec> mappings;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
 
     public McpServerToolSpec() {
@@ -61,6 +64,7 @@ public class McpServerToolSpec {
         this.description = description;
         this.inputParameters = new CopyOnWriteArrayList<>();
         this.steps = new CopyOnWriteArrayList<>();
+        this.mappings = new CopyOnWriteArrayList<>();
         this.outputParameters = new CopyOnWriteArrayList<>();
     }
 
@@ -110,6 +114,10 @@ public class McpServerToolSpec {
 
     public List<OperationStepSpec> getSteps() {
         return steps;
+    }
+
+    public List<StepOutputMappingSpec> getMappings() {
+        return mappings;
     }
 
     public List<OutputParameterSpec> getOutputParameters() {

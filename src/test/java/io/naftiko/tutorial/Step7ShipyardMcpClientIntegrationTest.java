@@ -109,23 +109,35 @@ public class Step7ShipyardMcpClientIntegrationTest
     }
 
     @Test
-    public void getShipWithCrewShouldReturnCrewEntriesWithResolvedFields() throws Exception {
+    public void getShipWithCrewShouldReturnMappedShipAndCrewObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         String sessionId = initialize(http);
 
-        JsonNode crew = callTool(http, sessionId, """
+        JsonNode result = callTool(http, sessionId, """
                 {"jsonrpc":"2.0","id":5,"method":"tools/call",
                  "params":{"name":"get-ship-with-crew","arguments":{"imo":"IMO-9321483"}}}
                 """);
+
+        // The response must be the assembled object from mappings, not raw crew array
+        assertTrue(result.isObject(),
+                "get-ship-with-crew must return a mapped object, not a raw array");
+
+        // Ship fields from $.get-ship step
+        assertTrue(result.has("imo"), "mapped output must have imo");
+        assertTrue(result.has("name"), "mapped output must have name");
+        assertTrue(result.has("status"), "mapped output must have status");
+        assertFalse(result.path("imo").asText().isBlank(), "imo must not be blank");
+        assertFalse(result.path("name").asText().isBlank(), "name must not be blank");
+
+        // Crew field from $.resolve-crew step
+        assertTrue(result.has("crew"), "mapped output must have crew");
+        JsonNode crew = result.get("crew");
         assertTrue(crew.isArray(), "crew must be an array");
         assertTrue(crew.size() > 0, "crew must not be empty");
 
         JsonNode first = crew.get(0);
-        assertTrue(first.has("crewId"), "crew entries must have crewId");
         assertTrue(first.has("fullName"), "crew entries must have fullName");
         assertTrue(first.has("role"), "crew entries must have role");
-        assertTrue(first.has("certifications"), "crew entries must have certifications");
         assertFalse(first.path("fullName").asText().isBlank(), "fullName must not be blank");
-        assertFalse(first.path("role").asText().isBlank(), "role must not be blank");
     }
 }

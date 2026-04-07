@@ -31,6 +31,9 @@ public class RestServerOperationSpec extends OperationSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<StepOutputMappingSpec> mappings;
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile Map<String, Object> with;
 
@@ -55,10 +58,15 @@ public class RestServerOperationSpec extends OperationSpec {
         this.call = call;
         this.with = with != null ? new ConcurrentHashMap<>(with) : null;
         this.steps = new CopyOnWriteArrayList<>();
+        this.mappings = new CopyOnWriteArrayList<>();
     }
 
     public List<OperationStepSpec> getSteps() {
         return steps;
+    }
+
+    public List<StepOutputMappingSpec> getMappings() {
+        return mappings;
     }
 
     public ServerCallSpec getCall() {

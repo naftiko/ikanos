@@ -96,6 +96,26 @@ public class ToolHandler {
 
         OperationStepExecutor.HandlingContext found;
         try {
+            boolean isOrchestrated =
+                    toolSpec.getSteps() != null && !toolSpec.getSteps().isEmpty();
+
+            if (isOrchestrated) {
+                OperationStepExecutor.StepExecutionResult stepResult =
+                        stepExecutor.executeSteps(toolSpec.getSteps(), parameters);
+
+                // Apply step output mappings if defined
+                if (toolSpec.getMappings() != null && !toolSpec.getMappings().isEmpty()) {
+                    String mapped = stepExecutor.resolveStepMappings(
+                            toolSpec.getMappings(), stepResult.stepContext);
+                    if (mapped != null) {
+                        return new McpSchema.CallToolResult(
+                                List.of(new McpSchema.TextContent(mapped)), false, null, null);
+                    }
+                }
+
+                return buildToolResult(toolSpec, stepResult.lastContext);
+            }
+
             found = stepExecutor.execute(toolSpec.getCall(), toolSpec.getSteps(), parameters,
                     "Tool '" + toolName + "'");
         } catch (IllegalArgumentException e) {
