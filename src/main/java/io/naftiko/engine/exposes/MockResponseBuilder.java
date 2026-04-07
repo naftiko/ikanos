@@ -77,43 +77,62 @@ public class MockResponseBuilder {
             return NullNode.instance;
         }
 
+        String type = param.getType() != null ? param.getType().toLowerCase() : "string";
+
         if (param.getConstant() != null) {
-            return mapper.getNodeFactory().textNode(param.getConstant());
+            return typedStringToNode(param.getConstant(), type, mapper);
         }
 
-        String type = param.getType();
+        switch (type) {
+            case "array":
+                com.fasterxml.jackson.databind.node.ArrayNode arrayNode = mapper.createArrayNode();
+                OutputParameterSpec items = param.getItems();
 
-        if ("array".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ArrayNode arrayNode = mapper.createArrayNode();
-            OutputParameterSpec items = param.getItems();
-
-            if (items != null) {
-                JsonNode itemValue = buildParameterValue(items, mapper);
-                if (itemValue != null && !(itemValue instanceof NullNode)) {
-                    arrayNode.add(itemValue);
-                }
-            }
-
-            return arrayNode;
-        }
-
-        if ("object".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ObjectNode objectNode = mapper.createObjectNode();
-
-            if (param.getProperties() != null) {
-                for (OutputParameterSpec prop : param.getProperties()) {
-                    JsonNode propValue = buildParameterValue(prop, mapper);
-                    if (propValue != null && !(propValue instanceof NullNode)) {
-                        String propName = prop.getName() != null ? prop.getName() : "property";
-                        objectNode.set(propName, propValue);
+                if (items != null) {
+                    JsonNode itemValue = buildParameterValue(items, mapper);
+                    if (itemValue != null && !(itemValue instanceof NullNode)) {
+                        arrayNode.add(itemValue);
                     }
                 }
-            }
 
-            return objectNode.size() > 0 ? objectNode : NullNode.instance;
+                return arrayNode;
+
+            case "object":
+                com.fasterxml.jackson.databind.node.ObjectNode objectNode =
+                        mapper.createObjectNode();
+
+                if (param.getProperties() != null) {
+                    for (OutputParameterSpec prop : param.getProperties()) {
+                        JsonNode propValue = buildParameterValue(prop, mapper);
+                        if (propValue != null && !(propValue instanceof NullNode)) {
+                            String propName =
+                                    prop.getName() != null ? prop.getName() : "property";
+                            objectNode.set(propName, propValue);
+                        }
+                    }
+                }
+
+                return objectNode.size() > 0 ? objectNode : NullNode.instance;
+
+            default:
+                return NullNode.instance;
         }
+    }
 
-        return NullNode.instance;
+    /**
+     * Convert a string value to the appropriate JSON node based on the declared type.
+     */
+    static JsonNode typedStringToNode(String value, String type, ObjectMapper mapper) {
+        switch (type) {
+            case "boolean":
+                return mapper.getNodeFactory().booleanNode(Boolean.parseBoolean(value));
+            case "number":
+                return mapper.getNodeFactory().numberNode(Double.parseDouble(value));
+            case "integer":
+                return mapper.getNodeFactory().numberNode(Long.parseLong(value));
+            default:
+                return mapper.getNodeFactory().textNode(value);
+        }
     }
 
     /**

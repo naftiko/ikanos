@@ -36,7 +36,7 @@ capability:
           outputParameters:
             - name: message
               type: string
-              const: "Hello, World!"
+              const: "Hello, John Doe!"
 
         - name: get-company-info
           description: "Returns static company information"

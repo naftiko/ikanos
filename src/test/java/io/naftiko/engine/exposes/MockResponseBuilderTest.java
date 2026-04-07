@@ -172,4 +172,47 @@ public class MockResponseBuilderTest {
         assertNotNull(result);
         assertEquals("no-name-field", result.get("value").asText());
     }
+
+    @Test
+    void buildParameterValueShouldReturnBooleanNodeForBooleanConst() {
+        OutputParameterSpec param = new OutputParameterSpec();
+        param.setName("active");
+        param.setType("boolean");
+        param.setConstant("true");
+
+        JsonNode result = MockResponseBuilder.buildParameterValue(param, mapper);
+        assertTrue(result.isBoolean());
+        assertTrue(result.booleanValue());
+    }
+
+    @Test
+    void buildParameterValueShouldReturnNumberNodeForNumberConst() {
+        OutputParameterSpec param = new OutputParameterSpec();
+        param.setName("price");
+        param.setType("number");
+        param.setConstant("19.99");
+
+        JsonNode result = MockResponseBuilder.buildParameterValue(param, mapper);
+        assertTrue(result.isNumber());
+        assertEquals(19.99, result.doubleValue());
+    }
+
+    @Test
+    void buildParameterValueShouldReturnIntegerNodeForIntegerConst() {
+        OutputParameterSpec param = new OutputParameterSpec();
+        param.setName("count");
+        param.setType("integer");
+        param.setConstant("42");
+
+        JsonNode result = MockResponseBuilder.buildParameterValue(param, mapper);
+        assertTrue(result.isNumber());
+        assertEquals(42L, result.longValue());
+    }
+
+    @Test
+    void constToNodeShouldDefaultToTextForUnknownType() {
+        JsonNode result = MockResponseBuilder.typedStringToNode("hello", "string", mapper);
+        assertTrue(result.isTextual());
+        assertEquals("hello", result.asText());
+    }
 }
