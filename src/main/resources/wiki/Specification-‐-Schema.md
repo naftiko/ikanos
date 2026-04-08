@@ -243,14 +243,14 @@ capability:
 
 Describes a server adapter that exposes functionality.
 
-> Update (schema {{RELEASE_TAG}} ): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` and `api` exposition types are not part of the JSON Schema anymore.
+> Update (schema v0.5): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` and `api` exposition types are not part of the JSON Schema anymore.
 > 
 
 #### 3.5.1 REST Expose
 
 REST exposition configuration.
 
-> Update (schema {{RELEASE_TAG}} ): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section), **MCP** (`type: "mcp"`, see §3.5.4), and **Skill** (`type: "skill"`, see §3.5.9). The `type` field acts as discriminator.
+> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section), **MCP** (`type: "mcp"`, see §3.5.4), and **Skill** (`type: "skill"`, see §3.5.9). The `type` field acts as discriminator.
 > 
 
 **Fixed Fields:**
@@ -291,7 +291,7 @@ An exposed resource with **operations** and/or **forward** configuration.
 
 MCP Server exposition configuration. Exposes capability operations as MCP tools, resources, and prompt templates over Streamable HTTP or stdio transport.
 
-> New in schema {{RELEASE_TAG}} .
+> New in schema v0.5.
 > 
 
 **Fixed Fields:**
@@ -447,7 +447,7 @@ Declares an input parameter for an MCP tool. These become properties in the tool
 
 An MCP resource definition. Resources expose data that agents can **read** (but not invoke like tools). Two source types are supported: **dynamic** (backed by consumed HTTP operations) and **static** (served from local files).
 
-> New in schema {{RELEASE_TAG}} .
+> New in schema v0.5.
 > 
 
 **Fixed Fields:**
@@ -538,7 +538,7 @@ resources:
 
 An MCP prompt template definition. Prompts provide reusable, parameterized message templates that AI agents can invoke to get pre-structured LLM conversation starters or guided interactions.
 
-> New in schema {{RELEASE_TAG}} .
+> New in schema v0.5.
 > 
 
 **Fixed Fields:**
@@ -625,7 +625,7 @@ prompts:
 
 Skill Server exposition configuration. Groups MCP tools into named skills, providing a structured discovery layer for AI agents and orchestrators.
 
-> New in schema {{RELEASE_TAG}} .
+> New in schema v0.5.
 > 
 
 **Fixed Fields:**
@@ -808,7 +808,7 @@ tools:
 
 Describes a client adapter for consuming external APIs.
 
-> Update (schema {{RELEASE_TAG}} ): `targetUri` is now `baseUri`. The `headers` field has been removed — use `inputParameters` with `in: "header"` instead.
+> Update (schema v0.5): `targetUri` is now `baseUri`. The `headers` field has been removed — use `inputParameters` with `in: "header"` instead.
 > 
 
 #### 3.6.1 Fixed Fields
@@ -980,7 +980,7 @@ outputParameters:
 
 Describes an operation exposed on an exposed resource.
 
-> Update (schema {{RELEASE_TAG}} ): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
+> Update (schema v0.5): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
 > 
 
 #### 3.9.1 Fixed Fields
@@ -1183,7 +1183,7 @@ body: |
 
 ### 3.11 InputParameter Objects
 
-> Update (schema {{RELEASE_TAG}} ): The single `InputParameter` object has been split into two distinct types: **ConsumedInputParameter** (used in consumes) and **ExposedInputParameter** (used in exposes, with additional `type` and `description` fields required).
+> Update (schema v0.5): The single `InputParameter` object has been split into two distinct types: **ConsumedInputParameter** (used in consumes) and **ExposedInputParameter** (used in exposes, with additional `type` and `description` fields required).
 > 
 
 #### 3.11.1 ConsumedInputParameter Object
@@ -1259,7 +1259,7 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
 
 ### 3.12 OutputParameter Objects
 
-> Update (schema {{RELEASE_TAG}} ): The single `OutputParameter` object has been split into three distinct types: **ConsumedOutputParameter** (used in consumed operations), **MappedOutputParameter** (used in simple-mode exposed operations), and **OrchestratedOutputParameter** (used in orchestrated-mode exposed operations).
+> Update (schema v0.5): The single `OutputParameter` object has been split into three distinct types: **ConsumedOutputParameter** (used in consumed operations), **MappedOutputParameter** (used in simple-mode exposed operations), and **OrchestratedOutputParameter** (used in orchestrated-mode exposed operations).
 > 
 
 #### 3.12.1 ConsumedOutputParameter Object
@@ -1428,7 +1428,7 @@ Example, if you consider the following JSON response :
 
 Describes a single step in an orchestrated operation. `OperationStep` is a `oneOf` between two subtypes: **OperationStepCall** and **OperationStepLookup**, both sharing a common **OperationStepBase**.
 
-> Update (schema {{RELEASE_TAG}} ): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
+> Update (schema v0.5): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
 > 
 
 #### 3.13.1 OperationStepBase (shared fields)
@@ -1641,7 +1641,7 @@ mappings:
 
 Describes how namespace-qualified references work in `with` (WithInjector) and other expression contexts.
 
-> Update (schema {{RELEASE_TAG}} ): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). The former `$this` expression root has been removed — exposed input parameters are now referenced directly using a namespace-qualified path.
+> Update (schema v0.5): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). The former `$this` expression root has been removed — exposed input parameters are now referenced directly using a namespace-qualified path.
 > 
 
 #### 3.15.1 Namespace-qualified references
@@ -1766,7 +1766,7 @@ authentication:
 
 Defines forwarding configuration for an exposed resource to pass requests through to a consumed namespace.
 
-> Update (schema {{RELEASE_TAG}} ): Renamed from `ForwardHeaders` to `ForwardConfig`. The `targetNamespaces` array has been replaced by a single `targetNamespace` string.
+> Update (schema v0.5): Renamed from `ForwardHeaders` to `ForwardConfig`. The `targetNamespaces` array has been replaced by a single `targetNamespace` string.
 > 
 
 #### 3.17.1 Fixed Fields
@@ -1800,7 +1800,7 @@ forward:
 
 Defines parameter injection for simple-mode exposed operations. Used with the `with` field on an ExposedOperation to inject values into the called consumed operation.
 
-> New in schema {{RELEASE_TAG}} .
+> New in schema v0.5.
 > 
 
 #### 3.18.1 Shape

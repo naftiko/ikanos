@@ -30,7 +30,7 @@ It is intentionally **complementary** to the JSON Schema, not a duplicate of it:
 - JSON Schema enforces structural validity and required fields.
 - Spectral enforces cross-object consistency, style hygiene, and security hygiene.
 
-The current ruleset supports both document shapes allowed by Naftiko {{RELEASE_TAG}} :
+The current ruleset supports both document shapes allowed by Naftiko {{RELEASE_TAG}}:
 
 1. Full capability documents (`naftiko` + `capability`, optionally root `consumes`)
 2. Shared consumes documents (`naftiko` + root `consumes`, without `capability`)
