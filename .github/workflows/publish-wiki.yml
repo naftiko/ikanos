@@ -17,8 +17,11 @@ jobs:
           echo "Error: No release found. Exiting immediately!"
           exit 1
         fi
+        VERSION_NO_V=${RELEASE_TAG#v}
         echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+        echo "VERSION_NO_V=$VERSION_NO_V" >> $GITHUB_ENV
         echo "Debug RELEASE_TAG: $RELEASE_TAG"
+        echo "Debug VERSION_NO_V: $VERSION_NO_V"
     - name: Compute Docker tag
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
@@ -48,6 +51,7 @@ jobs:
         echo "Replacing release tag and docker tag"
         find "$tmp_dir" -name "*.md" -exec sed -i \
           -e "s|{{RELEASE_TAG}}|$RELEASE_TAG|g" \
+          -e "s|{{VERSION_NO_V}}|$VERSION_NO_V|g" \
           -e "s|{{DOCKER_TAG}}|$DOCKER_TAG|g" {} +
 
         cd "$tmp_dir"
