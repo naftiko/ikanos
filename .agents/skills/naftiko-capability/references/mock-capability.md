@@ -91,15 +91,15 @@ outputParameters:
   - name: user
     type: object
     properties:
-      - name: id
-        type: string
-        value: "usr-001"
-      - name: displayName
-        type: string
-        value: "{{name}}"
-      - name: role
-        type: string
-        value: "viewer"
+      - id:
+          type: string
+          value: "usr-001"
+      - displayName:
+          type: string
+          value: "{{name}}"
+      - role:
+          type: string
+          value: "viewer"
 ```
 
 ## Array mock
@@ -114,12 +114,12 @@ outputParameters:
     items:
       type: object
       properties:
-        - name: id
-          type: string
-          value: "item-001"
-        - name: label
-          type: string
-          value: "Sample item for {{query}}"
+        - id:
+            type: string
+            value: "item-001"
+        - label:
+            type: string
+            value: "Sample item for {{query}}"
 ```
 
 ## Migrating from mock to real
