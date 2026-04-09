@@ -1,12 +1,18 @@
 APPLY_FIXES: none
 
 ENABLE_LINTERS:
+  - API_SPECTRAL
   - YAML_V8R
 
-POST_COMMANDS:
-  - name: Naftiko Spectral Validation
-    command: "spectral lint -r src/main/resources/rules/naftiko-rules.yml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
-    continue_on_error: false
+API_SPECTRAL_ARGUMENTS: "--ignore-unknown-format"
+
+# ⚠️ CHANGEMENT ICI : Utiliser FILE_NAMES_REGEX au lieu de FILTER_REGEX_INCLUDE
+API_SPECTRAL_FILE_NAMES_REGEX:
+  - ".*"  # Match tous les fichiers qui passent le filtre d'extension
+
+API_SPECTRAL_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
+
+API_SPECTRAL_CONFIG_FILE: "./.spectral.yaml"
 
 YAML_V8R_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
 YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/naftiko-schema.json"
