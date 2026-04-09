@@ -365,5 +365,84 @@ public class Resolver {
         }
     }
 
+    /**
+     * Build a mock JSON object from output parameter {@code value} fields.
+     * Mustache templates in values are resolved against the given parameters.
+     *
+     * @param outputParameters the output parameter specs
+     * @param mapper           Jackson mapper
+     * @param parameters       input parameters for Mustache resolution (may be null)
+     * @return a JSON object, or {@code null} if no values could be built
+     */
+    public static JsonNode buildMockData(List<OutputParameterSpec> outputParameters,
+            ObjectMapper mapper, Map<String, Object> parameters) {
+        if (outputParameters == null || outputParameters.isEmpty()) {
+            return null;
+        }
+
+        ObjectNode result = mapper.createObjectNode();
+
+        for (OutputParameterSpec param : outputParameters) {
+            JsonNode paramValue = buildMockValue(param, mapper, parameters);
+            if (paramValue != null && !(paramValue instanceof NullNode)) {
+                String fieldName = param.getName() != null ? param.getName() : "value";
+                result.set(fieldName, paramValue);
+            }
+        }
+
+        return result.size() > 0 ? result : null;
+    }
+
+    /**
+     * Build a mock JSON node for a single output parameter. Resolves Mustache templates
+     * in {@code value} fields and recurses into nested objects and arrays.
+     *
+     * @param param      the output parameter spec
+     * @param mapper     Jackson mapper
+     * @param parameters input parameters for Mustache resolution (may be null)
+     * @return the mock JSON node, or {@link NullNode} if no value could be built
+     */
+    public static JsonNode buildMockValue(OutputParameterSpec param, ObjectMapper mapper,
+            Map<String, Object> parameters) {
+        if (param == null) {
+            return NullNode.instance;
+        }
+
+        if (param.getValue() != null) {
+            String resolved = resolveMustacheTemplate(param.getValue(), parameters);
+            return mapper.getNodeFactory().textNode(resolved);
+        }
+
+        String type = param.getType();
+
+        if ("array".equalsIgnoreCase(type)) {
+            ArrayNode arrayNode = mapper.createArrayNode();
+            OutputParameterSpec items = param.getItems();
+            if (items != null) {
+                JsonNode itemValue = buildMockValue(items, mapper, parameters);
+                if (itemValue != null && !(itemValue instanceof NullNode)) {
+                    arrayNode.add(itemValue);
+                }
+            }
+            return arrayNode;
+        }
+
+        if ("object".equalsIgnoreCase(type)) {
+            ObjectNode objectNode = mapper.createObjectNode();
+            if (param.getProperties() != null) {
+                for (OutputParameterSpec prop : param.getProperties()) {
+                    JsonNode propValue = buildMockValue(prop, mapper, parameters);
+                    if (propValue != null && !(propValue instanceof NullNode)) {
+                        String propName = prop.getName() != null ? prop.getName() : "property";
+                        objectNode.set(propName, propValue);
+                    }
+                }
+            }
+            return objectNode.size() > 0 ? objectNode : NullNode.instance;
+        }
+
+        return NullNode.instance;
+    }
+
 }
 

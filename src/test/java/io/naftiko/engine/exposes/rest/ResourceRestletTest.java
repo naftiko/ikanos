@@ -36,6 +36,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.Resolver;
 import io.naftiko.engine.exposes.OperationStepExecutor;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.OutputParameterSpec;
@@ -217,13 +218,7 @@ public class ResourceRestletTest {
     }
 
     @Test
-    public void buildParameterValueShouldHandleObjectArrayAndPrimitiveFallback() throws Exception {
-        Capability capability = capabilityFromYaml(minimalCapabilityYaml());
-        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
-                .getSpec();
-        ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                serverSpec.getResources().get(0));
-
+    public void buildMockValueShouldHandleObjectArrayAndPrimitiveFallback() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
         OutputParameterSpec objectParam = new OutputParameterSpec();
@@ -234,7 +229,7 @@ public class ResourceRestletTest {
         field.setValue("ok");
         objectParam.getProperties().add(field);
 
-        JsonNode objectNode = restlet.buildParameterValue(objectParam, mapper, Map.of());
+        JsonNode objectNode = Resolver.buildMockValue(objectParam, mapper, Map.of());
         assertEquals("ok", objectNode.path("status").asText());
 
         OutputParameterSpec arrayParam = new OutputParameterSpec();
@@ -244,13 +239,13 @@ public class ResourceRestletTest {
         item.setValue("v");
         arrayParam.setItems(item);
 
-        JsonNode arrayNode = restlet.buildParameterValue(arrayParam, mapper, Map.of());
+        JsonNode arrayNode = Resolver.buildMockValue(arrayParam, mapper, Map.of());
         assertTrue(arrayNode.isArray());
         assertEquals("v", arrayNode.get(0).asText());
 
         OutputParameterSpec primitiveNoConst = new OutputParameterSpec();
         primitiveNoConst.setType("string");
-        JsonNode primitive = restlet.buildParameterValue(primitiveNoConst, mapper, Map.of());
+        JsonNode primitive = Resolver.buildMockValue(primitiveNoConst, mapper, Map.of());
         assertTrue(primitive.isNull());
     }
 
@@ -409,13 +404,7 @@ public class ResourceRestletTest {
         }
 
     @Test
-    public void buildParameterValueShouldResolveMustacheTemplatesInValue() throws Exception {
-        Capability capability = capabilityFromYaml(minimalCapabilityYaml());
-        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
-                .getSpec();
-        ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                serverSpec.getResources().get(0));
-
+    public void buildMockValueShouldResolveMustacheTemplatesInValue() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
         OutputParameterSpec param = new OutputParameterSpec();
@@ -424,7 +413,7 @@ public class ResourceRestletTest {
         param.setValue("Hello, {{name}}!");
 
         Map<String, Object> inputParameters = Map.of("name", "Alice");
-        JsonNode node = restlet.buildParameterValue(param, mapper, inputParameters);
+        JsonNode node = Resolver.buildMockValue(param, mapper, inputParameters);
         assertEquals("Hello, Alice!", node.asText());
     }
 

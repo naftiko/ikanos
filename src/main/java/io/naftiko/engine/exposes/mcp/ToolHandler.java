@@ -23,7 +23,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.exposes.OperationStepExecutor;
-import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -147,23 +146,11 @@ public class ToolHandler {
      */
     private McpSchema.CallToolResult buildMockToolResult(McpServerToolSpec toolSpec,
             Map<String, Object> parameters) throws IOException {
-        if (toolSpec.getOutputParameters() == null || toolSpec.getOutputParameters().isEmpty()) {
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent("{}")), false, null, null);
-        }
-
         ObjectMapper mapper = new ObjectMapper();
-        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
+        JsonNode mockRoot = Resolver.buildMockData(toolSpec.getOutputParameters(), mapper,
+                parameters);
 
-        for (OutputParameterSpec param : toolSpec.getOutputParameters()) {
-            JsonNode node = Resolver.resolveOutputMappings(param, null, mapper, parameters);
-            if (node != null && !(node instanceof com.fasterxml.jackson.databind.node.NullNode)) {
-                String fieldName = param.getName() != null ? param.getName() : "value";
-                result.set(fieldName, node);
-            }
-        }
-
-        String json = mapper.writeValueAsString(result);
+        String json = mapper.writeValueAsString(mockRoot != null ? mockRoot : mapper.createObjectNode());
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(json)), false, null, null);
     }

@@ -257,7 +257,8 @@ public class ResourceRestlet extends Restlet {
             ObjectMapper mapper = new ObjectMapper();
 
             // Build a JSON response using static/templated values from outputParameters
-            JsonNode mockRoot = buildMockData(serverOp, mapper, inputParameters);
+            JsonNode mockRoot = Resolver.buildMockData(serverOp.getOutputParameters(), mapper,
+                    inputParameters);
 
             if (mockRoot != null) {
                 response.setStatus(Status.SUCCESS_OK);
@@ -275,83 +276,6 @@ public class ResourceRestlet extends Restlet {
         }
 
         response.commit();
-    }
-
-    /**
-     * Build a JSON object with mock data from outputParameters static or templated values.
-     */
-    private JsonNode buildMockData(RestServerOperationSpec serverOp, ObjectMapper mapper,
-            Map<String, Object> inputParameters) {
-        if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
-            return null;
-        }
-
-        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
-
-        for (OutputParameterSpec param : serverOp.getOutputParameters()) {
-            JsonNode paramValue = buildParameterValue(param, mapper, inputParameters);
-            if (paramValue != null && !(paramValue instanceof NullNode)) {
-                // Use the parameter name if available, otherwise use "value"
-                String fieldName = param.getName() != null ? param.getName() : "value";
-                result.set(fieldName, paramValue);
-            }
-        }
-
-        return result.size() > 0 ? result : null;
-    }
-
-    /**
-     * Build a JSON node for a single parameter, using static or templated values.
-     */
-    JsonNode buildParameterValue(OutputParameterSpec param, ObjectMapper mapper,
-            Map<String, Object> inputParameters) {
-        if (param == null) {
-            return NullNode.instance;
-        }
-
-        // Handle static/templated values directly
-        if (param.getValue() != null) {
-            String resolved = Resolver.resolveMustacheTemplate(param.getValue(), inputParameters);
-            return mapper.getNodeFactory().textNode(resolved);
-        }
-
-        String type = param.getType();
-
-        // Handle array types
-        if ("array".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ArrayNode arrayNode = mapper.createArrayNode();
-            OutputParameterSpec items = param.getItems();
-
-            if (items != null) {
-                // Create one mock item to demonstrate the structure
-                JsonNode itemValue = buildParameterValue(items, mapper, inputParameters);
-                if (itemValue != null && !(itemValue instanceof NullNode)) {
-                    arrayNode.add(itemValue);
-                }
-            }
-
-            return arrayNode;
-        }
-
-        // Handle object types
-        if ("object".equalsIgnoreCase(type)) {
-            com.fasterxml.jackson.databind.node.ObjectNode objectNode = mapper.createObjectNode();
-
-            if (param.getProperties() != null) {
-                for (OutputParameterSpec prop : param.getProperties()) {
-                    JsonNode propValue = buildParameterValue(prop, mapper, inputParameters);
-                    if (propValue != null && !(propValue instanceof NullNode)) {
-                        String propName = prop.getName() != null ? prop.getName() : "property";
-                        objectNode.set(propName, propValue);
-                    }
-                }
-            }
-
-            return objectNode.size() > 0 ? objectNode : NullNode.instance;
-        }
-
-        // For other types without static values, return null
-        return NullNode.instance;
     }
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,
