@@ -50,6 +50,7 @@ for *how*.
 | "I want to proxy an API today and encapsulate it incrementally" | Read `references/proxy-then-customize.md` |
 | "I want to chain multiple HTTP calls to consumed APIs and expose the result into a single REST operation" | Read `references/chain-api-calls.md` |
 | "I need to go from local test credentials to production secrets" | Read `references/dev-to-production.md` |
+| "I want to prototype a tool or endpoint before the backend exists" or "I want to return static or dynamic mock data" | Read `references/mock-capability.md` |
 | "I want to build a full-featured capability that does all of the above" | Read all stories in order, then use `assets/capability-example.yml` as structural reference |
 | "I have a YAML validation error" | Run `scripts/lint-capability.sh` — see **Lint workflow** below |
 | "I'm done writing — what should I check before shipping?" | Read `references/design-guidelines.md`, then run lint |
@@ -95,20 +96,30 @@ Specification directly.
    For the full rule list, read the Spectral ruleset file directly.
 3. Fix and re-lint. Repeat until clean.
 
-## Hard Constraints
+### Mock a Capability
 
-1. The root field `naftiko` must be `"1.0.0-alpha1"` — no other version string is
-   valid for this spec revision.
-2. Every `consumes` entry must have both `baseUri` and `namespace`.
-3. Every `exposes` entry must have a `namespace`.
-4. Namespaces must be unique across all `exposes`, `consumes` and `binds` objects.
-5. At least one of `exposes` or `consumes` must be present in `capability`.
-6. `call` references must follow `{namespace}.{operationName}` and point
-   to a valid consumed operation.
-7. `{exposeNamespace}.{paramName}` is the only syntax for referencing
-   exposed input parameters in `with` injectors — do not invent alternatives.
-8. `variable` expressions resolve from `binds` keys.
-9. `ForwardConfig` requires `targetNamespace` (single string, not array)
+Use mock mode when the upstream API does not exist yet, or you want to
+prototype a contract-first design. Read `references/mock-capability.md`
+before writing any mock output parameters.
+
+**Key rules:**
+
+1. Omit `call`, `steps`, and the entire `consumes` block — they are not
+   needed for a pure mock capability.
+2. Use `value` on `MappedOutputParameter` for static strings
+   (`value: "Hello"`) or Mustache templates (`value: "Hello, {{name}}!"`).
+   Do NOT use `const` — it is schema-only and is never used at runtime.
+3. Mustache placeholders in `value` are resolved against the tool's or
+   endpoint's input parameters by name. Only top-level input parameter
+   names are in scope — no nesting, no `with` remapping.
+4. `value` and `mapping` are mutually exclusive on a scalar output
+   parameter — never set both.
+5. Object and array type output parameters in mock mode must carry
+   `value` on each leaf scalar descendant; the container itself has
+   no `value`.
+6. When the mock is ready to be wired to a real API, add `consumes`,
+   replace `value` with `mapping`, and add `call` or `steps` — the
+   exposed contract does not change.
    and `trustedHeaders` (at least one entry).
 10. MCP tools must have `name` and `description`. MCP tool input parameters
     must have `name`, `type`, and `description`. Tools may declare optional
@@ -130,3 +141,9 @@ Specification directly.
 16. Do not prefix variable names with the capability, namespace, or
     resource name — variables are already scoped to their context.
     Redundant prefixes reduce readability without adding disambiguation.
+17. In mock mode, use `value` on output parameters — never `const`.
+    `const` is a JSON Schema keyword retained for validation and linting
+    only; it has no effect at runtime.
+18. In mock mode, Mustache templates in `value` fields resolve only against
+    top-level input parameter names. Do not reference `with`-remapped
+    consumed parameter names — those are not in scope for output resolution.
