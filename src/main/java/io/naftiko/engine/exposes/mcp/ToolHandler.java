@@ -23,7 +23,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.exposes.OperationStepExecutor;
-import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
