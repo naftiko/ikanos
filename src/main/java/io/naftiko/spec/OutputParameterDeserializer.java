@@ -19,7 +19,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * Custom deserializer for OutputParameterSpec that handles nested structure definitions including
@@ -51,14 +50,20 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
 
         if (node.has("mapping")) {
             spec.setMapping(node.get("mapping").asText());
-        } else if (node.has("value") && node.has("name")) {
-            // ConsumedOutputParameter uses "value" for JsonPath extraction (has name + value)
-            spec.setMapping(node.get("value").asText());
         }
 
-        if (node.has("value") && !node.has("name")) {
-            // MappedOutputParameter uses "value" for static runtime values (no name)
-            spec.setValue(node.get("value").asText());
+        if (node.has("value")) {
+            String rawValue = node.get("value").asText();
+            String trimmedValue = rawValue != null ? rawValue.trim() : "";
+
+            // ConsumedOutputParameter uses "value" for JsonPath extraction (name + value
+            // starting with $). Aggregate mock functions also use name + value, but with
+            // static/template strings — those must stay in setValue().
+            if (node.has("name") && trimmedValue.startsWith("$") && !node.has("mapping")) {
+                spec.setMapping(rawValue);
+            } else {
+                spec.setValue(rawValue);
+            }
         }
 
         if (node.has("const")) {

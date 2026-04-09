@@ -32,6 +32,7 @@ import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
+import io.naftiko.spec.exposes.StepOutputMappingSpec;
 
 /**
  * Resolves aggregate function references ({@code ref}) in adapter units (MCP tools, REST
@@ -136,6 +137,13 @@ public class AggregateRefResolver {
             }
         }
 
+        // Merge step output mappings (function provides default, tool overrides)
+        if (tool.getMappings().isEmpty() && !function.getMappings().isEmpty()) {
+            for (StepOutputMappingSpec mapping : function.getMappings()) {
+                tool.getMappings().add(mapping);
+            }
+        }
+
         // Merge inputParameters (function provides default, tool overrides)
         if (tool.getInputParameters().isEmpty() && !function.getInputParameters().isEmpty()) {
             for (InputParameterSpec param : function.getInputParameters()) {
@@ -188,6 +196,13 @@ public class AggregateRefResolver {
         if (op.getSteps().isEmpty() && !function.getSteps().isEmpty()) {
             for (OperationStepSpec step : function.getSteps()) {
                 op.getSteps().add(step);
+            }
+        }
+
+        // Merge step output mappings
+        if (op.getMappings().isEmpty() && !function.getMappings().isEmpty()) {
+            for (StepOutputMappingSpec mapping : function.getMappings()) {
+                op.getMappings().add(mapping);
             }
         }
 

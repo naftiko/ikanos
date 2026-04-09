@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.naftiko.spec.exposes.StepOutputMappingSpec;
 import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
 
@@ -48,7 +49,7 @@ public class AggregateFunctionSpec {
     private final List<OperationStepSpec> steps;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<Map<String, Object>> mappings;
+    private final List<StepOutputMappingSpec> mappings;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
@@ -108,7 +109,7 @@ public class AggregateFunctionSpec {
         return steps;
     }
 
-    public List<Map<String, Object>> getMappings() {
+    public List<StepOutputMappingSpec> getMappings() {
         return mappings;
     }
 

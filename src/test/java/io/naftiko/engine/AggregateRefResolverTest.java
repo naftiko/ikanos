@@ -29,6 +29,7 @@ import io.naftiko.spec.exposes.McpServerToolSpec;
 import io.naftiko.spec.exposes.McpToolHintsSpec;
 import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.spec.exposes.StepOutputMappingSpec;
 
 /**
  * Unit tests for AggregateRefResolver — ref resolution, merge semantics, hints derivation.
@@ -196,6 +197,25 @@ public class AggregateRefResolverTest {
     }
 
     @Test
+    void resolveMcpToolRefShouldInheritMappings() {
+        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        fn.setName("get-data");
+        fn.setDescription("Get data");
+        fn.getMappings().add(new StepOutputMappingSpec("result", "$.lookup.data"));
+
+        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+
+        McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
+        tool.setRef("data.get-data");
+
+        resolver.resolveMcpToolRef(tool, map);
+
+        assertEquals(1, tool.getMappings().size());
+        assertEquals("result", tool.getMappings().get(0).getTargetName());
+        assertEquals("$.lookup.data", tool.getMappings().get(0).getValue());
+    }
+
+    @Test
     void resolveMcpToolRefShouldInheritDescription() {
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("get-data");
@@ -261,6 +281,25 @@ public class AggregateRefResolverTest {
 
         assertNotNull(op.getCall());
         assertEquals("mock-api.get-data", op.getCall().getOperation());
+    }
+
+    @Test
+    void resolveRestOperationRefShouldInheritMappings() {
+        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        fn.setName("get-data");
+        fn.setDescription("Get data");
+        fn.getMappings().add(new StepOutputMappingSpec("result", "$.lookup.data"));
+
+        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setRef("data.get-data");
+
+        resolver.resolveRestOperationRef(op, map);
+
+        assertEquals(1, op.getMappings().size());
+        assertEquals("result", op.getMappings().get(0).getTargetName());
+        assertEquals("$.lookup.data", op.getMappings().get(0).getValue());
     }
 
     // ── deriveHints ──

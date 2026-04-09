@@ -99,6 +99,25 @@ public class OutputParameterDeserializationTest {
     assertEquals("userid", spec.getName(), "Name should be parsed");
     assertEquals("string", spec.getType(), "Type should be parsed");
     assertEquals("$.id", spec.getMapping(), "Value alias should populate mapping");
+    assertNull(spec.getValue(), "Consumed output JsonPath alias should not populate value");
+  }
+
+  @Test
+  public void testNamedMockOutputParameterShouldKeepStaticValue() throws Exception {
+    String yamlSnippet = """
+        name: message
+        type: string
+        value: "Hello, {{name}}!"
+        """;
+
+    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
+
+    assertEquals("message", spec.getName(), "Name should be parsed");
+    assertEquals("string", spec.getType(), "Type should be parsed");
+    assertEquals("Hello, {{name}}!", spec.getValue(),
+        "Named mock output should preserve static/template value");
+    assertNull(spec.getMapping(), "Named mock output should not be re-routed to mapping");
   }
 
   @Test
