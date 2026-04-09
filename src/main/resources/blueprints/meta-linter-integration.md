@@ -90,12 +90,16 @@ This means v8r could **replace the custom `ajv` workflow** for JSON Schema valid
 
 ### Spectral file detection caveat
 
-MegaLinter's Spectral integration auto-detects files using **content regex**: `"openapi":`, `"swagger":`, `"asyncapi":` (and YAML variants). Naftiko YAML files contain `naftiko:` instead, so they **will not be auto-detected**.
+MegaLinter's Spectral integration (API_SPECTRAL) uses a "Smart Detection" engine. It looks for signatures like openapi: 3.0 inside files. Because Naftiko files use a custom naftiko: key, they are ignored by the default linter, even if included in the regex.
 
-**Workaround:** Override file targeting with:
+Solution: Use POST_COMMANDS to bypass the identification engine and force Spectral execution via the CLI already bundled in the MegaLinter image.
+
+**Workaround:** 
 ```yaml
-API_SPECTRAL_FILTER_REGEX_INCLUDE: "src/main/resources/schemas/(examples|tutorial)/.*\\.(yaml|yml)$"
-API_SPECTRAL_FILE_NAMES_REGEX: [".*"]
+POST_COMMANDS:
+  - name: Naftiko Spectral Validation
+    command: "spectral lint -r .spectral.yaml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
+    continue_on_error: false
 ```
 
 ### v8r and Draft 2020-12
@@ -146,16 +150,17 @@ MegaLinter uses a repo-root config file instead of inline env vars:
 # .mega-linter.yml
 APPLY_FIXES: none
 ENABLE_LINTERS:
-  - API_SPECTRAL
   - YAML_V8R
 
-# ── Spectral (semantic rules) ──
-API_SPECTRAL_CONFIG_FILE: .spectral.yaml
-API_SPECTRAL_FILTER_REGEX_INCLUDE: "src/main/resources/schemas/(examples|tutorial)/.*\\.(yaml|yml)$"
-
 # ── v8r (JSON Schema validation) ──
-YAML_V8R_FILTER_REGEX_INCLUDE: "src/main/resources/schemas/(examples|tutorial)/.*\\.(yaml|yml)$"
-YAML_V8R_ARGUMENTS: "--ignore-errors"
+YAML_V8R_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
+YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/naftiko-schema.json"
+
+# ── Spectral (Naftiko Business Rules) ──
+POST_COMMANDS:
+  - name: Naftiko Spectral Validation
+    command: "spectral lint -r .spectral.yaml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
+    continue_on_error: false
 ```
 
 **Key design choices:**
