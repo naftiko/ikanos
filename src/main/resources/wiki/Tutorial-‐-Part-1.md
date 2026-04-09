@@ -21,13 +21,13 @@ The Maritime Registry at `registry.shipyard.dev` has a REST endpoint: `GET /ship
 A capability needs two things: something to **consume** (the API) and something to **expose** (the tool).
 
 ```yaml
-naftiko: "{{RELEASE_TAG}}"
+naftiko: "1.0.0-alpha1"
 
 capability:
   consumes:
     - namespace: registry
       type: http
-      baseUri: "https://registry.shipyard.dev/api/v1"
+      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
       resources:
         - name: ships
           path: "/ships"
@@ -120,7 +120,7 @@ capability:
   consumes:
     - namespace: registry
       type: http
-      baseUri: "https://registry.shipyard.dev/api/v1"
+      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
       authentication:
         type: bearer
         token: "{{REGISTRY_TOKEN}}"
