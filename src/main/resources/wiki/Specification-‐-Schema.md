@@ -1295,24 +1295,25 @@ outputParameters:
 
 #### 3.12.2 MappedOutputParameter Object
 
-Used in **simple mode** exposed operations. Maps a value from the consumed response using `type` and `mapping`.
+Used in **simple mode** exposed operations. Maps a value from the consumed response using `type` and `mapping`, or provides a static value using `type` and `value`.
 
 **Fixed Fields:**
 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. Data type. One of: `string`, `number`, `boolean`, `object`, `array`. |
-| **mapping** | `string` | `object` | **REQUIRED**. For scalar types (`string`, `number`, `boolean`): a JsonPath string. For `object`: an object with `properties` (recursive MappedOutputParameter map). For `array`: an object with `items` (recursive MappedOutputParameter). |
+| **mapping** | `string` \| `object` | **Conditionally required**. JsonPath expression (scalar types) or recursive structure (`object`/`array`). Required unless `value` is provided. |
+| **value** | `string` | **Conditionally required**. Static value or Mustache template injected at runtime. Required unless `mapping` is provided. Supports `{{paramName}}` placeholders resolved against input parameters. Used for mock responses and prototyping without a `consumes` block. |
 
 **Subtypes by type:**
 
-- **`string`**, **`number`**, **`boolean`**: `mapping` is a JSONPath string (e.g. `$.login`)
+- **`string`**, **`number`**, **`boolean`**: `mapping` is a JSONPath string (e.g. `$.login`), or `value` is a static string or Mustache template (e.g. `"Hello, {{name}}!"`)
 - **`object`**: `mapping` is `{ properties: { key: MappedOutputParameter, ... } }` — recursive
 - **`array`**: `mapping` is `{ items: MappedOutputParameter }` — recursive
 
 **Rules:**
 
-- Both `type` and `mapping` are mandatory.
+- `type` is mandatory. Either `mapping` or `value` must be provided, but not both.
 - No additional properties are allowed.
 
 **MappedOutputParameter Examples:**
@@ -1324,6 +1325,16 @@ outputParameters:
     mapping: $.login
   - type: number
     mapping: $.id
+
+# Static value (mock / prototyping)
+outputParameters:
+  - type: string
+    value: "Hello, World!"
+
+# Dynamic value using Mustache template
+outputParameters:
+  - type: string
+    value: "Hello, {{name}}!"
 
 # Object mapping (recursive)
 outputParameters:

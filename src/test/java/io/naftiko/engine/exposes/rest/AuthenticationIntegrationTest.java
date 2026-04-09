@@ -55,7 +55,7 @@ public class AuthenticationIntegrationTest {
                             - method: "GET"
                               outputParameters:
                                 - type: "string"
-                                  const: "ok"
+                                  value: "ok"
                 """;
 
         Restlet root = buildRootRestlet(yaml);
@@ -78,7 +78,7 @@ public class AuthenticationIntegrationTest {
         assertEquals(MediaType.APPLICATION_JSON, authorizedResponse.getEntity().getMediaType(),
                 "Output mapping should return json payload");
         String payload = authorizedResponse.getEntity().getText();
-        assertTrue(payload.contains("ok"), "Payload should contain mapped const output");
+        assertTrue(payload.contains("ok"), "Payload should contain mapped output value");
     }
 
     @Test
@@ -107,7 +107,7 @@ public class AuthenticationIntegrationTest {
                             - method: "GET"
                               outputParameters:
                                 - type: "string"
-                                  const: "ok"
+                                  value: "ok"
                 """;
 
         Restlet root = buildRootRestlet(yaml);

@@ -51,9 +51,14 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
 
         if (node.has("mapping")) {
             spec.setMapping(node.get("mapping").asText());
-        } else if (node.has("value")) {
-            // Backward compatibility: allow "value" as an alias of "mapping"
+        } else if (node.has("value") && node.has("name")) {
+            // ConsumedOutputParameter uses "value" for JsonPath extraction (has name + value)
             spec.setMapping(node.get("value").asText());
+        }
+
+        if (node.has("value") && !node.has("name")) {
+            // MappedOutputParameter uses "value" for static runtime values (no name)
+            spec.setValue(node.get("value").asText());
         }
 
         if (node.has("const")) {

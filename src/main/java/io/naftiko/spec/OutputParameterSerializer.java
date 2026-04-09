@@ -64,6 +64,11 @@ public class OutputParameterSerializer extends JsonSerializer<OutputParameterSpe
             }
         }
 
+        // Static runtime value (MappedOutputParameter)
+        if (spec.getValue() != null && (spec.getName() == null || spec.getName().isBlank())) {
+            node.put("value", spec.getValue());
+        }
+
         if (spec.getConstant() != null) {
             node.put("const", spec.getConstant());
         }
@@ -172,6 +177,10 @@ public class OutputParameterSerializer extends JsonSerializer<OutputParameterSpe
 
         if (spec.getMapping() != null) {
             node.put("mapping", spec.getMapping());
+        }
+
+        if (spec.getValue() != null) {
+            node.put("value", spec.getValue());
         }
 
         if (spec.getConstant() != null) {

@@ -42,29 +42,30 @@ public class ToolHandlerTest {
     }
 
     @Test
-    public void handleToolCallShouldHandleNullArguments() {
+    public void handleToolCallShouldHandleNullArguments() throws Exception {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("test-tool");
         tool.setWith(Map.of("default_param", "default_value"));
-        // This will fail at execution because we have no real capability/steps setup,
-        // but it tests that null arguments are handled gracefully before that point
-        
+        // No call or steps — mock mode returns an empty JSON object
+
         ToolHandler handler = new ToolHandler(null, List.of(tool));
 
-        assertThrows(Exception.class, () -> handler.handleToolCall("test-tool", null));
+        var result = handler.handleToolCall("test-tool", null);
+        assertNotNull(result);
     }
 
     @Test
-    public void handleToolCallShouldMergeToolWithParameters() {
+    public void handleToolCallShouldMergeToolWithParameters() throws Exception {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("test-tool");
         tool.setWith(Map.of("fromTool", "fromToolValue"));
 
         ToolHandler handler = new ToolHandler(null, List.of(tool));
 
-        // Execution will fail beyond argument merging, but the tool is properly set up
-        assertThrows(Exception.class, () -> handler.handleToolCall("test-tool",
-                Map.of("fromArgs", "fromArgsValue")));
+        // No call or steps — mock mode returns an empty JSON object
+        var result = handler.handleToolCall("test-tool",
+                Map.of("fromArgs", "fromArgsValue"));
+        assertNotNull(result);
     }
 
     /**

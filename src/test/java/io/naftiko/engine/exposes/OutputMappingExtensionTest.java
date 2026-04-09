@@ -36,7 +36,7 @@ public class OutputMappingExtensionTest {
     public void testConstTakesPrecedence() throws Exception {
         OutputParameterSpec spec = new OutputParameterSpec();
         spec.setType("string");
-        spec.setConstant("CONST_VAL");
+        spec.setValue("CONST_VAL");
 
         JsonNode result = invokeBuild(spec, mapper.readTree("{}"));
         assertTrue(result.isTextual());

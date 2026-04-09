@@ -23,7 +23,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.Resolver;
 import io.naftiko.engine.exposes.OperationStepExecutor;
+import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Handles MCP tool calls by delegating to consumed HTTP operations.
@@ -98,6 +101,12 @@ public class ToolHandler {
         try {
             boolean isOrchestrated =
                     toolSpec.getSteps() != null && !toolSpec.getSteps().isEmpty();
+            boolean hasCall = toolSpec.getCall() != null;
+
+            if (!hasCall && !isOrchestrated) {
+                // Mock mode — no call, no steps: build response from output value fields
+                return buildMockToolResult(toolSpec, parameters);
+            }
 
             if (isOrchestrated) {
                 OperationStepExecutor.StepExecutionResult stepResult =
@@ -130,6 +139,33 @@ public class ToolHandler {
 
         // Map the response to MCP CallToolResult
         return buildToolResult(toolSpec, found);
+    }
+
+    /**
+     * Build an MCP CallToolResult from output parameter {@code value} fields (mock mode).
+     * Mustache templates in values are resolved against the given parameters.
+     */
+    private McpSchema.CallToolResult buildMockToolResult(McpServerToolSpec toolSpec,
+            Map<String, Object> parameters) throws IOException {
+        if (toolSpec.getOutputParameters() == null || toolSpec.getOutputParameters().isEmpty()) {
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent("{}")), false, null, null);
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
+
+        for (OutputParameterSpec param : toolSpec.getOutputParameters()) {
+            JsonNode node = Resolver.resolveOutputMappings(param, null, mapper, parameters);
+            if (node != null && !(node instanceof com.fasterxml.jackson.databind.node.NullNode)) {
+                String fieldName = param.getName() != null ? param.getName() : "value";
+                result.set(fieldName, node);
+            }
+        }
+
+        String json = mapper.writeValueAsString(result);
+        return new McpSchema.CallToolResult(
+                List.of(new McpSchema.TextContent(json)), false, null, null);
     }
 
     /**

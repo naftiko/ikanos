@@ -122,8 +122,8 @@ public class ResourceRestlet extends Restlet {
                         sendResponse(serverOp, response, found);
                         return true;
                     } else if (canBuildMockResponse(serverOp)) {
-                        // No HTTP client adapter found, use mock mode with const values
-                        sendMockResponse(serverOp, response);
+                        // No HTTP client adapter found, use mock mode with static values
+                        sendMockResponse(serverOp, response, inputParameters);
                         return true;
                     } else {
                         response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
@@ -179,8 +179,8 @@ public class ResourceRestlet extends Restlet {
                         sendResponse(serverOp, response, found);
                         return true;
                     } else if (canBuildMockResponse(serverOp)) {
-                        // No HTTP client adapter found, use mock mode with const values
-                        sendMockResponse(serverOp, response);
+                        // No HTTP client adapter found, use mock mode with static values
+                        sendMockResponse(serverOp, response, inputParameters);
                         return true;
                     }
                 }
@@ -191,29 +191,29 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Check if an operation can build a mock response using const values from outputParameters.
-     * Returns true if the operation has at least one outputParameter with a const value.
+     * Check if an operation can build a mock response using static values from outputParameters.
+     * Returns true if the operation has at least one outputParameter with a value.
      */
     boolean canBuildMockResponse(RestServerOperationSpec serverOp) {
         if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
             return false;
         }
 
-        // Check if at least one output parameter has a const value
+        // Check if at least one output parameter has a static value
         for (OutputParameterSpec param : serverOp.getOutputParameters()) {
-            if (param.getConstant() != null) {
+            if (param.getValue() != null) {
                 return true;
             }
-            // Check nested properties for const values
+            // Check nested properties for static values
             if (param.getProperties() != null && !param.getProperties().isEmpty()) {
                 for (OutputParameterSpec prop : param.getProperties()) {
-                    if (hasConstValue(prop)) {
+                    if (hasStaticValue(prop)) {
                         return true;
                     }
                 }
             }
-            // Check items for const values
-            if (param.getItems() != null && hasConstValue(param.getItems())) {
+            // Check items for static values
+            if (param.getItems() != null && hasStaticValue(param.getItems())) {
                 return true;
             }
         }
@@ -222,41 +222,42 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Recursively check if a parameter or its nested structure has any const values.
+     * Recursively check if a parameter or its nested structure has any static values.
      */
-    private boolean hasConstValue(OutputParameterSpec param) {
+    private boolean hasStaticValue(OutputParameterSpec param) {
         if (param == null) {
             return false;
         }
 
-        if (param.getConstant() != null) {
+        if (param.getValue() != null) {
             return true;
         }
 
         if (param.getProperties() != null) {
             for (OutputParameterSpec prop : param.getProperties()) {
-                if (hasConstValue(prop)) {
+                if (hasStaticValue(prop)) {
                     return true;
                 }
             }
         }
 
         if (param.getItems() != null) {
-            return hasConstValue(param.getItems());
+            return hasStaticValue(param.getItems());
         }
 
         return false;
     }
 
     /**
-     * Send a mock response using const values from outputParameters.
+     * Send a mock response using static or templated values from outputParameters.
      */
-    void sendMockResponse(RestServerOperationSpec serverOp, Response response) {
+    void sendMockResponse(RestServerOperationSpec serverOp, Response response,
+            Map<String, Object> inputParameters) {
         try {
             ObjectMapper mapper = new ObjectMapper();
 
-            // Build a JSON response using const values from outputParameters
-            JsonNode mockRoot = buildMockData(serverOp, mapper);
+            // Build a JSON response using static/templated values from outputParameters
+            JsonNode mockRoot = buildMockData(serverOp, mapper, inputParameters);
 
             if (mockRoot != null) {
                 response.setStatus(Status.SUCCESS_OK);
@@ -277,9 +278,10 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Build a JSON object with mock data from outputParameters const values.
+     * Build a JSON object with mock data from outputParameters static or templated values.
      */
-    private JsonNode buildMockData(RestServerOperationSpec serverOp, ObjectMapper mapper) {
+    private JsonNode buildMockData(RestServerOperationSpec serverOp, ObjectMapper mapper,
+            Map<String, Object> inputParameters) {
         if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {
             return null;
         }
@@ -287,7 +289,7 @@ public class ResourceRestlet extends Restlet {
         com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
 
         for (OutputParameterSpec param : serverOp.getOutputParameters()) {
-            JsonNode paramValue = buildParameterValue(param, mapper);
+            JsonNode paramValue = buildParameterValue(param, mapper, inputParameters);
             if (paramValue != null && !(paramValue instanceof NullNode)) {
                 // Use the parameter name if available, otherwise use "value"
                 String fieldName = param.getName() != null ? param.getName() : "value";
@@ -299,16 +301,18 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Build a JSON node for a single parameter, using const values or structures.
+     * Build a JSON node for a single parameter, using static or templated values.
      */
-    JsonNode buildParameterValue(OutputParameterSpec param, ObjectMapper mapper) {
+    JsonNode buildParameterValue(OutputParameterSpec param, ObjectMapper mapper,
+            Map<String, Object> inputParameters) {
         if (param == null) {
             return NullNode.instance;
         }
 
-        // Handle const values directly
-        if (param.getConstant() != null) {
-            return mapper.getNodeFactory().textNode(param.getConstant());
+        // Handle static/templated values directly
+        if (param.getValue() != null) {
+            String resolved = Resolver.resolveMustacheTemplate(param.getValue(), inputParameters);
+            return mapper.getNodeFactory().textNode(resolved);
         }
 
         String type = param.getType();
@@ -320,7 +324,7 @@ public class ResourceRestlet extends Restlet {
 
             if (items != null) {
                 // Create one mock item to demonstrate the structure
-                JsonNode itemValue = buildParameterValue(items, mapper);
+                JsonNode itemValue = buildParameterValue(items, mapper, inputParameters);
                 if (itemValue != null && !(itemValue instanceof NullNode)) {
                     arrayNode.add(itemValue);
                 }
@@ -335,7 +339,7 @@ public class ResourceRestlet extends Restlet {
 
             if (param.getProperties() != null) {
                 for (OutputParameterSpec prop : param.getProperties()) {
-                    JsonNode propValue = buildParameterValue(prop, mapper);
+                    JsonNode propValue = buildParameterValue(prop, mapper, inputParameters);
                     if (propValue != null && !(propValue instanceof NullNode)) {
                         String propName = prop.getName() != null ? prop.getName() : "property";
                         objectNode.set(propName, propValue);
@@ -346,7 +350,7 @@ public class ResourceRestlet extends Restlet {
             return objectNode.size() > 0 ? objectNode : NullNode.instance;
         }
 
-        // For other types without const values, return null
+        // For other types without static values, return null
         return NullNode.instance;
     }
 

@@ -446,7 +446,7 @@ exposes:
 MCP clients can then discover and use these resources dynamically.
 
 ### Q: Can I create MCP tools that return static mock data?
-**A:** Yes, starting in version 1.0.0 Alpha 2. Define `outputParameters` with `const` values and omit `call` and `steps`. The tool serves a fixed JSON response — no `consumes` block is needed:
+**A:** Yes, starting in version 1.0.0 Alpha 2. Define `outputParameters` with `value` fields and omit `call` and `steps`. The tool serves a fixed JSON response — no `consumes` block is needed. Values can be static strings or Mustache templates resolved against input parameters:
 
 ```yaml
 exposes:
@@ -465,7 +465,7 @@ exposes:
         outputParameters:
           - name: message
             type: string
-            const: "Hello, World!"
+            value: "Hello, {{name}}!"
 ```
 
 This mirrors the REST mock pattern (`no-adapter.yml`) and is useful for prototyping, demos, and contract-first development.

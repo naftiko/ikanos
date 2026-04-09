@@ -23,7 +23,7 @@ How Naftiko achieves this technically:
   - [x] REST resource exposure for conventional clients
 - [x] Output shaping with typed parameters and JSONPath mapping
   - [x] Nested object and array output parameters
-  - [x] Const values for computed fields
+  - [x] Static values for computed fields
 - [x] Externalized secrets via `binds` (file, vault, environment)
 
 ## 2. Rightsize AI context
@@ -45,7 +45,7 @@ How Naftiko achieves this technically:
   - [x] MCP for Standard IO (for local MCP clients)
 - [x] Output shaping with typed parameters and JSONPath mapping
   - [x] Fine-grained field selection and nested object mapping
-  - [x] Const values to inject static context
+  - [x] Static values to inject context
 - [x] Typed MCP tool input parameters with descriptions
   - [x] Required/optional parameter declarations for agent discovery
 
@@ -183,7 +183,8 @@ How Naftiko achieves this technically:
   - [x] MCP for Streaming HTTP (for remote MCP clients)
   - [x] MCP for Standard IO (for local MCP clients)
 - [x] Mock mode for MCP tools
-  - [x] Static const-valued outputs without consuming an API
+  - [x] Static value outputs without consuming an API
+  - [x] Dynamic mock values using Mustache templates from input parameters
 - [x] Multi-step orchestration wired to consumed operations
   - [x] Call and lookup steps with cross-step output bridging
 

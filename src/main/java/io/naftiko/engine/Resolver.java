@@ -97,9 +97,9 @@ public class Resolver {
             return null;
         }
 
-        // constant takes precedence
-        if (spec.getConstant() != null) {
-            return spec.getConstant();
+        // value provides a static override when not a JSONPath expression
+        if (spec.getValue() != null && !spec.getValue().trim().startsWith("$")) {
+            return spec.getValue();
         }
 
         String in = spec.getIn() == null ? "body" : spec.getIn();
@@ -182,10 +182,9 @@ public class Resolver {
      * 
      * Resolution priority for parameter values:
      * 1. 'value' field - resolved with Mustache template syntax ({{paramName}}) for dynamic resolution
-     * 2. 'const' field - used as-is, no template resolution applied
-     * 3. 'template' field - resolved with Mustache syntax
-     * 4. Parameters map - direct lookup by parameter name
-     * 5. Environment variables - for 'environment' location
+     * 2. 'template' field - resolved with Mustache syntax
+     * 3. Parameters map - direct lookup by parameter name
+     * 4. Environment variables - for 'environment' location
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
@@ -202,9 +201,6 @@ public class Resolver {
                 if (spec.getValue() != null) {
                     // Resolve Mustache templates in value, allowing dynamic parameter resolution
                     val = Resolver.resolveMustacheTemplate(spec.getValue(), parameters);
-                } else if (spec.getConstant() != null) {
-                    // Use constant value as-is (no template resolution)
-                    val = spec.getConstant();
                 } else if (spec.getTemplate() != null) {
                     val = Resolver.resolveMustacheTemplate(spec.getTemplate(), parameters);
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
@@ -245,15 +241,27 @@ public class Resolver {
      */
     public static JsonNode resolveOutputMappings(OutputParameterSpec spec, JsonNode clientRoot,
             ObjectMapper mapper) {
+        return resolveOutputMappings(spec, clientRoot, mapper, null);
+    }
+
+    /**
+     * Build a mapped JSON node from the output parameter specification and the client response
+     * root, optionally resolving Mustache templates in {@code value} fields.
+     *
+     * @param parameters input parameters for Mustache resolution (may be null)
+     */
+    public static JsonNode resolveOutputMappings(OutputParameterSpec spec, JsonNode clientRoot,
+            ObjectMapper mapper, Map<String, Object> parameters) {
         if (spec == null) {
             return NullNode.instance;
         }
 
         String type = spec.getType();
 
-        // constant value takes precedence
-        if (spec.getConstant() != null) {
-            return mapper.getNodeFactory().textNode(spec.getConstant());
+        // value takes precedence — used for static/mock values
+        if (spec.getValue() != null) {
+            String resolved = resolveMustacheTemplate(spec.getValue(), parameters);
+            return mapper.getNodeFactory().textNode(resolved);
         }
 
         if ("array".equalsIgnoreCase(type)) {

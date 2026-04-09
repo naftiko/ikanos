@@ -29,6 +29,12 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
     @JsonProperty("mapping")
     private volatile String mapping;
 
+    /**
+     * Static value for mock responses. When provided, the runtime uses this value
+     * as-is instead of resolving via mapping from an external API response.
+     */
+    private volatile String value;
+
     public OutputParameterSpec() {
         super();
     }
@@ -63,6 +69,14 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
 
     public void setMapping(String mapping) {
         this.mapping = mapping;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 
 }

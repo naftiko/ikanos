@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
 import org.restlet.Component;
@@ -68,7 +69,7 @@ public class ResourceRestletTest {
         tags.setType("array");
         OutputParameterSpec tagItem = new OutputParameterSpec();
         tagItem.setType("string");
-        tagItem.setConstant("active");
+        tagItem.setValue("active");
         tags.setItems(tagItem);
         payload.getProperties().add(tags);
         operation.getOutputParameters().add(payload);
@@ -76,7 +77,7 @@ public class ResourceRestletTest {
         Request request = new Request(Method.GET, "http://localhost/preview");
         Response response = new Response(request);
 
-        restlet.sendMockResponse(operation, response);
+        restlet.sendMockResponse(operation, response, Map.of());
 
         assertEquals(Status.SUCCESS_OK, response.getStatus());
         assertNotNull(response.getEntity());
@@ -208,7 +209,7 @@ public class ResourceRestletTest {
         OutputParameterSpec child = new OutputParameterSpec();
         child.setName("status");
         child.setType("string");
-        child.setConstant("ok");
+        child.setValue("ok");
         root.getProperties().add(child);
         nestedConst.getOutputParameters().add(root);
 
@@ -230,26 +231,26 @@ public class ResourceRestletTest {
         OutputParameterSpec field = new OutputParameterSpec();
         field.setName("status");
         field.setType("string");
-        field.setConstant("ok");
+        field.setValue("ok");
         objectParam.getProperties().add(field);
 
-        JsonNode objectNode = restlet.buildParameterValue(objectParam, mapper);
+        JsonNode objectNode = restlet.buildParameterValue(objectParam, mapper, Map.of());
         assertEquals("ok", objectNode.path("status").asText());
 
         OutputParameterSpec arrayParam = new OutputParameterSpec();
         arrayParam.setType("array");
         OutputParameterSpec item = new OutputParameterSpec();
         item.setType("string");
-        item.setConstant("v");
+        item.setValue("v");
         arrayParam.setItems(item);
 
-        JsonNode arrayNode = restlet.buildParameterValue(arrayParam, mapper);
+        JsonNode arrayNode = restlet.buildParameterValue(arrayParam, mapper, Map.of());
         assertTrue(arrayNode.isArray());
         assertEquals("v", arrayNode.get(0).asText());
 
         OutputParameterSpec primitiveNoConst = new OutputParameterSpec();
         primitiveNoConst.setType("string");
-        JsonNode primitive = restlet.buildParameterValue(primitiveNoConst, mapper);
+        JsonNode primitive = restlet.buildParameterValue(primitiveNoConst, mapper, Map.of());
         assertTrue(primitive.isNull());
     }
 
@@ -407,6 +408,26 @@ public class ResourceRestletTest {
                 }
         }
 
+    @Test
+    public void buildParameterValueShouldResolveMustacheTemplatesInValue() throws Exception {
+        Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+                .getSpec();
+        ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+                serverSpec.getResources().get(0));
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        OutputParameterSpec param = new OutputParameterSpec();
+        param.setName("greeting");
+        param.setType("string");
+        param.setValue("Hello, {{name}}!");
+
+        Map<String, Object> inputParameters = Map.of("name", "Alice");
+        JsonNode node = restlet.buildParameterValue(param, mapper, inputParameters);
+        assertEquals("Hello, Alice!", node.asText());
+    }
+
     private static Capability capabilityFromYaml(String yaml) throws Exception {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -432,11 +453,11 @@ public class ResourceRestletTest {
                 """;
     }
 
-    private static OutputParameterSpec stringOutput(String name, String constant) {
+    private static OutputParameterSpec stringOutput(String name, String value) {
         OutputParameterSpec spec = new OutputParameterSpec();
         spec.setName(name);
         spec.setType("string");
-        spec.setConstant(constant);
+        spec.setValue(value);
         return spec;
     }
 }

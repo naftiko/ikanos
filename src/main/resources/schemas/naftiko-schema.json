@@ -267,7 +267,7 @@
           "description": "JsonPath expression to extract the value. E.g. $.properties.Name.title[0].text.content"
         },
         "const": {
-          "description": "Optional constant value. If provided, it will override the mapping and the value will be injected as-is.",
+          "description": "Schema-level constant for validation and linting. Not used at runtime for value injection — use 'value' instead.",
           "oneOf": [
             {
               "type": "string"
@@ -285,6 +285,10 @@
               "type": "object"
             }
           ]
+        },
+        "value": {
+          "type": "string",
+          "description": "Static value injected at runtime. When provided, takes precedence over mapping."
         }
       },
       "required": [
@@ -302,7 +306,8 @@
               "const": "string"
             },
             "mapping": true,
-            "const": true
+            "const": true,
+            "value": true
           },
           "oneOf": [
             {
@@ -312,7 +317,7 @@
             },
             {
               "required": [
-                "const"
+                "value"
               ]
             }
           ],
@@ -331,7 +336,8 @@
               "const": "number"
             },
             "mapping": true,
-            "const": true
+            "const": true,
+            "value": true
           },
           "oneOf": [
             {
@@ -341,7 +347,7 @@
             },
             {
               "required": [
-                "const"
+                "value"
               ]
             }
           ],
@@ -360,7 +366,8 @@
               "const": "boolean"
             },
             "mapping": true,
-            "const": true
+            "const": true,
+            "value": true
           },
           "oneOf": [
             {
@@ -370,7 +377,7 @@
             },
             {
               "required": [
-                "const"
+                "value"
               ]
             }
           ],
@@ -390,6 +397,7 @@
             },
             "mapping": true,
             "const": true,
+            "value": true,
             "properties": {
               "type": "object",
               "description": "A map of named properties. Each key is a property name, each value is a typed output parameter.",
@@ -417,6 +425,7 @@
             },
             "mapping": true,
             "const": true,
+            "value": true,
             "items": {
               "$ref": "#/$defs/MappedOutputParameter"
             }

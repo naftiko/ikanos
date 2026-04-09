@@ -159,7 +159,7 @@ public class ResolverTest {
 
         InputParameterSpec constant = new InputParameterSpec();
         constant.setName("x");
-        constant.setConstant("fixed");
+        constant.setValue("fixed");
         constant.setIn("query");
 
         InputParameterSpec missingBodyPath = new InputParameterSpec();
@@ -196,7 +196,7 @@ public class ResolverTest {
         InputParameterSpec constant = new InputParameterSpec();
         constant.setName("X-Mode");
         constant.setIn("header");
-        constant.setConstant("strict");
+        constant.setValue("strict");
 
         Resolver.resolveInputParametersToRequest(clientRequest, List.of(header, query, constant),
             parameters);
@@ -294,6 +294,27 @@ public class ResolverTest {
         JsonNode primitiveValue = Resolver.resolveOutputMappings(primitive, root, MAPPER);
         assertEquals("xyz", primitiveValue.asText());
       }
+
+    @Test
+    public void resolveOutputMappingsShouldResolveMustacheTemplatesInValue() {
+        OutputParameterSpec spec = new OutputParameterSpec();
+        spec.setType("string");
+        spec.setValue("Hello, {{name}}!");
+
+        Map<String, Object> params = Map.of("name", "Voyager");
+        JsonNode result = Resolver.resolveOutputMappings(spec, null, MAPPER, params);
+        assertEquals("Hello, Voyager!", result.asText());
+    }
+
+    @Test
+    public void resolveOutputMappingsShouldReturnRawValueWhenNoParameters() {
+        OutputParameterSpec spec = new OutputParameterSpec();
+        spec.setType("string");
+        spec.setValue("static-text");
+
+        JsonNode result = Resolver.resolveOutputMappings(spec, null, MAPPER, null);
+        assertEquals("static-text", result.asText());
+    }
 
     /**
      * Regression test for #213: array parameters in Mustache body templates must be
