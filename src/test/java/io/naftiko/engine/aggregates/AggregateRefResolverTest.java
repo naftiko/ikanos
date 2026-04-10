@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.engine;
+package io.naftiko.engine.aggregates;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +21,6 @@ import java.util.Map;
 import io.naftiko.spec.AggregateFunctionSpec;
 import io.naftiko.spec.AggregateSpec;
 import io.naftiko.spec.CapabilitySpec;
-import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.SemanticsSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
@@ -29,7 +28,6 @@ import io.naftiko.spec.exposes.McpServerToolSpec;
 import io.naftiko.spec.exposes.McpToolHintsSpec;
 import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
-import io.naftiko.spec.exposes.StepOutputMappingSpec;
 
 /**
  * Unit tests for AggregateRefResolver — ref resolution, merge semantics, hints derivation.
@@ -105,7 +103,7 @@ public class AggregateRefResolverTest {
         assertTrue(ex.getMessage().contains("unknown.nonexistent"));
     }
 
-    // ── MCP tool ref merge ──
+    // ── MCP tool ref metadata inheritance ──
 
     @Test
     void resolveMcpToolRefShouldInheritNameFromFunction() {
@@ -140,7 +138,7 @@ public class AggregateRefResolverTest {
     }
 
     @Test
-    void resolveMcpToolRefShouldInheritCallFromFunction() {
+    void resolveMcpToolRefShouldNotCopyCallFromFunction() {
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
@@ -153,34 +151,15 @@ public class AggregateRefResolverTest {
 
         resolver.resolveMcpToolRef(tool, map);
 
-        assertNotNull(tool.getCall());
-        assertEquals("mock-api.get-data", tool.getCall().getOperation());
+        assertNull(tool.getCall(), "call should not be copied — resolved at runtime via AggregateFunction");
     }
 
     @Test
-    void resolveMcpToolRefShouldNotOverrideExplicitCall() {
+    void resolveMcpToolRefShouldNotCopyInputParametersFromFunction() {
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
-        fn.setCall(new ServerCallSpec("mock-api.get-data"));
-
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
-
-        McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
-        tool.setRef("data.get-data");
-        tool.setCall(new ServerCallSpec("other-api.get-data"));
-
-        resolver.resolveMcpToolRef(tool, map);
-
-        assertEquals("other-api.get-data", tool.getCall().getOperation());
-    }
-
-    @Test
-    void resolveMcpToolRefShouldInheritInputParameters() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
-        fn.setName("get-data");
-        fn.setDescription("Get data");
-        InputParameterSpec param = new InputParameterSpec();
+        io.naftiko.spec.InputParameterSpec param = new io.naftiko.spec.InputParameterSpec();
         param.setName("location");
         param.setType("string");
         fn.getInputParameters().add(param);
@@ -192,27 +171,8 @@ public class AggregateRefResolverTest {
 
         resolver.resolveMcpToolRef(tool, map);
 
-        assertEquals(1, tool.getInputParameters().size());
-        assertEquals("location", tool.getInputParameters().get(0).getName());
-    }
-
-    @Test
-    void resolveMcpToolRefShouldInheritMappings() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
-        fn.setName("get-data");
-        fn.setDescription("Get data");
-        fn.getMappings().add(new StepOutputMappingSpec("result", "$.lookup.data"));
-
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
-
-        McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
-        tool.setRef("data.get-data");
-
-        resolver.resolveMcpToolRef(tool, map);
-
-        assertEquals(1, tool.getMappings().size());
-        assertEquals("result", tool.getMappings().get(0).getTargetName());
-        assertEquals("$.lookup.data", tool.getMappings().get(0).getValue());
+        assertTrue(tool.getInputParameters().isEmpty(),
+                "inputParameters should not be copied — resolved at runtime via AggregateFunction");
     }
 
     @Test
@@ -247,7 +207,7 @@ public class AggregateRefResolverTest {
         assertEquals("Tool description", tool.getDescription());
     }
 
-    // ── REST operation ref merge ──
+    // ── REST operation ref metadata inheritance ──
 
     @Test
     void resolveRestOperationRefShouldInheritNameFromFunction() {
@@ -266,7 +226,7 @@ public class AggregateRefResolverTest {
     }
 
     @Test
-    void resolveRestOperationRefShouldInheritCallFromFunction() {
+    void resolveRestOperationRefShouldNotCopyCallFromFunction() {
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
@@ -279,27 +239,7 @@ public class AggregateRefResolverTest {
 
         resolver.resolveRestOperationRef(op, map);
 
-        assertNotNull(op.getCall());
-        assertEquals("mock-api.get-data", op.getCall().getOperation());
-    }
-
-    @Test
-    void resolveRestOperationRefShouldInheritMappings() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
-        fn.setName("get-data");
-        fn.setDescription("Get data");
-        fn.getMappings().add(new StepOutputMappingSpec("result", "$.lookup.data"));
-
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
-
-        RestServerOperationSpec op = new RestServerOperationSpec();
-        op.setRef("data.get-data");
-
-        resolver.resolveRestOperationRef(op, map);
-
-        assertEquals(1, op.getMappings().size());
-        assertEquals("result", op.getMappings().get(0).getTargetName());
-        assertEquals("$.lookup.data", op.getMappings().get(0).getValue());
+        assertNull(op.getCall(), "call should not be copied — resolved at runtime via AggregateFunction");
     }
 
     // ── deriveHints ──

@@ -20,11 +20,13 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import io.naftiko.Capability;
-import io.naftiko.engine.Converter;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.aggregates.AggregateFunction;
+import io.naftiko.engine.aggregates.FunctionResult;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.http.HttpClientAdapter;
 import io.naftiko.engine.exposes.OperationStepExecutor;
+import io.naftiko.engine.util.Converter;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.RestServerForwardSpec;
 import io.naftiko.spec.exposes.RestServerOperationSpec;
@@ -92,6 +94,11 @@ public class ResourceRestlet extends Restlet {
                 // Include operation-level 'with' parameters for template resolution
                 OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,
                         getServerSpec().getNamespace());
+
+                // Delegate to aggregate function when ref is set
+                if (serverOp.getRef() != null) {
+                    return executeViaAggregate(serverOp, request, response, inputParameters);
+                }
 
                 if (serverOp.getCall() != null) {
                     try {
@@ -188,6 +195,61 @@ public class ResourceRestlet extends Restlet {
         }
 
         return false;
+    }
+
+    /**
+     * Execute an operation by delegating to its referenced aggregate function.
+     */
+    private boolean executeViaAggregate(RestServerOperationSpec serverOp, Request request,
+            Response response, Map<String, Object> inputParameters) {
+        try {
+            AggregateFunction fn = capability.lookupFunction(serverOp.getRef());
+            FunctionResult result = fn.execute(inputParameters);
+
+            if (result.isMock()) {
+                ObjectMapper mapper = new ObjectMapper();
+                if (result.mockOutput != null) {
+                    response.setStatus(Status.SUCCESS_OK);
+                    response.setEntity(
+                            mapper.writerWithDefaultPrettyPrinter()
+                                    .writeValueAsString(result.mockOutput),
+                            MediaType.APPLICATION_JSON);
+                } else {
+                    response.setStatus(Status.SUCCESS_NO_CONTENT);
+                }
+                response.commit();
+                return true;
+            }
+
+            if (result.hasMappedOutput()) {
+                response.setStatus(Status.SUCCESS_OK);
+                response.setEntity(result.mappedOutput, MediaType.APPLICATION_JSON);
+                response.commit();
+                return true;
+            }
+
+            if (result.lastContext != null) {
+                response.setStatus(result.lastContext.clientResponse.getStatus());
+                sendResponse(serverOp, response, result.lastContext);
+                return true;
+            }
+
+            response.setStatus(Status.SERVER_ERROR_INTERNAL);
+            response.setEntity("No result from aggregate function: " + serverOp.getRef(),
+                    MediaType.TEXT_PLAIN);
+            return true;
+        } catch (IllegalArgumentException e) {
+            Context.getCurrentLogger().warning("Error in aggregate function call: " + e);
+            response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+            response.setEntity(e.getMessage(), MediaType.TEXT_PLAIN);
+            return true;
+        } catch (Exception e) {
+            Context.getCurrentLogger().warning("Error in aggregate function call: " + e);
+            response.setStatus(Status.SERVER_ERROR_INTERNAL);
+            response.setEntity("Error in aggregate function call\n\n" + e.toString(),
+                    MediaType.TEXT_PLAIN);
+            return true;
+        }
     }
 
     /**

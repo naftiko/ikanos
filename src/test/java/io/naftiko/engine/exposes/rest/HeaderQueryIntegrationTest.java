@@ -95,7 +95,7 @@ public class HeaderQueryIntegrationTest {
                 new Request(Method.POST, "http://example.com/items");
         
         // Apply client-level input parameters to the request using Resolver
-        io.naftiko.engine.Resolver.resolveInputParametersToRequest(helperReq,
+        io.naftiko.engine.util.Resolver.resolveInputParametersToRequest(helperReq,
                 clientAdapter.getHttpClientSpec().getInputParameters(), params);
 
         String apiKey = helperReq.getHeaders().getFirstValue("X-API-Key", true);

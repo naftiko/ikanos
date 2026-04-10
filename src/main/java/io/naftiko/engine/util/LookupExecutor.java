@@ -11,10 +11,11 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.engine;
+package io.naftiko.engine.util;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -130,7 +131,7 @@ public class LookupExecutor {
      * @param result The lookup result (an ObjectNode with extracted fields)
      * @param targetMap The map to merge the result into (output of the lookup step)
      */
-    public static void mergeLookupResult(JsonNode result, java.util.Map<String, Object> targetMap) {
+    public static void mergeLookupResult(JsonNode result, Map<String, Object> targetMap) {
         if (result == null || !result.isObject() || targetMap == null) {
             return;
         }

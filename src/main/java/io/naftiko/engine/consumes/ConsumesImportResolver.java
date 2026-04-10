@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.engine;
+package io.naftiko.engine.consumes;
 
 import java.io.IOException;
 import java.nio.file.Files;

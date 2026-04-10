@@ -24,8 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
-import io.naftiko.engine.ConsumesImportResolver;
+import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
@@ -56,7 +55,7 @@ import io.naftiko.spec.consumes.HttpClientSpec;
  *
  * <p>Setup steps at test start:</p>
  * <ol>
- *   <li>Patch both bind {@code location}s to an absolute URI so the {@link io.naftiko.engine.BindingResolver}
+ *   <li>Patch both bind {@code location}s to an absolute URI so the {@link io.naftiko.engine.util.BindingResolver}
  *       finds the secrets file regardless of Maven CWD.</li>
  *   <li>Manually resolve imported consumes via {@link ConsumesImportResolver} using the
  *       tutorial directory as {@code capabilityDir}. This populates the consumes list with

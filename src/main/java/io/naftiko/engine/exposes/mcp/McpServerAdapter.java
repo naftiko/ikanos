@@ -24,6 +24,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
+import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
@@ -126,8 +127,15 @@ public class McpServerAdapter extends ServerAdapter {
         Map<String, Object> schemaProperties = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
 
-        if (toolSpec.getInputParameters() != null) {
-            for (InputParameterSpec param : toolSpec.getInputParameters()) {
+        // Resolve inputParameters: prefer tool-level, fall back to aggregate function
+        List<InputParameterSpec> inputParams = toolSpec.getInputParameters();
+        if ((inputParams == null || inputParams.isEmpty()) && toolSpec.getRef() != null) {
+            AggregateFunction fn = getCapability().lookupFunction(toolSpec.getRef());
+            inputParams = fn.getInputParameters();
+        }
+
+        if (inputParams != null) {
+            for (InputParameterSpec param : inputParams) {
                 Map<String, Object> property = new HashMap<>();
                 property.put("type", param.getType() != null ? param.getType() : "string");
 

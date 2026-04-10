@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import io.naftiko.Capability;
-import io.naftiko.engine.ConsumesImportResolver;
+import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.engine.exposes.skill.SkillServerAdapter;
 import io.naftiko.spec.NaftikoSpec;

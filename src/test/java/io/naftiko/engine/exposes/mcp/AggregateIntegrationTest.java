@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
@@ -52,8 +53,13 @@ public class AggregateIntegrationTest {
 
         McpServerToolSpec tool = serverSpec.getTools().get(0);
         assertEquals("get-forecast", tool.getName());
-        assertNotNull(tool.getCall(), "call should be inherited from function");
-        assertEquals("weather-api.get-forecast", tool.getCall().getOperation());
+        // call is no longer copied to the tool spec — it is resolved at runtime
+        assertNull(tool.getCall(), "call should not be on tool spec — delegated to aggregate");
+
+        // Verify call is available via the runtime aggregate function
+        AggregateFunction fn = capability.lookupFunction(tool.getRef());
+        assertNotNull(fn.getCall(), "call should be available on the aggregate function");
+        assertEquals("weather-api.get-forecast", fn.getCall().getOperation());
     }
 
     @Test
@@ -63,8 +69,14 @@ public class AggregateIntegrationTest {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
         McpServerToolSpec tool = serverSpec.getTools().get(0);
-        assertEquals(1, tool.getInputParameters().size());
-        assertEquals("location", tool.getInputParameters().get(0).getName());
+        // inputParameters are no longer copied to the tool spec
+        assertTrue(tool.getInputParameters().isEmpty(),
+                "inputParameters should not be on tool spec — delegated to aggregate");
+
+        // Verify inputParameters are available via the runtime aggregate function
+        AggregateFunction fn = capability.lookupFunction(tool.getRef());
+        assertEquals(1, fn.getInputParameters().size());
+        assertEquals("location", fn.getInputParameters().get(0).getName());
     }
 
     @Test
@@ -95,6 +107,8 @@ public class AggregateIntegrationTest {
         assertEquals("POST", op.getMethod());
         assertEquals("get-forecast", op.getName());
         assertEquals("Fetch current weather forecast for a location.", op.getDescription());
+        // call is no longer copied — resolved at runtime
+        assertNull(op.getCall(), "call should not be on operation spec — delegated to aggregate");
     }
 
     // ── Semantics → hints derivation ──

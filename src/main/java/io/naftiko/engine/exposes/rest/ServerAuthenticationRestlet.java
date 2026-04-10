@@ -25,7 +25,7 @@ import org.restlet.Response;
 import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.consumes.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.AuthenticationSpec;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;

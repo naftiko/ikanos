@@ -15,19 +15,20 @@ package io.naftiko.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.io.File;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.Method;
+import org.restlet.data.Reference;
 import org.restlet.data.Status;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.engine.exposes.mcp.McpServerAdapter;
 import io.naftiko.engine.exposes.mcp.ProtocolDispatcher;
 import io.naftiko.spec.NaftikoSpec;
@@ -61,19 +62,20 @@ public class AggregateSharedMockIntegrationTest {
 
         RestServerAdapter restAdapter = (RestServerAdapter) capability.getServerAdapters().get(1);
         RestServerSpec restSpec = (RestServerSpec) restAdapter.getSpec();
-        ResourceRestlet restlet = new ResourceRestlet(capability, restSpec,
-                restSpec.getResources().get(0));
         RestServerOperationSpec restOperation = restSpec.getResources().get(0).getOperations().get(0);
 
-        assertEquals(2, restOperation.getOutputParameters().size(),
-                "REST operation should inherit two aggregate output parameters");
+        // Output parameters are no longer copied — they live on the aggregate function
+        AggregateFunction fn = capability.lookupFunction(restOperation.getRef());
+        assertNotNull(fn, "Aggregate function should be resolvable from ref");
+        assertEquals(2, fn.getOutputParameters().size(),
+                "Aggregate function should have two output parameters");
 
-        assertTrue(restlet.canBuildMockResponse(restOperation),
-                "REST operation should inherit aggregate mock output parameters");
-
-        Request request = new Request(Method.GET, "http://localhost/hello?name=Nina");
+        // Exercise REST path through the normal flow (delegating to aggregate function)
+        ResourceRestlet restlet = new ResourceRestlet(capability, restSpec,
+                restSpec.getResources().get(0));
+        Request request = new Request(Method.GET, new Reference("http://localhost/hello?name=Nina"));
         Response response = new Response(request);
-        restlet.sendMockResponse(restOperation, response, Map.of("name", "Nina"));
+        restlet.handle(request, response);
 
         assertEquals(Status.SUCCESS_OK, response.getStatus());
         JsonNode restPayload = JSON.readTree(response.getEntity().getText());

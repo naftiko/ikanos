@@ -25,7 +25,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import io.naftiko.engine.ConsumesImportResolver;
+import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.consumes.ImportedConsumesHttpSpec;
