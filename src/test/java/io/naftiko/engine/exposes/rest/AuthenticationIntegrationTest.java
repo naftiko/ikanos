@@ -16,6 +16,8 @@ package io.naftiko.engine.exposes.rest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -28,14 +30,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
 
 public class AuthenticationIntegrationTest {
+    private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     public void bearerAuthenticationShouldReturnUnauthorizedWithoutTokenAndOkWithToken()
             throws Exception {
         String yaml = """
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 info:
                   label: "Auth test"
                   description: "Auth test"
@@ -56,7 +65,7 @@ public class AuthenticationIntegrationTest {
                               outputParameters:
                                 - type: "string"
                                   value: "ok"
-                """;
+                """.formatted(schemaVersion);
 
         Restlet root = buildRootRestlet(yaml);
 
@@ -85,7 +94,7 @@ public class AuthenticationIntegrationTest {
     public void apiKeyAuthenticationShouldReturnUnauthorizedWithoutHeaderAndOkWithHeader()
             throws Exception {
         String yaml = """
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 info:
                   label: "Auth test"
                   description: "Auth test"
@@ -108,7 +117,7 @@ public class AuthenticationIntegrationTest {
                               outputParameters:
                                 - type: "string"
                                   value: "ok"
-                """;
+                """.formatted(schemaVersion);
 
         Restlet root = buildRootRestlet(yaml);
 

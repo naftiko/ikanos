@@ -26,6 +26,8 @@ import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
+import io.naftiko.util.VersionHelper;
+
 import java.io.File;
 
 /**
@@ -35,6 +37,7 @@ import java.io.File;
 public class McpIntegrationTest {
 
     private Capability capability;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -48,13 +51,14 @@ public class McpIntegrationTest {
         NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
 
         capability = new Capability(spec);
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
         assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko(), "Naftiko version should be 1.0.0-alpha2");
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

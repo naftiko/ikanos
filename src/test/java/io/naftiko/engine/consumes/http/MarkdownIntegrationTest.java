@@ -23,6 +23,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.engine.Converter;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
+
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
 public class MarkdownIntegrationTest {
 
     private Capability capability;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -45,12 +48,13 @@ public class MarkdownIntegrationTest {
         NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
 
         capability = new Capability(spec);
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko());
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

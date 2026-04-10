@@ -31,6 +31,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Integration tests for consumes imports in full capability loading.
@@ -40,10 +41,12 @@ public class ImportIntegrationTest {
 
     private Path tempDir;
     private Capability capability;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws IOException {
         tempDir = Files.createTempDirectory("naftiko-cap-test-");
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @AfterEach
@@ -66,19 +69,19 @@ public class ImportIntegrationTest {
     public void testCapabilityLoadsWithImportedConsumes() throws Exception {
         // Create source consumes file
         String sourceConsumesYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "json-api"
                 baseUri: "https://api.example.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("json-api.consumes.yml"), sourceConsumesYaml);
 
         // Create capability with import
         String capabilityYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             info:
               label: "Test Capability"
               description: "Tests imported adapters"
@@ -92,7 +95,7 @@ public class ImportIntegrationTest {
                   port: 9999
                   namespace: "proxy"
                   resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Path capPath = tempDir.resolve("test-capability.yml");
         Files.writeString(capPath, capabilityYaml);
@@ -114,19 +117,19 @@ public class ImportIntegrationTest {
     public void testCapabilityWithMixedConsumes() throws Exception {
         // Create source consumes
         String sourceConsumesYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "external-api"
                 baseUri: "https://external.example.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("external.consumes.yml"), sourceConsumesYaml);
 
         // Create capability with both inline and imported consumes
         String capabilityYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             info:
               label: "Mixed Capability"
               description: "Tests both inline and imported consumes"
@@ -144,7 +147,7 @@ public class ImportIntegrationTest {
                   port: 9998
                   namespace: "proxy"
                   resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Path capPath = tempDir.resolve("mixed-capability.yml");
         Files.writeString(capPath, capabilityYaml);
@@ -170,19 +173,19 @@ public class ImportIntegrationTest {
     public void testCapabilityImportWithAlias() throws Exception {
         // Create source consumes
         String sourceConsumesYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "api"
                 baseUri: "https://api.example.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("api.consumes.yml"), sourceConsumesYaml);
 
         // Create capability with import using alias
         String capabilityYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             info:
               label: "Aliased Capability"
               description: "Tests import with alias"
@@ -197,7 +200,7 @@ public class ImportIntegrationTest {
                   port: 9997
                   namespace: "proxy"
                   resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Path capPath = tempDir.resolve("aliased-capability.yml");
         Files.writeString(capPath, capabilityYaml);
@@ -219,7 +222,7 @@ public class ImportIntegrationTest {
     public void testCapabilityImportFileNotFound() throws Exception {
         // Create capability with non-existent import
         String capabilityYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             info:
               label: "Bad Capability"
               description: "Bad import path"
@@ -233,7 +236,7 @@ public class ImportIntegrationTest {
                   port: 9996
                   namespace: "proxy"
                   resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Path capPath = tempDir.resolve("bad-capability.yml");
         Files.writeString(capPath, capabilityYaml);

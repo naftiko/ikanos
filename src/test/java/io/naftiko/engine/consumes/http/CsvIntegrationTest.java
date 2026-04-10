@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
 import java.io.File;
 import java.io.InputStream;
 import com.fasterxml.jackson.databind.MappingIterator;
@@ -34,6 +35,7 @@ public class CsvIntegrationTest {
     private Capability capability;
     private ObjectMapper jsonMapper;
     private CsvMapper csvMapper;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -51,13 +53,14 @@ public class CsvIntegrationTest {
         capability = new Capability(spec);
         jsonMapper = new ObjectMapper();
         csvMapper = new CsvMapper();
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
         assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko(), "Naftiko version should be 0.5");
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

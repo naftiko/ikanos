@@ -29,6 +29,7 @@ import io.naftiko.engine.ConsumesImportResolver;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.consumes.ImportedConsumesHttpSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Unit tests for ConsumesImportResolver.
@@ -38,11 +39,13 @@ public class ConsumesImportResolverTest {
 
     private ConsumesImportResolver resolver;
     private Path tempDir;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws IOException {
         resolver = new ConsumesImportResolver();
         tempDir = Files.createTempDirectory("naftiko-import-test-");
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @AfterEach
@@ -63,13 +66,13 @@ public class ConsumesImportResolverTest {
     public void testResolveSimpleImport() throws Exception {
         // Create source consumes file
         String sourceConsumesYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "notion"
                 baseUri: "https://api.notion.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Path sourcePath = tempDir.resolve("notion-consumes.yml");
         Files.writeString(sourcePath, sourceConsumesYaml);
@@ -98,22 +101,22 @@ public class ConsumesImportResolverTest {
     public void testResolveImportWithAlias() throws Exception {
         // Create two source consumes with same namespace
         String sourceEn = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "hello-world"
                 baseUri: "http://localhost:8080"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         String sourceFr = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "hello-world"
                 baseUri: "http://localhost:8081"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("hello-en.yml"), sourceEn);
         Files.writeString(tempDir.resolve("hello-fr.yml"), sourceFr);
@@ -144,13 +147,13 @@ public class ConsumesImportResolverTest {
     @Test
     public void testResolveImportNamespaceNotFound() throws Exception {
         String sourceYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "api-v1"
                 baseUri: "http://api.example.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("api.yml"), sourceYaml);
 
@@ -168,13 +171,13 @@ public class ConsumesImportResolverTest {
     @Test
     public void testMixedImportsAndInlineConsumes() throws Exception {
         String sourceYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "external-api"
                 baseUri: "http://external.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(tempDir.resolve("external.yml"), sourceYaml);
 
@@ -206,13 +209,13 @@ public class ConsumesImportResolverTest {
         Files.createDirectory(subdir);
 
         String sourceYaml = """
-            naftiko: "1.0.0-alpha1"
+            naftiko: "%s"
             consumes:
               - type: "http"
                 namespace: "nested"
                 baseUri: "http://example.com"
                 resources: []
-            """;
+            """.formatted(schemaVersion);
 
         Files.writeString(subdir.resolve("nested.yml"), sourceYaml);
 

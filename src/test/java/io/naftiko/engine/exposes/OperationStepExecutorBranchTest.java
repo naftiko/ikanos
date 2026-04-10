@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
@@ -37,16 +39,23 @@ import io.naftiko.spec.exposes.OperationStepCallSpec;
 import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
+import io.naftiko.util.VersionHelper;
 
 class OperationStepExecutorBranchTest {
 
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     void findClientRequestForShouldValidateUnresolvedUriAndBodyTemplates() throws Exception {
         OperationStepExecutor executor = executorFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -69,7 +78,7 @@ class OperationStepExecutorBranchTest {
                             - method: "POST"
                               name: "create"
                               body: "{{missingBody}}"
-                """);
+                """.formatted(schemaVersion));
 
         IllegalArgumentException uriError = assertThrows(IllegalArgumentException.class,
                 () -> executor.findClientRequestFor("svc", "create", Map.of()));
@@ -83,7 +92,7 @@ class OperationStepExecutorBranchTest {
     @Test
     void findClientRequestForShouldSetStructuredBodyMediaTypes() throws Exception {
         OperationStepExecutor executor = executorFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -121,7 +130,7 @@ class OperationStepExecutorBranchTest {
                                 type: "sparql"
                                 data:
                                   query: "{{v}}"
-                """);
+                """.formatted(schemaVersion));
 
         Map<String, Object> params = Map.of("v", "ok");
 
@@ -143,7 +152,7 @@ class OperationStepExecutorBranchTest {
     @Test
     void resolveInputParametersFromRequestShouldHandleInvalidJsonBody() throws Exception {
         Capability capability = capabilityFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -168,7 +177,7 @@ class OperationStepExecutorBranchTest {
                                   in: "path"
                                   type: string
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
         RestServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
@@ -191,7 +200,7 @@ class OperationStepExecutorBranchTest {
     @Test
     void privateStepOutputHelpersShouldHandleNamedUnnamedAndNullInputs() throws Exception {
         OperationStepExecutor executor = executorFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -204,7 +213,7 @@ class OperationStepExecutorBranchTest {
                             - method: "GET"
                               name: "x"
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode raw = mapper.readTree("{\"id\":\"u-1\",\"name\":\"Alice\"}");
@@ -246,7 +255,7 @@ class OperationStepExecutorBranchTest {
     @Test
     void executeStepsShouldFailForCallStepWithoutValidCallReference() throws Exception {
         OperationStepExecutor executor = executorFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -259,7 +268,7 @@ class OperationStepExecutorBranchTest {
                             - method: "GET"
                               name: "x"
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         OperationStepCallSpec unsupported = new OperationStepCallSpec();
         unsupported.setType("custom");

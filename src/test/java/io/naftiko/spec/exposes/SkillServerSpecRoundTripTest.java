@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Round-trip tests for {@link SkillServerSpec} — YAML deserialization, field validation, and
@@ -31,6 +32,7 @@ public class SkillServerSpecRoundTripTest {
 
     private NaftikoSpec naftikoSpec;
     private SkillServerSpec skillSpec;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -41,6 +43,8 @@ public class SkillServerSpecRoundTripTest {
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         naftikoSpec = mapper.readValue(file, NaftikoSpec.class);
 
+        schemaVersion = VersionHelper.getSchemaVersion();
+
         skillSpec = (SkillServerSpec) naftikoSpec.getCapability().getExposes().stream()
                 .filter(s -> s instanceof SkillServerSpec)
                 .findFirst()
@@ -49,7 +53,7 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testNaftikoVersionLoaded() {
-        assertEquals("1.0.0-alpha2", naftikoSpec.getNaftiko());
+        assertEquals(schemaVersion, naftikoSpec.getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

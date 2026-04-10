@@ -31,6 +31,7 @@ import io.naftiko.Capability;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Integration tests for the Skill Server Adapter.
@@ -46,6 +47,7 @@ public class SkillIntegrationTest {
     private static Capability capability;
     private static SkillServerAdapter skillAdapter;
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static String schemaVersion;
 
     @BeforeAll
     static void setUp() throws Exception {
@@ -57,6 +59,7 @@ public class SkillIntegrationTest {
         NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
 
         capability = new Capability(spec);
+        schemaVersion = VersionHelper.getSchemaVersion();
 
         skillAdapter = (SkillServerAdapter) capability.getServerAdapters().stream()
                 .filter(a -> a instanceof SkillServerAdapter)
@@ -78,7 +81,7 @@ public class SkillIntegrationTest {
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability.getSpec());
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko());
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

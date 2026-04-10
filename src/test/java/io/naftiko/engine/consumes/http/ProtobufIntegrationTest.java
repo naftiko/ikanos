@@ -26,6 +26,8 @@ import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
+import io.naftiko.util.VersionHelper;
+
 import java.io.File;
 import java.io.InputStream;
 
@@ -36,6 +38,7 @@ import java.io.InputStream;
 public class ProtobufIntegrationTest {
 
         private Capability capability;
+        private String schemaVersion;
 
         @BeforeEach
         public void setUp() throws Exception {
@@ -52,14 +55,15 @@ public class ProtobufIntegrationTest {
 
                 // Initialize capability
                 capability = new Capability(spec);
+                schemaVersion = VersionHelper.getSchemaVersion();
         }
 
         @Test
         public void testCapabilityLoaded() {
                 assertNotNull(capability, "Capability should be initialized");
                 assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-                assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko(),
-                                "Naftiko version should be 0.5");
+                assertEquals(schemaVersion, capability.getSpec().getNaftiko(),
+                                "Naftiko version should be " + schemaVersion);
         }
 
         @Test

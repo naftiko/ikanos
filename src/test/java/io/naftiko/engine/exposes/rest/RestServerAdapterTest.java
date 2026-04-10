@@ -16,6 +16,8 @@ package io.naftiko.engine.exposes.rest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Set;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Restlet;
 import org.restlet.security.ChallengeAuthenticator;
@@ -24,13 +26,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
 
 public class RestServerAdapterTest {
+  private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     public void basicAuthShouldBuildChallengeAuthenticatorChain() throws Exception {
         RestServerAdapter adapter = adapterFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -47,7 +56,7 @@ public class RestServerAdapterTest {
                             - method: "GET"
                               name: "list-orders"
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         Restlet chain = adapter.getServer().getNext();
         assertTrue(chain instanceof ChallengeAuthenticator);
@@ -56,7 +65,7 @@ public class RestServerAdapterTest {
     @Test
     public void digestAuthShouldBuildChallengeAuthenticatorChain() throws Exception {
         RestServerAdapter adapter = adapterFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -73,7 +82,7 @@ public class RestServerAdapterTest {
                             - method: "GET"
                               name: "list-orders"
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         Restlet chain = adapter.getServer().getNext();
         assertTrue(chain instanceof ChallengeAuthenticator);
@@ -82,7 +91,7 @@ public class RestServerAdapterTest {
     @Test
     public void extractAllowedVariablesShouldReturnAllBindingKeys() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 binds:
                   - namespace: "env"
                     keys:
@@ -91,7 +100,7 @@ public class RestServerAdapterTest {
                 capability:
                   exposes: []
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         Set<String> keys = RestServerAdapter.extractAllowedVariables(spec);
 

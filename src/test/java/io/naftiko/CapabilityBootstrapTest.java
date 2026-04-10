@@ -20,18 +20,27 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class CapabilityBootstrapTest {
 
+    private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
+
     @Test
     public void constructorShouldFailWhenNoExposesDefined() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes: []
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> new Capability(spec));
@@ -41,7 +50,7 @@ public class CapabilityBootstrapTest {
     @Test
     public void constructorShouldCreateServerAndClientAdapters() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -63,7 +72,7 @@ public class CapabilityBootstrapTest {
                           operations:
                             - method: "GET"
                               name: "list-orders"
-                """);
+                """.formatted(schemaVersion));
 
         Capability capability = new Capability(spec);
 
@@ -74,7 +83,7 @@ public class CapabilityBootstrapTest {
     @Test
     public void constructorShouldResolveRuntimeBindings() throws Exception {
         NaftikoSpec spec = parseYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 binds:
                   - namespace: "env"
                     keys:
@@ -91,7 +100,7 @@ public class CapabilityBootstrapTest {
                             - method: "GET"
                               name: "list-orders"
                   consumes: []
-                """);
+                """.formatted(schemaVersion));
 
         Capability capability = new Capability(spec);
 
