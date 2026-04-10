@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
-import io.naftiko.engine.Converter;
+import io.naftiko.engine.util.Converter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.util.VersionHelper;
 

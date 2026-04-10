@@ -21,16 +21,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.naftiko.engine.AggregateRefResolver;
-import io.naftiko.engine.BindingResolver;
-import io.naftiko.engine.ConsumesImportResolver;
+import io.naftiko.engine.aggregates.Aggregate;
+import io.naftiko.engine.aggregates.AggregateFunction;
+import io.naftiko.engine.aggregates.AggregateRefResolver;
+import io.naftiko.engine.exposes.OperationStepExecutor;
+import io.naftiko.spec.AggregateSpec;
 import io.naftiko.spec.ExecutionContext;
 import io.naftiko.engine.consumes.ClientAdapter;
+import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.engine.consumes.http.HttpClientAdapter;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.engine.exposes.mcp.McpServerAdapter;
 import io.naftiko.engine.exposes.rest.RestServerAdapter;
 import io.naftiko.engine.exposes.skill.SkillServerAdapter;
+import io.naftiko.engine.util.BindingResolver;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
@@ -47,6 +51,7 @@ public class Capability {
     private volatile NaftikoSpec spec;
     private volatile List<ServerAdapter> serverAdapters;
     private volatile List<ClientAdapter> clientAdapters;
+    private volatile List<Aggregate> aggregates;
     private volatile Map<String, Object> bindings;
 
     public Capability(NaftikoSpec spec) throws Exception {
@@ -69,9 +74,18 @@ public class Capability {
             importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);
         }
 
-        // Resolve aggregate function refs before adapter initialization
+        // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
         AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();
         aggregateRefResolver.resolve(spec);
+
+        // Build runtime aggregates (must happen after imports are resolved)
+        this.aggregates = new CopyOnWriteArrayList<>();
+        if (spec.getCapability() != null && !spec.getCapability().getAggregates().isEmpty()) {
+            OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);
+            for (AggregateSpec aggSpec : spec.getCapability().getAggregates()) {
+                this.aggregates.add(new Aggregate(aggSpec, sharedExecutor));
+            }
+        }
 
         // Resolve bindings early for injection into adapters
         BindingResolver bindingResolver = new BindingResolver();
@@ -126,6 +140,39 @@ public class Capability {
 
     public List<ServerAdapter> getServerAdapters() {
         return serverAdapters;
+    }
+
+    public List<Aggregate> getAggregates() {
+        return aggregates;
+    }
+
+    /**
+     * Look up an aggregate function by ref key ({@code "namespace.functionName"}).
+     *
+     * @param ref the ref key, e.g. {@code "forecast.get-forecast"}
+     * @return the matching {@link AggregateFunction}
+     * @throws IllegalArgumentException if the ref cannot be resolved
+     */
+    public AggregateFunction lookupFunction(String ref) {
+        int dot = ref.indexOf('.');
+        if (dot <= 0 || dot == ref.length() - 1) {
+            throw new IllegalArgumentException(
+                    "Invalid aggregate function ref format: '" + ref
+                            + "'. Expected 'namespace.functionName'");
+        }
+        String namespace = ref.substring(0, dot);
+        String functionName = ref.substring(dot + 1);
+
+        for (Aggregate agg : aggregates) {
+            if (agg.getNamespace().equals(namespace)) {
+                AggregateFunction fn = agg.findFunction(functionName);
+                if (fn != null) {
+                    return fn;
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+                "Unknown aggregate function ref: '" + ref + "'");
     }
 
     /**

@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 

@@ -15,7 +15,7 @@ package io.naftiko.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.util.Resolver;
 import java.util.HashMap;
 import java.util.Map;
 

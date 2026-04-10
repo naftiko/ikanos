@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.engine;
+package io.naftiko.engine.aggregates;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,37 +20,39 @@ import org.restlet.Context;
 import io.naftiko.spec.AggregateFunctionSpec;
 import io.naftiko.spec.AggregateSpec;
 import io.naftiko.spec.CapabilitySpec;
-import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.SemanticsSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 import io.naftiko.spec.exposes.McpToolHintsSpec;
-import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
-import io.naftiko.spec.exposes.StepOutputMappingSpec;
 
 /**
- * Resolves aggregate function references ({@code ref}) in adapter units (MCP tools, REST
- * operations). Runs at capability load time, before server startup.
- * 
+ * Validates aggregate function references ({@code ref}) in adapter units (MCP tools, REST
+ * operations) and derives MCP-specific metadata. Runs at capability load time, before server
+ * startup.
+ *
  * <p>
- * Resolution merges inherited fields from the referenced function into the adapter unit. Explicit
- * adapter-local fields override inherited ones. For MCP tools, semantics are automatically derived
- * into hints (with field-level override).
+ * Validation ensures all refs point to known aggregate functions. For MCP tools, semantics are
+ * automatically derived into hints (with field-level override). Adapter-specific metadata
+ * (name, description) is inherited when not explicitly set on the adapter unit.
+ *
+ * <p>
+ * Execution fields ({@code call}, {@code steps}, {@code with}, {@code inputParameters},
+ * {@code outputParameters}, {@code mappings}) are <b>not</b> copied — at runtime, adapters
+ * delegate to {@link AggregateFunction} instances held by the {@link io.naftiko.Capability}.
  */
 public class AggregateRefResolver {
 
     /**
-     * Resolve all {@code ref} fields across adapter units in the given spec. Modifies specs
-     * in-place.
+     * Validate all {@code ref} fields across adapter units in the given spec and derive
+     * adapter-specific metadata.
      * 
      * @param spec The root Naftiko spec to resolve
-     * @throws IllegalArgumentException if a ref target is unknown or a chained ref is detected
+     * @throws IllegalArgumentException if a ref target is unknown
      */
     public void resolve(NaftikoSpec spec) {
         CapabilitySpec capability = spec.getCapability();
@@ -61,7 +63,7 @@ public class AggregateRefResolver {
         // Build lookup map: "namespace.functionName" → AggregateFunctionSpec
         Map<String, AggregateFunctionSpec> functionMap = buildFunctionMap(capability);
 
-        // Resolve refs in all adapter units
+        // Validate refs and derive metadata in all adapter units
         for (ServerSpec serverSpec : capability.getExposes()) {
             if (serverSpec instanceof McpServerSpec mcpSpec) {
                 for (McpServerToolSpec tool : mcpSpec.getTools()) {
@@ -104,58 +106,22 @@ public class AggregateRefResolver {
     }
 
     /**
-     * Resolve a ref on an MCP tool. Merges inherited fields and derives hints from semantics.
+     * Validate a ref on an MCP tool, inherit adapter-specific metadata, and derive MCP hints
+     * from semantics. Execution fields are not copied — they are resolved at runtime via
+     * {@link AggregateFunction}.
      */
     void resolveMcpToolRef(McpServerToolSpec tool,
             Map<String, AggregateFunctionSpec> functionMap) {
         AggregateFunctionSpec function = lookupFunction(tool.getRef(), functionMap);
 
-        // Merge name (function provides default, tool overrides)
+        // Inherit name (adapter-specific metadata)
         if (tool.getName() == null || tool.getName().isEmpty()) {
             tool.setName(function.getName());
         }
 
-        // Merge description (function provides default, tool overrides)
+        // Inherit description (adapter-specific metadata)
         if (tool.getDescription() == null || tool.getDescription().isEmpty()) {
             tool.setDescription(function.getDescription());
-        }
-
-        // Merge call (function provides default, tool overrides)
-        if (tool.getCall() == null && function.getCall() != null) {
-            tool.setCall(function.getCall());
-        }
-
-        // Merge with (function provides default, tool overrides)
-        if (tool.getWith() == null && function.getWith() != null) {
-            tool.setWith(function.getWith());
-        }
-
-        // Merge steps (function provides default, tool overrides)
-        if (tool.getSteps().isEmpty() && !function.getSteps().isEmpty()) {
-            for (OperationStepSpec step : function.getSteps()) {
-                tool.getSteps().add(step);
-            }
-        }
-
-        // Merge step output mappings (function provides default, tool overrides)
-        if (tool.getMappings().isEmpty() && !function.getMappings().isEmpty()) {
-            for (StepOutputMappingSpec mapping : function.getMappings()) {
-                tool.getMappings().add(mapping);
-            }
-        }
-
-        // Merge inputParameters (function provides default, tool overrides)
-        if (tool.getInputParameters().isEmpty() && !function.getInputParameters().isEmpty()) {
-            for (InputParameterSpec param : function.getInputParameters()) {
-                tool.getInputParameters().add(param);
-            }
-        }
-
-        // Merge outputParameters (function provides default, tool overrides)
-        if (tool.getOutputParameters().isEmpty() && !function.getOutputParameters().isEmpty()) {
-            for (OutputParameterSpec param : function.getOutputParameters()) {
-                tool.getOutputParameters().add(param);
-            }
         }
 
         // Derive MCP hints from function semantics, with tool-level override
@@ -166,63 +132,27 @@ public class AggregateRefResolver {
     }
 
     /**
-     * Resolve a ref on a REST operation. Merges inherited fields.
+     * Validate a ref on a REST operation and inherit adapter-specific metadata.
+     * Execution fields are not copied — they are resolved at runtime via
+     * {@link AggregateFunction}.
      */
     void resolveRestOperationRef(RestServerOperationSpec op,
             Map<String, AggregateFunctionSpec> functionMap) {
         AggregateFunctionSpec function = lookupFunction(op.getRef(), functionMap);
 
-        // Merge name
+        // Inherit name
         if (op.getName() == null || op.getName().isEmpty()) {
             op.setName(function.getName());
         }
 
-        // Merge description
+        // Inherit description
         if (op.getDescription() == null || op.getDescription().isEmpty()) {
             op.setDescription(function.getDescription());
-        }
-
-        // Merge call
-        if (op.getCall() == null && function.getCall() != null) {
-            op.setCall(function.getCall());
-        }
-
-        // Merge with
-        if (op.getWith() == null && function.getWith() != null) {
-            op.setWith(function.getWith());
-        }
-
-        // Merge steps
-        if (op.getSteps().isEmpty() && !function.getSteps().isEmpty()) {
-            for (OperationStepSpec step : function.getSteps()) {
-                op.getSteps().add(step);
-            }
-        }
-
-        // Merge step output mappings
-        if (op.getMappings().isEmpty() && !function.getMappings().isEmpty()) {
-            for (StepOutputMappingSpec mapping : function.getMappings()) {
-                op.getMappings().add(mapping);
-            }
-        }
-
-        // Merge inputParameters
-        if (op.getInputParameters().isEmpty() && !function.getInputParameters().isEmpty()) {
-            for (InputParameterSpec param : function.getInputParameters()) {
-                op.getInputParameters().add(param);
-            }
-        }
-
-        // Merge outputParameters
-        if (op.getOutputParameters().isEmpty() && !function.getOutputParameters().isEmpty()) {
-            for (OutputParameterSpec param : function.getOutputParameters()) {
-                op.getOutputParameters().add(param);
-            }
         }
     }
 
     /**
-     * Look up a function by ref key. Fails fast on unknown or chained refs.
+     * Look up a function by ref key. Fails fast on unknown refs.
      */
     AggregateFunctionSpec lookupFunction(String ref,
             Map<String, AggregateFunctionSpec> functionMap) {

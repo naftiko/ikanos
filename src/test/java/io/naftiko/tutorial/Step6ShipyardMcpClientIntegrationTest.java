@@ -24,8 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
-import io.naftiko.engine.ConsumesImportResolver;
+import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;

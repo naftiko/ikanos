@@ -21,8 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.aggregates.AggregateFunction;
+import io.naftiko.engine.aggregates.FunctionResult;
 import io.naftiko.engine.exposes.OperationStepExecutor;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -96,6 +98,11 @@ public class ToolHandler {
             }
         }
 
+        // Delegate to aggregate function when ref is set
+        if (toolSpec.getRef() != null) {
+            return executeViaAggregate(toolSpec, toolName, parameters);
+        }
+
         OperationStepExecutor.HandlingContext found;
         try {
             boolean isOrchestrated =
@@ -138,6 +145,43 @@ public class ToolHandler {
 
         // Map the response to MCP CallToolResult
         return buildToolResult(toolSpec, found);
+    }
+
+    /**
+     * Execute a tool call by delegating to its referenced aggregate function.
+     */
+    private McpSchema.CallToolResult executeViaAggregate(McpServerToolSpec toolSpec,
+            String toolName, Map<String, Object> parameters) throws Exception {
+        try {
+            AggregateFunction fn = capability.lookupFunction(toolSpec.getRef());
+            FunctionResult result = fn.execute(parameters);
+
+            if (result.isMock()) {
+                ObjectMapper mapper = new ObjectMapper();
+                String json = mapper.writeValueAsString(
+                        result.mockOutput != null ? result.mockOutput
+                                : mapper.createObjectNode());
+                return new McpSchema.CallToolResult(
+                        List.of(new McpSchema.TextContent(json)), false, null, null);
+            }
+
+            if (result.hasMappedOutput()) {
+                return new McpSchema.CallToolResult(
+                        List.of(new McpSchema.TextContent(result.mappedOutput)), false, null,
+                        null);
+            }
+
+            return buildToolResult(toolSpec, result.lastContext);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.warning("Error during aggregate function call for tool '" + toolName + "': "
+                    + e);
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent(
+                            "Error during aggregate function call: " + e.getMessage())),
+                    true, null, null);
+        }
     }
 
     /**

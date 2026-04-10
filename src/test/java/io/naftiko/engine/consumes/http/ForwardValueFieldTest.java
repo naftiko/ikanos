@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.InputParameterSpec;
 import org.restlet.Request;

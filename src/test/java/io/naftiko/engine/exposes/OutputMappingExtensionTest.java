@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.naftiko.engine.Resolver;
+import io.naftiko.engine.util.Resolver;
 import io.naftiko.spec.OutputParameterSpec;
 
 public class OutputMappingExtensionTest {
