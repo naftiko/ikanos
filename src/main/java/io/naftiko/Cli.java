@@ -15,22 +15,32 @@ package io.naftiko;
 
 import io.naftiko.cli.CreateCommand;
 import io.naftiko.cli.ValidateCommand;
+import io.naftiko.util.VersionHelper;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.IVersionProvider;
 
 @Command(
     name = "naftiko",
-    mixinStandardHelpOptions = true, 
-    version = "1.0.0-alpha2",
+    mixinStandardHelpOptions = true,
+    versionProvider = Cli.VersionProvider.class,
     description = "Naftiko CLI",
     subcommands = {CreateCommand.class, ValidateCommand.class}
 )
-public class Cli implements Runnable {    
+public class Cli implements Runnable {
+
+    static class VersionProvider implements IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            return new String[] { VersionHelper.getSchemaVersion() };
+        }
+    }
+
     @Override
     public void run() {
         System.out.println("Use 'naftiko --help' for usage information");
     }
-    
+
     public static void main(String[] args) {
         int exitCode = new CommandLine(new Cli()).execute(args);
         System.exit(exitCode);

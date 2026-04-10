@@ -25,6 +25,8 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.util.VersionHelper;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +40,7 @@ public class XmlIntegrationTest {
     private Capability capability;
     private ObjectMapper jsonMapper;
     private XmlMapper xmlMapper;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -55,13 +58,14 @@ public class XmlIntegrationTest {
         capability = new Capability(spec);
         jsonMapper = new ObjectMapper();
         xmlMapper = new XmlMapper();
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
         assertNotNull(capability.getSpec(), "Capability spec should be loaded");
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko(), "Naftiko version should be 0.5");
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test

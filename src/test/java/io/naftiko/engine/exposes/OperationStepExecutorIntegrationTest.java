@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.List;
 import java.util.Map;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
 import org.restlet.Component;
@@ -39,9 +41,16 @@ import io.naftiko.spec.exposes.RestServerOperationSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.util.VersionHelper;
 import io.naftiko.spec.exposes.OperationStepLookupSpec;
 
 public class OperationStepExecutorIntegrationTest {
+    private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     public void executeStepsShouldStoreLookupOutputsAndResolveCallStepTemplates() throws Exception {
@@ -64,7 +73,7 @@ public class OperationStepExecutorIntegrationTest {
 
         try {
             Capability capability = capabilityFromYaml("""
-                    naftiko: "1.0.0-alpha1"
+                    naftiko: "%s"
                     capability:
                       exposes:
                         - type: "rest"
@@ -122,7 +131,7 @@ public class OperationStepExecutorIntegrationTest {
                               operations:
                                 - method: "GET"
                                   name: "echo-region"
-                    """.formatted(port));
+                    """.formatted(schemaVersion, port));
 
             RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
                     .getSpec();
@@ -147,7 +156,7 @@ public class OperationStepExecutorIntegrationTest {
     @Test
     public void applyOutputMappingsShouldReturnFirstMappedValue() throws Exception {
         OperationStepExecutor executor = new OperationStepExecutor(capabilityFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -160,7 +169,7 @@ public class OperationStepExecutorIntegrationTest {
                             - method: "GET"
                               name: "dummy"
                   consumes: []
-                """));
+                """.formatted(schemaVersion)));
 
         OutputParameterSpec missing = new OutputParameterSpec();
         missing.setName("missing");
@@ -181,7 +190,7 @@ public class OperationStepExecutorIntegrationTest {
     @Test
     public void applyOutputMappingsShouldReturnNullForEmptyInputs() throws Exception {
         OperationStepExecutor executor = new OperationStepExecutor(capabilityFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -194,7 +203,7 @@ public class OperationStepExecutorIntegrationTest {
                             - method: "GET"
                               name: "dummy"
                   consumes: []
-                """));
+                """.formatted(schemaVersion)));
 
         assertNull(executor.applyOutputMappings(null, List.of()));
         assertNull(executor.applyOutputMappings("", List.of()));
@@ -205,7 +214,7 @@ public class OperationStepExecutorIntegrationTest {
     @Test
     public void executeShouldThrowForInvalidCallAndMissingModes() throws Exception {
         OperationStepExecutor executor = new OperationStepExecutor(capabilityFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -218,7 +227,7 @@ public class OperationStepExecutorIntegrationTest {
                             - method: "GET"
                               name: "dummy"
                   consumes: []
-                """));
+                """.formatted(schemaVersion)));
 
         IllegalArgumentException invalidCall = assertThrows(IllegalArgumentException.class,
                 () -> executor.execute(new ServerCallSpec("bad.call"), null, Map.of(),
@@ -234,7 +243,7 @@ public class OperationStepExecutorIntegrationTest {
     @Test
     public void executeStepsShouldThrowWhenLookupReferencesMissingIndex() throws Exception {
         OperationStepExecutor executor = new OperationStepExecutor(capabilityFromYaml("""
-                naftiko: "1.0.0-alpha1"
+                naftiko: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -247,7 +256,7 @@ public class OperationStepExecutorIntegrationTest {
                             - method: "GET"
                               name: "dummy"
                   consumes: []
-                """));
+                """.formatted(schemaVersion)));
 
         OperationStepLookupSpec lookup = new OperationStepLookupSpec();
         lookup.setName("find");

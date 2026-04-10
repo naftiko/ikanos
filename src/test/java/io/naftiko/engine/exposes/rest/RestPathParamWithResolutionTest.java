@@ -16,6 +16,8 @@ package io.naftiko.engine.exposes.rest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
 import org.restlet.Component;
@@ -36,6 +38,7 @@ import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Regression test: REST adapter must resolve Mustache templates in 'with' parameters
@@ -46,6 +49,12 @@ import io.naftiko.spec.exposes.RestServerSpec;
  * must be resolved to /ships/IMO-9321483, not left as /ships/{{imo}}.
  */
 public class RestPathParamWithResolutionTest {
+  private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     public void withParametersShouldResolveMustacheTemplatesFromPathParams() throws Exception {
@@ -77,7 +86,7 @@ public class RestPathParamWithResolutionTest {
 
         try {
             String yaml = """
-                    naftiko: "1.0.0-alpha1"
+                    naftiko: "%s"
                     capability:
                       exposes:
                         - type: "rest"
@@ -110,7 +119,7 @@ public class RestPathParamWithResolutionTest {
                                   inputParameters:
                                     - name: imo_number
                                       in: path
-                    """.formatted(mockPort);
+                    """.formatted(schemaVersion, mockPort);
 
             ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

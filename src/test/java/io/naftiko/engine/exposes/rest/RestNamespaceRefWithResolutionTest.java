@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
 import org.restlet.Component;
@@ -38,6 +39,7 @@ import io.naftiko.Capability;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
+import io.naftiko.util.VersionHelper;
 
 /**
  * Regression test: REST adapter must resolve namespace-qualified 'with' references
@@ -48,6 +50,12 @@ import io.naftiko.spec.exposes.RestServerSpec;
  * not the literal string "shipyard-api.shipImo".
  */
 public class RestNamespaceRefWithResolutionTest {
+  private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     public void withNamespaceRefsShouldResolveToActualValuesInUpstreamBody() throws Exception {
@@ -81,7 +89,7 @@ public class RestNamespaceRefWithResolutionTest {
 
         try {
             String yaml = """
-                    naftiko: "1.0.0-alpha1"
+                    naftiko: "%s"
                     capability:
                       exposes:
                         - type: "rest"
@@ -112,7 +120,7 @@ public class RestNamespaceRefWithResolutionTest {
                                   method: POST
                                   body: |
                                     {"shipImo": "{{shipImo}}"}
-                    """.formatted(mockPort);
+                    """.formatted(schemaVersion, mockPort);
 
             ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

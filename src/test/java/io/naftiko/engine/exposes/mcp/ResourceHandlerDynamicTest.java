@@ -18,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.List;
 import java.util.Map;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
 import org.restlet.Component;
@@ -34,8 +36,15 @@ import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.McpServerResourceSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.util.VersionHelper;
 
 class ResourceHandlerDynamicTest {
+    private String schemaVersion;
+
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
 
     @Test
     void readShouldResolveDynamicResourceWithTemplateParamsAndOutputMapping() throws Exception {
@@ -47,7 +56,7 @@ class ResourceHandlerDynamicTest {
 
         try {
             Capability capability = capabilityFromYaml("""
-                    naftiko: "1.0.0-alpha1"
+                    naftiko: "%s"
                     capability:
                       exposes:
                         - type: "rest"
@@ -69,7 +78,7 @@ class ResourceHandlerDynamicTest {
                               operations:
                                 - method: "GET"
                                   name: "get-user"
-                    """.formatted(port));
+                    """.formatted(schemaVersion, port));
 
             OutputParameterSpec mapped = new OutputParameterSpec();
             mapped.setType("string");

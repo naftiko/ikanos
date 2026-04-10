@@ -27,6 +27,8 @@ import io.naftiko.spec.exposes.McpServerPromptSpec;
 import io.naftiko.spec.exposes.McpServerResourceSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
+import io.naftiko.util.VersionHelper;
+
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,7 @@ public class ResourcesPromptsIntegrationTest {
     private Capability capability;
     private McpServerAdapter adapter;
     private ObjectMapper jsonMapper;
+    private String schemaVersion;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -56,6 +59,7 @@ public class ResourcesPromptsIntegrationTest {
         capability = new Capability(spec);
         adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         jsonMapper = new ObjectMapper();
+        schemaVersion = VersionHelper.getSchemaVersion();
     }
 
     // ── Capability loading ────────────────────────────────────────────────────────────────────────
@@ -63,7 +67,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testCapabilityLoaded() {
         assertNotNull(capability, "Capability should be initialized");
-        assertEquals("1.0.0-alpha2", capability.getSpec().getNaftiko(), "Naftiko version should be 1.0.0-alpha2");
+        assertEquals(schemaVersion, capability.getSpec().getNaftiko(), "Naftiko version should be " + schemaVersion);
     }
 
     @Test
