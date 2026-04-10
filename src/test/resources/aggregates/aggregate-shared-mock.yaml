@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
 ---
-naftiko: "1.0.0-alpha1"
+naftiko: "1.0.0-alpha2"
 info:
   label: "Aggregate Shared Mock Test"
   description: "Shared aggregate mock function consumed by MCP and REST refs"
@@ -57,5 +57,3 @@ capability:
                   in: "query"
                   type: "string"
                   description: "Name to greet"
-
-  consumes: []

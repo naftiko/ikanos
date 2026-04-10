@@ -4,3 +4,4 @@
 /.vscode
 /target
 dependency-reduced-pom.xml
+/.github/node_modules

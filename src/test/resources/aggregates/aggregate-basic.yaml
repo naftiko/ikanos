@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
 ---
-naftiko: "1.0.0-alpha1"
+naftiko: "1.0.0-alpha2"
 info:
   label: "Aggregate Basic Test"
   description: "Test capability for aggregate function ref resolution"

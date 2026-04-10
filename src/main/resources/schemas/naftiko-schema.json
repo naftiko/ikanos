@@ -566,6 +566,34 @@
         }
       ]
     },
+    "MockOutputParameter": {
+      "type": "object",
+      "description": "Named output parameter with a static or template value for mock mode (no call or steps). The value field supports Mustache templates resolved against input parameters at runtime.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierExtended",
+          "description": "Name of the output field in the returned payload."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "Static value or Mustache template resolved against input parameters at runtime."
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "value"
+      ],
+      "additionalProperties": false
+    },
     "Hostname": {
       "type": "string",
       "description": "Valid hostname",
@@ -842,6 +870,21 @@
               "items": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
+            }
+          }
+        },
+        {
+          "required": [
+            "outputParameters"
+          ],
+          "type": "object",
+          "properties": {
+            "outputParameters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MockOutputParameter"
+              },
+              "minItems": 1
             }
           }
         }

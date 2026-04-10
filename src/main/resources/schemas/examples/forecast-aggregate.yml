@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../naftiko-schema.json
 ---
-naftiko: "1.0.0-alpha1"
+naftiko: "1.0.0-alpha2"
 info:
   label: "Weather Forecast (Aggregate)"
   description: >
