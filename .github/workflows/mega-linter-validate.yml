@@ -1,0 +1,35 @@
+name: Lint Naftiko Capabilities
+
+on:
+  push:
+    paths:
+      - 'src/main/resources/schemas/**'
+      - 'src/main/resources/rules/**'
+      - 'src/main/resources/tutorial/**'
+      - 'src/test/resources/**'
+      - '.mega-linter.yml'
+  pull_request:
+    paths:
+      - 'src/main/resources/schemas/**'
+      - 'src/main/resources/rules/**'
+      - 'src/main/resources/tutorial/**'
+      - 'src/test/resources/**'
+      - '.mega-linter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oxsecurity/megalinter@v9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: true
