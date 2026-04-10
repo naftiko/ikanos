@@ -1,9 +1,9 @@
-# Naftiko Fabric Governance & Operations Proposal
+# Naftiko Fleet Governance & Operations Proposal
 ## Kubernetes CRDs, Spec Metadata Taxonomy, Governance Rules, and Owned Toolchain
 
 **Status**: Proposal  
 **Date**: March 9, 2026  
-**Key Concept**: A coherent, end-to-end proposal for operating Naftiko capabilities as Kubernetes Custom Resources, governing them at the spec layer via a shared rules engine, and surfacing fabric-wide visibility in Backstage — all driven by small, purposeful additions to the Naftiko specification itself.
+**Key Concept**: A coherent, end-to-end proposal for operating Naftiko capabilities as Kubernetes Custom Resources, governing them at the spec layer via a shared rules engine, and surfacing fleet-wide visibility in Backstage — all driven by small, purposeful additions to the Naftiko specification itself.
 
 ---
 
@@ -26,7 +26,7 @@
 
 ### What This Proposes
 
-Four interconnected additions that compose into a complete fabric governance story:
+Four interconnected additions that compose into a complete fleet governance story:
 
 1. **Spec Metadata Taxonomy** — Small, purposeful additions to the Naftiko spec (`labels` on `Info`, `tags` on `Consumes`/`Exposes`/`ExposedOperation`/`ConsumedHttpOperation`, `lifecycle` on `Exposes`) that serve as the single source of truth for every downstream governance tool.
 
@@ -568,7 +568,7 @@ spec:
 
 ## Backstage Integration
 
-### 6.1 Fabric-Level Governance Pillars
+### 6.1 Fleet-Level Governance Pillars
 
 Backstage governs the three pillars derived from spec metadata:
 
@@ -607,7 +607,7 @@ spec:
     - resource:default/notion-api-secret
 ```
 
-The `consumesApis` and `providesApis` relations let Backstage render the **fabric topology graph** automatically — showing which capabilities depend on which upstream APIs and which downstream clients consume them.
+The `consumesApis` and `providesApis` relations let Backstage render the **fleet topology graph** automatically — showing which capabilities depend on which upstream APIs and which downstream clients consume them.
 
 Two discovery modes are supported:
 - **Kubernetes mode** (production): watches CRDs across all namespaces
@@ -636,16 +636,16 @@ Clicking a failing check in the Backstage UI opens the spec file in GitHub at th
 
 ---
 
-### 6.4 Fabric Explorer
+### 6.4 Fleet Explorer
 
-A top-level `NaftikoFabricExplorerPage` renders the entire fabric as an interactive dependency graph. Nodes are sized by consumer count. Edges represent consume/expose relationships from entity relations.
+A top-level `NaftikoFleetExplorerPage` renders the entire fleet as an interactive dependency graph. Nodes are sized by consumer count. Edges represent consume/expose relationships from entity relations.
 
 Filter controls:
 - By `lifecycle` (hide `deprecated`, focus `production`)
 - By `tags` (e.g. show only capabilities with `pii` in their consumes)
 - By `info.labels` (filter to a cost-center or domain)
 
-**Incident use case**: During an upstream API outage, selecting an API node immediately shows every capability in the fabric that depends on it and the downstream clients they serve.
+**Incident use case**: During an upstream API outage, selecting an API node immediately shows every capability in the fleet that depends on it and the downstream clients they serve.
 
 ---
 
@@ -663,7 +663,7 @@ The three extensions form a coherent lifecycle story, with no mandatory third-pa
 VS Code Extension              Docker Desktop Extension     Backstage Plugins
 ─────────────────              ────────────────────────     ─────────────────
 Author → Validate              Run → Debug → Inspect        Discover → Govern → Track
-   (spec layer)                     (runtime layer)              (fabric layer)
+   (spec layer)                     (runtime layer)              (fleet layer)
 ```
 
 ---
@@ -719,7 +719,7 @@ Built-in snippets for common patterns — `naftiko-simple-op`, `naftiko-orchestr
 
 The runtime companion. Makes local capability operation feel like a first-class experience.
 
-**Fabric dashboard**
+**Fleet dashboard**
 
 All running Naftiko capability containers displayed as a tile grid. Each tile shows:
 - Capability `info.label`
@@ -778,8 +778,8 @@ Entity page card rendering:
 **`NaftikoScorecardCard`**
 Three-pillar scorecard (Cost / Risk / Efficiency) from Tech Insights facts, displayed as score gauges with expandable failing check lists.
 
-**`NaftikoFabricExplorerPage`**
-Top-level fabric dependency graph page (see [Section 6.4](#64-fabric-explorer)).
+**`NaftikoFleetExplorerPage`**
+Top-level fleet dependency graph page (see [Section 6.4](#64-fleet-explorer)).
 
 ---
 
@@ -841,7 +841,7 @@ Developer opens *.capability.yaml in VS Code
     ▼
 Developer presses "Naftiko: Run Capability"
     → VS Code extension starts naftiko/engine container
-    → Docker Desktop extension picks it up in the fabric dashboard
+    → Docker Desktop extension picks it up in the fleet dashboard
     → Spec viewer renders topology graph
     → Logs stream to VS Code output channel
     │
@@ -878,7 +878,7 @@ Backstage NaftikoCapabilityEntityProvider syncs CRDs → Catalog
     │       → facts stored in Tech Insights store
     ├── NaftikoScorecardCard: Cost / Risk / Efficiency pillar scores
     ├── NaftikoCapabilityCard: topology + stakeholders + tags
-    └── NaftikoFabricExplorerPage: fabric dependency graph + incident impact
+    └── NaftikoFleetExplorerPage: fleet dependency graph + incident impact
 ```
 
 ---
@@ -911,7 +911,7 @@ Backstage NaftikoCapabilityEntityProvider syncs CRDs → Catalog
 | `naftiko.vscode-naftiko` | VS Code extension | Authoring + inline governance + run |
 | `naftiko/docker-extension` | Docker Desktop extension | Runtime dashboard + log streaming |
 | `@naftiko/backstage-plugin-backend` | Backstage plugin | Entity provider + fact retriever |
-| `@naftiko/backstage-plugin` | Backstage plugin | Capability card + scorecard + fabric explorer |
+| `@naftiko/backstage-plugin` | Backstage plugin | Capability card + scorecard + fleet explorer |
 
 ### Governance Signal Source Matrix
 
