@@ -13,22 +13,35 @@
  */
 package io.naftiko.engine.exposes;
 
+import org.restlet.Restlet;
+import org.restlet.Server;
+import org.restlet.data.Protocol;
 import io.naftiko.Capability;
 import io.naftiko.engine.Adapter;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
- * Base class for server adapters. Transport-agnostic — each subclass manages its own HTTP server
- * implementation (e.g. Restlet for API, Jetty for MCP).
+ * Base class for server adapters. All HTTP-based adapters share the same Restlet {@link Server}
+ * lifecycle: create, start, stop. Subclasses configure routing in their constructor and call
+ * {@link #initServer(String, int, Restlet)} to wire the transport.
  */
 public abstract class ServerAdapter extends Adapter {
 
     private final Capability capability;
     private final ServerSpec spec;
+    private Server server;
 
     public ServerAdapter(Capability capability, ServerSpec spec) {
         this.capability = capability;
         this.spec = spec;
+    }
+
+    /**
+     * Initialize the Restlet HTTP server. Subclasses call this after building their router/chain.
+     */
+    protected void initServer(String address, int port, Restlet handler) {
+        this.server = new Server(Protocol.HTTP, address, port);
+        this.server.setNext(handler);
     }
 
     public Capability getCapability() {
@@ -37,6 +50,22 @@ public abstract class ServerAdapter extends Adapter {
 
     public ServerSpec getSpec() {
         return spec;
+    }
+
+    public Server getServer() {
+        return server;
+    }
+
+    @Override
+    public void start() throws Exception {
+        server.start();
+    }
+
+    @Override
+    public void stop() throws Exception {
+        if (server != null) {
+            server.stop();
+        }
     }
 
 }

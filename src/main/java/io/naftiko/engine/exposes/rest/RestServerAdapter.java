@@ -20,8 +20,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.restlet.Restlet;
-import org.restlet.Server;
-import org.restlet.data.Protocol;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
@@ -47,12 +45,10 @@ import io.naftiko.spec.exposes.RestServerSpec;
  */
 public class RestServerAdapter extends ServerAdapter {
 
-    private final Server server;
     private final Router router;
 
     public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
-        this.server = new Server(Protocol.HTTP, serverSpec.getAddress(), serverSpec.getPort());
         this.router = new Router();
 
         for (RestServerResourceSpec res : getRestServerSpec().getResources()) {
@@ -62,7 +58,8 @@ public class RestServerAdapter extends ServerAdapter {
             route.getTemplate().getVariables().put("path", new Variable(Variable.TYPE_URI_PATH));
         }
 
-        this.server.setNext(buildServerChain(serverSpec));
+        initServer(serverSpec.getAddress(), serverSpec.getPort(),
+                buildServerChain(serverSpec));
     }
 
     private Restlet buildServerChain(RestServerSpec serverSpec) {
@@ -167,10 +164,6 @@ public class RestServerAdapter extends ServerAdapter {
         return (RestServerSpec) getSpec();
     }
 
-    public Server getServer() {
-        return server;
-    }
-
     public Router getRouter() {
         return router;
     }
@@ -198,16 +191,6 @@ public class RestServerAdapter extends ServerAdapter {
         }
         
         return allowed;
-    }
-
-    @Override
-    public void start() throws Exception {
-        getServer().start();
-    }
-
-    @Override
-    public void stop() throws Exception {
-        getServer().stop();
     }
 
 }
