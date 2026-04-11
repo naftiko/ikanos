@@ -17,8 +17,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import org.restlet.Context;
-import org.restlet.Server;
-import org.restlet.data.Protocol;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
@@ -50,7 +48,6 @@ import io.naftiko.spec.exposes.SkillToolSpec;
  */
 public class SkillServerAdapter extends ServerAdapter {
 
-    private final Server server;
     private final Map<String, String> namespaceMode;
 
     public SkillServerAdapter(Capability capability, SkillServerSpec serverSpec) {
@@ -72,8 +69,7 @@ public class SkillServerAdapter extends ServerAdapter {
                 router.attach("/skills/{name}/contents/{file}", FileResource.class);
         fileRoute.getTemplate().getVariables().put("file", new Variable(Variable.TYPE_URI_PATH));
 
-        this.server = new Server(Protocol.HTTP, serverSpec.getAddress(), serverSpec.getPort());
-        this.server.setNext(router);
+        initServer(serverSpec.getAddress(), serverSpec.getPort(), router);
     }
 
     /**
@@ -146,13 +142,9 @@ public class SkillServerAdapter extends ServerAdapter {
         return (SkillServerSpec) getSpec();
     }
 
-    public Server getServer() {
-        return server;
-    }
-
     @Override
     public void start() throws Exception {
-        server.start();
+        super.start();
         Context.getCurrentLogger().log(Level.INFO,
                 "Skill Server started on " + getSkillServerSpec().getAddress() + ":"
                         + getSkillServerSpec().getPort() + " (namespace: "
@@ -161,7 +153,7 @@ public class SkillServerAdapter extends ServerAdapter {
 
     @Override
     public void stop() throws Exception {
-        server.stop();
+        super.stop();
         Context.getCurrentLogger().log(Level.INFO,
                 "Skill Server stopped on " + getSkillServerSpec().getAddress() + ":"
                         + getSkillServerSpec().getPort());

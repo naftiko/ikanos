@@ -59,7 +59,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jackson.version>2.20.2</jackson.version>
         <avro.version>1.11.4</avro.version>
-        <jetty.version>12.0.25</jetty.version>
         <json-smart.version>2.5.2</json-smart.version>
         <junit.jupiter.version>5.12.2</junit.jupiter.version>
         <jacoco.version>0.8.13</jacoco.version>
@@ -160,16 +159,6 @@
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
             <version>${avro.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.http2</groupId>
-            <artifactId>jetty-http2-common</artifactId>
-            <version>${jetty.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-server</artifactId>
-            <version>${jetty.version}</version>
         </dependency>
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>

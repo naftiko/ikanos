@@ -18,10 +18,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
 import org.restlet.Context;
+import org.restlet.routing.Router;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.aggregates.AggregateFunction;
@@ -36,7 +36,7 @@ import io.naftiko.spec.exposes.McpToolHintsSpec;
  * 
  * Supports two transports, selected via the spec's {@code transport} field:
  * <ul>
- * <li>{@code http} (default) — Jetty-based Streamable HTTP server</li>
+ * <li>{@code http} (default) — Restlet-based Streamable HTTP server</li>
  * <li>{@code stdio} — stdin/stdout JSON-RPC for local IDE integration</li>
  * </ul>
  * 
@@ -44,9 +44,6 @@ import io.naftiko.spec.exposes.McpToolHintsSpec;
  * differs.
  */
 public class McpServerAdapter extends ServerAdapter {
-
-    /** Jetty server — only initialized for HTTP transport */
-    private Server jettyServer;
 
     /** Stdio handler and thread — only initialized for stdio transport */
     private volatile StdioJsonRpcHandler stdioHandler;
@@ -92,22 +89,21 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Initialize the Streamable HTTP transport (Jetty).
+     * Initialize the Streamable HTTP transport (Restlet).
      */
     private void initHttpTransport(McpServerSpec serverSpec) {
-        this.jettyServer = new Server();
-        ServerConnector connector = new ServerConnector(jettyServer);
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);
+        Map<String, Boolean> activeSessions = new ConcurrentHashMap<>();
+
+        Context context = new Context();
+        context.getAttributes().put("dispatcher", dispatcher);
+        context.getAttributes().put("activeSessions", activeSessions);
+
+        Router router = new Router(context);
+        router.attachDefault(McpServerResource.class);
+
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
-        connector.setHost(address);
-        connector.setPort(serverSpec.getPort());
-
-        // TODO: Make idle timeout configurable
-        connector.setIdleTimeout(120000); // 2 minutes — tool calls may involve upstream HTTP
-                                          // requests
-        jettyServer.addConnector(connector);
-
-        // Set the MCP handler
-        jettyServer.setHandler(new JettyStreamableHandler(this));
+        initServer(address, serverSpec.getPort(), router);
     }
 
     /**
@@ -220,7 +216,7 @@ public class McpServerAdapter extends ServerAdapter {
             Context.getCurrentLogger().log(Level.INFO, "MCP Server started on stdio"
                     + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
         } else {
-            jettyServer.start();
+            super.start();
             System.out.println("MCP Server started on " + getMcpServerSpec().getAddress() + ":"
                     + getMcpServerSpec().getPort() + " (namespace: "
                     + getMcpServerSpec().getNamespace() + ")");
@@ -240,11 +236,9 @@ public class McpServerAdapter extends ServerAdapter {
                 Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on stdio");
             }
         } else {
-            if (jettyServer != null) {
-                jettyServer.stop();
-                Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on "
-                        + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort());
-            }
+            super.stop();
+            Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on "
+                    + getMcpServerSpec().getAddress() + ":" + getMcpServerSpec().getPort());
         }
     }
 
