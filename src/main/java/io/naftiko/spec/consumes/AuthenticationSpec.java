@@ -28,7 +28,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
     @JsonSubTypes.Type(value = ApiKeyAuthenticationSpec.class, name = "apikey"),
     @JsonSubTypes.Type(value = BasicAuthenticationSpec.class, name = "basic"),
     @JsonSubTypes.Type(value = BearerAuthenticationSpec.class, name = "bearer"),
-    @JsonSubTypes.Type(value = DigestAuthenticationSpec.class, name = "digest")
+    @JsonSubTypes.Type(value = DigestAuthenticationSpec.class, name = "digest"),
+    @JsonSubTypes.Type(value = OAuth2AuthenticationSpec.class, name = "oauth2")
 })
 public abstract class AuthenticationSpec {
 

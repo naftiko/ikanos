@@ -21,12 +21,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.Context;
+import org.restlet.Restlet;
 import org.restlet.routing.Router;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.InputParameterSpec;
+import io.naftiko.spec.consumes.OAuth2AuthenticationSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.McpServerToolSpec;
 import io.naftiko.spec.exposes.McpToolHintsSpec;
@@ -102,8 +104,15 @@ public class McpServerAdapter extends ServerAdapter {
         Router router = new Router(context);
         router.attachDefault(McpServerResource.class);
 
+        Restlet chain = buildServerChain(router);
+
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
-        initServer(address, serverSpec.getPort(), router);
+        initServer(address, serverSpec.getPort(), chain);
+    }
+
+    @Override
+    protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
+        return new McpOAuth2Restlet(oauth2, next);
     }
 
     /**

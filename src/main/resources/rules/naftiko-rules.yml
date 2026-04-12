@@ -139,6 +139,60 @@ rules:
     then:
       function: aggregate-semantics-consistency
 
+  naftiko-mcp-auth-stdio-conflict:
+    message: "MCP `authentication` should not be set when `transport` is `stdio`."
+    description: >
+      Per MCP specification §1.2, stdio transport should not follow the HTTP
+      authorization flow — credentials are retrieved from the environment instead.
+      Authentication is only meaningful for the HTTP transport.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'mcp' && @.transport == 'stdio')]"
+    then:
+      field: "authentication"
+      function: falsy
+
+  naftiko-oauth2-https-authserver:
+    message: "OAuth2 `authorizationServerUrl` must use the `https://` scheme."
+    description: >
+      The OAuth 2.1 specification requires all authorization server endpoints to be
+      served over HTTPS. A non-HTTPS authorization server URL is a security risk.
+    severity: error
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "authorizationServerUrl"
+      function: pattern
+      functionOptions:
+        match: "^https://"
+
+  naftiko-oauth2-resource-https:
+    message: "OAuth2 `resource` should use the `https://` scheme for production."
+    description: >
+      The resource URI identifies this server in Protected Resource Metadata and
+      audience validation. Using HTTPS ensures proper security in production.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "resource"
+      function: pattern
+      functionOptions:
+        match: "^https://"
+
+  naftiko-oauth2-scopes-defined:
+    message: "OAuth2 authentication should define `scopes` for scope challenge support."
+    description: >
+      Defining scopes enables the server to include scope information in
+      WWW-Authenticate challenges and Protected Resource Metadata, improving
+      client interoperability.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "scopes"
+      function: truthy
+
   # ────────────────────────────────────────────────────────────────
   # 2. QUALITY & DISCOVERABILITY
   # ────────────────────────────────────────────────────────────────

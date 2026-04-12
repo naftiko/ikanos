@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.util.VersionHelper;
 
@@ -102,7 +103,7 @@ public class RestServerAdapterTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        Set<String> keys = RestServerAdapter.extractAllowedVariables(spec);
+        Set<String> keys = ServerAdapter.extractAllowedVariables(spec);
 
         assertEquals(2, keys.size());
         assertTrue(keys.contains("auth_token"));

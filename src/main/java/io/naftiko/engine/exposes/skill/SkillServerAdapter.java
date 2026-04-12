@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import org.restlet.Context;
+import org.restlet.Restlet;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
@@ -69,7 +70,8 @@ public class SkillServerAdapter extends ServerAdapter {
                 router.attach("/skills/{name}/contents/{file}", FileResource.class);
         fileRoute.getTemplate().getVariables().put("file", new Variable(Variable.TYPE_URI_PATH));
 
-        initServer(serverSpec.getAddress(), serverSpec.getPort(), router);
+        Restlet chain = buildServerChain(router);
+        initServer(serverSpec.getAddress(), serverSpec.getPort(), chain);
     }
 
     /**

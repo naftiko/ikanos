@@ -982,6 +982,9 @@
           "type": "string",
           "description": "A meaningful description of this MCP server's purpose. Used as the server instructions sent during MCP initialization."
         },
+        "authentication": {
+          "$ref": "#/$defs/Authentication"
+        },
         "tools": {
           "type": "array",
           "description": "List of MCP tools exposed by this server",
@@ -2061,6 +2064,9 @@
         },
         {
           "$ref": "#/$defs/AuthDigest"
+        },
+        {
+          "$ref": "#/$defs/AuthOAuth2"
         }
       ]
     },
@@ -2153,6 +2159,52 @@
       },
       "required": [
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "AuthOAuth2": {
+      "type": "object",
+      "description": "OAuth 2.1 resource server authentication. The server validates bearer tokens issued by an external authorization server.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "oauth2"
+        },
+        "authorizationServerUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Issuer URL of the OAuth 2.1 authorization server. The engine derives metadata endpoints (.well-known/oauth-authorization-server) from this URL."
+        },
+        "resource": {
+          "type": "string",
+          "format": "uri",
+          "description": "Canonical URI of this server (RFC 8707). Used for audience validation and Protected Resource Metadata."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Scopes this resource server recognizes."
+        },
+        "audience": {
+          "type": "string",
+          "description": "Expected 'aud' claim in the JWT. Defaults to the 'resource' URI if not set."
+        },
+        "tokenValidation": {
+          "type": "string",
+          "enum": [
+            "jwks",
+            "introspection"
+          ],
+          "default": "jwks",
+          "description": "How to validate incoming access tokens. 'jwks' (default): fetch the AS public keys and validate JWT signatures locally. 'introspection': call the AS token introspection endpoint (RFC 7662) for each request."
+        }
+      },
+      "required": [
+        "type",
+        "authorizationServerUrl",
+        "resource"
       ],
       "additionalProperties": false
     },

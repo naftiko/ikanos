@@ -13,29 +13,12 @@
  */
 package io.naftiko.engine.exposes.rest;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import org.restlet.Restlet;
-import org.restlet.data.ChallengeScheme;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
-import org.restlet.security.ChallengeAuthenticator;
-import org.restlet.security.SecretVerifier;
-import org.restlet.security.Verifier;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.ServerAdapter;
-import io.naftiko.engine.util.Resolver;
-import io.naftiko.spec.consumes.AuthenticationSpec;
-import io.naftiko.spec.consumes.BasicAuthenticationSpec;
-import io.naftiko.spec.consumes.DigestAuthenticationSpec;
-import io.naftiko.spec.BindingSpec;
-import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.BindingKeysSpec;
 import io.naftiko.spec.exposes.RestServerResourceSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 
@@ -59,105 +42,7 @@ public class RestServerAdapter extends ServerAdapter {
         }
 
         initServer(serverSpec.getAddress(), serverSpec.getPort(),
-                buildServerChain(serverSpec));
-    }
-
-    private Restlet buildServerChain(RestServerSpec serverSpec) {
-        Restlet next = this.router;
-        AuthenticationSpec authentication = serverSpec.getAuthentication();
-
-        if (authentication == null || authentication.getType() == null) {
-            return next;
-        }
-
-        if ("basic".equals(authentication.getType()) || "digest".equals(authentication.getType())) {
-            return buildChallengeAuthenticator(authentication, next);
-        }
-
-        // Extract allowed variable names from capability's external refs
-        Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
-        return new ServerAuthenticationRestlet(authentication, next, allowedVariables);
-    }
-
-    private Restlet buildChallengeAuthenticator(AuthenticationSpec authentication, Restlet next) {
-        ChallengeScheme scheme = "digest".equals(authentication.getType())
-                ? ChallengeScheme.HTTP_DIGEST
-                : ChallengeScheme.HTTP_BASIC;
-
-        ChallengeAuthenticator authenticator =
-                new ChallengeAuthenticator(this.router.getContext(), false, scheme, "naftiko");
-        authenticator.setVerifier(new SecretVerifier() {
-
-            @Override
-            public int verify(String identifier, char[] secret) {
-                String expectedUsername = null;
-                char[] expectedPassword = null;
-
-                if (authentication instanceof BasicAuthenticationSpec basic) {
-                    expectedUsername = resolveTemplate(basic.getUsername());
-                    expectedPassword = resolveTemplateChars(basic.getPassword());
-                } else if (authentication instanceof DigestAuthenticationSpec digest) {
-                    expectedUsername = resolveTemplate(digest.getUsername());
-                    expectedPassword = resolveTemplateChars(digest.getPassword());
-                }
-
-                if (expectedUsername == null || expectedPassword == null || identifier == null
-                        || secret == null) {
-                    return Verifier.RESULT_INVALID;
-                }
-
-                boolean usernameMatches = secureEquals(expectedUsername, identifier);
-                boolean passwordMatches = secureEquals(expectedPassword, secret);
-
-                return (usernameMatches && passwordMatches) ? Verifier.RESULT_VALID
-                        : Verifier.RESULT_INVALID;
-            }
-        });
-        authenticator.setNext(next);
-        return authenticator;
-    }
-
-    private static String resolveTemplate(String value) {
-        if (value == null) {
-            return null;
-        }
-
-        Map<String, Object> env = new HashMap<>();
-
-        if (value.contains("{{") && value.contains("}}")) {
-            for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
-                env.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        return Resolver.resolveMustacheTemplate(value, env);
-    }
-
-    private static char[] resolveTemplateChars(char[] value) {
-        if (value == null) {
-            return null;
-        }
-
-        String resolved = resolveTemplate(new String(value));
-        return resolved == null ? null : resolved.toCharArray();
-    }
-
-    private static boolean secureEquals(String expected, String actual) {
-        if (expected == null || actual == null) {
-            return false;
-        }
-
-        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
-                actual.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static boolean secureEquals(char[] expected, char[] actual) {
-        if (expected == null || actual == null) {
-            return false;
-        }
-
-        return MessageDigest.isEqual(new String(expected).getBytes(StandardCharsets.UTF_8),
-                new String(actual).getBytes(StandardCharsets.UTF_8));
+                buildServerChain(this.router));
     }
 
     public RestServerSpec getRestServerSpec() {
@@ -166,31 +51,6 @@ public class RestServerAdapter extends ServerAdapter {
 
     public Router getRouter() {
         return router;
-    }
-
-    /**
-     * Extracts all allowed variable names from the capability spec's bindings.
-     * These are the variable names defined in the binds keys mapping.
-     * 
-     * @param spec The Naftiko spec
-     * @return Set of allowed variable names from binds declarations
-     */
-    static Set<String> extractAllowedVariables(NaftikoSpec spec) {
-        Set<String> allowed = new HashSet<>();
-        
-        if (spec == null || spec.getBinds() == null) {
-            return allowed;
-        }
-        
-        for (BindingSpec bind : spec.getBinds()) {
-            BindingKeysSpec keysSpec = bind.getKeys();
-            if (keysSpec != null && keysSpec.getKeys() != null) {
-                // The keys are the variable names used for template injection
-                allowed.addAll(keysSpec.getKeys().keySet());
-            }
-        }
-        
-        return allowed;
     }
 
 }

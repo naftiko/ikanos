@@ -38,7 +38,7 @@ Authentication support for the MCP server adapter, adding two complementary auth
 
 1. **`authentication` with existing types** (bearer, apikey, basic, digest) — Reuse the same `Authentication` union already defined for `ExposesRest` and `ExposesSkill`. The engine validates incoming `Authorization` headers on every HTTP request to the MCP endpoint before dispatching to `McpServerResource`. This covers the common case of a shared secret, API key, or static bearer token protecting the MCP server — identical to how the REST adapter works today.
 
-2. **`authentication` with new `oauth2` type** — A new `AuthOAuth2` schema definition that aligns with the [MCP 2025-11-25 Authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization). The MCP server acts as an OAuth 2.1 resource server: it validates bearer tokens issued by an external authorization server, serves Protected Resource Metadata (RFC 9728), and returns proper `WWW-Authenticate` challenges on `401`/`403`. This is the protocol-native authorization mode for MCP over Streamable HTTP.
+2. **`authentication` with new `oauth2` type** — A new `AuthOAuth2` schema definition added to the **shared** `Authentication` union, making OAuth 2.1 available to all three adapter types (REST, MCP, Skill). The server acts as an OAuth 2.1 resource server: it validates bearer tokens issued by an external authorization server. A shared `OAuth2AuthenticationRestlet` handles core JWT/JWKS validation, audience, expiry, and scope checks — identical across adapters. The MCP adapter layers protocol-specific behavior on top: auto-serving Protected Resource Metadata (RFC 9728) and returning `resource_metadata` in `WWW-Authenticate` challenges per the [MCP 2025-11-25 Authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
 
 ### What This Does NOT Do
 
@@ -61,11 +61,11 @@ Authentication support for the MCP server adapter, adding two complementary auth
 
 ### Key Design Decisions
 
-1. **Two-tier authentication model**: Simple static credentials (bearer/apikey/basic/digest) reuse the existing `Authentication` union and `ServerAuthenticationRestlet` pattern from the REST adapter. OAuth 2.1 adds a new `AuthOAuth2` type for protocol-native MCP authorization.
+1. **Shared `Authentication` union with `oauth2`**: `AuthOAuth2` is added to the shared `Authentication` union used by all three adapters. Core JWT/JWKS validation lives in a shared `OAuth2AuthenticationRestlet` in `io.naftiko.engine.exposes`, reusable by REST, MCP, and Skill adapters alike.
 
-2. **Restlet filter chain**: Authentication is implemented as a Restlet `Restlet` wrapper that intercepts requests before the `Router` → `McpServerResource` chain, following the same filter-before-router pattern used by the REST and Skill adapters.
+2. **Restlet filter chain**: Authentication is implemented as a Restlet `Restlet` wrapper that intercepts requests before the `Router` → `ServerResource` chain, following the same filter-before-router pattern used by all adapters.
 
-3. **Protected Resource Metadata is auto-served**: When `oauth2` authentication is configured, the engine auto-serves the `/.well-known/oauth-protected-resource` endpoint via additional routes on the `Router` — no manual metadata file needed.
+3. **MCP-specific: Protected Resource Metadata is auto-served**: When `oauth2` authentication is configured on an MCP adapter, the engine auto-serves the `/.well-known/oauth-protected-resource` endpoint and includes `resource_metadata` in `WWW-Authenticate` challenges per MCP 2025-11-25. REST and Skill adapters use the shared `OAuth2AuthenticationRestlet` directly without this MCP protocol overlay.
 
 4. **`WWW-Authenticate` challenges follow the spec**: On `401 Unauthorized`, the server includes the `resource_metadata` URL and optional `scope` in the `WWW-Authenticate: Bearer` header, as required by RFC 9728 and MCP 2025-11-25.
 
@@ -173,25 +173,37 @@ Restlet HTTP Chain:
 ### Proposed State
 
 ```
+Authentication union (shared — all adapters)
+├── AuthBasic
+├── AuthApiKey
+├── AuthBearer
+├── AuthDigest
+└── AuthOAuth2              ← NEW
+
 ExposesMcp
 ├── type: "mcp"
 ├── transport: "http" | "stdio"
 ├── namespace
 ├── description
-├── authentication          ← NEW (optional)
-│   ├── Static: bearer | apikey | basic | digest  (existing Authentication union)
-│   └── OAuth2: oauth2                             (new AuthOAuth2 type)
+├── authentication          ← NEW (optional, refs shared Authentication)
 ├── tools[]
 ├── resources[]
 └── prompts[]
 
-Restlet HTTP Chain (with static auth):
-  Server → ServerAuthenticationRestlet → Router → McpServerResource
-  (same pattern as REST adapter's ServerAuthenticationRestlet wrapping Router)
+Shared engine classes:
+  OAuth2AuthenticationRestlet   (JWT/JWKS validation, audience, scope — reused by all adapters)
+  ServerAuthenticationRestlet   (bearer/apikey — already shared)
 
-Restlet HTTP Chain (with OAuth2 auth):
+Restlet HTTP Chain — MCP (with static auth):
+  Server → ServerAuthenticationRestlet → Router → McpServerResource
+
+Restlet HTTP Chain — MCP (with OAuth2 auth):
   Server → McpOAuth2Restlet → Router → McpServerResource
-  (validates JWT, serves /.well-known/oauth-protected-resource)
+  (extends OAuth2AuthenticationRestlet + adds Protected Resource Metadata + resource_metadata WWW-Authenticate)
+
+Restlet HTTP Chain — REST (with OAuth2 auth):
+  Server → OAuth2AuthenticationRestlet → Router → ResourceRestlet
+  (JWT validation only — no MCP protocol overlay)
 ```
 
 ---
@@ -201,7 +213,7 @@ Restlet HTTP Chain (with OAuth2 auth):
 ### How authentication works across adapter types
 
 ```
-REST Adapter (today)               MCP Adapter (proposed)             Skill Adapter (today)
+REST Adapter (proposed)             MCP Adapter (proposed)             Skill Adapter (proposed)
 ────────────────────               ──────────────────────             ────────────────────
 ExposesRest                        ExposesMcp                         ExposesSkill
 ├─ authentication                  ├─ authentication   ← NEW          ├─ authentication
@@ -209,7 +221,7 @@ ExposesRest                        ExposesMcp                         ExposesSki
 │  ├─ type: apikey                 │  ├─ type: apikey                  │  ├─ type: apikey
 │  ├─ type: basic                  │  ├─ type: basic                   │  ├─ type: basic
 │  ├─ type: digest                 │  ├─ type: digest                  │  ├─ type: digest
-│  └─ (no OAuth2)                  │  └─ type: oauth2  ← NEW          │  └─ (no OAuth2)
+│  └─ type: oauth2 ← NEW          │  └─ type: oauth2  ← NEW          │  └─ type: oauth2 ← NEW
 │                                  │                                   │
 ├─ resources[]                     ├─ tools[]                          ├─ skills[]
 │  └─ operations[]                 ├─ resources[]                      │
@@ -218,11 +230,14 @@ ExposesRest                        ExposesMcp                         ExposesSki
 
 Filter/Handler flow:
 
-REST:   ChallengeAuthenticator ──→ Router ──→ ResourceRestlet
-        ServerAuthenticationRestlet ──→ Router ──→ ResourceRestlet
+REST:   OAuth2AuthenticationRestlet ──→ Router ──→ ResourceRestlet
+        (shared — JWT validation only)
 
-MCP:    ServerAuthenticationRestlet ──→ Router ──→ McpServerResource ──→ ProtocolDispatcher
-        McpOAuth2Restlet ──→ Router ──→ McpServerResource ──→ ProtocolDispatcher
+MCP:    McpOAuth2Restlet ──→ Router ──→ McpServerResource ──→ ProtocolDispatcher
+        (extends shared + Protected Resource Metadata + resource_metadata WWW-Authenticate)
+
+Skill:  OAuth2AuthenticationRestlet ──→ Router ──→ SkillServerResource
+        (shared — JWT validation only)
 ```
 
 ### Conceptual mapping
@@ -232,7 +247,7 @@ MCP:    ServerAuthenticationRestlet ──→ Router ──→ McpServerResource
 | Auth config location | `exposes[].authentication` | `exposes[].authentication` |
 | Static credential validation | `ServerAuthenticationRestlet` | `ServerAuthenticationRestlet` (reused) |
 | HTTP challenge (basic/digest) | Restlet `ChallengeAuthenticator` | Restlet `ChallengeAuthenticator` (reused) |
-| OAuth2 resource server | Not supported | `McpOAuth2Restlet` (new) |
+| OAuth2 resource server | `OAuth2AuthenticationRestlet` (shared, new) | `McpOAuth2Restlet` (extends shared + MCP protocol) |
 | Credential source | `binds` → environment vars | `binds` → environment vars |
 | Timing-safe comparison | `MessageDigest.isEqual()` | `MessageDigest.isEqual()` |
 | Transport applicability | HTTP only | HTTP only (skip for stdio) |
@@ -248,7 +263,7 @@ Identical to the REST adapter. The engine resolves credential templates from `bi
 - **Bearer**: Extract `Authorization: Bearer <token>` header; compare with `MessageDigest.isEqual()`
 - **API Key**: Extract from header or query parameter by configured key name; compare value
 - **Basic**: Decode `Authorization: Basic <base64>` to `username:password`; compare both
-- **Digest**: HTTP Digest challenge-response (implemented via Jetty's `SecurityHandler` or custom handler)
+- **Digest**: HTTP Digest challenge-response (implemented via Restlet's `ChallengeAuthenticator`)
 
 Static authentication is best for:
 - Internal/private MCP servers with a shared secret
@@ -257,7 +272,7 @@ Static authentication is best for:
 
 ### 5.2 OAuth 2.1 Authentication (oauth2)
 
-The MCP server acts as an **OAuth 2.1 resource server** (RFC 6749 / OAuth 2.1 draft-13). It does not issue tokens — it validates tokens issued by an external authorization server.
+Any adapter acts as an **OAuth 2.1 resource server** (RFC 6749 / OAuth 2.1 draft-13). It does not issue tokens — it validates tokens issued by an external authorization server. The core validation logic (JWT/JWKS, audience, expiry, scope) is shared across all adapter types via `OAuth2AuthenticationRestlet`.
 
 **Configuration declares:**
 - `authorizationServerUrl` — The authorization server's issuer URL (used to derive metadata endpoints)
@@ -293,11 +308,28 @@ This is generated from the YAML configuration — no manual metadata file needed
 
 ---
 
-## 6. Schema Changes — Exposes (MCP)
+## 6. Schema Changes — Authentication (Shared)
 
-### 6.1 Add `authentication` to `ExposesMcp`
+### 6.1 Add `AuthOAuth2` to the shared `Authentication` union
 
-Add the optional `authentication` property to the existing `ExposesMcp` definition, using an extended authentication union that includes the new `AuthOAuth2` type:
+Add `AuthOAuth2` to the existing `Authentication` union used by all adapter types. This makes OAuth 2.1 available to REST, MCP, and Skill adapters through the same `authentication` property they already support:
+
+```json
+"Authentication": {
+  "description": "Authentication for exposed server adapters. Supports static credentials and OAuth 2.1 resource server mode.",
+  "oneOf": [
+    { "$ref": "#/$defs/AuthBasic" },
+    { "$ref": "#/$defs/AuthApiKey" },
+    { "$ref": "#/$defs/AuthBearer" },
+    { "$ref": "#/$defs/AuthDigest" },
+    { "$ref": "#/$defs/AuthOAuth2" }
+  ]
+}
+```
+
+### 6.2 Add `authentication` to `ExposesMcp`
+
+The `ExposesMcp` definition references the same shared `Authentication` union already used by `ExposesRest` and `ExposesSkill`:
 
 ```json
 "ExposesMcp": {
@@ -309,7 +341,7 @@ Add the optional `authentication` property to the existing `ExposesMcp` definiti
     "namespace": { ... },
     "description": { ... },
     "authentication": {
-      "$ref": "#/$defs/McpAuthentication"
+      "$ref": "#/$defs/Authentication"
     },
     "tools": { ... },
     "resources": { ... },
@@ -318,31 +350,14 @@ Add the optional `authentication` property to the existing `ExposesMcp` definiti
 }
 ```
 
-### 6.2 New `McpAuthentication` Union
-
-A superset of the existing `Authentication` union that adds the `AuthOAuth2` type:
-
-```json
-"McpAuthentication": {
-  "description": "Authentication for MCP server adapter. Supports static credentials (shared with REST/Skill adapters) and OAuth 2.1 resource server mode (MCP-specific).",
-  "oneOf": [
-    { "$ref": "#/$defs/AuthBasic" },
-    { "$ref": "#/$defs/AuthApiKey" },
-    { "$ref": "#/$defs/AuthBearer" },
-    { "$ref": "#/$defs/AuthDigest" },
-    { "$ref": "#/$defs/AuthOAuth2" }
-  ]
-}
-```
-
-**Design note:** A separate `McpAuthentication` union (rather than adding `AuthOAuth2` to the shared `Authentication` union) ensures the REST and Skill adapters are unaffected. If OAuth2 support is later desired for REST/Skill, the shared union can be extended then.
+**Design note:** No separate `McpAuthentication` union is needed. The `AuthOAuth2` type is generic — its JWT/JWKS validation, audience, and scope logic applies equally to all adapters. MCP-specific protocol concerns (Protected Resource Metadata, `resource_metadata` in `WWW-Authenticate`) are handled in the engine layer, not the schema.
 
 ### 6.3 New `AuthOAuth2` Definition
 
 ```json
 "AuthOAuth2": {
   "type": "object",
-  "description": "OAuth 2.1 resource server authentication. The MCP server validates bearer tokens issued by an external authorization server, conforming to MCP 2025-11-25 Authorization specification.",
+  "description": "OAuth 2.1 resource server authentication. The server validates bearer tokens issued by an external authorization server. Available on all adapter types.",
   "properties": {
     "type": {
       "type": "string",
@@ -595,31 +610,30 @@ initServer(address, port, chain);
 Where `buildServerChain` returns:
 - `ServerAuthenticationRestlet` wrapping the router for static types (bearer, apikey)
 - Restlet `ChallengeAuthenticator` wrapping the router for basic/digest
-- `McpOAuth2Restlet` wrapping the router for `oauth2`
-
-The static authentication path reuses `ServerAuthenticationRestlet` directly — no MCP-specific class needed.
+- `McpOAuth2Restlet` wrapping the router for `oauth2` (MCP adapter only)
+- `OAuth2AuthenticationRestlet` wrapping the router for `oauth2` (REST and Skill adapters)
 
 ### 9.2 Static Authentication (reuses `ServerAuthenticationRestlet`)
 
-The existing `ServerAuthenticationRestlet` is reused directly — no MCP-specific authentication class is needed for static credentials. The Restlet sits before the `Router` in the chain:
+The existing `ServerAuthenticationRestlet` is reused directly — no adapter-specific class needed. The Restlet sits before the `Router` in the chain:
 
 1. Extracts credentials from the HTTP request (bearer token or API key)
 2. Resolves `{{VARIABLE}}` templates from environment, restricted to `binds`-declared keys
 3. Compares using `MessageDigest.isEqual()` (timing-safe)
-4. On success: delegates to the next `Restlet` (the `Router` → `McpServerResource`)
+4. On success: delegates to the next `Restlet` (the `Router` → `ServerResource`)
 5. On failure: returns `401 Unauthorized` with appropriate challenge header
 
-For basic/digest authentication, the existing Restlet `ChallengeAuthenticator` is reused, again following the same pattern as the REST adapter.
+For basic/digest authentication, the existing Restlet `ChallengeAuthenticator` is reused.
 
 ```
 Request → ServerAuthenticationRestlet
-           ├─ Valid credentials → Router → McpServerResource → ProtocolDispatcher
+           ├─ Valid credentials → Router → ServerResource
            └─ Invalid/missing  → 401 Unauthorized
 ```
 
-### 9.3 OAuth 2.1 Handler (`McpOAuth2Restlet`)
+### 9.3 Shared OAuth 2.1 Handler (`OAuth2AuthenticationRestlet`)
 
-A Restlet `Restlet` subclass that implements the resource server side of MCP 2025-11-25 authorization. It wraps the `Router` in the same position as `ServerAuthenticationRestlet`:
+A shared Restlet `Restlet` subclass in `io.naftiko.engine.exposes` that implements the core OAuth 2.1 resource server logic. Used directly by REST and Skill adapters; extended by `McpOAuth2Restlet` for MCP-specific protocol concerns.
 
 **Initialization:**
 1. Fetch AS metadata from `authorizationServerUrl` (try `.well-known/oauth-authorization-server` then `.well-known/openid-configuration`)
@@ -629,12 +643,11 @@ A Restlet `Restlet` subclass that implements the resource server side of MCP 202
 **Request handling:**
 
 ```
-Request → McpOAuth2Restlet
-           ├─ GET /.well-known/oauth-protected-resource → Return metadata JSON
-           ├─ No Authorization header → 401 + WWW-Authenticate
-           ├─ Invalid/expired token → 401 + WWW-Authenticate
-           ├─ Insufficient scope → 403 + WWW-Authenticate (insufficient_scope)
-           └─ Valid token → Router → McpServerResource → ProtocolDispatcher
+Request → OAuth2AuthenticationRestlet
+           ├─ No Authorization header → 401 + WWW-Authenticate: Bearer
+           ├─ Invalid/expired token → 401 + WWW-Authenticate: Bearer
+           ├─ Insufficient scope → 403 + WWW-Authenticate: Bearer error="insufficient_scope"
+           └─ Valid token → next Restlet (Router → ServerResource)
 ```
 
 **Token validation (JWKS mode):**
@@ -648,7 +661,22 @@ Request → McpOAuth2Restlet
 2. POST to AS `introspection_endpoint` with `token=<token>`
 3. Verify response `active: true`, check audience and scope
 
-### 9.4 Protected Resource Metadata Endpoint
+### 9.4 MCP OAuth 2.1 Handler (`McpOAuth2Restlet`)
+
+`McpOAuth2Restlet` extends `OAuth2AuthenticationRestlet` to add MCP 2025-11-25 protocol-specific behavior:
+
+1. **Protected Resource Metadata** — intercepts `GET /.well-known/oauth-protected-resource` and serves auto-generated metadata (see §9.5)
+2. **`resource_metadata` in WWW-Authenticate** — enriches the `401`/`403` challenge headers with the `resource_metadata` URL parameter per RFC 9728
+
+```
+Request → McpOAuth2Restlet
+           ├─ GET /.well-known/oauth-protected-resource → Return metadata JSON
+           └─ All other requests → delegate to OAuth2AuthenticationRestlet
+                ├─ Valid token → Router → McpServerResource → ProtocolDispatcher
+                └─ Invalid → 401/403 + WWW-Authenticate (with resource_metadata)
+```
+
+### 9.5 Protected Resource Metadata Endpoint
 
 Auto-generated from configuration:
 
@@ -663,7 +691,7 @@ Auto-generated from configuration:
 
 Served at the well-known path derived from the MCP endpoint.
 
-### 9.5 WWW-Authenticate Header Generation
+### 9.6 WWW-Authenticate Header Generation
 
 On `401 Unauthorized`:
 ```
@@ -684,7 +712,7 @@ WWW-Authenticate: Bearer error="insufficient_scope",
                          error_description="Required scope 'tools:execute' not present in token"
 ```
 
-### 9.6 stdio Transport — No Authentication
+### 9.7 stdio Transport — No Authentication
 
 Per MCP spec §1.2: "Implementations using an STDIO transport SHOULD NOT follow this specification, and instead retrieve credentials from the environment."
 
@@ -753,30 +781,30 @@ These constraints are enforced by the schema itself:
 
 Additional cross-field validations:
 
-| Rule Name | Severity | Description |
-|-----------|----------|-------------|
-| `naftiko-mcp-oauth2-https-authserver` | error | `authorizationServerUrl` must use `https://` scheme |
-| `naftiko-mcp-oauth2-resource-https` | warn | `resource` should use `https://` scheme for production |
-| `naftiko-mcp-auth-stdio-conflict` | warn | `authentication` should not be set when `transport: "stdio"` |
-| `naftiko-mcp-oauth2-scopes-defined` | warn | `scopes` array should be defined for OAuth2 auth (enables WWW-Authenticate scope challenges) |
+| Rule Name | Severity | Scope | Description |
+|-----------|----------|-------|-------------|
+| `naftiko-oauth2-https-authserver` | error | All adapters | `authorizationServerUrl` must use `https://` scheme |
+| `naftiko-oauth2-resource-https` | warn | All adapters | `resource` should use `https://` scheme for production |
+| `naftiko-oauth2-scopes-defined` | warn | All adapters | `scopes` array should be defined for OAuth2 auth (enables scope challenges) |
+| `naftiko-mcp-auth-stdio-conflict` | warn | MCP only | `authentication` should not be set when `transport: "stdio"` |
 
 ---
 
 ## 12. Design Decisions & Rationale
 
-### D1: Separate `McpAuthentication` union vs. extending shared `Authentication`
+### D1: Shared `Authentication` union with `AuthOAuth2`
 
-**Decision**: Create `McpAuthentication` as a new union that includes all four existing auth types plus `AuthOAuth2`.
+**Decision**: Add `AuthOAuth2` directly to the shared `Authentication` union used by all three adapters.
 
-**Rationale**: Adding `AuthOAuth2` to the shared `Authentication` union would expose OAuth2 as a valid option on `ExposesRest` and `ExposesSkill`, which those adapters don't support. A separate union keeps the schema honest while avoiding duplication of the four shared types (they remain `$ref`'d from the same definitions).
+**Rationale**: The core OAuth 2.1 resource server logic — JWT/JWKS validation, audience/expiry/scope checks, token introspection — is not adapter-specific. Any HTTP server protecting endpoints with bearer tokens needs the same validation. A shared union avoids a parallel `McpAuthentication` type and ensures REST and Skill adapters get OAuth 2.1 support without additional schema work.
 
-**Alternative considered**: A single `Authentication` union with all five types, and adapter-level validation rules rejecting `oauth2` on REST/Skill. Rejected because schema-level enforcement is stronger than rule-level enforcement, and because OAuth2 may eventually need different configuration for REST (e.g., token relay) vs. MCP (resource server).
+**Alternative considered**: A separate `McpAuthentication` union containing the four existing types plus `AuthOAuth2`, keeping REST/Skill unaffected. Rejected because the `AuthOAuth2` configuration shape is generic, and restricting it to one adapter would force duplication when the others inevitably need it.
 
-### D2: Restlet filter chain — reuse `ServerAuthenticationRestlet`
+### D2: Shared `OAuth2AuthenticationRestlet` with MCP extension
 
-**Decision**: Reuse the existing `ServerAuthenticationRestlet` for static credentials and implement `McpOAuth2Restlet` as a new `Restlet` subclass for OAuth 2.1.
+**Decision**: Implement a shared `OAuth2AuthenticationRestlet` in `io.naftiko.engine.exposes` for core JWT validation, and extend it in `McpOAuth2Restlet` for MCP protocol-specific concerns.
 
-**Rationale**: The MCP adapter now uses the Restlet framework for HTTP transport, the same as the REST and Skill adapters. `ServerAuthenticationRestlet` already implements bearer and API key validation with timing-safe comparison. Reusing it directly avoids code duplication and ensures consistent authentication behavior across all three adapter types. OAuth 2.1 requires MCP-specific logic (Protected Resource Metadata, JWT validation) that justifies a dedicated class.
+**Rationale**: The MCP adapter requires Protected Resource Metadata (RFC 9728) and `resource_metadata` in `WWW-Authenticate` headers — neither of which applies to REST or Skill. The two-class design cleanly separates shared validation from protocol overlay. REST and Skill adapters use `OAuth2AuthenticationRestlet` directly; the MCP adapter uses its subclass.
 
 ### D3: No per-tool scope mapping
 
@@ -816,30 +844,40 @@ Additional cross-field validations:
 4. Add Spectral rule `naftiko-mcp-auth-stdio-conflict`
 5. Tests: unit tests for chain wiring, integration test with bearer-protected MCP server
 
-### Phase 2: OAuth 2.1 Resource Server
+### Phase 2: OAuth 2.1 Resource Server (shared)
 
-**Full MCP 2025-11-25 authorization compliance.**
+**Core OAuth 2.1 validation, available to all adapters.**
 
-1. Add `AuthOAuth2` definition to JSON schema
-2. Replace `Authentication` ref on `ExposesMcp` with `McpAuthentication` union
-3. Create `McpOAuth2Restlet`:
+1. Add `AuthOAuth2` definition to JSON schema, in the shared `Authentication` union
+2. Create `OAuth2AuthenticationRestlet` in `io.naftiko.engine.exposes`:
    - AS metadata discovery (RFC 8414)
    - JWKS fetching and caching
    - JWT validation (signature, expiry, issuer, audience)
+   - Scope checking and `403` challenge
+   - `WWW-Authenticate: Bearer` header generation
+3. Wire `OAuth2AuthenticationRestlet` into `RestServerAdapter.buildServerChain()` and `SkillServerAdapter`
+4. Add Spectral rules: `naftiko-oauth2-https-authserver`, `naftiko-oauth2-resource-https`, `naftiko-oauth2-scopes-defined` (adapter-agnostic)
+5. Tests: unit tests for shared JWT validation; integration tests for REST and Skill adapters with OAuth2
+
+### Phase 3: MCP Protocol Overlay
+
+**MCP 2025-11-25-specific authorization behavior.**
+
+1. Create `McpOAuth2Restlet` extending `OAuth2AuthenticationRestlet`:
    - Protected Resource Metadata endpoint (RFC 9728)
-   - `WWW-Authenticate` header generation
-4. Add Spectral rules: `naftiko-mcp-oauth2-https-authserver`, `naftiko-mcp-oauth2-resource-https`, `naftiko-mcp-oauth2-scopes-defined`
-5. Tests: unit tests for JWT validation, integration test with mock AS
+   - `resource_metadata` URL in `WWW-Authenticate` headers
+2. Wire into `McpServerAdapter.buildServerChain()` for `oauth2` type
+3. Add MCP-specific Spectral rule: `naftiko-mcp-oauth2-resource-defined` (warn if `resource` missing)
+4. Tests: integration test with mock AS, Protected Resource Metadata endpoint test
 
-### Phase 3: Token Introspection and Scope Challenges
+### Phase 4: Token Introspection and Extended Features
 
-**Extended OAuth features.**
+**Extended OAuth features in the shared layer.**
 
-1. Add introspection support to `McpOAuth2Restlet` (RFC 7662)
-2. Implement `403` scope challenge responses
-3. Origin header validation for DNS rebinding prevention
-4. JWKS cache key rotation support (unknown-kid refresh)
-5. Tests: introspection flow, scope challenge flow, Origin validation
+1. Add introspection support to `OAuth2AuthenticationRestlet` (RFC 7662)
+2. JWKS cache key rotation support (unknown-kid refresh)
+3. Origin header validation for DNS rebinding prevention (MCP adapter)
+4. Tests: introspection flow, scope challenge flow, Origin validation
 
 ---
 
@@ -848,8 +886,9 @@ Additional cross-field validations:
 ### Schema
 
 - `authentication` on `ExposesMcp` is optional (not in `required`) — existing capabilities without it continue to work unchanged
+- `AuthOAuth2` is added to the shared `Authentication` union — existing REST and Skill capabilities without it continue to work unchanged
 - No properties removed or renamed
-- New `McpAuthentication` and `AuthOAuth2` definitions are purely additive
+- New `AuthOAuth2` definition is purely additive
 
 ### Engine
 

@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.naftiko.spec.InputParameterSpec;
+import io.naftiko.spec.consumes.AuthenticationSpec;
 
 /**
  * Base Exposed Adapter Specification Element
@@ -43,6 +44,9 @@ public abstract class ServerSpec {
     
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile AuthenticationSpec authentication;
 
     public ServerSpec() {
         this(null, "localhost", 0);
@@ -86,6 +90,14 @@ public abstract class ServerSpec {
 
     public List<InputParameterSpec> getInputParameters() {
         return inputParameters;
+    }
+
+    public AuthenticationSpec getAuthentication() {
+        return authentication;
+    }
+
+    public void setAuthentication(AuthenticationSpec authentication) {
+        this.authentication = authentication;
     }
 
 }

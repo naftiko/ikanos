@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * Defines an MCP server that exposes tools over a configurable transport.
  * Supported transports:
  * <ul>
- *   <li>{@code http} (default) — Streamable HTTP via Jetty, for networked deployments</li>
+ *   <li>{@code http} (default) — Streamable HTTP via Restlet, for networked deployments</li>
  *   <li>{@code stdio} — stdin/stdout JSON-RPC, for local IDE development</li>
  * </ul>
  * Each tool maps to one or more consumed HTTP operations.

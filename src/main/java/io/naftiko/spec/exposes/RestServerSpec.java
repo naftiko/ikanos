@@ -16,7 +16,6 @@ package io.naftiko.spec.exposes;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.naftiko.spec.consumes.AuthenticationSpec;
 
 /**
  * Web API Server Specification Element
@@ -28,9 +27,6 @@ public class RestServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<RestServerResourceSpec> resources;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile AuthenticationSpec authentication;
 
     public RestServerSpec() {
         this(null, 0, null);
@@ -52,14 +48,6 @@ public class RestServerSpec extends ServerSpec {
 
     public List<RestServerResourceSpec> getResources() {
         return resources;
-    }
-
-    public AuthenticationSpec getAuthentication() {
-        return authentication;
-    }
-
-    public void setAuthentication(AuthenticationSpec authentication) {
-        this.authentication = authentication;
     }
 
 }
