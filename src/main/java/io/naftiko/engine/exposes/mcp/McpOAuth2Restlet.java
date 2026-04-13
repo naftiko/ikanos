@@ -46,18 +46,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
     private final String metadataJson;
 
     public McpOAuth2Restlet(OAuth2AuthenticationSpec spec, Restlet next) {
-        super(spec, next);
-
-        URI resourceUri = URI.create(spec.getResource());
-        String resourcePath = resourceUri.getPath();
-        if (resourcePath == null || "/".equals(resourcePath) || resourcePath.isEmpty()) {
-            this.metadataPath = "/.well-known/oauth-protected-resource";
-        } else {
-            this.metadataPath = "/.well-known/oauth-protected-resource" + resourcePath;
-        }
-        this.metadataUrl = resourceUri.getScheme() + "://" + resourceUri.getAuthority()
-                + metadataPath;
-        this.metadataJson = buildProtectedResourceMetadata(spec);
+        this(spec, next, null);
     }
 
     /**

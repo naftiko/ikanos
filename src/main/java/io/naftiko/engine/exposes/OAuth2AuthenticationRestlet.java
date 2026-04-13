@@ -78,8 +78,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     private final Object jwkRefreshLock = new Object();
 
     public OAuth2AuthenticationRestlet(OAuth2AuthenticationSpec spec, Restlet next) {
-        this.spec = spec;
-        this.next = next;
+        this(spec, next, null);
     }
 
     /**
@@ -88,8 +87,12 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     protected OAuth2AuthenticationRestlet(OAuth2AuthenticationSpec spec, Restlet next, JWKSet jwkSet) {
         this.spec = spec;
         this.next = next;
-        this.cachedJwkSet = jwkSet;
-        this.jwkSetTimestamp = System.currentTimeMillis();
+
+        if(jwkSet != null) {
+            this.cachedJwkSet = jwkSet;
+            this.jwkSetTimestamp = System.currentTimeMillis();
+        }
+
         this.initialized = true;
     }
 
