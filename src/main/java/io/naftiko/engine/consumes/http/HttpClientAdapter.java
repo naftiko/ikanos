@@ -133,6 +133,11 @@ public class HttpClientAdapter extends ClientAdapter {
                             Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
                     String placement = apiKeyAuth.getPlacement();
 
+                    if (placement == null) {
+                        throw new IllegalArgumentException(
+                                "Placement is required for apikey authentication (expected: header or query)");
+                    }
+
                     if (placement.equals("header")) {
                         clientRequest.getHeaders().add(key, value);
                     } else if (placement.equals("query")) {

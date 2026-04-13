@@ -15,6 +15,7 @@ package io.naftiko.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
@@ -111,5 +112,24 @@ public class HttpClientAdapterTest {
         assertEquals("bob", clientRequest.getChallengeResponse().getIdentifier());
         assertEquals("forwarded-secret",
                 String.valueOf(clientRequest.getChallengeResponse().getSecret()));
+    }
+
+    @Test
+    public void setChallengeResponseShouldThrowWhenApiKeyPlacementIsMissing() {
+        HttpClientSpec spec = new HttpClientSpec("apikey", "https://api.example.com", null);
+        ApiKeyAuthenticationSpec authentication = new ApiKeyAuthenticationSpec();
+        authentication.setType("apikey");
+        authentication.setKey("X-Dock-Key");
+        authentication.setValue("MY_API_KEY");
+        spec.setAuthentication(authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> adapter.setChallengeResponse(null, clientRequest,
+                        clientRequest.getResourceRef().toString(), Map.of()));
+        assertEquals("placement is required for apikey authentication (expected: header or query)",
+                ex.getMessage());
     }
 }
