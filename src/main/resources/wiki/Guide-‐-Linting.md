@@ -27,6 +27,7 @@ Naftiko capabilities are declared in YAML. Two complementary validation layers e
 |---|---|---|
 | **JSON Schema** | [v8r](https://github.com/chris48s/v8r) | Structural validity — required fields, types, allowed values, enum constraints |
 | **Spectral Rules** | [Spectral CLI](https://github.com/stoplightio/spectral) | Cross-object consistency, style hygiene, security (XSS/injection) |
+| **VS Code Extension** | [Naftiko Extension](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code) | Both layers — inline validation as you edit `.naftiko.yaml` files (no CLI needed) |
 
 Both tools can be run standalone or orchestrated together via [MegaLinter](https://github.com/oxsecurity/megalinter), which combines them in a single Docker-based CI check.
 
