@@ -8,6 +8,8 @@ No code. Just a spec. Let's go.
 
 > **Prerequisites:** Make sure you can run the Naftiko Engine. See the [installation instructions](https://github.com/naftiko/framework/wiki/Installation). All capability files for this tutorial live in `src/main/resources/tutorial/`.
 
+> **Editor support:** For inline validation and autocompletion while writing capability files, install the free [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code). Name your files with the `.naftiko.yaml` or `.naftiko.yml` extension to activate it.
+
 ---
 
 ## Step 1 — Your first MCP tool

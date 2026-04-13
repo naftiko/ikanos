@@ -1,26 +1,6 @@
-## Version 1.0 - First Alpha - April 2nd, 2026 :seedling:
+> This roadmap covers Naftiko Framework (engine, CLI, specification). For the broader ecosystem roadmap (VS Code extension, Backstage templates, Kubernetes operator), see the [Naftiko Fleet Roadmap](https://github.com/naftiko/fleet/wiki/Roadmap).
 
-The goal of this version is to deliver a MVP to enable common AI integration use cases and grow our community.
-
-### Rightsize AI context
-- [x] Declarative applied capability exposing Agent Skills
-- [x] Declarative MCP exposing Resources and Prompts (Tools only so far)
-
-### Enable API reusability
-- [x] Support for lookups as part of API call steps
-- [x] Authenticate API and MCP Server consumers and manage permissions
-- [x] Reusable source HTTP adapter declaration across capabilities
-  - [x] Declarative applied capabilities with reused source capabilities
-
-### Core developer experience
-- [x] Publish FAQ in the wiki
-- [x] Provide GitHub Action template based on Mega Linter
-- [ ] Publish Naftiko JSON Structure
-- [ ] Publish Naftiko Skill based on Naftiko CLI
-- [ ] Publish Naftiko Ruleset based on Spectral
-- [ ] Publish Maven Artifacts to [Maven Central](https://central.sonatype.com/)
-- [ ] Publish Javadocs to [Javadoc.io](https://javadoc.io)
-- [ ] Publish Docker Image to [Docker Hub](https://hub.docker.com/)
+---
 
 ## Version 1.0 - Second Alpha - End of April :deciduous_tree:
 
@@ -29,18 +9,27 @@ The goal of this version is to solidify the MVP to enable common AI integration 
 ### Rightsize AI context
   - [x] Add mocking feature to MCP server adapter similar to REST server adapter
   - [x] Add tool annotations (readOnly, destructive, idempotent, openWorld)
-  - [ ] Add support for authentication in the MCP server adapter
+  - [x] Add support for authentication in the MCP server adapter
 
 ### Enable API reusability
   - [x] Add HTML and Markdown data format support for HTTP consumption
-  - [ ] Enable pagination at consumes and exposes level
-  - [ ] Enhance support for tags and labels across capabilities
+  - [ ] Add interoperability with OpenAPI Specification
+    - [ ] Import OAS into an HTTP "consumes" adapter
+    - [ ] Export OAS from a REST "exposes" adapter
 
 ### Core developer experience
-
 - [x] Factorize capability core with functions initially, entities and events later
-- [ ] Allow reuse of "binds" blocks across capabilities
-- [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
+- [ ] Use named objects for input and output parameters, like for properties, matching the JSON Structure syntax
+- [ ] Enhance traceability and debuggability of engine (support Open Telemetry)
+- [ ] Support inline scripting steps (JavaScript and Python initially)
+
+### Packaging
+- [ ] Publish Naftiko JSON Structure
+- [ ] Publish Naftiko Skill based on Naftiko CLI
+- [ ] Publish Naftiko Ruleset based on Spectral
+- [ ] Publish Maven Artifacts to [Maven Central](https://central.sonatype.com/)
+- [ ] Publish Javadocs to [Javadoc.io](https://javadoc.io)
+- [ ] Publish Docker Image to [Docker Hub](https://hub.docker.com/)
 
 ## Version 1.0 - Third Alpha - End of May :deciduous_tree:
 
@@ -49,8 +38,12 @@ The goal of this version is to solidify the MVP to enable common AI integration 
   - [ ] Facilitate skills publication in skills marketplaces
 
 ### Enable API reusability
+  - [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
+  - [ ] Enhance support for tags and labels across capabilities
+  - [ ] Advanced error handling and recovery strategies
   - [ ] Support HTTP cache control directives
   - [ ] Enable API token refresh flows
+  - [ ] Enable pagination at consumes and exposes level
   - [ ] Support Webhook server adapter for workflow automation
   - [ ] Facilitate integration with API gateways
 
@@ -58,11 +51,12 @@ The goal of this version is to solidify the MVP to enable common AI integration 
   - [ ] Support A2A server adapter with tool discovery and execution
 
 ### Core developer experience
-- [ ] Enhance traceability and debuggability of engine
+- [ ] Allow reuse of "binds" blocks across capabilities
 - [ ] Add conditional steps, for-each steps, parallel-join
-- [ ] OpenAPI-to-Naftiko import tooling — generate a starter capability YAML from an existing OpenAPI file
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
+- [ ] Expand inline scripting steps (Ruby and Groovy)
 - [ ] Provide Control port usable via REST clients, Naftiko CLI
+- [ ] Native integration with [Langchain4j](https://docs.langchain4j.dev/), see [issue #293](https://github.com/naftiko/framework/issues/293)
 
 ## Version 1.0 - First Beta - End of June :blossom:
 

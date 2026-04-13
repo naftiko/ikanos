@@ -24,6 +24,13 @@ You don't need to write Java or other code unless you want to extend the framewo
 ### Q: Is Naftiko a code generator or a runtime engine?
 **A:** It's a **runtime engine**. The Naftiko Engine, provided as a Docker container, reads your YAML capability file at startup and immediately exposes HTTP or MCP interfaces. There's no compilation step - declare your capability, start the engine, and it works.
 
+### Q: Are there other tools that complement Naftiko Framework?
+**A:** Yes. Naftiko Framework is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which includes free complementary tools:
+
+- **[Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code)** — Inline structure and rules validation while editing capability files (`.naftiko.yaml`)
+- **[Naftiko Templates for Backstage](https://github.com/naftiko/fleet/wiki/Naftiko-Templates-for-Backstage)** — Scaffold new capabilities and catalog them from CNCF Backstage
+- **Naftiko Operator for Kubernetes** — Deploy and operate capabilities on Kubernetes *(coming soon)*
+
 ---
 
 ## :rowboat: Installation & Setup

@@ -134,3 +134,5 @@ By default, validation is performed on the latest schema version. If you want to
 naftiko validate path_to_your_capability_file 0.5
 ```
 The result will tell you if the file is valid or if there are any errors.
+
+> **💡 Tip:** For inline validation as you type, install the free [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code). It validates both JSON Schema structure and Spectral rules directly in your editor.
