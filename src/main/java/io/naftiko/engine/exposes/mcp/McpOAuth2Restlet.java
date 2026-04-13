@@ -42,7 +42,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final String metadataPath;
-    private final String metadataUrl;
+    private final String metadataUri;
     private final String metadataJson;
 
     public McpOAuth2Restlet(OAuth2AuthenticationSpec spec, Restlet next) {
@@ -62,7 +62,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
         } else {
             this.metadataPath = "/.well-known/oauth-protected-resource" + resourcePath;
         }
-        this.metadataUrl = resourceUri.getScheme() + "://" + resourceUri.getAuthority()
+        this.metadataUri = resourceUri.getScheme() + "://" + resourceUri.getAuthority()
                 + metadataPath;
         this.metadataJson = buildProtectedResourceMetadata(spec);
     }
@@ -81,7 +81,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
     @Override
     protected String buildBearerChallengeParams(String error, String description, String scope) {
         String baseParams = super.buildBearerChallengeParams(error, description, scope);
-        String metadata = "resource_metadata=\"" + metadataUrl + "\"";
+        String metadata = "resource_metadata=\"" + metadataUri + "\"";
         if (baseParams.isEmpty()) {
             return metadata;
         }
@@ -97,8 +97,8 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
         return metadataPath;
     }
 
-    String getMetadataUrl() {
-        return metadataUrl;
+    String getMetadataUri() {
+        return metadataUri;
     }
 
     private static String buildProtectedResourceMetadata(OAuth2AuthenticationSpec spec) {
