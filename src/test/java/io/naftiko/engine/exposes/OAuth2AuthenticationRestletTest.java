@@ -329,6 +329,48 @@ class OAuth2AuthenticationRestletTest {
     }
 
     @Test
+    void handleShouldRejectJwtWithNotBeforeInFuture() throws Exception {
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec());
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp")
+                .expirationTime(futureDate())
+                .notBeforeTime(new Date(System.currentTimeMillis() + 300_000))
+                .build());
+
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response.getStatus());
+        String rawValue = response.getChallengeRequests().get(0).getRawValue();
+        assertTrue(rawValue.contains("invalid_token"));
+        assertTrue(rawValue.contains("Token not yet valid"));
+    }
+
+    @Test
+    void handleShouldAcceptJwtWithNotBeforeInPast() throws Exception {
+        TrackingRestlet tracker = new TrackingRestlet();
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec(), tracker);
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp")
+                .expirationTime(futureDate())
+                .notBeforeTime(new Date(System.currentTimeMillis() - 60_000))
+                .build());
+
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertTrue(tracker.wasCalled(), "JWT with nbf in the past should be accepted");
+    }
+
+    @Test
     void handleShouldRejectIntrospectionMode() throws Exception {
         OAuth2AuthenticationSpec spec = minimalSpec();
         spec.setTokenValidation("introspection");
