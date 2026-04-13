@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
+# Fixture for issue #290: namespace-qualified references in step-level WithInjector
+---
+naftiko: "1.0.0-alpha2"
+
+capability:
+  consumes:
+    - namespace: registry
+      type: http
+      baseUri: "http://localhost:19999"
+      resources:
+        - name: voyage
+          path: "/voyages/{{voyageId}}"
+          operations:
+            - name: get-voyage
+              method: GET
+              inputParameters:
+                - name: voyageId
+                  in: path
+
+  exposes:
+    - type: mcp
+      port: 13002
+      namespace: shipyard-tools
+      description: "Test MCP tools for step-level namespace resolution"
+      tools:
+        - name: get-voyage-manifest
+          description: "Assemble a voyage manifest"
+          inputParameters:
+            - name: voyageId
+              type: string
+              description: "Voyage ID"
+              required: true
+          steps:
+            - name: get-voyage
+              type: call
+              call: registry.get-voyage
+              with:
+                voyageId: shipyard-tools.voyageId
+          mappings:
+            - targetName: voyageId
+              value: "$.get-voyage.voyageId"
+          outputParameters:
+            - name: voyageId
+              type: string

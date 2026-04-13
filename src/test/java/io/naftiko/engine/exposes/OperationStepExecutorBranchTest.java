@@ -14,6 +14,7 @@
 package io.naftiko.engine.exposes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -277,6 +278,85 @@ class OperationStepExecutorBranchTest {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
           () -> executor.executeSteps(List.of(unsupported), Map.of("a", "b")));
         assertEquals("Invalid call format: null", error.getMessage());
+    }
+
+    /**
+     * Regression test for #290: namespace-qualified references in step-level WithInjector.
+     *
+     * When a step has {@code with: {voyageId: "shipyard-tools.voyageId"}}, the qualified reference
+     * should be resolved to the caller's argument value "VOY-2026-042", not passed as a literal.
+     *
+     * This test captures the parameters actually passed to findClientRequestFor. Before the fix,
+     * the namespace is not propagated to step execution, so the literal string
+     * "shipyard-tools.voyageId" is used instead of the resolved value.
+     */
+    @Test
+    void executeStepsShouldResolveNamespaceQualifiedReferencesInStepWith() throws Exception {
+        Capability capability = capabilityFromYaml("""
+                naftiko: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/x"
+                          operations:
+                            - method: "GET"
+                              name: "x"
+                  consumes:
+                    - type: "http"
+                      namespace: "registry"
+                      baseUri: "http://localhost:19999"
+                      resources:
+                        - path: "/voyages/{{voyageId}}"
+                          name: "voyage"
+                          operations:
+                            - method: "GET"
+                              name: "get-voyage"
+                              inputParameters:
+                                - name: "voyageId"
+                                  in: "path"
+                """.formatted(schemaVersion));
+
+        // Subclass that captures parameters at the point of HTTP request construction
+        class CapturingExecutor extends OperationStepExecutor {
+            Map<String, Object> capturedParams;
+
+            CapturingExecutor(Capability cap) {
+                super(cap);
+            }
+
+            @Override
+            public HandlingContext findClientRequestFor(String clientNamespace,
+                    String clientOpName, Map<String, Object> parameters) {
+                capturedParams = new HashMap<>(parameters);
+                return super.findClientRequestFor(clientNamespace, clientOpName, parameters);
+            }
+        }
+
+        CapturingExecutor executor = new CapturingExecutor(capability);
+        executor.setExposeNamespace("shipyard-tools");
+
+        OperationStepCallSpec step = new OperationStepCallSpec();
+        step.setType("call");
+        step.setName("get-voyage");
+        step.setCall("registry.get-voyage");
+        step.setWith(Map.of("voyageId", "shipyard-tools.voyageId"));
+
+        // The HTTP call will fail (no server), but parameters are captured before the call
+        try {
+            executor.executeSteps(List.of(step), Map.of("voyageId", "VOY-2026-042"));
+        } catch (RuntimeException expected) {
+            // HTTP connection failure expected
+        }
+
+        assertNotNull(executor.capturedParams,
+                "Parameters should have been captured before HTTP call");
+        assertEquals("VOY-2026-042", executor.capturedParams.get("voyageId"),
+                "Namespace-qualified reference 'shipyard-tools.voyageId' should resolve to "
+                        + "the caller's argument value, not be passed as a literal string");
     }
 
     private static OperationStepExecutor executorFromYaml(String yaml) throws Exception {

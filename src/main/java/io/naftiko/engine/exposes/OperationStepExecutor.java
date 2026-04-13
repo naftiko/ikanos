@@ -61,10 +61,15 @@ public class OperationStepExecutor {
 
     private final Capability capability;
     private final ObjectMapper mapper;
+    private volatile String exposeNamespace;
 
     public OperationStepExecutor(Capability capability) {
         this.capability = capability;
         this.mapper = new ObjectMapper();
+    }
+
+    public void setExposeNamespace(String exposeNamespace) {
+        this.exposeNamespace = exposeNamespace;
     }
 
     /**
@@ -280,7 +285,7 @@ public class OperationStepExecutor {
         // Merge step-level 'with' parameters with base parameters
         Map<String, Object> stepParams = new ConcurrentHashMap<>(baseParameters);
 
-        mergeWithParameters(callStep.getWith(), stepParams, null);
+        mergeWithParameters(callStep.getWith(), stepParams, exposeNamespace);
 
         if (callStep.getCall() != null) {
             String[] tokens = callStep.getCall().split("\\.");
@@ -368,7 +373,7 @@ public class OperationStepExecutor {
             merged.putAll(requestParams);
         }
 
-        mergeWithParameters(call.getWith(), merged, null);
+        mergeWithParameters(call.getWith(), merged, exposeNamespace);
 
         if (call.getOperation() != null) {
             String[] tokens = call.getOperation().split("\\.");

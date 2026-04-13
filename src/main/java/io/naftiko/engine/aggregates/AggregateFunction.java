@@ -39,10 +39,13 @@ public class AggregateFunction {
 
     private final AggregateFunctionSpec spec;
     private final OperationStepExecutor stepExecutor;
+    private final String namespace;
 
-    AggregateFunction(AggregateFunctionSpec spec, OperationStepExecutor stepExecutor) {
+    AggregateFunction(AggregateFunctionSpec spec, OperationStepExecutor stepExecutor,
+            String namespace) {
         this.spec = spec;
         this.stepExecutor = stepExecutor;
+        this.namespace = namespace;
     }
 
     public String getName() {
@@ -101,7 +104,7 @@ public class AggregateFunction {
         }
 
         // Merge function-level 'with' parameters
-        OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, null);
+        OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, namespace);
 
         boolean hasCall = spec.getCall() != null;
         boolean isOrchestrated = spec.getSteps() != null && !spec.getSteps().isEmpty();
@@ -115,6 +118,7 @@ public class AggregateFunction {
 
         // Orchestrated mode
         if (isOrchestrated) {
+            stepExecutor.setExposeNamespace(namespace);
             OperationStepExecutor.StepExecutionResult stepResult =
                     stepExecutor.executeSteps(spec.getSteps(), merged);
 

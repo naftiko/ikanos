@@ -89,4 +89,18 @@ public class OperationStepExecutorTest {
 
         assertEquals(1, target.size(), "Null 'with' map should not modify the target");
     }
+
+    @Test
+    public void mergeWithShouldTreatNamespaceRefAsLiteralWhenNamespaceIsNull() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("voyageId", "VOY-2026-042");
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("voyageId", "shipyard-tools.voyageId");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertEquals("shipyard-tools.voyageId", target.get("voyageId"),
+                "Without namespace, qualified reference should be treated as Mustache literal");
+    }
 }
