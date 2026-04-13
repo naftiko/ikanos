@@ -19,6 +19,7 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
 | Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
 | Domain-Driven Aggregates | Define reusable domain functions once, expose via multiple adapters — inspired by **DDD** Aggregate pattern |
+| Server Authentication | Secure exposed endpoints with **Bearer**, **API Key**, **Basic**, **Digest**, or **OAuth 2.1** authentication out of the box |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |
 | Docker Native | Ships as a ready-to-run **Docker** container |
 | Extensible | Open-source core extensible with new protocols and adapters |
@@ -39,6 +40,16 @@ Here are additional documents to learn more:
 - :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
 - :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/blob/main/CONTRIBUTING.md)
+
+***
+
+Naftiko Framework is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which adds free complementary tools:
+
+| Tool | What it does |
+|---|---|
+| [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code) | Inline structure and rules validation while editing `.naftiko.yaml` files |
+| [Naftiko Templates for Backstage](https://github.com/naftiko/fleet/wiki/Naftiko-Templates-for-Backstage) | Scaffold and catalog capabilities from CNCF Backstage |
+| Naftiko Operator for Kubernetes | Deploy and operate capabilities on Kubernetes *(coming soon)* |
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).
 
