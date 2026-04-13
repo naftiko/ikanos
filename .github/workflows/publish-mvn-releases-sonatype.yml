@@ -1,0 +1,46 @@
+name: Publish MVN Release to Maven Central
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*' 
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v5
+
+      - name: Configure Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Configure Maven Credentials for Central
+        run: ./src/main/resources/scripts/builder.sh config_maven_central
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+
+      - name: Configure GPG Key
+        run: ./src/main/resources/scripts/builder.sh config_gpg
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish to Maven Central
+        run: ./src/main/resources/scripts/builder.sh central
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          rm -rf ~/.gnupg
+          rm -f ~/.m2/settings.xml
