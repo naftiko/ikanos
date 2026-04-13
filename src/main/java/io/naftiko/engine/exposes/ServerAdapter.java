@@ -13,6 +13,7 @@
  */
 package io.naftiko.engine.exposes;
 
+import org.restlet.Context;
 import org.restlet.Restlet;
 import org.restlet.Server;
 import org.restlet.data.Protocol;
@@ -41,6 +42,11 @@ public abstract class ServerAdapter extends Adapter {
      */
     protected void initServer(String address, int port, Restlet handler) {
         this.server = new Server(Protocol.HTTP, address, port);
+        this.server.setContext(new Context());
+
+        // TODO: Make idle timeout configurable
+        this.server.getContext().getParameters().add("socketTimeout", "12000");
+
         this.server.setNext(handler);
     }
 
@@ -58,7 +64,9 @@ public abstract class ServerAdapter extends Adapter {
 
     @Override
     public void start() throws Exception {
-        server.start();
+        if (server != null) {
+            server.start();
+        }
     }
 
     @Override
