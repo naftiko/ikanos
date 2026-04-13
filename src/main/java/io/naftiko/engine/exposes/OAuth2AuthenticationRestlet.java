@@ -195,6 +195,11 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             return "Token expired";
         }
 
+        if (claims.getNotBeforeTime() != null
+                && claims.getNotBeforeTime().after(new Date())) {
+            return "Token not yet valid";
+        }
+
         String expectedIssuer = spec.getAuthorizationServerUri();
         if (expectedIssuer != null && claims.getIssuer() != null
                 && !expectedIssuer.equals(claims.getIssuer())) {
