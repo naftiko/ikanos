@@ -130,7 +130,7 @@ class ServerAdapterAuthenticationTest {
         String authBlock = """
                       authentication:
                         type: "oauth2"
-                        authorizationServerUrl: "https://auth.example.com"
+                        authorizationServerUri: "https://auth.example.com"
                         resource: "https://api.example.com"
                         scopes:
                           - "read"
@@ -149,7 +149,7 @@ class ServerAdapterAuthenticationTest {
         String authBlock = """
                       authentication:
                         type: "oauth2"
-                        authorizationServerUrl: "https://auth.example.com"
+                        authorizationServerUri: "https://auth.example.com"
                         resource: "https://mcp.example.com/mcp"
                 """;
         ServerAdapter adapter = adapterFromYaml(MCP_YAML.formatted(schemaVersion, authBlock));
@@ -166,7 +166,7 @@ class ServerAdapterAuthenticationTest {
         String authBlock = """
                       authentication:
                         type: "oauth2"
-                        authorizationServerUrl: "https://auth.example.com"
+                        authorizationServerUri: "https://auth.example.com"
                         resource: "https://skills.example.com"
                         scopes:
                           - "read"

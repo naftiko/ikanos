@@ -275,7 +275,7 @@ Static authentication is best for:
 Any adapter acts as an **OAuth 2.1 resource server** (RFC 6749 / OAuth 2.1 draft-13). It does not issue tokens — it validates tokens issued by an external authorization server. The core validation logic (JWT/JWKS, audience, expiry, scope) is shared across all adapter types via `OAuth2AuthenticationRestlet`.
 
 **Configuration declares:**
-- `authorizationServerUrl` — The authorization server's issuer URL (used to derive metadata endpoints)
+- `authorizationServerUri` — The authorization server's issuer URL (used to derive metadata endpoints)
 - `resource` — The canonical URI of this MCP server (used in `resource_metadata`, RFC 8707)
 - `scopes` — Scopes this resource server recognizes (used in `scopes_supported` in Protected Resource Metadata, and in `WWW-Authenticate` challenges)
 - `tokenValidation` — How to validate tokens: `jwks` (default, fetch public keys from AS) or `introspection` (call AS token introspection endpoint, RFC 7662)
@@ -363,7 +363,7 @@ The `ExposesMcp` definition references the same shared `Authentication` union al
       "type": "string",
       "const": "oauth2"
     },
-    "authorizationServerUrl": {
+    "authorizationServerUri": {
       "type": "string",
       "format": "uri",
       "description": "Issuer URL of the OAuth 2.1 authorization server. The engine derives metadata endpoints (.well-known/oauth-authorization-server) from this URL."
@@ -389,7 +389,7 @@ The `ExposesMcp` definition references the same shared `Authentication` union al
       "description": "How to validate incoming access tokens. 'jwks' (default): fetch the AS public keys and validate JWT signatures locally. 'introspection': call the AS token introspection endpoint (RFC 7662) for each request."
     }
   },
-  "required": ["type", "authorizationServerUrl", "resource"],
+  "required": ["type", "authorizationServerUri", "resource"],
   "additionalProperties": false
 }
 ```
@@ -482,7 +482,7 @@ capability:
       description: "Enterprise tools requiring OAuth authorization"
       authentication:
         type: oauth2
-        authorizationServerUrl: "https://keycloak.example.com/realms/mcp"
+        authorizationServerUri: "https://keycloak.example.com/realms/mcp"
         resource: "https://mcp.example.com/mcp"
         scopes:
           - "tools:read"
@@ -542,7 +542,7 @@ For opaque tokens (not JWTs) — validate via AS introspection endpoint:
 ```yaml
 authentication:
   type: oauth2
-  authorizationServerUrl: "https://auth0.example.com"
+  authorizationServerUri: "https://auth0.example.com"
   resource: "https://mcp.example.com/mcp"
   scopes:
     - "read:tools"
@@ -577,7 +577,7 @@ capability:
       description: "Order management tools"
       authentication:
         type: oauth2
-        authorizationServerUrl: "https://keycloak.example.com/realms/mcp"
+        authorizationServerUri: "https://keycloak.example.com/realms/mcp"
         resource: "https://mcp.example.com/mcp"
         scopes:
           - "orders:read"
@@ -636,7 +636,7 @@ Request → ServerAuthenticationRestlet
 A shared Restlet `Restlet` subclass in `io.naftiko.engine.exposes` that implements the core OAuth 2.1 resource server logic. Used directly by REST and Skill adapters; extended by `McpOAuth2Restlet` for MCP-specific protocol concerns.
 
 **Initialization:**
-1. Fetch AS metadata from `authorizationServerUrl` (try `.well-known/oauth-authorization-server` then `.well-known/openid-configuration`)
+1. Fetch AS metadata from `authorizationServerUri` (try `.well-known/oauth-authorization-server` then `.well-known/openid-configuration`)
 2. If `tokenValidation: jwks` — fetch JWKS from the AS `jwks_uri` endpoint; cache keys with configurable TTL
 3. If `tokenValidation: introspection` — store AS `introspection_endpoint` URL
 
@@ -653,7 +653,7 @@ Request → OAuth2AuthenticationRestlet
 **Token validation (JWKS mode):**
 1. Extract `Authorization: Bearer <token>` header
 2. Decode JWT; verify signature against cached JWKS
-3. Check `exp` (expiry), `iss` (issuer matches `authorizationServerUrl`), `aud` (matches `audience` or `resource`)
+3. Check `exp` (expiry), `iss` (issuer matches `authorizationServerUri`), `aud` (matches `audience` or `resource`)
 4. Check `scope` claim against configured `scopes` (if scopes are declared)
 
 **Token validation (introspection mode):**
@@ -683,7 +683,7 @@ Auto-generated from configuration:
 ```json
 {
   "resource": "<authentication.resource>",
-  "authorization_servers": ["<authentication.authorizationServerUrl>"],
+  "authorization_servers": ["<authentication.authorizationServerUri>"],
   "scopes_supported": ["<authentication.scopes[0]>", "..."],
   "bearer_methods_supported": ["header"]
 }
@@ -746,9 +746,9 @@ Static authentication (bearer, apikey, basic, digest) MUST continue to use `Mess
 
 ### 10.4 HTTPS Enforcement
 
-The MCP spec requires "All authorization server endpoints MUST be served over HTTPS." While Naftiko does not enforce HTTPS on the MCP server itself (that is typically handled by a reverse proxy), the `authorizationServerUrl` MUST use the `https` scheme.
+The MCP spec requires "All authorization server endpoints MUST be served over HTTPS." While Naftiko does not enforce HTTPS on the MCP server itself (that is typically handled by a reverse proxy), the `authorizationServerUri` MUST use the `https` scheme.
 
-Validation rule: `authorizationServerUrl` must start with `https://`.
+Validation rule: `authorizationServerUri` must start with `https://`.
 
 ### 10.5 JWKS Key Caching
 
@@ -772,7 +772,7 @@ These constraints are enforced by the schema itself:
 | Rule | Enforcement |
 |------|-------------|
 | `authentication` is optional on `ExposesMcp` | Not in `required` array |
-| `AuthOAuth2.authorizationServerUrl` is required | In `required` array |
+| `AuthOAuth2.authorizationServerUri` is required | In `required` array |
 | `AuthOAuth2.resource` is required | In `required` array |
 | `AuthOAuth2.tokenValidation` defaults to `jwks` | `default: "jwks"` |
 | `AuthOAuth2.type` must be `"oauth2"` | `const: "oauth2"` |
@@ -783,7 +783,7 @@ Additional cross-field validations:
 
 | Rule Name | Severity | Scope | Description |
 |-----------|----------|-------|-------------|
-| `naftiko-oauth2-https-authserver` | error | All adapters | `authorizationServerUrl` must use `https://` scheme |
+| `naftiko-oauth2-https-authserver` | error | All adapters | `authorizationServerUri` must use `https://` scheme |
 | `naftiko-oauth2-resource-https` | warn | All adapters | `resource` should use `https://` scheme for production |
 | `naftiko-oauth2-scopes-defined` | warn | All adapters | `scopes` array should be defined for OAuth2 auth (enables scope challenges) |
 | `naftiko-mcp-auth-stdio-conflict` | warn | MCP only | `authentication` should not be set when `transport: "stdio"` |
@@ -824,7 +824,7 @@ Additional cross-field validations:
 
 **Rationale**: The MCP spec requires this endpoint for authorization server discovery (RFC 9728). Requiring capability authors to manually create and serve this metadata would be a poor UX. By generating it from the `oauth2` authentication configuration, the YAML remains the single source of truth.
 
-### D6: `authorizationServerUrl` vs. inline AS metadata
+### D6: `authorizationServerUri` vs. inline AS metadata
 
 **Decision**: Require only the AS issuer URL, not inline metadata fields.
 

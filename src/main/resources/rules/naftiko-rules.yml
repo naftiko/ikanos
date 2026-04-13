@@ -153,15 +153,15 @@ rules:
       function: falsy
 
   naftiko-oauth2-https-authserver:
-    message: "OAuth2 `authorizationServerUrl` must use the `https://` scheme."
+    message: "OAuth2 `authorizationServerUri` must use the `https://` scheme."
     description: >
       The OAuth 2.1 specification requires all authorization server endpoints to be
-      served over HTTPS. A non-HTTPS authorization server URL is a security risk.
+      served over HTTPS. A non-HTTPS authorization server URI is a security risk.
     severity: error
     recommended: true
     given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
     then:
-      field: "authorizationServerUrl"
+      field: "authorizationServerUri"
       function: pattern
       functionOptions:
         match: "^https://"

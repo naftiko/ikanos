@@ -106,7 +106,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
         metadata.put("resource", spec.getResource());
 
         ArrayNode authServers = metadata.putArray("authorization_servers");
-        authServers.add(spec.getAuthorizationServerUrl());
+        authServers.add(spec.getAuthorizationServerUri());
 
         List<String> scopes = spec.getScopes();
         if (scopes != null && !scopes.isEmpty()) {

@@ -14,18 +14,14 @@
 package io.naftiko.engine.exposes;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.text.ParseException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
+import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -33,6 +29,9 @@ import org.restlet.Restlet;
 import org.restlet.data.ChallengeRequest;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.data.MediaType;
+import org.restlet.data.Method;
+import org.restlet.data.Protocol;
+import org.restlet.data.Reference;
 import org.restlet.data.Status;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,6 +67,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
 
     private final OAuth2AuthenticationSpec spec;
     private final Restlet next;
+    private final Client httpClient;
 
     private volatile JWKSet cachedJwkSet;
     private volatile long jwkSetTimestamp;
@@ -87,13 +87,18 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     protected OAuth2AuthenticationRestlet(OAuth2AuthenticationSpec spec, Restlet next, JWKSet jwkSet) {
         this.spec = spec;
         this.next = next;
+        this.httpClient = new Client(Protocol.HTTP, Protocol.HTTPS);
+        try {
+            this.httpClient.start();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to start HTTP client", e);
+        }
 
         if(jwkSet != null) {
             this.cachedJwkSet = jwkSet;
             this.jwkSetTimestamp = System.currentTimeMillis();
+            this.initialized = true;
         }
-
-        this.initialized = true;
     }
 
     @Override
@@ -190,7 +195,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             return "Token expired";
         }
 
-        String expectedIssuer = spec.getAuthorizationServerUrl();
+        String expectedIssuer = spec.getAuthorizationServerUri();
         if (expectedIssuer != null && claims.getIssuer() != null
                 && !expectedIssuer.equals(claims.getIssuer())) {
             return "Invalid issuer";
@@ -300,18 +305,18 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         }
     }
 
-    void discoverAsMetadata() throws IOException, InterruptedException {
-        String baseUrl = spec.getAuthorizationServerUrl();
-        if (baseUrl == null) {
+    void discoverAsMetadata() throws IOException {
+        String baseUri = spec.getAuthorizationServerUri();
+        if (baseUri == null) {
             return;
         }
 
-        String asMetadataUrl = stripTrailingSlash(baseUrl) + "/.well-known/oauth-authorization-server";
-        String body = fetchUrl(asMetadataUrl);
+        String asMetadataUri = stripTrailingSlash(baseUri) + "/.well-known/oauth-authorization-server";
+        String body = fetchUri(asMetadataUri);
 
         if (body == null) {
-            String oidcUrl = stripTrailingSlash(baseUrl) + "/.well-known/openid-configuration";
-            body = fetchUrl(oidcUrl);
+            String oidcUri = stripTrailingSlash(baseUri) + "/.well-known/openid-configuration";
+            body = fetchUri(oidcUri);
         }
 
         if (body != null) {
@@ -365,8 +370,8 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         }
     }
 
-    void fetchAndCacheJwkSet(String jwksUri) throws IOException, InterruptedException {
-        String body = fetchUrl(jwksUri);
+    void fetchAndCacheJwkSet(String jwksUri) throws IOException {
+        String body = fetchUri(jwksUri);
         if (body != null) {
             try {
                 cachedJwkSet = JWKSet.parse(body);
@@ -378,27 +383,29 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     }
 
     /**
-     * HTTP GET a URL and return the response body, or null on failure. Protected for test
+     * HTTP GET a URI and return the response body, or null on failure. Protected for test
      * overriding.
      */
-    protected String fetchUrl(String url) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .GET()
-                .timeout(Duration.ofSeconds(10))
-                .build();
-        HttpResponse<String> response =
-                client.send(request, HttpResponse.BodyHandlers.ofString());
+    protected String fetchUri(String uri) throws IOException {
+        try {
+            Request req = new Request(Method.GET, new Reference(uri));
+            Response resp = httpClient.handle(req);
 
-        if (response.statusCode() == 200) {
-            return response.body();
+            if (resp.getStatus().equals(Status.SUCCESS_OK)
+                    && resp.getEntity() != null) {
+                return resp.getEntity().getText();
+            }
+
+            Context.getCurrentLogger().log(Level.WARNING,
+                    "HTTP {0} from {1}", new Object[] {resp.getStatus().getCode(), uri});
+            return null;
+        } catch (Exception e) {
+            throw new IOException("Failed to fetch " + uri, e);
         }
+    }
 
-        Context.getCurrentLogger().log(Level.WARNING,
-                "HTTP {0} from {1}", new Object[] {response.statusCode(), url});
-        return null;
+    Client getHttpClient() {
+        return httpClient;
     }
 
     // ─── JWK Helpers ────────────────────────────────────────────────────────────
@@ -421,8 +428,8 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         return null;
     }
 
-    private static String stripTrailingSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    private static String stripTrailingSlash(String uri) {
+        return uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
     }
 
 }

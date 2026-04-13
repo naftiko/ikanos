@@ -353,7 +353,7 @@ class OAuth2AuthenticationRestletTest {
 
     private static OAuth2AuthenticationSpec minimalSpec() {
         OAuth2AuthenticationSpec spec = new OAuth2AuthenticationSpec();
-        spec.setAuthorizationServerUrl("https://auth.example.com");
+        spec.setAuthorizationServerUri("https://auth.example.com");
         spec.setResource("https://mcp.example.com/mcp");
         return spec;
     }

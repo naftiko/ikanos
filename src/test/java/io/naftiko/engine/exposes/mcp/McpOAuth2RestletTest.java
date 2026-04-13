@@ -90,7 +90,7 @@ class McpOAuth2RestletTest {
     @Test
     void handleShouldServeMetadataAtPathDerivedFromResource() {
         OAuth2AuthenticationSpec spec = new OAuth2AuthenticationSpec();
-        spec.setAuthorizationServerUrl("https://auth.example.com");
+        spec.setAuthorizationServerUri("https://auth.example.com");
         spec.setResource("https://mcp.example.com/api/v1");
 
         McpOAuth2Restlet restlet = new McpOAuth2Restlet(spec, new NoOpRestlet(), jwkSet);
@@ -102,7 +102,7 @@ class McpOAuth2RestletTest {
     @Test
     void handleShouldServeMetadataAtRootPathForRootResource() {
         OAuth2AuthenticationSpec spec = new OAuth2AuthenticationSpec();
-        spec.setAuthorizationServerUrl("https://auth.example.com");
+        spec.setAuthorizationServerUri("https://auth.example.com");
         spec.setResource("https://mcp.example.com/");
 
         McpOAuth2Restlet restlet = new McpOAuth2Restlet(spec, new NoOpRestlet(), jwkSet);
@@ -193,7 +193,7 @@ class McpOAuth2RestletTest {
 
     private static OAuth2AuthenticationSpec specWithScopes() {
         OAuth2AuthenticationSpec spec = new OAuth2AuthenticationSpec();
-        spec.setAuthorizationServerUrl("https://auth.example.com");
+        spec.setAuthorizationServerUri("https://auth.example.com");
         spec.setResource("https://mcp.example.com/mcp");
         spec.setScopes(List.of("tools:read", "tools:execute"));
         return spec;

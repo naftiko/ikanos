@@ -2170,10 +2170,10 @@
           "type": "string",
           "const": "oauth2"
         },
-        "authorizationServerUrl": {
+        "authorizationServerUri": {
           "type": "string",
           "format": "uri",
-          "description": "Issuer URL of the OAuth 2.1 authorization server. The engine derives metadata endpoints (.well-known/oauth-authorization-server) from this URL."
+          "description": "Issuer URI of the OAuth 2.1 authorization server. The engine derives metadata endpoints (.well-known/oauth-authorization-server) from this URI."
         },
         "resource": {
           "type": "string",
@@ -2203,7 +2203,7 @@
       },
       "required": [
         "type",
-        "authorizationServerUrl",
+        "authorizationServerUri",
         "resource"
       ],
       "additionalProperties": false

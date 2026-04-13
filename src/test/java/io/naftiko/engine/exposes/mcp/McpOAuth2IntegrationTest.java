@@ -289,7 +289,7 @@ class McpOAuth2IntegrationTest {
                       description: "OAuth2 protected MCP server"
                       authentication:
                         type: "oauth2"
-                        authorizationServerUrl: "http://127.0.0.1:%d"
+                        authorizationServerUri: "http://127.0.0.1:%d"
                         resource: "%s"
                         scopes:
                           - "tools:read"
@@ -322,7 +322,7 @@ class McpOAuth2IntegrationTest {
                       description: "OAuth2 protected MCP server with scopes"
                       authentication:
                         type: "oauth2"
-                        authorizationServerUrl: "http://127.0.0.1:%d"
+                        authorizationServerUri: "http://127.0.0.1:%d"
                         resource: "%s"
                         scopes:
                           - "tools:read"

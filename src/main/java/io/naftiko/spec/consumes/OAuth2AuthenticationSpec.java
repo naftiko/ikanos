@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class OAuth2AuthenticationSpec extends AuthenticationSpec {
 
-    private volatile String authorizationServerUrl;
+    private volatile String authorizationServerUri;
     private volatile String resource;
     private volatile List<String> scopes;
     private volatile String audience;
@@ -33,12 +33,12 @@ public class OAuth2AuthenticationSpec extends AuthenticationSpec {
         super("oauth2");
     }
 
-    public String getAuthorizationServerUrl() {
-        return authorizationServerUrl;
+    public String getAuthorizationServerUri() {
+        return authorizationServerUri;
     }
 
-    public void setAuthorizationServerUrl(String authorizationServerUrl) {
-        this.authorizationServerUrl = authorizationServerUrl;
+    public void setAuthorizationServerUri(String authorizationServerUri) {
+        this.authorizationServerUri = authorizationServerUri;
     }
 
     public String getResource() {
