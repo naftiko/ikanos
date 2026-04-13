@@ -129,7 +129,7 @@ public class HttpClientAdapterTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> adapter.setChallengeResponse(null, clientRequest,
                         clientRequest.getResourceRef().toString(), Map.of()));
-        assertEquals("placement is required for apikey authentication (expected: header or query)",
+        assertEquals("Placement is required for apikey authentication (expected: header or query)",
                 ex.getMessage());
     }
 }
