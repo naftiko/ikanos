@@ -212,8 +212,8 @@ public class OAuth2AuthenticationRestlet extends Restlet {
                 spec.getAudience() != null ? spec.getAudience() : spec.getResource();
         if (expectedAudience != null) {
             List<String> audiences = claims.getAudience();
-            if (audiences != null && !audiences.isEmpty()
-                    && !audiences.contains(expectedAudience)) {
+            if (audiences == null || audiences.isEmpty()
+                    || !audiences.contains(expectedAudience)) {
                 return "Invalid audience";
             }
         }
