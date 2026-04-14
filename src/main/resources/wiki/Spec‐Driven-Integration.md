@@ -38,10 +38,16 @@ A single specification can give rise to multiple integration variants, each opti
 
 SDI as a methodology is tool-agnostic, but it requires concrete artifacts to be effective: a specification format expressive enough to capture integration intent, and a runtime capable of executing that specification without translation.
 
-**The Capability Specification**  
-The natural SDI artifact is a *capability specification* — a declarative document that defines a bounded integration unit: what upstream APIs it consumes, how data is shaped and composed, what contract it exposes to downstream consumers, and under what conditions. A well-formed capability spec is self-contained and human-readable, without requiring knowledge of the underlying implementation.
+**The Capability as a Container for Business Value**  
+In SDI, a *capability* is more than an integration artifact — it is a container for business value. Each capability encapsulates three dimensions that together define a complete, self-contained unit of organizational worth:
 
-In practice, this means a structured YAML document that describes inputs, outputs, transformation logic, authentication, and protocol mappings in a single place. The spec *is* the integration — not a description of it.
+- **Business context** — the domain knowledge that gives the capability meaning: what upstream systems it connects to, what authentication and compliance boundaries apply, and what organizational constraints shape its behavior. Context answers *why this integration exists* and *under what conditions it operates*.
+- **Business function** — the concrete operations the capability performs: consuming upstream APIs, transforming and composing data, and exposing well-shaped contracts to downstream consumers. Function answers *what the integration does* — the inputs it accepts, the outputs it produces, and the logic that connects them.
+- **Business events** — the signals that trigger, inform, or result from the capability's execution: webhooks, state changes, notifications, and feedback loops that tie the capability into the broader operational landscape. Events answer *when the integration acts* and *what happens as a consequence*.
+
+A capability specification is the declarative document that captures all three dimensions in a single place. It is self-contained and human-readable, without requiring knowledge of the underlying implementation. In practice, this means a structured YAML document that describes domain context, operational functions, transformation logic, authentication, protocol mappings, and event flows. The spec *is* the integration — not a description of it.
+
+This framing matters because it aligns integration boundaries with business boundaries. When a capability maps to a recognizable unit of business value — not just an API endpoint or a data pipeline — it becomes something the organization can reason about, prioritize, and govern at the right level of abstraction.
 
 **The Capability Engine**  
 For specifications to be executable, a runtime must interpret them directly. Rather than generating code from a spec (which reintroduces drift), the engine reads the specification at runtime and handles all integration concerns: HTTP consumption, data transformation, format conversion, and exposure via REST or MCP interfaces.
