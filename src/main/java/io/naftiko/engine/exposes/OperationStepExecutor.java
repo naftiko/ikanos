@@ -64,10 +64,24 @@ public class OperationStepExecutor {
     private volatile String exposeNamespace;
 
     public OperationStepExecutor(Capability capability) {
-        this.capability = capability;
-        this.mapper = new ObjectMapper();
+        this(capability, null);
     }
 
+    public OperationStepExecutor(Capability capability, String exposeNamespace) {
+        this.capability = capability;
+        this.mapper = new ObjectMapper();
+        this.exposeNamespace = exposeNamespace;
+    }
+
+    /**
+     * Override the expose namespace after construction.
+     *
+     * <p>This setter exists for {@link io.naftiko.engine.aggregates.AggregateFunction}, which
+     * shares a single {@code OperationStepExecutor} across multiple aggregate functions that may
+     * belong to different namespaces. The function sets its own namespace before each execution.
+     * Handlers whose namespace is known at construction time should use
+     * {@link #OperationStepExecutor(Capability, String)} instead.</p>
+     */
     public void setExposeNamespace(String exposeNamespace) {
         this.exposeNamespace = exposeNamespace;
     }

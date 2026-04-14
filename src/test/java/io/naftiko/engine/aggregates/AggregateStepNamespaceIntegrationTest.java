@@ -13,9 +13,7 @@
  */
 package io.naftiko.engine.aggregates;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import java.util.HashMap;
@@ -26,6 +24,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.exposes.OperationStepExecutor;
+import io.naftiko.spec.AggregateSpec;
 import io.naftiko.spec.NaftikoSpec;
 
 /**
@@ -35,13 +35,16 @@ import io.naftiko.spec.NaftikoSpec;
  * {@code with: {voyage-id: shipyard.voyage-id}} and verifies that executing the function
  * resolves the namespace-qualified reference before building the HTTP request URL.
  *
+ * Uses a parameter-capturing executor to observe what parameters are passed to the consumed
+ * operation, independent of HTTP transport success/failure.
+ *
  * Before the fix: the aggregate namespace was not propagated to the step executor, so the
  * literal "shipyard.voyage-id" appeared in the URL instead of the resolved value.
  */
 public class AggregateStepNamespaceIntegrationTest {
 
     private Capability capability;
-    private AggregateFunction aggregateFunction;
+    private NaftikoSpec spec;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -51,56 +54,55 @@ public class AggregateStepNamespaceIntegrationTest {
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        NaftikoSpec spec = mapper.readValue(file, NaftikoSpec.class);
+        spec = mapper.readValue(file, NaftikoSpec.class);
         capability = new Capability(spec);
-
-        aggregateFunction = capability.lookupFunction("shipyard.get-voyage-manifest");
-        assertNotNull(aggregateFunction, "Aggregate function should be found");
     }
 
     /**
      * Execute the aggregate function and verify the step-level namespace-qualified reference
-     * resolves correctly. The consumed URL should contain the resolved voyage ID, not the
-     * literal "shipyard.voyage-id".
-     *
-     * The HTTP call to localhost:19999 will fail (no server), but the error message exposes
-     * the resolved URL — we can verify the parameter was resolved by catching the exception.
+     * resolves correctly. A CapturingStepExecutor captures the resolved parameters before the
+     * HTTP call, so the assertion does not depend on error message contents.
      */
     @Test
     void aggregateFunctionExecuteShouldResolveNamespaceQualifiedWithInSteps() {
+        CapturingStepExecutor executor = new CapturingStepExecutor(capability);
+
+        AggregateSpec aggregateSpec = spec.getCapability().getAggregates().get(0);
+        Aggregate aggregate = new Aggregate(aggregateSpec, executor);
+        AggregateFunction fn = aggregate.findFunction("get-voyage-manifest");
+        assertNotNull(fn, "Aggregate function should be found");
+
         Map<String, Object> params = new HashMap<>();
         params.put("voyage-id", "VOY-2026-042");
 
         try {
-            aggregateFunction.execute(params);
-        } catch (Exception e) {
-            // HTTP connection failure expected — no server on port 19999.
-            // The key check: verify the error does NOT contain the literal
-            // "shipyard.voyage-id" in the URL (which would mean it wasn't resolved).
-            String message = getFullMessage(e);
-
-            // If the namespace was resolved, the URL should contain "VOY-2026-042"
-            // If not resolved, it contains "shipyard.voyage-id" as a literal
-            assertTrue(
-                    message.contains("VOY-2026-042")
-                            || !message.contains("shipyard.voyage-id"),
-                    "Step-level 'with' should resolve namespace-qualified reference. "
-                            + "URL should contain 'VOY-2026-042', not 'shipyard.voyage-id'. "
-                            + "Error was: " + message);
-            return;
+            fn.execute(params);
+        } catch (Exception expected) {
+            // HTTP connection failure expected — no server on port 19999
         }
 
-        // If no exception, the HTTP call succeeded (unlikely without a server) — that's fine too
+        assertNotNull(executor.capturedParams,
+                "Parameters should have been captured before HTTP call");
+        assertEquals("VOY-2026-042", executor.capturedParams.get("voyage-id"),
+                "Namespace-qualified reference 'shipyard.voyage-id' should resolve to "
+                        + "the caller's argument, not be passed as literal");
     }
 
-    private String getFullMessage(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        while (t != null) {
-            if (t.getMessage() != null) {
-                sb.append(t.getMessage()).append(" ");
-            }
-            t = t.getCause();
+    /**
+     * Test-only subclass that captures parameters at the HTTP request construction point.
+     */
+    static class CapturingStepExecutor extends OperationStepExecutor {
+        Map<String, Object> capturedParams;
+
+        CapturingStepExecutor(Capability capability) {
+            super(capability);
         }
-        return sb.toString();
+
+        @Override
+        public HandlingContext findClientRequestFor(String clientNamespace, String clientOpName,
+                Map<String, Object> parameters) {
+            capturedParams = new HashMap<>(parameters);
+            return super.findClientRequestFor(clientNamespace, clientOpName, parameters);
+        }
     }
 }

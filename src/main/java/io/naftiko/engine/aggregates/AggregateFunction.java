@@ -116,9 +116,11 @@ public class AggregateFunction {
             return new FunctionResult(null, null, mockRoot);
         }
 
+        // Covers both orchestrated and simple-call paths
+        stepExecutor.setExposeNamespace(namespace);
+
         // Orchestrated mode
         if (isOrchestrated) {
-            stepExecutor.setExposeNamespace(namespace);
             OperationStepExecutor.StepExecutionResult stepResult =
                     stepExecutor.executeSteps(spec.getSteps(), merged);
 

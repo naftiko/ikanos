@@ -57,8 +57,7 @@ public class ResourceHandler {
             String namespace) {
         this.capability = capability;
         this.resourceSpecs = new ArrayList<>(resources);
-        this.stepExecutor = new OperationStepExecutor(capability);
-        this.stepExecutor.setExposeNamespace(namespace);
+        this.stepExecutor = new OperationStepExecutor(capability, namespace);
         this.namespace = namespace;
     }
 

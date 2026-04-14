@@ -52,8 +52,7 @@ public class ToolHandler {
             String exposeNamespace) {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
-        this.stepExecutor = new OperationStepExecutor(capability);
-        this.stepExecutor.setExposeNamespace(exposeNamespace);
+        this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);
         this.exposeNamespace = exposeNamespace;
 
         for (McpServerToolSpec tool : tools) {

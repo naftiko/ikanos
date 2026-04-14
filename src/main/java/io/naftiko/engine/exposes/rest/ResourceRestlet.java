@@ -54,8 +54,7 @@ public class ResourceRestlet extends Restlet {
         this.capability = capability;
         this.serverSpec = serverSpec;
         this.resourceSpec = resourceSpec;
-        this.stepExecutor = new OperationStepExecutor(capability);
-        this.stepExecutor.setExposeNamespace(serverSpec.getNamespace());
+        this.stepExecutor = new OperationStepExecutor(capability, serverSpec.getNamespace());
     }
 
     @Override
