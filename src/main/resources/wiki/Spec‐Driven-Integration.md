@@ -63,3 +63,15 @@ This cycle keeps the specification as the primary artifact throughout — ensuri
 SDI is particularly well-suited to the demands of AI-driven architectures. Context engineering — shaping, filtering, and composing data for AI model consumption — is fundamentally an integration problem. Agent orchestration surfaces, such as MCP servers and tool-based APIs, require exactly the kind of right-sized, semantically coherent integration boundaries that SDI is designed to produce.
 
 When specifications are the primary artifact, AI agents can reason about integrations, propose refinements, and validate consistency — treating the specification as a structured, inspectable contract rather than opaque runtime behavior.
+
+**A Deterministic Foundation for Agents**  
+AI agents are powerful reasoning engines, but they are non-deterministic by nature — their outputs vary across invocations, they can hallucinate plausible-but-wrong API contracts, and they have no built-in mechanism to guarantee that a tool call today behaves the same as it did yesterday. This is acceptable for generation tasks; it is unacceptable for integration, where correctness, repeatability, and auditability are non-negotiable.
+
+SDI addresses this by placing a deterministic layer beneath the agent. The capability specification defines — precisely and immutably for a given version — what data is consumed, how it is shaped, and what contract is exposed. The engine executes that specification without interpretation. There is no room for the runtime to invent a field, guess a mapping, or silently change a response shape. What the spec declares is what the agent receives.
+
+This deterministic foundation reduces two categories of risk that compound in agent-driven architectures:
+
+- **Drift risk**: When integration logic lives in code maintained by multiple teams — or worse, in prompts and agent memory — behavior drifts invisibly over time. SDI anchors integration behavior to a versioned, diffable artifact. If the spec has not changed, the integration has not changed. Drift becomes visible as a spec delta, not as a mysterious production incident.
+- **Hallucination risk**: Agents tasked with calling APIs or composing tool outputs can fabricate parameter names, assume response structures, or invent error-handling paths that do not exist. When integrations are mediated by a spec-driven engine, the agent operates against a declared contract — not against its own inference of what the API might return. The specification constrains the agent to reality.
+
+Together, these properties enable **operational governance of AI**: organizations can audit what an agent can access, review what transformations are applied, version-control every change, and enforce approval workflows — all through the specification. Governance shifts from monitoring opaque agent behavior after the fact to controlling the integration contracts agents depend on before deployment. The specification becomes the governance surface.
