@@ -1,4 +1,4 @@
-name: Synchronize Schema and Rules to Fabric
+name: Synchronize Schema and Rules to VsCode
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync-to-fabric:
+  sync-to-vscode:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout framework
@@ -19,27 +19,27 @@ jobs:
         with:
           path: framework
 
-      - name: Checkout fabric
+      - name: Checkout vscode
         uses: actions/checkout@v4
         with:
-          repository: naftiko/fabric
-          token: ${{ secrets.FABRIC_CONTENTS_WRITE_PR_WRITE }}
-          path: fabric
+          repository: naftiko/vscode
+          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
+          path: vscode
 
       - name: Copy schema and rules
         run: |
           cp framework/src/main/resources/schemas/naftiko-schema.json \
-             fabric/frontend/vscode-naftiko/src/resources/schemas/naftiko-schema.json
+             vscode/extensions/naftiko-vscode/src/resources/schemas/naftiko-schema.json
 
-          rm -rf fabric/frontend/vscode-naftiko/src/resources/rules/*
+          rm -rf vscode/extensions/naftiko-vscode/src/resources/rules/*
           cp -R framework/src/main/resources/rules/* \
-               fabric/frontend/vscode-naftiko/src/resources/rules/
+               vscode/extensions/naftiko-vscode/src/resources/rules/
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.FABRIC_CONTENTS_WRITE_PR_WRITE }}
-          path: fabric
+          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
+          path: vscode
           branch: chore/schema-and-rules
           commit-message: "chore: update schema and rules from framework"
           title: "chore: update schema and rules from framework"
