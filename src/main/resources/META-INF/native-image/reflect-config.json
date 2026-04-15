@@ -99,5 +99,35 @@
   {
     "name": "com.networknt.schema.PatternValidator",
     "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.swagger.v3.core.jackson.ModelResolver",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.core.jackson.SwaggerModule",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.OpenAPI",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.parser.OpenAPIV3Parser",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.parser.core.extensions.SwaggerParserExtension",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.parser.OpenAPIV3ParserExtension",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
   }
 ]

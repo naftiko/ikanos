@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import io.naftiko.spec.AggregateFunctionSpec;
+import io.naftiko.spec.aggregates.AggregateFunctionSpec;
 import io.naftiko.spec.OutputParameterSpec;
 
 /**

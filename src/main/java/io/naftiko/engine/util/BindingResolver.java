@@ -22,9 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.naftiko.spec.BindingSpec;
-import io.naftiko.spec.BindingKeysSpec;
-import io.naftiko.spec.ExecutionContext;
+import io.naftiko.spec.util.BindingSpec;
+import io.naftiko.spec.util.BindingKeysSpec;
+import io.naftiko.spec.util.ExecutionContext;
 
 /**
  * Resolver for bindings that supports both file-based and runtime-based injection. File-based

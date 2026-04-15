@@ -11,21 +11,20 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.spec;
+package io.naftiko.cli;
 
-/**
- * Provides runtime variables for external reference resolution.
- * Implementations can source variables from environment variables, secrets managers,
- * or other context stores.
- */
-public interface ExecutionContext {
+import picocli.CommandLine.Command;
 
-    /**
-     * Retrieves a variable value from the execution context.
-     * 
-     * @param key The variable key to look up
-     * @return The variable value, or null if not found
-     */
-    String getVariable(String key);
+@Command(
+    name = "import",
+    mixinStandardHelpOptions = true,
+    description = "Import external specifications into Naftiko format.",
+    subcommands = {ImportOpenApiCommand.class}
+)
+public class ImportCommand implements Runnable {
 
+    @Override
+    public void run() {
+        System.out.println("Use 'naftiko import --help' for available options");
+    }
 }
