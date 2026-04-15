@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.naftiko.spec.consumes.ClientSpec;
+import io.naftiko.spec.util.BindingSpec;
 
 /**
  * Naftiko Specification Root, including version and capabilities

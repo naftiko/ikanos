@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.spec;
+package io.naftiko.spec.aggregates;
 
 /**
  * Transport-neutral behavioral metadata for an invocable unit. Used for design-time tooling and

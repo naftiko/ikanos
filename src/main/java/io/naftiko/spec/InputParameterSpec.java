@@ -15,6 +15,7 @@ package io.naftiko.spec;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.naftiko.spec.util.StructureSpec;
 
 /**
  * Input Parameter Specification Element

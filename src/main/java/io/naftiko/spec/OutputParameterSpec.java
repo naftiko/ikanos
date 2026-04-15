@@ -16,6 +16,7 @@ package io.naftiko.spec;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.naftiko.spec.util.StructureSpec;
 
 /**
  * Output Parameter Specification Element

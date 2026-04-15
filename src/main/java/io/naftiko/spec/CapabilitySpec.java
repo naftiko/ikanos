@@ -16,8 +16,10 @@ package io.naftiko.spec;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.naftiko.spec.aggregates.AggregateSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.exposes.ServerSpec;
+import io.naftiko.spec.util.BindingSpec;
 
 /**
  * Capability Specification Element

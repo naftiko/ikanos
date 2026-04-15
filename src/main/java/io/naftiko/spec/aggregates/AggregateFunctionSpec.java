@@ -11,7 +11,10 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.spec;
+package io.naftiko.spec.aggregates;
+
+import io.naftiko.spec.InputParameterSpec;
+import io.naftiko.spec.OutputParameterSpec;
 
 import java.util.List;
 import java.util.Map;

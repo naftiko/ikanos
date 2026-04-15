@@ -17,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.naftiko.spec.util.BindingKeysSpec;
+import io.naftiko.spec.util.BindingSpec;
 
 public class BindingSpecTest {
 

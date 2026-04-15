@@ -25,7 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.OperationStepExecutor;
-import io.naftiko.spec.AggregateSpec;
+import io.naftiko.spec.aggregates.AggregateSpec;
 import io.naftiko.spec.NaftikoSpec;
 
 /**

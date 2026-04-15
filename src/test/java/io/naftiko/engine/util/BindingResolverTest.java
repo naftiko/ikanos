@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import io.naftiko.spec.BindingSpec;
-import io.naftiko.spec.BindingKeysSpec;
-import io.naftiko.spec.ExecutionContext;
+import io.naftiko.spec.util.BindingSpec;
+import io.naftiko.spec.util.BindingKeysSpec;
+import io.naftiko.spec.util.ExecutionContext;
 
 public class BindingResolverTest {
 
