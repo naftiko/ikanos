@@ -307,7 +307,6 @@ public class OAuth2AuthenticationRestlet extends Restlet {
                 initialized = true;
             } catch (Exception e) {
                 Context.getCurrentLogger().log(Level.WARNING, "AS metadata discovery failed", e);
-                initialized = true;
             }
         }
     }
