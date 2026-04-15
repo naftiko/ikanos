@@ -40,6 +40,7 @@ jobs:
         with:
           token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
           path: vscode
+          base: main
           branch: chore/schema-and-rules
           commit-message: "chore: update schema and rules from framework"
           title: "chore: update schema and rules from framework"
