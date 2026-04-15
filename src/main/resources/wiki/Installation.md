@@ -136,3 +136,44 @@ naftiko validate path_to_your_capability_file 0.5
 The result will tell you if the file is valid or if there are any errors.
 
 > **💡 Tip:** For inline validation as you type, install the free [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code). It validates both JSON Schema structure and Spectral rules directly in your editor.
+
+### Import an OpenAPI specification
+Bootstrap a Naftiko `consumes` adapter from an existing OpenAPI 3.0 or 3.1 document:
+```bash
+naftiko import openapi path_to_openapi_file
+# You can also use aliases like:
+naftiko im oas path_to_openapi_file
+naftiko i oas path_to_openapi_file
+```
+By default, the generated capability is written to `./capability.yaml`. Use `-o` to choose a different output path and `-f` to select the output format:
+```bash
+# Import and write to a custom path as YAML
+naftiko import openapi petstore.yaml -o my-petstore-capability.yaml
+
+# Import and write as JSON
+naftiko import openapi petstore.yaml -f json -o my-petstore-capability.json
+```
+The importer maps OAS authentication schemes (bearer, basic, API key, digest) to Naftiko `authentication` blocks, derives a namespace from the API title, and converts operations into `consumes` resources.
+
+### Export a REST adapter as an OpenAPI specification
+Generate an OpenAPI document from an existing Naftiko capability's REST adapter:
+```bash
+naftiko export openapi path_to_capability_file
+# You can also use aliases like:
+naftiko ex oas path_to_capability_file
+naftiko e oas path_to_capability_file
+```
+By default, the OpenAPI document is written to `./openapi.yaml` in OAS 3.0 format. Use `--spec-version` to produce OAS 3.1, `-o` for a custom output path, and `-f` for JSON output:
+```bash
+# Export as OAS 3.1 YAML
+naftiko export openapi capability.yaml --spec-version 3.1
+
+# Export as OAS 3.0 JSON
+naftiko export openapi capability.yaml -f json -o api-spec.json
+```
+If the capability has multiple REST adapters, use `--adapter` (or `-a`) to select a specific namespace:
+```bash
+# Export only the "public-api" REST adapter
+naftiko export openapi capability.yaml -a public-api
+```
+When `--adapter` is omitted, the first REST adapter found is exported.

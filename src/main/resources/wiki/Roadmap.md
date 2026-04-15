@@ -13,9 +13,9 @@ The goal of this version is to solidify the MVP to enable common AI integration 
 
 ### Enable API reusability
   - [x] Add HTML and Markdown data format support for HTTP consumption
-  - [ ] Add interoperability with OpenAPI Specification
-    - [ ] Import OAS into an HTTP "consumes" adapter
-    - [ ] Export OAS from a REST "exposes" adapter
+  - [x] Add interoperability with OpenAPI Specification
+    - [x] Import OAS into an HTTP "consumes" adapter
+    - [x] Export OAS from a REST "exposes" adapter
 
 ### Core developer experience
 - [x] Factorize capability core with functions initially, entities and events later

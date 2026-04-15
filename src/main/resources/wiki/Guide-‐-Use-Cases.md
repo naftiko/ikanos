@@ -211,3 +211,28 @@ How Naftiko achieves this technically:
   - [x] JSON, XML, form URL encoded, multipart form
 - [x] Incremental adapter addition (REST, MCP, or Skill)
   - [x] Skill server exposure with agent-compatible metadata
+
+## 10. Interoperate with OpenAPI
+
+Bridge existing OpenAPI ecosystems with Naftiko capabilities: import OAS documents to bootstrap consumption adapters, and export REST adapters as standard OpenAPI specifications.
+
+How Naftiko achieves this technically:
+- Import an OpenAPI 3.0 or 3.1 document with `naftiko import openapi`, generating a ready-to-use `consumes` HTTP adapter with authentication, operations, input parameters, and output parameters pre-filled.
+- Export a REST `exposes` adapter with `naftiko export openapi`, producing a standards-compliant OAS document that can be shared with API gateways, developer portals, and documentation tools.
+- Use `--adapter <namespace>` to target a specific REST adapter when the capability exposes more than one.
+
+#### Key features
+- [x] OpenAPI import into Naftiko `consumes` adapter
+  - [x] OAS 3.0 and 3.1 support
+  - [x] Authentication mapping (bearer, basic, API key, digest)
+  - [x] Automatic namespace derivation from API title
+  - [x] Operation grouping by tag into separate resources
+  - [x] Input parameter conversion (query, header, path, cookie, body)
+  - [x] Output parameter conversion (object, array, scalar, allOf, oneOf)
+- [x] OpenAPI export from Naftiko REST `exposes` adapter
+  - [x] OAS 3.0 and 3.1 output via `--spec-version`
+  - [x] YAML and JSON output formats
+  - [x] Multi-adapter selection with `--adapter`
+  - [x] Security scheme generation from consumed authentication
+- [x] Round-trip fidelity
+  - [x] Import → export preserves structure and semantics

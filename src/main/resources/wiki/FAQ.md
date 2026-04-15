@@ -311,7 +311,37 @@ Mappings tell Naftiko how to wire step outputs to your final response.
 
 ---
 
-## 🗝️ Authentication & Security
+## � OpenAPI Interoperability
+
+### Q: Can I bootstrap a capability from an existing OpenAPI specification?
+**A:** Yes. Use the CLI import command:
+```bash
+naftiko import openapi petstore.yaml
+naftiko import openapi petstore.yaml -o my-capability.yaml
+```
+This parses an OAS 3.0 or 3.1 document and generates a Naftiko capability YAML with a pre-filled `consumes` HTTP adapter — including authentication, resources, operations, input parameters, and output parameters.
+
+### Q: Can I export my REST adapter as an OpenAPI document?
+**A:** Yes. Use the CLI export command:
+```bash
+naftiko export openapi capability.yaml
+naftiko export openapi capability.yaml --spec-version 3.1 -f json
+```
+This reads a Naftiko capability and generates an OpenAPI document from its REST `exposes` adapter.
+
+### Q: Which OpenAPI versions are supported?
+**A:** OAS **3.0** and **3.1** are fully supported for both import and export. OAS 3.2 support is deferred until the upstream Java libraries (`swagger-parser`, `swagger-core`) add it.
+
+### Q: What if my capability has multiple REST adapters?
+**A:** Use the `--adapter` option to target a specific namespace:
+```bash
+naftiko export openapi capability.yaml --adapter public-api
+```
+When omitted, the first REST adapter found is exported.
+
+---
+
+## �🗝️ Authentication & Security
 
 ### Q: How do I authenticate to external APIs?
 **A:** Add an `authentication` block to your `consumes` section:
