@@ -60,7 +60,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private static final ChallengeScheme BEARER_SCHEME =
-            new ChallengeScheme("HTTP_Bearer", "Bearer");
+            ChallengeScheme.HTTP_OAUTH_BEARER;
 
     static final long JWKS_CACHE_TTL_MS = 5 * 60 * 1000L;
     static final long JWKS_MIN_REFRESH_MS = 30 * 1000L;
