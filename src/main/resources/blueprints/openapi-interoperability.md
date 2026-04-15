@@ -143,6 +143,7 @@ This section defines the canonical mapping between OAS 3.1 structures and Naftik
 | `requestBody.content["application/json"].schema` | `operation.body` or `inputParameters` with `in: body` | Import creates body parameters from schema properties |
 | `requestBody.required` | — (body presence implies required) | |
 | `requestBody.content["application/xml"]` | `outputRawFormat: xml` | Sets format accordingly |
+| `requestBody.content["multipart/form-data"]` | `operation.body` · `inputParameters` with `in: body` (per form field) | Import creates one body parameter per top-level schema property. File uploads map to parameters with `type: file` (or `type: string` · `format: binary` until a dedicated file type exists). See §4.2 (Conversion Rules) for content-type-specific handling. |
 
 ### 3.5 Response & Output Parameter Mapping
 
@@ -224,6 +225,11 @@ This section defines the canonical mapping between OAS 3.1 structures and Naftik
 **Authentication mapping:**
 - First matching `securitySchemes` entry is mapped (single auth per consumed adapter)
 - Unsupported types (`oauth2`, `openIdConnect`) emit a YAML comment: `# TODO: oauth2 authentication not yet supported — configure manually`
+
+**Binds / secret injection:**
+- OAS import does **not** auto-generate `binds` entries. OpenAPI documents describe *protocol + contract* and typically cannot (and should not) declare credential sources.
+- Instead, the importer leaves credential values blank/placeholder and expects the user to wire them via `binds` (e.g., `token: "NOTION_TOKEN"`, `X-API-Key: "API_KEY"`).
+- Future enhancement: optional heuristics to propose `binds` keys based on detected auth schemes / common header names, behind a flag (e.g., `--emit-binds`).
 
 ### 4.3 Output Format
 
@@ -360,11 +366,12 @@ consumes:
 - Content type: `application/json` (default)
 
 **Responses (from `outputParameters`):**
-- `200` response with `application/json` content
+- `2XX` success response with `application/json` content (covers `200`, `201`, etc.)
 - Schema built from `outputParameters` tree:
   - Each `MappedOutputParameter` or `OrchestratedOutputParameter` becomes a schema property
   - `type: object` with nested `outputParameters` → nested `properties`
   - `type: array` with `items` → `array` schema with `items`
+- If there are no output parameters, emit `204` (no content) for success where appropriate
 - Error responses: `400` (validation), `500` (internal) with generic schemas
 
 **Security (from `authentication`):**
@@ -861,6 +868,30 @@ spec:
         title: "feat: add ${{ parameters.capabilityName }} capability"
         branchName: feat/${{ parameters.capabilityName }}
 ```
+
+### 8.2.1 Consuming multiple catalog APIs into one capability (no OpenAPI merge)
+
+This proposal can support bootstrapping a single capability that **consumes multiple external REST APIs** sourced from the Backstage catalog.
+
+**Principle:** Do **not** merge OpenAPI documents. Instead, import each selected API into its **own** standalone Naftiko `consumes` HTTP adapter YAML (one file per API), and let the capability orchestrate across them as needed.
+
+Two implementation options are supported:
+
+1. **Multiple steps (no new Naftiko CLI surface)**
+   - In the Scaffolder template, allow selecting multiple Backstage `API` entities.
+   - For each selected API: fetch its OAS definition, then run `naftiko import openapi` to generate a distinct consumes file (e.g., `<api-namespace>-consumes.yml`).
+   - The capability skeleton references/includes all generated consumes files.
+
+2. **Batch import action (Backstage-only convenience)**
+   - Extend the Backstage action to accept `sources: string[]` (or `apiEntityRefs: string[]`) and return `files: string[]`.
+   - Internally, the action loops and invokes the existing CLI once per source.
+   - No change is required to the Naftiko CLI; it remains `naftiko import openapi <source>`.
+
+**Notes / constraints:**
+
+- Each imported API retains its own `baseUri`, `authentication`, and namespace.
+- Name collisions are avoided by keeping each API in its own consumes adapter namespace.
+- This feature is intentionally separate from any future "merge multiple OpenAPI specs" functionality, which is out of scope.
 
 ### 8.3 Catalog Processor: `NaftikoOpenApiProcessor`
 
