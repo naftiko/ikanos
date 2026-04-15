@@ -157,6 +157,7 @@ public abstract class ServerAdapter extends Adapter {
                 ? ChallengeScheme.HTTP_DIGEST
                 : ChallengeScheme.HTTP_BASIC;
 
+        Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
         ChallengeAuthenticator authenticator =
                 new ChallengeAuthenticator(next.getContext(), false, scheme, "naftiko");
         authenticator.setVerifier(new SecretVerifier() {
@@ -167,11 +168,11 @@ public abstract class ServerAdapter extends Adapter {
                 char[] expectedPassword = null;
 
                 if (authentication instanceof BasicAuthenticationSpec basic) {
-                    expectedUsername = resolveTemplate(basic.getUsername());
-                    expectedPassword = resolveTemplateChars(basic.getPassword());
+                    expectedUsername = resolveTemplate(basic.getUsername(), allowedVariables);
+                    expectedPassword = resolveTemplateChars(basic.getPassword(), allowedVariables);
                 } else if (authentication instanceof DigestAuthenticationSpec digest) {
-                    expectedUsername = resolveTemplate(digest.getUsername());
-                    expectedPassword = resolveTemplateChars(digest.getPassword());
+                    expectedUsername = resolveTemplate(digest.getUsername(), allowedVariables);
+                    expectedPassword = resolveTemplateChars(digest.getPassword(), allowedVariables);
                 }
 
                 if (expectedUsername == null || expectedPassword == null || identifier == null
@@ -190,13 +191,12 @@ public abstract class ServerAdapter extends Adapter {
         return authenticator;
     }
 
-    private static String resolveTemplate(String value) {
+    private static String resolveTemplate(String value, Set<String> allowedVariables) {
         if (value == null) {
             return null;
         }
         Map<String, Object> env = new HashMap<>();
         if (value.contains("{{") && value.contains("}}")) {
-            Set<String> allowedVariables = extractAllowedVariables(null);
             for (String varName : allowedVariables) {
                 String varValue = System.getenv(varName);
                 if (varValue != null) {
@@ -207,11 +207,11 @@ public abstract class ServerAdapter extends Adapter {
         return Resolver.resolveMustacheTemplate(value, env);
     }
 
-    private static char[] resolveTemplateChars(char[] value) {
+    private static char[] resolveTemplateChars(char[] value, Set<String> allowedVariables) {
         if (value == null) {
             return null;
         }
-        String resolved = resolveTemplate(new String(value));
+        String resolved = resolveTemplate(new String(value), allowedVariables);
         return resolved == null ? null : resolved.toCharArray();
     }
 
