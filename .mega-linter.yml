@@ -10,4 +10,4 @@ POST_COMMANDS:
 
 YAML_V8R_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
 YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/naftiko-schema.json"
-YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock)"
+YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|src/test/resources/openapi/)"
