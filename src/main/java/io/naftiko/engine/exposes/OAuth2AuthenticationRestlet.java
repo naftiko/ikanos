@@ -268,22 +268,35 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         response.getChallengeRequests().add(cr);
     }
 
+    private String escapeBearerChallengeParamValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", " ")
+                .replace("\n", " ");
+    }
+
     protected String buildBearerChallengeParams(String error, String description, String scope) {
         StringBuilder sb = new StringBuilder();
         boolean hasParams = false;
 
         if (error != null) {
-            sb.append("error=\"").append(error).append("\"");
+            sb.append("error=\"").append(escapeBearerChallengeParamValue(error)).append("\"");
             hasParams = true;
         }
         if (description != null) {
             sb.append(hasParams ? ", " : "");
-            sb.append("error_description=\"").append(description).append("\"");
+            sb.append("error_description=\"")
+                    .append(escapeBearerChallengeParamValue(description))
+                    .append("\"");
             hasParams = true;
         }
         if (scope != null) {
             sb.append(hasParams ? ", " : "");
-            sb.append("scope=\"").append(scope).append("\"");
+            sb.append("scope=\"").append(escapeBearerChallengeParamValue(scope)).append("\"");
         }
 
         return sb.toString();
