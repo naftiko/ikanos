@@ -60,13 +60,14 @@ public class OasImportConverter {
 
         HttpClientSpec httpClient = new HttpClientSpec(namespace, baseUri, authentication);
 
-        Map<String, List<OperationEntry>> grouped = groupOperationsByTag(openApi, warnings);
+        Map<String, List<OperationEntry>> grouped = groupOperationsByPath(openApi, warnings);
         for (Map.Entry<String, List<OperationEntry>> entry : grouped.entrySet()) {
-            String tag = entry.getKey();
+            String path = entry.getKey();
             List<OperationEntry> ops = entry.getValue();
 
             HttpClientResourceSpec resource = new HttpClientResourceSpec();
-            resource.setName(tag);
+            resource.setPath(path.replaceAll("\\{([^}]+)}", "{{$1}}"));
+            resource.setName(deriveResourceName(path));
 
             List<HttpClientOperationSpec> operations = new ArrayList<>();
             for (OperationEntry opEntry : ops) {
@@ -76,11 +77,6 @@ public class OasImportConverter {
                 operations.add(opSpec);
             }
             resource.setOperations(operations);
-
-            // Derive path from the first operation's path
-            if (!ops.isEmpty()) {
-                resource.setPath(ops.get(0).path);
-            }
 
             httpClient.getResources().add(resource);
         }
@@ -166,7 +162,7 @@ public class OasImportConverter {
         }
     }
 
-    Map<String, List<OperationEntry>> groupOperationsByTag(OpenAPI openApi, List<String> warnings) {
+    Map<String, List<OperationEntry>> groupOperationsByPath(OpenAPI openApi, List<String> warnings) {
         Map<String, List<OperationEntry>> grouped = new LinkedHashMap<>();
 
         if (openApi.getPaths() == null) {
@@ -177,41 +173,36 @@ public class OasImportConverter {
             String path = pathEntry.getKey();
             PathItem pathItem = pathEntry.getValue();
 
-            addOperation(grouped, path, "GET", pathItem.getGet(), warnings);
-            addOperation(grouped, path, "POST", pathItem.getPost(), warnings);
-            addOperation(grouped, path, "PUT", pathItem.getPut(), warnings);
-            addOperation(grouped, path, "DELETE", pathItem.getDelete(), warnings);
-            addOperation(grouped, path, "PATCH", pathItem.getPatch(), warnings);
-            addOperation(grouped, path, "HEAD", pathItem.getHead(), warnings);
-            addOperation(grouped, path, "OPTIONS", pathItem.getOptions(), warnings);
+            addOperation(grouped, path, "GET", pathItem.getGet());
+            addOperation(grouped, path, "POST", pathItem.getPost());
+            addOperation(grouped, path, "PUT", pathItem.getPut());
+            addOperation(grouped, path, "DELETE", pathItem.getDelete());
+            addOperation(grouped, path, "PATCH", pathItem.getPatch());
+            addOperation(grouped, path, "HEAD", pathItem.getHead());
+            addOperation(grouped, path, "OPTIONS", pathItem.getOptions());
         }
 
         return grouped;
     }
 
     private void addOperation(Map<String, List<OperationEntry>> grouped,
-            String path, String method, Operation operation, List<String> warnings) {
+            String path, String method, Operation operation) {
         if (operation == null) {
             return;
         }
 
-        String tag = deriveTag(path, operation);
-        grouped.computeIfAbsent(tag, k -> new ArrayList<>())
+        grouped.computeIfAbsent(path, k -> new ArrayList<>())
                 .add(new OperationEntry(path, method, operation));
     }
 
-    private String deriveTag(String path, Operation operation) {
-        if (operation.getTags() != null && !operation.getTags().isEmpty()) {
-            return toKebabCase(operation.getTags().get(0));
+    String deriveResourceName(String path) {
+        // Use the path template without parameter placeholders as resource name
+        String slug = toKebabCase(path.replaceAll("[{}]", ""));
+        // Remove leading hyphen from the leading slash
+        if (slug.startsWith("-")) {
+            slug = slug.substring(1);
         }
-        // Fallback: first path segment
-        String[] segments = path.split("/");
-        for (String segment : segments) {
-            if (!segment.isEmpty() && !segment.startsWith("{")) {
-                return toKebabCase(segment);
-            }
-        }
-        return "default";
+        return slug.isEmpty() ? "root" : slug;
     }
 
     HttpClientOperationSpec convertOperation(

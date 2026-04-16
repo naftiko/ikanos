@@ -130,7 +130,7 @@ public class OasImportConverterTest {
     // ── Resource grouping ──
 
     @Test
-    void convertShouldGroupOperationsByTag() {
+    void convertShouldGroupOperationsByPath() {
         OpenAPI openApi = minimalOpenApi("Test");
         Paths paths = new Paths();
 
@@ -145,13 +145,17 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        assertEquals(2, result.getHttpClient().getResources().size());
+        assertEquals(3, result.getHttpClient().getResources().size());
+        assertEquals("/pets", result.getHttpClient().getResources().get(0).getPath());
         assertEquals("pets", result.getHttpClient().getResources().get(0).getName());
-        assertEquals("stores", result.getHttpClient().getResources().get(1).getName());
+        assertEquals("/pets/{{petId}}", result.getHttpClient().getResources().get(1).getPath());
+        assertEquals("pets-pet-id", result.getHttpClient().getResources().get(1).getName());
+        assertEquals("/stores", result.getHttpClient().getResources().get(2).getPath());
+        assertEquals("stores", result.getHttpClient().getResources().get(2).getName());
     }
 
     @Test
-    void convertShouldFallbackToPathSegmentWhenNoTag() {
+    void convertShouldDeriveResourceNameFromPath() {
         OpenAPI openApi = minimalOpenApi("Test");
         Paths paths = new Paths();
         paths.addPathItem("/users/{id}", pathItem("GET",
@@ -161,7 +165,8 @@ public class OasImportConverterTest {
         OasImportResult result = converter.convert(openApi);
 
         assertEquals(1, result.getHttpClient().getResources().size());
-        assertEquals("users", result.getHttpClient().getResources().get(0).getName());
+        assertEquals("users-id", result.getHttpClient().getResources().get(0).getName());
+        assertEquals("/users/{{id}}", result.getHttpClient().getResources().get(0).getPath());
     }
 
     // ── Operation name derivation ──

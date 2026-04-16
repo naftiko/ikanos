@@ -165,8 +165,10 @@ public class OasExportBuilder {
         for (RestServerResourceSpec resource : restServer.getResources()) {
             String basePath = resource.getPath();
             if (basePath == null) {
-                basePath = "/" + resource.getName();
+            basePath = "/" + resource.getName();
             }
+            // Convert Mustache segments {{var}} to OpenAPI format {var}
+            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
 
             for (RestServerOperationSpec opSpec : resource.getOperations()) {
                 Operation operation = buildOperation(resource, opSpec);

@@ -69,13 +69,20 @@ public class OasExportIntegrationTest {
     @Test
     void exportedOpenApiShouldBeReparsable() throws Exception {
         File capFile = findCapabilityFixture();
-        if (capFile == null) {
-            return;
+        NaftikoSpec spec;
+        
+        if (capFile != null) {
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            spec = yamlMapper.readValue(capFile, NaftikoSpec.class);
+        } else {
+            spec = new NaftikoSpec();
+            spec.setNaftiko("1.0.0-alpha1");
+            spec.setInfo(new InfoSpec("Test API", null, null, null));
+            CapabilitySpec capability = new CapabilitySpec();
+            capability.getExposes().add(new RestServerSpec("localhost", 8080, null));
+            spec.setCapability(capability);
         }
-
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        NaftikoSpec spec = yamlMapper.readValue(capFile, NaftikoSpec.class);
 
         OasExportResult result = builder.build(spec, null);
 

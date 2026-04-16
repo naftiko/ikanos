@@ -52,14 +52,14 @@ public class OasImportIntegrationTest {
         assertEquals("https://petstore.swagger.io/v1", httpClient.getBaseUri());
         assertFalse(httpClient.getResources().isEmpty());
 
-        // Should have a Pets resource
+        // Should have a /pets resource
         HttpClientResourceSpec petsResource = httpClient.getResources().stream()
-                .filter(r -> "pets".equals(r.getName()))
+                .filter(r -> "/pets".equals(r.getPath()))
                 .findFirst().orElse(null);
-        assertNotNull(petsResource, "Expected a 'pets' resource");
+        assertNotNull(petsResource, "Expected a '/pets' resource");
 
-        // Should have listPets, createPet, showPetById, deletePet
-        assertEquals(4, petsResource.getOperations().size());
+        // /pets should have listPets and createPet
+        assertEquals(2, petsResource.getOperations().size());
 
         // listPets should have a 'limit' query parameter
         HttpClientOperationSpec listPets = petsResource.getOperations().stream()
@@ -158,14 +158,14 @@ public class OasImportIntegrationTest {
         // Bearer auth should be mapped
         assertInstanceOf(BearerAuthenticationSpec.class, httpClient.getAuthentication());
 
-        // Should have Pets resource
+        // Should have /pets resource
         HttpClientResourceSpec petsResource = httpClient.getResources().stream()
-                .filter(r -> "pets".equals(r.getName()))
+                .filter(r -> "/pets".equals(r.getPath()))
                 .findFirst().orElse(null);
-        assertNotNull(petsResource, "Expected a 'pets' resource");
+        assertNotNull(petsResource, "Expected a '/pets' resource");
 
-        // Should have all 4 operations
-        assertEquals(4, petsResource.getOperations().size());
+        // /pets should have listPets and createPet
+        assertEquals(2, petsResource.getOperations().size());
 
         // listPets should have a nullable status query parameter resolved to string type
         HttpClientOperationSpec listPets = petsResource.getOperations().stream()

@@ -17,8 +17,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import io.swagger.v3.core.util.Json;
+import io.swagger.v3.core.util.Json31;
 import io.swagger.v3.core.util.Yaml;
+import io.swagger.v3.core.util.Yaml31;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.SpecVersion;
 
 /**
  * Serializes an OpenAPI POJO to YAML or JSON on disk.
@@ -29,7 +32,9 @@ public class OasYamlWriter {
      * Write the OpenAPI document as YAML.
      */
     public void writeYaml(OpenAPI openApi, Path outputPath) throws IOException {
-        String yaml = Yaml.pretty(openApi);
+        String yaml = openApi.getSpecVersion() == SpecVersion.V31
+                ? Yaml31.pretty(openApi)
+                : Yaml.pretty(openApi);
         Files.writeString(outputPath, yaml);
     }
 
@@ -37,7 +42,9 @@ public class OasYamlWriter {
      * Write the OpenAPI document as JSON.
      */
     public void writeJson(OpenAPI openApi, Path outputPath) throws IOException {
-        String json = Json.pretty(openApi);
+        String json = openApi.getSpecVersion() == SpecVersion.V31
+                ? Json31.pretty(openApi)
+                : Json.pretty(openApi);
         Files.writeString(outputPath, json);
     }
 
