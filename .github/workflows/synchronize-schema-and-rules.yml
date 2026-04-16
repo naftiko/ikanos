@@ -1,4 +1,4 @@
-name: Synchronize Schema and Rules to VsCode
+name: Synchronize Schema and Rules
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Synchronize schema and rules to vscode repository.
   sync-to-vscode:
     runs-on: ubuntu-latest
     steps:
@@ -50,4 +51,41 @@ jobs:
             Updated files:
             - `naftiko-schema.json`
             - `rules/*`
+          delete-branch: true
+
+  # Synchronize schema to schema-viewer repository.
+  sync-to-schema-viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout framework
+        uses: actions/checkout@v4
+        with:
+          path: framework
+
+      - name: Checkout schema-viewer
+        uses: actions/checkout@v4
+        with:
+          repository: naftiko/schema-viewer
+          token: ${{ secrets.SCHEMA_VIEWER_CONTENTS_WRITE_PR_WRITE }}
+          path: schema-viewer
+
+      - name: Copy schema
+        run: |
+          cp framework/src/main/resources/schemas/naftiko-schema.json \
+             schema-viewer/src/schemas/naftiko-schema.json
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.SCHEMA_VIEWER_CONTENTS_WRITE_PR_WRITE }}
+          path: schema-viewer
+          base: main
+          branch: chore/schema
+          commit-message: "chore: update schema from framework"
+          title: "chore: update schema from framework"
+          body: |
+            Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+
+            Updated files:
+            - `naftiko-schema.json`
           delete-branch: true
