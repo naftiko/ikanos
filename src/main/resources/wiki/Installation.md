@@ -148,13 +148,7 @@ naftiko i oas path_to_openapi_file
 By default, the generated capability is written to `./<namespace>-consumes.yml`. Use `-o` to choose a different output path:
 ```bash
 # Import with custom output path
-naftiko import openapi petstore.yaml -o my-petstore-consumes.yaml
-```
-# Import and write to a custom path as YAML
 naftiko import openapi petstore.yaml -o my-petstore-capability.yaml
-
-# Import and write as JSON
-naftiko import openapi petstore.yaml -f json -o my-petstore-capability.json
 ```
 The importer maps OAS authentication schemes (bearer, basic, API key, digest) to Naftiko `authentication` blocks, derives a namespace from the API title, and converts operations into `consumes` resources.
 

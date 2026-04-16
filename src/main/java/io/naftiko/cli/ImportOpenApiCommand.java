@@ -15,6 +15,7 @@ package io.naftiko.cli;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -23,9 +24,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.openapi.OasImportConverter;
 import io.naftiko.spec.openapi.OasImportResult;
+import io.naftiko.util.VersionHelper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -35,7 +38,7 @@ import picocli.CommandLine.Parameters;
     mixinStandardHelpOptions = true,
     description = "Import an OpenAPI specification into a Naftiko consumes YAML file."
 )
-public class ImportOpenApiCommand implements Runnable {
+public class ImportOpenApiCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Path or URL to the OpenAPI specification file")
     private String source;
@@ -46,8 +49,11 @@ public class ImportOpenApiCommand implements Runnable {
     @Option(names = {"-n", "--namespace"}, description = "Override the derived namespace")
     private String namespace;
 
+    @Option(names = {"-f", "--format"}, description = "Output format: yaml or json (default: yaml)")
+    private String format = "yaml";
+
     @Override
-    public void run() {
+    public Integer call() {
         try {
             // Parse the OpenAPI document
             SwaggerParseResult parseResult = new OpenAPIV3Parser().readLocation(source, null, null);
@@ -59,8 +65,7 @@ public class ImportOpenApiCommand implements Runnable {
                         System.err.println("  " + msg);
                     }
                 }
-                System.exit(1);
-                return;
+                return 1;
             }
 
             OpenAPI openApi = parseResult.getOpenAPI();
@@ -97,15 +102,21 @@ public class ImportOpenApiCommand implements Runnable {
             yamlMapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_EMPTY);
             yamlMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
+            // Wrap in a NaftikoSpec document
+            NaftikoSpec spec = new NaftikoSpec();
+            spec.setNaftiko(VersionHelper.getSchemaVersion());
+            spec.getConsumes().add(httpClient);
+
             Path path = Paths.get(outputPath);
-            yamlMapper.writeValue(path.toFile(), httpClient);
+            yamlMapper.writeValue(path.toFile(), spec);
 
             System.out.println("✓ Imported OpenAPI specification successfully");
             System.out.println("  Output: " + path.toAbsolutePath());
+            return 0;
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(1);
+            return 1;
         }
     }
 }
