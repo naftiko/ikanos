@@ -45,6 +45,7 @@ import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.BasicAuthenticationSpec;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;
+import io.naftiko.spec.consumes.DigestAuthenticationSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 
 
@@ -444,6 +445,28 @@ public class OasImportConverterTest {
         OasImportResult result = converter.convert(openApi);
 
         assertInstanceOf(BasicAuthenticationSpec.class, result.getHttpClient().getAuthentication());
+    }
+
+    @Test
+    void convertShouldMapDigestAuthentication() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setPaths(new Paths());
+        Components components = new Components();
+        SecurityScheme scheme = new SecurityScheme()
+                .type(SecurityScheme.Type.HTTP)
+                .scheme("digest");
+        components.addSecuritySchemes("digestAuth", scheme);
+        openApi.setComponents(components);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertInstanceOf(DigestAuthenticationSpec.class, result.getHttpClient().getAuthentication());
+        DigestAuthenticationSpec digest =
+                (DigestAuthenticationSpec) result.getHttpClient().getAuthentication();
+        assertEquals("{{USERNAME}}", digest.getUsername());
+        assertEquals("{{PASSWORD}}", new String(digest.getPassword()));
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("Digest authentication mapped")));
     }
 
     @Test

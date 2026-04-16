@@ -311,7 +311,7 @@ Mappings tell Naftiko how to wire step outputs to your final response.
 
 ---
 
-## � OpenAPI Interoperability
+## 🔄 OpenAPI Interoperability
 
 ### Q: Can I bootstrap a capability from an existing OpenAPI specification?
 **A:** Yes. Use the CLI import command:
@@ -341,7 +341,7 @@ When omitted, the first REST adapter found is exported.
 
 ---
 
-## �🗝️ Authentication & Security
+## 🗝️ Authentication & Security
 
 ### Q: How do I authenticate to external APIs?
 **A:** Add an `authentication` block to your `consumes` section:

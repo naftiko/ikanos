@@ -65,9 +65,20 @@ public class ExportOpenApiCommand implements Runnable {
             yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             NaftikoSpec naftikoSpec = yamlMapper.readValue(capabilityFile, NaftikoSpec.class);
 
+            // Validate and parse spec version
+            SpecVersion specVersion;
+            if ("3.1".equals(specVersionOption)) {
+                specVersion = SpecVersion.V31;
+            } else if ("3.0".equals(specVersionOption)) {
+                specVersion = SpecVersion.V30;
+            } else {
+                System.err.println("Error: Unsupported spec version '" + specVersionOption + "'. Supported versions: 3.0, 3.1");
+                System.exit(1);
+                return;
+            }
+
             // Build the OpenAPI document
             OasExportBuilder builder = new OasExportBuilder();
-            SpecVersion specVersion = "3.1".equals(specVersionOption) ? SpecVersion.V31 : SpecVersion.V30;
             OasExportResult result = builder.build(naftikoSpec, adapter, specVersion);
 
             // Print warnings to stderr

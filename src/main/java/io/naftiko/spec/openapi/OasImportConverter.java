@@ -33,6 +33,7 @@ import io.naftiko.spec.consumes.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.AuthenticationSpec;
 import io.naftiko.spec.consumes.BasicAuthenticationSpec;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;
+import io.naftiko.spec.consumes.DigestAuthenticationSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.consumes.HttpClientResourceSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
@@ -76,7 +77,7 @@ public class OasImportConverter {
             }
             resource.setOperations(operations);
 
-            // Derive path from the first operation's path, stripping to the first segment
+            // Derive path from the first operation's path
             if (!ops.isEmpty()) {
                 resource.setPath(ops.get(0).path);
             }
@@ -138,8 +139,11 @@ public class OasImportConverter {
                     bearer.setToken("{{BEARER_TOKEN}}");
                     return bearer;
                 } else if ("digest".equalsIgnoreCase(scheme.getScheme())) {
+                    DigestAuthenticationSpec digest = new DigestAuthenticationSpec();
+                    digest.setUsername("{{USERNAME}}");
+                    digest.setPassword("{{PASSWORD}}".toCharArray());
                     warnings.add("Digest authentication mapped; credentials must be configured via binds");
-                    return null;
+                    return digest;
                 } else {
                     // basic
                     BasicAuthenticationSpec basic = new BasicAuthenticationSpec();

@@ -145,8 +145,11 @@ naftiko import openapi path_to_openapi_file
 naftiko im oas path_to_openapi_file
 naftiko i oas path_to_openapi_file
 ```
-By default, the generated capability is written to `./capability.yaml`. Use `-o` to choose a different output path and `-f` to select the output format:
+By default, the generated capability is written to `./<namespace>-consumes.yml`. Use `-o` to choose a different output path:
 ```bash
+# Import with custom output path
+naftiko import openapi petstore.yaml -o my-petstore-consumes.yaml
+```
 # Import and write to a custom path as YAML
 naftiko import openapi petstore.yaml -o my-petstore-capability.yaml
 

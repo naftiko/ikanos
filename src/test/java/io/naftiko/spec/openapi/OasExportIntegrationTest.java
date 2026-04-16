@@ -22,7 +22,10 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.naftiko.spec.CapabilitySpec;
+import io.naftiko.spec.InfoSpec;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.exposes.RestServerSpec;
 
 /**
  * Integration tests: load Naftiko capability YAMLs, export to OAS, and validate.
@@ -38,20 +41,27 @@ public class OasExportIntegrationTest {
 
     @Test
     void exportShouldProduceValidOpenApiFromCapabilityYaml() throws Exception {
-        // Load a capability from the tutorial resources
         File capFile = findCapabilityFixture();
-        if (capFile == null) {
-            // If no fixture available, use a programmatic spec
-            return;
+        
+        NaftikoSpec spec;
+        if (capFile != null) {
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            spec = yamlMapper.readValue(capFile, NaftikoSpec.class);
+        } else {
+            // Build minimal spec programmatically as fallback
+            spec = new NaftikoSpec();
+            spec.setNaftiko("1.0.0-alpha1");
+            spec.setInfo(new InfoSpec("Test API", null, null, null));
+            CapabilitySpec capability = new CapabilitySpec();
+            capability.getExposes().add(new RestServerSpec("localhost", 8080, null));
+            spec.setCapability(capability);
         }
-
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        NaftikoSpec spec = yamlMapper.readValue(capFile, NaftikoSpec.class);
 
         OasExportResult result = builder.build(spec, null);
 
         OpenAPI openApi = result.getOpenApi();
+        assertNotNull(openApi);
         assertNotNull(openApi.getInfo());
         assertNotNull(openApi.getInfo().getTitle());
     }
