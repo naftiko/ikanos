@@ -322,8 +322,9 @@ public class OasImportConverter {
             InputParameterSpec param = new InputParameterSpec();
             param.setName("body");
             param.setIn("body");
-            if (schema.getType() != null) {
-                param.setType(mapSchemaType(resolveSchemaType(schema)));
+            String resolvedType = resolveSchemaType(schema);
+            if (resolvedType != null) {
+                param.setType(mapSchemaType(resolvedType));
             }
             param.setRequired(requestBody.getRequired() != null && requestBody.getRequired());
             params.add(param);
