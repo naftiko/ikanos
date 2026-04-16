@@ -276,9 +276,10 @@ public class OasImportConverter {
         if (param.getDescription() != null) {
             spec.setDescription(param.getDescription());
         }
-        if (param.getRequired() != null) {
-            spec.setRequired(param.getRequired());
-        }
+        boolean required = param.getRequired() != null
+                ? param.getRequired()
+                : "path".equals(param.getIn());
+        spec.setRequired(required);
         return spec;
     }
 
