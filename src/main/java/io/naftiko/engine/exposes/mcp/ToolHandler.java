@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
@@ -42,7 +41,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class ToolHandler {
 
-    private static final Logger logger = Context.getCurrentLogger();
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
     private final OperationStepExecutor stepExecutor;
@@ -154,7 +152,7 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            logger.warning("Error during HTTP client call for tool '" + toolName + "': " + e);
+            Context.getCurrentLogger().warning("Error during HTTP client call for tool '" + toolName + "': " + e);
             return new McpSchema.CallToolResult(
                     List.of(new McpSchema.TextContent(
                             "Error during HTTP client call: " + e.getMessage())),
@@ -193,7 +191,7 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            logger.warning("Error during aggregate function call for tool '" + toolName + "': "
+            Context.getCurrentLogger().warning("Error during aggregate function call for tool '" + toolName + "': "
                     + e);
             return new McpSchema.CallToolResult(
                     List.of(new McpSchema.TextContent(

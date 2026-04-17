@@ -47,6 +47,8 @@ public class TelemetryBootstrap {
     public static final AttributeKey<Long> ATTR_HTTP_STATUS_CODE = AttributeKey.longKey("http.status_code");
     public static final AttributeKey<String> ATTR_AGGREGATE_REF = AttributeKey.stringKey("naftiko.aggregate.ref");
 
+    private static final TelemetryBootstrap NOOP = new TelemetryBootstrap(OpenTelemetry.noop());
+
     private static volatile TelemetryBootstrap instance;
 
     private final OpenTelemetry openTelemetry;
@@ -74,7 +76,11 @@ public class TelemetryBootstrap {
             instance = new TelemetryBootstrap(buildAutoConfigured(serviceName));
         } catch (ClassNotFoundException e) {
             logger.info("OpenTelemetry SDK not on classpath — telemetry disabled");
-            instance = new TelemetryBootstrap(OpenTelemetry.noop());
+            instance = NOOP;
+        } catch (LinkageError | RuntimeException e) {
+            logger.warning("OpenTelemetry SDK initialization failed \u2014 telemetry disabled: "
+                    + e.getMessage());
+            instance = NOOP;
         }
         return instance;
     }
@@ -107,10 +113,7 @@ public class TelemetryBootstrap {
      */
     public static TelemetryBootstrap get() {
         TelemetryBootstrap current = instance;
-        if (current != null) {
-            return current;
-        }
-        return new TelemetryBootstrap(OpenTelemetry.noop());
+        return current != null ? current : NOOP;
     }
 
     /**

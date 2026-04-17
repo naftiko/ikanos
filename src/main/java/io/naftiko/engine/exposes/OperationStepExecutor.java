@@ -740,11 +740,7 @@ public class OperationStepExecutor {
         public Response clientResponse;
 
         public void handle() {
-            // Inject W3C trace context into outbound request headers
             TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-            telemetry.getOpenTelemetry().getPropagators().getTextMapPropagator()
-                    .inject(io.opentelemetry.context.Context.current(), clientRequest,
-                            RestletHeaderSetter.INSTANCE);
 
             String method = clientRequest.getMethod() != null
                     ? clientRequest.getMethod().getName() : "UNKNOWN";
@@ -753,6 +749,12 @@ public class OperationStepExecutor {
 
             Span span = telemetry.startClientSpan(method, url);
             try (Scope scope = span.makeCurrent()) {
+                // Inject W3C trace context after the client span is current
+                // so downstream services see this span as the parent
+                telemetry.getOpenTelemetry().getPropagators().getTextMapPropagator()
+                        .inject(io.opentelemetry.context.Context.current(), clientRequest,
+                                RestletHeaderSetter.INSTANCE);
+
                 clientAdapter.getHttpClient().handle(clientRequest, clientResponse);
 
                 if (clientResponse != null && clientResponse.getStatus() != null) {
