@@ -18,6 +18,7 @@ binds:
     keys:
       REGISTRY_TOKEN: "registry-bearer-token"
       REGISTRY_VERSION: "registry-api-version"
+      MCP_SERVER_TOKEN: "mcp-server-token"
   - namespace: "dockyard-env"
     description: "Legacy Dockyard API credentials."
     location: "file:///./shared/secrets.yaml"
@@ -27,7 +28,7 @@ binds:
 capability:
   consumes:
     - import: registry
-      location: ./shared/step10-registry-consumes.yml
+      location: ./shared/step11-registry-consumes.yml
     - import: legacy
       location: ./shared/legacy-consumes.yaml
 
@@ -36,6 +37,9 @@ capability:
       address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
       port: 3001
       namespace: shipyard-tools
+      authentication:
+        type: bearer
+        token: "{{MCP_SERVER_TOKEN}}"
       description: "Shipyard MCP tools for fleet management"
       tools:
         - name: list-ships
@@ -78,7 +82,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: "{{imo}}"
+            imo_number: shipyard-tools.imo
           outputParameters:
             - type: object
               properties:
@@ -180,6 +184,11 @@ capability:
             arrivalDate: shipyard-tools.arrivalDate
             crewIds: shipyard-tools.crewIds
             cargoIds: shipyard-tools.cargoIds
+          hints:
+            readOnly: false
+            destructive: false
+            idempotent: false
+            openWorld: true
           outputParameters:
             - type: object
               properties:
@@ -301,7 +310,7 @@ capability:
               type: call
               call: registry.get-voyage
               with:
-                voyageId: shipyard-tools.voyageId
+                voyageId: "{{voyageId}}"
             - name: list-ships
               type: call
               call: registry.list-ships
@@ -474,7 +483,7 @@ capability:
                           type: string
                           mapping: "$.operational_status"
         - name: ship-by-imo
-          path: "/ships/{imo}"
+          path: "/ships/{{imo}}"
           operations:
             - name: get-ship
               method: GET
@@ -485,7 +494,7 @@ capability:
                   description: "IMO number of the ship"
               call: registry.get-ship
               with:
-                imo_number: "{{imo}}"
+                imo_number: shipyard-api.imo
               outputParameters:
                 - type: object
                   properties:
@@ -517,7 +526,7 @@ capability:
                           type: number
                           mapping: "$.dimensions.length_overall"
         - name: ship-crew
-          path: "/ships/{imo}/crew"
+          path: "/ships/{{imo}}/crew"
           operations:
             - name: get-ship-with-crew
               method: GET
@@ -706,7 +715,7 @@ capability:
                       type: string
                       mapping: "$.status"
         - name: voyage-manifest
-          path: "/voyages/{voyageId}/manifest"
+          path: "/voyages/{{voyageId}}/manifest"
           operations:
             - name: get-voyage-manifest
               method: GET
@@ -720,7 +729,7 @@ capability:
                   type: call
                   call: registry.get-voyage
                   with:
-                    voyageId: shipyard-api.voyageId
+                    voyageId: "{{voyageId}}"
                 - name: list-ships
                   type: call
                   call: registry.list-ships

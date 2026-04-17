@@ -1140,6 +1140,23 @@
           "required": [
             "ref"
           ]
+        },
+        {
+          "required": [
+            "name",
+            "description",
+            "outputParameters"
+          ],
+          "type": "object",
+          "properties": {
+            "outputParameters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MockOutputParameter"
+              },
+              "minItems": 1
+            }
+          }
         }
       ],
       "additionalProperties": false
