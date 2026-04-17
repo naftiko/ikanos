@@ -8,6 +8,7 @@ binds:
     keys:
       REGISTRY_TOKEN: "registry-bearer-token"
       REGISTRY_VERSION: "registry-api-version"
+      MCP_SERVER_TOKEN: "mcp-server-token"
   - namespace: "dockyard-env"
     description: "Legacy Dockyard API credentials."
     location: "file:///./shared/secrets.yaml"
@@ -26,6 +27,9 @@ capability:
       address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
       port: 3001
       namespace: shipyard-tools
+      authentication:
+        type: bearer
+        token: "{{MCP_SERVER_TOKEN}}"
       description: "Shipyard MCP tools for fleet management"
       tools:
         - name: list-ships
@@ -68,7 +72,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: "{{imo}}"
+            imo_number: shipyard-tools.imo
           outputParameters:
             - type: object
               properties:
@@ -162,6 +166,11 @@ capability:
               required: false
               description: "List of cargo item IDs (optional)"
           call: registry.create-voyage
+          hints:
+            readOnly: false
+            destructive: false
+            idempotent: false
+            openWorld: true
           with:
             shipImo: shipyard-tools.shipImo
             departurePort: shipyard-tools.departurePort

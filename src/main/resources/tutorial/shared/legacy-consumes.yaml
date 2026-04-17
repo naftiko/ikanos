@@ -2,7 +2,7 @@ naftiko: "1.0.0-alpha2"
 consumes:
   - namespace: legacy
     type: http
-    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1"
+    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2"
     authentication:
       type: apikey
       key: X-Dock-Key
@@ -14,6 +14,7 @@ consumes:
         operations:
           - name: list-vessels
             method: GET
+            outputRawFormat: xml
             inputParameters:
               - name: status
                 in: query
