@@ -296,7 +296,7 @@ public class OasImportConverter {
         if ("object".equals(resolveSchemaType(schema)) && schema.getProperties() != null) {
             for (Map.Entry<String, Schema> prop : schema.getProperties().entrySet()) {
                 InputParameterSpec param = new InputParameterSpec();
-                param.setName(toKebabCase(prop.getKey()));
+                param.setName(prop.getKey());
                 param.setIn("body");
                 if (resolveSchemaType(prop.getValue()) != null) {
                     param.setType(mapSchemaType(resolveSchemaType(prop.getValue())));

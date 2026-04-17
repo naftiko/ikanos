@@ -17,6 +17,7 @@ import picocli.CommandLine.Command;
 
 import java.io.IOException;
 import java.util.Scanner;
+import java.util.concurrent.Callable;
 
 import io.naftiko.cli.enums.FileFormat;
 
@@ -26,19 +27,17 @@ import io.naftiko.cli.enums.FileFormat;
     aliases = {"cap"},
     description = "Create a new capability configuration file"
 )
-public class CreateCapabilityCommand implements Runnable {
+public class CreateCapabilityCommand implements Callable<Integer> {
     
     @Override
-    public void run() {
-        try {
-            Scanner scanner = new Scanner(System.in);
-            
+    public Integer call() {
+        try (Scanner scanner = new Scanner(System.in)) {
             // Capability name.
             System.out.print("Type your capability name: ");
             String capabilityName = scanner.nextLine().trim();
             if (capabilityName.isEmpty()) {
                 System.err.println("Error: capability name cannot be empty");
-                System.exit(1);
+                return 1;
             }
 
             // Base URI.
@@ -46,7 +45,7 @@ public class CreateCapabilityCommand implements Runnable {
             String baseUri = scanner.nextLine().trim();
             if (baseUri.isEmpty()) {
                 System.err.println("Error: targetUri cannot be empty");
-                System.exit(1);
+                return 1;
             }
 
             // Port.
@@ -54,16 +53,16 @@ public class CreateCapabilityCommand implements Runnable {
             String port = scanner.nextLine().trim();
             if (port.isEmpty()) {
                 System.err.println("Error: port cannot be empty");
-                System.exit(1);
+                return 1;
             }
             
             System.out.println("Creating capability: " + capabilityName + " " + FileFormat.YAML + " " + baseUri + " " + port);
             FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML, baseUri, port);
             
-            scanner.close();
+            return 0;
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(1);
+            return 1;
         }
     }
 
