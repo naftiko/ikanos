@@ -39,7 +39,7 @@ Add OpenTelemetry (OTel) instrumentation to the Naftiko engine, covering the thr
 2. **Metrics** — RED metrics (Rate, Errors, Duration) for server adapters, step execution, and HTTP client calls, exposed via Prometheus scrape endpoint and OTLP push.
 3. **Logs** — Structured logging through SLF4J, correlated with trace IDs for end-to-end debugging.
 
-The primary backends are **Prometheus** (scrape-based metrics) and **Datadog** (traces + metrics via OTLP ingestion). A single OTel SDK covers both — no vendor-specific SDKs required.
+**Prometheus alone is not enough** for this initiative: it is excellent for scrape-based metrics, but it does not model the per-request lifecycle (end-to-end span context, parent/child causality, and cross-service correlation). **OpenTelemetry fills that gap** by instrumenting the full request lifecycle (tracing) and providing **context propagation** (W3C `traceparent`) across adapter → steps → consumed HTTP calls. From there, we can export **metrics to Prometheus** (scrape) and **traces + metrics to Datadog** (OTLP ingestion) using a single OTel SDK — no vendor-specific SDKs required.
 
 ### Why This Fits Naftiko
 
@@ -57,11 +57,13 @@ This proposal fills that gap while preserving Naftiko's zero-code philosophy: ob
 | Benefit | Impact |
 |---|---|
 | **End-to-end tracing** | Debug request flow from adapter → steps → consumed API in Datadog APM or Jaeger |
+| **Trace tree continuity (W3C context)** | For HTTP transports, extracting/injecting `traceparent` lets Naftiko **continue the caller's trace tree** and correlate with downstream services (not possible with Prometheus alone) |
 | **RED metrics** | Rate, error count, and duration histograms for SRE dashboards and alerting |
 | **Log-trace correlation** | Every log entry carries a trace ID — jump from log to trace in one click |
 | **Zero-code instrumentation** | Existing capabilities gain observability without YAML changes |
 | **Dual backend** | Single OTel SDK feeds both Prometheus and Datadog |
 | **Context propagation** | W3C `traceparent` injected into outgoing HTTP calls — correlate with downstream services |
+| **Clear stdio limitation** | For MCP stdio, there's no header/metadata carrier for parent extraction, so each tool call starts a **new root span** (new trace) — documented and explicit |
 
 ### Risk Assessment
 
@@ -81,10 +83,13 @@ This proposal fills that gap while preserving Naftiko's zero-code philosophy: ob
 
 1. Route all Restlet, Jetty, and application logs through SLF4J using Restlet's `org.restlet.ext.slf4j` extension — zero changes to existing `Context.getCurrentLogger()` call sites.
 2. Instrument the request lifecycle with OTel spans: server adapter → orchestration steps → HTTP client calls.
-3. Propagate W3C `traceparent`/`tracestate` context through outgoing HTTP calls to consumed APIs.
-4. Expose RED metrics via a Prometheus-compatible scrape endpoint and OTLP push to Datadog.
-5. Support zero-config operation via OTel environment variables (`OTEL_EXPORTER_*`) for containerized deployments.
-6. Optionally allow capability authors to tune observability settings in YAML.
+3. For HTTP transports (REST + MCP over HTTP), **propagate W3C trace context end-to-end**:
+    - Extract inbound `traceparent`/`tracestate` from request headers (so Naftiko continues the caller's trace tree)
+    - Inject outbound `traceparent`/`tracestate` into HTTP calls to consumed APIs (so downstream services can join the same trace)
+4. For MCP stdio transport, start a **new root span** per tool call (no header/metadata carrier available for parent extraction) and document the limitation.
+5. Expose RED metrics via a Prometheus-compatible scrape endpoint and OTLP push to Datadog.
+6. Support zero-config operation via OTel environment variables (`OTEL_EXPORTER_*`) for containerized deployments.
+7. Optionally allow capability authors to tune observability settings in YAML.
 
 ### Non-Goals (This Proposal)
 
@@ -360,11 +365,13 @@ rest.request [SERVER]
 
 ### Context Propagation
 
+**Why it matters:** Context propagation is what turns a set of spans into a *single trace tree* across process boundaries. Without propagation, every inbound request would look like an unrelated root trace, making end-to-end debugging and cross-service correlation impossible.
+
 | Direction | Mechanism | Transport |
 |---|---|---|
-| **Inbound** (server adapters) | Extract W3C `traceparent`/`tracestate` from HTTP headers | REST (via Restlet `Request`), MCP HTTP (via Jetty `HttpServletRequest`) |
-| **Outbound** (HTTP client) | Inject `traceparent` into outgoing requests | `HttpClientAdapter` headers — links Naftiko trace to downstream API traces |
-| **MCP stdio** | No HTTP headers available | Start a new root span — document limitation |
+| **Inbound** (server adapters) | Extract W3C `traceparent`/`tracestate` from HTTP headers — preserves the upstream parent span so Naftiko can attach its spans into the caller's trace tree | REST (via Restlet `Request`), MCP HTTP (via Jetty `HttpServletRequest`) |
+| **Outbound** (HTTP client) | Inject `traceparent` into outgoing requests — links Naftiko's CLIENT spans to downstream service traces | `HttpClientAdapter` headers — links Naftiko trace to downstream API traces |
+| **MCP stdio** | No standardized request metadata / headers to extract. We cannot reliably recover an upstream parent span context, so we cannot "continue" an existing trace tree. | Start a new root span per tool call (new trace) and document the limitation. If/when MCP defines (or we adopt) a trace-context carrier in message metadata, we can revisit and support parent extraction. |
 
 Inbound extraction at REST adapter:
 
@@ -383,6 +390,62 @@ openTelemetry.getPropagators()
     .getTextMapPropagator()
     .inject(Context.current(), clientRequest, restletHeaderSetter);
 ```
+
+### Quick win: return trace identifiers in HTTP responses
+
+For all HTTP-based server adapters (REST and MCP over HTTP), we should add the active trace identifiers to **response headers**. This is a low-effort, high-value feature: it lets callers immediately copy/paste a trace ID into Datadog/Jaeger/Grafana Tempo to find the corresponding trace, even if they do not have full client-side tracing.
+
+**Proposed headers:**
+
+- `traceparent`: the W3C trace-context header for the *current* span context (preferred — standard)
+- `x-naftiko-trace-id`: a convenience header containing just the trace ID (optional)
+
+**Notes:**
+
+- For HTTP requests that already provided inbound `traceparent`, returning it (or the updated value for the active span) makes correlation trivial.
+- For MCP stdio, there is no response header concept, so this does not apply.
+
+**Example (conceptual):**
+
+```java
+Span span = Span.current();
+String traceId = span.getSpanContext().getTraceId();
+// 1) Convenience header
+response.getHeaders().add("x-naftiko-trace-id", traceId);
+// 2) Standard header (inject into the response headers)
+openTelemetry.getPropagators()
+    .getTextMapPropagator()
+    .inject(Context.current(), response, responseHeaderSetter);
+```
+
+### Async and multithreaded execution (context handoff)
+
+The OTel **current context is thread-local** (`Context.current()`). If request handling, step execution, or HTTP calls hop threads (e.g., `ExecutorService`, `CompletableFuture`, Jetty async), spans will **detach** and traces will fragment into multiple roots unless we explicitly carry the context across thread boundaries.
+
+**Rules:**
+
+- Capture the parent `Context` at request entry (after header extraction + SERVER span start).
+- When scheduling async work, **wrap** the runnable/callable with the captured context (or manually reattach with `makeCurrent()`), so child spans remain parented correctly.
+- Prefer storing the captured request context in a transport-scoped container:
+    - REST: Restlet `Request.getAttributes()`
+    - MCP HTTP: servlet request attributes
+    - MCP stdio: in the tool-call execution object / handler state (since there are no headers)
+
+**Example (ExecutorService):**
+
+```java
+Context ctx = Context.current();
+executor.submit(ctx.wrap(() -> {
+    Span span = tracer.spanBuilder("step.call").startSpan();
+    try (Scope scope = span.makeCurrent()) {
+        // ... work
+    } finally {
+        span.end();
+    }
+}));
+```
+
+**Failure mode if ignored:** traces will exist, but the span tree breaks as soon as work continues on a different thread; downstream `traceparent` injection may no longer match the intended parent.
 
 ### Error Recording
 
@@ -404,6 +467,15 @@ Existing `catch` blocks in `ResourceRestlet`, `ToolHandler`, and `ProtocolDispat
 ### Prometheus `/metrics` Endpoint
 
 - `opentelemetry-exporter-prometheus` spins up a lightweight HTTP server
+
+**What "exporter" means here:** Prometheus can only scrape metrics that are exposed in the **Prometheus text exposition format** (the `/metrics` format it understands). The OpenTelemetry SDK records metrics using OTel's internal data model; the **Prometheus exporter** is the component that:
+
+- Collects those OTel metrics from the SDK's `Meter`
+- Translates them into Prometheus' exposition format (names, labels, types)
+- Exposes them over HTTP at `/metrics`, so Prometheus can **pull** (scrape) them on an interval
+
+Without this exporter, Prometheus has nothing to scrape — the service may be recording metrics internally, but they are not available in a Prometheus-compatible format/endpoint.
+
 - Binds to a separate configurable port (default `9464`) — isolated from adapter traffic
 - Prometheus scrapes this endpoint at its configured interval
 
@@ -833,6 +905,34 @@ All tests use OTel's `InMemorySpanExporter` and `InMemoryMetricReader` — no ex
 
 ## Risks and Mitigations
 
+### Privacy / GDPR (PII filtering)
+
+Yes — this proposal should explicitly include a mechanism to **avoid exporting personal data** (or to redact it) in traces, logs, and (less commonly) metrics.
+
+**Principles:**
+
+- **No request/response bodies in telemetry by default.** Never add HTTP payloads as span attributes or logs automatically.
+- **Minimize attributes:** prefer *structural* attributes (operation id, step index/type, status code, duration) over user-provided values.
+- **Treat all inbound headers and query parameters as untrusted** (may include emails, tokens, names).
+
+**Concrete mechanisms to add:**
+
+1. **Attribute allowlist + denylist**
+    - Default allowlist of safe attributes (e.g., `http.method`, `http.route`, `http.status_code`, `naftiko.operation.id`, `naftiko.step.index`).
+    - Denylist for common sensitive keys (`authorization`, `cookie`, `set-cookie`, `x-api-key`, `token`, `password`, `email`, etc.).
+    - Configurable via env vars / YAML, e.g. `observability.privacy.attributes.allow` and `observability.privacy.attributes.deny`.
+2. **Redaction / hashing helpers**
+    - When we must include an identifier for correlation, prefer **hashing** (stable, non-reversible) over raw values.
+    - Example: `naftiko.user.id_hash = sha256(userId + salt)` rather than `user.id`.
+3. **OTel Collector processors (recommended deployment option)**
+    - Document using collector-side processors to enforce policy centrally before data reaches Datadog/Prometheus.
+    - Typical choices: `attributes` processor (delete/insert), `transform` processor (rewrite), and routing rules.
+4. **Log filtering**
+    - Ensure our logback pattern/layout never automatically logs request headers/bodies.
+    - If we add structured request logging later, it must go through the same allowlist/denylist + redaction layer.
+
+**Non-goal:** fully automatic PII detection (regex/ML) — can be added later, but is risky for false negatives. Prefer deterministic policy (allowlist/denylist) plus collector enforcement.
+
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | **OTel SDK jar size** (~6.4 MB total) | Medium | Low | Acceptable for a server-side framework; optional Maven profile if native binary size is a concern |
@@ -857,32 +957,32 @@ All tests use OTel's `InMemorySpanExporter` and `InMemoryMetricReader` — no ex
 
 ### Phase 1
 
-6. Every server adapter request produces a `SERVER` span with correct attributes.
-7. Every orchestration step produces an `INTERNAL` span as a child of the request span.
-8. Every HTTP client call produces a `CLIENT` span as a child of the step span.
-9. Outgoing HTTP requests carry `traceparent` header.
-10. Inbound `traceparent` headers are extracted and used as parent context.
-11. Failed operations set `StatusCode.ERROR` and record exceptions on spans.
-12. Log entries carry `trace_id` and `span_id` via MDC.
-13. All tests pass with `InMemorySpanExporter`.
+1. Every server adapter request produces a `SERVER` span with correct attributes.
+2. Every orchestration step produces an `INTERNAL` span as a child of the request span.
+3. Every HTTP client call produces a `CLIENT` span as a child of the step span.
+4. Outgoing HTTP requests carry `traceparent` header.
+5. Inbound `traceparent` headers are extracted and used as parent context.
+6. Failed operations set `StatusCode.ERROR` and record exceptions on spans.
+7. Log entries carry `trace_id` and `span_id` via MDC.
+8. All tests pass with `InMemorySpanExporter`.
 
 ### Phase 2
 
-14. Prometheus `/metrics` endpoint serves all defined metrics.
-15. Metrics are recorded with correct labels on every request.
-16. OTLP push exports metrics to configured endpoint.
-17. `naftiko.capability.active` increments on start and decrements on stop.
+1. Prometheus `/metrics` endpoint serves all defined metrics.
+2. Metrics are recorded with correct labels on every request.
+3. OTLP push exports metrics to configured endpoint.
+4. `naftiko.capability.active` increments on start and decrements on stop.
 
 ### Phase 3
 
-18. `observability` YAML block is accepted and deserialized correctly.
-19. `observability.enabled: false` disables all telemetry (no SDK init).
-20. `observability.traces.sampling` controls the sampling rate.
-21. `observability.exporters.otlp.endpoint` supports Mustache expressions for binds.
-22. Absent `observability` block defaults to OTel env var configuration.
+1. `observability` YAML block is accepted and deserialized correctly.
+2. `observability.enabled: false` disables all telemetry (no SDK init).
+3. `observability.traces.sampling` controls the sampling rate.
+4. `observability.exporters.otlp.endpoint` supports Mustache expressions for binds.
+5. Absent `observability` block defaults to OTel env var configuration.
 
 ### Phase 4
 
-23. Grafana dashboard displays all Naftiko RED metrics correctly.
-24. Docker Compose dev stack starts Prometheus + Grafana + OTel Collector.
-25. Alerting rules fire on simulated high error rate.
+1. Grafana dashboard displays all Naftiko RED metrics correctly.
+2. Docker Compose dev stack starts Prometheus + Grafana + OTel Collector.
+3. Alerting rules fire on simulated high error rate.
