@@ -1,11 +1,27 @@
 ---
 naftiko: "1.0.0-alpha2"
 
+binds:
+  - namespace: "registry-env"
+    description: "Maritime Registry API credentials and config."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      REGISTRY_TOKEN: "registry-bearer-token"
+      REGISTRY_VERSION: "registry-api-version"
+      MCP_SERVER_TOKEN: "mcp-server-token"
+
 capability:
   consumes:
     - namespace: registry
       type: http
-      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
+      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+      authentication:
+        type: bearer
+        token: "{{REGISTRY_TOKEN}}"
+      inputParameters:
+        - name: Registry-Version
+          in: header
+          value: "{{REGISTRY_VERSION}}"
       resources:
         - name: ships
           path: "/ships"
@@ -29,6 +45,9 @@ capability:
       address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
       port: 3001
       namespace: shipyard-tools
+      authentication:
+        type: bearer
+        token: "{{MCP_SERVER_TOKEN}}"
       description: "Shipyard MCP tools for fleet management"
       tools:
         - name: list-ships
@@ -40,7 +59,7 @@ capability:
               description: "Filter by operational status"
           call: registry.list-ships
           with:
-            status: "{{status}}"
+            status: shipyard-tools.status
           outputParameters:
             - type: array
               mapping: "$."
@@ -71,7 +90,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: "{{imo}}"
+            imo_number: shipyard-tools.imo
           outputParameters:
             - type: object
               properties:

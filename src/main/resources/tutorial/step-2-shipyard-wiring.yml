@@ -1,26 +1,11 @@
 ---
 naftiko: "1.0.0-alpha2"
 
-binds:
-  - namespace: "registry-env"
-    description: "Maritime Registry API credentials and config."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      REGISTRY_TOKEN: "registry-bearer-token"
-      REGISTRY_VERSION: "registry-api-version"
-
 capability:
   consumes:
     - namespace: registry
       type: http
-      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1"
-      authentication:
-        type: bearer
-        token: "{{REGISTRY_TOKEN}}"
-      inputParameters:
-        - name: Registry-Version
-          in: header
-          value: "{{REGISTRY_VERSION}}"
+      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
       resources:
         - name: ships
           path: "/ships"
@@ -55,7 +40,7 @@ capability:
               description: "Filter by operational status"
           call: registry.list-ships
           with:
-            status: "{{status}}"
+            status: shipyard-tools.status
           outputParameters:
             - type: array
               mapping: "$."
@@ -86,7 +71,7 @@ capability:
               description: "IMO number of the ship"
           call: registry.get-ship
           with:
-            imo_number: "{{imo}}"
+            imo_number: shipyard-tools.imo
           outputParameters:
             - type: object
               properties:
