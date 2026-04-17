@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import org.restlet.Context;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.naftiko.Capability;
@@ -43,7 +44,7 @@ import io.naftiko.spec.exposes.McpServerResourceSpec;
  */
 public class ResourceHandler {
 
-    private static final Logger logger = Logger.getLogger(ResourceHandler.class.getName());
+    private static final Logger logger = Context.getCurrentLogger();
 
     /** Allowed path segment characters — no {@code ..}, no special characters. */
     private static final Pattern SAFE_SEGMENT = Pattern.compile("^[a-zA-Z0-9._-]+$");

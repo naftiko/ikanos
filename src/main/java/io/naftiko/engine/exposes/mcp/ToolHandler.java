@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.naftiko.Capability;
 import io.naftiko.engine.aggregates.AggregateFunction;
@@ -38,7 +39,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class ToolHandler {
 
-    private static final Logger logger = Logger.getLogger(ToolHandler.class.getName());
+    private static final Logger logger = Context.getCurrentLogger();
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
     private final OperationStepExecutor stepExecutor;

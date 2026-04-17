@@ -42,6 +42,7 @@ import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
@@ -211,6 +212,12 @@ public class Capability {
      * @param args The optional part and name of the capability configuration file.
      */
     public static void main(String[] args) {
+        // Route Restlet logging through SLF4J before any context is created
+        System.setProperty("org.restlet.engine.loggerFacadeClass",
+                "org.restlet.ext.slf4j.Slf4jLoggerFacade");
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
+
         // Determine file path: Argument if provided, otherwise default
         String filePath = (args.length > 0) ? args[0] : "naftiko.yaml";
 
