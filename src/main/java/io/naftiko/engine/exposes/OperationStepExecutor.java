@@ -739,6 +739,7 @@ public class OperationStepExecutor {
         public Request clientRequest;
         public Response clientResponse;
 
+        @SuppressWarnings("null")
         public void handle() {
             TelemetryBootstrap telemetry = TelemetryBootstrap.get();
 

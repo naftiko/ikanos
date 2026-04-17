@@ -32,6 +32,7 @@ import java.util.List;
  * Unit tests for {@link TelemetryBootstrap} — SDK initialization, no-op fallback,
  * span factory methods, and error recording.
  */
+@SuppressWarnings("null")
 public class TelemetryBootstrapTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();

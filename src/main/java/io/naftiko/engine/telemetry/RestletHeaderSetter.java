@@ -21,6 +21,7 @@ import org.restlet.Request;
  *
  * <p>Used by the HTTP client adapter to propagate trace context to consumed APIs.</p>
  */
+@SuppressWarnings("null")
 public class RestletHeaderSetter implements TextMapSetter<Request> {
 
     public static final RestletHeaderSetter INSTANCE = new RestletHeaderSetter();

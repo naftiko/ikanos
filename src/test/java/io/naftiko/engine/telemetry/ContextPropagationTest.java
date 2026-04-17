@@ -35,6 +35,7 @@ import org.restlet.data.Method;
  * Integration tests for W3C trace context propagation round-trip:
  * extract from inbound headers → create child span → inject into outbound headers.
  */
+@SuppressWarnings("null")
 public class ContextPropagationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();

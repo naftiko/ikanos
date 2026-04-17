@@ -45,6 +45,7 @@ import java.util.List;
  * Integration tests verifying that REST adapter requests produce the expected OTel span hierarchy,
  * including W3C traceparent extraction.
  */
+@SuppressWarnings("null")
 public class ObservabilityRestIntegrationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();

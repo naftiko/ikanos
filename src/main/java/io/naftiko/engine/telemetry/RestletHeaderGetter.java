@@ -22,6 +22,7 @@ import java.util.Collections;
  *
  * <p>Used by server adapters (REST, MCP HTTP) to continue an upstream trace.</p>
  */
+@SuppressWarnings("null")
 public class RestletHeaderGetter implements TextMapGetter<Request> {
 
     public static final RestletHeaderGetter INSTANCE = new RestletHeaderGetter();

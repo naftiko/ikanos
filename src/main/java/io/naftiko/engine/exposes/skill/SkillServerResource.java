@@ -53,6 +53,7 @@ abstract class SkillServerResource extends ServerResource {
     }
 
     @Override
+    @SuppressWarnings("null")
     public Representation handle() {
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
         io.opentelemetry.context.Context extractedContext = telemetry.getOpenTelemetry()

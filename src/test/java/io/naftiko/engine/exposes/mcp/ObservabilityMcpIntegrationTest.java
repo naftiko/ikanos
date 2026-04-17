@@ -41,6 +41,7 @@ import java.util.Map;
  * Integration tests verifying that MCP tool calls produce the expected OTel span hierarchy.
  * Uses an aggregate-based mock capability so no real HTTP calls are needed.
  */
+@SuppressWarnings("null")
 public class ObservabilityMcpIntegrationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();

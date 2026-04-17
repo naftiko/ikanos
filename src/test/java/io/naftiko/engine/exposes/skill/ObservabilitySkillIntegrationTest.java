@@ -44,6 +44,7 @@ import java.util.List;
  * Integration tests verifying that Skill adapter requests produce the expected OTel server spans,
  * including W3C traceparent extraction.
  */
+@SuppressWarnings("null")
 public class ObservabilitySkillIntegrationTest {
 
     private static final int SKILL_PORT = 9098;
