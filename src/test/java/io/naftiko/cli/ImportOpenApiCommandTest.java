@@ -89,4 +89,37 @@ public class ImportOpenApiCommandTest {
         String content = Files.readString(output);
         assertTrue(content.contains("my-custom-ns"));
     }
+
+    @Test
+    void importShouldProduceJsonWhenFormatIsJson() throws Exception {
+        Path oasFile = tempDir.resolve("petstore.yaml");
+        Files.writeString(oasFile, """
+                openapi: "3.0.3"
+                info:
+                  title: "Petstore"
+                  version: "1.0.0"
+                servers:
+                  - url: "https://api.petstore.io/v1"
+                paths:
+                  /pets:
+                    get:
+                      operationId: listPets
+                      summary: List all pets
+                      responses:
+                        "200":
+                          description: OK
+                """);
+
+        Path output = tempDir.resolve("output.json");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(),
+                "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        assertTrue(Files.exists(output));
+        String content = Files.readString(output);
+        assertTrue(content.stripLeading().startsWith("{"), "Output should be valid JSON");
+        assertTrue(content.contains("\"petstore\""));
+    }
 }

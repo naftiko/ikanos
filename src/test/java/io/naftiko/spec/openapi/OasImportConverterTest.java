@@ -260,6 +260,32 @@ public class OasImportConverterTest {
         assertEquals("body", inputs.get(1).getIn());
     }
 
+    @Test
+    void convertShouldPreserveOriginalPropertyNamesInRequestBody() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("createUser", "Create user", List.of("Users"));
+        RequestBody body = new RequestBody();
+        ObjectSchema bodySchema = new ObjectSchema();
+        bodySchema.addProperty("firstName", new StringSchema());
+        bodySchema.addProperty("last_name", new StringSchema());
+        body.setContent(new Content().addMediaType("application/json",
+                new MediaType().schema(bodySchema)));
+        op.setRequestBody(body);
+
+        paths.addPathItem("/users", pathItem("POST", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters();
+        assertEquals(2, inputs.size());
+        assertEquals("firstName", inputs.get(0).getName());
+        assertEquals("last_name", inputs.get(1).getName());
+    }
+
     // ── Output parameters ──
 
     @Test

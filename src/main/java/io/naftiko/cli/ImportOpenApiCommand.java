@@ -91,16 +91,23 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             if (output != null) {
                 outputPath = output;
             } else {
-                outputPath = "./" + httpClient.getNamespace() + "-consumes.yml";
+                String ext = "json".equalsIgnoreCase(format) ? "json" : "yml";
+                outputPath = "./" + httpClient.getNamespace() + "-consumes." + ext;
             }
 
-            // Serialize to YAML
-            YAMLFactory yamlFactory = YAMLFactory.builder()
-                    .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
-                    .build();
-            ObjectMapper yamlMapper = new ObjectMapper(yamlFactory);
-            yamlMapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_EMPTY);
-            yamlMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+            // Build the appropriate mapper based on format
+            ObjectMapper mapper;
+            if ("json".equalsIgnoreCase(format)) {
+                mapper = new ObjectMapper();
+                mapper.enable(SerializationFeature.INDENT_OUTPUT);
+            } else {
+                YAMLFactory yamlFactory = YAMLFactory.builder()
+                        .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                        .build();
+                mapper = new ObjectMapper(yamlFactory);
+            }
+            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_EMPTY);
+            mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
             // Wrap in a NaftikoSpec document
             NaftikoSpec spec = new NaftikoSpec();
@@ -108,7 +115,7 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             spec.getConsumes().add(httpClient);
 
             Path path = Paths.get(outputPath);
-            yamlMapper.writeValue(path.toFile(), spec);
+            mapper.writeValue(path.toFile(), spec);
 
             System.out.println("✓ Imported OpenAPI specification successfully");
             System.out.println("  Output: " + path.toAbsolutePath());

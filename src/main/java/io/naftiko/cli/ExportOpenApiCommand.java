@@ -16,6 +16,7 @@ package io.naftiko.cli;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -33,7 +34,7 @@ import picocli.CommandLine.Parameters;
     mixinStandardHelpOptions = true,
     description = "Export a Naftiko capability's REST adapter as an OpenAPI specification."
 )
-public class ExportOpenApiCommand implements Runnable {
+public class ExportOpenApiCommand implements Callable<Integer> {
 
     @Parameters(index = "0", description = "Path to the Naftiko capability YAML file")
     private String capability;
@@ -51,14 +52,13 @@ public class ExportOpenApiCommand implements Runnable {
     private String specVersionOption = "3.0";
 
     @Override
-    public void run() {
+    public Integer call() {
         try {
             // Load the capability YAML
             File capabilityFile = new File(capability);
             if (!capabilityFile.exists()) {
                 System.err.println("Error: File not found: " + capability);
-                System.exit(1);
-                return;
+                return 1;
             }
 
             ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
@@ -73,8 +73,7 @@ public class ExportOpenApiCommand implements Runnable {
                 specVersion = SpecVersion.V30;
             } else {
                 System.err.println("Error: Unsupported spec version '" + specVersionOption + "'. Supported versions: 3.0, 3.1");
-                System.exit(1);
-                return;
+                return 1;
             }
 
             // Build the OpenAPI document
@@ -100,10 +99,11 @@ public class ExportOpenApiCommand implements Runnable {
 
             System.out.println("✓ Exported OpenAPI specification successfully");
             System.out.println("  Output: " + path.toAbsolutePath());
+            return 0;
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(1);
+            return 1;
         }
     }
 }

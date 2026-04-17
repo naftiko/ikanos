@@ -13,6 +13,7 @@
  */
 package io.naftiko.cli;
 
+import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -37,7 +38,7 @@ import java.util.Set;
     aliases = {"v", "val"},
     description = "Validate a YAML capability configuration file against a JSON Schema"
 )
-public class ValidateCommand implements Runnable {
+public class ValidateCommand implements Callable<Integer> {
     
     @Parameters(index = "0", description = "Path to the YAML capability configuration file to validate")
     private String filePath;
@@ -46,13 +47,13 @@ public class ValidateCommand implements Runnable {
     private String schemaVersion;
     
     @Override
-    public void run() {
+    public Integer call() {
         try {
             // Check that file to validate exist and load it.
             Path fileToValidate = Paths.get(filePath);
             if (!Files.exists(fileToValidate)) {
                 System.err.println("Error: File not found: " + filePath);
-                System.exit(1);
+                return 1;
             }
             JsonNode dataNode = loadFile(fileToValidate.toFile());
 
@@ -61,7 +62,7 @@ public class ValidateCommand implements Runnable {
             InputStream schemaInputStream = getClass().getClassLoader().getResourceAsStream("schemas/" + schemaFileName);
             if (schemaInputStream == null) {
                 System.err.println("Error: Schema " + schemaFileName + " is not supported");
-                System.exit(1);
+                return 1;
             }
             JsonNode schemaNode = new ObjectMapper().readTree(schemaInputStream);
 
@@ -85,6 +86,7 @@ public class ValidateCommand implements Runnable {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
+                return 0;
             } else {
                 System.err.println("✗ Validation failed!");
                 System.err.println("  File: " + filePath);
@@ -96,16 +98,16 @@ public class ValidateCommand implements Runnable {
                     System.err.println("      Path: " + error.getPath());
                     errorCount++;
                 }
-                System.exit(1);
+                return 1;
             }
             
         } catch (IOException e) {
             System.err.println("Error reading file: " + e.getMessage());
-            System.exit(1);
+            return 1;
         } catch (Exception e) {
             System.err.println("Validation error: " + e.getMessage());
             e.printStackTrace();
-            System.exit(1);
+            return 1;
         }
     }
     
