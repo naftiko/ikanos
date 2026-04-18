@@ -22,6 +22,9 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
+import io.naftiko.spec.ObservabilitySpec;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -85,9 +88,26 @@ public class TelemetryBootstrap {
      * falls back to a no-op instance so all span calls become zero-cost.</p>
      */
     public static TelemetryBootstrap init(String serviceName) {
+        return init(serviceName, null);
+    }
+
+    /**
+     * Initialize with spec-driven observability configuration.
+     *
+     * <p>When {@code observabilitySpec} is non-null and {@code enabled} is {@code false},
+     * telemetry is disabled entirely (no SDK init, no overhead). Otherwise the spec's
+     * sampling rate, propagation format, and OTLP endpoint are applied as SDK property
+     * overrides — values not set in the spec fall through to OTel env vars.</p>
+     */
+    public static TelemetryBootstrap init(String serviceName, ObservabilitySpec observabilitySpec) {
+        if (observabilitySpec != null && !observabilitySpec.isEnabled()) {
+            logger.info("Observability disabled via spec — telemetry off");
+            instance = NOOP;
+            return instance;
+        }
         try {
             Class.forName(AUTOCONFIGURE_CLASS);
-            instance = buildAutoConfigured(serviceName);
+            instance = buildAutoConfigured(serviceName, observabilitySpec);
         } catch (ClassNotFoundException e) {
             logger.info("OpenTelemetry SDK not on classpath — telemetry disabled");
             instance = NOOP;
@@ -103,9 +123,14 @@ public class TelemetryBootstrap {
      * Builds an auto-configured OpenTelemetry SDK instance with a {@link PullMetricReader}
      * registered for Prometheus scraping via the Control Port.
      */
-    private static TelemetryBootstrap buildAutoConfigured(String serviceName) {
+    private static TelemetryBootstrap buildAutoConfigured(String serviceName,
+            ObservabilitySpec observabilitySpec) {
         PullMetricReader pullReader = new PullMetricReader();
+        Map<String, String> specProperties = buildSpecProperties(observabilitySpec);
         var builder = io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk.builder();
+        if (!specProperties.isEmpty()) {
+            builder.addPropertiesSupplier(() -> specProperties);
+        }
         OpenTelemetry otel = builder
                 .addResourceCustomizer((resource, config) ->
                         resource.merge(io.opentelemetry.sdk.resources.Resource.create(
@@ -115,6 +140,37 @@ public class TelemetryBootstrap {
                 .build()
                 .getOpenTelemetrySdk();
         return new TelemetryBootstrap(otel, pullReader);
+    }
+
+    /**
+     * Converts spec-driven observability settings into OTel autoconfigure property overrides.
+     */
+    static Map<String, String> buildSpecProperties(ObservabilitySpec spec) {
+        Map<String, String> props = new HashMap<>();
+        if (spec == null) {
+            return props;
+        }
+        if (spec.getTraces() != null) {
+            double sampling = spec.getTraces().getSampling();
+            if (sampling < 1.0) {
+                props.put("otel.traces.sampler", "traceidratio");
+                props.put("otel.traces.sampler.arg", String.valueOf(sampling));
+            }
+            String propagation = spec.getTraces().getPropagation();
+            if (propagation != null) {
+                String propagators = "w3c".equals(propagation)
+                        ? "tracecontext,baggage"
+                        : "b3multi";
+                props.put("otel.propagators", propagators);
+            }
+        }
+        if (spec.getExporters() != null && spec.getExporters().getOtlp() != null) {
+            String endpoint = spec.getExporters().getOtlp().getEndpoint();
+            if (endpoint != null && !endpoint.isBlank()) {
+                props.put("otel.exporter.otlp.endpoint", endpoint);
+            }
+        }
+        return props;
     }
 
     /**

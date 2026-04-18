@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha2"
+info:
+  label: "Observability Disabled Capability"
+  description: "Test capability with observability disabled"
+  tags:
+    - Test
+  created: "2026-04-18"
+  modified: "2026-04-18"
+
+capability:
+  observability:
+    enabled: false
+  exposes:
+    - type: "control"
+      address: "localhost"
+      port: 9199

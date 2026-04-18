@@ -249,7 +249,11 @@ public class Capability {
                 if (spec.getInfo() != null && spec.getInfo().getLabel() != null) {
                     serviceName = "naftiko-" + spec.getInfo().getLabel();
                 }
-                TelemetryBootstrap.init(serviceName);
+                io.naftiko.spec.ObservabilitySpec observabilitySpec = null;
+                if (spec.getCapability() != null) {
+                    observabilitySpec = spec.getCapability().getObservability();
+                }
+                TelemetryBootstrap.init(serviceName, observabilitySpec);
                 // Pass the capability directory for bind file resolution
                 String capabilityDir = file.getParent();
                 Capability capability = new Capability(spec, capabilityDir);

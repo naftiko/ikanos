@@ -15,6 +15,10 @@ package io.naftiko.engine.telemetry;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.naftiko.spec.ObservabilitySpec;
+import io.naftiko.spec.ObservabilityTracesSpec;
+import io.naftiko.spec.ObservabilityExportersSpec;
+import io.naftiko.spec.ObservabilityOtlpExporterSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
@@ -27,6 +31,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Unit tests for {@link TelemetryBootstrap} — SDK initialization, no-op fallback,
@@ -339,5 +344,143 @@ public class TelemetryBootstrapTest {
         assertNotNull(text, "Prometheus metrics should be available after init(serviceName)");
         assertTrue(text.contains("naftiko_request_total"),
                 "Should contain serialized metrics");
+    }
+
+    // ── Spec-driven observability (Phase 3) ──
+
+    @Test
+    void initShouldReturnNoOpWhenObservabilityDisabled() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        spec.setEnabled(false);
+
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.init("test-service", spec);
+        assertNotNull(bootstrap);
+
+        Span span = bootstrap.startServerSpan("rest", "test-op");
+        assertFalse(span.getSpanContext().isValid(),
+                "Disabled observability should produce no-op spans");
+        span.end();
+    }
+
+    @Test
+    void initShouldAcceptNullObservabilitySpec() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.init("test-service", null);
+        assertNotNull(bootstrap);
+        assertSame(bootstrap, TelemetryBootstrap.get());
+    }
+
+    @Test
+    void buildSpecPropertiesShouldReturnEmptyMapForNull() {
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(null);
+        assertTrue(props.isEmpty());
+    }
+
+    @Test
+    void buildSpecPropertiesShouldReturnEmptyMapForDefaults() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+        assertTrue(props.isEmpty());
+    }
+
+    @Test
+    void buildSpecPropertiesShouldSetSamplingWhenBelowOne() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityTracesSpec traces = new ObservabilityTracesSpec();
+        traces.setSampling(0.1);
+        spec.setTraces(traces);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertEquals("traceidratio", props.get("otel.traces.sampler"));
+        assertEquals("0.1", props.get("otel.traces.sampler.arg"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldNotSetSamplerWhenFullSampling() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityTracesSpec traces = new ObservabilityTracesSpec();
+        traces.setSampling(1.0);
+        spec.setTraces(traces);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertFalse(props.containsKey("otel.traces.sampler"));
+        assertFalse(props.containsKey("otel.traces.sampler.arg"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldSetW3cPropagation() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityTracesSpec traces = new ObservabilityTracesSpec();
+        traces.setPropagation("w3c");
+        spec.setTraces(traces);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertEquals("tracecontext,baggage", props.get("otel.propagators"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldSetB3Propagation() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityTracesSpec traces = new ObservabilityTracesSpec();
+        traces.setPropagation("b3");
+        spec.setTraces(traces);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertEquals("b3multi", props.get("otel.propagators"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldSetOtlpEndpoint() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityExportersSpec exporters = new ObservabilityExportersSpec();
+        ObservabilityOtlpExporterSpec otlp = new ObservabilityOtlpExporterSpec();
+        otlp.setEndpoint("http://collector:4317");
+        exporters.setOtlp(otlp);
+        spec.setExporters(exporters);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertEquals("http://collector:4317", props.get("otel.exporter.otlp.endpoint"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldIgnoreBlankEndpoint() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+        ObservabilityExportersSpec exporters = new ObservabilityExportersSpec();
+        ObservabilityOtlpExporterSpec otlp = new ObservabilityOtlpExporterSpec();
+        otlp.setEndpoint("   ");
+        exporters.setOtlp(otlp);
+        spec.setExporters(exporters);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertFalse(props.containsKey("otel.exporter.otlp.endpoint"));
+    }
+
+    @Test
+    void buildSpecPropertiesShouldCombineAllSettings() {
+        ObservabilitySpec spec = new ObservabilitySpec();
+
+        ObservabilityTracesSpec traces = new ObservabilityTracesSpec();
+        traces.setSampling(0.25);
+        traces.setPropagation("b3");
+        spec.setTraces(traces);
+
+        ObservabilityExportersSpec exporters = new ObservabilityExportersSpec();
+        ObservabilityOtlpExporterSpec otlp = new ObservabilityOtlpExporterSpec();
+        otlp.setEndpoint("https://otlp.example.com:4317");
+        exporters.setOtlp(otlp);
+        spec.setExporters(exporters);
+
+        Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
+
+        assertEquals(4, props.size());
+        assertEquals("traceidratio", props.get("otel.traces.sampler"));
+        assertEquals("0.25", props.get("otel.traces.sampler.arg"));
+        assertEquals("b3multi", props.get("otel.propagators"));
+        assertEquals("https://otlp.example.com:4317", props.get("otel.exporter.otlp.endpoint"));
     }
 }

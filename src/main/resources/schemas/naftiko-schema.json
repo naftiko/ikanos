@@ -745,6 +745,9 @@
             "$ref": "#/$defs/Aggregate"
           },
           "minItems": 1
+        },
+        "observability": {
+          "$ref": "#/$defs/ObservabilitySpec"
         }
       },
       "anyOf": [
@@ -2511,6 +2514,66 @@
         }
       },
       "additionalProperties": false
+    },
+    "ObservabilitySpec": {
+      "type": "object",
+      "description": "Spec-driven observability configuration. All fields are optional — defaults to OTel env vars when not specified.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable observability. Defaults to true."
+        },
+        "traces": {
+          "$ref": "#/$defs/ObservabilityTracesSpec"
+        },
+        "exporters": {
+          "$ref": "#/$defs/ObservabilityExportersSpec"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ObservabilityTracesSpec": {
+      "type": "object",
+      "description": "Trace sampling and propagation configuration.",
+      "properties": {
+        "sampling": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1.0,
+          "description": "Trace sampling rate. 1.0 = sample all, 0.1 = sample 10%."
+        },
+        "propagation": {
+          "type": "string",
+          "enum": ["w3c", "b3"],
+          "default": "w3c",
+          "description": "Context propagation format for outgoing HTTP calls."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ObservabilityExportersSpec": {
+      "type": "object",
+      "description": "Exporter configuration container.",
+      "properties": {
+        "otlp": {
+          "$ref": "#/$defs/ObservabilityOtlpExporterSpec"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ObservabilityOtlpExporterSpec": {
+      "type": "object",
+      "description": "OTLP exporter endpoint configuration.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "OTLP exporter endpoint. Supports Mustache expressions for binds."
+        }
+      },
+      "required": ["endpoint"],
+      "unevaluatedProperties": false
     }
   }
 }

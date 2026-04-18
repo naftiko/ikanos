@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha2"
+info:
+  label: "Observability Test Capability"
+  description: "Test capability for observability spec deserialization"
+  tags:
+    - Test
+    - Observability
+  created: "2026-04-18"
+  modified: "2026-04-18"
+
+capability:
+  observability:
+    enabled: true
+    traces:
+      sampling: 0.5
+      propagation: b3
+    exporters:
+      otlp:
+        endpoint: "http://collector.local:4317"
+  exposes:
+    - type: "control"
+      address: "localhost"
+      port: 9199
+      endpoints:
+        health: true
+        metrics: true
