@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  - job_name: "naftiko"
+    metrics_path: "/metrics"
+    static_configs:
+      # Point to the capability's Control Port.
+      # Adjust the target when the capability runs on a different host/port.
+      - targets: ["host.docker.internal:9090"]
+        labels:
+          instance: "naftiko-local"

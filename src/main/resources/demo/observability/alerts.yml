@@ -1,0 +1,108 @@
+groups:
+  - name: naftiko.rules
+    rules:
+      # ── Error Rate ──
+
+      - alert: NaftikoHighErrorRate
+        expr: >
+          sum(rate(naftiko_request_errors_total[5m]))
+          /
+          clamp_min(sum(rate(naftiko_request_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Naftiko error rate above 5%"
+          description: >
+            Error ratio is {{ $value | humanizePercentage }} over the last 5 minutes.
+            Check adapter logs and traces for failing operations.
+
+      - alert: NaftikoCriticalErrorRate
+        expr: >
+          sum(rate(naftiko_request_errors_total[5m]))
+          /
+          clamp_min(sum(rate(naftiko_request_total[5m])), 1)
+          > 0.20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Naftiko error rate above 20%"
+          description: >
+            Error ratio is {{ $value | humanizePercentage }} over the last 2 minutes.
+            Immediate investigation required.
+
+      # ── Latency ──
+
+      - alert: NaftikoHighP99Latency
+        expr: >
+          histogram_quantile(0.99,
+            sum(rate(naftiko_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Naftiko P99 latency above 2 seconds"
+          description: >
+            P99 request duration is {{ $value | humanizeDuration }}.
+            Check slow operations and consumed API latency.
+
+      - alert: NaftikoCriticalP99Latency
+        expr: >
+          histogram_quantile(0.99,
+            sum(rate(naftiko_request_duration_seconds_bucket[5m])) by (le)
+          ) > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Naftiko P99 latency above 10 seconds"
+          description: >
+            P99 request duration is {{ $value | humanizeDuration }}.
+            Likely timeout or blocked downstream dependency.
+
+      # ── HTTP Client (Consumed APIs) ──
+
+      - alert: NaftikoConsumedApiHighErrorRate
+        expr: >
+          sum(rate(naftiko_http_client_total{http_response_status_code=~"5.."}[5m])) by (server_address)
+          /
+          clamp_min(sum(rate(naftiko_http_client_total[5m])) by (server_address), 1)
+          > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumed API {{ $labels.server_address }} returning >10% errors"
+          description: >
+            Server error ratio for {{ $labels.server_address }} is
+            {{ $value | humanizePercentage }}.
+
+      - alert: NaftikoConsumedApiHighLatency
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(naftiko_http_client_duration_seconds_bucket[5m])) by (le, server_address)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumed API {{ $labels.server_address }} P95 latency above 5s"
+          description: >
+            P95 duration for {{ $labels.server_address }} is
+            {{ $value | humanizeDuration }}.
+
+      # ── Availability ──
+
+      - alert: NaftikoCapabilityDown
+        expr: naftiko_capability_active < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active Naftiko capabilities"
+          description: >
+            The naftiko_capability_active gauge is {{ $value }}.
+            The capability may have stopped or failed to start.
