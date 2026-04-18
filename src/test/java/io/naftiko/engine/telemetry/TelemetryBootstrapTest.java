@@ -483,4 +483,31 @@ public class TelemetryBootstrapTest {
         assertEquals("b3multi", props.get("otel.propagators"));
         assertEquals("https://otlp.example.com:4317", props.get("otel.exporter.otlp.endpoint"));
     }
+
+    // ── Span processor registration ──
+
+    @Test
+    void registerSpanProcessorShouldHaveNoEffectInNoopMode() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.get();
+        // Should not throw — silently ignored in noop mode
+        assertDoesNotThrow(() -> bootstrap.registerSpanProcessor(
+                io.opentelemetry.sdk.trace.SpanProcessor.composite()));
+    }
+
+    @Test
+    void registerSpanProcessorShouldWireProcessorWhenSdkActive() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.init("test-service");
+
+        InMemorySpanExporter lateExporter = InMemorySpanExporter.create();
+        bootstrap.registerSpanProcessor(
+                io.opentelemetry.sdk.trace.export.SimpleSpanProcessor.create(lateExporter));
+
+        // Create a span — it should be captured by the late-registered processor
+        Span span = bootstrap.startServerSpan("rest", "test-op");
+        span.end();
+
+        assertFalse(lateExporter.getFinishedSpanItems().isEmpty(),
+                "Late-registered processor should receive spans");
+        assertEquals("rest.request", lateExporter.getFinishedSpanItems().get(0).getName());
+    }
 }

@@ -96,7 +96,7 @@ class PrometheusTextSerializerTest {
 
     @Test
     void shouldSerializeHistogram() {
-        DoubleHistogram histogram = meter.histogramBuilder("naftiko.request.duration")
+        DoubleHistogram histogram = meter.histogramBuilder("naftiko.request.duration.seconds")
                 .setDescription("Request duration in seconds")
                 .setUnit("s")
                 .build();
@@ -106,15 +106,15 @@ class PrometheusTextSerializerTest {
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
 
-        assertTrue(text.contains("# TYPE naftiko_request_duration histogram"),
+        assertTrue(text.contains("# TYPE naftiko_request_duration_seconds histogram"),
                 "Should contain TYPE histogram");
-        assertTrue(text.contains("naftiko_request_duration_bucket{"),
+        assertTrue(text.contains("naftiko_request_duration_seconds_bucket{"),
                 "Should contain bucket lines");
         assertTrue(text.contains("le=\"+Inf\""),
                 "Should contain +Inf bucket");
-        assertTrue(text.contains("naftiko_request_duration_sum{"),
+        assertTrue(text.contains("naftiko_request_duration_seconds_sum{"),
                 "Should contain _sum line");
-        assertTrue(text.contains("naftiko_request_duration_count{"),
+        assertTrue(text.contains("naftiko_request_duration_seconds_count{"),
                 "Should contain _count line");
     }
 

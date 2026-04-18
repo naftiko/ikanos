@@ -5,7 +5,7 @@ groups:
 
       - alert: NaftikoHighErrorRate
         expr: >
-          sum(rate(naftiko_request_errors_total[5m]))
+          sum(rate(naftiko_request_errors[5m]))
           /
           clamp_min(sum(rate(naftiko_request_total[5m])), 1)
           > 0.05
@@ -20,7 +20,7 @@ groups:
 
       - alert: NaftikoCriticalErrorRate
         expr: >
-          sum(rate(naftiko_request_errors_total[5m]))
+          sum(rate(naftiko_request_errors[5m]))
           /
           clamp_min(sum(rate(naftiko_request_total[5m])), 1)
           > 0.20

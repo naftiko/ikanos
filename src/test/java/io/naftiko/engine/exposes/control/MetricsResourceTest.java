@@ -60,7 +60,7 @@ class MetricsResourceTest {
         String text = result.getText();
         assertTrue(text.contains("naftiko_request_total"),
                 "Should contain request total counter");
-        assertTrue(text.contains("naftiko_request_duration"),
+        assertTrue(text.contains("naftiko_request_duration_seconds"),
                 "Should contain request duration histogram");
     }
 }

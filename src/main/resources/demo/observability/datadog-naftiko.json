@@ -35,7 +35,7 @@
         "type": "query_value",
         "requests": [
           {
-            "q": "sum:naftiko_request_errors_total{*}.as_rate()",
+            "q": "sum:naftiko_request_errors{*}.as_rate()",
             "aggregator": "avg"
           }
         ],
@@ -67,7 +67,7 @@
         "type": "timeseries",
         "requests": [
           {
-            "q": "sum:naftiko_request_errors_total{*} by {naftiko_adapter_type}.as_rate()",
+            "q": "sum:naftiko_request_errors{*} by {naftiko_adapter_type}.as_rate()",
             "display_type": "line"
           }
         ],

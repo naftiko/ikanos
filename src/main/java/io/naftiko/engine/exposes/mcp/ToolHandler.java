@@ -75,17 +75,19 @@ public class ToolHandler {
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
         Span span = telemetry.startToolHandlerSpan(toolName);
         long startNanos = System.nanoTime();
+        String status = "OK";
         try (Scope scope = span.makeCurrent()) {
             McpSchema.CallToolResult result = doHandleToolCall(toolName, arguments);
             return result;
         } catch (Exception e) {
+            status = "ERROR";
             TelemetryBootstrap.recordError(span, e);
             telemetry.getMetrics().recordRequestError("mcp", toolName,
                     e.getClass().getSimpleName());
             throw e;
         } finally {
             double durationSec = (System.nanoTime() - startNanos) / 1_000_000_000.0;
-            telemetry.getMetrics().recordRequest("mcp", toolName, "OK", durationSec);
+            telemetry.getMetrics().recordRequest("mcp", toolName, status, durationSec);
             TelemetryBootstrap.endSpan(span);
         }
     }
