@@ -237,3 +237,29 @@ How Naftiko achieves this technically:
   - [x] Security scheme generation from consumed authentication
 - [x] Round-trip fidelity
   - [x] Import → export preserves structure and semantics
+
+## 11. Monitor and debug capabilities
+
+Observe capability behavior in real time with built-in metrics, distributed traces, and health checks — configured entirely from the spec.
+
+How Naftiko achieves this technically:
+- Add a `type: control` adapter in `capability.exposes` to expose a management plane with health, metrics, traces, and diagnostic endpoints on a dedicated port.
+- Configure `capability.observability` to enable OpenTelemetry-based distributed tracing and RED metrics (Rate, Errors, Duration) with configurable sampling and OTLP export.
+- Scrape Prometheus-format metrics from the control port's `/metrics` endpoint and inspect recent traces via `/traces` — no additional infrastructure code required.
+
+#### Key features
+- [x] Built-in control port with configurable endpoints
+  - [x] Liveness and readiness health probes
+  - [x] Prometheus metrics scrape endpoint
+  - [x] Local trace inspection endpoint with ring buffer
+  - [x] Runtime status and configuration endpoints
+  - [x] Hot-reload and dry-run validation endpoints
+  - [x] Log level control and SSE log streaming
+- [x] OpenTelemetry observability from the spec
+  - [x] Distributed tracing with W3C and B3 propagation
+  - [x] Configurable sampling rate
+  - [x] OTLP exporter with Mustache-templated endpoint
+  - [x] RED metrics: request duration, step duration, HTTP client duration, error count
+- [x] Spec-driven configuration — no code required
+  - [x] Control port address, port, and authentication
+  - [x] Per-endpoint enable/disable toggles

@@ -579,7 +579,86 @@ This mirrors the REST mock pattern (`no-adapter.yml`) and is useful for prototyp
 
 ---
 
-## 🔭 Troubleshooting & Debugging
+## � Control Port & Observability
+
+### Q: What is the control port?
+**A:** The control port is a built-in management plane (`type: "control"` in `capability.exposes`). It provides engine-provided endpoints for health checks, Prometheus metrics, distributed traces, runtime status, configuration reload, log level control, and log streaming — without writing any code.
+
+### Q: How do I enable the control port?
+**A:** Add a control adapter to your capability's `exposes` array:
+
+```yaml
+capability:
+  exposes:
+    - type: control
+      port: 9090
+      endpoints:
+        health: true
+        metrics: true
+        traces:
+          enabled: true
+          buffer-size: 200
+```
+
+At most one control adapter is allowed per capability, and its port must not collide with any business adapter port.
+
+### Q: What endpoints does the control port provide?
+**A:**
+
+| Endpoint | Default | Description |
+|---|---|---|
+| `/health/live`, `/health/ready` | Enabled | Liveness and readiness probes |
+| `/metrics` | Enabled | Prometheus scrape endpoint (requires observability) |
+| `/traces` | Enabled | Recent trace summaries (requires observability) |
+| `/status`, `/config` | Disabled | Runtime status and loaded configuration |
+| `POST /config/reload` | Disabled | Hot-reload the capability |
+| `POST /config/validate` | Disabled | Dry-run validation |
+| `/logs` | Disabled | Log level control |
+| `/logs/stream` | Disabled | SSE log streaming |
+
+### Q: How do I enable OpenTelemetry observability?
+**A:** Add an `observability` block at the capability level:
+
+```yaml
+capability:
+  observability:
+    enabled: true
+    traces:
+      sampling: 1.0
+      propagation: w3c
+    exporters:
+      otlp:
+        endpoint: "{{otel_endpoint}}"
+```
+
+This enables distributed tracing and RED metrics (Rate, Errors, Duration) for all capability operations. Metrics are exposed in Prometheus format on the control port's `/metrics` endpoint.
+
+### Q: What metrics does Naftiko expose?
+**A:** The engine emits three histogram metrics following the RED method:
+
+- `naftiko.request.duration.seconds` — end-to-end request duration by tool/operation name and status
+- `naftiko.step.duration.seconds` — individual orchestration step duration
+- `naftiko.http.client.duration.seconds` — outbound HTTP call duration by namespace, method, and status code
+
+A counter `naftiko.request.errors` tracks failed requests. All metrics are available in Prometheus text format on the control port's `/metrics` endpoint.
+
+### Q: How do I connect Prometheus and Grafana?
+**A:** Point Prometheus at the control port's `/metrics` endpoint:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: naftiko
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['localhost:9090']
+```
+
+A sample Grafana dashboard is provided in `demo/shared/observability/grafana-naftiko.json`.
+
+---
+
+## �🔭 Troubleshooting & Debugging
 
 ### Q: My capability won't start. How do I debug it?
 **A:** 

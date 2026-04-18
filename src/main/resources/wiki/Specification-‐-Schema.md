@@ -40,6 +40,10 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **Skill Server**: An exposition adapter that groups MCP tools into named skills, enabling structured discovery and invocation of capability operations by skill name.
 
+**Control Port**: A built-in management plane adapter (`type: "control"`) that exposes engine-provided endpoints for health checks, Prometheus metrics, distributed traces, and runtime diagnostics.
+
+**Observability**: Spec-driven OpenTelemetry configuration for distributed tracing and RED metrics (Rate, Errors, Duration). Declared at the capability level via the `observability` field.
+
 **Bind**: A declaration of an external binding providing variables to the capability via a `keys` map. An optional `location` URI identifies the value provider (file, vault, runtime, etc.).
 
 ### 1.3 Related Specifications.
@@ -176,10 +180,11 @@ Defines the technical configuration of the capability.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is a REST Expose (`type: "rest"`), an MCP Expose (`type: "mcp"`), or a Skill Expose (`type: "skill"`). |
+| **exposes** | `Exposes[]` | List of exposed server adapters. Each entry is a REST Expose (`type: "rest"`), an MCP Expose (`type: "mcp"`), a Skill Expose (`type: "skill"`), or a Control Expose (`type: "control"`). |
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 | **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 | **aggregates** | `Aggregate[]` | Domain aggregates defining reusable functions. Adapter units (tools, operations) reference them via `ref`. See [3.4.5 Aggregate Object](#345-aggregate-object). |
+| **observability** | `ObservabilitySpec` | Spec-driven observability configuration. Controls distributed tracing and metric collection via OpenTelemetry. See [3.5.11 Observability Objects](#3511-observability-objects). |
 
 #### 3.4.2 Rules
 
@@ -404,12 +409,14 @@ Describes a server adapter that exposes functionality.
 
 > Update (schema v0.5): Two exposition adapter types are now supported — **REST** (`type: "rest"`) and **MCP** (`type: "mcp"`). Legacy `httpProxy` and `api` exposition types are not part of the JSON Schema anymore.
 > 
+> Update (schema v1.0.0-alpha1): **Skill** (`type: "skill"`) and **Control** (`type: "control"`) adapter types were added.
+> 
 
 #### 3.5.1 REST Expose
 
 REST exposition configuration.
 
-> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section), **MCP** (`type: "mcp"`, see §3.5.4), and **Skill** (`type: "skill"`, see §3.5.9). The `type` field acts as discriminator.
+> Update (schema v0.5): The Exposes object is now a discriminated union (`oneOf`) between **REST** (`type: "rest"`, this section), **MCP** (`type: "mcp"`, see §3.5.4), **Skill** (`type: "skill"`, see §3.5.9), and **Control** (`type: "control"`, see §3.5.11). The `type` field acts as discriminator.
 > 
 
 **Fixed Fields:**
@@ -890,13 +897,153 @@ skills:
 
 ---
 
-#### 3.5.10 Address Validation Patterns
+#### 3.5.10 Control Expose
+
+Control adapter — a built-in management plane for health checks, metrics, traces, and runtime diagnostics. Unlike business adapters, the control port does not expose user-defined resources or operations. All endpoints are engine-provided.
+
+> New in schema v1.0.0-alpha1.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"control"`. |
+| **address** | `string` | Bind address for the control port. Defaults to `localhost` for security. |
+| **port** | `integer` | **REQUIRED**. TCP port for the control adapter (1–65535). |
+| **authentication** | `Authentication` | Optional authentication for the control port. Reuses the same Authentication model as business adapters. |
+| **endpoints** | `ControlEndpointsSpec` | Toggle individual endpoint groups. |
+
+**Rules:**
+
+- The `type` field MUST be `"control"`.
+- The `port` field is mandatory.
+- At most **one** `type: "control"` adapter is allowed per capability.
+- The control port MUST NOT share a port number with any business adapter (`rest`, `mcp`, `skill`).
+- The `address` field defaults to `localhost`. Binding to a non-localhost address exposes management endpoints to the network — use authentication when doing so.
+- No additional properties are allowed.
+
+#### ControlEndpointsSpec Object
+
+Toggles individual control port endpoint groups.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **health** | `boolean` | Enable `/health/live` and `/health/ready` endpoints. Default: `true`. |
+| **metrics** | `boolean` | Enable `/metrics` (Prometheus scrape). Requires observability to be active. Default: `true`. |
+| **info** | `boolean` | Enable `/status` and `/config` endpoints. Default: `false`. |
+| **traces** | `ControlTracesEndpointSpec` | Configure the `/traces` endpoint for local trace inspection. |
+| **reload** | `boolean` | Enable `POST /config/reload`. Default: `false`. |
+| **validate** | `boolean` | Enable `POST /config/validate` (dry-run validation). Default: `false`. |
+| **logging** | `boolean` | Enable `/logs` endpoints for live log level control. Default: `false`. |
+| **logs** | `ControlLogsEndpointSpec` | Configure the `/logs/stream` SSE endpoint for log streaming. |
+
+**Rules:**
+
+- No additional properties are allowed.
+
+#### ControlTracesEndpointSpec Object
+
+Configuration for the `/traces` endpoint.
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **enabled** | `boolean` | Enable the `/traces` endpoint. Requires observability to be active. Default: `true`. |
+| **buffer-size** | `integer` | Maximum number of completed trace summaries to retain in the ring buffer (10–10000). Default: `100`. |
+
+#### ControlLogsEndpointSpec Object
+
+Configuration for the `/logs/stream` SSE endpoint.
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **stream** | `boolean` | Enable `/logs/stream` SSE endpoint. Default: `false`. |
+| **max-subscribers** | `integer` | Maximum concurrent SSE subscribers for log streaming (1–20). Default: `5`. |
+
+**Control Expose Example:**
+
+```yaml
+- type: control
+  port: 9090
+  endpoints:
+    health: true
+    metrics: true
+    info: true
+    traces:
+      enabled: true
+      buffer-size: 200
+    logging: true
+    logs:
+      stream: true
+      max-subscribers: 3
+```
+
+---
+
+#### 3.5.11 Observability Objects
+
+Spec-driven observability configuration. Controls distributed tracing and metric collection via OpenTelemetry. All fields are optional — defaults to OTel environment variables when not specified.
+
+> New in schema v1.0.0-alpha1.
+
+##### ObservabilitySpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **enabled** | `boolean` | Enable or disable observability. Default: `true`. |
+| **traces** | `ObservabilityTracesSpec` | Trace sampling and propagation configuration. |
+| **exporters** | `ObservabilityExportersSpec` | Exporter configuration container. |
+
+##### ObservabilityTracesSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **sampling** | `number` | Trace sampling rate. `1.0` = sample all, `0.1` = sample 10%. Range: 0–1. Default: `1.0`. |
+| **propagation** | `string` | Context propagation format for outgoing HTTP calls. One of: `"w3c"`, `"b3"`. Default: `"w3c"`. |
+
+##### ObservabilityExportersSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **otlp** | `ObservabilityOtlpExporterSpec` | OTLP exporter endpoint configuration. |
+
+##### ObservabilityOtlpExporterSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **endpoint** | `string` | **REQUIRED**. OTLP exporter endpoint. Supports Mustache expressions for binds (e.g. `{{otel_endpoint}}`). |
+
+**Observability Example:**
+
+```yaml
+capability:
+  observability:
+    enabled: true
+    traces:
+      sampling: 1.0
+      propagation: w3c
+    exporters:
+      otlp:
+        endpoint: "{{otel_endpoint}}"
+  exposes:
+    - type: control
+      port: 9090
+      endpoints:
+        metrics: true
+        traces:
+          enabled: true
+```
+
+---
+
+#### 3.5.12 Address Validation Patterns
 
 - **Hostname**: `^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
 - **IPv4**: `^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
 - **IPv6**: `^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$`
 
-#### 3.5.11 Exposes Object Examples
+#### 3.5.13 Exposes Object Examples
 
 **REST Expose with operations:**
 

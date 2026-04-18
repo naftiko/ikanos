@@ -17,6 +17,7 @@ Last updated: March 2026
   - [1. Structure & Consistency](#1-structure--consistency)
   - [2. Quality & Discoverability](#2-quality--discoverability)
   - [3. Security](#3-security)
+  - [4. Control Port](#4-control-port)
 - [Rule Lineage Table](#rule-lineage-table)
 
 ---
@@ -200,6 +201,24 @@ These rules reduce injection risk in rendered documentation/UIs.
 
 ---
 
+### 4. Control Port
+
+These rules validate the control adapter configuration for safety and consistency.
+
+#### `naftiko-control-port-singleton-and-unique`
+
+- Severity: `error`
+- Scope: `capability.exposes`
+- Purpose: at most one `type: control` adapter is allowed per capability, and its port MUST NOT collide with any business adapter port (`rest`, `mcp`, `skill`).
+
+#### `naftiko-control-address-localhost-warning`
+
+- Severity: `warn`
+- Scope: `capability.exposes[?(@.type == 'control')].address`
+- Purpose: the control adapter `address` should be `localhost` or `127.0.0.1` for security. Binding to a non-localhost address exposes management endpoints to the network.
+
+---
+
 ## Rule Lineage Table
 
 | Naftiko Rule | Severity | Inspired By |
@@ -218,6 +237,8 @@ These rules reduce injection risk in rendered documentation/UIs.
 | `naftiko-no-script-tags-in-markdown` | error | `no-script-tags-in-markdown`, `arazzo-no-script-tags-in-markdown` |
 | `naftiko-no-eval-in-markdown` | error | `no-eval-in-markdown` |
 | `naftiko-baseuri-not-example` | warn | `oas2-host-not-example`, `oas3-server-not-example.com` |
+| `naftiko-control-port-singleton-and-unique` | error | — (Naftiko-specific) |
+| `naftiko-control-address-localhost-warning` | warn | — (Naftiko-specific) |
 
 ---
 
