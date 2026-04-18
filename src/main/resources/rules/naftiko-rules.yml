@@ -25,6 +25,7 @@ functionsDir: ./functions
 functions:
   - unique-namespaces
   - aggregate-semantics-consistency
+  - control-port-validation
 
 rules:
 
@@ -328,3 +329,32 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "example\\.com"
+
+  # ────────────────────────────────────────────────────────────────
+  # 4. CONTROL PORT
+  # ────────────────────────────────────────────────────────────────
+
+  naftiko-control-port-singleton-and-unique:
+    message: "Control port validation failed."
+    description: >
+      At most one type: control adapter is allowed per capability, and its
+      port must not conflict with any business adapter port.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: control-port-validation
+
+  naftiko-control-address-localhost-warning:
+    message: "Control adapter `address` should be `localhost` or `127.0.0.1` for security."
+    description: >
+      Binding the control port to a non-localhost address exposes management
+      endpoints to the network. Use a Kubernetes NetworkPolicy or firewall
+      rule to restrict access in production.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'control')].address"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(localhost|127\\.0\\.0\\.1)$"

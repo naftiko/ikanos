@@ -715,6 +715,9 @@
               },
               {
                 "$ref": "#/$defs/ExposesSkill"
+              },
+              {
+                "$ref": "#/$defs/ExposesControl"
               }
             ]
           },
@@ -2391,6 +2394,122 @@
           ]
         }
       ],
+      "additionalProperties": false
+    },
+    "ExposesControl": {
+      "type": "object",
+      "description": "Control adapter — management plane for health, metrics, traces, and runtime diagnostics. Endpoints are engine-provided, not user-defined.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "control"
+        },
+        "address": {
+          "$ref": "#/$defs/Address",
+          "default": "localhost",
+          "description": "Bind address for the control port. Defaults to localhost for security."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "TCP port for the control adapter."
+        },
+        "authentication": {
+          "$ref": "#/$defs/Authentication",
+          "description": "Optional authentication for the control port. Reuses the same Authentication model as business adapters."
+        },
+        "endpoints": {
+          "$ref": "#/$defs/ControlEndpointsSpec"
+        }
+      },
+      "required": [
+        "type",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "ControlEndpointsSpec": {
+      "type": "object",
+      "description": "Toggle individual control port endpoint groups.",
+      "properties": {
+        "health": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable /health/live and /health/ready endpoints."
+        },
+        "metrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable /metrics (Prometheus scrape). Requires OTel observability to be active."
+        },
+        "info": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable /status and /config endpoints. Disabled by default."
+        },
+        "traces": {
+          "$ref": "#/$defs/ControlTracesEndpointSpec",
+          "description": "Configure the /traces endpoint for local trace inspection."
+        },
+        "reload": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable POST /config/reload. Disabled by default."
+        },
+        "validate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable POST /config/validate (dry-run validation). Disabled by default."
+        },
+        "logging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable /logs endpoints for live log level control. Disabled by default."
+        },
+        "logs": {
+          "$ref": "#/$defs/ControlLogsEndpointSpec",
+          "description": "Configure the /logs/stream SSE endpoint for log streaming."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ControlTracesEndpointSpec": {
+      "type": "object",
+      "description": "Configuration for the /traces endpoint.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the /traces endpoint. Requires OTel to be active."
+        },
+        "bufferSize": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 10000,
+          "default": 100,
+          "description": "Maximum number of completed trace summaries to retain in the ring buffer."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ControlLogsEndpointSpec": {
+      "type": "object",
+      "description": "Configuration for the /logs/stream SSE endpoint.",
+      "properties": {
+        "stream": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable /logs/stream SSE endpoint. Disabled by default."
+        },
+        "maxSubscribers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5,
+          "description": "Maximum concurrent SSE subscribers for log streaming."
+        }
+      },
       "additionalProperties": false
     }
   }
