@@ -32,6 +32,7 @@ import io.naftiko.engine.consumes.ClientAdapter;
 import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.engine.consumes.http.HttpClientAdapter;
 import io.naftiko.engine.exposes.ServerAdapter;
+import io.naftiko.engine.exposes.control.ControlServerAdapter;
 import io.naftiko.engine.exposes.mcp.McpServerAdapter;
 import io.naftiko.engine.exposes.rest.RestServerAdapter;
 import io.naftiko.engine.exposes.skill.SkillServerAdapter;
@@ -39,6 +40,7 @@ import io.naftiko.engine.util.BindingResolver;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
+import io.naftiko.spec.exposes.ControlServerSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
@@ -118,6 +120,8 @@ public class Capability {
                 this.serverAdapters.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
             } else if ("skill".equals(serverSpec.getType())) {
                 this.serverAdapters.add(new SkillServerAdapter(this, (SkillServerSpec) serverSpec));
+            } else if ("control".equals(serverSpec.getType())) {
+                this.serverAdapters.add(new ControlServerAdapter(this, (ControlServerSpec) serverSpec));
             }
         }
 

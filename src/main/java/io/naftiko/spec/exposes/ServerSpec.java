@@ -32,7 +32,8 @@ import io.naftiko.spec.consumes.AuthenticationSpec;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = RestServerSpec.class, name = "rest"),
     @JsonSubTypes.Type(value = McpServerSpec.class, name = "mcp"),
-    @JsonSubTypes.Type(value = SkillServerSpec.class, name = "skill")
+    @JsonSubTypes.Type(value = SkillServerSpec.class, name = "skill"),
+    @JsonSubTypes.Type(value = ControlServerSpec.class, name = "control")
 })
 public abstract class ServerSpec {
 

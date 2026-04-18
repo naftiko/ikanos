@@ -1335,7 +1335,7 @@ The control port and [OpenTelemetry Observability](opentelemetry-observability.m
 | --- | --- |
 | **Phase 0 — Logging** (SLF4J via Restlet ext.slf4j) | Control port's `/logs` endpoint provides runtime log level control over the SLF4J/Logback pipeline. `/logs/stream` serves the structured log output over SSE. |
 | **Phase 1 — Distributed Tracing** (OTel spans) | Control port's `/traces` endpoint provides a local inspection layer — the engine captures completed spans in a ring buffer for CLI-driven debugging (`naftiko traces`). Traces are *also* exported via OTLP to Datadog/Jaeger for production use. |
-| **Phase 2 — Metrics** (OTel Meter → Prometheus) | **Absorbed** — Prometheus metrics are served by the control adapter on `/metrics`. No standalone OTel metrics server needed. The OTel SDK records via `Meter`; the control port's `MetricsRestlet` bridges `PrometheusMetricReader` to HTTP. |
+| **Phase 2 — Metrics** (OTel Meter → Prometheus) | **Absorbed** — Prometheus metrics are served by the control adapter on `/metrics`. No standalone OTel metrics server needed. The OTel SDK records via `Meter`; the control port's `MetricsResource` bridges `PrometheusMetricReader` to HTTP. |
 | **Phase 3 — Spec-Driven Configuration** (`observability` YAML block) | **Complementary** — The `observability` block configures OTel SDK behavior (sampling, exporters). The control port configures *where* the engine-side endpoints are served. `/status` reports the resolved OTel configuration. |
 | **Phase 4 — Dashboarding** (Grafana, Datadog templates) | Control port provides the scrape target for Prometheus. Dashboard JSON templates reference `<host>:<control-port>/metrics`. |
 
@@ -1421,16 +1421,16 @@ spec:
 | Test Class | Package | Purpose |
 | --- | --- | --- |
 | `CatalogCommandTest` | `io.naftiko.cli` | Generates valid `catalog-info.yaml` from capability YAML with correct mappings |
-| `ConfigReloadRestletTest` | `io.naftiko.engine.exposes.control` | Accepts safe changes, rejects structural changes |
-| `ConfigValidateRestletTest` | `io.naftiko.engine.exposes.control` | Dry-run validation reports schema errors, bind status, reload safety |
+| `ConfigReloadResourceTest` | `io.naftiko.engine.exposes.control` | Accepts safe changes, rejects structural changes |
+| `ConfigValidateResourceTest` | `io.naftiko.engine.exposes.control` | Dry-run validation reports schema errors, bind status, reload safety |
 | `ControlServerSpecTest` | `io.naftiko.spec.exposes` | Deserialization of `ExposesControl` from YAML |
-| `HealthLiveRestletTest` | `io.naftiko.engine.exposes.control` | Returns 200 when capability is running |
-| `HealthReadyRestletTest` | `io.naftiko.engine.exposes.control` | Returns 200 when all adapters started, 503 when degraded |
-| `LoggingRestletTest` | `io.naftiko.engine.exposes.control` | GET returns current levels; PUT changes level; changes are ephemeral |
-| `LogStreamRestletTest` | `io.naftiko.engine.exposes.control` | SSE stream delivers log events; respects subscriber limit |
-| `ConfigRestletTest` | `io.naftiko.engine.exposes.control` | Returns resolved spec with secrets redacted |
-| `StatusRestletTest` | `io.naftiko.engine.exposes.control` | Returns correct capability metadata, uptime, and OTel status |
-| `TracesRestletTest` | `io.naftiko.engine.exposes.control` | Returns trace summaries from ring buffer; filters by operation and status |
+| `HealthLiveResourceTest` | `io.naftiko.engine.exposes.control` | Returns 200 when capability is running |
+| `HealthReadyResourceTest` | `io.naftiko.engine.exposes.control` | Returns 200 when all adapters started, 503 when degraded |
+| `LoggingResourceTest` | `io.naftiko.engine.exposes.control` | GET returns current levels; PUT changes level; changes are ephemeral |
+| `LogStreamResourceTest` | `io.naftiko.engine.exposes.control` | SSE stream delivers log events; respects subscriber limit |
+| `ConfigResourceTest` | `io.naftiko.engine.exposes.control` | Returns resolved spec with secrets redacted |
+| `StatusResourceTest` | `io.naftiko.engine.exposes.control` | Returns correct capability metadata, uptime, and OTel status |
+| `TracesResourceTest` | `io.naftiko.engine.exposes.control` | Returns trace summaries from ring buffer; filters by operation and status |
 
 ### Integration Tests
 
@@ -1471,10 +1471,10 @@ This phase is **co-implemented with [OpenTelemetry Observability](opentelemetry-
 | 1.2 | Spec classes | Create `ControlServerSpec`, `ControlEndpointsSpec` and related classes in `io.naftiko.spec.exposes` |
 | 1.3 | Discriminator | Add `control` to `ServerSpec` Jackson subtypes and schema `oneOf` |
 | 1.4 | Adapter | Implement `ControlServerAdapter` extending `ServerAdapter` |
-| 1.5 | Health | Implement `HealthLiveRestlet` and `HealthReadyRestlet` — closes [#15](https://github.com/naftiko/framework/issues/15) |
-| 1.6 | Status | Implement `StatusRestlet` (`/status`) with capability metadata, uptime, and OTel status — closes [#16](https://github.com/naftiko/framework/issues/16) |
-| 1.7 | Metrics | Implement `MetricsRestlet` bridging OTel `PrometheusMetricReader` to HTTP |
-| 1.8 | Traces | Implement `TracesRestlet` with ring buffer + custom `SpanProcessor` |
+| 1.5 | Health | Implement `HealthLiveResource` and `HealthReadyResource` — closes [#15](https://github.com/naftiko/framework/issues/15) |
+| 1.6 | Status | Implement `StatusResource` (`/status`) with capability metadata, uptime, and OTel status — closes [#16](https://github.com/naftiko/framework/issues/16) |
+| 1.7 | Metrics | Implement `MetricsResource` bridging OTel `PrometheusMetricReader` to HTTP |
+| 1.8 | Traces | Implement `TracesResource` with ring buffer + custom `SpanProcessor` |
 | 1.9 | Rules | Add `control-port-singleton` and `control-port-unique` validation rules |
 | 1.10 | CLI `health` | Implement `naftiko health` command connecting to `/health/*` |
 | 1.11 | CLI `status` | Implement `naftiko status` command connecting to `/status` |
@@ -1490,8 +1490,8 @@ This phase is **co-implemented with [OpenTelemetry Observability](opentelemetry-
 | --- | --- | --- |
 | 2.1 | Catalog CLI | Implement `naftiko catalog` command that generates Backstage `catalog-info.yaml` from capability YAML |
 | 2.2 | Labels | Wire `info.labels` into generated `catalog-info.yaml` `metadata.labels` |
-| 2.3 | Spec introspection | Implement `ConfigRestlet` (`/config`) with secret redaction |
-| 2.4 | Logging | Implement `LoggingRestlet` — GET returns levels, PUT changes levels via Logback `LoggerContext` |
+| 2.3 | Spec introspection | Implement `ConfigResource` (`/config`) with secret redaction |
+| 2.4 | Logging | Implement `LoggingResource` — GET returns levels, PUT changes levels via Logback `LoggerContext` |
 | 2.5 | CLI `logs` | Implement `naftiko logs` command (query and set modes) |
 | 2.6 | CLI `config` | Implement `naftiko config` command connecting to `/config` |
 | 2.7 | Tests | Unit + integration tests for catalog CLI, spec, and logging endpoints |
@@ -1500,10 +1500,10 @@ This phase is **co-implemented with [OpenTelemetry Observability](opentelemetry-
 
 | Task | Component | Description |
 | --- | --- | --- |
-| 3.1 | Config reload | Implement `ConfigReloadRestlet` with validation, diffing, and atomic swap |
+| 3.1 | Config reload | Implement `ConfigReloadResource` with validation, diffing, and atomic swap |
 | 3.2 | Reload safety | Implement structural change detection and rejection logic |
-| 3.3 | Live validation | Implement `ConfigValidateRestlet` — dry-run validation with bind resolution, import resolution, structural change detection |
-| 3.4 | Log streaming | Implement `LogStreamRestlet` with SSE, custom Logback appender, fan-out queue, subscriber limit |
+| 3.3 | Live validation | Implement `ConfigValidateResource` — dry-run validation with bind resolution, import resolution, structural change detection |
+| 3.4 | Log streaming | Implement `LogStreamResource` with SSE, custom Logback appender, fan-out queue, subscriber limit |
 | 3.5 | CLI `config reload` | Implement `naftiko config reload` command |
 | 3.6 | CLI `config validate --live` | Extend `naftiko config validate` with `--live` flag |
 | 3.7 | CLI `logs --follow` | Implement SSE stream consumer in the CLI |
