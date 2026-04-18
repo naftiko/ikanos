@@ -1,0 +1,52 @@
+# Naftiko Observability Dev Stack
+#
+# Provides a local Prometheus + Grafana + OTel Collector environment for
+# developing and testing Naftiko capabilities with full observability.
+#
+# Usage:
+#   docker compose up -d
+#
+# Prometheus UI:        http://localhost:9091
+# Grafana UI:           http://localhost:3001 (admin / admin)
+# OTel Collector gRPC:  localhost:4317
+# OTel Collector HTTP:  localhost:4318
+#
+# The Naftiko capability should expose a Control Port with metrics enabled.
+# Prometheus scrapes the Control Port's /metrics endpoint directly.
+# To also push traces/metrics via OTLP, set the capability's observability
+# exporter endpoint to http://localhost:4318 (or gRPC on 4317).
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9091:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/naftiko.json
+    volumes:
+      - ./grafana-naftiko.json:/var/lib/grafana/dashboards/naftiko.json:ro
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.127.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol/config.yaml:ro
+    restart: unless-stopped

@@ -1,0 +1,163 @@
+{
+  "title": "Naftiko — RED Metrics",
+  "description": "Naftiko engine observability dashboard — Rate, Errors, Duration. Deploy via Terraform datadog_dashboard resource.",
+  "layout_type": "ordered",
+  "widgets": [
+    {
+      "definition": {
+        "title": "Active Capabilities",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "avg:naftiko_capability_active{*}",
+            "aggregator": "last"
+          }
+        ],
+        "precision": 0
+      }
+    },
+    {
+      "definition": {
+        "title": "Request Rate",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "sum:naftiko_request_total{*}.as_rate()",
+            "aggregator": "avg"
+          }
+        ],
+        "autoscale": true
+      }
+    },
+    {
+      "definition": {
+        "title": "Error Rate",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "sum:naftiko_request_errors_total{*}.as_rate()",
+            "aggregator": "avg"
+          }
+        ],
+        "autoscale": true,
+        "custom_links": [],
+        "conditional_formats": [
+          { "comparator": ">", "value": 1, "palette": "white_on_red" },
+          { "comparator": ">", "value": 0.1, "palette": "white_on_yellow" },
+          { "comparator": "<=", "value": 0.1, "palette": "white_on_green" }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Request Rate by Adapter",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:naftiko_request_total{*} by {naftiko_adapter_type}.as_rate()",
+            "display_type": "line"
+          }
+        ],
+        "yaxis": { "label": "req/s" }
+      }
+    },
+    {
+      "definition": {
+        "title": "Error Rate by Adapter",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:naftiko_request_errors_total{*} by {naftiko_adapter_type}.as_rate()",
+            "display_type": "line"
+          }
+        ],
+        "yaxis": { "label": "err/s" }
+      }
+    },
+    {
+      "definition": {
+        "title": "Request Duration (p50 / p95 / p99)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "p50:naftiko_request_duration_seconds{*}",
+            "display_type": "line",
+            "style": { "line_type": "solid" }
+          },
+          {
+            "q": "p95:naftiko_request_duration_seconds{*}",
+            "display_type": "line",
+            "style": { "line_type": "dashed" }
+          },
+          {
+            "q": "p99:naftiko_request_duration_seconds{*}",
+            "display_type": "line",
+            "style": { "line_type": "dotted" }
+          }
+        ],
+        "yaxis": { "label": "seconds" }
+      }
+    },
+    {
+      "definition": {
+        "title": "Step Duration by Type (p95)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "p95:naftiko_step_duration_seconds{*} by {step_type}",
+            "display_type": "line"
+          }
+        ],
+        "yaxis": { "label": "seconds" }
+      }
+    },
+    {
+      "definition": {
+        "title": "HTTP Client Rate by Host",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:naftiko_http_client_total{*} by {server_address}.as_rate()",
+            "display_type": "bars"
+          }
+        ],
+        "yaxis": { "label": "req/s" }
+      }
+    },
+    {
+      "definition": {
+        "title": "HTTP Client Duration by Host (p95)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "p95:naftiko_http_client_duration_seconds{*} by {server_address}",
+            "display_type": "line"
+          }
+        ],
+        "yaxis": { "label": "seconds" }
+      }
+    },
+    {
+      "definition": {
+        "title": "HTTP Client Requests by Status Code",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:naftiko_http_client_total{*} by {http_response_status_code}.as_rate()",
+            "display_type": "bars"
+          }
+        ],
+        "yaxis": { "label": "req/s" }
+      }
+    }
+  ],
+  "template_variables": [
+    {
+      "name": "instance",
+      "default": "*",
+      "prefix": "instance"
+    }
+  ],
+  "notify_list": [],
+  "reflow_type": "fixed"
+}
