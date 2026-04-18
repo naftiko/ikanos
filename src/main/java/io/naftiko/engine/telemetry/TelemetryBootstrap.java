@@ -63,6 +63,9 @@ public class TelemetryBootstrap {
     // Null when OTel is noop; holds a PullMetricReader when SDK is active.
     // Stored as Object to avoid loading SDK classes when the SDK is absent.
     private final Object metricReader;
+    // Null when OTel is noop; set when SDK is active so that a SpanProcessor
+    // (e.g. TraceCapturingSpanProcessor) can be wired after SDK initialization.
+    private final DelegatingSpanProcessor delegatingSpanProcessor;
 
     private static final Logger logger = Logger.getLogger(TelemetryBootstrap.class.getName());
 
@@ -70,15 +73,17 @@ public class TelemetryBootstrap {
             "io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk";
 
     TelemetryBootstrap(OpenTelemetry openTelemetry) {
-        this(openTelemetry, null);
+        this(openTelemetry, null, null);
     }
 
-    TelemetryBootstrap(OpenTelemetry openTelemetry, Object metricReader) {
+    TelemetryBootstrap(OpenTelemetry openTelemetry, Object metricReader,
+            DelegatingSpanProcessor delegatingSpanProcessor) {
         this.openTelemetry = openTelemetry;
         this.tracer = openTelemetry.getTracer(INSTRUMENTATION_NAME);
         Meter meter = openTelemetry.getMeter(INSTRUMENTATION_NAME);
         this.metrics = new EngineMetrics(meter);
         this.metricReader = metricReader;
+        this.delegatingSpanProcessor = delegatingSpanProcessor;
     }
 
     /**
@@ -126,6 +131,7 @@ public class TelemetryBootstrap {
     private static TelemetryBootstrap buildAutoConfigured(String serviceName,
             ObservabilitySpec observabilitySpec) {
         PullMetricReader pullReader = new PullMetricReader();
+        DelegatingSpanProcessor spanProcessorSlot = new DelegatingSpanProcessor();
         Map<String, String> specProperties = buildSpecProperties(observabilitySpec);
         var builder = io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk.builder();
         if (!specProperties.isEmpty()) {
@@ -137,9 +143,11 @@ public class TelemetryBootstrap {
                                 Attributes.of(AttributeKey.stringKey("service.name"), serviceName))))
                 .addMeterProviderCustomizer((meterProviderBuilder, config) ->
                         meterProviderBuilder.registerMetricReader(pullReader))
+                .addTracerProviderCustomizer((tracerProviderBuilder, config) ->
+                        tracerProviderBuilder.addSpanProcessor(spanProcessorSlot))
                 .build()
                 .getOpenTelemetrySdk();
-        return new TelemetryBootstrap(otel, pullReader);
+        return new TelemetryBootstrap(otel, pullReader, spanProcessorSlot);
     }
 
     /**
@@ -218,6 +226,31 @@ public class TelemetryBootstrap {
         }
         PullMetricReader reader = (PullMetricReader) metricReader;
         return PrometheusTextSerializer.serialize(reader.collectAllMetrics());
+    }
+
+    /**
+    /**
+     * Register a {@link io.opentelemetry.sdk.trace.SpanProcessor} to receive completed spans.
+     *
+     * <p>Used by the control adapter to wire the {@code TraceCapturingSpanProcessor} after
+     * the OTel SDK has already been built. Has no effect in noop mode (SDK absent).</p>
+     */
+    public void registerSpanProcessor(Object spanProcessor) {
+        if (delegatingSpanProcessor != null) {
+            delegatingSpanProcessor.setDelegate(
+                    (io.opentelemetry.sdk.trace.SpanProcessor) spanProcessor);
+        }
+    }
+
+    /**
+     * Start a SERVER span for an inbound adapter request.
+     */
+    public Span startServerSpan(String adapterType, String operationId) {
+        return tracer.spanBuilder(adapterType + ".request")
+                .setSpanKind(SpanKind.SERVER)
+                .setAttribute(ATTR_ADAPTER_TYPE, adapterType)
+                .setAttribute(ATTR_OPERATION_ID, operationId != null ? operationId : "unknown")
+                .startSpan();
     }
 
     /**

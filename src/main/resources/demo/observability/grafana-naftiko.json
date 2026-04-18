@@ -101,7 +101,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors_total[$__rate_interval]))",
+          "expr": "sum(rate(naftiko_request_errors[$__rate_interval]))",
           "legendFormat": "err/s"
         }
       ]
@@ -165,7 +165,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors_total[$__rate_interval])) / clamp_min(sum(rate(naftiko_request_total[$__rate_interval])), 1)",
+          "expr": "sum(rate(naftiko_request_errors[$__rate_interval])) / clamp_min(sum(rate(naftiko_request_total[$__rate_interval])), 1)",
           "legendFormat": "error %"
         }
       ]
@@ -231,7 +231,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors_total[$__rate_interval])) by (naftiko_adapter_type)",
+          "expr": "sum(rate(naftiko_request_errors[$__rate_interval])) by (naftiko_adapter_type)",
           "legendFormat": "{{ naftiko_adapter_type }}"
         }
       ]

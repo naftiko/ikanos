@@ -61,8 +61,8 @@ class EngineMetricsTest {
         Collection<MetricData> data = metricReader.collectAllMetrics();
         assertTrue(hasMetric(data, "naftiko.request.total"),
                 "Should record naftiko.request.total counter");
-        assertTrue(hasMetric(data, "naftiko.request.duration"),
-                "Should record naftiko.request.duration histogram");
+        assertTrue(hasMetric(data, "naftiko.request.duration.seconds"),
+                "Should record naftiko.request.duration.seconds histogram");
     }
 
     @Test
@@ -79,8 +79,8 @@ class EngineMetricsTest {
         metrics.recordStep("call", "weather-api", 0.120);
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
-        assertTrue(hasMetric(data, "naftiko.step.duration"),
-                "Should record naftiko.step.duration histogram");
+        assertTrue(hasMetric(data, "naftiko.step.duration.seconds"),
+                "Should record naftiko.step.duration.seconds histogram");
     }
 
     @Test
@@ -90,8 +90,8 @@ class EngineMetricsTest {
         Collection<MetricData> data = metricReader.collectAllMetrics();
         assertTrue(hasMetric(data, "naftiko.http.client.total"),
                 "Should record naftiko.http.client.total counter");
-        assertTrue(hasMetric(data, "naftiko.http.client.duration"),
-                "Should record naftiko.http.client.duration histogram");
+        assertTrue(hasMetric(data, "naftiko.http.client.duration.seconds"),
+                "Should record naftiko.http.client.duration.seconds histogram");
     }
 
     @Test

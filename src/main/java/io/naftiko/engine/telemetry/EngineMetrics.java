@@ -42,7 +42,7 @@ public class EngineMetrics {
                 .setDescription("Total number of requests handled by the engine")
                 .build();
 
-        this.requestDuration = meter.histogramBuilder("naftiko.request.duration")
+        this.requestDuration = meter.histogramBuilder("naftiko.request.duration.seconds")
                 .setDescription("Duration of request handling in seconds")
                 .setUnit("s")
                 .build();
@@ -51,7 +51,7 @@ public class EngineMetrics {
                 .setDescription("Total number of request errors")
                 .build();
 
-        this.stepDuration = meter.histogramBuilder("naftiko.step.duration")
+        this.stepDuration = meter.histogramBuilder("naftiko.step.duration.seconds")
                 .setDescription("Duration of step execution in seconds")
                 .setUnit("s")
                 .build();
@@ -60,7 +60,7 @@ public class EngineMetrics {
                 .setDescription("Total number of outbound HTTP client calls")
                 .build();
 
-        this.httpClientDuration = meter.histogramBuilder("naftiko.http.client.duration")
+        this.httpClientDuration = meter.histogramBuilder("naftiko.http.client.duration.seconds")
                 .setDescription("Duration of outbound HTTP client calls in seconds")
                 .setUnit("s")
                 .build();

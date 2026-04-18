@@ -15,6 +15,7 @@ package io.naftiko.engine.exposes.control;
 
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.ServerAdapter;
+import io.naftiko.engine.telemetry.TelemetryBootstrap;
 import io.naftiko.spec.exposes.ControlEndpointsSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
 import org.restlet.Context;
@@ -63,6 +64,9 @@ public class ControlServerAdapter extends ServerAdapter {
         if (endpoints.getTraces().isEnabled()) {
             router.attach("/traces", TracesResource.class);
             router.attach("/traces/{traceId}", TracesResource.class);
+            // Wire the span processor so completed spans flow into the ring buffer
+            TelemetryBootstrap.get().registerSpanProcessor(
+                    new TraceCapturingSpanProcessor(traceRingBuffer));
         }
 
         // Development endpoints (disabled by default)
