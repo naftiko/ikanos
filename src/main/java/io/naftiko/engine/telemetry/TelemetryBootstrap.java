@@ -14,6 +14,7 @@
 package io.naftiko.engine.telemetry;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -55,6 +56,10 @@ public class TelemetryBootstrap {
 
     private final OpenTelemetry openTelemetry;
     private final Tracer tracer;
+    private final EngineMetrics metrics;
+    // Null when OTel is noop; holds a PullMetricReader when SDK is active.
+    // Stored as Object to avoid loading SDK classes when the SDK is absent.
+    private final Object metricReader;
 
     private static final Logger logger = Logger.getLogger(TelemetryBootstrap.class.getName());
 
@@ -62,8 +67,15 @@ public class TelemetryBootstrap {
             "io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk";
 
     TelemetryBootstrap(OpenTelemetry openTelemetry) {
+        this(openTelemetry, null);
+    }
+
+    TelemetryBootstrap(OpenTelemetry openTelemetry, Object metricReader) {
         this.openTelemetry = openTelemetry;
         this.tracer = openTelemetry.getTracer(INSTRUMENTATION_NAME);
+        Meter meter = openTelemetry.getMeter(INSTRUMENTATION_NAME);
+        this.metrics = new EngineMetrics(meter);
+        this.metricReader = metricReader;
     }
 
     /**
@@ -75,7 +87,7 @@ public class TelemetryBootstrap {
     public static TelemetryBootstrap init(String serviceName) {
         try {
             Class.forName(AUTOCONFIGURE_CLASS);
-            instance = new TelemetryBootstrap(buildAutoConfigured(serviceName));
+            instance = buildAutoConfigured(serviceName);
         } catch (ClassNotFoundException e) {
             logger.info("OpenTelemetry SDK not on classpath — telemetry disabled");
             instance = NOOP;
@@ -88,18 +100,21 @@ public class TelemetryBootstrap {
     }
 
     /**
-     * Builds an auto-configured OpenTelemetry SDK instance.
-     * Extracted into a separate method so the class reference to AutoConfiguredOpenTelemetrySdk
-     * is only resolved when the class is confirmed present on the classpath.
+     * Builds an auto-configured OpenTelemetry SDK instance with a {@link PullMetricReader}
+     * registered for Prometheus scraping via the Control Port.
      */
-    private static OpenTelemetry buildAutoConfigured(String serviceName) {
+    private static TelemetryBootstrap buildAutoConfigured(String serviceName) {
+        PullMetricReader pullReader = new PullMetricReader();
         var builder = io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk.builder();
-        return builder
+        OpenTelemetry otel = builder
                 .addResourceCustomizer((resource, config) ->
                         resource.merge(io.opentelemetry.sdk.resources.Resource.create(
                                 Attributes.of(AttributeKey.stringKey("service.name"), serviceName))))
+                .addMeterProviderCustomizer((meterProviderBuilder, config) ->
+                        meterProviderBuilder.registerMetricReader(pullReader))
                 .build()
                 .getOpenTelemetrySdk();
+        return new TelemetryBootstrap(otel, pullReader);
     }
 
     /**
@@ -131,6 +146,22 @@ public class TelemetryBootstrap {
 
     public Tracer getTracer() {
         return tracer;
+    }
+
+    public EngineMetrics getMetrics() {
+        return metrics;
+    }
+
+    /**
+     * Collect all OTel metrics and serialize them in Prometheus exposition text format.
+     * Returns {@code null} when the OTel SDK is not active (noop mode).
+     */
+    public String collectPrometheusMetrics() {
+        if (metricReader == null) {
+            return null;
+        }
+        PullMetricReader reader = (PullMetricReader) metricReader;
+        return PrometheusTextSerializer.serialize(reader.collectAllMetrics());
     }
 
     /**

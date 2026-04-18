@@ -2483,7 +2483,7 @@
           "default": true,
           "description": "Enable the /traces endpoint. Requires OTel to be active."
         },
-        "bufferSize": {
+        "buffer-size": {
           "type": "integer",
           "minimum": 10,
           "maximum": 10000,
@@ -2502,7 +2502,7 @@
           "default": false,
           "description": "Enable /logs/stream SSE endpoint. Disabled by default."
         },
-        "maxSubscribers": {
+        "max-subscribers": {
           "type": "integer",
           "minimum": 1,
           "maximum": 20,

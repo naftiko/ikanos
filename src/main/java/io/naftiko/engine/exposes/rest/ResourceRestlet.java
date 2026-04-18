@@ -78,6 +78,7 @@ public class ResourceRestlet extends Restlet {
         Span span = telemetry.startServerSpan("rest", operationId, extractedContext,
                 request.getMethod().getName(), capabilityName);
 
+        long startNanos = System.nanoTime();
         try (Scope scope = span.makeCurrent()) {
             boolean handled = handleFromOperationSpec(request, response);
 
@@ -93,8 +94,14 @@ public class ResourceRestlet extends Restlet {
             }
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
+            telemetry.getMetrics().recordRequestError("rest", operationId,
+                    e.getClass().getSimpleName());
             throw e;
         } finally {
+            double durationSec = (System.nanoTime() - startNanos) / 1_000_000_000.0;
+            String status = response.getStatus() != null
+                    ? String.valueOf(response.getStatus().getCode()) : "200";
+            telemetry.getMetrics().recordRequest("rest", operationId, status, durationSec);
             TelemetryBootstrap.endSpan(span);
         }
     }

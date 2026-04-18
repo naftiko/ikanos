@@ -198,9 +198,17 @@ public class Capability {
         for (ServerAdapter adapter : getServerAdapters()) {
             adapter.start();
         }
+
+        String capabilityName = spec.getInfo() != null && spec.getInfo().getLabel() != null
+                ? spec.getInfo().getLabel() : "unknown";
+        TelemetryBootstrap.get().getMetrics().capabilityStarted(capabilityName);
     }
 
     public void stop() throws Exception {
+        String capabilityName = spec.getInfo() != null && spec.getInfo().getLabel() != null
+                ? spec.getInfo().getLabel() : "unknown";
+        TelemetryBootstrap.get().getMetrics().capabilityStopped(capabilityName);
+
         for (ServerAdapter adapter : getServerAdapters()) {
             adapter.stop();
         }

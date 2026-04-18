@@ -14,7 +14,6 @@
 package io.naftiko.engine.exposes.control;
 
 import io.naftiko.engine.telemetry.TelemetryBootstrap;
-import io.opentelemetry.api.OpenTelemetry;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import org.restlet.representation.Representation;
@@ -24,18 +23,15 @@ import org.restlet.resource.ServerResource;
 
 /**
  * Prometheus metrics scrape endpoint. Bridges OTel-recorded metrics to Prometheus exposition
- * format. Returns {@code 503} when OTel is not active.
- *
- * <p>In Phase 1, this returns a basic {@code naftiko_up} gauge. Full metric bridging
- * (via {@code PrometheusMetricReader}) is wired when the OTel Prometheus exporter is on the
- * classpath.</p>
+ * format via {@link TelemetryBootstrap#collectPrometheusMetrics()}. Returns {@code 503} when
+ * OTel is not active.
  */
 public class MetricsResource extends ServerResource {
 
     @Get
     public Representation getMetrics() {
-        OpenTelemetry otel = TelemetryBootstrap.get().getOpenTelemetry();
-        if (otel == OpenTelemetry.noop()) {
+        String prometheusText = TelemetryBootstrap.get().collectPrometheusMetrics();
+        if (prometheusText == null) {
             setStatus(Status.SERVER_ERROR_SERVICE_UNAVAILABLE);
             return new StringRepresentation(
                     "{\"error\":\"OpenTelemetry is not active. "
@@ -43,9 +39,6 @@ public class MetricsResource extends ServerResource {
                     MediaType.APPLICATION_JSON);
         }
 
-        String metrics = "# HELP naftiko_up Capability liveness indicator\n"
-                + "# TYPE naftiko_up gauge\n"
-                + "naftiko_up 1\n";
-        return new StringRepresentation(metrics, MediaType.TEXT_PLAIN);
+        return new StringRepresentation(prometheusText, MediaType.TEXT_PLAIN);
     }
 }

@@ -171,8 +171,10 @@ public class OperationStepExecutor {
             OperationStepSpec step = steps.get(stepIndex);
             switch (step) {
                 case OperationStepCallSpec callStep -> {
-                    Span stepSpan = TelemetryBootstrap.get()
+                    TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+                    Span stepSpan = telemetry
                             .startStepCallSpan(stepIndex, callStep.getCall(), exposeNamespace);
+                    long stepStartNanos = System.nanoTime();
                     try (Scope stepScope = stepSpan.makeCurrent()) {
                         lastContext = executeCallStep(callStep, runtimeParameters);
 
@@ -217,12 +219,18 @@ public class OperationStepExecutor {
                         TelemetryBootstrap.recordError(stepSpan, e);
                         throw e;
                     } finally {
+                        double stepDurationSec =
+                                (System.nanoTime() - stepStartNanos) / 1_000_000_000.0;
+                        telemetry.getMetrics().recordStep(
+                                "call", exposeNamespace, stepDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
                 case OperationStepLookupSpec lookupStep -> {
-                    Span stepSpan = TelemetryBootstrap.get()
+                    TelemetryBootstrap lookupTelemetry = TelemetryBootstrap.get();
+                    Span stepSpan = lookupTelemetry
                             .startStepLookupSpan(stepIndex, lookupStep.getMatch());
+                    long lookupStartNanos = System.nanoTime();
                     try (Scope stepScope = stepSpan.makeCurrent()) {
                         JsonNode indexData = stepContext.getStepOutput(lookupStep.getIndex());
 
@@ -269,6 +277,10 @@ public class OperationStepExecutor {
                         TelemetryBootstrap.recordError(stepSpan, e);
                         throw e;
                     } finally {
+                        double lookupDurationSec =
+                                (System.nanoTime() - lookupStartNanos) / 1_000_000_000.0;
+                        lookupTelemetry.getMetrics().recordStep(
+                                "lookup", exposeNamespace, lookupDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
@@ -749,7 +761,12 @@ public class OperationStepExecutor {
                     ? clientRequest.getResourceRef().toString() : "unknown";
             String namespace = clientAdapter.getHttpClientSpec().getNamespace();
 
+<<<<<<< HEAD
             Span span = telemetry.startClientSpan(method, url, namespace);
+=======
+            Span span = telemetry.startClientSpan(method, url);
+            long clientStartNanos = System.nanoTime();
+>>>>>>> 8c1fd6e (feat: implement OTel Phase 2 — RED metrics and Prometheus scrape)
             try (Scope scope = span.makeCurrent()) {
                 // Inject W3C trace context after the client span is current
                 // so downstream services see this span as the parent
@@ -771,6 +788,14 @@ public class OperationStepExecutor {
                 TelemetryBootstrap.recordError(span, e);
                 throw e;
             } finally {
+                double clientDurationSec =
+                        (System.nanoTime() - clientStartNanos) / 1_000_000_000.0;
+                String host = clientRequest.getResourceRef() != null
+                        ? clientRequest.getResourceRef().getHostDomain() : "unknown";
+                int code = clientResponse != null && clientResponse.getStatus() != null
+                        ? clientResponse.getStatus().getCode() : 0;
+                telemetry.getMetrics().recordHttpClient(method, host != null ? host : "unknown",
+                        code, clientDurationSec);
                 TelemetryBootstrap.endSpan(span);
             }
         }

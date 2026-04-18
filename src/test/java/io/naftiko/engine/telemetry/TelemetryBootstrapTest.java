@@ -306,4 +306,38 @@ public class TelemetryBootstrapTest {
         assertEquals(serverData.getTraceId(), stepData.getTraceId());
         assertEquals(serverData.getTraceId(), clientData.getTraceId());
     }
+
+    // ── Metrics ──
+
+    @Test
+    void getMetricsShouldReturnNonNullEvenWhenNoop() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.get();
+        assertNotNull(bootstrap.getMetrics(), "Metrics should be available even in noop mode");
+    }
+
+    @Test
+    void collectPrometheusMetricsShouldReturnNullWhenNoop() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.get();
+        assertNull(bootstrap.collectPrometheusMetrics(),
+                "Prometheus metrics should be null in noop mode");
+    }
+
+    @Test
+    void collectPrometheusMetricsShouldReturnNullWhenInitWithPlainSdk() {
+        // init(OpenTelemetry) does not create a PullMetricReader
+        initWithInMemoryExporter();
+        assertNull(TelemetryBootstrap.get().collectPrometheusMetrics(),
+                "Prometheus metrics should be null when init'd with plain SDK");
+    }
+
+    @Test
+    void initWithServiceNameShouldEnablePrometheusMetrics() {
+        TelemetryBootstrap bootstrap = TelemetryBootstrap.init("test-service");
+        // Record a metric to ensure there's data
+        bootstrap.getMetrics().recordRequest("rest", "/test GET", "200", 0.1);
+        String text = bootstrap.collectPrometheusMetrics();
+        assertNotNull(text, "Prometheus metrics should be available after init(serviceName)");
+        assertTrue(text.contains("naftiko_request_total"),
+                "Should contain serialized metrics");
+    }
 }
