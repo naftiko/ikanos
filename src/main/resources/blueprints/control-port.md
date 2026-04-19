@@ -887,14 +887,13 @@ Add an optional `labels` property to the existing `Info` definition:
       "default": false,
       "description": "Enable POST /config/validate (dry-run validation). Disabled by default."
     },
-    "logging": {
-      "type": "boolean",
-      "default": false,
-      "description": "Enable /logs endpoints for live log level control. Disabled by default — mutates runtime state."
-    },
     "logs": {
-      "$ref": "#/$defs/ControlLogsEndpointSpec",
-      "description": "Configure the /logs/stream SSE endpoint for log streaming."
+      "oneOf": [
+        { "type": "boolean" },
+        { "$ref": "#/$defs/ControlLogsEndpointSpec" }
+      ],
+      "default": false,
+      "description": "Configure /logs endpoints. Boolean (true=all enabled) or object for advanced config."
     }
   },
   "unevaluatedProperties": false
@@ -903,12 +902,17 @@ Add an optional `labels` property to the existing `Info` definition:
 "ControlLogsEndpointSpec": {
   "type": "object",
   "properties": {
+    "level-control": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable /logs and /logs/{logger} for live log level control. Default: true when object form is used."
+    },
     "stream": {
       "type": "boolean",
       "default": false,
       "description": "Enable /logs/stream SSE endpoint. Disabled by default — can expose sensitive runtime data."
     },
-    "maxSubscribers": {
+    "max-subscribers": {
       "type": "integer",
       "minimum": 1,
       "maximum": 20,
@@ -1005,9 +1009,7 @@ This gives you `/health/live`, `/health/ready`, `/metrics`, and `/traces` on `:9
         info: true
         reload: true
         validate: true
-        logging: true
-        logs:
-          stream: true
+        logs: true
 ```
 
 This enables all development endpoints: `/status`, `/config`, `/config/reload`, `/config/validate`, `/logs`, `/logs/{logger}`, and `/logs/stream`. Use this during local development for full CLI integration.
@@ -1185,7 +1187,7 @@ class ControlServerAdapter extends ServerAdapter {
         if (management.isValidate()) {
             router.attach("/config/validate", ConfigValidateResource.class);
         }
-        if (management.isLogging()) {
+        if (management.isLogging()) {          // derived: logs.isLevelControl()
             router.attach("/logs", LoggingResource.class);
             router.attach("/logs/{logger}", LoggingResource.class);
         }

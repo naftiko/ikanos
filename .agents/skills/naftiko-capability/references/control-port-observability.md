@@ -52,20 +52,15 @@ capability:
         info: false               # /status, /config (default: false)
         reload: false             # POST /config/reload (default: false)
         validate: false           # POST /config/validate (default: false)
-        logging: false            # /logs — log level control (default: false)
-        logs:
+        logs:                     # /logs endpoints (default: false)
+          level-control: true     # /logs, /logs/{logger} (default: true when object)
           stream: false           # /logs/stream — SSE log streaming (default: false)
           max-subscribers: 5      # max concurrent SSE subscribers (default: 5)
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true         # /metrics — Prometheus scrape (default: true)
         traces:
           sampling: 1.0
           propagation: w3c
           local:
-            enabled: true         # /traces, /traces/{traceId} (default: true)
             buffer-size: 200      # ring buffer capacity (default: 100)
 ```
 
@@ -79,7 +74,7 @@ capability:
 | `/status`, `/config` | `management.info` | Disabled | No |
 | `POST /config/reload` | `management.reload` | Disabled | No |
 | `POST /config/validate` | `management.validate` | Disabled | No |
-| `/logs` | `management.logging` | Disabled | No |
+| `/logs` | `management.logs` (or `management.logs.level-control`) | Disabled | No |
 | `/logs/stream` | `management.logs.stream` | Disabled | No |
 
 ### Rules
@@ -106,12 +101,13 @@ capability:
   exposes:
     - type: control
       port: 9090
-      observability:
-        enabled: true
+      observability: {}
 ```
 
-This uses all defaults: 100% trace sampling, W3C propagation, no OTLP export
-(metrics available via Prometheus scrape on the control port).
+All defaults apply: observability enabled, 100% trace sampling, W3C propagation,
+`/metrics` and `/traces` endpoints active, no OTLP export (metrics available via
+Prometheus scrape on the control port). Set `enabled: false` to disable
+observability while keeping the rest of the config.
 
 ### Full example with OTLP export
 
@@ -121,15 +117,9 @@ capability:
     - type: control
       port: 9090
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true
         traces:
           sampling: 1.0              # 1.0 = all traces, 0.1 = 10% (default: 1.0)
           propagation: w3c           # w3c or b3 (default: w3c)
-          local:
-            enabled: true
         exporters:
           otlp:
             endpoint: "{{OTEL_ENDPOINT}}"   # Mustache for binds injection
@@ -164,14 +154,9 @@ capability:
       management:
         health: true
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true
         traces:
           sampling: 1.0
           local:
-            enabled: true
             buffer-size: 200
         exporters:
           otlp:

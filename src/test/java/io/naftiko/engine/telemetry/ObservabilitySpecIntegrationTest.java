@@ -41,13 +41,12 @@ class ObservabilitySpecIntegrationTest {
         assertNotNull(observability);
         assertTrue(observability.isEnabled());
 
-        assertNotNull(observability.getMetrics());
-        assertTrue(observability.getMetrics().getLocal().isEnabled());
+        assertNull(observability.getMetrics(), "metrics omitted — defaults handled by adapter");
 
         assertNotNull(observability.getTraces());
         assertEquals(0.5, observability.getTraces().getSampling(), 0.001);
         assertEquals("b3", observability.getTraces().getPropagation());
-        assertTrue(observability.getTraces().getLocal().isEnabled());
+        assertNull(observability.getTraces().getLocal(), "traces.local omitted — defaults handled by adapter");
 
         assertNotNull(observability.getExporters());
         assertNotNull(observability.getExporters().getOtlp());

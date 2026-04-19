@@ -25,7 +25,6 @@ public class ControlManagementSpec {
     private volatile boolean info = false;
     private volatile boolean reload = false;
     private volatile boolean validate = false;
-    private volatile boolean logging = false;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ControlLogsEndpointSpec logs;
@@ -62,22 +61,22 @@ public class ControlManagementSpec {
         this.validate = validate;
     }
 
-    public boolean isLogging() {
-        return logging;
-    }
-
-    public void setLogging(boolean logging) {
-        this.logging = logging;
-    }
-
     public ControlLogsEndpointSpec getLogs() {
         if (logs == null) {
             logs = new ControlLogsEndpointSpec();
+            logs.setLevelControl(false);
         }
         return logs;
     }
 
     public void setLogs(ControlLogsEndpointSpec logs) {
         this.logs = logs;
+    }
+
+    /**
+     * Convenience accessor — returns true when log level control is enabled.
+     */
+    public boolean isLogging() {
+        return logs != null && logs.isLevelControl();
     }
 }

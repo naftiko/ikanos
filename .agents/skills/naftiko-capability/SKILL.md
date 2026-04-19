@@ -173,9 +173,9 @@ before writing any mock output parameters.
     security. Binding to `0.0.0.0` exposes management endpoints externally.
 25. The `/metrics` and `/traces` control port endpoints are configured under
     `observability.metrics.local` and `observability.traces.local` respectively.
-    They require OTel observability to be active (`observability.enabled: true`
-    on the control adapter and the OTel SDK on the classpath). They return 503
-    when OTel is inactive.
+    Observability is **enabled by default** — all `enabled` fields default to
+    `true`. Set `enabled: false` to disable specific endpoints or observability
+    entirely. They return 503 when the OTel SDK is not on the classpath.
 26. When adding a control port, also add `observability` on the control
     adapter if you want metrics and traces to produce data. Without it,
     the local endpoints return empty or 503 responses.

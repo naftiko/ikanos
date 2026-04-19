@@ -27,15 +27,10 @@ capability:
       management:
         health: true
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true
         traces:
           sampling: 1.0
           propagation: w3c
           local:
-            enabled: true
             buffer-size: 200
         exporters:
           otlp:
