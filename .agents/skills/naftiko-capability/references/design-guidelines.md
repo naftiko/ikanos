@@ -171,7 +171,7 @@ Aggregates borrow from [Domain-Driven Design](https://en.wikipedia.org/wiki/Doma
 
 ### Observability pairing
 
-- If you enable `/metrics` or `/traces` on the control port, also add `capability.observability` with `enabled: true`. Without it, those endpoints return 503.
+- Observability is **enabled by default** — adding an `observability` block (even empty) activates metrics and traces when the OTel SDK is on the classpath. Use `enabled: false` only to disable it while keeping the rest of the config.
 - Use `binds` for the OTLP exporter endpoint so it can vary across environments.
 - Set `traces.sampling` to a value lower than `1.0` in high-traffic production scenarios to reduce overhead.
 - Prefer W3C propagation (`w3c`) unless the upstream ecosystem requires B3.

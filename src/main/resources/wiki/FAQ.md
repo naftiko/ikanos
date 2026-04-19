@@ -595,13 +595,8 @@ capability:
       management:
         health: true
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true
         traces:
           local:
-            enabled: true
             buffer-size: 200
 ```
 
@@ -622,7 +617,7 @@ At most one control adapter is allowed per capability, and its port must not col
 | `/logs/stream` | Disabled | SSE log streaming |
 
 ### Q: How do I enable OpenTelemetry observability?
-**A:** Add an `observability` block on the control adapter:
+**A:** Add an `observability` block on the control adapter. Observability is enabled by default — you only need to set the fields you want to customize:
 
 ```yaml
 capability:
@@ -630,7 +625,6 @@ capability:
     - type: control
       port: 9090
       observability:
-        enabled: true
         traces:
           sampling: 1.0
           propagation: w3c

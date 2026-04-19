@@ -2456,22 +2456,31 @@
           "default": false,
           "description": "Enable POST /config/validate (dry-run validation). Disabled by default."
         },
-        "logging": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable /logs endpoints for live log level control. Disabled by default."
-        },
         "logs": {
-          "$ref": "#/$defs/ControlLogsEndpointSpec",
-          "description": "Configure the /logs/stream SSE endpoint for log streaming."
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple mode: true enables all /logs endpoints (level control + streaming with default max-subscribers). false disables all."
+            },
+            {
+              "$ref": "#/$defs/ControlLogsEndpointSpec"
+            }
+          ],
+          "default": false,
+          "description": "Configure /logs endpoints for log level control and SSE streaming. Accepts a boolean (simple) or an object (advanced)."
         }
       },
       "additionalProperties": false
     },
     "ControlLogsEndpointSpec": {
       "type": "object",
-      "description": "Configuration for the /logs/stream SSE endpoint.",
+      "description": "Advanced configuration for /logs endpoints (log level control and SSE streaming).",
       "properties": {
+        "level-control": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable /logs and /logs/{logger} endpoints for live log level control. Default: true (enabled when logs object is present)."
+        },
         "stream": {
           "type": "boolean",
           "default": false,

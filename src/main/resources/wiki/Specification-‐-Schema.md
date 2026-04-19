@@ -935,8 +935,7 @@ Toggles individual control port management endpoint groups. Does not include OTe
 | **info** | `boolean` | Enable `/status` and `/config` endpoints. Default: `false`. |
 | **reload** | `boolean` | Enable `POST /config/reload`. Default: `false`. |
 | **validate** | `boolean` | Enable `POST /config/validate` (dry-run validation). Default: `false`. |
-| **logging** | `boolean` | Enable `/logs` endpoints for live log level control. Default: `false`. |
-| **logs** | `ControlLogsEndpointSpec` | Configure the `/logs/stream` SSE endpoint for log streaming. |
+| **logs** | `boolean` or `ControlLogsEndpointSpec` | Configure `/logs` endpoints. Accepts `true` (enable all with defaults), `false`/omitted (disable all), or an object for advanced configuration. Default: `false`. |
 
 **Rules:**
 
@@ -944,12 +943,18 @@ Toggles individual control port management endpoint groups. Does not include OTe
 
 #### ControlLogsEndpointSpec Object
 
-Configuration for the `/logs/stream` SSE endpoint.
+Advanced configuration for `/logs` endpoints (log level control and SSE streaming). Used when `logs` is an object.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
+| **level-control** | `boolean` | Enable `/logs` and `/logs/{logger}` endpoints for live log level control. Default: `true` (enabled when the object form is used). |
 | **stream** | `boolean` | Enable `/logs/stream` SSE endpoint. Default: `false`. |
 | **max-subscribers** | `integer` | Maximum concurrent SSE subscribers for log streaming (1–20). Default: `5`. |
+
+**Shorthand expansion:**
+
+- `logs: true` is equivalent to `logs: { level-control: true, stream: true, max-subscribers: 5 }`
+- `logs: false` (or omitted) is equivalent to `logs: { level-control: false, stream: false }`
 
 **Control Expose Example:**
 
@@ -957,20 +962,11 @@ Configuration for the `/logs/stream` SSE endpoint.
 - type: control
   port: 9090
   management:
-    health: true
     info: true
-    logging: true
-    logs:
-      stream: true
-      max-subscribers: 3
+    logs: true
   observability:
-    enabled: true
-    metrics:
-      local:
-        enabled: true
     traces:
       local:
-        enabled: true
         buffer-size: 200
 ```
 
@@ -980,7 +976,7 @@ Configuration for the `/logs/stream` SSE endpoint.
 
 Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port via OpenTelemetry. All fields are optional — defaults to OTel environment variables when not specified.
 
-> New in schema v1.0.0-alpha1. Restructured in v1.0.0-alpha2: metrics and traces local endpoints moved from `endpoints` into `observability`.
+> New in schema v1.0.0-alpha2.
 
 ##### ObservabilitySpec
 
@@ -1038,15 +1034,9 @@ capability:
     - type: control
       port: 9090
       observability:
-        enabled: true
-        metrics:
-          local:
-            enabled: true
         traces:
           sampling: 1.0
           propagation: w3c
-          local:
-            enabled: true
         exporters:
           otlp:
             endpoint: "{{otel_endpoint}}"

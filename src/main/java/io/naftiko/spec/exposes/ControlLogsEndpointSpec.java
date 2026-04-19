@@ -14,16 +14,30 @@
 package io.naftiko.spec.exposes;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
- * Configuration for the /logs/stream SSE endpoint on the control port.
+ * Configuration for /logs endpoints on the control port. Supports a boolean shorthand ({@code logs:
+ * true}) that enables all log endpoints with defaults, or an object form for advanced configuration.
  */
+@JsonDeserialize(using = ControlLogsEndpointSpecDeserializer.class)
 public class ControlLogsEndpointSpec {
+
+    @JsonProperty("level-control")
+    private volatile boolean levelControl = true;
 
     private volatile boolean stream = false;
 
     @JsonProperty("max-subscribers")
     private volatile int maxSubscribers = 5;
+
+    public boolean isLevelControl() {
+        return levelControl;
+    }
+
+    public void setLevelControl(boolean levelControl) {
+        this.levelControl = levelControl;
+    }
 
     public boolean isStream() {
         return stream;
@@ -39,5 +53,16 @@ public class ControlLogsEndpointSpec {
 
     public void setMaxSubscribers(int maxSubscribers) {
         this.maxSubscribers = maxSubscribers;
+    }
+
+    /**
+     * Creates a spec with all log endpoints enabled and default settings. Used when {@code logs:
+     * true} is specified.
+     */
+    static ControlLogsEndpointSpec allEnabled() {
+        ControlLogsEndpointSpec spec = new ControlLogsEndpointSpec();
+        spec.setLevelControl(true);
+        spec.setStream(true);
+        return spec;
     }
 }

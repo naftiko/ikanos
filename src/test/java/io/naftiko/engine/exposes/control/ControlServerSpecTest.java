@@ -63,9 +63,10 @@ public class ControlServerSpecTest {
         assertTrue(management.isInfo());
         assertFalse(management.isReload());
         assertFalse(management.isValidate());
-        assertFalse(management.isLogging());
+        assertTrue(management.isLogging());
 
         ControlLogsEndpointSpec logs = management.getLogs();
+        assertTrue(logs.isLevelControl());
         assertTrue(logs.isStream());
         assertEquals(10, logs.getMaxSubscribers());
 
@@ -93,9 +94,11 @@ public class ControlServerSpecTest {
         assertNotNull(management);
         assertTrue(management.isHealth());
         assertFalse(management.isInfo());
+        assertFalse(management.isLogging());
 
         ControlLogsEndpointSpec logs = management.getLogs();
         assertNotNull(logs);
+        assertFalse(logs.isLevelControl());
         assertFalse(logs.isStream());
         assertEquals(5, logs.getMaxSubscribers());
     }
@@ -112,6 +115,62 @@ public class ControlServerSpecTest {
         assertEquals("control", spec.getType());
         assertEquals(9100, spec.getPort());
         assertNotNull(spec.getManagement());
+    }
+
+    @Test
+    public void logsShouldDeserializeBooleanTrue() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  logs: true
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        ControlLogsEndpointSpec logs = spec.getManagement().getLogs();
+
+        assertTrue(logs.isLevelControl());
+        assertTrue(logs.isStream());
+        assertEquals(5, logs.getMaxSubscribers());
+        assertTrue(spec.getManagement().isLogging());
+    }
+
+    @Test
+    public void logsShouldDeserializeBooleanFalse() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  logs: false
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        ControlLogsEndpointSpec logs = spec.getManagement().getLogs();
+
+        assertFalse(logs.isLevelControl());
+        assertFalse(logs.isStream());
+        assertFalse(spec.getManagement().isLogging());
+    }
+
+    @Test
+    public void logsShouldDeserializeObjectWithLevelControlDisabled() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  logs:
+                    level-control: false
+                    stream: true
+                    max-subscribers: 3
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        ControlLogsEndpointSpec logs = spec.getManagement().getLogs();
+
+        assertFalse(logs.isLevelControl());
+        assertTrue(logs.isStream());
+        assertEquals(3, logs.getMaxSubscribers());
+        assertFalse(spec.getManagement().isLogging());
     }
 
     private static <T> T parseYaml(String yaml, Class<T> type) throws Exception {
