@@ -24,6 +24,9 @@ import org.restlet.resource.Delete;
 import org.restlet.resource.Get;
 import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
+import io.naftiko.engine.telemetry.RestletHeaderGetter;
+import io.naftiko.engine.telemetry.TelemetryBootstrap;
+import io.opentelemetry.context.Scope;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +54,21 @@ public class McpServerResource extends ServerResource {
         ProtocolDispatcher dispatcher = getDispatcher();
         ObjectMapper mapper = dispatcher.getMapper();
 
+        // Extract W3C trace context from incoming HTTP headers so downstream
+        // spans (tools/call) are linked to the caller's trace.
+        TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+        io.opentelemetry.context.Context extractedContext = telemetry.getOpenTelemetry()
+                .getPropagators().getTextMapPropagator()
+                .extract(io.opentelemetry.context.Context.current(), getRequest(),
+                        RestletHeaderGetter.INSTANCE);
+
+        try (Scope ignored = extractedContext.makeCurrent()) {
+            return dispatchWithTraceContext(dispatcher, mapper, entity);
+        }
+    }
+
+    private Representation dispatchWithTraceContext(ProtocolDispatcher dispatcher,
+            ObjectMapper mapper, Representation entity) {
         try {
             String body = (entity != null) ? entity.getText() : null;
 
