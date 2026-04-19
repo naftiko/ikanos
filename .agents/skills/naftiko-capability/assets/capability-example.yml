@@ -13,9 +13,34 @@ binds:
     location: "file:///./secrets.yaml"
     keys:
       DOCKYARD_API_KEY: "dockyard-api-key"
+  - namespace: "otel-env"
+    description: "OpenTelemetry exporter configuration."
+    location: "file:///./secrets.yaml"
+    keys:
+      OTEL_ENDPOINT: "otel-collector-endpoint"
 
 capability:
   exposes:
+    - type: control
+      address: localhost
+      port: 9090
+      management:
+        health: true
+      observability:
+        enabled: true
+        metrics:
+          local:
+            enabled: true
+        traces:
+          sampling: 1.0
+          propagation: w3c
+          local:
+            enabled: true
+            buffer-size: 200
+        exporters:
+          otlp:
+            endpoint: "{{OTEL_ENDPOINT}}"
+
     - type: mcp
       port: 3001
       namespace: shipyard-tools

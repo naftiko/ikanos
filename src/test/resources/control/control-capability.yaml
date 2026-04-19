@@ -15,10 +15,10 @@ capability:
     - type: "control"
       address: "localhost"
       port: 9199
-      endpoints:
+      management:
         health: true
-        metrics: true
         info: true
+      observability:
         traces:
-          enabled: true
-          buffer-size: 50
+          local:
+            buffer-size: 50

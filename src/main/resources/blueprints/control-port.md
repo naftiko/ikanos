@@ -847,7 +847,10 @@ Add an optional `labels` property to the existing `Info` definition:
       "description": "Optional authentication for the control port. Reuses the same Authentication model as business adapters."
     },
     "endpoints": {
-      "$ref": "#/$defs/ControlEndpointsSpec"
+      "$ref": "#/$defs/ControlManagementSpec"
+    },
+    "observability": {
+      "$ref": "#/$defs/ObservabilitySpec"
     }
   },
   "required": ["type", "port"],
@@ -857,31 +860,22 @@ Add an optional `labels` property to the existing `Info` definition:
 
 > **Note**: Compliance labels (`environment`, `cost-center`, `owner`, etc.) belong in `info.labels` at the document root, not on the control adapter. The `naftiko catalog` CLI reads them from `info.labels` and maps them to `metadata.labels` in the generated Backstage entity. The control port's `port` value is mapped automatically to `metadata.annotations["naftiko.io/control-port"]`.
 
-### `ControlEndpointsSpec` — Granular Endpoint Toggle
+### `ControlManagementSpec` — Granular Management Endpoint Toggle
 
 ```json
-"ControlEndpointsSpec": {
+"ControlManagementSpec": {
   "type": "object",
-  "description": "Toggle individual control port endpoint groups. All default to true when the control adapter is declared, except where noted.",
+  "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) — those are configured under observability.",
   "properties": {
     "health": {
       "type": "boolean",
       "default": true,
       "description": "Enable /health/live and /health/ready endpoints."
     },
-    "metrics": {
-      "type": "boolean",
-      "default": true,
-      "description": "Enable /metrics (Prometheus scrape). Requires OTel observability to be active."
-    },
     "info": {
       "type": "boolean",
       "default": false,
       "description": "Enable /status and /config endpoints. Disabled by default — /config contains resolved spec details."
-    },
-    "traces": {
-      "$ref": "#/$defs/ControlTracesEndpointSpec",
-      "description": "Configure the /traces endpoint for local trace inspection."
     },
     "reload": {
       "type": "boolean",
@@ -901,25 +895,6 @@ Add an optional `labels` property to the existing `Info` definition:
     "logs": {
       "$ref": "#/$defs/ControlLogsEndpointSpec",
       "description": "Configure the /logs/stream SSE endpoint for log streaming."
-    }
-  },
-  "unevaluatedProperties": false
-}
-
-"ControlTracesEndpointSpec": {
-  "type": "object",
-  "properties": {
-    "enabled": {
-      "type": "boolean",
-      "default": true,
-      "description": "Enable the /traces endpoint. Requires OTel to be active."
-    },
-    "bufferSize": {
-      "type": "integer",
-      "minimum": 10,
-      "maximum": 10000,
-      "default": 100,
-      "description": "Maximum number of completed trace summaries to retain in the ring buffer."
     }
   },
   "unevaluatedProperties": false
@@ -1026,7 +1001,7 @@ This gives you `/health/live`, `/health/ready`, `/metrics`, and `/traces` on `:9
 ```yaml
     - type: control
       port: 9090
-      endpoints:
+      management:
         info: true
         reload: true
         validate: true
@@ -1043,9 +1018,10 @@ This enables all development endpoints: `/status`, `/config`, `/config/reload`, 
     - type: control
       port: 9090
       address: "0.0.0.0"
-      endpoints:
+      observability:
         traces:
-          enabled: false
+          local:
+            enabled: false
 ```
 
 Binds to all interfaces for Kubernetes probe access and Prometheus scraping. Disables the trace ring buffer to save memory. Development endpoints remain disabled by default.
@@ -1060,7 +1036,7 @@ Binds to all interfaces for Kubernetes probe access and Prometheus scraping. Dis
         username: admin
         password:
           externalRef: CONTROL_PORT_PASSWORD
-      endpoints:
+      management:
         info: true
         reload: true
 ```
@@ -1191,41 +1167,43 @@ class ControlServerAdapter extends ServerAdapter {
     @Override
     Router createRouter() {
         Router router = new Router(getContext());
+        var management = spec.getManagement();
+        var observability = spec.getObservability();
 
-        // Operations endpoints (enabled by default)
-        if (spec.getEndpoints().isHealth()) {
+        // Management endpoints
+        if (management.isHealth()) {
             router.attach("/health/live", HealthLiveResource.class);
             router.attach("/health/ready", HealthReadyResource.class);
         }
-        if (spec.getEndpoints().isMetrics()) {
+        if (management.isInfo()) {
+            router.attach("/config", ConfigResource.class);
+            router.attach("/status", StatusResource.class);
+        }
+        if (management.isReload()) {
+            router.attach("/config/reload", ConfigReloadResource.class);
+        }
+        if (management.isValidate()) {
+            router.attach("/config/validate", ConfigValidateResource.class);
+        }
+        if (management.isLogging()) {
+            router.attach("/logs", LoggingResource.class);
+            router.attach("/logs/{logger}", LoggingResource.class);
+        }
+        if (management.getLogs().isStream()) {
+            router.attach("/logs/stream", LogStreamResource.class);
+        }
+
+        // Observability endpoints (metrics + traces live under observability)
+        if (isMetricsEnabled(observability)) {
             router.attach("/metrics", MetricsResource.class);
         }
-        if (spec.getEndpoints().getTraces().isEnabled()) {
+        if (isTracesEnabled(observability)) {
             router.attach("/traces", TracesResource.class);
             router.attach("/traces/{traceId}", TracesResource.class);
         }
 
-        // Development endpoints (disabled by default)
-        if (spec.getEndpoints().isInfo()) {
-            router.attach("/config", ConfigResource.class);
-            router.attach("/status", StatusResource.class);
-        }
-        if (spec.getEndpoints().isReload()) {
-            router.attach("/config/reload", ConfigReloadResource.class);
-        }
-        if (spec.getEndpoints().isValidate()) {
-            router.attach("/config/validate", ConfigValidateResource.class);
-        }
-        if (spec.getEndpoints().isLogging()) {
-            router.attach("/logs", LoggingResource.class);
-            router.attach("/logs/{logger}", LoggingResource.class);
-        }
-        if (spec.getEndpoints().getLogs().isStream()) {
-            router.attach("/logs/stream", LogStreamResource.class);
-        }
-
         // Lifecycle endpoints (future — Phase 4)
-        if (spec.getEndpoints().isLifecycle()) {
+        if (management.isLifecycle()) {
             router.attach("/lifecycle", LifecycleResource.class);
             router.attach("/lifecycle/{namespace}", LifecycleResource.class);
         }
@@ -1467,8 +1445,8 @@ This phase is **co-implemented with [OpenTelemetry Observability](opentelemetry-
 
 | Task | Component | Description |
 | --- | --- | --- |
-| 1.1 | Schema | Add `ExposesControl`, `ControlEndpointsSpec`, `ControlTracesEndpointSpec`, `ControlLogsEndpointSpec` to `naftiko-schema.json` |
-| 1.2 | Spec classes | Create `ControlServerSpec`, `ControlEndpointsSpec` and related classes in `io.naftiko.spec.exposes` |
+| 1.1 | Schema | Add `ExposesControl`, `ControlManagementSpec`, `ControlLogsEndpointSpec` to `naftiko-schema.json` |
+| 1.2 | Spec classes | Create `ControlServerSpec`, `ControlManagementSpec` and related classes in `io.naftiko.spec.exposes` |
 | 1.3 | Discriminator | Add `control` to `ServerSpec` Jackson subtypes and schema `oneOf` |
 | 1.4 | Adapter | Implement `ControlServerAdapter` extending `ServerAdapter` |
 | 1.5 | Health | Implement `HealthLiveResource` and `HealthReadyResource` — closes [#15](https://github.com/naftiko/framework/issues/15) |

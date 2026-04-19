@@ -13,7 +13,7 @@
 #
 # The Naftiko capability should expose a Control Port with metrics enabled.
 # Prometheus scrapes the Control Port's /metrics endpoint directly.
-# To also push traces/metrics via OTLP, set the capability's observability
+# To also push traces/metrics via OTLP, set the control adapter's observability
 # exporter endpoint to http://localhost:4318 (or gRPC on 4317).
 
 services:

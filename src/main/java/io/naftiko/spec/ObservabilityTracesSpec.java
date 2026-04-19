@@ -13,13 +13,18 @@
  */
 package io.naftiko.spec;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
- * Trace sampling and propagation configuration.
+ * Trace sampling, propagation, and local exposure configuration.
  */
 public class ObservabilityTracesSpec {
 
     private volatile double sampling = 1.0;
     private volatile String propagation = "w3c";
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile ObservabilityTracesLocalSpec local;
 
     public double getSampling() {
         return sampling;
@@ -35,5 +40,13 @@ public class ObservabilityTracesSpec {
 
     public void setPropagation(String propagation) {
         this.propagation = propagation;
+    }
+
+    public ObservabilityTracesLocalSpec getLocal() {
+        return local;
+    }
+
+    public void setLocal(ObservabilityTracesLocalSpec local) {
+        this.local = local;
     }
 }

@@ -16,20 +16,16 @@ package io.naftiko.spec.exposes;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Toggles individual control port endpoint groups. Health and metrics default to enabled; all
- * development endpoints default to disabled.
+ * Toggles individual control port management endpoint groups. Does not include OTel-dependent
+ * endpoints (metrics, traces) — those are configured under observability.
  */
-public class ControlEndpointsSpec {
+public class ControlManagementSpec {
 
     private volatile boolean health = true;
-    private volatile boolean metrics = true;
     private volatile boolean info = false;
     private volatile boolean reload = false;
     private volatile boolean validate = false;
     private volatile boolean logging = false;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ControlTracesEndpointSpec traces;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ControlLogsEndpointSpec logs;
@@ -40,14 +36,6 @@ public class ControlEndpointsSpec {
 
     public void setHealth(boolean health) {
         this.health = health;
-    }
-
-    public boolean isMetrics() {
-        return metrics;
-    }
-
-    public void setMetrics(boolean metrics) {
-        this.metrics = metrics;
     }
 
     public boolean isInfo() {
@@ -80,17 +68,6 @@ public class ControlEndpointsSpec {
 
     public void setLogging(boolean logging) {
         this.logging = logging;
-    }
-
-    public ControlTracesEndpointSpec getTraces() {
-        if (traces == null) {
-            traces = new ControlTracesEndpointSpec();
-        }
-        return traces;
-    }
-
-    public void setTraces(ControlTracesEndpointSpec traces) {
-        this.traces = traces;
     }
 
     public ControlLogsEndpointSpec getLogs() {

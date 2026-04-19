@@ -543,26 +543,31 @@ DoubleHistogram requestDuration = meter.histogramBuilder("naftiko.request.durati
 
 ### Schema Extension
 
-Add an optional `observability` block at the capability level:
+Add an optional `observability` block on the control adapter. Metrics and traces
+local endpoints are configured here (moved from the former `endpoints` block):
 
 ```yaml
 capability:
-  info:
-    name: my-capability
-  observability:
-    enabled: true
-    traces:
-      sampling: 0.1        # 10% sampling rate (default: 1.0 = all)
-      propagation: w3c      # w3c | b3 (default: w3c)
-    exporters:
-      otlp:
-        endpoint: "{{OTEL_EXPORTER_OTLP_ENDPOINT}}"
   exposes:
     - type: control
       port: 9090            # Prometheus /metrics served here
+      observability:
+        enabled: true
+        metrics:
+          local:
+            enabled: true     # /metrics Prometheus scrape (default: true)
+        traces:
+          sampling: 0.1        # 10% sampling rate (default: 1.0 = all)
+          propagation: w3c      # w3c | b3 (default: w3c)
+          local:
+            enabled: true      # /traces endpoint (default: true)
+            buffer-size: 200   # ring buffer capacity (default: 100)
+        exporters:
+          otlp:
+            endpoint: "{{OTEL_EXPORTER_OTLP_ENDPOINT}}"
 ```
 
-> **Note**: The `observability.metrics.port` field from earlier drafts has been **removed**. The Prometheus scrape endpoint is now hosted by the [Control Port](control-port.md) adapter — its port is determined by `exposes[type=control].port`, not by an observability-level setting. This avoids having two competing port configurations for the same endpoint.
+> **Note**: The `endpoints.metrics` and `endpoints.traces` fields from earlier schema versions have been **merged into `observability`** as `observability.metrics.local` and `observability.traces.local`. This eliminates the two-knob problem where enabling observability still required separate endpoint toggles. Management endpoints (health, info, reload, etc.) remain under `management`.
 
 ### Design Principles
 
@@ -583,11 +588,24 @@ capability:
       "default": true,
       "description": "Enable or disable observability. Defaults to true."
     },
+    "metrics": {
+      "$ref": "#/$defs/ObservabilityMetricsSpec"
+    },
     "traces": {
       "$ref": "#/$defs/ObservabilityTracesSpec"
     },
     "exporters": {
       "$ref": "#/$defs/ObservabilityExportersSpec"
+    }
+  },
+  "unevaluatedProperties": false
+}
+
+"ObservabilityMetricsSpec": {
+  "type": "object",
+  "properties": {
+    "local": {
+      "$ref": "#/$defs/ObservabilityLocalEndpointSpec"
     }
   },
   "unevaluatedProperties": false
@@ -608,6 +626,37 @@ capability:
       "enum": ["w3c", "b3"],
       "default": "w3c",
       "description": "Context propagation format for outgoing HTTP calls."
+    },
+    "local": {
+      "$ref": "#/$defs/ObservabilityTracesLocalSpec"
+    }
+  },
+  "unevaluatedProperties": false
+}
+
+"ObservabilityLocalEndpointSpec": {
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "unevaluatedProperties": false
+}
+
+"ObservabilityTracesLocalSpec": {
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "buffer-size": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 10000,
+      "default": 100
     }
   },
   "unevaluatedProperties": false
@@ -641,7 +690,10 @@ capability:
 | Class | Package | Description |
 |---|---|---|
 | `ObservabilitySpec` | `io.naftiko.spec` | Root observability configuration |
-| `ObservabilityTracesSpec` | `io.naftiko.spec` | Sampling rate and propagation format |
+| `ObservabilityMetricsSpec` | `io.naftiko.spec` | Metrics collection and local exposure |
+| `ObservabilityTracesSpec` | `io.naftiko.spec` | Sampling, propagation, and local exposure |
+| `ObservabilityLocalEndpointSpec` | `io.naftiko.spec` | Toggle for a local endpoint |
+| `ObservabilityTracesLocalSpec` | `io.naftiko.spec` | Traces endpoint with buffer size |
 | `ObservabilityExportersSpec` | `io.naftiko.spec` | Exporter configuration container |
 | `ObservabilityOtlpExporterSpec` | `io.naftiko.spec` | OTLP endpoint configuration |
 

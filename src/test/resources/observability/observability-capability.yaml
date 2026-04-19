@@ -11,18 +11,18 @@ info:
   modified: "2026-04-18"
 
 capability:
-  observability:
-    enabled: true
-    traces:
-      sampling: 0.5
-      propagation: b3
-    exporters:
-      otlp:
-        endpoint: "http://collector.local:4317"
   exposes:
     - type: "control"
       address: "localhost"
       port: 9199
-      endpoints:
-        health: true
-        metrics: true
+      observability:
+        metrics:
+          local: {}
+        traces:
+          sampling: 0.5
+          propagation: b3
+          local: {}
+        exporters:
+        exporters:
+          otlp:
+            endpoint: "http://collector.local:4317"

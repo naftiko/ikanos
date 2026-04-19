@@ -24,6 +24,9 @@ public class ObservabilitySpec {
     private volatile boolean enabled = true;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile ObservabilityMetricsSpec metrics;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ObservabilityTracesSpec traces;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -35,6 +38,14 @@ public class ObservabilitySpec {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public ObservabilityMetricsSpec getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(ObservabilityMetricsSpec metrics) {
+        this.metrics = metrics;
     }
 
     public ObservabilityTracesSpec getTraces() {

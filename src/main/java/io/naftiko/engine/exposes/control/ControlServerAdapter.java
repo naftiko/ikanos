@@ -16,7 +16,9 @@ package io.naftiko.engine.exposes.control;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.engine.telemetry.TelemetryBootstrap;
-import io.naftiko.spec.exposes.ControlEndpointsSpec;
+import io.naftiko.spec.ObservabilitySpec;
+import io.naftiko.spec.ObservabilityTracesLocalSpec;
+import io.naftiko.spec.exposes.ControlManagementSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
 import org.restlet.Context;
 import org.restlet.Restlet;
@@ -38,10 +40,11 @@ public class ControlServerAdapter extends ServerAdapter {
     public ControlServerAdapter(Capability capability, ControlServerSpec serverSpec) {
         super(capability, serverSpec);
 
-        ControlEndpointsSpec endpoints = serverSpec.getEndpoints();
+        ControlManagementSpec management = serverSpec.getManagement();
+        ObservabilitySpec observability = serverSpec.getObservability();
 
         // Trace ring buffer — shared between the SpanProcessor and the TracesResource
-        int bufferSize = endpoints.getTraces().getBufferSize();
+        int bufferSize = resolveTracesBufferSize(observability);
         this.traceRingBuffer = new TraceRingBuffer(bufferSize);
 
         // Shared context for per-request ServerResource instances
@@ -51,17 +54,22 @@ public class ControlServerAdapter extends ServerAdapter {
 
         this.router = new Router(context);
 
-        // Operations endpoints (enabled by default)
-        if (endpoints.isHealth()) {
+        // Management endpoints
+        if (management.isHealth()) {
             router.attach("/health/live", HealthLiveResource.class);
             router.attach("/health/ready", HealthReadyResource.class);
         }
 
-        if (endpoints.isMetrics()) {
+        if (management.isInfo()) {
+            router.attach("/status", StatusResource.class);
+        }
+
+        // Observability endpoints — metrics and traces live under observability
+        if (isMetricsEnabled(observability)) {
             router.attach("/metrics", MetricsResource.class);
         }
 
-        if (endpoints.getTraces().isEnabled()) {
+        if (isTracesEnabled(observability)) {
             router.attach("/traces", TracesResource.class);
             router.attach("/traces/{traceId}", TracesResource.class);
             // Wire the span processor so completed spans flow into the ring buffer
@@ -69,13 +77,36 @@ public class ControlServerAdapter extends ServerAdapter {
                     new TraceCapturingSpanProcessor(traceRingBuffer));
         }
 
-        // Development endpoints (disabled by default)
-        if (endpoints.isInfo()) {
-            router.attach("/status", StatusResource.class);
-        }
-
         Restlet chain = buildServerChain(this.router);
         initServer(serverSpec.getAddress(), serverSpec.getPort(), chain);
+    }
+
+    boolean isMetricsEnabled(ObservabilitySpec observability) {
+        if (observability == null) {
+            return true; // default: enabled
+        }
+        if (observability.getMetrics() != null && observability.getMetrics().getLocal() != null) {
+            return observability.getMetrics().getLocal().isEnabled();
+        }
+        return true; // default: enabled
+    }
+
+    boolean isTracesEnabled(ObservabilitySpec observability) {
+        if (observability == null) {
+            return true; // default: enabled
+        }
+        if (observability.getTraces() != null && observability.getTraces().getLocal() != null) {
+            return observability.getTraces().getLocal().isEnabled();
+        }
+        return true; // default: enabled
+    }
+
+    int resolveTracesBufferSize(ObservabilitySpec observability) {
+        if (observability != null && observability.getTraces() != null
+                && observability.getTraces().getLocal() != null) {
+            return observability.getTraces().getLocal().getBufferSize();
+        }
+        return new ObservabilityTracesLocalSpec().getBufferSize(); // default: 100
     }
 
     public ControlServerSpec getControlServerSpec() {

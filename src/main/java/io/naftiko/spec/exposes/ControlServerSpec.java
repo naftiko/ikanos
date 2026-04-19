@@ -14,6 +14,7 @@
 package io.naftiko.spec.exposes;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.naftiko.spec.ObservabilitySpec;
 
 /**
  * Control Server Specification Element.
@@ -25,7 +26,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class ControlServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ControlEndpointsSpec endpoints;
+    private volatile ControlManagementSpec management;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile ObservabilitySpec observability;
 
     public ControlServerSpec() {
         this("localhost", 0);
@@ -35,14 +39,22 @@ public class ControlServerSpec extends ServerSpec {
         super("control", address, port);
     }
 
-    public ControlEndpointsSpec getEndpoints() {
-        if (endpoints == null) {
-            endpoints = new ControlEndpointsSpec();
+    public ControlManagementSpec getManagement() {
+        if (management == null) {
+            management = new ControlManagementSpec();
         }
-        return endpoints;
+        return management;
     }
 
-    public void setEndpoints(ControlEndpointsSpec endpoints) {
-        this.endpoints = endpoints;
+    public void setManagement(ControlManagementSpec management) {
+        this.management = management;
+    }
+
+    public ObservabilitySpec getObservability() {
+        return observability;
+    }
+
+    public void setObservability(ObservabilitySpec observability) {
+        this.observability = observability;
     }
 }

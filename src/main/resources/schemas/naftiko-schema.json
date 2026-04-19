@@ -745,9 +745,6 @@
             "$ref": "#/$defs/Aggregate"
           },
           "minItems": 1
-        },
-        "observability": {
-          "$ref": "#/$defs/ObservabilitySpec"
         }
       },
       "anyOf": [
@@ -2422,8 +2419,11 @@
           "$ref": "#/$defs/Authentication",
           "description": "Optional authentication for the control port. Reuses the same Authentication model as business adapters."
         },
-        "endpoints": {
-          "$ref": "#/$defs/ControlEndpointsSpec"
+        "management": {
+          "$ref": "#/$defs/ControlManagementSpec"
+        },
+        "observability": {
+          "$ref": "#/$defs/ObservabilitySpec"
         }
       },
       "required": [
@@ -2432,28 +2432,19 @@
       ],
       "additionalProperties": false
     },
-    "ControlEndpointsSpec": {
+    "ControlManagementSpec": {
       "type": "object",
-      "description": "Toggle individual control port endpoint groups.",
+      "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) — those are configured under observability.",
       "properties": {
         "health": {
           "type": "boolean",
           "default": true,
           "description": "Enable /health/live and /health/ready endpoints."
         },
-        "metrics": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable /metrics (Prometheus scrape). Requires OTel observability to be active."
-        },
         "info": {
           "type": "boolean",
           "default": false,
           "description": "Enable /status and /config endpoints. Disabled by default."
-        },
-        "traces": {
-          "$ref": "#/$defs/ControlTracesEndpointSpec",
-          "description": "Configure the /traces endpoint for local trace inspection."
         },
         "reload": {
           "type": "boolean",
@@ -2473,25 +2464,6 @@
         "logs": {
           "$ref": "#/$defs/ControlLogsEndpointSpec",
           "description": "Configure the /logs/stream SSE endpoint for log streaming."
-        }
-      },
-      "additionalProperties": false
-    },
-    "ControlTracesEndpointSpec": {
-      "type": "object",
-      "description": "Configuration for the /traces endpoint.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable the /traces endpoint. Requires OTel to be active."
-        },
-        "buffer-size": {
-          "type": "integer",
-          "minimum": 10,
-          "maximum": 10000,
-          "default": 100,
-          "description": "Maximum number of completed trace summaries to retain in the ring buffer."
         }
       },
       "additionalProperties": false
@@ -2517,12 +2489,15 @@
     },
     "ObservabilitySpec": {
       "type": "object",
-      "description": "Spec-driven observability configuration. All fields are optional — defaults to OTel env vars when not specified.",
+      "description": "Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. All fields are optional — defaults to OTel env vars when not specified.",
       "properties": {
         "enabled": {
           "type": "boolean",
           "default": true,
           "description": "Enable or disable observability. Defaults to true."
+        },
+        "metrics": {
+          "$ref": "#/$defs/ObservabilityMetricsSpec"
         },
         "traces": {
           "$ref": "#/$defs/ObservabilityTracesSpec"
@@ -2533,9 +2508,20 @@
       },
       "unevaluatedProperties": false
     },
+    "ObservabilityMetricsSpec": {
+      "type": "object",
+      "description": "Metrics collection and local exposure configuration.",
+      "properties": {
+        "local": {
+          "$ref": "#/$defs/ObservabilityLocalEndpointSpec",
+          "description": "Controls the /metrics Prometheus scrape endpoint on the control port."
+        }
+      },
+      "unevaluatedProperties": false
+    },
     "ObservabilityTracesSpec": {
       "type": "object",
-      "description": "Trace sampling and propagation configuration.",
+      "description": "Trace sampling, propagation, and local exposure configuration.",
       "properties": {
         "sampling": {
           "type": "number",
@@ -2549,6 +2535,41 @@
           "enum": ["w3c", "b3"],
           "default": "w3c",
           "description": "Context propagation format for outgoing HTTP calls."
+        },
+        "local": {
+          "$ref": "#/$defs/ObservabilityTracesLocalSpec",
+          "description": "Controls the /traces endpoint on the control port."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ObservabilityLocalEndpointSpec": {
+      "type": "object",
+      "description": "Toggle for a local observability endpoint on the control port.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the local endpoint. Defaults to true."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ObservabilityTracesLocalSpec": {
+      "type": "object",
+      "description": "Configuration for the /traces endpoint on the control port.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the /traces endpoint. Defaults to true."
+        },
+        "buffer-size": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 10000,
+          "default": 100,
+          "description": "Maximum number of completed trace summaries to retain in the ring buffer."
         }
       },
       "unevaluatedProperties": false

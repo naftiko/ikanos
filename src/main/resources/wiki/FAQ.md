@@ -592,12 +592,17 @@ capability:
   exposes:
     - type: control
       port: 9090
-      endpoints:
+      management:
         health: true
-        metrics: true
+      observability:
+        enabled: true
+        metrics:
+          local:
+            enabled: true
         traces:
-          enabled: true
-          buffer-size: 200
+          local:
+            enabled: true
+            buffer-size: 200
 ```
 
 At most one control adapter is allowed per capability, and its port must not collide with any business adapter port.
@@ -617,18 +622,21 @@ At most one control adapter is allowed per capability, and its port must not col
 | `/logs/stream` | Disabled | SSE log streaming |
 
 ### Q: How do I enable OpenTelemetry observability?
-**A:** Add an `observability` block at the capability level:
+**A:** Add an `observability` block on the control adapter:
 
 ```yaml
 capability:
-  observability:
-    enabled: true
-    traces:
-      sampling: 1.0
-      propagation: w3c
-    exporters:
-      otlp:
-        endpoint: "{{otel_endpoint}}"
+  exposes:
+    - type: control
+      port: 9090
+      observability:
+        enabled: true
+        traces:
+          sampling: 1.0
+          propagation: w3c
+        exporters:
+          otlp:
+            endpoint: "{{otel_endpoint}}"
 ```
 
 This enables distributed tracing and RED metrics (Rate, Errors, Duration) for all capability operations. Metrics are exposed in Prometheus format on the control port's `/metrics` endpoint.

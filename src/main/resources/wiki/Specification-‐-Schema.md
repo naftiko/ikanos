@@ -42,7 +42,7 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **Control Port**: A built-in management plane adapter (`type: "control"`) that exposes engine-provided endpoints for health checks, Prometheus metrics, distributed traces, and runtime diagnostics.
 
-**Observability**: Spec-driven OpenTelemetry configuration for distributed tracing and RED metrics (Rate, Errors, Duration). Declared at the capability level via the `observability` field.
+**Observability**: Spec-driven OpenTelemetry configuration for distributed tracing and RED metrics (Rate, Errors, Duration). Declared on the Control adapter via the `observability` field.
 
 **Bind**: A declaration of an external binding providing variables to the capability via a `keys` map. An optional `location` URI identifies the value provider (file, vault, runtime, etc.).
 
@@ -184,7 +184,7 @@ Defines the technical configuration of the capability.
 | **consumes** | `Consumes[]`  | List of consumed client adapters. |
 | **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 | **aggregates** | `Aggregate[]` | Domain aggregates defining reusable functions. Adapter units (tools, operations) reference them via `ref`. See [3.4.5 Aggregate Object](#345-aggregate-object). |
-| **observability** | `ObservabilitySpec` | Spec-driven observability configuration. Controls distributed tracing and metric collection via OpenTelemetry. See [3.5.11 Observability Objects](#3511-observability-objects). |
+
 
 #### 3.4.2 Rules
 
@@ -911,7 +911,8 @@ Control adapter — a built-in management plane for health checks, metrics, trac
 | **address** | `string` | Bind address for the control port. Defaults to `localhost` for security. |
 | **port** | `integer` | **REQUIRED**. TCP port for the control adapter (1–65535). |
 | **authentication** | `Authentication` | Optional authentication for the control port. Reuses the same Authentication model as business adapters. |
-| **endpoints** | `ControlEndpointsSpec` | Toggle individual endpoint groups. |
+| **management** | `ControlManagementSpec` | Toggle individual management endpoint groups. |
+| **observability** | `ObservabilitySpec` | Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. See [3.5.11 Observability Objects](#3511-observability-objects). |
 
 **Rules:**
 
@@ -922,18 +923,16 @@ Control adapter — a built-in management plane for health checks, metrics, trac
 - The `address` field defaults to `localhost`. Binding to a non-localhost address exposes management endpoints to the network — use authentication when doing so.
 - No additional properties are allowed.
 
-#### ControlEndpointsSpec Object
+#### ControlManagementSpec Object
 
-Toggles individual control port endpoint groups.
+Toggles individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) — those are configured under observability.
 
 **Fixed Fields:**
 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **health** | `boolean` | Enable `/health/live` and `/health/ready` endpoints. Default: `true`. |
-| **metrics** | `boolean` | Enable `/metrics` (Prometheus scrape). Requires observability to be active. Default: `true`. |
 | **info** | `boolean` | Enable `/status` and `/config` endpoints. Default: `false`. |
-| **traces** | `ControlTracesEndpointSpec` | Configure the `/traces` endpoint for local trace inspection. |
 | **reload** | `boolean` | Enable `POST /config/reload`. Default: `false`. |
 | **validate** | `boolean` | Enable `POST /config/validate` (dry-run validation). Default: `false`. |
 | **logging** | `boolean` | Enable `/logs` endpoints for live log level control. Default: `false`. |
@@ -942,15 +941,6 @@ Toggles individual control port endpoint groups.
 **Rules:**
 
 - No additional properties are allowed.
-
-#### ControlTracesEndpointSpec Object
-
-Configuration for the `/traces` endpoint.
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **enabled** | `boolean` | Enable the `/traces` endpoint. Requires observability to be active. Default: `true`. |
-| **buffer-size** | `integer` | Maximum number of completed trace summaries to retain in the ring buffer (10–10000). Default: `100`. |
 
 #### ControlLogsEndpointSpec Object
 
@@ -966,34 +956,46 @@ Configuration for the `/logs/stream` SSE endpoint.
 ```yaml
 - type: control
   port: 9090
-  endpoints:
+  management:
     health: true
-    metrics: true
     info: true
-    traces:
-      enabled: true
-      buffer-size: 200
     logging: true
     logs:
       stream: true
       max-subscribers: 3
+  observability:
+    enabled: true
+    metrics:
+      local:
+        enabled: true
+    traces:
+      local:
+        enabled: true
+        buffer-size: 200
 ```
 
 ---
 
 #### 3.5.11 Observability Objects
 
-Spec-driven observability configuration. Controls distributed tracing and metric collection via OpenTelemetry. All fields are optional — defaults to OTel environment variables when not specified.
+Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port via OpenTelemetry. All fields are optional — defaults to OTel environment variables when not specified.
 
-> New in schema v1.0.0-alpha1.
+> New in schema v1.0.0-alpha1. Restructured in v1.0.0-alpha2: metrics and traces local endpoints moved from `endpoints` into `observability`.
 
 ##### ObservabilitySpec
 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **enabled** | `boolean` | Enable or disable observability. Default: `true`. |
-| **traces** | `ObservabilityTracesSpec` | Trace sampling and propagation configuration. |
+| **metrics** | `ObservabilityMetricsSpec` | Metrics collection and local exposure configuration. |
+| **traces** | `ObservabilityTracesSpec` | Trace sampling, propagation, and local exposure configuration. |
 | **exporters** | `ObservabilityExportersSpec` | Exporter configuration container. |
+
+##### ObservabilityMetricsSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **local** | `ObservabilityLocalEndpointSpec` | Controls the `/metrics` Prometheus scrape endpoint on the control port. Default: enabled. |
 
 ##### ObservabilityTracesSpec
 
@@ -1001,6 +1003,20 @@ Spec-driven observability configuration. Controls distributed tracing and metric
 | --- | --- | --- |
 | **sampling** | `number` | Trace sampling rate. `1.0` = sample all, `0.1` = sample 10%. Range: 0–1. Default: `1.0`. |
 | **propagation** | `string` | Context propagation format for outgoing HTTP calls. One of: `"w3c"`, `"b3"`. Default: `"w3c"`. |
+| **local** | `ObservabilityTracesLocalSpec` | Controls the `/traces` endpoint on the control port. |
+
+##### ObservabilityLocalEndpointSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **enabled** | `boolean` | Enable or disable the local endpoint. Default: `true`. |
+
+##### ObservabilityTracesLocalSpec
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **enabled** | `boolean` | Enable the `/traces` endpoint. Default: `true`. |
+| **buffer-size** | `integer` | Maximum number of completed trace summaries to retain in the ring buffer (10–10000). Default: `100`. |
 
 ##### ObservabilityExportersSpec
 
@@ -1018,21 +1034,22 @@ Spec-driven observability configuration. Controls distributed tracing and metric
 
 ```yaml
 capability:
-  observability:
-    enabled: true
-    traces:
-      sampling: 1.0
-      propagation: w3c
-    exporters:
-      otlp:
-        endpoint: "{{otel_endpoint}}"
   exposes:
     - type: control
       port: 9090
-      endpoints:
-        metrics: true
+      observability:
+        enabled: true
+        metrics:
+          local:
+            enabled: true
         traces:
-          enabled: true
+          sampling: 1.0
+          propagation: w3c
+          local:
+            enabled: true
+        exporters:
+          otlp:
+            endpoint: "{{otel_endpoint}}"
 ```
 
 ---

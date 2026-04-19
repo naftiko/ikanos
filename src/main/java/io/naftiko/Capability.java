@@ -251,7 +251,12 @@ public class Capability {
                 }
                 io.naftiko.spec.ObservabilitySpec observabilitySpec = null;
                 if (spec.getCapability() != null) {
-                    observabilitySpec = spec.getCapability().getObservability();
+                    for (io.naftiko.spec.exposes.ServerSpec server : spec.getCapability().getExposes()) {
+                        if (server instanceof io.naftiko.spec.exposes.ControlServerSpec controlSpec) {
+                            observabilitySpec = controlSpec.getObservability();
+                            break;
+                        }
+                    }
                 }
                 TelemetryBootstrap.init(serviceName, observabilitySpec);
                 // Pass the capability directory for bind file resolution

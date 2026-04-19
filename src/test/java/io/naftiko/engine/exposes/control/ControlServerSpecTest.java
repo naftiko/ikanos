@@ -18,9 +18,10 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.naftiko.spec.exposes.ControlEndpointsSpec;
+import io.naftiko.spec.ObservabilitySpec;
+import io.naftiko.spec.ObservabilityTracesLocalSpec;
+import io.naftiko.spec.exposes.ControlManagementSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
-import io.naftiko.spec.exposes.ControlTracesEndpointSpec;
 import io.naftiko.spec.exposes.ControlLogsEndpointSpec;
 
 /**
@@ -34,16 +35,21 @@ public class ControlServerSpecTest {
                 type: "control"
                 address: "localhost"
                 port: 9100
-                endpoints:
+                management:
                   health: true
-                  metrics: false
                   info: true
-                  traces:
-                    enabled: true
-                    buffer-size: 200
                   logs:
                     stream: true
                     max-subscribers: 10
+                observability:
+                  metrics:
+                    local:
+                      enabled: false
+                  traces:
+                    sampling: 0.5
+                    local:
+                      enabled: true
+                      buffer-size: 200
                 """;
 
         ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
@@ -52,25 +58,29 @@ public class ControlServerSpecTest {
         assertEquals("localhost", spec.getAddress());
         assertEquals(9100, spec.getPort());
 
-        ControlEndpointsSpec endpoints = spec.getEndpoints();
-        assertTrue(endpoints.isHealth());
-        assertFalse(endpoints.isMetrics());
-        assertTrue(endpoints.isInfo());
-        assertFalse(endpoints.isReload());
-        assertFalse(endpoints.isValidate());
-        assertFalse(endpoints.isLogging());
+        ControlManagementSpec management = spec.getManagement();
+        assertTrue(management.isHealth());
+        assertTrue(management.isInfo());
+        assertFalse(management.isReload());
+        assertFalse(management.isValidate());
+        assertFalse(management.isLogging());
 
-        ControlTracesEndpointSpec traces = endpoints.getTraces();
-        assertTrue(traces.isEnabled());
-        assertEquals(200, traces.getBufferSize());
-
-        ControlLogsEndpointSpec logs = endpoints.getLogs();
+        ControlLogsEndpointSpec logs = management.getLogs();
         assertTrue(logs.isStream());
         assertEquals(10, logs.getMaxSubscribers());
+
+        ObservabilitySpec observability = spec.getObservability();
+        assertNotNull(observability);
+        assertTrue(observability.isEnabled());
+        assertFalse(observability.getMetrics().getLocal().isEnabled());
+
+        ObservabilityTracesLocalSpec tracesLocal = observability.getTraces().getLocal();
+        assertTrue(tracesLocal.isEnabled());
+        assertEquals(200, tracesLocal.getBufferSize());
     }
 
     @Test
-    public void controlSpecShouldUseDefaultsWhenEndpointsOmitted() throws Exception {
+    public void controlSpecShouldUseDefaultsWhenManagementOmitted() throws Exception {
         String yaml = """
                 type: "control"
                 address: "localhost"
@@ -79,18 +89,12 @@ public class ControlServerSpecTest {
 
         ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
 
-        ControlEndpointsSpec endpoints = spec.getEndpoints();
-        assertNotNull(endpoints);
-        assertTrue(endpoints.isHealth());
-        assertTrue(endpoints.isMetrics());
-        assertFalse(endpoints.isInfo());
+        ControlManagementSpec management = spec.getManagement();
+        assertNotNull(management);
+        assertTrue(management.isHealth());
+        assertFalse(management.isInfo());
 
-        ControlTracesEndpointSpec traces = endpoints.getTraces();
-        assertNotNull(traces);
-        assertTrue(traces.isEnabled());
-        assertEquals(100, traces.getBufferSize());
-
-        ControlLogsEndpointSpec logs = endpoints.getLogs();
+        ControlLogsEndpointSpec logs = management.getLogs();
         assertNotNull(logs);
         assertFalse(logs.isStream());
         assertEquals(5, logs.getMaxSubscribers());
@@ -107,7 +111,7 @@ public class ControlServerSpecTest {
 
         assertEquals("control", spec.getType());
         assertEquals(9100, spec.getPort());
-        assertNotNull(spec.getEndpoints());
+        assertNotNull(spec.getManagement());
     }
 
     private static <T> T parseYaml(String yaml, Class<T> type) throws Exception {

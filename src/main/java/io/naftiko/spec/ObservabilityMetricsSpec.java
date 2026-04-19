@@ -11,33 +11,26 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.spec.exposes;
+package io.naftiko.spec;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Configuration for the /traces endpoint on the control port.
+ * Metrics collection and local exposure configuration.
  */
-public class ControlTracesEndpointSpec {
+public class ObservabilityMetricsSpec {
 
-    private volatile boolean enabled = true;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile ObservabilityLocalEndpointSpec local;
 
-    @JsonProperty("buffer-size")
-    private volatile int bufferSize = 100;
-
-    public boolean isEnabled() {
-        return enabled;
+    public ObservabilityLocalEndpointSpec getLocal() {
+        if (local == null) {
+            local = new ObservabilityLocalEndpointSpec();
+        }
+        return local;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public int getBufferSize() {
-        return bufferSize;
-    }
-
-    public void setBufferSize(int bufferSize) {
-        this.bufferSize = bufferSize;
+    public void setLocal(ObservabilityLocalEndpointSpec local) {
+        this.local = local;
     }
 }

@@ -160,6 +160,22 @@ Aggregates borrow from [Domain-Driven Design](https://en.wikipedia.org/wiki/Doma
 - Start with functions only (the "functions-first" approach). Entities, events, and other DDD stereotypes may be added in future schema versions.
 - Avoid creating an aggregate for a single function that is only used in one place — aggregates pay off when sharing across adapters or when grouping related operations.
 
+## Control port & observability
+
+### Control port placement
+
+- Declare at most one `type: "control"` adapter per capability.
+- Assign a dedicated port that does not collide with any business adapter.
+- Keep `address` as `localhost` (default) for security. Use `0.0.0.0` only inside containers where external probes (Prometheus, Kubernetes) need to reach the port.
+- The control port is a management plane — it does not serve business traffic.
+
+### Observability pairing
+
+- If you enable `/metrics` or `/traces` on the control port, also add `capability.observability` with `enabled: true`. Without it, those endpoints return 503.
+- Use `binds` for the OTLP exporter endpoint so it can vary across environments.
+- Set `traces.sampling` to a value lower than `1.0` in high-traffic production scenarios to reduce overhead.
+- Prefer W3C propagation (`w3c`) unless the upstream ecosystem requires B3.
+
 ## Secret management (dev → prod)
 
 - Use `binds` for any sensitive values or environment-dependent configuration.
@@ -196,6 +212,8 @@ Before shipping a capability:
 - REST/MCP surface is curated, documented, and discoverable.
 - Orchestration is readable: step names, explicit dependencies, explicit extracted outputs.
 - Outputs are shaped and stable (typed `outputParameters`).
+- Control port (if present): single adapter, no port collision, `localhost` address.
+- Observability (if present): paired with a control port for `/metrics` and `/traces`.
 
 ## References
 

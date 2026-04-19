@@ -10,9 +10,9 @@ info:
   modified: "2026-04-18"
 
 capability:
-  observability:
-    enabled: false
   exposes:
     - type: "control"
       address: "localhost"
       port: 9199
+      observability:
+        enabled: false

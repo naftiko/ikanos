@@ -20,6 +20,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.ObservabilitySpec;
+import io.naftiko.spec.exposes.ControlServerSpec;
+import io.naftiko.spec.exposes.ServerSpec;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -35,13 +37,17 @@ class ObservabilitySpecIntegrationTest {
         NaftikoSpec spec = loadFixture("observability/observability-capability.yaml");
 
         assertNotNull(spec.getCapability());
-        ObservabilitySpec observability = spec.getCapability().getObservability();
+        ObservabilitySpec observability = findObservability(spec);
         assertNotNull(observability);
         assertTrue(observability.isEnabled());
+
+        assertNotNull(observability.getMetrics());
+        assertTrue(observability.getMetrics().getLocal().isEnabled());
 
         assertNotNull(observability.getTraces());
         assertEquals(0.5, observability.getTraces().getSampling(), 0.001);
         assertEquals("b3", observability.getTraces().getPropagation());
+        assertTrue(observability.getTraces().getLocal().isEnabled());
 
         assertNotNull(observability.getExporters());
         assertNotNull(observability.getExporters().getOtlp());
@@ -54,7 +60,7 @@ class ObservabilitySpecIntegrationTest {
         NaftikoSpec spec = loadFixture("observability/observability-disabled.yaml");
 
         assertNotNull(spec.getCapability());
-        ObservabilitySpec observability = spec.getCapability().getObservability();
+        ObservabilitySpec observability = findObservability(spec);
         assertNotNull(observability);
         assertFalse(observability.isEnabled());
         assertNull(observability.getTraces());
@@ -62,18 +68,20 @@ class ObservabilitySpecIntegrationTest {
     }
 
     @Test
-    void capabilityWithoutObservabilityShouldDeserialize() throws Exception {
+    void controlWithoutObservabilityShouldUseDefaults() throws Exception {
         NaftikoSpec spec = loadFixture("control/control-capability.yaml");
 
         assertNotNull(spec.getCapability());
-        assertNull(spec.getCapability().getObservability(),
-                "Observability should be null when not declared in YAML");
+        ObservabilitySpec observability = findObservability(spec);
+        assertNotNull(observability,
+                "Control capability fixture now includes observability");
+        assertTrue(observability.isEnabled());
     }
 
     @Test
     void specPropertiesShouldMapCorrectlyFromYamlFixture() throws Exception {
         NaftikoSpec spec = loadFixture("observability/observability-capability.yaml");
-        ObservabilitySpec observability = spec.getCapability().getObservability();
+        ObservabilitySpec observability = findObservability(spec);
 
         var props = TelemetryBootstrap.buildSpecProperties(observability);
 
@@ -81,6 +89,18 @@ class ObservabilitySpecIntegrationTest {
         assertEquals("0.5", props.get("otel.traces.sampler.arg"));
         assertEquals("b3multi", props.get("otel.propagators"));
         assertEquals("http://collector.local:4317", props.get("otel.exporter.otlp.endpoint"));
+    }
+
+    private static ObservabilitySpec findObservability(NaftikoSpec spec) {
+        if (spec.getCapability() == null) {
+            return null;
+        }
+        for (ServerSpec server : spec.getCapability().getExposes()) {
+            if (server instanceof ControlServerSpec controlSpec) {
+                return controlSpec.getObservability();
+            }
+        }
+        return null;
     }
 
     private static NaftikoSpec loadFixture(String resourcePath) throws Exception {

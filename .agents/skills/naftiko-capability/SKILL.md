@@ -6,9 +6,10 @@ description: >
   (spec v1.0.0-alpha1). Activate when the user wants to: write a new capability
   document, add or change authentication on a consumed API, configure orchestration
   steps or parameter mappings, set up a forward proxy, expose an MCP server or Skill
-  server, configure external references for secrets, or run the Spectral linter.
+  server, configure external references for secrets, add a control port for health
+  checks and metrics, enable OpenTelemetry observability, or run the Spectral linter.
   The Naftiko Specification defines modular, composable capabilities that consume
-  external APIs and expose REST, MCP, or Skill adapters.
+  external APIs and expose REST, MCP, Skill, or Control adapters.
 allowed-tools:
   - Read
   - Write
@@ -27,8 +28,9 @@ Key spec objects you will work with:
 - **Info** — metadata: label, description, tags, stakeholders
 - **Capability** — root technical config; contains `exposes`, `consumes`, and `aggregates`
 - **Consumes** — HTTP client adapter: baseUri, namespace, resources, operations
-- **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), or Skill (`type: skill`)
+- **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), Skill (`type: skill`), or Control (`type: control`)
 - **Aggregates** — DDD-inspired domain building blocks; each aggregate groups reusable functions under a namespace. Tools and operations reference functions via `ref`
+- **Observability** — optional OTel configuration on the control adapter: trace sampling, propagation format, OTLP exporter endpoint
 - **Binds** — variable injection from file (dev) or runtime (prod)
 - **Namespace** — unique identifier linking exposes to consumes via routing
 
@@ -52,6 +54,8 @@ for *how*.
 | "I want to chain multiple HTTP calls to consumed APIs and expose the result into a single REST operation" | Read `references/chain-api-calls.md` |
 | "I need to go from local test credentials to production secrets" | Read `references/dev-to-production.md` |
 | "I want to define a domain function once and expose it via both REST and MCP" | Use `aggregates` with `ref` — read `references/design-guidelines.md` (Aggregate Design Guidelines) |
+| "I want to add health checks, Prometheus metrics, or trace inspection" | Read `references/control-port-observability.md` |
+| "I want to enable OpenTelemetry distributed tracing and RED metrics" | Read `references/control-port-observability.md` |
 | "I want to prototype a tool or endpoint before the backend exists" or "I want to return static or dynamic mock data" | Read `references/mock-capability.md` |
 | "I want to build a full-featured capability that does all of the above" | Read all stories in order, then use `assets/capability-example.yml` as structural reference |
 | "I have a YAML validation error" | Run `scripts/lint-capability.sh` — see **Lint workflow** below |
@@ -95,6 +99,8 @@ Specification directly.
    - `naftiko-baseuri-not-example` (warn) — placeholder URI
    - `naftiko-no-script-tags-in-markdown` (error) — XSS in descriptions
    - `naftiko-consumes-description` (warn) — missing description
+   - `naftiko-control-port-singleton-and-unique` (error) — more than one control adapter, or port collision
+   - `naftiko-control-address-localhost-warning` (warn) — control port bound to non-localhost
    For the full rule list, read the Spectral ruleset file directly.
 3. Fix and re-lint. Repeat until clean.
 
@@ -161,3 +167,18 @@ before writing any mock output parameters.
 22. In mock mode, Mustache templates in `value` fields resolve only against
     top-level input parameter names. Do not reference `with`-remapped
     consumed parameter names — those are not in scope for output resolution.
+23. At most one `type: "control"` adapter is allowed per capability. Its
+    port must not collide with any business adapter port.
+24. The control port `address` should be `localhost` or `127.0.0.1` for
+    security. Binding to `0.0.0.0` exposes management endpoints externally.
+25. The `/metrics` and `/traces` control port endpoints are configured under
+    `observability.metrics.local` and `observability.traces.local` respectively.
+    They require OTel observability to be active (`observability.enabled: true`
+    on the control adapter and the OTel SDK on the classpath). They return 503
+    when OTel is inactive.
+26. When adding a control port, also add `observability` on the control
+    adapter if you want metrics and traces to produce data. Without it,
+    the local endpoints return empty or 503 responses.
+27. The `observability.exporters.otlp.endpoint` field supports Mustache
+    expressions for binds (e.g. `"{{OTEL_ENDPOINT}}"`). Use binds to
+    keep exporter URLs environment-specific.

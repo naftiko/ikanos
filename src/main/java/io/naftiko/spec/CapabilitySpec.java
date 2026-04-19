@@ -34,9 +34,6 @@ public class CapabilitySpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<AggregateSpec> aggregates;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilitySpec observability;
-
     public CapabilitySpec() {
         this.binds = new CopyOnWriteArrayList<>();
         this.exposes = new CopyOnWriteArrayList<>();
@@ -58,14 +55,6 @@ public class CapabilitySpec {
 
     public List<AggregateSpec> getAggregates() {
         return aggregates;
-    }
-
-    public ObservabilitySpec getObservability() {
-        return observability;
-    }
-
-    public void setObservability(ObservabilitySpec observability) {
-        this.observability = observability;
     }
 
 }

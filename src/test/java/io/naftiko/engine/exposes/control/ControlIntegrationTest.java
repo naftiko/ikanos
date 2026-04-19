@@ -85,11 +85,12 @@ public class ControlIntegrationTest {
                 (ControlServerAdapter) capability.getServerAdapters().get(0);
         ControlServerSpec spec = adapter.getControlServerSpec();
 
-        assertTrue(spec.getEndpoints().isHealth());
-        assertTrue(spec.getEndpoints().isMetrics());
-        assertTrue(spec.getEndpoints().isInfo());
-        assertTrue(spec.getEndpoints().getTraces().isEnabled());
-        assertEquals(50, spec.getEndpoints().getTraces().getBufferSize());
+        assertTrue(spec.getManagement().isHealth());
+        assertTrue(spec.getManagement().isInfo());
+
+        assertNotNull(spec.getObservability());
+        assertTrue(spec.getObservability().getTraces().getLocal().isEnabled());
+        assertEquals(50, spec.getObservability().getTraces().getLocal().getBufferSize());
     }
 
     @Test
