@@ -72,7 +72,8 @@ public class ToolHandler {
     public McpSchema.CallToolResult handleToolCall(String toolName, Map<String, Object> arguments)
             throws Exception {
 
-        Span span = TelemetryBootstrap.get().startServerSpan("mcp", toolName);
+        Span span = TelemetryBootstrap.get().startServerSpan("mcp", toolName,
+                io.opentelemetry.context.Context.current(), null);
         try (Scope scope = span.makeCurrent()) {
             return doHandleToolCall(toolName, arguments);
         } catch (Exception e) {
