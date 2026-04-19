@@ -25,8 +25,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 public class TraceCapturingSpanProcessor implements SpanProcessor {
 
     private final TraceRingBuffer ringBuffer;
-    private final Map<String, List<SpanData>> pendingSpans = new ConcurrentHashMap<>();
+    private final Map<String, Queue<SpanData>> pendingSpans = new ConcurrentHashMap<>();
 
     public TraceCapturingSpanProcessor(TraceRingBuffer ringBuffer) {
         this.ringBuffer = ringBuffer;
@@ -63,16 +64,16 @@ public class TraceCapturingSpanProcessor implements SpanProcessor {
         SpanData data = span.toSpanData();
         String traceId = data.getTraceId();
 
-        pendingSpans.computeIfAbsent(traceId, k -> new CopyOnWriteArrayList<>()).add(data);
+        pendingSpans.computeIfAbsent(traceId, k -> new ConcurrentLinkedQueue<>()).add(data);
 
         // A root span has no valid parent span ID or its parent is remote
         boolean isRoot = !data.getParentSpanContext().isValid()
                 || data.getParentSpanContext().isRemote();
 
         if (isRoot) {
-            List<SpanData> spans = pendingSpans.remove(traceId);
+            Queue<SpanData> spans = pendingSpans.remove(traceId);
             if (spans != null) {
-                TraceSummary summary = buildSummary(traceId, data, spans);
+                TraceSummary summary = buildSummary(traceId, data, List.copyOf(spans));
                 ringBuffer.add(summary);
             }
         }

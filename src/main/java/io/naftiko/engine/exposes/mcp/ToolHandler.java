@@ -78,6 +78,11 @@ public class ToolHandler {
         String status = "OK";
         try (Scope scope = span.makeCurrent()) {
             McpSchema.CallToolResult result = doHandleToolCall(toolName, arguments);
+            if (result.isError() != null && result.isError()) {
+                status = "ERROR";
+                span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "tool returned error");
+                telemetry.getMetrics().recordRequestError("mcp", toolName, "handled_error");
+            }
             return result;
         } catch (Exception e) {
             status = "ERROR";
