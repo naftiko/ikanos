@@ -761,12 +761,8 @@ public class OperationStepExecutor {
                     ? clientRequest.getResourceRef().toString() : "unknown";
             String namespace = clientAdapter.getHttpClientSpec().getNamespace();
 
-<<<<<<< HEAD
             Span span = telemetry.startClientSpan(method, url, namespace);
-=======
-            Span span = telemetry.startClientSpan(method, url);
             long clientStartNanos = System.nanoTime();
->>>>>>> 8c1fd6e (feat: implement OTel Phase 2 — RED metrics and Prometheus scrape)
             try (Scope scope = span.makeCurrent()) {
                 // Inject W3C trace context after the client span is current
                 // so downstream services see this span as the parent
