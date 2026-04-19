@@ -50,6 +50,7 @@ public class McpServerResource extends ServerResource {
     private static final String HEADER_MCP_SESSION_ID = "Mcp-Session-Id";
 
     @Post("json")
+    @SuppressWarnings("null")
     public Representation handlePost(Representation entity) {
         ProtocolDispatcher dispatcher = getDispatcher();
         ObjectMapper mapper = dispatcher.getMapper();
