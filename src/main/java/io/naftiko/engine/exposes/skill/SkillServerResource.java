@@ -52,13 +52,14 @@ abstract class SkillServerResource extends ServerResource {
     }
 
     @Override
-    @SuppressWarnings("null")
+    @SuppressWarnings("null") // OTel SDK interop
     public Representation handle() {
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = telemetry.getOpenTelemetry()
-                .getPropagators().getTextMapPropagator()
-                .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                        RestletHeaderGetter.INSTANCE);
+        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
+                telemetry.getOpenTelemetry()
+                        .getPropagators().getTextMapPropagator()
+                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
+                                RestletHeaderGetter.INSTANCE));
 
         String operationId = getRequest().getResourceRef() != null
                 ? getRequest().getResourceRef().getPath() : "unknown";

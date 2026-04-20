@@ -32,7 +32,7 @@ import java.util.logging.Logger;
  *
  * <p>Provides a singleton {@link Tracer} for span creation across the engine.</p>
  */
-@SuppressWarnings("null")
+@SuppressWarnings("null") // OTel SDK AttributeKey constants lack @Nonnull — safe at this boundary
 public class TelemetryBootstrap {
 
     static final String INSTRUMENTATION_NAME = "io.naftiko.engine";

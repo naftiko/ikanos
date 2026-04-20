@@ -14,6 +14,8 @@
 package io.naftiko.engine.telemetry;
 
 import io.opentelemetry.context.propagation.TextMapGetter;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.restlet.Request;
 import java.util.Collections;
 
@@ -22,13 +24,12 @@ import java.util.Collections;
  *
  * <p>Used by server adapters (REST, MCP HTTP) to continue an upstream trace.</p>
  */
-@SuppressWarnings("null")
 public class RestletHeaderGetter implements TextMapGetter<Request> {
 
     public static final RestletHeaderGetter INSTANCE = new RestletHeaderGetter();
 
     @Override
-    public Iterable<String> keys(Request request) {
+    public Iterable<String> keys(@Nullable Request request) {
         if (request == null || request.getHeaders() == null) {
             return Collections.emptyList();
         }
@@ -36,7 +37,8 @@ public class RestletHeaderGetter implements TextMapGetter<Request> {
     }
 
     @Override
-    public String get(Request request, String key) {
+    @Nullable
+    public String get(@Nullable Request request, @Nonnull String key) {
         if (request == null || request.getHeaders() == null || key == null) {
             return null;
         }

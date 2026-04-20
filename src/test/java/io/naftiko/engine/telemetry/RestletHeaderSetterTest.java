@@ -53,6 +53,7 @@ public class RestletHeaderSetterTest {
     }
 
     @Test
+    @SuppressWarnings("null") // deliberately passing null to @Nonnull param
     void setShouldIgnoreNullKey() {
         Request request = new Request(Method.GET, "http://localhost/test");
         assertDoesNotThrow(() ->
@@ -60,6 +61,7 @@ public class RestletHeaderSetterTest {
     }
 
     @Test
+    @SuppressWarnings("null") // deliberately passing null to @Nonnull param
     void setShouldIgnoreNullValue() {
         Request request = new Request(Method.GET, "http://localhost/test");
         assertDoesNotThrow(() ->

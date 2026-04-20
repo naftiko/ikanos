@@ -51,7 +51,7 @@ public class McpServerResource extends ServerResource {
     private static final String HEADER_MCP_SESSION_ID = "Mcp-Session-Id";
 
     @Post("json")
-    @SuppressWarnings("null")
+    @SuppressWarnings("null") // OTel SDK interop
     public Representation handlePost(Representation entity) {
         ProtocolDispatcher dispatcher = getDispatcher();
         ObjectMapper mapper = dispatcher.getMapper();
@@ -59,10 +59,11 @@ public class McpServerResource extends ServerResource {
         // Extract W3C trace context from incoming HTTP headers so downstream
         // spans (tools/call) are linked to the caller's trace.
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = telemetry.getOpenTelemetry()
-                .getPropagators().getTextMapPropagator()
-                .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                        RestletHeaderGetter.INSTANCE);
+        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
+                telemetry.getOpenTelemetry()
+                        .getPropagators().getTextMapPropagator()
+                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
+                                RestletHeaderGetter.INSTANCE));
 
         try (Scope ignored = extractedContext.makeCurrent()) {
             return dispatchWithTraceContext(dispatcher, mapper, entity, extractedContext);
