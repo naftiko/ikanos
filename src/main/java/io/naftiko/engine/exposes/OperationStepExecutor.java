@@ -739,7 +739,7 @@ public class OperationStepExecutor {
         public Request clientRequest;
         public Response clientResponse;
 
-        @SuppressWarnings("null")
+        @SuppressWarnings("null") // OTel SDK interop
         public void handle() {
             TelemetryBootstrap telemetry = TelemetryBootstrap.get();
 

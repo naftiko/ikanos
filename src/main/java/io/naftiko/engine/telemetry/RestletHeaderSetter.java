@@ -14,6 +14,8 @@
 package io.naftiko.engine.telemetry;
 
 import io.opentelemetry.context.propagation.TextMapSetter;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.restlet.Request;
 
 /**
@@ -21,13 +23,12 @@ import org.restlet.Request;
  *
  * <p>Used by the HTTP client adapter to propagate trace context to consumed APIs.</p>
  */
-@SuppressWarnings("null")
 public class RestletHeaderSetter implements TextMapSetter<Request> {
 
     public static final RestletHeaderSetter INSTANCE = new RestletHeaderSetter();
 
     @Override
-    public void set(Request request, String key, String value) {
+    public void set(@Nullable Request request, @Nonnull String key, @Nonnull String value) {
         if (request != null && key != null && value != null) {
             request.getHeaders().set(key, value);
         }

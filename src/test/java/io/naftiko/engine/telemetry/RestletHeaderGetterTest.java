@@ -49,6 +49,7 @@ public class RestletHeaderGetterTest {
     }
 
     @Test
+    @SuppressWarnings("null") // deliberately passing null to @Nonnull param
     void getShouldReturnNullForNullKey() {
         Request request = new Request(Method.GET, "http://localhost/test");
         assertNull(RestletHeaderGetter.INSTANCE.get(request, null));
