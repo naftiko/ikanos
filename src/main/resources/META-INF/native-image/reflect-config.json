@@ -121,6 +121,11 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "io.swagger.parser.OpenAPIParser",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "io.swagger.v3.parser.core.extensions.SwaggerParserExtension",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true

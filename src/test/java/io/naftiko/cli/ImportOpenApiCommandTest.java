@@ -122,4 +122,139 @@ public class ImportOpenApiCommandTest {
         assertTrue(content.stripLeading().startsWith("{"), "Output should be valid JSON");
         assertTrue(content.contains("\"petstore\""));
     }
+
+    @Test
+    void importShouldAutoConvertSwagger20ToNaftikoConsumes() throws Exception {
+        Path oasFile = tempDir.resolve("petstore-v2.yaml");
+        Files.writeString(oasFile, """
+                swagger: "2.0"
+                info:
+                  title: "Petstore"
+                  version: "1.0.0"
+                host: "petstore.swagger.io"
+                basePath: "/v1"
+                schemes:
+                  - "https"
+                paths:
+                  /pets:
+                    get:
+                      operationId: listPets
+                      summary: List all pets
+                      parameters:
+                        - name: limit
+                          in: query
+                          required: false
+                          type: integer
+                      produces:
+                        - application/json
+                      responses:
+                        "200":
+                          description: A list of pets
+                          schema:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                name:
+                                  type: string
+                """);
+
+        Path output = tempDir.resolve("output.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(),
+                "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        assertTrue(Files.exists(output));
+        String content = Files.readString(output);
+        assertTrue(content.contains("petstore"), "Namespace should be derived from Swagger 2.0 title");
+        assertTrue(content.contains("list-pets"), "Operation should be converted from Swagger 2.0");
+    }
+
+    @Test
+    void importShouldDeriveBaseUriFromSwagger20HostAndBasePath() throws Exception {
+        Path oasFile = tempDir.resolve("v2-api.yaml");
+        Files.writeString(oasFile, """
+                swagger: "2.0"
+                info:
+                  title: "My Legacy API"
+                  version: "2.0.0"
+                host: "api.legacy.io"
+                basePath: "/v2"
+                schemes:
+                  - "https"
+                paths:
+                  /users:
+                    get:
+                      operationId: listUsers
+                      summary: List users
+                      responses:
+                        "200":
+                          description: OK
+                """);
+
+        Path output = tempDir.resolve("legacy.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(),
+                "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        String content = Files.readString(output);
+        assertTrue(content.contains("https://api.legacy.io/v2"),
+                "Base URI should be derived from Swagger 2.0 host + basePath");
+        assertTrue(content.contains("my-legacy-api"), "Namespace should be kebab-cased title");
+    }
+
+    @Test
+    void importShouldConvertSwagger20RequestBodyParameters() throws Exception {
+        Path oasFile = tempDir.resolve("v2-body.yaml");
+        Files.writeString(oasFile, """
+                swagger: "2.0"
+                info:
+                  title: "Body Test API"
+                  version: "1.0.0"
+                host: "api.example.com"
+                basePath: "/"
+                schemes:
+                  - "https"
+                paths:
+                  /items:
+                    post:
+                      operationId: createItem
+                      summary: Create an item
+                      consumes:
+                        - application/json
+                      parameters:
+                        - name: body
+                          in: body
+                          required: true
+                          schema:
+                            type: object
+                            required:
+                              - name
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                      responses:
+                        "201":
+                          description: Created
+                """);
+
+        Path output = tempDir.resolve("body-test.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(),
+                "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        String content = Files.readString(output);
+        assertTrue(content.contains("create-item"), "Operation name should be converted");
+        assertTrue(content.contains("name"), "Body parameter 'name' should be present");
+    }
 }

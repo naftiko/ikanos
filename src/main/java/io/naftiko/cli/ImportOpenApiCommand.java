@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
@@ -55,8 +55,8 @@ public class ImportOpenApiCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            // Parse the OpenAPI document
-            SwaggerParseResult parseResult = new OpenAPIV3Parser().readLocation(source, null, null);
+            // Parse the OpenAPI document (supports Swagger 2.0 and OAS 3.x)
+            SwaggerParseResult parseResult = new OpenAPIParser().readLocation(source, null, null);
 
             if (parseResult.getOpenAPI() == null) {
                 System.err.println("Error: Failed to parse OpenAPI specification from: " + source);
