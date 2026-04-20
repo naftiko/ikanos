@@ -217,12 +217,13 @@ How Naftiko achieves this technically:
 Bridge existing OpenAPI ecosystems with Naftiko capabilities: import OAS documents to bootstrap consumption adapters, and export REST adapters as standard OpenAPI specifications.
 
 How Naftiko achieves this technically:
-- Import an OpenAPI 3.0 or 3.1 document with `naftiko import openapi`, generating a ready-to-use `consumes` HTTP adapter with authentication, operations, input parameters, and output parameters pre-filled.
+- Import an OpenAPI 3.0 or 3.1 document (or a Swagger 2.0 document, which is auto-converted) with `naftiko import openapi`, generating a ready-to-use `consumes` HTTP adapter with authentication, operations, input parameters, and output parameters pre-filled.
 - Export a REST `exposes` adapter with `naftiko export openapi`, producing a standards-compliant OAS document that can be shared with API gateways, developer portals, and documentation tools.
 - Use `--adapter <namespace>` to target a specific REST adapter when the capability exposes more than one.
 
 #### Key features
 - [x] OpenAPI import into Naftiko `consumes` adapter
+  - [x] Swagger 2.0 support (auto-converted to OAS 3.0)
   - [x] OAS 3.0 and 3.1 support
   - [x] Authentication mapping (bearer, basic, API key, digest)
   - [x] Automatic namespace derivation from API title

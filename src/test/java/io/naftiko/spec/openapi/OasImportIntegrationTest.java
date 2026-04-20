@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.parser.OpenAPIParser;
+import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import io.naftiko.spec.consumes.BearerAuthenticationSpec;
 import io.naftiko.spec.consumes.HttpClientOperationSpec;
 import io.naftiko.spec.consumes.HttpClientResourceSpec;
@@ -229,6 +231,70 @@ public class OasImportIntegrationTest {
         assertNotNull(tagParam, "Expected 'tag' body parameter");
         assertEquals("string", tagParam.getType(),
                 "OAS 3.1 type: [string, null] should resolve to string");
+    }
+
+    @Test
+    void importSwagger20ShouldAutoConvertAndProduceValidSpec() {
+        String path = getFixturePath("openapi/petstore-2.0.yaml");
+
+        // Verify readLocation also works (same method used by ImportOpenApiCommand)
+        SwaggerParseResult parseResult =
+                new OpenAPIParser().readLocation(path, null, null);
+        assertNotNull(parseResult.getOpenAPI(),
+                "readLocation should auto-convert Swagger 2.0; messages: "
+                        + parseResult.getMessages());
+
+        OpenAPI openApi = parseResult.getOpenAPI();
+
+        OasImportResult result = converter.convert(openApi);
+
+        HttpClientSpec httpClient = result.getHttpClient();
+        assertEquals("petstore", httpClient.getNamespace());
+        assertTrue(httpClient.getBaseUri().contains("petstore.swagger.io"),
+                "Base URI should be derived from Swagger 2.0 host + basePath");
+
+        assertFalse(httpClient.getResources().isEmpty(),
+                "Should have at least one resource");
+
+        HttpClientOperationSpec listPets = httpClient.getResources().stream()
+                .flatMap(r -> r.getOperations().stream())
+                .filter(o -> "list-pets".equals(o.getName()))
+                .findFirst().orElse(null);
+        assertNotNull(listPets, "listPets operation should be converted from Swagger 2.0");
+        assertEquals("GET", listPets.getMethod());
+    }
+
+    @Test
+    void importSwagger20ShouldConvertBaseUriFromHostAndBasePath() {
+        String path = getFixturePath("openapi/petstore-2.0.yaml");
+        OpenAPI openApi = new OpenAPIV3Parser().read(path);
+        assertNotNull(openApi);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://petstore.swagger.io/v1", result.getHttpClient().getBaseUri());
+    }
+
+    @Test
+    void importSwagger20ShouldConvertPathAndQueryParameters() {
+        String path = getFixturePath("openapi/petstore-2.0.yaml");
+        OpenAPI openApi = new OpenAPIV3Parser().read(path);
+        assertNotNull(openApi);
+
+        OasImportResult result = converter.convert(openApi);
+
+        HttpClientOperationSpec showPet = result.getHttpClient().getResources().stream()
+                .flatMap(r -> r.getOperations().stream())
+                .filter(o -> "show-pet-by-id".equals(o.getName()))
+                .findFirst().orElse(null);
+        assertNotNull(showPet, "showPetById should be converted from Swagger 2.0");
+
+        InputParameterSpec petIdParam = showPet.getInputParameters().stream()
+                .filter(p -> "petId".equals(p.getName()))
+                .findFirst().orElse(null);
+        assertNotNull(petIdParam, "petId path parameter should be present");
+        assertEquals("path", petIdParam.getIn());
+        assertTrue(petIdParam.isRequired());
     }
 
     private String getFixturePath(String resourcePath) {

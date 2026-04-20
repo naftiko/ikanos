@@ -662,13 +662,13 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.media.Schema;
-import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 
 class OasImportConverter {
 
     OasImportResult convert(String source) {
-        SwaggerParseResult parseResult = new OpenAPIV3Parser().readLocation(source, null, null);
+        SwaggerParseResult parseResult = new OpenAPIParser().readLocation(source, null, null);
         OpenAPI openApi = parseResult.getOpenAPI();
         List<String> warnings = new ArrayList<>(parseResult.getMessages());
 
