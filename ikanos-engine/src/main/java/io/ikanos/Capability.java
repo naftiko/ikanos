@@ -118,7 +118,7 @@ public class Capability {
 
         // Build runtime aggregates (must happen after imports are resolved)
         List<Aggregate> aggregateList = new CopyOnWriteArrayList<>();
-        if (spec.getCapability() != null && !spec.getCapability().getAggregates().isEmpty()) {
+        if (!spec.getCapability().getAggregates().isEmpty()) {
             OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);
             for (AggregateSpec aggSpec : spec.getCapability().getAggregates()) {
                 aggregateList.add(new Aggregate(aggSpec, sharedExecutor));
