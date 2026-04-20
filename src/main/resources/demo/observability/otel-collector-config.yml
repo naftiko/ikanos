@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=
+# yaml-language-server: $schema=https://json.schemastore.org/base.json
 receivers:
   otlp:
     protocols:
