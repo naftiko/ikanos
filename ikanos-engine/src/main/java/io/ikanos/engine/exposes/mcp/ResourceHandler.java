@@ -54,7 +54,7 @@ public class ResourceHandler {
     public ResourceHandler(Capability capability, List<McpServerResourceSpec> resources,
             String namespace) {
         this.capability = capability;
-        this.resourceSpecs = new ArrayList<>(resources);
+        this.resourceSpecs = resources != null ? new ArrayList<>(resources) : new ArrayList<>();
         this.stepExecutor = new OperationStepExecutor(capability, namespace);
         this.namespace = namespace;
     }
