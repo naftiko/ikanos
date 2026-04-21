@@ -348,7 +348,65 @@ public class OasExportBuilderTest {
         assertTrue(result.getOpenApi().getSecurity().get(0).containsKey("oauth2Auth"));
     }
 
+    @Test
+    void buildShouldIncludeScopesInSecurityRequirementForOauth2() {
+        NaftikoSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.getResources().add(resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null));
+        OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
+        oauth2.setAuthorizationServerUri("https://auth.example.com/token");
+        oauth2.setScopes(List.of("read:pets", "write:pets"));
+        rest.setAuthentication(oauth2);
+
+        OasExportResult result = builder.build(spec, null);
+
+        List<String> requiredScopes =
+                result.getOpenApi().getSecurity().get(0).get("oauth2Auth");
+        assertNotNull(requiredScopes);
+        assertEquals(2, requiredScopes.size());
+        assertTrue(requiredScopes.contains("read:pets"));
+        assertTrue(requiredScopes.contains("write:pets"));
+    }
+
     // ── Edge cases ──
+
+    @Test
+    void buildShouldWarnAndSkipOauth2WhenTokenUrlIsNull() {
+        NaftikoSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.getResources().add(resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null));
+        OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
+        rest.setAuthentication(oauth2);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNull(result.getOpenApi().getComponents().getSecuritySchemes(),
+                "No security scheme should be added when tokenUrl is missing");
+        assertNull(result.getOpenApi().getSecurity(),
+                "No document-level security should be added when tokenUrl is missing");
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("authorizationServerUri")));
+    }
+
+    @Test
+    void buildShouldWarnAndSkipOauth2WhenTokenUrlIsBlank() {
+        NaftikoSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.getResources().add(resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null));
+        OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
+        oauth2.setAuthorizationServerUri("   ");
+        rest.setAuthentication(oauth2);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNull(result.getOpenApi().getComponents().getSecuritySchemes(),
+                "No security scheme should be added when tokenUrl is blank");
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("authorizationServerUri")));
+    }
 
     @Test
     void buildShouldWarnWhenNoRestAdapter() {

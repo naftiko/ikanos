@@ -339,6 +339,7 @@ public class OasExportBuilder {
 
         String schemeName;
         SecurityScheme securityScheme = new SecurityScheme();
+        List<String> requiredScopes = List.of();
 
         if (auth instanceof BearerAuthenticationSpec) {
             schemeName = "bearerAuth";
@@ -360,11 +361,17 @@ public class OasExportBuilder {
                 securityScheme.setIn(SecurityScheme.In.valueOf(apiKey.getPlacement().toUpperCase()));
             }
         } else if (auth instanceof OAuth2AuthenticationSpec oauth2) {
+            String tokenUrl = oauth2.getAuthorizationServerUri();
+            if (tokenUrl == null || tokenUrl.isBlank()) {
+                warnings.add("OAuth2 authentication requires authorizationServerUri (tokenUrl) "
+                        + "but it is missing or blank — skipping security scheme export");
+                return;
+            }
             schemeName = "oauth2Auth";
             securityScheme.setType(SecurityScheme.Type.OAUTH2);
             OAuthFlows flows = new OAuthFlows();
             OAuthFlow clientCredentials = new OAuthFlow();
-            clientCredentials.setTokenUrl(oauth2.getAuthorizationServerUri());
+            clientCredentials.setTokenUrl(tokenUrl);
             Scopes oasScopes = new Scopes();
             if (oauth2.getScopes() != null) {
                 oauth2.getScopes().forEach(scope -> oasScopes.addString(scope, ""));
@@ -372,13 +379,16 @@ public class OasExportBuilder {
             clientCredentials.setScopes(oasScopes);
             flows.setClientCredentials(clientCredentials);
             securityScheme.setFlows(flows);
+            if (oauth2.getScopes() != null) {
+                requiredScopes = oauth2.getScopes();
+            }
         } else {
             warnings.add("Unsupported authentication type for export: " + auth.getClass().getSimpleName());
             return;
         }
 
         components.addSecuritySchemes(schemeName, securityScheme);
-        openApi.setSecurity(List.of(new SecurityRequirement().addList(schemeName)));
+        openApi.setSecurity(List.of(new SecurityRequirement().addList(schemeName, requiredScopes)));
     }
 
     private void setOperationOnPathItem(PathItem pathItem, String method, Operation operation) {
