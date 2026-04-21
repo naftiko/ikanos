@@ -85,6 +85,9 @@ public class ControlServerAdapter extends ServerAdapter {
         if (observability == null) {
             return true; // default: enabled
         }
+        if (!observability.isEnabled()) {
+            return false;
+        }
         if (observability.getMetrics() != null && observability.getMetrics().getLocal() != null) {
             return observability.getMetrics().getLocal().isEnabled();
         }
@@ -94,6 +97,9 @@ public class ControlServerAdapter extends ServerAdapter {
     boolean isTracesEnabled(ObservabilitySpec observability) {
         if (observability == null) {
             return true; // default: enabled
+        }
+        if (!observability.isEnabled()) {
+            return false;
         }
         if (observability.getTraces() != null && observability.getTraces().getLocal() != null) {
             return observability.getTraces().getLocal().isEnabled();

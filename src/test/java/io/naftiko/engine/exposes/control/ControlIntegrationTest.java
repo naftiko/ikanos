@@ -24,8 +24,11 @@ import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
 import io.naftiko.util.VersionHelper;
+import org.restlet.routing.TemplateRoute;
 
 import java.io.File;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Integration tests for Control Server Adapter.
@@ -108,5 +111,29 @@ public class ControlIntegrationTest {
                 (ControlServerAdapter) capability.getServerAdapters().get(0);
 
         assertNotNull(adapter.getRouter());
+    }
+
+    @Test
+    public void routerShouldNotAttachMetricsOrTracesWhenObservabilityDisabled() throws Exception {
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        NaftikoSpec spec = mapper.readValue(
+                new File("src/test/resources/control/control-observability-disabled.yaml"),
+                NaftikoSpec.class);
+        Capability disabledCapability = new Capability(spec);
+        ControlServerAdapter adapter =
+                (ControlServerAdapter) disabledCapability.getServerAdapters().get(0);
+
+        Set<String> patterns = adapter.getRouter().getRoutes().stream()
+                .filter(TemplateRoute.class::isInstance)
+                .map(route -> ((TemplateRoute) route).getTemplate().getPattern())
+                .collect(Collectors.toSet());
+
+        assertFalse(patterns.contains("/metrics"),
+                "/metrics should not be attached when observability.enabled=false");
+        assertFalse(patterns.contains("/traces"),
+                "/traces should not be attached when observability.enabled=false");
+        assertFalse(patterns.contains("/traces/{traceId}"),
+                "/traces/{traceId} should not be attached when observability.enabled=false");
     }
 }

@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha2"
+info:
+  label: "Control Port — Observability Disabled"
+  description: "Test fixture: observability.enabled=false should suppress /metrics and /traces"
+  tags:
+    - Test
+    - Control
+  created: "2026-06-01"
+  modified: "2026-06-01"
+
+capability:
+  exposes:
+    - type: "control"
+      address: "localhost"
+      port: 9198
+      management:
+        health: true
+        info: true
+      observability:
+        enabled: false

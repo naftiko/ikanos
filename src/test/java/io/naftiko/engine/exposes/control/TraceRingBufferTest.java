@@ -92,6 +92,16 @@ public class TraceRingBufferTest {
         assertEquals(0, buffer.getSize());
     }
 
+    @Test
+    public void constructorShouldRejectZeroCapacity() {
+        assertThrows(IllegalArgumentException.class, () -> new TraceRingBuffer(0));
+    }
+
+    @Test
+    public void constructorShouldRejectNegativeCapacity() {
+        assertThrows(IllegalArgumentException.class, () -> new TraceRingBuffer(-5));
+    }
+
     private static TraceSummary createTrace(String traceId, String rootSpanName) {
         return new TraceSummary(
                 traceId, rootSpanName, 100L, "OK", Instant.now(), 1, List.of());

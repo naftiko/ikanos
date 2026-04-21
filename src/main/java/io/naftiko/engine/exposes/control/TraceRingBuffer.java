@@ -31,6 +31,9 @@ public class TraceRingBuffer {
     private final ReentrantLock lock = new ReentrantLock();
 
     public TraceRingBuffer(int capacity) {
+        if (capacity < 1) {
+            throw new IllegalArgumentException("TraceRingBuffer capacity must be at least 1, got: " + capacity);
+        }
         this.capacity = capacity;
         this.buffer = new TraceSummary[capacity];
         this.head = 0;
