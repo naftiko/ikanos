@@ -24,7 +24,6 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Server Authentication | Secure exposed endpoints with **Bearer**, **API Key**, **Basic**, **Digest**, or **OAuth 2.1** authentication out of the box |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |
 | OpenAPI Interoperability | Import **Swagger 2.0**, **OAS 3.0/3.1** into consumes adapters, export REST adapters as **OpenAPI** documents |
-| Docker Native | Ships as a ready-to-run **Docker** container |
 | Extensible | Open-source core extensible with new protocols and adapters |
 
 ***
