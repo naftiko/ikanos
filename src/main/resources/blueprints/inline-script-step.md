@@ -1,10 +1,10 @@
-# Inline Script Step
+# Script Step
 ## Polyglot Scripting in Orchestration Steps via GraalVM
 
 **Status**: Proposal  
 **Date**: April 10, 2026  
 **Spec Version**: `1.0.0-alpha2`  
-**Key Concept**: Add a new `type: script` orchestration step that executes JavaScript or Python code — inline or from external files — via the GraalVM Polyglot API, enabling lightweight data transformation, filtering, and enrichment between `call` and `lookup` steps — without deploying additional services.
+**Key Concept**: Add a new `type: script` orchestration step that executes JavaScript, Python, or Groovy code from external files via the GraalVM Polyglot API, enabling lightweight data transformation, filtering, and enrichment between `call` and `lookup` steps — without deploying additional services.
 
 ---
 
@@ -32,7 +32,7 @@
 
 ### What This Proposes
 
-Add a new `type: script` step to the `OperationStep` discriminated union. A script step executes JavaScript or Python code — provided inline via `source` or loaded from an external file via `location` — inside a sandboxed GraalVM polyglot context and stores the result in the step execution context — exactly like `call` and `lookup` steps. External scripts can declare dependent modules via `modules`, enabling reuse of shared libraries and helper functions across capabilities.
+Add a new `type: script` step to the `OperationStep` discriminated union. A script step executes JavaScript, Python, or Groovy code — loaded from an external file via `location` — inside a sandboxed GraalVM polyglot context and stores the result in the step execution context — exactly like `call` and `lookup` steps. Scripts can declare dependent scripts via `dependencies`, enabling reuse of shared libraries and helper functions across capabilities.
 
 Script steps can be used anywhere `steps` are accepted:
 
@@ -44,7 +44,7 @@ Script steps can be used anywhere `steps` are accepted:
 
 Today, orchestration steps can dispatch HTTP calls (`call`) and cross-reference previous results (`lookup`). Any data transformation — filtering, reshaping, conditional logic, enrichment — requires either a dedicated consumed API endpoint or pre-computed server-side logic.
 
-A `script` step fills the gap between "fetch data" and "expose data" by enabling transformations — either inline for simple logic, or from external files for reusable/complex scripts. This keeps Naftiko's declarative-first model intact while allowing procedural escape hatches when pure mapping is insufficient.
+A `script` step fills the gap between "fetch data" and "expose data" by enabling transformations loaded from external files — reusable, testable, and version-controlled. This keeps Naftiko's declarative-first model intact while allowing procedural escape hatches when pure mapping is insufficient.
 
 The step follows the same contract as existing step types:
 - It has a `name` used as namespace in the step context
@@ -56,10 +56,9 @@ The step follows the same contract as existing step types:
 
 | Benefit | Impact |
 |---|---|
-| **Inline transformation** | Filter, reshape, and enrich data between API calls without additional services |
 | **External script files** | Load scripts from `file:///` URIs for reusable, testable, version-controlled logic |
-| **Dependent modules** | Declare supporting script files that are pre-evaluated before the main script |
-| **Polyglot** | JavaScript and Python — two of the most common scripting languages |
+| **Dependent scripts** | Declare supporting script files that are pre-evaluated before the main script |
+| **Polyglot** | JavaScript, Python, and Groovy — three of the most common scripting languages in the JVM ecosystem |
 | **Sandboxed execution** | GraalVM polyglot context with no host access, no I/O, no network — safe by default |
 | **Consistent step model** | Same `name` → context → reference pattern as `call` and `lookup` |
 | **Aggregate-compatible** | Works in aggregate functions, so transformations are reusable across adapters |
@@ -68,9 +67,8 @@ The step follows the same contract as existing step types:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| GraalVM polyglot JAR size | High | Medium | Optional Maven profile; exclude from native CLI build |
+| GraalVM polyglot JAR size | High | Medium | Single image, runtime opt-in via `NAFTIKO_SCRIPTING=true`; no runtime cost when disabled |
 | Script timeout / infinite loop | Medium | High | Statement limit + execution timeout via `ResourceLimits` |
-| Python language pack maturity | Medium | Low | Phase 2; JavaScript first |
 | Native image compatibility | Medium | Medium | Optional profile; polyglot adds significant binary size |
 
 ---
@@ -80,7 +78,7 @@ The step follows the same contract as existing step types:
 ### Goals
 
 1. Introduce `script` as a new `OperationStep` type alongside `call` and `lookup`.
-2. Support `javascript` and `python` as script languages via GraalVM Polyglot API.
+2. Support `javascript`, `python`, and `groovy` as script languages via GraalVM Polyglot API.
 3. Provide a sandboxed execution environment with no host access, no I/O, no network.
 4. Inject previous step outputs and runtime parameters into the script context as read-only bindings.
 5. Capture the script result via a well-known `result` variable binding.
@@ -94,8 +92,8 @@ The step follows the same contract as existing step types:
 2. Persistent script state across step executions (each invocation is isolated).
 3. Script debugging or REPL capabilities.
 4. Script compilation caching across requests (deferred optimization).
-5. Groovy language support — deferred to a future proposal.
-6. Remote script locations (e.g., `https://`) — only `file:///` URIs are supported.
+5. Remote script locations (e.g., `https://`) — only `file:///` URIs are supported.
+6. Inline scripts via `source` — only file-based scripts via `location` are supported in Phase 1 to limit usage to advanced, reviewable cases.
 
 ---
 
@@ -103,11 +101,10 @@ The step follows the same contract as existing step types:
 
 | Term | Definition |
 |---|---|
-| **Script step** | An `OperationStep` with `type: "script"` that executes code inline or from file |
-| **Language** | The GraalVM language identifier: `javascript` or `python` |
-| **Source** | The inline script body — a string containing valid code in the chosen language. Mutually exclusive with `location` |
-| **Location** | A `file:///` URI pointing to the main script file. Mutually exclusive with `source` |
-| **Modules** | An array of `file:///` URIs pointing to dependent script files (helpers, libraries). Pre-evaluated in order before the main script |
+| **Script step** | An `OperationStep` with `type: "script"` that executes code loaded from an external file |
+| **Language** | The GraalVM language identifier: `javascript`, `python`, or `groovy` |
+| **Location** | A `file:///` URI pointing to the main script file |
+| **Dependencies** | An array of relative paths to dependent script files (helpers, libraries) within the `location` directory. Pre-evaluated in order before the main script |
 | **Context bindings** | Variables injected into the script: `context` (all runtime parameters + previous step outputs) and `with` overrides |
 | **Result binding** | The `result` variable that the script assigns to return its output |
 | **Sandbox** | GraalVM polyglot `Context` configured with `allowAllAccess(false)` — no host classes, no I/O, no threads |
@@ -121,14 +118,14 @@ The step follows the same contract as existing step types:
 ```
 call step                    lookup step                   script step (proposed)
 ─────────                    ───────────                   ─────────────────────
-Dispatches HTTP request      Cross-references step output  Executes inline code
+Dispatches HTTP request      Cross-references step output  Loads and executes script
 to consumed operation        against previous step data    for data transformation
 
 Input:                       Input:                        Input:
-├─ call (namespace.op)       ├─ index (step name)          ├─ language (javascript|python)
-├─ with (param injection)    ├─ match (key field)          ├─ source (inline) OR
-│                            ├─ lookupValue (expression)   │  location (file:/// URI)
-│                            └─ outputParameters (fields)  ├─ modules (dependent files)
+├─ call (namespace.op)       ├─ index (step name)          ├─ language (javascript|python|groovy)
+├─ with (param injection)    ├─ match (key field)          ├─ location (file:/// directory URI)
+│                            ├─ lookupValue (expression)   ├─ file (relative path to main script)
+│                            └─ outputParameters (fields)  ├─ dependencies (relative paths to dependent scripts)
 │                                                          ├─ with (param injection)
 
 Output:                      Output:                       Output:
@@ -143,9 +140,8 @@ Output:                      Output:                       Output:
 |---|---|
 | Fetch data from an external API | `call` |
 | Cross-reference data from a previous step | `lookup` |
-| Simple inline transformation (filter, reshape, compute) | `script` with `source` |
-| Reusable or complex transformation logic | `script` with `location` |
-| Transformation with shared helper libraries | `script` with `location` + `modules` |
+| Transformation logic (filter, reshape, compute) | `script` with `location` + `file` |
+| Transformation with shared helper libraries | `script` with `location` + `file` + `dependencies` |
 
 ---
 
@@ -195,8 +191,9 @@ OperationStepExecutor.executeSteps()
   ├── OperationStepLookupSpec   → LookupExecutor (existing)
   └── OperationStepScriptSpec   → ScriptStepExecutor (new)
         │
-        ├── 1. Resolve source:
-        │      inline (source) OR file (location)
+        ├── 1. Resolve script file:
+        │      location (directory) + file (relative path)
+        │      using resolveAndValidate() — same as Skill adapter
         │
         ├── 2. Build bindings map:
         │      context = runtimeParameters + stepContext outputs
@@ -210,7 +207,7 @@ OperationStepExecutor.executeSteps()
         │
         ├── 4. Bind context map as guest-accessible Value
         │
-        ├── 5. Evaluate modules in order (if present)
+        ├── 5. Evaluate dependent scripts in order (if present)
         │
         ├── 6. Evaluate main script
         │
@@ -257,27 +254,26 @@ OperationStepExecutor.executeSteps()
         "name": true,
         "language": {
           "type": "string",
-          "enum": ["javascript", "python"],
+          "enum": ["javascript", "python", "groovy"],
           "description": "GraalVM language identifier for the script engine."
-        },
-        "source": {
-          "type": "string",
-          "description": "Inline script body. Must assign to the 'result' variable to produce output. Mutually exclusive with 'location'.",
-          "minLength": 1
         },
         "location": {
           "type": "string",
           "format": "uri",
           "pattern": "^file:///",
-          "description": "file:/// URI pointing to the main script file. The file must assign to the 'result' variable to produce output. Mutually exclusive with 'source'."
+          "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths."
         },
-        "modules": {
+        "file": {
+          "type": "string",
+          "description": "Relative path to the main script file within the 'location' directory. The script must assign to the 'result' variable to produce output. Path segments must match [a-zA-Z0-9._-]+ (same validation as Skill instruction paths).",
+          "minLength": 1
+        },
+        "dependencies": {
           "type": "array",
-          "description": "Dependent script files pre-evaluated in order before the main script. Each module can define helper functions, constants, or shared logic. Only allowed when 'location' is used.",
+          "description": "Relative paths to dependent script files within the 'location' directory, pre-evaluated in order before the main script. Each dependent script can define helper functions, constants, or shared logic.",
           "items": {
             "type": "string",
-            "format": "uri",
-            "pattern": "^file:///"
+            "minLength": 1
           },
           "minItems": 1
         },
@@ -285,17 +281,7 @@ OperationStepExecutor.executeSteps()
           "$ref": "#/$defs/WithInjector"
         }
       },
-      "required": ["language"],
-      "oneOf": [
-        {
-          "required": ["source"],
-          "not": { "required": ["location"] }
-        },
-        {
-          "required": ["location"],
-          "not": { "required": ["source"] }
-        }
-      ],
+      "required": ["language", "location", "file"],
       "unevaluatedProperties": false
     }
   ]
@@ -303,9 +289,11 @@ OperationStepExecutor.executeSteps()
 ```
 
 **Key constraints:**
-- `source` and `location` are mutually exclusive (enforced via `oneOf`)
-- `modules` is only meaningful with `location` (validated by Spectral rule, not schema — to keep the schema simple)
-- `modules` are evaluated in order before the main script, so helper functions are available when the main script runs
+- `location` points to a **directory** (not a file) — same convention as `ExposedSkill.location`
+- `file` is a **relative path** within that directory — same convention as `SkillTool.instruction`
+- `dependencies` are relative paths within the same `location` directory
+- Path resolution and validation reuse the same `resolveAndValidate()` logic as the Skill adapter (segment allowlist + prefix containment check)
+- Multiple script steps (across tools, operations, and capabilities) can share the same `location` directory, enabling script reuse
 
 ### OperationStep — Add script to oneOf
 
@@ -324,7 +312,7 @@ OperationStepExecutor.executeSteps()
 | Object | Change |
 |---|---|
 | `OperationStepBase.type.enum` | Add `"script"` |
-| `OperationStepScript` | New definition (with `source` / `location` oneOf, `modules`, `with`) |
+| `OperationStepScript` | New definition (with `location` directory + `file` relative path + `dependencies` + `with`) |
 | `OperationStep.oneOf` | Add `{ "$ref": "#/$defs/OperationStepScript" }` |
 
 No changes to `ExposedOperation`, `McpTool`, `AggregateFunction`, or any other definition — they already accept `OperationStep` via `steps`, which gains the new variant automatically.
@@ -335,6 +323,20 @@ No changes to `ExposedOperation`, `McpTool`, `AggregateFunction`, or any other d
 
 ### Example 1 — JavaScript filter in MCP tool
 
+Script file at `scripts/filter-active.js`:
+```javascript
+// filter-active.js
+var members = context['list-members'];
+var active = [];
+for (var i = 0; i < members.length; i++) {
+  if (members[i].type === 'User') {
+    active.push({ login: members[i].login, id: members[i].id });
+  }
+}
+result = active;
+```
+
+Capability YAML:
 ```yaml
 naftiko: "1.0.0-alpha2"
 
@@ -366,15 +368,8 @@ capability:
             - type: script
               name: filter-active
               language: javascript
-              source: |
-                var members = context['list-members'];
-                var active = [];
-                for (var i = 0; i < members.length; i++) {
-                  if (members[i].type === 'User') {
-                    active.push({ login: members[i].login, id: members[i].id });
-                  }
-                }
-                result = active;
+              location: "file:///app/capabilities/scripts"
+              file: "filter-active.js"
           outputParameters:
             - name: active-members
               type: array
@@ -394,6 +389,20 @@ capability:
 
 ### Example 2 — Transform and enrich in REST operation
 
+Script file at `scripts/compute-totals.js`:
+```javascript
+// compute-totals.js
+var orders = context['get-orders'];
+var total = 0;
+var count = 0;
+for (var i = 0; i < orders.length; i++) {
+  total += orders[i].amount;
+  count++;
+}
+result = { totalAmount: total, orderCount: count };
+```
+
+Capability YAML:
 ```yaml
 steps:
   - type: call
@@ -405,15 +414,8 @@ steps:
   - type: script
     name: compute-totals
     language: javascript
-    source: |
-      var orders = context['get-orders'];
-      var total = 0;
-      var count = 0;
-      for (var i = 0; i < orders.length; i++) {
-        total += orders[i].amount;
-        count++;
-      }
-      result = { totalAmount: total, orderCount: count };
+    location: "file:///app/capabilities/scripts"
+    file: "compute-totals.js"
 
   - type: call
     name: update-summary
@@ -426,6 +428,20 @@ steps:
 
 ### Example 3 — Python script step
 
+Script file at `scripts/analyze-readings.py`:
+```python
+# analyze-readings.py
+readings = context['fetch-readings']
+values = [r['temperature'] for r in readings]
+result = {
+    'average': sum(values) / len(values),
+    'min': min(values),
+    'max': max(values),
+    'count': len(values)
+}
+```
+
+Capability YAML:
 ```yaml
 steps:
   - type: call
@@ -437,19 +453,25 @@ steps:
   - type: script
     name: analyze
     language: python
-    source: |
-      readings = context['fetch-readings']
-      values = [r['temperature'] for r in readings]
-      result = {
-        'average': sum(values) / len(values),
-        'min': min(values),
-        'max': max(values),
-        'count': len(values)
-      }
+    location: "file:///app/capabilities/scripts"
+    file: "analyze-readings.py"
 ```
 
 ### Example 4 — Script step in aggregate function
 
+Script file at `scripts/summarize-events.js`:
+```javascript
+// summarize-events.js
+var events = context['fetch-events'];
+var byType = {};
+for (var i = 0; i < events.length; i++) {
+  var t = events[i].type;
+  byType[t] = (byType[t] || 0) + 1;
+}
+result = { eventsByType: byType, totalEvents: events.length };
+```
+
+Capability YAML:
 ```yaml
 capability:
   aggregates:
@@ -475,14 +497,8 @@ capability:
             - type: script
               name: summarize
               language: javascript
-              source: |
-                var events = context['fetch-events'];
-                var byType = {};
-                for (var i = 0; i < events.length; i++) {
-                  var t = events[i].type;
-                  byType[t] = (byType[t] || 0) + 1;
-                }
-                result = { eventsByType: byType, totalEvents: events.length };
+              location: "file:///app/capabilities/scripts"
+              file: "summarize-events.js"
           outputParameters:
             - name: events-by-type
               type: object
@@ -514,6 +530,21 @@ capability:
 
 ### Example 5 — Script step with `with` injection
 
+Script file at `scripts/filter-by-threshold.js`:
+```javascript
+// filter-by-threshold.js
+var items = context['fetch-items'];
+var threshold = context['threshold'];
+var low = [];
+for (var i = 0; i < items.length; i++) {
+  if (items[i].stock < threshold) {
+    low.push(items[i]);
+  }
+}
+result = low;
+```
+
+Capability YAML:
 ```yaml
 steps:
   - type: call
@@ -523,53 +554,15 @@ steps:
   - type: script
     name: filter-by-threshold
     language: javascript
+    location: "file:///app/capabilities/scripts"
+    file: "filter-by-threshold.js"
     with:
       threshold: "{{minStock}}"
-    source: |
-      var items = context['fetch-items'];
-      var threshold = context['threshold'];
-      var low = [];
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].stock < threshold) {
-          low.push(items[i]);
-        }
-      }
-      result = low;
 ```
 
-### Example 6 — External script file via `location`
+### Example 6 — Script with dependent scripts
 
-Script file at `scripts/filter-active.js`:
-```javascript
-// filter-active.js
-var members = context['list-members'];
-var active = [];
-for (var i = 0; i < members.length; i++) {
-  if (members[i].type === 'User') {
-    active.push({ login: members[i].login, id: members[i].id });
-  }
-}
-result = active;
-```
-
-Capability YAML:
-```yaml
-steps:
-  - type: call
-    name: list-members
-    call: github.list-org-members
-    with:
-      org: "{{org}}"
-
-  - type: script
-    name: filter-active
-    language: javascript
-    location: "file:///scripts/filter-active.js"
-```
-
-### Example 7 — External script with dependent modules
-
-Shared helper module at `scripts/lib/array-utils.js`:
+Shared helper at `scripts/lib/array-utils.js`:
 ```javascript
 // array-utils.js — reusable helpers
 function filterByField(arr, field, value) {
@@ -615,14 +608,15 @@ steps:
   - type: script
     name: filter-active
     language: javascript
-    modules:
-      - "file:///scripts/lib/array-utils.js"
-    location: "file:///scripts/active-members.js"
+    location: "file:///app/capabilities/scripts"
+    file: "active-members.js"
+    dependencies:
+      - "lib/array-utils.js"
 ```
 
-### Example 8 — Python external script with modules
+### Example 7 — Python script with dependent scripts
 
-Helper module at `scripts/lib/stats.py`:
+Helper at `scripts/lib/stats.py`:
 ```python
 # stats.py — reusable statistics helpers
 def compute_stats(values):
@@ -654,10 +648,117 @@ steps:
   - type: script
     name: analyze
     language: python
-    modules:
-      - "file:///scripts/lib/stats.py"
-    location: "file:///scripts/analyze-readings.py"
+    location: "file:///app/capabilities/scripts"
+    file: "analyze-readings.py"
+    dependencies:
+      - "lib/stats.py"
 ```
+
+### Example 8 — Groovy script step
+
+Script file at `scripts/enrich-products.groovy`:
+```groovy
+// enrich-products.groovy
+def products = context['fetch-products']
+result = products.collect { p ->
+    [name: p.name, price: p.price, discounted: p.price * 0.9]
+}
+```
+
+Capability YAML:
+```yaml
+steps:
+  - type: call
+    name: fetch-products
+    call: catalog.list-products
+    with:
+      category: "{{category}}"
+
+  - type: script
+    name: enrich
+    language: groovy
+    location: "file:///app/capabilities/scripts"
+    file: "enrich-products.groovy"
+```
+
+### Example 9 — Groovy script with dependent scripts
+
+Helper at `scripts/lib/pricing.groovy`:
+```groovy
+// pricing.groovy — reusable pricing helpers
+def applyDiscount(items, rate) {
+    items.collect { item ->
+        item + [discounted: item.price * (1 - rate)]
+    }
+}
+```
+
+Main script at `scripts/enrich-with-discount.groovy`:
+```groovy
+// enrich-with-discount.groovy — uses helpers from pricing.groovy
+def products = context['fetch-products']
+result = applyDiscount(products, 0.1)
+```
+
+Capability YAML:
+```yaml
+steps:
+  - type: call
+    name: fetch-products
+    call: catalog.list-products
+    with:
+      category: "{{category}}"
+
+  - type: script
+    name: enrich
+    language: groovy
+    location: "file:///app/capabilities/scripts"
+    file: "enrich-with-discount.groovy"
+    dependencies:
+      - "lib/pricing.groovy"
+```
+
+### Example 10 — Reusing scripts across tools and skills
+
+Two capabilities share the same `scripts/` directory. The `filter-active.js` and `lib/array-utils.js` scripts are used by both an MCP tool and a Skill tool instruction — each references the same `location`:
+
+MCP capability:
+```yaml
+steps:
+  - type: call
+    name: list-members
+    call: github.list-org-members
+    with:
+      org: "{{org}}"
+
+  - type: script
+    name: filter-active
+    language: javascript
+    location: "file:///app/shared-scripts"
+    file: "active-members.js"
+    dependencies:
+      - "lib/array-utils.js"
+```
+
+REST capability (different YAML file, same scripts directory):
+```yaml
+steps:
+  - type: call
+    name: list-members
+    call: github.list-org-members
+    with:
+      org: "{{org}}"
+
+  - type: script
+    name: filter-active
+    language: javascript
+    location: "file:///app/shared-scripts"
+    file: "active-members.js"
+    dependencies:
+      - "lib/array-utils.js"
+```
+
+Both capabilities resolve `active-members.js` and `lib/array-utils.js` from the same `/app/shared-scripts/` directory — write once, reuse across tools.
 
 ---
 
@@ -667,8 +768,8 @@ steps:
 
 | Class | Package | Description |
 |---|---|---|
-| `OperationStepScriptSpec` | `io.naftiko.spec.exposes` | Spec POJO: `language`, `source`, `location`, `modules`, `with`. Extends `OperationStepSpec` |
-| `ScriptStepExecutor` | `io.naftiko.engine.exposes` | Stateless executor. Loads source (inline or file), evaluates modules, runs script in sandboxed GraalVM `Context`, extracts `result` |
+| `OperationStepScriptSpec` | `io.naftiko.spec.exposes` | Spec POJO: `language`, `location`, `file`, `dependencies`, `with`. Extends `OperationStepSpec` |
+| `ScriptStepExecutor` | `io.naftiko.engine.exposes` | Stateless executor. Resolves file from location directory, evaluates dependent scripts, runs script in sandboxed GraalVM `Context` (JS/Python) or `GroovyShell` (Groovy), extracts `result` |
 
 ### OperationStepScriptSpec
 
@@ -676,9 +777,9 @@ steps:
 @JsonTypeName("script")
 public class OperationStepScriptSpec extends OperationStepSpec {
     private volatile String language;
-    private volatile String source;      // mutually exclusive with location
-    private volatile String location;    // mutually exclusive with source
-    private final List<String> modules = new CopyOnWriteArrayList<>();
+    private volatile String location;    // file:/// URI to scripts directory
+    private volatile String file;        // relative path to main script within location
+    private final List<String> dependencies = new CopyOnWriteArrayList<>();
     private final Map<String, Object> with = new ConcurrentHashMap<>();
 
     // Constructors, getters, setters following existing patterns
@@ -707,15 +808,28 @@ class ScriptStepExecutor {
                      StepExecutionContext stepContext) {
 
         String language = scriptStep.getLanguage();
+        String locationUri = scriptStep.getLocation();
 
-        // 1. Resolve script source: inline or file
-        String mainSource = resolveSource(scriptStep);
+        // 1. Resolve main script file using the same mechanism as Skill adapter
+        String mainSource = readScript(locationUri, scriptStep.getFile());
 
         // 2. Build bindings: merge runtimeParameters + step outputs + with
         Map<String, Object> bindings = buildBindings(
             runtimeParameters, stepContext, scriptStep.getWith());
 
-        // 3. Create sandboxed polyglot context
+        // 3. Dispatch to language-specific executor
+        if ("groovy".equals(language)) {
+            return executeGroovy(mainSource, bindings, scriptStep);
+        }
+        return executePolyglot(language, mainSource, bindings, scriptStep);
+    }
+
+    private JsonNode executePolyglot(String language, String mainSource,
+                                      Map<String, Object> bindings,
+                                      OperationStepScriptSpec scriptStep) {
+
+        String locationUri = scriptStep.getLocation();
+
         try (Context context = Context.newBuilder(language)
                 .allowAllAccess(false)
                 .allowHostAccess(HostAccess.NONE)
@@ -729,50 +843,117 @@ class ScriptStepExecutor {
                     .build())
                 .build()) {
 
-            // 4. Inject bindings
+            // Inject bindings
             Value contextBinding = context.eval(language,
                 buildBindingExpression(language, bindings));
             context.getBindings(language).putMember("context", contextBinding);
 
-            // 5. Evaluate dependent modules in order
-            if (scriptStep.getModules() != null) {
-                for (String moduleUri : scriptStep.getModules()) {
-                    String moduleSource = readFileUri(moduleUri);
-                    context.eval(language, moduleSource);
+            // Evaluate dependent scripts in order
+            if (scriptStep.getDependencies() != null) {
+                for (String depPath : scriptStep.getDependencies()) {
+                    String depSource = readScript(locationUri, depPath);
+                    context.eval(language, depSource);
                 }
             }
 
-            // 6. Evaluate main script
+            // Evaluate main script
             context.eval(language, mainSource);
 
-            // 7. Extract result
+            // Extract result
             Value resultValue = context.getBindings(language).getMember("result");
             return convertToJsonNode(resultValue);
         }
     }
 
-    private String resolveSource(OperationStepScriptSpec step) {
-        if (step.getSource() != null) {
-            return step.getSource();
+    private JsonNode executeGroovy(String mainSource,
+                                    Map<String, Object> bindings,
+                                    OperationStepScriptSpec scriptStep) {
+        String locationUri = scriptStep.getLocation();
+
+        CompilerConfiguration config = new CompilerConfiguration();
+        SecureASTCustomizer secure = new SecureASTCustomizer();
+        secure.setDisallowedImports(List.of("java.io.**", "java.nio.**",
+            "java.net.**", "java.lang.Process", "java.lang.Runtime"));
+        secure.setAllowedReceivers(List.of());
+        config.addCompilationCustomizers(secure);
+
+        Binding binding = new Binding();
+        binding.setVariable("context", bindings);
+
+        GroovyShell shell = new GroovyShell(binding, config);
+
+        // Evaluate dependent scripts in order
+        if (scriptStep.getDependencies() != null) {
+            for (String depPath : scriptStep.getDependencies()) {
+                String depSource = readScript(locationUri, depPath);
+                shell.evaluate(depSource);
+            }
         }
-        return readFileUri(step.getLocation());
+
+        // Evaluate main script
+        shell.evaluate(mainSource);
+
+        // Extract result
+        Object resultValue = binding.getVariable("result");
+        return convertToJsonNode(resultValue);
     }
 
-    private String readFileUri(String fileUri) {
-        // Parse file:/// URI, validate path is within allowed base directory,
-        // read file contents as UTF-8 string
-        // Throws IllegalArgumentException if file not found or path traversal detected
+    /**
+     * Resolves and reads a script file using the same mechanism as the Skill adapter.
+     * Delegates to the shared resolveAndValidate() utility.
+     *
+     * @param locationUri file:/// URI pointing to the scripts directory
+     * @param relativePath relative path to the script file within the directory
+     * @return script file contents as UTF-8 string
+     */
+    private String readScript(String locationUri, String relativePath) {
+        Path resolved = resolveAndValidate(locationUri, relativePath);
+        return Files.readString(resolved, StandardCharsets.UTF_8);
     }
 }
 ```
 
+### File Resolution — Shared with Skill Adapter
+
+Script steps reuse the **same `resolveAndValidate()` method** used by `SkillServerResource`:
+
+```java
+private static final Pattern SAFE_SEGMENT = Pattern.compile("^[a-zA-Z0-9._-]+$");
+
+Path resolveAndValidate(String locationUri, String file) {
+    Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
+    Path relPath = Paths.get(file);
+
+    // 1) Validate each segment — rejects "..", spaces, special chars
+    for (int i = 0; i < relPath.getNameCount(); i++) {
+        String segment = relPath.getName(i).toString();
+        if (!SAFE_SEGMENT.matcher(segment).matches()) {
+            throw new SecurityException("Unsafe path segment in request: " + segment);
+        }
+    }
+
+    // 2) Resolve, normalize, then confirm it's still under root
+    Path resolved = root.resolve(relPath).normalize().toAbsolutePath();
+    if (!resolved.startsWith(root)) {
+        throw new SecurityException("Path traversal attempt detected");
+    }
+
+    return resolved;
+}
+```
+
+This logic should be extracted into a shared utility (e.g., `io.naftiko.engine.util.SafePathResolver`) so that both `SkillServerResource` and `ScriptStepExecutor` delegate to the same implementation. This avoids duplication and ensures consistent security behavior.
+
 ### File Resolution Rules
 
-1. **`file:///` URIs are resolved relative to the capability file's directory** — e.g., if the capability is at `/app/capabilities/my-cap.yml`, then `file:///scripts/filter.js` resolves to `/app/capabilities/scripts/filter.js`
-2. **Path traversal is rejected** — resolved paths must remain within the capability's base directory. Paths containing `..` that escape the base directory cause a load-time error
-3. **Files are read at step execution time** — not cached across requests (caching is a future optimization)
-4. **UTF-8 encoding is assumed** for all script files
-5. **Missing files cause a runtime error** with a descriptive message identifying the step name and file URI
+1. **`location` is a `file:///` URI pointing to a directory** — the scripts root, same convention as `ExposedSkill.location`
+2. **`file` and `dependencies` are relative paths within that directory** — same convention as `SkillTool.instruction`
+3. **Path traversal is rejected** — each segment must match `[a-zA-Z0-9._-]+`, and the resolved absolute path must remain under the `location` root
+4. **Symlinks that escape the root are rejected** — resolved path is canonicalized before validation
+5. **Files are read at step execution time** — not cached across requests (caching is a future optimization)
+6. **UTF-8 encoding is assumed** for all script files
+7. **Missing files cause a runtime error** with a descriptive message identifying the step name and file path
+8. **Multiple steps and capabilities can share the same `location` directory** — enabling script reuse across tools, operations, and capabilities
 
 ### Integration in OperationStepExecutor
 
@@ -798,6 +979,7 @@ The script must assign to a variable named `result`:
 |---|---|
 | JavaScript | `result = { key: "value" };` |
 | Python | `result = {"key": "value"}` |
+| Groovy | `result = [key: "value"]` |
 
 If `result` is not assigned, the step produces `null` output (no entry in step context) — consistent with how `lookup` steps behave when no match is found.
 
@@ -819,7 +1001,7 @@ If `result` is not assigned, the step produces `null` output (no entry in step c
 
 ### Sandbox Configuration
 
-The GraalVM polyglot context is configured with maximum restriction:
+The GraalVM polyglot context (JavaScript, Python) is configured with maximum restriction:
 
 | Capability | Setting | Effect |
 |---|---|---|
@@ -830,6 +1012,14 @@ The GraalVM polyglot context is configured with maximum restriction:
 | Environment access | `allowEnvironmentAccess(EnvironmentAccess.NONE)` | No reading environment variables |
 | Network access | `allowAllAccess(false)` | No network sockets |
 | Native access | `allowNativeAccess(false)` | No native library loading |
+
+Groovy uses `GroovyShell` with `SecureASTCustomizer` + `CompilerConfiguration`:
+
+| Capability | Setting | Effect |
+|---|---|---|
+| Import restriction | `setDisallowedImports(java.io.**, java.nio.**, java.net.**, ...)` | No I/O, no networking classes |
+| Static receiver restriction | `setAllowedReceivers([])` | No static method calls on host classes |
+| Process / Runtime access | Disallowed via import deny-list | No `Runtime.exec()` or `ProcessBuilder` |
 
 ### Resource Limits
 
@@ -847,23 +1037,27 @@ When the statement limit is exceeded, GraalVM throws `PolyglotException` with `i
 | **Sandbox escape** | Malicious script accesses host | `allowAllAccess(false)` + `HostAccess.NONE` — all host access denied |
 | **Denial of service** | Infinite loop or excessive computation | Statement limit + execution timeout |
 | **Memory exhaustion** | Script allocates unbounded data | Statement limit bounds computation; JVM heap is the outer limit |
-| **Code injection** | End-user input interpolated into source | `source` is authored by capability designer, not end-user input. Runtime data is injected as data bindings (not string concatenation), preventing injection |
+| **Code injection** | End-user input interpolated into script | Script files are authored by capability designer, not end-user input. Runtime data is injected as data bindings (not string concatenation), preventing injection |
 | **Data exfiltration** | Script sends data to external endpoint | No I/O, no network, no process creation — all egress blocked |
 | **Environment leakage** | Script reads secrets from env vars | `EnvironmentAccess.NONE` — environment is invisible |
-| **Path traversal** | `location` or `modules` URI escapes base directory | Resolved paths are validated to remain within the capability file's directory; `..` escapes are rejected |
+| **Path traversal** | `file` or `dependencies` path escapes location directory | `resolveAndValidate()` validates each segment against `[a-zA-Z0-9._-]+` allowlist + prefix containment check — same as Skill adapter |
 | **Symlink escape** | Symlink in script directory points outside base | Resolved path is canonicalized before validation; symlinks that escape are rejected |
 
 ### Trust Boundary
 
-The `source` field and external script files referenced by `location` and `modules` are **design-time artifacts** written by the capability author — the same trust boundary as `call` references and `mapping` expressions. They are not influenced by end-user request input. Runtime parameters are injected as structured data bindings, never interpolated into the source string.
+Script files referenced by `location` + `file` and `dependencies` are **design-time artifacts** written by the capability author — the same trust boundary as `call` references and `mapping` expressions. They are not influenced by end-user request input. Runtime parameters are injected as structured data bindings, never interpolated into the script source.
 
-File-based scripts (`location` and `modules`) are read from the local file system relative to the capability file. The engine validates that resolved paths do not escape the capability's base directory, preventing path traversal attacks.
+Scripts are loaded from the local file system using the same `resolveAndValidate()` mechanism as the Skill adapter. The `location` URI identifies a directory root; `file` and `dependencies` are relative paths validated against segment allowlists and prefix containment checks. Multiple capabilities can share the same `location` directory, enabling script reuse without duplicating files.
 
 ---
 
 ## Dependency Changes
 
-### New Dependencies (`pom.xml`)
+Scripting is an **opt-in feature controlled at runtime**. A single Docker image is published to Docker Hub with all polyglot dependencies included. Scripting is disabled by default — polyglot classes are never loaded, so there is no startup time or memory overhead. Users enable it via an environment variable when they need it.
+
+### Dependencies (`pom.xml`)
+
+All scripting dependencies are standard (non-optional) so they ship in every build:
 
 ```xml
 <!-- GraalVM Polyglot API -->
@@ -879,6 +1073,13 @@ File-based scripts (`location` and `modules`) are read from the local file syste
     <artifactId>js</artifactId>
     <version>${graalvm.polyglot.version}</version>
     <type>pom</type>
+</dependency>
+
+<!-- Groovy language -->
+<dependency>
+    <groupId>org.apache.groovy</groupId>
+    <artifactId>groovy</artifactId>
+    <version>${groovy.version}</version>
 </dependency>
 ```
 
@@ -899,18 +1100,125 @@ Python language pack added in Phase 2:
 ```xml
 <properties>
     <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
+    <groovy.version>4.0.24</groovy.version>
 </properties>
 ```
 
-### JAR Size Impact
+### Image Size Impact
 
 | Dependency | Approximate Size |
 |---|---|
 | `polyglot` API | ~2 MB |
 | `js` language pack | ~40 MB |
+| `groovy` | ~7 MB |
 | `python` language pack | ~80 MB |
 
-Total impact for Phase 1 (JavaScript only): **~42 MB** added to the uber-JAR.
+Phase 1 (JavaScript + Groovy): **~49 MB** added to the Docker image. This is a disk-only cost — no runtime overhead when scripting is disabled.
+
+### Runtime Activation
+
+Scripting uses a **two-level activation model**:
+
+| Level | Mechanism | Purpose |
+|---|---|---|
+| **Infrastructure** | `NAFTIKO_SCRIPTING=true` env var | Permits scripting in this deployment — the safety gate |
+| **Capability** | Presence of `type: script` steps in YAML | Activates scripting for this capability — the intent signal |
+
+Both levels must be satisfied for scripting to execute. No extra YAML flag is needed — the presence of `type: script` steps *is* the declaration of intent.
+
+**Docker usage** — no Java or Maven knowledge required:
+
+```bash
+# Default — scripting not permitted (no runtime overhead)
+docker run naftiko ...
+
+# Permit scripting at infrastructure level
+docker run -e NAFTIKO_SCRIPTING=true naftiko ...
+```
+
+In Docker Compose:
+
+```yaml
+services:
+  naftiko:
+    image: naftiko
+    environment:
+      NAFTIKO_SCRIPTING: "true"
+```
+
+### Activation Matrix
+
+| `NAFTIKO_SCRIPTING` | Capability has `script` steps | Behavior |
+|---|---|---|
+| `false` (default) | No | Normal operation — zero overhead |
+| `false` (default) | Yes | **Fail fast** at capability load time with actionable error |
+| `true` | No | Normal operation — zero overhead (polyglot never loaded) |
+| `true` | Yes | Polyglot initialized on first `script` step execution |
+
+### Runtime Cost Model
+
+| State | Disk cost | Startup cost | Memory cost |
+|---|---|---|---|
+| Scripting not permitted (`false`) | +49 MB in image | None — polyglot classes never loaded | None |
+| Scripting permitted, no `script` steps in YAML | +49 MB in image | None — no contexts created | None |
+| Scripting permitted, `script` step executes | +49 MB in image | First polyglot context creation (~200 ms) | ~20 MB per active context (released after step) |
+
+The key insight: polyglot classes are **lazy-loaded by the JVM**. Setting `NAFTIKO_SCRIPTING=true` alone does not load them. They are only loaded when the engine encounters an actual `type: script` step in a capability and creates a GraalVM `Context`. If a deployment permits scripting but no loaded capability uses script steps, the cost is zero.
+
+### Fail-Fast Behavior
+
+When `script` steps are present in a capability but `NAFTIKO_SCRIPTING` is not set to `true`, the engine fails fast at capability load time with a clear error message:
+
+> Script steps require scripting support. Set the environment variable `NAFTIKO_SCRIPTING=true` to enable it.
+
+The schema always accepts `type: script` — validation is structural. The runtime check happens at engine initialization when the capability is loaded. This keeps the schema stable across deployments and gives a clear, actionable error at the right moment.
+
+### Detection Mechanism
+
+`ScriptStepExecutor` reads the environment variable once at class load time. The capability loader checks for `script` steps during initialization:
+
+```java
+class ScriptStepExecutor {
+
+    private static final boolean SCRIPTING_PERMITTED =
+        "true".equalsIgnoreCase(System.getenv("NAFTIKO_SCRIPTING"));
+
+    /**
+     * Called by the capability loader when a capability containing
+     * script steps is being initialized — before any request is served.
+     */
+    static void requireScriptingPermitted(String stepName) {
+        if (!SCRIPTING_PERMITTED) {
+            throw new IllegalStateException(
+                "Script step '" + stepName
+                + "' requires scripting support. "
+                + "Set NAFTIKO_SCRIPTING=true to enable it.");
+        }
+    }
+
+    JsonNode execute(OperationStepScriptSpec scriptStep, ...) {
+        // At this point, SCRIPTING_PERMITTED is guaranteed true
+        // (checked at capability load time)
+        // ... create polyglot context, execute script
+    }
+}
+```
+
+The capability loader scans steps during initialization:
+
+```java
+// During capability loading
+for (OperationStepSpec step : tool.getSteps()) {
+    if (step instanceof OperationStepScriptSpec scriptStep) {
+        ScriptStepExecutor.requireScriptingPermitted(scriptStep.getName());
+    }
+}
+```
+
+This ensures:
+1. The check happens **once at startup**, not on every request
+2. Capabilities without script steps **never trigger the check**
+3. Polyglot classes are **never loaded** unless a script step actually executes
 
 ---
 
@@ -920,32 +1228,10 @@ GraalVM polyglot languages are compatible with native image but require:
 
 1. Truffle language JARs on the module path at build time
 2. `--language:js` (and later `--language:python`) flags in `native-image` args
-3. Significant increase in native binary size (~100 MB+ for JavaScript alone)
+3. Groovy runs on standard JVM bytecode — no Truffle dependency — so it adds minimal native image overhead
+4. Significant increase in native binary size (~100 MB+ for JavaScript alone)
 
-### Recommendation
-
-Make polyglot support an **optional Maven profile** (`-Pscripting`) that is excluded from the default native CLI build. The standard docker image includes it; the native CLI does not.
-
-```xml
-<profile>
-    <id>scripting</id>
-    <dependencies>
-        <dependency>
-            <groupId>org.graalvm.polyglot</groupId>
-            <artifactId>polyglot</artifactId>
-            <version>${graalvm.polyglot.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.graalvm.polyglot</groupId>
-            <artifactId>js</artifactId>
-            <version>${graalvm.polyglot.version}</version>
-            <type>pom</type>
-        </dependency>
-    </dependencies>
-</profile>
-```
-
-When `script` steps are present in a capability but the polyglot runtime is not available, the engine fails fast at capability load time with a clear error message.
+For the native CLI build, polyglot dependencies can be excluded via an optional Maven profile (`-Pno-scripting`) to avoid inflating the binary. The Docker image (JVM-based) always includes them. The runtime `NAFTIKO_SCRIPTING` flag works identically in both contexts — if the native binary was built without polyglot and a script step is encountered, the missing class triggers a clear error.
 
 ---
 
@@ -956,7 +1242,7 @@ When `script` steps are present in a capability but the polyglot runtime is not 
 | Test Class | Package | Purpose |
 |---|---|---|
 | `OperationStepScriptDeserializationTest` | `io.naftiko.spec.exposes` | YAML → `OperationStepScriptSpec` deserialization, round-trip, validation |
-| `ScriptStepExecutorTest` | `io.naftiko.engine.exposes` | JavaScript and Python execution, `result` binding, type mapping, `with` injection |
+| `ScriptStepExecutorTest` | `io.naftiko.engine.exposes` | JavaScript, Groovy, and Python execution, `result` binding, type mapping, `with` injection |
 | `ScriptStepSecurityTest` | `io.naftiko.engine.exposes` | Host access denied, I/O blocked, statement limit enforced, timeout enforced |
 
 ### Integration Tests
@@ -971,86 +1257,228 @@ When `script` steps are present in a capability but the polyglot runtime is not 
 
 | Fixture | Location | Description |
 |---|---|---|
-| `script-step-capability.yaml` | `src/test/resources/` | MCP capability with `call` + inline `script` steps |
-| `script-step-rest-capability.yaml` | `src/test/resources/` | REST capability with `call` + inline `script` steps |
+| `script-step-capability.yaml` | `src/test/resources/` | MCP capability with `call` + `script` steps |
+| `script-step-rest-capability.yaml` | `src/test/resources/` | REST capability with `call` + `script` steps |
 | `script-step-aggregate-capability.yaml` | `src/test/resources/` | Aggregate function with script step, exposed via both MCP and REST |
-| `script-step-file-capability.yaml` | `src/test/resources/` | MCP capability with `call` + file-based `script` step |
-| `script-step-modules-capability.yaml` | `src/test/resources/` | Capability using `modules` + `location` for dependent scripts |
-| `scripts/filter-active.js` | `src/test/resources/scripts/` | External JavaScript script file for file-based tests |
-| `scripts/lib/array-utils.js` | `src/test/resources/scripts/lib/` | Shared helper module for module dependency tests |
-| `scripts/main-with-module.js` | `src/test/resources/scripts/` | Main script that depends on `array-utils.js` |
+| `script-step-dependencies-capability.yaml` | `src/test/resources/` | Capability using `dependencies` for dependent scripts |
+| `script-step-shared-capability.yaml` | `src/test/resources/` | Two tools sharing the same `location` directory to verify reuse |
+| `scripts/filter-active.js` | `src/test/resources/scripts/` | JavaScript script file for basic tests |
+| `scripts/compute-totals.js` | `src/test/resources/scripts/` | JavaScript script file for REST operation tests |
+| `scripts/lib/array-utils.js` | `src/test/resources/scripts/lib/` | Shared helper for dependent script tests |
+| `scripts/active-members.js` | `src/test/resources/scripts/` | Main script that depends on `array-utils.js` |
+| `scripts/enrich-products.groovy` | `src/test/resources/scripts/` | Groovy script file for file-based tests |
+| `scripts/lib/pricing.groovy` | `src/test/resources/scripts/lib/` | Shared Groovy helper for dependent script tests |
 
 ### Key Test Scenarios
 
-**Inline scripts:**
+**Script execution:**
 
-1. **JavaScript script filters array** — `call` fetches list, `script` filters, output is accessible via mapping
+1. **JavaScript script filters array** — `call` fetches list, `script` filters via external file, output is accessible via mapping
 2. **JavaScript script computes derived value** — `script` reads multiple step outputs, produces new object
-3. **Python script transforms data** — same scenarios in Python (Phase 2)
-4. **`with` injection resolves Mustache** — `with` values are resolved before injection into script context
-5. **Missing `result` produces null** — script that does not assign `result` yields no step output
-6. **Cross-step reference works** — `context['previous-step']` reads previous step output
+3. **Groovy script transforms data** — `script` uses Groovy closures and collection methods for transformation
+4. **Python script transforms data** — same scenarios in Python (Phase 2)
+5. **`with` injection resolves Mustache** — `with` values are resolved before injection into script context
+6. **Missing `result` produces null** — script that does not assign `result` yields no step output
+7. **Cross-step reference works** — `context['previous-step']` reads previous step output
 
-**File-based scripts:**
+**File resolution (aligned with Skill adapter):**
 
-7. **External script file executes** — `location` points to `.js` file, script runs and produces output
-8. **Modules are pre-evaluated** — helper functions defined in `modules` are available in the main script
-9. **Multiple modules load in order** — second module can reference functions from first module
-10. **Missing file produces error** — non-existent `location` URI causes descriptive runtime error
-11. **Missing module produces error** — non-existent `modules` URI causes descriptive runtime error
-12. **Path traversal is rejected** — `location: "file:///../../etc/passwd"` causes load-time error
+8. **Script file loads from `location` + `file`** — `location` directory + relative `file` path resolves correctly
+9. **Dependent scripts are pre-evaluated** — helper functions defined in `dependencies` (relative paths) are available in the main script
+10. **Multiple dependent scripts load in order** — second script can reference functions from first script
+11. **Missing file produces error** — non-existent `file` path causes descriptive runtime error
+12. **Missing dependent script produces error** — non-existent `dependencies` path causes descriptive runtime error
+13. **Path traversal is rejected** — `file: "../../etc/passwd"` is rejected by segment validation (same as Skill adapter)
+14. **Unsafe path segments rejected** — segments with spaces, `..`, or special chars are rejected
+15. **Scripts shared across tools** — two tools in different capabilities using the same `location` directory both resolve correctly
 
 **Security:**
 
 13. **Statement limit terminates loop** — `while(true){}` is killed after limit
-14. **Host access is denied** — `java.lang.System.exit(1)` or equivalent throws `PolyglotException`
-15. **I/O is blocked** — `require('fs')` (JS) / `open('file')` (Python) throws
+14. **Host access is denied** — `java.lang.System.exit(1)` or equivalent throws `PolyglotException` (JS) or `SecurityException` (Groovy)
+15. **I/O is blocked** — `require('fs')` (JS) / `new File(...)` (Groovy) / `open('file')` (Python) throws
 16. **Unsupported language fails fast** — `language: ruby` is rejected at schema validation
 
 **Schema validation:**
 
-17. **`source` and `location` are mutually exclusive** — setting both is rejected by schema
-18. **Neither `source` nor `location`** — omitting both is rejected by schema
-19. **`modules` without `location`** — validated by Spectral rule (warning or error)
+16. **Missing `location` rejected** — omitting `location` is rejected by schema (`required`)
+17. **Missing `file` rejected** — omitting `file` is rejected by schema (`required`)
+18. **Unsupported language fails fast** — `language: ruby` is rejected at schema validation
 
 ---
 
 ## Implementation Roadmap
 
-### Phase 1 — JavaScript Script Step
+### Phase 1 — JavaScript and Groovy Script Step
 
-**Scope**: Schema + Spec + `ScriptStepExecutor` + JavaScript only + unit/integration tests
+**Scope**: Schema + Spec + `ScriptStepExecutor` + JavaScript + Groovy + runtime feature flag + fail-fast + unit/integration tests
 
 | Task | Component | Description |
 |---|---|---|
 | 1.1 | Schema | Add `"script"` to `OperationStepBase.type.enum`, add `OperationStepScript` definition, update `OperationStep.oneOf` |
 | 1.2 | Spec | Create `OperationStepScriptSpec` class, register in `@JsonSubTypes` |
-| 1.3 | Engine | Create `ScriptStepExecutor` with GraalVM polyglot API, sandbox config, `result` extraction |
-| 1.4 | Engine | Add `case OperationStepScriptSpec` to `OperationStepExecutor.executeSteps()` |
-| 1.5 | Dependencies | Add `polyglot` + `js` dependencies to `pom.xml` |
-| 1.6 | Tests | Deserialization, execution, security, integration tests (JavaScript) |
-| 1.7 | Examples | Add example capability YAML to `src/main/resources/schemas/examples/` |
+| 1.3 | Engine | Create `ScriptStepExecutor` with GraalVM polyglot API (JS) and Groovy `GroovyShell` API, sandbox config, `result` extraction |
+| 1.4 | Engine | Extract shared `SafePathResolver` from `SkillServerResource.resolveAndValidate()` — reuse in `ScriptStepExecutor` |
+| 1.5 | Engine | Add `case OperationStepScriptSpec` to `OperationStepExecutor.executeSteps()` |
+| 1.6 | Dependencies | Add `polyglot` + `js` + `groovy` dependencies to `pom.xml` (always included in build) |
+| 1.7 | Engine | Implement two-level activation: `NAFTIKO_SCRIPTING` env var gate + capability-level detection of `script` steps at load time; fail-fast with clear error when gate is closed |
+| 1.8 | Tests | Deserialization, execution, security, integration tests (JavaScript + Groovy) |
+| 1.9 | Tests | Fail-fast test: verify clear error when scripting is disabled and a `script` step is loaded |
+| 1.10 | Examples | Add example capability YAML to `src/main/resources/schemas/examples/` |
 
 ### Phase 2 — Python Support
 
-**Scope**: Add Python language pack + Python-specific tests
+**Scope**: Add Python language pack + Python-specific tests + optional pre-built virtual environment
 
 | Task | Component | Description |
 |---|---|---|
 | 2.1 | Dependencies | Add `python` language pack to `pom.xml` |
 | 2.2 | Engine | Verify `result` extraction works for Python (GraalPython uses different scoping) |
 | 2.3 | Tests | Python-specific unit and integration tests |
+| 2.4 | Docker | Pre-install a curated GraalPython virtual environment in the Docker image with managed NumPy (no C extensions). Add an optional `pythonPath` property on the script step to reference the venv. Sandbox allows read-only access to the venv directory only — no general I/O |
+| 2.5 | Tests | Integration tests verifying NumPy availability when `pythonPath` is set, and clear error when it is not |
 
-### Phase 3 — Native Image Support
+**Note on third-party libraries**: GraalPython ships a managed NumPy implementation that works without native C extensions — sufficient for array math, basic linear algebra, and statistical operations. For the typical orchestration use case (filter, reshape, aggregate between API calls), Python builtins are enough. The pre-built venv is an optional enhancement for more advanced numerical processing.
 
-**Scope**: Optional Maven profile, CI matrix for scripting vs non-scripting builds
+### Phase 3 — Control Port Governance
+
+**Scope**: Expose scripting configuration and observability through the Control Port management plane
+
+The Control Port already provides management toggles (`health`, `info`, `reload`, `validate`, `logs`) and observability endpoints (`metrics`, `traces`). Phase 3 extends this pattern to scripting — giving operators runtime visibility and fine-grained control without restarting the container.
+
+#### Schema Changes
+
+Add a `scripting` object to the `ExposesControl.management` definition:
+
+```json
+"scripting": {
+  "type": "object",
+  "description": "Scripting governance controls exposed via the Control Port.",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Runtime toggle to enable or disable script step execution. When false, all script steps fail fast with a descriptive error — same behavior as NAFTIKO_SCRIPTING=false. Overrides the env var when set."
+    },
+    "timeout": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 5000,
+      "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (5000 ms)."
+    },
+    "statementLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 100000,
+      "description": "Maximum number of statements a script can execute. Overrides the engine default (100,000)."
+    },
+    "allowedLanguages": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["javascript", "python", "groovy"]
+      },
+      "description": "Restrict which script languages are permitted. If omitted, all languages supported by the build are allowed."
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+Capability YAML example:
+
+```yaml
+capability:
+  exposes:
+    - type: control
+      address: localhost
+      port: 9090
+      management:
+        health: true
+        info: true
+        scripting:
+          enabled: true
+          timeout: 3000
+          statementLimit: 50000
+          allowedLanguages:
+            - javascript
+```
+
+#### Control Port Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/scripting` | GET | Returns current scripting configuration: enabled state, timeout, statement limit, allowed languages, execution stats |
+| `/scripting` | PUT | Updates scripting configuration at runtime (e.g., toggle `enabled`, adjust `timeout`) — takes effect on next script execution |
+
+Example `GET /scripting` response:
+
+```json
+{
+  "enabled": true,
+  "timeout": 3000,
+  "statementLimit": 50000,
+  "allowedLanguages": ["javascript"],
+  "stats": {
+    "totalExecutions": 142,
+    "totalErrors": 3,
+    "averageDurationMs": 12,
+    "lastExecutionAt": "2026-04-21T14:30:00Z"
+  }
+}
+```
+
+Example `PUT /scripting` request:
+
+```json
+{
+  "enabled": false
+}
+```
+
+#### Activation Precedence
+
+Phase 3 introduces a third level to the activation model:
+
+| Priority | Level | Mechanism | Scope |
+|---|---|---|---|
+| 1 (highest) | Control Port | `management.scripting.enabled` in YAML or `PUT /scripting` | Per-capability, runtime-adjustable |
+| 2 | Infrastructure | `NAFTIKO_SCRIPTING=true` env var | Per-container, set at deployment |
+| 3 (lowest) | Capability | Presence of `type: script` steps | Per-capability, set at design time |
+
+Resolution logic:
+- If the Control Port `scripting.enabled` is explicitly set, it **overrides** the env var
+- If not set in the Control Port, the env var is the gate (Phase 1 behavior)
+- The presence of `script` steps in YAML remains the trigger — no steps, no check
+
+This means an operator can:
+- **Enable scripting** via Control Port even if the env var is `false` (emergency unlock)
+- **Disable scripting** via Control Port even if the env var is `true` (emergency kill switch)
+- **Adjust timeout and statement limits** without restarting the container
+- **Restrict languages** to a subset (e.g., allow only `javascript` in production)
+
+#### Implementation Tasks
 
 | Task | Component | Description |
 |---|---|---|
-| 3.1 | Build | Create `-Pscripting` Maven profile |
-| 3.2 | Engine | Fail-fast detection when polyglot is unavailable at load time |
-| 3.3 | CI | Add matrix entry for scripting profile in Docker build |
-| 3.4 | Native | Evaluate native image compatibility, binary size, and performance |
+| 3.1 | Schema | Add `scripting` object to `ExposesControl.management` |
+| 3.2 | Spec | Create `ScriptingManagementSpec` class, integrate into `ControlManagementSpec` |
+| 3.3 | Engine | Create `ScriptingResource` for `GET /scripting` and `PUT /scripting` endpoints |
+| 3.4 | Engine | Wire Control Port `scripting.enabled` into `ScriptStepExecutor` activation logic — override env var when present |
+| 3.5 | Engine | Make `timeout` and `statementLimit` configurable via `ScriptingManagementSpec` — pass to `ResourceLimits` and watchdog |
+| 3.6 | Engine | Implement `allowedLanguages` filter — reject script steps with non-permitted languages at load time |
+| 3.7 | Engine | Add execution stats tracking (total executions, errors, average duration) |
+| 3.8 | Tests | Unit tests for `ScriptingResource`, activation precedence, runtime config updates |
+| 3.9 | Tests | Integration test: toggle scripting via `PUT /scripting`, verify behavior change without restart |
+
+#### Acceptance Criteria
+
+19. `management.scripting` is accepted in Control Port YAML with `enabled`, `timeout`, `statementLimit`, and `allowedLanguages`.
+20. `GET /scripting` returns current configuration and execution stats.
+21. `PUT /scripting` updates configuration at runtime — takes effect on next script execution.
+22. Control Port `scripting.enabled` overrides `NAFTIKO_SCRIPTING` env var when set.
+23. `allowedLanguages` restricts permitted script languages at load time.
+24. `timeout` and `statementLimit` are applied to `ResourceLimits` and watchdog.
 
 ---
 
@@ -1058,14 +1486,15 @@ When `script` steps are present in a capability but the polyglot runtime is not 
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **GraalVM polyglot JAR size** (~42 MB for JS) | High | Medium | Optional Maven profile; Docker image includes it, native CLI does not |
+| **GraalVM polyglot JAR size** (~42 MB for JS) | High | Medium | Single image, runtime opt-in via `NAFTIKO_SCRIPTING=true`; JARs on disk but no runtime cost when disabled |
 | **Script timeout not enforced reliably** | Low | High | GraalVM `ResourceLimits` + watchdog thread with `Context.close(true)` |
 | **Python `result` scoping differs from JS** | Medium | Low | Phase 2 handles Python-specific extraction; unit tests validate |
+| **Groovy sandbox limitations** | Medium | Medium | Groovy uses `GroovyShell` with `SecureASTCustomizer` + `CompilerConfiguration` to restrict language features; no host class imports, no I/O classes |
 | **GraalVM version incompatibility** | Low | Medium | Pin version in property; test in CI |
 | **Polyglot context creation overhead** | Medium | Medium | Measure per-request overhead; consider `Engine` caching if significant |
 | **Capability authors write non-terminating scripts** | Medium | Medium | Statement limit + timeout; error message identifies the offending step |
-| **Path traversal in file URIs** | Low | High | Canonicalize + validate resolved paths stay within capability base directory |
-| **External script file not found at runtime** | Medium | Low | Fail with descriptive error identifying step name and file URI |
+| **Path traversal in `file` or `dependencies` paths** | Low | High | `resolveAndValidate()` with segment allowlist + prefix check — same as Skill adapter |
+| **External script file not found at runtime** | Medium | Low | Fail with descriptive error identifying step name and file path |
 
 ---
 
@@ -1074,24 +1503,24 @@ When `script` steps are present in a capability but the polyglot runtime is not 
 ### Phase 1
 
 1. `type: script` is accepted in `steps` arrays for MCP tools, REST operations, and aggregate functions.
-2. JavaScript scripts execute in a sandboxed GraalVM context with no host access.
+2. JavaScript and Groovy scripts execute in a sandboxed context with no host access.
 3. Script output is stored in `StepExecutionContext` and accessible to subsequent steps and mappings.
 4. `with` parameters are resolved and injected into the script context.
 5. Statement limit prevents infinite loops.
-6. Inline scripts (`source`) and external scripts (`location`) both work.
-7. Dependent modules (`modules`) are pre-evaluated before the main script.
-8. Path traversal in `location` and `modules` URIs is rejected.
-9. `source` and `location` are mutually exclusive (schema-enforced).
-10. All existing tests pass — zero regressions.
-11. Deserialization, execution, security, and integration tests all pass.
-12. Spectral lint rules accept `type: script` steps.
+6. Scripts are loaded from external files via `location` (directory) + `file` (relative path).
+7. Dependent scripts (`dependencies`) are pre-evaluated before the main script.
+8. Path traversal in `file` and `dependencies` paths is rejected using the same `resolveAndValidate()` logic as the Skill adapter.
+9. `location` and `file` are both required (schema-enforced).
+10. Multiple tools and capabilities can share the same `location` directory for script reuse.
+11. `resolveAndValidate()` is extracted into a shared utility used by both Skill adapter and Script step.
+12. Scripting uses two-level activation: `NAFTIKO_SCRIPTING=true` env var (infrastructure gate) + presence of `type: script` steps in YAML (capability trigger) — single Docker image, zero overhead when either level is inactive.
+13. Capabilities with `script` steps fail fast at load time with a clear, actionable error when `NAFTIKO_SCRIPTING` is not set.
+14. Capabilities without `script` steps never trigger scripting checks or load polyglot classes, regardless of `NAFTIKO_SCRIPTING`.
+14. All existing tests pass — zero regressions.
+15. Deserialization, execution, security, and integration tests all pass.
+16. Spectral lint rules accept `type: script` steps.
 
 ### Phase 2
 
-9. Python scripts execute with the same sandbox and result contract.
-10. Python-specific tests pass.
-
-### Phase 3
-
-11. `-Pscripting` profile is available for builds that include polyglot support.
-12. Capabilities with `script` steps fail fast with a clear message when polyglot is unavailable.
+17. Python scripts execute with the same sandbox and result contract.
+18. Python-specific tests pass.
