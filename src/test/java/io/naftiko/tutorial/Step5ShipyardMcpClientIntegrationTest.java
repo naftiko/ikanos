@@ -73,12 +73,15 @@ public class Step5ShipyardMcpClientIntegrationTest
             "src/main/resources/tutorial/shared/secrets.yaml";
     private static final String TUTORIAL_DIR =
             "src/main/resources/tutorial";
+        private static final String REGISTRY_MOCK_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String LEGACY_MOCK_URI =
             "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
 
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
 
         // Patch both bind locations to an absolute file URI
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
@@ -95,8 +98,12 @@ public class Step5ShipyardMcpClientIntegrationTest
         // Patch the legacy baseUri: the shared file targets a placeholder host;
         // tests must hit the real mock server at mocks.naftiko.net
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 

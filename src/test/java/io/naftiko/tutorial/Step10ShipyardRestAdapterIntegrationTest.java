@@ -42,21 +42,23 @@ import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
 
 /**
- * End-to-end integration test for {@code step-9-shipyard-rest-adapter.yml}
- * exercised from REST client perspective.
+ * End-to-end integration test for {@code step-10-shipyard-rest-adapter.yml}
+ * exercised from REST and Skill client perspectives.
  *
- * <p>Step 9 adds a REST expose for non-agent consumers (dashboards, mobile apps)
+ * <p>Step 10 adds a REST expose for non-agent consumers (dashboards, mobile apps)
  * while preserving MCP tools and Skill groups from prior steps.</p>
  */
-public class Step9ShipyardMcpClientIntegrationTest
+public class Step10ShipyardRestAdapterIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
     private static final String CAPABILITY_FILE =
-            "src/main/resources/tutorial/step-9-shipyard-rest-adapter.yml";
+            "src/main/resources/tutorial/step-10-shipyard-rest-adapter.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
     private static final String TUTORIAL_DIR =
             "src/main/resources/tutorial";
+    private static final String REGISTRY_MOCK_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String LEGACY_MOCK_URI =
             "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
 
@@ -77,6 +79,7 @@ public class Step9ShipyardMcpClientIntegrationTest
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
 
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
@@ -87,41 +90,42 @@ public class Step9ShipyardMcpClientIntegrationTest
                 spec.getCapability().getConsumes(), tutorialAbsoluteDir);
 
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 
-        // Allocate separate ports for each adapter to avoid conflicts
         restPort = findFreePort();
         int mcpPort = findFreePort();
         int skillPort = findFreePort();
-        
+
         spec.getCapability().getExposes().get(0).setPort(mcpPort);
         spec.getCapability().getExposes().get(0).setAddress("localhost");
-        
+
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-9 spec"));
+                .orElseThrow(() -> new AssertionError("REST expose not found in step-10 spec"));
         restSpec.setPort(restPort);
         restSpec.setAddress("localhost");
 
         SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof SkillServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-9 spec"));
+                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
         skillSpec.setPort(skillPort);
         skillSpec.setAddress("localhost");
 
-        // Start all adapters
         Capability capability = new Capability(spec);
         allAdapters.addAll(capability.getServerAdapters());
         for (ServerAdapter a : allAdapters) {
             a.start();
         }
-        
-        // Set serverUrl for MCP tests
+
         serverUrl = "http://localhost:" + mcpPort;
     }
 
@@ -210,7 +214,7 @@ public class Step9ShipyardMcpClientIntegrationTest
             assertEquals(200, response.statusCode(), "GET /skills must succeed");
 
             JsonNode catalog = json.readTree(response.body());
-            assertEquals(2, catalog.path("count").asInt(), "step-9 skill expose must declare 2 skill groups");
+            assertEquals(2, catalog.path("count").asInt(), "step-10 skill expose must declare 2 skill groups");
 
             List<String> names = new ArrayList<>();
             for (JsonNode s : catalog.path("skills")) {
@@ -243,7 +247,7 @@ public class Step9ShipyardMcpClientIntegrationTest
 
             JsonNode tools = detail.path("tools");
             assertTrue(tools.isArray(), "fleet-ops detail must contain a tools array");
-            assertEquals(3, tools.size(), "fleet-ops must expose 3 tools in step-9");
+            assertEquals(4, tools.size(), "fleet-ops must expose 4 tools in step-10");
 
             for (JsonNode t : tools) {
                 assertEquals("derived", t.path("type").asText(), "fleet-ops tools should be derived");
@@ -257,8 +261,9 @@ public class Step9ShipyardMcpClientIntegrationTest
         }
     }
 
-    private NaftikoSpec loadPatchedStep9Spec() throws Exception {
+    private NaftikoSpec loadPatchedStep10Spec() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        disableMcpAuthentication(spec);
 
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
@@ -269,8 +274,12 @@ public class Step9ShipyardMcpClientIntegrationTest
                 spec.getCapability().getConsumes(), tutorialAbsoluteDir);
 
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 
@@ -278,21 +287,20 @@ public class Step9ShipyardMcpClientIntegrationTest
     }
 
     private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
-        NaftikoSpec spec = loadPatchedStep9Spec();
+        NaftikoSpec spec = loadPatchedStep10Spec();
 
-        // Keep other adapters on different ports to avoid conflicts
         spec.getCapability().getExposes().get(0).setPort(findFreePort());
-        
+
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-9 spec"));
+                .orElseThrow(() -> new AssertionError("REST expose not found in step-10 spec"));
         restSpec.setPort(findFreePort());
-        
+
         SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof SkillServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-9 spec"));
+                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
         skillSpec.setAddress("localhost");
         skillSpec.setPort(skillPort);
 

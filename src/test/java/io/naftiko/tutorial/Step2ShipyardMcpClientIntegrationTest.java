@@ -24,8 +24,11 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.consumes.HttpClientSpec;
+
 /**
- * End-to-end integration test for {@code step-2-shipyard-input-parameters.yml} exercised
+ * End-to-end integration test for {@code step-2-shipyard-wiring.yml} exercised
  * from a remote MCP client perspective.
  *
  * <p>Step 2 introduces two new mechanics on top of step 1:</p>
@@ -51,11 +54,15 @@ public class Step2ShipyardMcpClientIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
     private static final String CAPABILITY_FILE =
-            "src/main/resources/tutorial/step-2-shipyard-input-parameters.yml";
+            "src/main/resources/tutorial/step-2-shipyard-wiring.yml";
+    private static final String MOCK_BASE_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
 
     @BeforeEach
     public void startServer() throws Exception {
-        startServerFromSpec(loadSpec(CAPABILITY_FILE));
+        NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        ((HttpClientSpec) spec.getCapability().getConsumes().get(0)).setBaseUri(MOCK_BASE_URI);
+        startServerFromSpec(spec);
     }
 
     // ── tools/list ───────────────────────────────────────────────────────────

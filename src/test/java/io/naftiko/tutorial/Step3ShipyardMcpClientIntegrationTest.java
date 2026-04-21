@@ -64,7 +64,7 @@ public class Step3ShipyardMcpClientIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
     private static final String CAPABILITY_FILE =
-            "src/main/resources/tutorial/step-3-shipyard-auth-and-binds.yml";
+        "src/main/resources/tutorial/step-3-shipyard-auth.yml";
     private static final String MOCK_BASE_URI =
             "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String SECRETS_FILE =
@@ -73,6 +73,7 @@ public class Step3ShipyardMcpClientIntegrationTest
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
 
         // Override the bind location to an absolute file URI so the BindingResolver finds it
         // regardless of the Maven working directory (tutorial uses file:///./shared/secrets.yaml

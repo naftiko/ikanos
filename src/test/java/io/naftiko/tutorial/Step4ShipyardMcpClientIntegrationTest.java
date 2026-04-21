@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.NaftikoSpec;
 
 /**
@@ -43,9 +44,9 @@ import io.naftiko.spec.NaftikoSpec;
  *   length     ← $.dimensions.length_overall   (two-level path)
  * </pre>
  *
- * <p>The only spec override needed at test start is the bind {@code location}: the tutorial
- * YAML already targets {@code mocks.naftiko.net}, so no {@code baseUri} patch is required
- * (unlike step 3).</p>
+ * <p>The test harness applies two runtime patches before server startup: it rewrites the
+ * shared secrets bind to an absolute file URI and overrides the consumes {@code baseUri}
+ * to the live mock registry endpoint used by this integration test.</p>
  *
  * <p>Tests verify:</p>
  * <ul>
@@ -58,19 +59,25 @@ import io.naftiko.spec.NaftikoSpec;
 public class Step4ShipyardMcpClientIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
-    private static final String CAPABILITY_FILE =
+        private static final String CAPABILITY_FILE =
             "src/main/resources/tutorial/step-4-shipyard-output-shaping.yml";
+        private static final String MOCK_BASE_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
 
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
 
         // Patch bind location to absolute URI — the tutorial uses file:///./shared/secrets.yaml
         // which resolves relative to the project root, not the tutorial subdirectory
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
+
+        // Patch the consumed registry baseUri to the live mock endpoint used by this test.
+        ((HttpClientSpec) spec.getCapability().getConsumes().get(0)).setBaseUri(MOCK_BASE_URI);
 
         startServerFromSpec(spec);
     }

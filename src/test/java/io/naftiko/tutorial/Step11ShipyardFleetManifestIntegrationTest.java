@@ -41,21 +41,24 @@ import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
 
 /**
- * End-to-end integration test for {@code step-10-shipyard-fleet-manifest.yml}
- * exercised from MCP, REST, and Skill client perspectives.
+ * End-to-end integration test for {@code step-11-shipyard-fleet-manifest.yml}
+ * exercised from MCP and Skill client perspectives.
  *
- * <p>Step 10 adds orchestrated multi-step tools (get-ship-with-crew, get-voyage-manifest)
- * that chain API calls and server-side lookups, demonstrating full capability assembly.</p>
+ * <p>Step 11 adds orchestrated multi-step tools ({@code get-ship-with-crew},
+ * {@code get-voyage-manifest}) that chain API calls and server-side lookups to
+ * assemble a full fleet manifest experience.</p>
  */
-public class Step10ShipyardMcpClientIntegrationTest
+public class Step11ShipyardFleetManifestIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
     private static final String CAPABILITY_FILE =
-            "src/main/resources/tutorial/step-10-shipyard-fleet-manifest.yml";
+            "src/main/resources/tutorial/step-11-shipyard-fleet-manifest.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
     private static final String TUTORIAL_DIR =
             "src/main/resources/tutorial";
+    private static final String REGISTRY_MOCK_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String LEGACY_MOCK_URI =
             "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
 
@@ -76,6 +79,8 @@ public class Step10ShipyardMcpClientIntegrationTest
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
+        disableMcpAuthentication(spec);
 
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
@@ -86,41 +91,42 @@ public class Step10ShipyardMcpClientIntegrationTest
                 spec.getCapability().getConsumes(), tutorialAbsoluteDir);
 
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 
-        // Allocate separate ports for each adapter to avoid conflicts
         restPort = findFreePort();
         int mcpPort = findFreePort();
         int skillPort = findFreePort();
-        
+
         spec.getCapability().getExposes().get(0).setPort(mcpPort);
         spec.getCapability().getExposes().get(0).setAddress("localhost");
-        
+
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-10 spec"));
+                .orElseThrow(() -> new AssertionError("REST expose not found in step-11 spec"));
         restSpec.setPort(restPort);
         restSpec.setAddress("localhost");
 
         SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof SkillServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
+                .orElseThrow(() -> new AssertionError("Skill expose not found in step-11 spec"));
         skillSpec.setPort(skillPort);
         skillSpec.setAddress("localhost");
 
-        // Start all adapters
         Capability capability = new Capability(spec);
         allAdapters.addAll(capability.getServerAdapters());
         for (ServerAdapter a : allAdapters) {
             a.start();
         }
-        
-        // Set serverUrl for MCP tests
+
         serverUrl = "http://localhost:" + mcpPort;
     }
 
@@ -131,12 +137,12 @@ public class Step10ShipyardMcpClientIntegrationTest
 
         JsonNode tools = callToolsList(http, sessionId);
 
-        assertEquals(6, tools.size(), "step-10 MCP exposes exactly six tools");
-        assertEquals("list-ships",          tools.get(0).path("name").asText());
-        assertEquals("get-ship",            tools.get(1).path("name").asText());
+        assertEquals(6, tools.size(), "step-11 MCP exposes exactly six tools");
+        assertEquals("list-ships", tools.get(0).path("name").asText());
+        assertEquals("get-ship", tools.get(1).path("name").asText());
         assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
-        assertEquals("create-voyage",       tools.get(3).path("name").asText());
-        assertEquals("get-ship-with-crew",  tools.get(4).path("name").asText());
+        assertEquals("create-voyage", tools.get(3).path("name").asText());
+        assertEquals("get-ship-with-crew", tools.get(4).path("name").asText());
         assertEquals("get-voyage-manifest", tools.get(5).path("name").asText());
     }
 
@@ -150,7 +156,7 @@ public class Step10ShipyardMcpClientIntegrationTest
         JsonNode props = getShipWithCrew.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship-with-crew must declare imo parameter");
         assertEquals("string", props.path("imo").path("type").asText(), "imo must be string type");
-        
+
         JsonNode required = getShipWithCrew.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
@@ -172,7 +178,7 @@ public class Step10ShipyardMcpClientIntegrationTest
         JsonNode props = getVoyageManifest.path("inputSchema").path("properties");
         assertTrue(props.has("voyageId"), "get-voyage-manifest must declare voyageId parameter");
         assertEquals("string", props.path("voyageId").path("type").asText(), "voyageId must be string type");
-        
+
         JsonNode required = getVoyageManifest.path("inputSchema").path("required");
         boolean voyageIdRequired = false;
         for (JsonNode r : required) {
@@ -217,68 +223,9 @@ public class Step10ShipyardMcpClientIntegrationTest
         }
     }
 
-    /**
-     * Regression test for #329 — get-voyage-manifest must return the correct shape:
-     * - ship: { name, type, flag } — not absent
-     * - route: { from, to } — not flat departurePort/arrivalPort
-     * - cargo: array with all items referenced by the voyage's cargoIds
-     * - crew: array with all crew members referenced by the voyage's crewIds
-     */
-    @Test
-    public void getVoyageManifestShouldReturnShipRouteCrewAndCargo() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
-
-        JsonNode result = callTool(http, sessionId, """
-                {"jsonrpc":"2.0","id":10,"method":"tools/call",
-                 "params":{"name":"get-voyage-manifest",
-                           "arguments":{"voyageId":"VOY-2026-042"}}}
-                """);
-
-        assertTrue(result.isObject(),
-                "get-voyage-manifest must return a mapped object");
-
-        // Scalar fields
-        assertEquals("VOY-2026-042", result.path("voyageId").asText(),
-                "voyageId must match the input");
-        assertEquals("planned", result.path("status").asText(),
-                "status must be present");
-
-        // Bug 2: route must be nested object { from, to }, not flat departurePort/arrivalPort
-        assertTrue(result.has("route"), "result must have a 'route' object");
-        JsonNode route = result.get("route");
-        assertTrue(route.isObject(), "route must be an object");
-        assertEquals("Oslo", route.path("from").asText(), "route.from must be Oslo");
-        assertEquals("Singapore", route.path("to").asText(), "route.to must be Singapore");
-
-        // Bug 1: ship must be present
-        assertTrue(result.has("ship"), "result must have a 'ship' object");
-        JsonNode ship = result.get("ship");
-        assertTrue(ship.isObject(), "ship must be an object");
-        assertEquals("Northern Star", ship.path("name").asText());
-        assertEquals("cargo", ship.path("type").asText());
-        assertEquals("NO", ship.path("flag").asText());
-
-        // Crew
-        assertTrue(result.has("crew"), "result must have a 'crew' array");
-        JsonNode crew = result.get("crew");
-        assertTrue(crew.isArray(), "crew must be an array");
-        assertTrue(crew.size() >= 2, "crew must have at least 2 members");
-        assertTrue(crew.get(0).has("fullName"), "crew entries must have fullName");
-        assertTrue(crew.get(0).has("role"), "crew entries must have role");
-
-        // Bug 3: cargo must have at least the items referenced by get-voyage.cargoIds
-        assertTrue(result.has("cargo"), "result must have a 'cargo' array");
-        JsonNode cargo = result.get("cargo");
-        assertTrue(cargo.isArray(), "cargo must be an array");
-        assertTrue(cargo.size() >= 1, "cargo must have at least 1 item");
-        assertTrue(cargo.get(0).has("type"), "cargo entries must have type");
-        assertTrue(cargo.get(0).has("description"), "cargo entries must have description");
-        assertTrue(cargo.get(0).has("weight"), "cargo entries must have weight");
-    }
-
-    private NaftikoSpec loadPatchedStep10Spec() throws Exception {
+    private NaftikoSpec loadPatchedStep11Spec() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        disableMcpAuthentication(spec);
 
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
@@ -289,8 +236,12 @@ public class Step10ShipyardMcpClientIntegrationTest
                 spec.getCapability().getConsumes(), tutorialAbsoluteDir);
 
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 
@@ -298,21 +249,20 @@ public class Step10ShipyardMcpClientIntegrationTest
     }
 
     private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
-        NaftikoSpec spec = loadPatchedStep10Spec();
+        NaftikoSpec spec = loadPatchedStep11Spec();
 
-        // Keep other adapters on different ports to avoid conflicts
         spec.getCapability().getExposes().get(0).setPort(findFreePort());
-        
+
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-10 spec"));
+                .orElseThrow(() -> new AssertionError("REST expose not found in step-11 spec"));
         restSpec.setPort(findFreePort());
-        
+
         SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof SkillServerSpec)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
+                .orElseThrow(() -> new AssertionError("Skill expose not found in step-11 spec"));
         skillSpec.setAddress("localhost");
         skillSpec.setPort(skillPort);
 

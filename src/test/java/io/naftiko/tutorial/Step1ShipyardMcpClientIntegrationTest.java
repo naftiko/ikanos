@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * End-to-end integration test for {@code step-1-shipyard-first-capability.yml} exercised
+ * End-to-end integration test for {@code step-1-shipyard-mock.yml} exercised
  * from a remote MCP client perspective.
  *
  * <p>The test starts a real Jetty-backed MCP server loaded from the tutorial YAML, then
@@ -38,8 +38,8 @@ import com.fasterxml.jackson.databind.JsonNode;
  *   <li>{@code initialize} — establishes a session and negotiates protocol version</li>
  *   <li>{@code notifications/initialized} — client confirms readiness</li>
  *   <li>{@code tools/list} — discovers the available tools</li>
- *   <li>{@code tools/call} — invokes {@code list-ships}, which makes a real outbound HTTP
- *       call to {@code https://mocks.naftiko.net/…} and returns mapped results</li>
+ *   <li>{@code tools/call} — invokes {@code get-ship}, which returns a single mock ship
+ *       object with mapped output fields</li>
  * </ol>
  *
  * <p>The server is bound to an ephemeral port so the test never conflicts with other
@@ -50,7 +50,7 @@ public class Step1ShipyardMcpClientIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
 
     private static final String CAPABILITY_FILE =
-            "src/main/resources/tutorial/step-1-shipyard-first-capability.yml";
+            "src/main/resources/tutorial/step-1-shipyard-mock.yml";
 
     @BeforeEach
     public void startServer() throws Exception {
@@ -87,7 +87,7 @@ public class Step1ShipyardMcpClientIntegrationTest
     }
 
     @Test
-    public void toolsListShouldAdvertiseListShipsTool() throws Exception {
+        public void toolsListShouldAdvertiseGetShipTool() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         String sessionId = initialize(http);
 
@@ -102,9 +102,9 @@ public class Step1ShipyardMcpClientIntegrationTest
         JsonNode tools = json.readTree(response.body()).path("result").path("tools");
         assertTrue(tools.isArray(), "tools must be an array");
         assertEquals(1, tools.size(), "step-1 exposes exactly one tool");
-        assertEquals("list-ships", tools.get(0).path("name").asText(),
-                "Tool name must be 'list-ships'");
-        assertEquals("List ships in the shipyard",
+        assertEquals("get-ship", tools.get(0).path("name").asText(),
+                "Tool name must be 'get-ship'");
+        assertEquals("Retrieve a ship's details by IMO number",
                 tools.get(0).path("description").asText(),
                 "Tool description must match the YAML");
     }
@@ -112,14 +112,14 @@ public class Step1ShipyardMcpClientIntegrationTest
     // ── Tool call — hits real mocks.naftiko.net ──────────────────────────────
 
     @Test
-    public void listShipsToolCallShouldReturnMappedShipArray() throws Exception {
+        public void getShipToolCallShouldReturnMappedShipObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         String sessionId = initialize(http);
 
         HttpResponse<String> response = http.send(
                 buildPost("""
                         {"jsonrpc":"2.0","id":3,"method":"tools/call",
-                         "params":{"name":"list-ships","arguments":{}}}
+                         "params":{"name":"get-ship","arguments":{"imo_number":"IMO-9321483"}}}
                         """, sessionId),
                 string());
 
@@ -129,26 +129,19 @@ public class Step1ShipyardMcpClientIntegrationTest
         JsonNode callResult = envelope.path("result");
 
         assertFalse(callResult.path("isError").asBoolean(false),
-                "list-ships must not return an error. Raw response: " + envelope.toPrettyString());
+                "get-ship must not return an error. Raw response: " + envelope.toPrettyString());
 
         JsonNode content = callResult.path("content");
         assertTrue(content.isArray() && !content.isEmpty(),
                 "result.content must be a non-empty array");
 
-        // The tool returns a JSON array serialised as a text content item
-        JsonNode ships = json.readTree(content.get(0).path("text").asText());
-        assertTrue(ships.isArray(), "Parsed content must be a JSON array");
-        assertTrue(ships.size() > 0, "Ship list must not be empty");
-
-        // Validate the output-parameter mapping declared in the YAML
-        JsonNode first = ships.get(0);
-        assertTrue(first.has("imo"),    "Each ship must have 'imo' (mapped from imo_number)");
-        assertTrue(first.has("name"),   "Each ship must have 'name' (mapped from vessel_name)");
-        assertTrue(first.has("type"),   "Each ship must have 'type' (mapped from vessel_type)");
-        assertTrue(first.has("flag"),   "Each ship must have 'flag' (mapped from flag_code)");
-        assertTrue(first.has("status"), "Each ship must have 'status' (mapped from operational_status)");
-        assertFalse(first.path("imo").asText().isBlank(),   "imo must be non-blank");
-        assertFalse(first.path("name").asText().isBlank(),  "name must be non-blank");
+        JsonNode ship = json.readTree(content.get(0).path("text").asText());
+        assertTrue(ship.isObject(), "Parsed content must be a JSON object");
+        assertEquals("IMO-9321483", ship.path("imo").asText());
+        assertEquals("Northern Star", ship.path("name").asText());
+        assertEquals("cargo", ship.path("type").asText());
+        assertEquals("NO", ship.path("flag").asText());
+        assertEquals("active", ship.path("status").asText());
     }
 
 }

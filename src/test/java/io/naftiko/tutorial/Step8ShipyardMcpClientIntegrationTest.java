@@ -53,14 +53,17 @@ public class Step8ShipyardMcpClientIntegrationTest
             "src/main/resources/tutorial/step-8-shipyard-skill-groups.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
-    private static final String TUTORIAL_DIR =
+        private static final String TUTORIAL_DIR =
             "src/main/resources/tutorial";
+        private static final String REGISTRY_MOCK_URI =
+            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String LEGACY_MOCK_URI =
             "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
 
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
 
         String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
@@ -71,8 +74,12 @@ public class Step8ShipyardMcpClientIntegrationTest
                 spec.getCapability().getConsumes(), tutorialAbsoluteDir);
 
         for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec && "legacy".equals(cs.getNamespace())) {
-                ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+            if (cs instanceof HttpClientSpec) {
+                if ("registry".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
+                } else if ("legacy".equals(cs.getNamespace())) {
+                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
+                }
             }
         }
 
@@ -80,17 +87,18 @@ public class Step8ShipyardMcpClientIntegrationTest
     }
 
     @Test
-    public void toolsListShouldAdvertiseFourTools() throws Exception {
+    public void toolsListShouldAdvertiseFiveTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         String sessionId = initialize(http);
 
         JsonNode tools = callToolsList(http, sessionId);
 
-        assertEquals(4, tools.size(), "step-8 MCP exposes exactly four tools");
+        assertEquals(5, tools.size(), "step-8 MCP exposes exactly five tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
         assertEquals("get-ship",            tools.get(1).path("name").asText());
         assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
         assertEquals("create-voyage",       tools.get(3).path("name").asText());
+        assertEquals("get-ship-with-crew",  tools.get(4).path("name").asText());
     }
 
     @Test
@@ -235,7 +243,7 @@ public class Step8ShipyardMcpClientIntegrationTest
 
             JsonNode tools = detail.path("tools");
             assertTrue(tools.isArray(), "fleet-ops detail must contain a tools array");
-            assertEquals(3, tools.size(), "fleet-ops must expose 3 tools in step-8");
+            assertEquals(4, tools.size(), "fleet-ops must expose 4 tools in step-8");
 
             for (JsonNode t : tools) {
                 assertEquals("derived", t.path("type").asText(), "fleet-ops tools should be derived");

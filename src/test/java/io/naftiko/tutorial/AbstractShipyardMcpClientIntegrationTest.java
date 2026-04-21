@@ -23,6 +23,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 
@@ -34,6 +35,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
 import io.naftiko.engine.exposes.mcp.McpServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
+import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
@@ -48,9 +50,13 @@ import io.naftiko.spec.exposes.ServerSpec;
  */
 abstract class AbstractShipyardMcpClientIntegrationTest {
 
+    private static final String DEFAULT_TUTORIAL_SECRETS_FILE =
+            "src/main/resources/tutorial/shared/secrets.yaml";
+
     protected McpServerAdapter adapter;
     protected String serverUrl;
     protected final ObjectMapper json = new ObjectMapper();
+    protected String mcpServerToken;
 
     @AfterEach
     public void stopServer() throws Exception {
@@ -71,11 +77,22 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         return yaml.readValue(file, NaftikoSpec.class);
     }
 
+    protected void useMcpServerToken(String secretsFile) throws Exception {
+        ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
+        Map<?, ?> secrets = yaml.readValue(new File(secretsFile), Map.class);
+        Object token = secrets.get("mcp-server-token");
+        assertTrue(token instanceof String && !((String) token).isBlank(),
+                "shared tutorial secrets must define a non-blank mcp-server-token");
+        mcpServerToken = (String) token;
+    }
+
     /**
      * Applies an ephemeral localhost port override, builds the {@link Capability}, starts the
      * {@link McpServerAdapter}, and sets {@link #serverUrl}.
      */
     protected void startServerFromSpec(NaftikoSpec spec) throws Exception {
+        disableMcpAuthentication(spec);
+
         int port = findFreePort();
         ServerSpec exposesSpec = spec.getCapability().getExposes().get(0);
         exposesSpec.setAddress("localhost");
@@ -85,7 +102,14 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         adapter.start();
 
-        serverUrl = "http://localhost:" + port;
+        serverUrl = "http://localhost:" + port + "/";
+    }
+
+    protected void disableMcpAuthentication(NaftikoSpec spec) {
+        spec.getCapability().getExposes().stream()
+                .filter(McpServerSpec.class::isInstance)
+                .map(McpServerSpec.class::cast)
+                .forEach(expose -> expose.setAuthentication(null));
     }
 
     /**
@@ -151,10 +175,24 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     }
 
     protected HttpRequest buildPost(String body, String sessionId) {
+        if (mcpServerToken == null) {
+            File defaultSecretsFile = new File(DEFAULT_TUTORIAL_SECRETS_FILE);
+            if (defaultSecretsFile.exists()) {
+                try {
+                    useMcpServerToken(DEFAULT_TUTORIAL_SECRETS_FILE);
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to load default tutorial MCP token", e);
+                }
+            }
+        }
+
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(serverUrl))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.strip()));
+        if (mcpServerToken != null) {
+            builder.header("Authorization", "Bearer " + mcpServerToken);
+        }
         if (sessionId != null) {
             builder.header("Mcp-Session-Id", sessionId);
         }
