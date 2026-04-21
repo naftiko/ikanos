@@ -267,10 +267,13 @@ public class OasImportIntegrationTest {
     @Test
     void importSwagger20ShouldConvertBaseUriFromHostAndBasePath() {
         String path = getFixturePath("openapi/petstore-2.0.yaml");
-        OpenAPI openApi = new OpenAPIV3Parser().read(path);
-        assertNotNull(openApi);
+        SwaggerParseResult parseResult =
+                new OpenAPIParser().readLocation(path, null, null);
+        assertNotNull(parseResult.getOpenAPI(),
+                "readLocation should auto-convert Swagger 2.0; messages: "
+                        + parseResult.getMessages());
 
-        OasImportResult result = converter.convert(openApi);
+        OasImportResult result = converter.convert(parseResult.getOpenAPI());
 
         assertEquals("https://petstore.swagger.io/v1", result.getHttpClient().getBaseUri());
     }
@@ -278,10 +281,13 @@ public class OasImportIntegrationTest {
     @Test
     void importSwagger20ShouldConvertPathAndQueryParameters() {
         String path = getFixturePath("openapi/petstore-2.0.yaml");
-        OpenAPI openApi = new OpenAPIV3Parser().read(path);
-        assertNotNull(openApi);
+        SwaggerParseResult parseResult =
+                new OpenAPIParser().readLocation(path, null, null);
+        assertNotNull(parseResult.getOpenAPI(),
+                "readLocation should auto-convert Swagger 2.0; messages: "
+                        + parseResult.getMessages());
 
-        OasImportResult result = converter.convert(openApi);
+        OasImportResult result = converter.convert(parseResult.getOpenAPI());
 
         HttpClientOperationSpec showPet = result.getHttpClient().getResources().stream()
                 .flatMap(r -> r.getOperations().stream())

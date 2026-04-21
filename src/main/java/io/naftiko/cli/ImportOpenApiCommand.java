@@ -81,7 +81,14 @@ public class ImportOpenApiCommand implements Callable<Integer> {
                 httpClient.setNamespace(namespace);
             }
 
-            // Print warnings to stderr
+            // Print parse warnings (e.g. Swagger 2.0 -> OAS 3 conversion notes)
+            if (parseResult.getMessages() != null) {
+                for (String msg : parseResult.getMessages()) {
+                    System.err.println("Warning: " + msg);
+                }
+            }
+
+            // Print conversion warnings to stderr
             for (String warning : result.getWarnings()) {
                 System.err.println("Warning: " + warning);
             }
