@@ -64,6 +64,8 @@
         <jacoco.version>0.8.13</jacoco.version>
         <slf4j.version>2.0.17</slf4j.version>
         <opentelemetry.version>1.48.0</opentelemetry.version>
+        <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
+        <groovy.version>4.0.24</groovy.version>
     </properties>
 
     <distributionManagement>
@@ -259,6 +261,28 @@
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-models</artifactId>
             <version>2.2.28</version>
+        </dependency>
+
+        <!-- GraalVM Polyglot API -->
+        <dependency>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>polyglot</artifactId>
+            <version>${graalvm.polyglot.version}</version>
+        </dependency>
+
+        <!-- JavaScript language (Truffle-based) -->
+        <dependency>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>js</artifactId>
+            <version>${graalvm.polyglot.version}</version>
+            <type>pom</type>
+        </dependency>
+
+        <!-- Groovy language -->
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>${groovy.version}</version>
         </dependency>
 
         <dependency>

@@ -26,6 +26,7 @@ functions:
   - unique-namespaces
   - aggregate-semantics-consistency
   - control-port-validation
+  - script-defaults-required
 
 rules:
 
@@ -358,3 +359,22 @@ rules:
       function: pattern
       functionOptions:
         match: "^(localhost|127\\.0\\.0\\.1)$"
+
+  # ────────────────────────────────────────────────────────────────
+  # 5. SCRIPT STEPS
+  # ────────────────────────────────────────────────────────────────
+
+  naftiko-script-defaults-required:
+    message: >-
+      {{error}}
+    description: >
+      Every script step must have a resolvable scripts directory and language.
+      When a step omits 'location' or 'language', the engine falls back to
+      'management.scripting.defaultLocation' or 'management.scripting.defaultLanguage'
+      on the control adapter. If neither is set, the capability will fail at load time.
+      This rule catches the misconfiguration at lint time.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: script-defaults-required

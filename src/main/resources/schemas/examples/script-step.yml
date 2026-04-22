@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../naftiko-schema.json
+---
+naftiko: "1.0.0-alpha2"
+info:
+  label: "Active Users Report (Script Step)"
+  description: >
+    Demonstrates the script step feature. Fetches organization members from
+    GitHub and uses a JavaScript script step to filter active users.
+  tags:
+    - Script
+    - JavaScript
+    - Example
+  created: "2026-04-21"
+  modified: "2026-04-21"
+
+capability:
+  exposes:
+    - type: mcp
+      address: localhost
+      port: 3000
+      namespace: reporting
+      tools:
+        - name: active-members
+          description: "Returns active GitHub organization members"
+          inputParameters:
+            - name: org
+              type: string
+              description: "GitHub organization name"
+              required: true
+          steps:
+            - type: call
+              name: list-members
+              call: github.list-org-members
+              with:
+                org: "{{org}}"
+
+            - type: script
+              name: filter-active
+              language: javascript
+              location: "file:///app/capabilities/scripts"
+              file: "filter-active.js"
+              dependencies:
+                - "lib/array-utils.js"
+          mappings:
+            - targetName: active-members
+              value: "$.filter-active"
+          outputParameters:
+            - name: active-members
+              type: array
+              items:
+                - name: login
+                  type: string
+                - name: id
+                  type: number
+
+  consumes:
+    - type: http
+      namespace: github
+      baseUri: "https://api.github.com"
+      resources:
+        - path: "/orgs/{{org}}/members"
+          name: members
+          operations:
+            - method: GET
+              name: list-org-members

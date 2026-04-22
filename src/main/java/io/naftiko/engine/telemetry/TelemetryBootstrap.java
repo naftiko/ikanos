@@ -48,6 +48,8 @@ public class TelemetryBootstrap {
     public static final AttributeKey<Long> ATTR_STEP_INDEX = AttributeKey.longKey("naftiko.step.index");
     public static final AttributeKey<String> ATTR_STEP_CALL = AttributeKey.stringKey("naftiko.step.call");
     public static final AttributeKey<String> ATTR_STEP_MATCH = AttributeKey.stringKey("naftiko.step.match");
+    public static final AttributeKey<String> ATTR_STEP_SCRIPT_FILE = AttributeKey.stringKey("naftiko.step.script.file");
+    public static final AttributeKey<String> ATTR_STEP_SCRIPT_LANGUAGE = AttributeKey.stringKey("naftiko.step.script.language");
     public static final AttributeKey<String> ATTR_HTTP_METHOD = AttributeKey.stringKey("http.request.method");
     public static final AttributeKey<String> ATTR_HTTP_URL = AttributeKey.stringKey("url.full");
     public static final AttributeKey<Long> ATTR_HTTP_STATUS_CODE = AttributeKey.longKey("http.response.status_code");
@@ -313,6 +315,18 @@ public class TelemetryBootstrap {
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_STEP_INDEX, stepIndex)
                 .setAttribute(ATTR_STEP_MATCH, match != null ? match : "unknown")
+                .startSpan();
+    }
+
+    /**
+     * Start an INTERNAL span for a script step.
+     */
+    public Span startStepScriptSpan(int stepIndex, String file, String language) {
+        return tracer.spanBuilder("step.script")
+                .setSpanKind(SpanKind.INTERNAL)
+                .setAttribute(ATTR_STEP_INDEX, stepIndex)
+                .setAttribute(ATTR_STEP_SCRIPT_FILE, file != null ? file : "unknown")
+                .setAttribute(ATTR_STEP_SCRIPT_LANGUAGE, language != null ? language : "unknown")
                 .startSpan();
     }
 
