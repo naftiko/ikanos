@@ -2522,6 +2522,9 @@
           ],
           "default": false,
           "description": "Configure /logs endpoints for log level control and SSE streaming. Accepts a boolean (simple) or an object (advanced)."
+        },
+        "scripting": {
+          "$ref": "#/$defs/ScriptingManagementSpec"
         }
       },
       "additionalProperties": false
@@ -2546,6 +2549,49 @@
           "maximum": 20,
           "default": 5,
           "description": "Maximum concurrent SSE subscribers for log streaming."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScriptingManagementSpec": {
+      "type": "object",
+      "description": "Scripting governance controls exposed via the Control Port. Configures defaults, limits, and runtime toggles for script steps.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Runtime toggle to enable or disable script step execution. When false, all script steps fail fast with a descriptive error. Overrides the NAFTIKO_SCRIPTING env var when set."
+        },
+        "defaultLocation": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^file:///",
+          "description": "Default scripts directory for all script steps. When set, individual steps can omit 'location' and the engine resolves 'file' and 'dependencies' from this directory. Steps with an explicit 'location' override this default."
+        },
+        "defaultLanguage": {
+          "type": "string",
+          "enum": ["javascript", "python", "groovy"],
+          "description": "Default language for all script steps. When set, individual steps can omit 'language' and the engine uses this default. Steps with an explicit 'language' override this default."
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5000,
+          "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (5000 ms)."
+        },
+        "statementLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100000,
+          "description": "Maximum number of statements a script can execute. Overrides the engine default (100,000)."
+        },
+        "allowedLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["javascript", "python", "groovy"]
+          },
+          "description": "Restrict which script languages are permitted. If omitted, all languages supported by the build are allowed."
         }
       },
       "additionalProperties": false

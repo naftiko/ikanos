@@ -79,6 +79,13 @@ public class OperationStepExecutor {
         this.mapper = new ObjectMapper();
         this.scriptExecutor = new ScriptStepExecutor();
         this.exposeNamespace = exposeNamespace;
+        if (capability != null && capability.getScriptingSpec() != null) {
+            this.scriptExecutor.setScriptingSpec(capability.getScriptingSpec());
+        }
+    }
+
+    ScriptStepExecutor getScriptExecutor() {
+        return scriptExecutor;
     }
 
     /**
@@ -289,6 +296,8 @@ public class OperationStepExecutor {
                     }
                 }
                 case OperationStepScriptSpec scriptStep -> {
+                    ScriptStepExecutor.requireScriptingPermitted(
+                            scriptStep.getName(), scriptExecutor.getScriptingSpec());
                     TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
                     Span stepSpan = scriptTelemetry.startStepScriptSpan(
                             stepIndex, scriptStep.getFile(), scriptStep.getLanguage());

@@ -16,6 +16,21 @@ info:
 
 capability:
   exposes:
+    - type: control
+      address: localhost
+      port: 9090
+      management:
+        health: true
+        scripting:
+          enabled: true
+          defaultLocation: "file:///app/capabilities/scripts"
+          defaultLanguage: javascript
+          timeout: 3000
+          statementLimit: 50000
+          allowedLanguages:
+            - javascript
+            - python
+
     - type: mcp
       address: localhost
       port: 3000

@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.naftiko.engine.util.StepExecutionContext;
 import io.naftiko.spec.exposes.OperationStepScriptSpec;
+import io.naftiko.spec.exposes.ScriptingManagementSpec;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -441,6 +442,258 @@ class ScriptStepExecutorTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    // ── Governance: defaults resolution ──────────────────────────
+
+    @Test
+    void executeShouldResolveLocationFromDefault() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        // Step omits location — should resolve from default
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", "javascript", null, "simple-transform.js");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertNotNull(result);
+        assertEquals("hello", result.get("greeting").asText());
+    }
+
+    @Test
+    void executeShouldResolveLanguageFromDefault() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        // Step omits language — should resolve from default
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", null, scriptsLocationUri, "simple-transform.js");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertNotNull(result);
+        assertEquals("hello", result.get("greeting").asText());
+    }
+
+    @Test
+    void executeShouldResolveBothDefaultsWhenOmitted() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        // Step omits both location and language
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", null, null, "simple-transform.js");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertNotNull(result);
+        assertEquals("hello", result.get("greeting").asText());
+    }
+
+    @Test
+    void executeShouldPreferStepLocationOverDefault() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation("file:///nonexistent/path");
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        // Step has explicit location — should use it, not the default
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", "javascript", scriptsLocationUri, "simple-transform.js");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertNotNull(result);
+        assertEquals("hello", result.get("greeting").asText());
+    }
+
+    @Test
+    void executeShouldFailWhenNoDefaultLocationAndStepOmitsIt() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "no-loc", null, null, "script.js");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+        assertTrue(ex.getMessage().contains("no 'location'"));
+    }
+
+    @Test
+    void executeShouldFailWhenNoDefaultLanguageAndStepOmitsIt() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        executor.setScriptingSpec(spec);
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "no-lang", null, null, "simple-transform.js");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+        assertTrue(ex.getMessage().contains("no 'language'"));
+    }
+
+    // ── Governance: allowed languages ────────────────────────────
+
+    @Test
+    void executeShouldRejectLanguageNotInAllowedList() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.getAllowedLanguages().add("javascript");
+        executor.setScriptingSpec(spec);
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "enrich", "groovy", scriptsLocationUri, "enrich-products.groovy");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+        assertTrue(ex.getMessage().contains("not in the allowed languages"));
+    }
+
+    @Test
+    void executeShouldAllowLanguageInAllowedList() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.getAllowedLanguages().add("javascript");
+        executor.setScriptingSpec(spec);
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", "javascript", scriptsLocationUri, "simple-transform.js");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+        assertNotNull(result);
+    }
+
+    @Test
+    void executeShouldAllowAnyLanguageWhenAllowedListEmpty() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        // allowedLanguages is empty — all languages allowed
+        executor.setScriptingSpec(spec);
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "enrich", "groovy", scriptsLocationUri, "enrich-products.groovy");
+
+        // Should not throw — groovy is allowed when list is empty
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode products = mapper.createArrayNode();
+        products.add(mapper.createObjectNode().put("name", "Widget").put("price", 100.0));
+        stepContext.storeStepOutput("fetch-products", products);
+
+        JsonNode result = executor.execute(step, new HashMap<>(), stepContext);
+        assertNotNull(result);
+    }
+
+    // ── Governance: statement limit ──────────────────────────────
+
+    @Test
+    void executeShouldUseConfiguredStatementLimit() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setStatementLimit(10); // Very low limit
+        executor.setScriptingSpec(spec);
+
+        // infinite-loop.js will exceed any reasonable limit
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "infinite", "javascript", scriptsLocationUri, "infinite-loop.js");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+        assertTrue(ex.getMessage().contains("exceeded the statement limit (10)"));
+    }
+
+    // ── Governance: execution stats ──────────────────────────────
+
+    @Test
+    void executeShouldRecordExecutionStats() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setDefaultLanguage("javascript");
+        executor.setScriptingSpec(spec);
+
+        assertEquals(0, spec.getTotalExecutions());
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", "javascript", scriptsLocationUri, "simple-transform.js");
+
+        executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertEquals(1, spec.getTotalExecutions());
+        assertEquals(0, spec.getTotalErrors());
+        assertTrue(spec.getAverageDurationMs() >= 0);
+        assertNotNull(spec.getLastExecutionAt());
+    }
+
+    @Test
+    void executeShouldRecordErrorStats() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+        spec.setDefaultLocation(scriptsLocationUri);
+        spec.setStatementLimit(10);
+        executor.setScriptingSpec(spec);
+
+        assertEquals(0, spec.getTotalErrors());
+
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "infinite", "javascript", scriptsLocationUri, "infinite-loop.js");
+
+        assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+
+        assertEquals(1, spec.getTotalExecutions());
+        assertEquals(1, spec.getTotalErrors());
+    }
+
+    // ── Governance: activation precedence ────────────────────────
+
+    @Test
+    void requireScriptingPermittedShouldUseSpecWhenPresent() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(true);
+
+        // Should not throw when spec says enabled
+        assertDoesNotThrow(() ->
+                ScriptStepExecutor.requireScriptingPermitted("test-step", spec));
+    }
+
+    @Test
+    void requireScriptingPermittedShouldRejectWhenSpecDisabled() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+        spec.setEnabled(false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                ScriptStepExecutor.requireScriptingPermitted("test-step", spec));
+        assertTrue(ex.getMessage().contains("management.scripting.enabled=false"));
+    }
+
+    @Test
+    void requireScriptingPermittedShouldFallBackToEnvVarWhenSpecNull() {
+        // When spec is null, falls back to NAFTIKO_SCRIPTING env var
+        // In test env, NAFTIKO_SCRIPTING is not set to "false", so it should be permitted
+        assertDoesNotThrow(() ->
+                ScriptStepExecutor.requireScriptingPermitted("test-step", null));
     }
 
 }

@@ -29,6 +29,9 @@ public class ControlManagementSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile ControlLogsEndpointSpec logs;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile ScriptingManagementSpec scripting;
+
     public boolean isHealth() {
         return health;
     }
@@ -71,6 +74,14 @@ public class ControlManagementSpec {
 
     public void setLogs(ControlLogsEndpointSpec logs) {
         this.logs = logs;
+    }
+
+    public ScriptingManagementSpec getScripting() {
+        return scripting;
+    }
+
+    public void setScripting(ScriptingManagementSpec scripting) {
+        this.scripting = scripting;
     }
 
     /**

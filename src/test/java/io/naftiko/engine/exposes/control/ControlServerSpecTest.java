@@ -23,6 +23,7 @@ import io.naftiko.spec.ObservabilityTracesLocalSpec;
 import io.naftiko.spec.exposes.ControlManagementSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
 import io.naftiko.spec.exposes.ControlLogsEndpointSpec;
+import io.naftiko.spec.exposes.ScriptingManagementSpec;
 
 /**
  * Unit tests for control port spec deserialization.
@@ -171,6 +172,75 @@ public class ControlServerSpecTest {
         assertTrue(logs.isStream());
         assertEquals(3, logs.getMaxSubscribers());
         assertFalse(spec.getManagement().isLogging());
+    }
+
+    // ── Scripting management deserialization ──────────────────────
+
+    @Test
+    public void scriptingSpecShouldDeserializeFullConfig() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  health: true
+                  scripting:
+                    enabled: true
+                    defaultLocation: "file:///app/scripts"
+                    defaultLanguage: "javascript"
+                    timeout: 3000
+                    statementLimit: 50000
+                    allowedLanguages:
+                      - javascript
+                      - python
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        ScriptingManagementSpec scripting = spec.getManagement().getScripting();
+
+        assertNotNull(scripting);
+        assertTrue(scripting.isEnabled());
+        assertEquals("file:///app/scripts", scripting.getDefaultLocation());
+        assertEquals("javascript", scripting.getDefaultLanguage());
+        assertEquals(3000, scripting.getTimeout());
+        assertEquals(50000, scripting.getStatementLimit());
+        assertEquals(2, scripting.getAllowedLanguages().size());
+        assertTrue(scripting.getAllowedLanguages().contains("javascript"));
+        assertTrue(scripting.getAllowedLanguages().contains("python"));
+    }
+
+    @Test
+    public void scriptingSpecShouldUseDefaultsForOmittedFields() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  scripting:
+                    enabled: true
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        ScriptingManagementSpec scripting = spec.getManagement().getScripting();
+
+        assertNotNull(scripting);
+        assertTrue(scripting.isEnabled());
+        assertNull(scripting.getDefaultLocation());
+        assertNull(scripting.getDefaultLanguage());
+        assertEquals(5000, scripting.getTimeout());
+        assertEquals(100_000, scripting.getStatementLimit());
+        assertTrue(scripting.getAllowedLanguages().isEmpty());
+    }
+
+    @Test
+    public void scriptingSpecShouldBeNullWhenOmitted() throws Exception {
+        String yaml = """
+                type: "control"
+                port: 9100
+                management:
+                  health: true
+                """;
+
+        ControlServerSpec spec = parseYaml(yaml, ControlServerSpec.class);
+        assertNull(spec.getManagement().getScripting());
     }
 
     private static <T> T parseYaml(String yaml, Class<T> type) throws Exception {

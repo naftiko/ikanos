@@ -44,6 +44,7 @@ import io.naftiko.engine.util.Resolver;
 import io.naftiko.engine.util.SafePathResolver;
 import io.naftiko.engine.util.StepExecutionContext;
 import io.naftiko.spec.exposes.OperationStepScriptSpec;
+import io.naftiko.spec.exposes.ScriptingManagementSpec;
 
 /**
  * Executor for script operation steps.
@@ -54,6 +55,10 @@ import io.naftiko.spec.exposes.OperationStepScriptSpec;
  *
  * <p>The executor injects previous step outputs and runtime parameters into the script context as
  * a {@code context} binding. The script must assign its output to a {@code result} variable.</p>
+ *
+ * <p>When a {@link ScriptingManagementSpec} is configured via the Control Port, the executor
+ * uses its settings for defaults, limits, allowed languages, and the enabled toggle. The Control
+ * Port settings override the {@code NAFTIKO_SCRIPTING} environment variable.</p>
  */
 class ScriptStepExecutor {
 
@@ -70,26 +75,55 @@ class ScriptStepExecutor {
             !"false".equalsIgnoreCase(System.getenv("NAFTIKO_SCRIPTING"));
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private volatile ScriptingManagementSpec scriptingSpec;
 
     /**
      * Called by the capability loader when a capability containing script steps is being
-     * initialized — before any request is served.
+     * initialized — before any request is served. The Control Port {@code scripting.enabled}
+     * overrides the environment variable when set.
      */
-    static void requireScriptingPermitted(String stepName) {
-        if (!SCRIPTING_PERMITTED) {
+    static void requireScriptingPermitted(String stepName,
+            ScriptingManagementSpec scriptingSpec) {
+        boolean permitted;
+        if (scriptingSpec != null) {
+            permitted = scriptingSpec.isEnabled();
+        } else {
+            permitted = SCRIPTING_PERMITTED;
+        }
+        if (!permitted) {
             throw new IllegalStateException(
                     "Script step '" + stepName
-                            + "' requires scripting support. Scripting is disabled via "
-                            + "NAFTIKO_SCRIPTING=false. Remove the override or set it to "
-                            + "'true' to enable it.");
+                            + "' requires scripting support. Scripting is disabled"
+                            + (scriptingSpec != null
+                                    ? " via management.scripting.enabled=false on the control adapter."
+                                    : " via NAFTIKO_SCRIPTING=false.")
+                            + " Enable it to use script steps.");
         }
+    }
+
+    void setScriptingSpec(ScriptingManagementSpec scriptingSpec) {
+        this.scriptingSpec = scriptingSpec;
+    }
+
+    ScriptingManagementSpec getScriptingSpec() {
+        return scriptingSpec;
     }
 
     JsonNode execute(OperationStepScriptSpec scriptStep, Map<String, Object> runtimeParameters,
             StepExecutionContext stepContext) {
 
+        // Resolve language — step-level overrides default
         String language = scriptStep.getLanguage();
+        if ((language == null || language.isBlank()) && scriptingSpec != null) {
+            language = scriptingSpec.getDefaultLanguage();
+        }
+
+        // Resolve location — step-level overrides default
         String locationUri = scriptStep.getLocation();
+        if ((locationUri == null || locationUri.isBlank()) && scriptingSpec != null) {
+            locationUri = scriptingSpec.getDefaultLocation();
+        }
+
         String file = scriptStep.getFile();
 
         if (locationUri == null || locationUri.isBlank()) {
@@ -105,22 +139,53 @@ class ScriptStepExecutor {
                             + "'management.scripting.defaultLanguage' on the control adapter.");
         }
 
+        // Check allowed languages
+        if (scriptingSpec != null && !scriptingSpec.getAllowedLanguages().isEmpty()
+                && !scriptingSpec.getAllowedLanguages().contains(language)) {
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName()
+                            + "' uses language '" + language
+                            + "' which is not in the allowed languages: "
+                            + scriptingSpec.getAllowedLanguages());
+        }
+
+        // Resolve statement limit from governance
+        long statementLimit = DEFAULT_STATEMENT_LIMIT;
+        if (scriptingSpec != null && scriptingSpec.getStatementLimit() > 0) {
+            statementLimit = scriptingSpec.getStatementLimit();
+        }
+
         String mainSource = readScript(locationUri, file, scriptStep.getName());
 
         Map<String, Object> bindings =
                 buildBindings(runtimeParameters, stepContext, scriptStep.getWith());
 
-        if ("groovy".equals(language)) {
-            return executeGroovy(mainSource, bindings, scriptStep);
+        long startNanos = System.nanoTime();
+        boolean error = false;
+        try {
+            JsonNode result;
+            if ("groovy".equals(language)) {
+                result = executeGroovy(mainSource, bindings, scriptStep, locationUri);
+            } else {
+                String polyglotId = LANGUAGE_ID_MAP.getOrDefault(language, language);
+                result = executePolyglot(polyglotId, mainSource, bindings, scriptStep,
+                        locationUri, statementLimit);
+            }
+            return result;
+        } catch (Exception e) {
+            error = true;
+            throw e;
+        } finally {
+            if (scriptingSpec != null) {
+                scriptingSpec.recordExecution(System.nanoTime() - startNanos, error);
+            }
         }
-        String polyglotId = LANGUAGE_ID_MAP.getOrDefault(language, language);
-        return executePolyglot(polyglotId, mainSource, bindings, scriptStep);
     }
 
     private JsonNode executePolyglot(String language, String mainSource,
-            Map<String, Object> bindings, OperationStepScriptSpec scriptStep) {
+            Map<String, Object> bindings, OperationStepScriptSpec scriptStep,
+            String locationUri, long statementLimit) {
 
-        String locationUri = scriptStep.getLocation();
         boolean isPython = "python".equals(language);
 
         Context.Builder builder = Context.newBuilder(language)
@@ -133,7 +198,7 @@ class ScriptStepExecutor {
                 .allowNativeAccess(false)
                 .option("engine.WarnInterpreterOnly", "false")
                 .resourceLimits(ResourceLimits.newBuilder()
-                        .statementLimit(DEFAULT_STATEMENT_LIMIT, null)
+                        .statementLimit(statementLimit, null)
                         .build());
 
         if (isPython) {
@@ -172,7 +237,7 @@ class ScriptStepExecutor {
                 throw new IllegalArgumentException(
                         "Script step '" + scriptStep.getName()
                                 + "' exceeded the statement limit ("
-                                + DEFAULT_STATEMENT_LIMIT + ")",
+                                + statementLimit + ")",
                         e);
             }
             throw new IllegalArgumentException(
@@ -223,9 +288,7 @@ class ScriptStepExecutor {
     }
 
     private JsonNode executeGroovy(String mainSource, Map<String, Object> bindings,
-            OperationStepScriptSpec scriptStep) {
-
-        String locationUri = scriptStep.getLocation();
+            OperationStepScriptSpec scriptStep, String locationUri) {
 
         CompilerConfiguration config = new CompilerConfiguration();
         SecureASTCustomizer secure = new SecureASTCustomizer();

@@ -41,6 +41,7 @@ import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.HttpClientSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
+import io.naftiko.spec.exposes.ScriptingManagementSpec;
 import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
@@ -57,6 +58,7 @@ public class Capability {
     private volatile List<ClientAdapter> clientAdapters;
     private volatile List<Aggregate> aggregates;
     private volatile Map<String, Object> bindings;
+    private volatile ScriptingManagementSpec scriptingSpec;
 
     public Capability(NaftikoSpec spec) throws Exception {
         this(spec, null);
@@ -81,6 +83,18 @@ public class Capability {
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
         AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();
         aggregateRefResolver.resolve(spec);
+
+        // Find ScriptingManagementSpec from control adapter (if any) before building executors
+        ScriptingManagementSpec scriptingSpec = null;
+        for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
+            if (serverSpec instanceof ControlServerSpec controlSpec
+                    && controlSpec.getManagement() != null
+                    && controlSpec.getManagement().getScripting() != null) {
+                scriptingSpec = controlSpec.getManagement().getScripting();
+                break;
+            }
+        }
+        this.scriptingSpec = scriptingSpec;
 
         // Build runtime aggregates (must happen after imports are resolved)
         this.aggregates = new CopyOnWriteArrayList<>();
@@ -150,6 +164,10 @@ public class Capability {
 
     public List<Aggregate> getAggregates() {
         return aggregates;
+    }
+
+    public ScriptingManagementSpec getScriptingSpec() {
+        return scriptingSpec;
     }
 
     /**

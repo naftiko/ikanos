@@ -20,6 +20,7 @@ import io.naftiko.spec.ObservabilitySpec;
 import io.naftiko.spec.ObservabilityTracesLocalSpec;
 import io.naftiko.spec.exposes.ControlManagementSpec;
 import io.naftiko.spec.exposes.ControlServerSpec;
+import io.naftiko.spec.exposes.ScriptingManagementSpec;
 import org.restlet.Context;
 import org.restlet.Restlet;
 import org.restlet.routing.Router;
@@ -62,6 +63,13 @@ public class ControlServerAdapter extends ServerAdapter {
 
         if (management.isInfo()) {
             router.attach("/status", StatusResource.class);
+        }
+
+        // Scripting governance endpoint
+        ScriptingManagementSpec scripting = management.getScripting();
+        if (scripting != null) {
+            context.getAttributes().put("scriptingSpec", scripting);
+            router.attach("/scripting", ScriptingResource.class);
         }
 
         // Observability endpoints — metrics and traces live under observability
