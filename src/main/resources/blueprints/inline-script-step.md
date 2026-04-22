@@ -525,10 +525,17 @@ capability:
               language: javascript
               location: "file:///app/capabilities/scripts"
               file: "filter-active.js"
+          mappings:
+            - targetName: active-members
+              value: "$.filter-active"
           outputParameters:
             - name: active-members
               type: array
-              mapping: "$.filter-active"
+              items:
+                - name: login
+                  type: string
+                - name: id
+                  type: number
 
   consumes:
     - type: http
@@ -654,13 +661,23 @@ capability:
               language: javascript
               location: "file:///app/capabilities/scripts"
               file: "summarize-events.js"
+          mappings:
+            - targetName: events-by-type
+              value: "$.summarize.eventsByType"
+            - targetName: total-events
+              value: "$.summarize.totalEvents"
           outputParameters:
             - name: events-by-type
               type: object
-              mapping: "$.summarize.eventsByType"
+              properties:
+                PushEvent:
+                  name: PushEvent
+                  type: number
+                IssuesEvent:
+                  name: IssuesEvent
+                  type: number
             - name: total-events
               type: number
-              mapping: "$.summarize.totalEvents"
 
   exposes:
     - type: mcp
@@ -962,13 +979,16 @@ capability:
               name: compute-totals
               file: "compute-totals.js"
 
+          mappings:
+            - targetName: total-amount
+              value: "$.compute-totals.totalAmount"
+            - targetName: order-count
+              value: "$.compute-totals.orderCount"
           outputParameters:
             - name: total-amount
               type: number
-              mapping: "$.compute-totals.totalAmount"
             - name: order-count
               type: number
-              mapping: "$.compute-totals.orderCount"
 
         - name: low-stock-items
           description: "Returns items below a stock threshold"
@@ -988,10 +1008,17 @@ capability:
               with:
                 threshold: "{{min-stock}}"
 
+          mappings:
+            - targetName: items
+              value: "$.filter-low-stock"
           outputParameters:
             - name: items
               type: array
-              mapping: "$.filter-low-stock"
+              items:
+                - name: name
+                  type: string
+                - name: stock
+                  type: number
 
   consumes:
     - type: http
@@ -1063,10 +1090,12 @@ capability:
               location: "file:///app/shared-scripts"
               file: "format-markdown-report.groovy"
 
+          mappings:
+            - targetName: report
+              value: "$.format-report.markdown"
           outputParameters:
             - name: report
               type: string
-              mapping: "$.format-report.markdown"
 ```
 
 The `summarize` step inherits both `defaultLocation` and `defaultLanguage`; the `format-report` step overrides both because it uses a Groovy script from a shared directory used by other capabilities.

@@ -1796,7 +1796,8 @@
           "type": "string",
           "enum": [
             "call",
-            "lookup"
+            "lookup",
+            "script"
           ]
         },
         "name": {
@@ -1878,6 +1879,51 @@
         }
       ]
     },
+    "OperationStepScript": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "script"
+            },
+            "name": true,
+            "language": {
+              "type": "string",
+              "enum": ["javascript", "python", "groovy"],
+              "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port — the engine falls back to the default."
+            },
+            "location": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^file:///",
+              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port — the engine falls back to the default."
+            },
+            "file": {
+              "type": "string",
+              "description": "Relative path to the main script file within the 'location' directory. The script must assign to the 'result' variable to produce output. Path segments must match [a-zA-Z0-9._-]+ (same validation as Skill instruction paths).",
+              "minLength": 1
+            },
+            "dependencies": {
+              "type": "array",
+              "description": "Relative paths to dependent script files within the 'location' directory, pre-evaluated in order before the main script. Each dependent script can define helper functions, constants, or shared logic.",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "with": {
+              "$ref": "#/$defs/WithInjector"
+            }
+          },
+          "required": ["file"],
+          "unevaluatedProperties": false
+        }
+      ]
+    },
     "OperationStep": {
       "oneOf": [
         {
@@ -1885,6 +1931,9 @@
         },
         {
           "$ref": "#/$defs/OperationStepLookup"
+        },
+        {
+          "$ref": "#/$defs/OperationStepScript"
         }
       ]
     },

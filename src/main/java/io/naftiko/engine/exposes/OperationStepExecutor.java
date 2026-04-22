@@ -48,6 +48,7 @@ import io.naftiko.spec.exposes.RestServerSpec;
 import io.naftiko.spec.exposes.OperationStepSpec;
 import io.naftiko.spec.exposes.OperationStepCallSpec;
 import io.naftiko.spec.exposes.OperationStepLookupSpec;
+import io.naftiko.spec.exposes.OperationStepScriptSpec;
 import io.naftiko.spec.exposes.StepOutputMappingSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
@@ -66,6 +67,7 @@ public class OperationStepExecutor {
 
     private final Capability capability;
     private final ObjectMapper mapper;
+    private final ScriptStepExecutor scriptExecutor;
     private volatile String exposeNamespace;
 
     public OperationStepExecutor(Capability capability) {
@@ -75,6 +77,7 @@ public class OperationStepExecutor {
     public OperationStepExecutor(Capability capability, String exposeNamespace) {
         this.capability = capability;
         this.mapper = new ObjectMapper();
+        this.scriptExecutor = new ScriptStepExecutor();
         this.exposeNamespace = exposeNamespace;
     }
 
@@ -282,6 +285,30 @@ public class OperationStepExecutor {
                                 (System.nanoTime() - lookupStartNanos) / 1_000_000_000.0;
                         lookupTelemetry.getMetrics().recordStep(
                                 "lookup", exposeNamespace, lookupDurationSec);
+                        TelemetryBootstrap.endSpan(stepSpan);
+                    }
+                }
+                case OperationStepScriptSpec scriptStep -> {
+                    TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
+                    Span stepSpan = scriptTelemetry.startStepScriptSpan(
+                            stepIndex, scriptStep.getFile(), scriptStep.getLanguage());
+                    long scriptStartNanos = System.nanoTime();
+                    try (Scope stepScope = stepSpan.makeCurrent()) {
+                        JsonNode scriptResult = scriptExecutor.execute(
+                                scriptStep, runtimeParameters, stepContext);
+                        if (scriptResult != null) {
+                            stepContext.storeStepOutput(scriptStep.getName(), scriptResult);
+                            addStepOutputToParameters(
+                                    runtimeParameters, scriptStep.getName(), scriptResult);
+                        }
+                    } catch (Exception e) {
+                        TelemetryBootstrap.recordError(stepSpan, e);
+                        throw e;
+                    } finally {
+                        double scriptDurationSec =
+                                (System.nanoTime() - scriptStartNanos) / 1_000_000_000.0;
+                        scriptTelemetry.getMetrics().recordStep(
+                                "script", exposeNamespace, scriptDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
