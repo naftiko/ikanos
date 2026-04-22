@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ScriptingManagementSpec {
 
     @JsonProperty("enabled")
-    private volatile boolean enabled;
+    private volatile boolean enabled = true;
 
     @JsonProperty("defaultLocation")
     @JsonInclude(JsonInclude.Include.NON_NULL)

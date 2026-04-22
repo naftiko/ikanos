@@ -2559,7 +2559,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Runtime toggle to enable or disable script step execution. When false, all script steps fail fast with a descriptive error. Overrides the NAFTIKO_SCRIPTING env var when set."
         },
         "defaultLocation": {
