@@ -67,4 +67,19 @@ public class SafePathResolverTest {
                 SafePathResolver.resolveAndValidate(testLocationUri, "../secrets.txt"));
     }
 
+    @Test
+    void resolveAndValidateShouldHandleNonExistentRootGracefully() {
+        String nonExistentUri = "file:///tmp/naftiko-nonexistent-dir-" + System.nanoTime();
+        Path result = SafePathResolver.resolveAndValidate(nonExistentUri, "some-file.js");
+        assertNotNull(result);
+        assertTrue(result.toString().endsWith("some-file.js"));
+    }
+
+    @Test
+    void resolveAndValidateShouldStillRejectTraversalWhenRootMissing() {
+        String nonExistentUri = "file:///tmp/naftiko-nonexistent-dir-" + System.nanoTime();
+        assertThrows(SecurityException.class, () ->
+                SafePathResolver.resolveAndValidate(nonExistentUri, "../../etc/passwd"));
+    }
+
 }

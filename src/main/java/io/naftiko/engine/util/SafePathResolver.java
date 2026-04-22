@@ -48,11 +48,22 @@ public final class SafePathResolver {
     public static Path resolveAndValidate(String locationUri, String file) {
         try {
             Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
-            Path realRoot = root.toRealPath();
-            if (!Files.isDirectory(realRoot)) {
-                throw new SecurityException(
-                        "Location root is not a directory: " + locationUri);
+
+            // When the root directory exists, canonicalize via toRealPath() for symlink
+            // protection. When it does not exist (e.g. skill location not yet provisioned),
+            // fall back to the normalized absolute path — callers handle the missing file
+            // gracefully (e.g. returning 404).
+            Path effectiveRoot;
+            if (Files.exists(root)) {
+                effectiveRoot = root.toRealPath();
+                if (!Files.isDirectory(effectiveRoot)) {
+                    throw new SecurityException(
+                            "Location root is not a directory: " + locationUri);
+                }
+            } else {
+                effectiveRoot = root;
             }
+
             Path relPath = Paths.get(file);
             for (int i = 0; i < relPath.getNameCount(); i++) {
                 String segment = relPath.getName(i).toString();
@@ -61,13 +72,13 @@ public final class SafePathResolver {
                             "Unsafe path segment in request: " + segment);
                 }
             }
-            Path resolved = realRoot.resolve(relPath).normalize().toAbsolutePath();
-            if (!resolved.startsWith(realRoot)) {
+            Path resolved = effectiveRoot.resolve(relPath).normalize().toAbsolutePath();
+            if (!resolved.startsWith(effectiveRoot)) {
                 throw new SecurityException("Path traversal attempt detected");
             }
             if (Files.exists(resolved)) {
                 Path realResolved = resolved.toRealPath();
-                if (!realResolved.startsWith(realRoot)) {
+                if (!realResolved.startsWith(effectiveRoot)) {
                     throw new SecurityException(
                             "Symlink escape detected: resolved path leaves the root directory");
                 }
