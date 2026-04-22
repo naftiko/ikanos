@@ -2,7 +2,7 @@
 ## Polyglot Scripting in Orchestration Steps via GraalVM
 
 **Status**: Proposal  
-**Date**: April 10, 2026  
+**Date**: April 21, 2026  
 **Spec Version**: `1.0.0-alpha2`  
 **Key Concept**: Add a new `type: script` orchestration step that executes JavaScript, Python, or Groovy code from external files via the GraalVM Polyglot API, enabling lightweight data transformation, filtering, and enrichment between `call` and `lookup` steps — without deploying additional services.
 
@@ -67,7 +67,7 @@ The step follows the same contract as existing step types:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| GraalVM polyglot JAR size | High | Medium | Single image, runtime opt-in via `NAFTIKO_SCRIPTING=true`; no runtime cost when disabled |
+| GraalVM polyglot JAR size | High | Medium | Single image; scripting enabled by default in Docker, governed via Control Port; no runtime cost unless YAML uses `script` steps |
 | Script timeout / infinite loop | Medium | High | Statement limit + execution timeout via `ResourceLimits` |
 | Native image compatibility | Medium | Medium | Optional profile; polyglot adds significant binary size |
 
@@ -255,13 +255,13 @@ OperationStepExecutor.executeSteps()
         "language": {
           "type": "string",
           "enum": ["javascript", "python", "groovy"],
-          "description": "GraalVM language identifier for the script engine."
+          "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port — the engine falls back to the default."
         },
         "location": {
           "type": "string",
           "format": "uri",
           "pattern": "^file:///",
-          "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths."
+          "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port — the engine falls back to the default."
         },
         "file": {
           "type": "string",
@@ -281,7 +281,7 @@ OperationStepExecutor.executeSteps()
           "$ref": "#/$defs/WithInjector"
         }
       },
-      "required": ["language", "location", "file"],
+      "required": ["file"],
       "unevaluatedProperties": false
     }
   ]
@@ -290,6 +290,8 @@ OperationStepExecutor.executeSteps()
 
 **Key constraints:**
 - `location` points to a **directory** (not a file) — same convention as `ExposedSkill.location`
+- `location` is **optional** when `management.scripting.defaultLocation` is set in the Control Port — the engine falls back to the default; if neither is set, the engine fails with a clear error
+- `language` is **optional** when `management.scripting.defaultLanguage` is set in the Control Port — the engine falls back to the default; if neither is set, the engine fails with a clear error
 - `file` is a **relative path** within that directory — same convention as `SkillTool.instruction`
 - `dependencies` are relative paths within the same `location` directory
 - Path resolution and validation reuse the same `resolveAndValidate()` logic as the Skill adapter (segment allowlist + prefix containment check)
@@ -316,6 +318,159 @@ OperationStepExecutor.executeSteps()
 | `OperationStep.oneOf` | Add `{ "$ref": "#/$defs/OperationStepScript" }` |
 
 No changes to `ExposedOperation`, `McpTool`, `AggregateFunction`, or any other definition — they already accept `OperationStep` via `steps`, which gains the new variant automatically.
+
+### Spectral Rules — `naftiko-script-defaults-required`
+
+Since `location` and `language` are optional in the schema (they can be inherited from `management.scripting.defaultLocation` and `management.scripting.defaultLanguage`), a Spectral rule enforces that every `script` step has a resolvable location and language at lint time.
+
+#### Rule definition (`naftiko-rules.yml`)
+
+```yaml
+naftiko-script-defaults-required:
+  message: >-
+    {{error}}
+  description: >
+    Every script step must have a resolvable scripts directory and language.
+    When a step omits 'location' or 'language', the engine falls back to
+    'management.scripting.defaultLocation' or 'management.scripting.defaultLanguage'
+    on the control adapter. If neither is set, the capability will fail at load time.
+    This rule catches the misconfiguration at lint time.
+  severity: error
+  recommended: true
+  given: "$"
+  then:
+    function: script-defaults-required
+```
+
+#### Custom function (`functions/script-defaults-required.js`)
+
+```javascript
+export default function scriptDefaultsRequired(targetVal) {
+  if (!targetVal || typeof targetVal !== "object") return;
+
+  const capability =
+    targetVal.capability && typeof targetVal.capability === "object"
+      ? targetVal.capability
+      : {};
+
+  // Check if a control adapter defines defaults
+  const exposes = Array.isArray(capability.exposes) ? capability.exposes : [];
+  let hasDefaultLocation = false;
+  let hasDefaultLanguage = false;
+  for (const adapter of exposes) {
+    if (
+      adapter &&
+      adapter.type === "control" &&
+      adapter.management &&
+      adapter.management.scripting
+    ) {
+      const scripting = adapter.management.scripting;
+      if (typeof scripting.defaultLocation === "string") hasDefaultLocation = true;
+      if (typeof scripting.defaultLanguage === "string") hasDefaultLanguage = true;
+      break;
+    }
+  }
+
+  // If both defaults are set, all steps are covered — nothing to check
+  if (hasDefaultLocation && hasDefaultLanguage) return;
+
+  const results = [];
+
+  // Collect all script steps from all step-bearing contexts
+  const stepSources = [];
+
+  // MCP tools
+  for (let e = 0; e < exposes.length; e++) {
+    const adapter = exposes[e];
+    if (!adapter) continue;
+    if (adapter.type === "mcp" && Array.isArray(adapter.tools)) {
+      for (let t = 0; t < adapter.tools.length; t++) {
+        const tool = adapter.tools[t];
+        if (Array.isArray(tool.steps)) {
+          for (let s = 0; s < tool.steps.length; s++) {
+            stepSources.push({
+              step: tool.steps[s],
+              path: ["capability", "exposes", e, "tools", t, "steps", s],
+            });
+          }
+        }
+      }
+    }
+    // REST operations
+    if (adapter.type === "rest" && Array.isArray(adapter.resources)) {
+      for (let r = 0; r < adapter.resources.length; r++) {
+        const resource = adapter.resources[r];
+        if (Array.isArray(resource.operations)) {
+          for (let o = 0; o < resource.operations.length; o++) {
+            const op = resource.operations[o];
+            if (Array.isArray(op.steps)) {
+              for (let s = 0; s < op.steps.length; s++) {
+                stepSources.push({
+                  step: op.steps[s],
+                  path: [
+                    "capability", "exposes", e,
+                    "resources", r, "operations", o, "steps", s,
+                  ],
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Aggregate functions
+  const aggregates = Array.isArray(capability.aggregates)
+    ? capability.aggregates
+    : [];
+  for (let a = 0; a < aggregates.length; a++) {
+    const agg = aggregates[a];
+    const functions = Array.isArray(agg.functions) ? agg.functions : [];
+    for (let f = 0; f < functions.length; f++) {
+      const fn = functions[f];
+      if (Array.isArray(fn.steps)) {
+        for (let s = 0; s < fn.steps.length; s++) {
+          stepSources.push({
+            step: fn.steps[s],
+            path: ["capability", "aggregates", a, "functions", f, "steps", s],
+          });
+        }
+      }
+    }
+  }
+
+  // Report script steps that omit location or language without defaults
+  for (const { step, path } of stepSources) {
+    if (step && step.type === "script") {
+      if (!step.location && !hasDefaultLocation) {
+        results.push({
+          message:
+            "Script step '" +
+            (step.name || "unnamed") +
+            "' omits 'location' and no 'management.scripting.defaultLocation' " +
+            "is configured. Add 'location' to this step or set a " +
+            "'defaultLocation' on the control adapter.",
+          path: [...path, "location"],
+        });
+      }
+      if (!step.language && !hasDefaultLanguage) {
+        results.push({
+          message:
+            "Script step '" +
+            (step.name || "unnamed") +
+            "' omits 'language' and no 'management.scripting.defaultLanguage' " +
+            "is configured. Add 'language' to this step or set a " +
+            "'defaultLanguage' on the control adapter.",
+          path: [...path, "language"],
+        });
+      }
+    }
+  }
+
+  return results;
+}
+```
 
 ---
 
@@ -760,6 +915,162 @@ steps:
 
 Both capabilities resolve `active-members.js` and `lib/array-utils.js` from the same `/app/shared-scripts/` directory — write once, reuse across tools.
 
+### Example 11 — Simplified steps with defaults (Phase 3)
+
+When the Control Port sets `defaultLocation` and `defaultLanguage`, script steps no longer need to repeat `location` or `language` on every step. Compare the verbose form (Examples 1–10) with the simplified form below.
+
+Capability YAML:
+```yaml
+naftiko: "1.0.0-alpha2"
+
+info:
+  label: "Order Analytics"
+  description: "Fetches orders, computes totals, and filters low-stock items"
+
+capability:
+  exposes:
+    - type: control
+      address: localhost
+      port: 9090
+      management:
+        health: true
+        scripting:
+          enabled: true
+          defaultLocation: "file:///app/capabilities/scripts"
+          defaultLanguage: javascript
+
+    - type: mcp
+      address: localhost
+      port: 3000
+      namespace: analytics
+      tools:
+        - name: order-summary
+          description: "Computes order totals for a customer"
+          inputParameters:
+            - name: customer-id
+              type: string
+              description: "Customer identifier"
+              required: true
+          steps:
+            - type: call
+              name: get-orders
+              call: shop.list-orders
+              with:
+                customer-id: "{{customer-id}}"
+
+            - type: script
+              name: compute-totals
+              file: "compute-totals.js"
+
+          outputParameters:
+            - name: total-amount
+              type: number
+              mapping: "$.compute-totals.totalAmount"
+            - name: order-count
+              type: number
+              mapping: "$.compute-totals.orderCount"
+
+        - name: low-stock-items
+          description: "Returns items below a stock threshold"
+          inputParameters:
+            - name: min-stock
+              type: number
+              description: "Minimum stock threshold"
+              required: true
+          steps:
+            - type: call
+              name: fetch-items
+              call: inventory.list-items
+
+            - type: script
+              name: filter-low-stock
+              file: "filter-by-threshold.js"
+              with:
+                threshold: "{{min-stock}}"
+
+          outputParameters:
+            - name: items
+              type: array
+              mapping: "$.filter-low-stock"
+
+  consumes:
+    - type: http
+      namespace: shop
+      baseUri: "https://api.shop.example.com"
+      resources:
+        - path: "/customers/{{customer-id}}/orders"
+          name: orders
+          operations:
+            - method: GET
+              name: list-orders
+
+    - type: http
+      namespace: inventory
+      baseUri: "https://api.inventory.example.com"
+      resources:
+        - path: "/items"
+          name: items
+          operations:
+            - method: GET
+              name: list-items
+```
+
+Both script steps (`compute-totals` and `filter-low-stock`) resolve their files from `file:///app/capabilities/scripts` and use `javascript` as their language — set once in the Control Port, inherited by all steps.
+
+### Example 12 — Mixing defaults with explicit overrides
+
+When most scripts share a directory and language but a specific step differs:
+
+```yaml
+capability:
+  exposes:
+    - type: control
+      address: localhost
+      port: 9090
+      management:
+        scripting:
+          enabled: true
+          defaultLocation: "file:///app/capabilities/scripts"
+          defaultLanguage: javascript
+
+    - type: mcp
+      address: localhost
+      port: 3000
+      namespace: reporting
+      tools:
+        - name: activity-report
+          description: "Generates user activity report with shared analytics scripts"
+          inputParameters:
+            - name: user-id
+              type: string
+              required: true
+          steps:
+            - type: call
+              name: fetch-events
+              call: events-api.list-user-events
+              with:
+                user-id: "{{user-id}}"
+
+            # Uses defaults — location and language from Control Port
+            - type: script
+              name: summarize
+              file: "summarize-events.js"
+
+            # Overrides both — different location and language
+            - type: script
+              name: format-report
+              language: groovy
+              location: "file:///app/shared-scripts"
+              file: "format-markdown-report.groovy"
+
+          outputParameters:
+            - name: report
+              type: string
+              mapping: "$.format-report.markdown"
+```
+
+The `summarize` step inherits both `defaultLocation` and `defaultLanguage`; the `format-report` step overrides both because it uses a Groovy script from a shared directory used by other capabilities.
+
 ---
 
 ## Runtime Design
@@ -946,7 +1257,7 @@ This logic should be extracted into a shared utility (e.g., `io.naftiko.engine.u
 
 ### File Resolution Rules
 
-1. **`location` is a `file:///` URI pointing to a directory** — the scripts root, same convention as `ExposedSkill.location`
+1. **`location` is a `file:///` URI pointing to a directory** — the scripts root, same convention as `ExposedSkill.location`. Optional when `management.scripting.defaultLocation` is configured in the Control Port; if neither is set, the engine fails at load time with a descriptive error
 2. **`file` and `dependencies` are relative paths within that directory** — same convention as `SkillTool.instruction`
 3. **Path traversal is rejected** — each segment must match `[a-zA-Z0-9._-]+`, and the resolved absolute path must remain under the `location` root
 4. **Symlinks that escape the root are rejected** — resolved path is canonicalized before validation
@@ -1121,19 +1432,21 @@ Scripting uses a **two-level activation model**:
 
 | Level | Mechanism | Purpose |
 |---|---|---|
-| **Infrastructure** | `NAFTIKO_SCRIPTING=true` env var | Permits scripting in this deployment — the safety gate |
+| **Infrastructure** | `NAFTIKO_SCRIPTING` env var (default: `true` in Docker image) | Permits scripting in this deployment — the safety gate |
 | **Capability** | Presence of `type: script` steps in YAML | Activates scripting for this capability — the intent signal |
 
 Both levels must be satisfied for scripting to execute. No extra YAML flag is needed — the presence of `type: script` steps *is* the declaration of intent.
 
+The Docker image defaults `NAFTIKO_SCRIPTING=true` because the Control Port (Phase 3) provides runtime governance — operators can disable scripting, restrict languages, and tune limits without rebuilding. For deployments that don't use the Control Port, the env var can be set to `false` to disable scripting entirely.
+
 **Docker usage** — no Java or Maven knowledge required:
 
 ```bash
-# Default — scripting not permitted (no runtime overhead)
+# Default — scripting permitted (governed via Control Port when configured)
 docker run naftiko ...
 
-# Permit scripting at infrastructure level
-docker run -e NAFTIKO_SCRIPTING=true naftiko ...
+# Explicitly disable scripting at infrastructure level
+docker run -e NAFTIKO_SCRIPTING=false naftiko ...
 ```
 
 In Docker Compose:
@@ -1143,33 +1456,35 @@ services:
   naftiko:
     image: naftiko
     environment:
-      NAFTIKO_SCRIPTING: "true"
+      # Scripting is enabled by default in the Docker image.
+      # Set to "false" to disable it entirely.
+      NAFTIKO_SCRIPTING: "false"
 ```
 
 ### Activation Matrix
 
 | `NAFTIKO_SCRIPTING` | Capability has `script` steps | Behavior |
 |---|---|---|
-| `false` (default) | No | Normal operation — zero overhead |
-| `false` (default) | Yes | **Fail fast** at capability load time with actionable error |
-| `true` | No | Normal operation — zero overhead (polyglot never loaded) |
-| `true` | Yes | Polyglot initialized on first `script` step execution |
+| `true` (default in Docker) | No | Normal operation — zero overhead (polyglot never loaded) |
+| `true` (default in Docker) | Yes | Polyglot initialized on first `script` step execution |
+| `false` | No | Normal operation — zero overhead |
+| `false` | Yes | **Fail fast** at capability load time with actionable error |
 
 ### Runtime Cost Model
 
 | State | Disk cost | Startup cost | Memory cost |
 |---|---|---|---|
-| Scripting not permitted (`false`) | +49 MB in image | None — polyglot classes never loaded | None |
-| Scripting permitted, no `script` steps in YAML | +49 MB in image | None — no contexts created | None |
+| Scripting permitted (default in Docker), no `script` steps in YAML | +49 MB in image | None — no contexts created | None |
 | Scripting permitted, `script` step executes | +49 MB in image | First polyglot context creation (~200 ms) | ~20 MB per active context (released after step) |
+| Scripting disabled (`NAFTIKO_SCRIPTING=false`) | +49 MB in image | None — polyglot classes never loaded | None |
 
 The key insight: polyglot classes are **lazy-loaded by the JVM**. Setting `NAFTIKO_SCRIPTING=true` alone does not load them. They are only loaded when the engine encounters an actual `type: script` step in a capability and creates a GraalVM `Context`. If a deployment permits scripting but no loaded capability uses script steps, the cost is zero.
 
 ### Fail-Fast Behavior
 
-When `script` steps are present in a capability but `NAFTIKO_SCRIPTING` is not set to `true`, the engine fails fast at capability load time with a clear error message:
+When `script` steps are present in a capability but `NAFTIKO_SCRIPTING` is explicitly set to `false`, the engine fails fast at capability load time with a clear error message:
 
-> Script steps require scripting support. Set the environment variable `NAFTIKO_SCRIPTING=true` to enable it.
+> Script steps require scripting support. Scripting is disabled via NAFTIKO_SCRIPTING=false. Remove the override or set it to `true` to enable it.
 
 The schema always accepts `type: script` — validation is structural. The runtime check happens at engine initialization when the capability is loaded. This keeps the schema stable across deployments and gives a clear, actionable error at the right moment.
 
@@ -1181,7 +1496,7 @@ The schema always accepts `type: script` — validation is structural. The runti
 class ScriptStepExecutor {
 
     private static final boolean SCRIPTING_PERMITTED =
-        "true".equalsIgnoreCase(System.getenv("NAFTIKO_SCRIPTING"));
+        !"false".equalsIgnoreCase(System.getenv("NAFTIKO_SCRIPTING"));
 
     /**
      * Called by the capability loader when a capability containing
@@ -1192,7 +1507,7 @@ class ScriptStepExecutor {
             throw new IllegalStateException(
                 "Script step '" + stepName
                 + "' requires scripting support. "
-                + "Set NAFTIKO_SCRIPTING=true to enable it.");
+                + "Scripting is disabled via NAFTIKO_SCRIPTING=false.");
         }
     }
 
@@ -1324,7 +1639,8 @@ For the native CLI build, polyglot dependencies can be excluded via an optional 
 | 1.7 | Engine | Implement two-level activation: `NAFTIKO_SCRIPTING` env var gate + capability-level detection of `script` steps at load time; fail-fast with clear error when gate is closed |
 | 1.8 | Tests | Deserialization, execution, security, integration tests (JavaScript + Groovy) |
 | 1.9 | Tests | Fail-fast test: verify clear error when scripting is disabled and a `script` step is loaded |
-| 1.10 | Examples | Add example capability YAML to `src/main/resources/schemas/examples/` |
+| 1.10 | Rules | Add `naftiko-script-defaults-required` Spectral rule + `script-defaults-required` custom function |
+| 1.11 | Examples | Add example capability YAML to `src/main/resources/schemas/examples/` |
 
 ### Phase 2 — Python Support
 
@@ -1359,6 +1675,17 @@ Add a `scripting` object to the `ExposesControl.management` definition:
       "type": "boolean",
       "default": false,
       "description": "Runtime toggle to enable or disable script step execution. When false, all script steps fail fast with a descriptive error — same behavior as NAFTIKO_SCRIPTING=false. Overrides the env var when set."
+    },
+    "defaultLocation": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^file:///",
+      "description": "Default scripts directory for all script steps. When set, individual steps can omit 'location' and the engine resolves 'file' and 'dependencies' from this directory. Steps with an explicit 'location' override this default."
+    },
+    "defaultLanguage": {
+      "type": "string",
+      "enum": ["javascript", "python", "groovy"],
+      "description": "Default language for all script steps. When set, individual steps can omit 'language' and the engine uses this default. Steps with an explicit 'language' override this default."
     },
     "timeout": {
       "type": "integer",
@@ -1398,10 +1725,28 @@ capability:
         info: true
         scripting:
           enabled: true
+          defaultLocation: "file:///app/capabilities/scripts"
+          defaultLanguage: javascript
           timeout: 3000
           statementLimit: 50000
           allowedLanguages:
             - javascript
+```
+
+With `defaultLocation` and `defaultLanguage` set, script steps can omit both `location` and `language`:
+
+```yaml
+# location and language inherited from Control Port defaults
+- type: script
+  name: filter-active
+  file: "filter-active.js"
+
+# explicit overrides when a step differs from the defaults
+- type: script
+  name: enrich
+  language: groovy
+  location: "file:///app/other-scripts"
+  file: "enrich.groovy"
 ```
 
 #### Control Port Endpoints
@@ -1416,6 +1761,8 @@ Example `GET /scripting` response:
 ```json
 {
   "enabled": true,
+  "defaultLocation": "file:///app/capabilities/scripts",
+  "defaultLanguage": "javascript",
   "timeout": 3000,
   "statementLimit": 50000,
   "allowedLanguages": ["javascript"],
@@ -1443,7 +1790,7 @@ Phase 3 introduces a third level to the activation model:
 | Priority | Level | Mechanism | Scope |
 |---|---|---|---|
 | 1 (highest) | Control Port | `management.scripting.enabled` in YAML or `PUT /scripting` | Per-capability, runtime-adjustable |
-| 2 | Infrastructure | `NAFTIKO_SCRIPTING=true` env var | Per-container, set at deployment |
+| 2 | Infrastructure | `NAFTIKO_SCRIPTING` env var (default: `true` in Docker) | Per-container, set at deployment |
 | 3 (lowest) | Capability | Presence of `type: script` steps | Per-capability, set at design time |
 
 Resolution logic:
@@ -1453,7 +1800,7 @@ Resolution logic:
 
 This means an operator can:
 - **Enable scripting** via Control Port even if the env var is `false` (emergency unlock)
-- **Disable scripting** via Control Port even if the env var is `true` (emergency kill switch)
+- **Disable scripting** via Control Port even if the env var is `true` (default) — emergency kill switch
 - **Adjust timeout and statement limits** without restarting the container
 - **Restrict languages** to a subset (e.g., allow only `javascript` in production)
 
@@ -1461,24 +1808,31 @@ This means an operator can:
 
 | Task | Component | Description |
 |---|---|---|
-| 3.1 | Schema | Add `scripting` object to `ExposesControl.management` |
+| 3.1 | Schema | Add `scripting` object to `ExposesControl.management` (with `defaultLocation` and `defaultLanguage`) |
 | 3.2 | Spec | Create `ScriptingManagementSpec` class, integrate into `ControlManagementSpec` |
 | 3.3 | Engine | Create `ScriptingResource` for `GET /scripting` and `PUT /scripting` endpoints |
 | 3.4 | Engine | Wire Control Port `scripting.enabled` into `ScriptStepExecutor` activation logic — override env var when present |
 | 3.5 | Engine | Make `timeout` and `statementLimit` configurable via `ScriptingManagementSpec` — pass to `ResourceLimits` and watchdog |
 | 3.6 | Engine | Implement `allowedLanguages` filter — reject script steps with non-permitted languages at load time |
-| 3.7 | Engine | Add execution stats tracking (total executions, errors, average duration) |
-| 3.8 | Tests | Unit tests for `ScriptingResource`, activation precedence, runtime config updates |
-| 3.9 | Tests | Integration test: toggle scripting via `PUT /scripting`, verify behavior change without restart |
+| 3.7 | Engine | Implement `defaultLocation` and `defaultLanguage` fallback — resolve `file`, `dependencies`, and `language` from defaults when step omits them |
+| 3.8 | Engine | Add execution stats tracking (total executions, errors, average duration) |
+| 3.9 | Tests | Unit tests for `ScriptingResource`, activation precedence, runtime config updates |
+| 3.10 | Tests | Integration test: toggle scripting via `PUT /scripting`, verify behavior change without restart |
+| 3.11 | Tests | Integration test: script step without `location` resolves from `defaultLocation` |
+| 3.12 | Tests | Integration test: script step without `language` resolves from `defaultLanguage` |
 
 #### Acceptance Criteria
 
-19. `management.scripting` is accepted in Control Port YAML with `enabled`, `timeout`, `statementLimit`, and `allowedLanguages`.
-20. `GET /scripting` returns current configuration and execution stats.
+19. `management.scripting` is accepted in Control Port YAML with `enabled`, `defaultLocation`, `defaultLanguage`, `timeout`, `statementLimit`, and `allowedLanguages`.
+20. `GET /scripting` returns current configuration (including `defaultLocation` and `defaultLanguage`) and execution stats.
 21. `PUT /scripting` updates configuration at runtime — takes effect on next script execution.
 22. Control Port `scripting.enabled` overrides `NAFTIKO_SCRIPTING` env var when set.
 23. `allowedLanguages` restricts permitted script languages at load time.
 24. `timeout` and `statementLimit` are applied to `ResourceLimits` and watchdog.
+25. When `defaultLocation` is set, script steps without an explicit `location` resolve from it.
+26. When `defaultLocation` is not set and a script step omits `location`, the engine fails with a clear error.
+27. When `defaultLanguage` is set, script steps without an explicit `language` use it.
+28. When `defaultLanguage` is not set and a script step omits `language`, the engine fails with a clear error.
 
 ---
 
@@ -1486,7 +1840,7 @@ This means an operator can:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **GraalVM polyglot JAR size** (~42 MB for JS) | High | Medium | Single image, runtime opt-in via `NAFTIKO_SCRIPTING=true`; JARs on disk but no runtime cost when disabled |
+| **GraalVM polyglot JAR size** (~42 MB for JS) | High | Medium | Single image; scripting enabled by default, governed via Control Port; no runtime cost unless YAML uses `script` steps |
 | **Script timeout not enforced reliably** | Low | High | GraalVM `ResourceLimits` + watchdog thread with `Context.close(true)` |
 | **Python `result` scoping differs from JS** | Medium | Low | Phase 2 handles Python-specific extraction; unit tests validate |
 | **Groovy sandbox limitations** | Medium | Medium | Groovy uses `GroovyShell` with `SecureASTCustomizer` + `CompilerConfiguration` to restrict language features; no host class imports, no I/O classes |
@@ -1510,15 +1864,16 @@ This means an operator can:
 6. Scripts are loaded from external files via `location` (directory) + `file` (relative path).
 7. Dependent scripts (`dependencies`) are pre-evaluated before the main script.
 8. Path traversal in `file` and `dependencies` paths is rejected using the same `resolveAndValidate()` logic as the Skill adapter.
-9. `location` and `file` are both required (schema-enforced).
+9. `file` is required (schema-enforced); `location` and `language` are optional when `defaultLocation` / `defaultLanguage` are configured in the Control Port.
 10. Multiple tools and capabilities can share the same `location` directory for script reuse.
 11. `resolveAndValidate()` is extracted into a shared utility used by both Skill adapter and Script step.
-12. Scripting uses two-level activation: `NAFTIKO_SCRIPTING=true` env var (infrastructure gate) + presence of `type: script` steps in YAML (capability trigger) — single Docker image, zero overhead when either level is inactive.
-13. Capabilities with `script` steps fail fast at load time with a clear, actionable error when `NAFTIKO_SCRIPTING` is not set.
+12. Scripting uses two-level activation: `NAFTIKO_SCRIPTING` env var (default `true` in Docker, infrastructure gate) + presence of `type: script` steps in YAML (capability trigger) — single Docker image, zero overhead when no `script` steps are used.
+13. Capabilities with `script` steps fail fast at load time with a clear, actionable error when `NAFTIKO_SCRIPTING` is set to `false`.
 14. Capabilities without `script` steps never trigger scripting checks or load polyglot classes, regardless of `NAFTIKO_SCRIPTING`.
 14. All existing tests pass — zero regressions.
 15. Deserialization, execution, security, and integration tests all pass.
 16. Spectral lint rules accept `type: script` steps.
+17. Spectral rule `naftiko-script-defaults-required` reports an error when a `script` step omits `location` or `language` and no corresponding default (`management.scripting.defaultLocation` / `management.scripting.defaultLanguage`) is configured.
 
 ### Phase 2
 
