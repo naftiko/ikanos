@@ -221,4 +221,40 @@ public class ScriptingCommandTest {
         assertTrue(output.contains("10000 ms"));
         assertTrue(output.contains("200000"));
     }
+
+    @Test
+    void scriptingSetShouldUpdateAllowedLanguages() {
+        String updatedJson = """
+                {"enabled":true,
+                 "timeout":5000,
+                 "statementLimit":100000,
+                 "allowedLanguages":["javascript","python"],
+                 "stats":{
+                   "totalExecutions":0,
+                   "totalErrors":0,
+                   "averageDurationMs":0.0
+                 }}""";
+
+        final String[] receivedBody = {null};
+        server.createContext("/scripting", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                receivedBody[0] = new String(exchange.getRequestBody().readAllBytes());
+            }
+            byte[] body = updatedJson.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "allowedLanguages=javascript,python");
+
+        assertEquals(0, exitCode);
+        assertNotNull(receivedBody[0]);
+        assertTrue(receivedBody[0].contains("\"allowedLanguages\""));
+        assertTrue(receivedBody[0].contains("\"javascript\""));
+        assertTrue(receivedBody[0].contains("\"python\""));
+    }
 }

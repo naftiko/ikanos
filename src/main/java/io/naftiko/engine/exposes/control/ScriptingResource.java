@@ -105,6 +105,12 @@ public class ScriptingResource extends ServerResource {
             if (update.has("defaultLanguage")) {
                 scripting.setDefaultLanguage(update.get("defaultLanguage").asText());
             }
+            if (update.has("allowedLanguages") && update.get("allowedLanguages").isArray()) {
+                scripting.getAllowedLanguages().clear();
+                for (JsonNode lang : update.get("allowedLanguages")) {
+                    scripting.getAllowedLanguages().add(lang.asText());
+                }
+            }
 
             setStatus(Status.SUCCESS_OK);
             return getScripting();

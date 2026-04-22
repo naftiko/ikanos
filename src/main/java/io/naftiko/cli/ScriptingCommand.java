@@ -15,6 +15,7 @@ package io.naftiko.cli;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -124,6 +125,15 @@ public class ScriptingCommand implements Callable<Integer> {
                 case "timeout" -> body.put(key, Integer.parseInt(value));
                 case "statementLimit" -> body.put(key, Long.parseLong(value));
                 case "defaultLocation", "defaultLanguage" -> body.put(key, value);
+                case "allowedLanguages" -> {
+                    ArrayNode arr = body.putArray(key);
+                    for (String lang : value.split(",")) {
+                        String trimmed = lang.trim();
+                        if (!trimmed.isEmpty()) {
+                            arr.add(trimmed);
+                        }
+                    }
+                }
                 default -> {
                     System.err.println("Error: Unknown scripting field: " + key);
                     return 1;

@@ -216,6 +216,26 @@ public class ScriptingIntegrationTest {
         assertEquals("python", json.get("defaultLanguage").asText());
     }
 
+    @Test
+    public void putScriptingShouldUpdateAllowedLanguages() throws Exception {
+        Request putRequest = new Request(Method.PUT, "/scripting");
+        putRequest.setEntity(
+                new StringRepresentation(
+                        "{\"allowedLanguages\": [\"javascript\", \"python\"]}",
+                        MediaType.APPLICATION_JSON));
+        Response putResponse = new Response(putRequest);
+        adapter.getRouter().handle(putRequest, putResponse);
+
+        assertEquals(Status.SUCCESS_OK, putResponse.getStatus());
+
+        String body = putResponse.getEntity().getText();
+        JsonNode json = JSON_MAPPER.readTree(body);
+        assertTrue(json.has("allowedLanguages"));
+        assertEquals(2, json.get("allowedLanguages").size());
+        assertEquals("javascript", json.get("allowedLanguages").get(0).asText());
+        assertEquals("python", json.get("allowedLanguages").get(1).asText());
+    }
+
     // ── Runtime effect ───────────────────────────────────────────
 
     @Test
