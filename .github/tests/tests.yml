@@ -208,6 +208,21 @@ tests:
   - jq: '.crew[0] | has("fullName")'
   - jq: '.crew[0] | has("role")'
 
+- name: step10-rest-get-ship-with-crew
+  type: rest
+  file: step-10-shipyard-rest-adapter.yml
+  port: 3003
+  method: GET
+  path: /ships/IMO-9321483/crew
+  validations:
+  - jq: 'has("imo")'
+  - jq: 'has("name")'
+  - jq: 'has("crew")'
+  - jq: '.crew | type == "array"'
+  - jq: '.crew | length > 0'
+  - jq: '.crew[0] | has("fullName")'
+  - jq: '.crew[0] | has("role")'
+
 - name: step10-voyage-manifest
   file: step-10-shipyard-fleet-manifest.yml
   port: 3001

@@ -18,9 +18,85 @@ binds:
 capability:
   consumes:
     - import: registry
-      location: ./shared/registry-consumes.yaml
+      location: ./shared/step7-registry-consumes.yml
     - import: legacy
       location: ./shared/legacy-consumes.yaml
+
+  aggregates:
+    - label: "Crew Resolver"
+      namespace: crew-resolver
+      functions:
+        - name: resolve-crew-for-ship
+          description: "Resolve crew member names and roles for a given ship"
+          semantics:
+            safe: true
+            idempotent: true
+            cacheable: true
+          inputParameters:
+            - name: imo
+              type: string
+              required: true
+              description: "IMO number of the ship"
+          steps:
+            - name: get-ship
+              type: call
+              call: registry.get-ship
+              with:
+                imo_number: "{{imo}}"
+            - name: list-crew
+              type: call
+              call: registry.list-crew
+            - name: resolve-crew
+              type: lookup
+              index: list-crew
+              match: crewId
+              lookupValue: "$.get-ship.assignedCrew"
+              outputParameters:
+                - "fullName"
+                - "role"
+          mappings:
+            - targetName: imo
+              value: "$.get-ship.imo_number"
+            - targetName: name
+              value: "$.get-ship.vessel_name"
+            - targetName: type
+              value: "$.get-ship.vessel_type"
+            - targetName: flag
+              value: "$.get-ship.flag_code"
+            - targetName: status
+              value: "$.get-ship.operational_status"
+            - targetName: yearBuilt
+              value: "$.get-ship.year_built"
+            - targetName: tonnage
+              value: "$.get-ship.gross_tonnage"
+            - targetName: length
+              value: "$.get-ship.dimensions.length_overall"
+            - targetName: crew
+              value: "$.resolve-crew"
+          outputParameters:
+            - name: imo
+              type: string
+            - name: name
+              type: string
+            - name: type
+              type: string
+            - name: flag
+              type: string
+            - name: status
+              type: string
+            - name: yearBuilt
+              type: number
+            - name: tonnage
+              type: number
+            - name: length
+              type: number
+            - name: crew
+              type: array
+              items:
+                - name: fullName
+                  type: string
+                - name: role
+                  type: string
 
   exposes:
     - type: mcp
@@ -221,6 +297,9 @@ capability:
                 status:
                   type: string
                   mapping: "$.status"
+        - name: get-ship-with-crew
+          description: "Get ship details with resolved crew names"
+          ref: crew-resolver.resolve-crew-for-ship
 
     - type: skill
       address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
@@ -342,6 +421,17 @@ capability:
                         length:
                           type: number
                           mapping: "$.dimensions.length_overall"
+        - name: ship-crew
+          path: "/ships/{{imo}}/crew"
+          operations:
+            - name: get-ship-with-crew
+              method: GET
+              inputParameters:
+                - name: imo
+                  in: path
+                  type: string
+                  description: "IMO number of the ship"
+              ref: crew-resolver.resolve-crew-for-ship
         - name: legacy-vessels
           path: "/legacy/vessels"
           operations:
