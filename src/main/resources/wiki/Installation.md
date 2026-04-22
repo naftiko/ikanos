@@ -13,12 +13,12 @@ To use Naftiko Framework, you need to install and then run the Naftiko Engine, p
 * Naftiko provides a docker image hosted in GitHub packages platform. It is public, so you can easily pull it locally.
   ```bash
   # {{RELEASE_TAG}}
-  docker pull ghcr.io/naftiko/framework:{{DOCKER_TAG}}
+  docker pull ghcr.io/naftiko/naftiko-framework:{{DOCKER_TAG}}
 
   # If you want to play with the last snapshot
-  docker pull ghcr.io/naftiko/framework:latest
+  docker pull ghcr.io/naftiko/naftiko-framework:latest
   ```
-  Then, you should see the image 'ghcr.io/naftiko/framework' in your Docker Desktop. You can also display local images with this command:
+  Then, you should see the image 'ghcr.io/naftiko/naftiko-framework' in your Docker Desktop. You can also display local images with this command:
   ```bash
   docker image ls
   ```
