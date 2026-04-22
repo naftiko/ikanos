@@ -31,7 +31,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 )
 @JsonSubTypes({
     @JsonSubTypes.Type(value = OperationStepCallSpec.class, name = "call"),
-    @JsonSubTypes.Type(value = OperationStepLookupSpec.class, name = "lookup")
+    @JsonSubTypes.Type(value = OperationStepLookupSpec.class, name = "lookup"),
+    @JsonSubTypes.Type(value = OperationStepScriptSpec.class, name = "script")
 })
 public abstract class OperationStepSpec {
 

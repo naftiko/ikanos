@@ -13,11 +13,8 @@
  */
 package io.naftiko.engine.exposes.skill;
 
-import java.net.URI;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
-import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;
@@ -25,6 +22,7 @@ import org.restlet.resource.ServerResource;
 import org.restlet.service.MetadataService;
 import io.naftiko.engine.telemetry.RestletHeaderGetter;
 import io.naftiko.engine.telemetry.TelemetryBootstrap;
+import io.naftiko.engine.util.SafePathResolver;
 import io.naftiko.spec.exposes.ExposedSkillSpec;
 import io.naftiko.spec.exposes.SkillServerSpec;
 import io.opentelemetry.api.trace.Span;
@@ -39,9 +37,6 @@ import io.opentelemetry.context.Scope;
  * populated by {@link SkillServerAdapter} at construction time.</p>
  */
 abstract class SkillServerResource extends ServerResource {
-
-    /** Allowed characters in a single path segment — no {@code ..}, no special characters. */
-    private static final Pattern SAFE_SEGMENT = Pattern.compile("^[a-zA-Z0-9._-]+$");
 
     private static final MetadataService METADATA_SERVICE = new MetadataService();
 
@@ -119,19 +114,7 @@ abstract class SkillServerResource extends ServerResource {
      * @throws SecurityException if any path segment is unsafe or the resolved path escapes the root
      */
     protected Path resolveAndValidate(String locationUri, String file) {
-        Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
-        Path relPath = Paths.get(file);
-        for (int i = 0; i < relPath.getNameCount(); i++) {
-            String segment = relPath.getName(i).toString();
-            if (!SAFE_SEGMENT.matcher(segment).matches()) {
-                throw new SecurityException("Unsafe path segment in request: " + segment);
-            }
-        }
-        Path resolved = root.resolve(relPath).normalize().toAbsolutePath();
-        if (!resolved.startsWith(root)) {
-            throw new SecurityException("Path traversal attempt detected");
-        }
-        return resolved;
+        return SafePathResolver.resolveAndValidate(locationUri, file);
     }
 
     protected MediaType detectMediaType(String filename) {
