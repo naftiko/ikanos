@@ -20,6 +20,14 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.graalvm.polyglot.Context;
@@ -155,6 +163,12 @@ class ScriptStepExecutor {
             statementLimit = scriptingSpec.getStatementLimit();
         }
 
+        // Resolve timeout from governance (0 = no timeout when governance is not configured)
+        int timeoutMs = 0;
+        if (scriptingSpec != null && scriptingSpec.getTimeout() > 0) {
+            timeoutMs = scriptingSpec.getTimeout();
+        }
+
         String mainSource = readScript(locationUri, file, scriptStep.getName());
 
         Map<String, Object> bindings =
@@ -165,11 +179,12 @@ class ScriptStepExecutor {
         try {
             JsonNode result;
             if ("groovy".equals(language)) {
-                result = executeGroovy(mainSource, bindings, scriptStep, locationUri);
+                result = executeGroovy(mainSource, bindings, scriptStep, locationUri,
+                        timeoutMs);
             } else {
                 String polyglotId = LANGUAGE_ID_MAP.getOrDefault(language, language);
                 result = executePolyglot(polyglotId, mainSource, bindings, scriptStep,
-                        locationUri, statementLimit);
+                        locationUri, statementLimit, timeoutMs);
             }
             return result;
         } catch (Exception e) {
@@ -184,7 +199,7 @@ class ScriptStepExecutor {
 
     private JsonNode executePolyglot(String language, String mainSource,
             Map<String, Object> bindings, OperationStepScriptSpec scriptStep,
-            String locationUri, long statementLimit) {
+            String locationUri, long statementLimit, int timeoutMs) {
 
         boolean isPython = "python".equals(language);
 
@@ -207,30 +222,52 @@ class ScriptStepExecutor {
 
         try (Context context = builder.build()) {
 
-            // Inject bindings
-            String bindingsJson = mapper.writeValueAsString(bindings);
-            if (isPython) {
-                injectPythonBindings(context, language, bindingsJson);
-            } else {
-                context.eval(language, "var context = " + bindingsJson + ";");
+            // Schedule a watchdog that cancels the context after the timeout
+            ScheduledExecutorService watchdog = null;
+            ScheduledFuture<?> timeoutTask = null;
+            if (timeoutMs > 0) {
+                watchdog = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "script-timeout-watchdog");
+                    t.setDaemon(true);
+                    return t;
+                });
+                timeoutTask = watchdog.schedule(() -> context.close(true), timeoutMs,
+                        TimeUnit.MILLISECONDS);
             }
 
-            // Evaluate dependent scripts in order
-            List<String> dependencies = scriptStep.getDependencies();
-            if (dependencies != null) {
-                for (String depPath : dependencies) {
-                    String depSource =
-                            readScript(locationUri, depPath, scriptStep.getName());
-                    context.eval(language, depSource);
+            try {
+                // Inject bindings
+                String bindingsJson = mapper.writeValueAsString(bindings);
+                if (isPython) {
+                    injectPythonBindings(context, language, bindingsJson);
+                } else {
+                    context.eval(language, "var context = " + bindingsJson + ";");
+                }
+
+                // Evaluate dependent scripts in order
+                List<String> dependencies = scriptStep.getDependencies();
+                if (dependencies != null) {
+                    for (String depPath : dependencies) {
+                        String depSource =
+                                readScript(locationUri, depPath, scriptStep.getName());
+                        context.eval(language, depSource);
+                    }
+                }
+
+                // Evaluate main script
+                context.eval(language, mainSource);
+
+                // Extract result
+                Value resultValue = extractPolyglotResult(context, language, isPython);
+                return convertPolyglotValue(resultValue);
+            } finally {
+                if (timeoutTask != null) {
+                    timeoutTask.cancel(false);
+                }
+                if (watchdog != null) {
+                    watchdog.shutdownNow();
                 }
             }
-
-            // Evaluate main script
-            context.eval(language, mainSource);
-
-            // Extract result
-            Value resultValue = extractPolyglotResult(context, language, isPython);
-            return convertPolyglotValue(resultValue);
 
         } catch (PolyglotException e) {
             if (e.isResourceExhausted()) {
@@ -238,6 +275,13 @@ class ScriptStepExecutor {
                         "Script step '" + scriptStep.getName()
                                 + "' exceeded the statement limit ("
                                 + statementLimit + ")",
+                        e);
+            }
+            if (e.isCancelled()) {
+                throw new IllegalArgumentException(
+                        "Script step '" + scriptStep.getName()
+                                + "' exceeded the timeout limit ("
+                                + timeoutMs + " ms)",
                         e);
             }
             throw new IllegalArgumentException(
@@ -288,12 +332,51 @@ class ScriptStepExecutor {
     }
 
     private JsonNode executeGroovy(String mainSource, Map<String, Object> bindings,
-            OperationStepScriptSpec scriptStep, String locationUri) {
+            OperationStepScriptSpec scriptStep, String locationUri, int timeoutMs) {
 
         CompilerConfiguration config = new CompilerConfiguration();
         SecureASTCustomizer secure = new SecureASTCustomizer();
         secure.setDisallowedImports(List.of("java.io.**", "java.nio.**",
                 "java.net.**", "java.lang.Process", "java.lang.Runtime"));
+        secure.setDisallowedStarImports(List.of("java.io.", "java.nio.", "java.net.",
+                "java.lang.reflect.", "javax."));
+        secure.setDisallowedStaticImports(List.of(
+                "java.lang.System.*", "java.lang.Runtime.*",
+                "java.lang.ProcessBuilder.*"));
+        secure.setDisallowedStaticStarImports(List.of(
+                "java.lang.System.", "java.lang.Runtime.",
+                "java.lang.ProcessBuilder.", "java.lang.reflect."));
+        secure.setIndirectImportCheckEnabled(true);
+        secure.setPackageAllowed(false);
+        secure.setMethodDefinitionAllowed(false);
+
+        // Block dangerous receivers — prevents FQN access to System, Runtime, Process,
+        // reflection, classloading, threading, and scripting/compilation APIs.
+        secure.setDisallowedReceivers(List.of(
+                "java.lang.System",
+                "java.lang.Runtime",
+                "java.lang.ProcessBuilder",
+                "java.lang.Process",
+                "java.lang.Thread",
+                "java.lang.ThreadGroup",
+                "java.lang.ClassLoader",
+                "java.lang.reflect.Field",
+                "java.lang.reflect.Method",
+                "java.lang.reflect.Constructor",
+                "java.lang.reflect.Proxy",
+                "java.lang.Class",
+                "groovy.lang.GroovyShell",
+                "groovy.lang.GroovyClassLoader",
+                "groovy.util.Eval",
+                "javax.script.ScriptEngineManager",
+                "org.codehaus.groovy.runtime.InvokerHelper"
+        ));
+
+        // Block dangerous method calls that bypass static receiver checks at runtime:
+        // - execute/execute(String[]): Groovy GDK adds these to String for process execution
+        // - getClass: prevents dynamic reflection access via any object
+        // - forName/getDeclaredMethod/getDeclaredField: Class reflection methods
+        secure.addExpressionCheckers(new GroovySandboxExpressionChecker());
         config.addCompilationCustomizers(secure);
 
         Binding binding = new Binding();
@@ -301,7 +384,28 @@ class ScriptStepExecutor {
 
         GroovyShell shell = new GroovyShell(binding, config);
 
-        // Evaluate dependent scripts in order
+        try {
+            if (timeoutMs > 0) {
+                executeGroovyWithTimeout(shell, mainSource, scriptStep, locationUri, timeoutMs);
+            } else {
+                executeGroovyDirect(shell, mainSource, scriptStep, locationUri);
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception | Error e) {
+            // Groovy's SecureASTCustomizer and compiler may throw Error subtypes
+            // (e.g. GroovyBugError) when sandbox rules reject code at compile time.
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName() + "' failed: " + e.getMessage(), e);
+        }
+
+        // Extract result
+        Object resultValue = binding.getVariable("result");
+        return mapper.convertValue(resultValue, JsonNode.class);
+    }
+
+    private void executeGroovyDirect(GroovyShell shell, String mainSource,
+            OperationStepScriptSpec scriptStep, String locationUri) {
         List<String> dependencies = scriptStep.getDependencies();
         if (dependencies != null) {
             for (String depPath : dependencies) {
@@ -309,13 +413,47 @@ class ScriptStepExecutor {
                 shell.evaluate(depSource);
             }
         }
-
-        // Evaluate main script
         shell.evaluate(mainSource);
+    }
 
-        // Extract result
-        Object resultValue = binding.getVariable("result");
-        return mapper.convertValue(resultValue, JsonNode.class);
+    private void executeGroovyWithTimeout(GroovyShell shell, String mainSource,
+            OperationStepScriptSpec scriptStep, String locationUri, int timeoutMs) {
+
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "groovy-script-executor");
+            t.setDaemon(true);
+            return t;
+        });
+
+        try {
+            Future<?> future = executor.submit(
+                    () -> executeGroovyDirect(shell, mainSource, scriptStep, locationUri));
+
+            future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName()
+                            + "' exceeded the timeout limit ("
+                            + timeoutMs + " ms)",
+                    e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IllegalArgumentException) {
+                throw (IllegalArgumentException) cause;
+            }
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName() + "' failed: "
+                            + (cause != null ? cause.getMessage() : e.getMessage()),
+                    cause != null ? cause : e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName()
+                            + "' was interrupted",
+                    e);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     Map<String, Object> buildBindings(Map<String, Object> runtimeParameters,

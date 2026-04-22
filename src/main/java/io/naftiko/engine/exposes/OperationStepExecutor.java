@@ -299,8 +299,18 @@ public class OperationStepExecutor {
                     ScriptStepExecutor.requireScriptingPermitted(
                             scriptStep.getName(), scriptExecutor.getScriptingSpec());
                     TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
+                    String effectiveScriptLanguage = scriptStep.getLanguage();
+                    if (effectiveScriptLanguage == null
+                            || effectiveScriptLanguage.isBlank()) {
+                        effectiveScriptLanguage =
+                                scriptExecutor.getScriptingSpec().getDefaultLanguage();
+                    }
                     Span stepSpan = scriptTelemetry.startStepScriptSpan(
-                            stepIndex, scriptStep.getFile(), scriptStep.getLanguage());
+                            stepIndex, scriptStep.getFile(),
+                            effectiveScriptLanguage == null
+                                    || effectiveScriptLanguage.isBlank()
+                                            ? "unknown"
+                                            : effectiveScriptLanguage);
                     long scriptStartNanos = System.nanoTime();
                     try (Scope stepScope = stepSpan.makeCurrent()) {
                         JsonNode scriptResult = scriptExecutor.execute(

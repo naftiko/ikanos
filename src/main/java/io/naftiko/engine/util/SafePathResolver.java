@@ -13,7 +13,9 @@
  */
 package io.naftiko.engine.util;
 
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
@@ -44,19 +46,40 @@ public final class SafePathResolver {
      * @throws SecurityException if any path segment is unsafe or the resolved path escapes the root
      */
     public static Path resolveAndValidate(String locationUri, String file) {
-        Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
-        Path relPath = Paths.get(file);
-        for (int i = 0; i < relPath.getNameCount(); i++) {
-            String segment = relPath.getName(i).toString();
-            if (!SAFE_SEGMENT.matcher(segment).matches()) {
-                throw new SecurityException("Unsafe path segment in request: " + segment);
+        try {
+            Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
+            Path realRoot = root.toRealPath();
+            if (!Files.isDirectory(realRoot)) {
+                throw new SecurityException(
+                        "Location root is not a directory: " + locationUri);
             }
+            Path relPath = Paths.get(file);
+            for (int i = 0; i < relPath.getNameCount(); i++) {
+                String segment = relPath.getName(i).toString();
+                if (!SAFE_SEGMENT.matcher(segment).matches()) {
+                    throw new SecurityException(
+                            "Unsafe path segment in request: " + segment);
+                }
+            }
+            Path resolved = realRoot.resolve(relPath).normalize().toAbsolutePath();
+            if (!resolved.startsWith(realRoot)) {
+                throw new SecurityException("Path traversal attempt detected");
+            }
+            if (Files.exists(resolved)) {
+                Path realResolved = resolved.toRealPath();
+                if (!realResolved.startsWith(realRoot)) {
+                    throw new SecurityException(
+                            "Symlink escape detected: resolved path leaves the root directory");
+                }
+                return realResolved;
+            }
+            return resolved;
+        } catch (IOException e) {
+            throw new SecurityException(
+                    "Cannot resolve real path for location '" + locationUri
+                            + "': " + e.getMessage(),
+                    e);
         }
-        Path resolved = root.resolve(relPath).normalize().toAbsolutePath();
-        if (!resolved.startsWith(root)) {
-            throw new SecurityException("Path traversal attempt detected");
-        }
-        return resolved;
     }
 
 }

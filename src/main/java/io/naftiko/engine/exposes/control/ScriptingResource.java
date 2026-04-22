@@ -17,6 +17,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.naftiko.spec.exposes.ScriptingManagementSpec;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import org.restlet.representation.Representation;
@@ -35,6 +38,9 @@ import org.restlet.resource.ServerResource;
 public class ScriptingResource extends ServerResource {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    static final Set<String> SUPPORTED_LANGUAGES =
+            Set.of("javascript", "js", "python", "groovy");
 
     @Get("json")
     public Representation getScripting() {
@@ -105,11 +111,28 @@ public class ScriptingResource extends ServerResource {
             if (update.has("defaultLanguage")) {
                 scripting.setDefaultLanguage(update.get("defaultLanguage").asText());
             }
-            if (update.has("allowedLanguages") && update.get("allowedLanguages").isArray()) {
-                scripting.getAllowedLanguages().clear();
-                for (JsonNode lang : update.get("allowedLanguages")) {
-                    scripting.getAllowedLanguages().add(lang.asText());
+            if (update.has("allowedLanguages")) {
+                JsonNode langNode = update.get("allowedLanguages");
+                if (!langNode.isArray()) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'allowedLanguages' must be an array\"}",
+                            MediaType.APPLICATION_JSON);
                 }
+                List<String> validated = new ArrayList<>();
+                for (JsonNode entry : langNode) {
+                    String lang = entry.asText();
+                    if (!SUPPORTED_LANGUAGES.contains(lang)) {
+                        setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                        return new StringRepresentation(
+                                "{\"error\":\"Unsupported language '" + lang
+                                        + "'. Supported: " + SUPPORTED_LANGUAGES + "\"}",
+                                MediaType.APPLICATION_JSON);
+                    }
+                    validated.add(lang);
+                }
+                scripting.getAllowedLanguages().clear();
+                scripting.getAllowedLanguages().addAll(validated);
             }
 
             setStatus(Status.SUCCESS_OK);

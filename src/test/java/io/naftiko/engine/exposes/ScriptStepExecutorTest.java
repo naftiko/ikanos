@@ -224,6 +224,87 @@ class ScriptStepExecutorTest {
                 executor.execute(step, new HashMap<>(), new StepExecutionContext()));
     }
 
+    @Test
+    void executeShouldDenyGroovySystemExit() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "system-exit", "groovy", scriptsLocationUri, "groovy-system-exit.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyRuntimeExec() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "runtime-exec", "groovy", scriptsLocationUri, "groovy-runtime-exec.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyProcessBuilder() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "process-builder", "groovy", scriptsLocationUri, "groovy-process-builder.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyReflection() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "reflection", "groovy", scriptsLocationUri, "groovy-reflection.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyThreadCreation() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "thread-create", "groovy", scriptsLocationUri, "groovy-thread.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyClassLoader() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "classloader", "groovy", scriptsLocationUri, "groovy-classloader.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyStringExecute() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "string-exec", "groovy", scriptsLocationUri, "groovy-string-execute.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyGetClass() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "get-class", "groovy", scriptsLocationUri, "groovy-getclass.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyDotClassProperty() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "dot-class", "groovy", scriptsLocationUri, "groovy-dot-class.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
     // ── File resolution ──────────────────────────────────────────
 
     @Test
