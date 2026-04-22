@@ -293,4 +293,154 @@ class ScriptStepExecutorTest {
         assertNotNull(bindings.get("step-a"));
     }
 
+    // ── Python execution ─────────────────────────────────────────
+
+    @Test
+    void executeShouldRunPythonAndReturnResult() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "transform", "python", scriptsLocationUri, "simple-transform.py");
+
+        JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
+
+        assertNotNull(result);
+        assertTrue(result.isObject());
+        assertEquals("hello", result.get("greeting").asText());
+        assertEquals(42, result.get("count").asInt());
+        assertTrue(result.get("flag").asBoolean());
+    }
+
+    @Test
+    void executeShouldFilterArrayWithPython() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "filter-active", "python", scriptsLocationUri, "filter-active.py");
+
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
+        members.add(mapper.createObjectNode().put("login", "alice").put("id", 1).put("type", "User"));
+        members.add(mapper.createObjectNode().put("login", "bot-ci").put("id", 2).put("type", "Bot"));
+        members.add(mapper.createObjectNode().put("login", "bob").put("id", 3).put("type", "User"));
+        stepContext.storeStepOutput("list-members", members);
+
+        JsonNode result = executor.execute(step, new HashMap<>(), stepContext);
+
+        assertNotNull(result);
+        assertTrue(result.isArray());
+        assertEquals(2, result.size());
+        assertEquals("alice", result.get(0).get("login").asText());
+        assertEquals("bob", result.get(1).get("login").asText());
+    }
+
+    @Test
+    void executeShouldComputeStatisticsWithPython() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "analyze", "python", scriptsLocationUri, "analyze-readings.py");
+
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
+        readings.add(mapper.createObjectNode().put("temperature", 20.0));
+        readings.add(mapper.createObjectNode().put("temperature", 25.0));
+        readings.add(mapper.createObjectNode().put("temperature", 30.0));
+        stepContext.storeStepOutput("fetch-readings", readings);
+
+        JsonNode result = executor.execute(step, new HashMap<>(), stepContext);
+
+        assertNotNull(result);
+        assertEquals(25.0, result.get("average").asDouble(), 0.001);
+        assertEquals(20.0, result.get("min").asDouble(), 0.001);
+        assertEquals(30.0, result.get("max").asDouble(), 0.001);
+        assertEquals(3, result.get("count").asInt());
+    }
+
+    @Test
+    void executeShouldInjectWithParametersInPython() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "filter-by-threshold", "python", scriptsLocationUri,
+                "filter-by-threshold.py", null,
+                Map.of("threshold", "{{minStock}}"));
+
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode items = mapper.createArrayNode();
+        items.add(mapper.createObjectNode().put("name", "Widget").put("stock", 5));
+        items.add(mapper.createObjectNode().put("name", "Gadget").put("stock", 15));
+        items.add(mapper.createObjectNode().put("name", "Gizmo").put("stock", 3));
+        stepContext.storeStepOutput("fetch-items", items);
+
+        Map<String, Object> runtimeParams = new HashMap<>();
+        runtimeParams.put("minStock", 10);
+
+        JsonNode result = executor.execute(step, runtimeParams, stepContext);
+
+        assertNotNull(result);
+        assertTrue(result.isArray());
+        assertEquals(2, result.size());
+        assertEquals("Widget", result.get(0).get("name").asText());
+        assertEquals("Gizmo", result.get(1).get("name").asText());
+    }
+
+    @Test
+    void executeShouldReturnNullWhenPythonResultNotAssigned() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "no-result", "python", scriptsLocationUri, "no-result.py");
+
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        stepContext.storeStepOutput("some-step",
+                mapper.createObjectNode().put("key", "value"));
+
+        JsonNode result = executor.execute(step, new HashMap<>(), stepContext);
+
+        assertTrue(result == null || result.isNull());
+    }
+
+    // ── Python dependencies ──────────────────────────────────────
+
+    @Test
+    void executeShouldPreEvaluatePythonDependencies() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "analyze-with-deps", "python", scriptsLocationUri,
+                "analyze-with-deps.py", List.of("lib/stats.py"), null);
+
+        StepExecutionContext stepContext = new StepExecutionContext();
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
+        readings.add(mapper.createObjectNode().put("temperature", 20.0));
+        readings.add(mapper.createObjectNode().put("temperature", 25.0));
+        readings.add(mapper.createObjectNode().put("temperature", 30.0));
+        stepContext.storeStepOutput("fetch-readings", readings);
+
+        JsonNode result = executor.execute(step, new HashMap<>(), stepContext);
+
+        assertNotNull(result);
+        assertEquals(25.0, result.get("average").asDouble(), 0.001);
+        assertEquals(3, result.get("count").asInt());
+    }
+
+    // ── Python security ──────────────────────────────────────────
+
+    @Test
+    void executeShouldDenyHostAccessInPython() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "host-access", "python", scriptsLocationUri, "host-access.py");
+
+        assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldEnforceStatementLimitInPython() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "infinite", "python", scriptsLocationUri, "infinite-loop.py");
+
+        assertThrows(IllegalArgumentException.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
 }

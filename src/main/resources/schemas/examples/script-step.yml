@@ -2,13 +2,14 @@
 ---
 naftiko: "1.0.0-alpha2"
 info:
-  label: "Active Users Report (Script Step)"
+  label: "Script Step Examples"
   description: >
-    Demonstrates the script step feature. Fetches organization members from
-    GitHub and uses a JavaScript script step to filter active users.
+    Demonstrates the script step feature with JavaScript and Python.
+    Fetches data from APIs and uses script steps for data transformation.
   tags:
     - Script
     - JavaScript
+    - Python
     - Example
   created: "2026-04-21"
   modified: "2026-04-21"
@@ -53,6 +54,44 @@ capability:
                 - name: id
                   type: number
 
+        - name: readings-summary
+          description: "Analyzes sensor readings and returns statistics"
+          inputParameters:
+            - name: device-id
+              type: string
+              description: "Sensor device identifier"
+              required: true
+          steps:
+            - type: call
+              name: fetch-readings
+              call: sensors.get-readings
+              with:
+                device-id: "{{device-id}}"
+
+            - type: script
+              name: analyze
+              language: python
+              location: "file:///app/capabilities/scripts"
+              file: "analyze-readings.py"
+          mappings:
+            - targetName: average
+              value: "$.analyze.average"
+            - targetName: min
+              value: "$.analyze.min"
+            - targetName: max
+              value: "$.analyze.max"
+            - targetName: count
+              value: "$.analyze.count"
+          outputParameters:
+            - name: average
+              type: number
+            - name: min
+              type: number
+            - name: max
+              type: number
+            - name: count
+              type: number
+
   consumes:
     - type: http
       namespace: github
@@ -63,3 +102,13 @@ capability:
           operations:
             - method: GET
               name: list-org-members
+
+    - type: http
+      namespace: sensors
+      baseUri: "https://api.sensors.example.com"
+      resources:
+        - path: "/devices/{{device-id}}/readings"
+          name: readings
+          operations:
+            - method: GET
+              name: get-readings

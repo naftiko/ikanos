@@ -285,6 +285,14 @@
             <version>${groovy.version}</version>
         </dependency>
 
+        <!-- Python language (Truffle-based) -->
+        <dependency>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>python</artifactId>
+            <version>${graalvm.polyglot.version}</version>
+            <type>pom</type>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

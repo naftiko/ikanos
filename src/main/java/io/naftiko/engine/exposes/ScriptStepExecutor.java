@@ -48,9 +48,9 @@ import io.naftiko.spec.exposes.OperationStepScriptSpec;
 /**
  * Executor for script operation steps.
  *
- * <p>Executes JavaScript scripts in a sandboxed GraalVM polyglot context and Groovy scripts via
- * {@link GroovyShell} with AST security restrictions. Scripts are loaded from external files
- * referenced by a {@code file:///} URI directory and a relative file path.</p>
+ * <p>Executes JavaScript and Python scripts in a sandboxed GraalVM polyglot context and Groovy
+ * scripts via {@link GroovyShell} with AST security restrictions. Scripts are loaded from external
+ * files referenced by a {@code file:///} URI directory and a relative file path.</p>
  *
  * <p>The executor injects previous step outputs and runtime parameters into the script context as
  * a {@code context} binding. The script must assign its output to a {@code result} variable.</p>
@@ -121,8 +121,9 @@ class ScriptStepExecutor {
             Map<String, Object> bindings, OperationStepScriptSpec scriptStep) {
 
         String locationUri = scriptStep.getLocation();
+        boolean isPython = "python".equals(language);
 
-        try (Context context = Context.newBuilder(language)
+        Context.Builder builder = Context.newBuilder(language)
                 .allowAllAccess(false)
                 .allowHostAccess(HostAccess.NONE)
                 .allowIO(IOAccess.NONE)
@@ -133,12 +134,21 @@ class ScriptStepExecutor {
                 .option("engine.WarnInterpreterOnly", "false")
                 .resourceLimits(ResourceLimits.newBuilder()
                         .statementLimit(DEFAULT_STATEMENT_LIMIT, null)
-                        .build())
-                .build()) {
+                        .build());
 
-            // Inject bindings as a JavaScript object via JSON round-trip
+        if (isPython) {
+            builder.option("python.ForceImportSite", "false");
+        }
+
+        try (Context context = builder.build()) {
+
+            // Inject bindings
             String bindingsJson = mapper.writeValueAsString(bindings);
-            context.eval(language, "var context = " + bindingsJson + ";");
+            if (isPython) {
+                injectPythonBindings(context, language, bindingsJson);
+            } else {
+                context.eval(language, "var context = " + bindingsJson + ";");
+            }
 
             // Evaluate dependent scripts in order
             List<String> dependencies = scriptStep.getDependencies();
@@ -154,7 +164,7 @@ class ScriptStepExecutor {
             context.eval(language, mainSource);
 
             // Extract result
-            Value resultValue = context.getBindings(language).getMember("result");
+            Value resultValue = extractPolyglotResult(context, language, isPython);
             return convertPolyglotValue(resultValue);
 
         } catch (PolyglotException e) {
@@ -172,7 +182,44 @@ class ScriptStepExecutor {
                     "Script step '" + scriptStep.getName()
                             + "' failed to serialize bindings: " + e.getMessage(),
                     e);
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                throw e;
+            }
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName() + "' failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Injects bindings into a Python context. Python cannot parse JSON literals as native syntax,
+     * so the JSON string is passed as a binding variable and parsed via {@code json.loads()}.
+     */
+    private void injectPythonBindings(Context context, String language, String bindingsJson) {
+        context.getBindings(language).putMember("__ctx_json", bindingsJson);
+        context.eval(language, "import json as __json\n"
+                + "context = __json.loads(__ctx_json)\n"
+                + "del __ctx_json\n"
+                + "del __json");
+    }
+
+    /**
+     * Extracts the {@code result} variable from the polyglot context. Python uses different scoping
+     * — module-level variables are not exposed via {@code getBindings()}, so we evaluate
+     * {@code result} as an expression instead.
+     */
+    private Value extractPolyglotResult(Context context, String language, boolean isPython) {
+        if (isPython) {
+            try {
+                return context.eval(language, "result");
+            } catch (PolyglotException e) {
+                if (e.isGuestException()) {
+                    return null;
+                }
+                throw e;
+            }
+        }
+        return context.getBindings(language).getMember("result");
     }
 
     private JsonNode executeGroovy(String mainSource, Map<String, Object> bindings,
@@ -276,6 +323,15 @@ class ScriptStepExecutor {
                 array.add(convertPolyglotValue(value.getArrayElement(i)));
             }
             return array;
+        }
+        if (value.hasHashEntries()) {
+            ObjectNode obj = mapper.createObjectNode();
+            Value iterator = value.getHashKeysIterator();
+            while (iterator.hasIteratorNextElement()) {
+                Value key = iterator.getIteratorNextElement();
+                obj.set(key.asString(), convertPolyglotValue(value.getHashValue(key)));
+            }
+            return obj;
         }
         if (value.hasMembers()) {
             ObjectNode obj = mapper.createObjectNode();
