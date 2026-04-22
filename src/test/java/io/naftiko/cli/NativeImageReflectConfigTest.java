@@ -77,7 +77,8 @@ public class NativeImageReflectConfigTest {
                 "io.naftiko.spec.consumes.ApiKeyAuthenticationSpec",
                 "io.naftiko.spec.consumes.BearerAuthenticationSpec",
                 "io.naftiko.spec.consumes.BasicAuthenticationSpec",
-                "io.naftiko.spec.consumes.DigestAuthenticationSpec");
+                "io.naftiko.spec.consumes.DigestAuthenticationSpec",
+                "io.naftiko.spec.consumes.OAuth2AuthenticationSpec");
 
         List<String> missing = requiredClasses.stream()
                 .filter(c -> !registeredClasses.contains(c))

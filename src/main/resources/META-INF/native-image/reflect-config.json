@@ -633,6 +633,12 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.naftiko.spec.consumes.OAuth2AuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
     "name": "io.naftiko.spec.InputParameterSerializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
