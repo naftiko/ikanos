@@ -936,9 +936,32 @@ Toggles individual control port management endpoint groups. Does not include OTe
 | **reload** | `boolean` | Enable `POST /config/reload`. Default: `false`. |
 | **validate** | `boolean` | Enable `POST /config/validate` (dry-run validation). Default: `false`. |
 | **logs** | `boolean` or `ControlLogsEndpointSpec` | Configure `/logs` endpoints. Accepts `true` (enable all with defaults), `false`/omitted (disable all), or an object for advanced configuration. Default: `false`. |
+| **scripting** | `ScriptingManagementSpec` | Configure scripting governance: defaults, timeouts, statement limits, and allowed languages for inline script steps. Enables the `/scripting` endpoint. |
 
 **Rules:**
 
+- No additional properties are allowed.
+
+#### ScriptingManagementSpec Object
+
+Governs inline script step execution. When present on the control adapter, the `/scripting` GET/PUT endpoint is activated for runtime management.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **enabled** | `boolean` | Enable or disable all script step execution. Default: `true`. |
+| **defaultLocation** | `string` | Default `file:///` URI for script files. Used when a script step omits `location`. MUST match pattern `^file:///`. |
+| **defaultLanguage** | `string` | Default language identifier. One of: `"javascript"`, `"python"`, `"groovy"`. Used when a script step omits `language`. |
+| **timeout** | `integer` | Maximum script execution time in milliseconds. Default: `5000`. |
+| **statementLimit** | `integer` | Maximum number of statements per script execution. Default: `100000`. |
+| **allowedLanguages** | `string[]` | Restrict which languages script steps may use. Each entry must be one of `"javascript"`, `"python"`, `"groovy"`. If omitted, all three languages are allowed. |
+
+**Rules:**
+
+- All fields are optional.
+- `defaultLocation` MUST be a `file:///` URI when present.
+- `allowedLanguages` entries MUST be valid language identifiers.
 - No additional properties are allowed.
 
 #### ControlLogsEndpointSpec Object
@@ -1771,9 +1794,9 @@ Example, if you consider the following JSON response :
 
 ### 3.13 OperationStep Object
 
-Describes a single step in an orchestrated operation. `OperationStep` is a `oneOf` between two subtypes: **OperationStepCall** and **OperationStepLookup**, both sharing a common **OperationStepBase**.
+Describes a single step in an orchestrated operation. `OperationStep` is a `oneOf` between three subtypes: **OperationStepCall**, **OperationStepLookup**, and **OperationStepScript**, all sharing a common **OperationStepBase**.
 
-> Update (schema v0.5): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
+> Update (schema v0.5): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"`, `"lookup"`, or `"script"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
 > 
 
 #### 3.13.1 OperationStepBase (shared fields)
@@ -1782,7 +1805,7 @@ All operation steps share these base fields:
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **type** | `string` | **REQUIRED**. Step type discriminator. One of: `"call"`, `"lookup"`. |
+| **type** | `string` | **REQUIRED**. Step type discriminator. One of: `"call"`, `"lookup"`, `"script"`. |
 | **name** | `string` | **REQUIRED**. Technical name for the step (pattern `^[a-zA-Z0-9-]+$`). Used as namespace for referencing step outputs in mappings and expressions. |
 
 #### 3.13.2 OperationStepCall
@@ -1829,7 +1852,33 @@ Performs a lookup against the output of a previous call step, matching values an
 - The `index` value MUST reference the `name` of a previous `call` step in the same orchestration.
 - No additional properties are allowed.
 
-#### 3.13.4 Call Reference Resolution
+#### 3.13.4 OperationStepScript
+
+Executes a sandboxed script file to transform, filter, or aggregate data between API calls. Supports JavaScript, Python, and Groovy.
+
+**Fixed Fields** (in addition to base):
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"script"`. |
+| **name** | `string` | **REQUIRED**. Step name (from base). |
+| **language** | `string` | GraalVM language identifier. One of: `"javascript"`, `"python"`, `"groovy"`. Optional when `management.scripting.defaultLanguage` is set on the Control Port. |
+| **location** | `string` | `file:///` URI pointing to the scripts directory. Optional when `management.scripting.defaultLocation` is set on the Control Port. MUST match pattern `^file:///`. |
+| **file** | `string` | **REQUIRED**. Relative path to the main script file within the `location` directory. The script must assign to the `result` variable to produce output. Path segments must match `[a-zA-Z0-9._-]+`. |
+| **dependencies** | `string[]` | Relative paths to dependent script files within the `location` directory, pre-evaluated in order before the main script. Each can define helper functions, constants, or shared logic. Minimum 1 entry if present. |
+| **with** | `WithInjector` | Parameter injection — keys are bound as script variables alongside previous step results. |
+
+**Rules:**
+
+- `type`, `name`, and `file` are mandatory.
+- `language` is optional only when `management.scripting.defaultLanguage` is configured on the Control Port; otherwise it is effectively required at runtime.
+- `location` is optional only when `management.scripting.defaultLocation` is configured on the Control Port; otherwise it is effectively required at runtime.
+- The Spectral rule `naftiko-script-defaults-required` validates that omitted `language`/`location` fields have corresponding Control Port defaults.
+- Previous step results are bound as variables using the step name (camelCased).
+- The script MUST assign to the `result` variable to produce output.
+- No additional properties are allowed.
+
+#### 3.13.5 Call Reference Resolution
 
 The `call` value on an `OperationStepCall` is resolved as follows:
 
@@ -1838,7 +1887,7 @@ The `call` value on an `OperationStepCall` is resolved as follows:
 3. Within that consumes entry's resources, find the operation with matching `name` field
 4. Execute that operation as part of the orchestration sequence
 
-#### 3.13.5 OperationStep Object Examples
+#### 3.13.6 OperationStep Object Examples
 
 **Call step with parameter injection:**
 
@@ -1888,6 +1937,39 @@ steps:
     call: slack.post-message
     with:
       text: sample.title
+```
+
+**Script step (transform data with JavaScript):**
+
+```yaml
+steps:
+  - type: call
+    name: fetch-readings
+    call: sensors.get-readings
+    with:
+      device-id: "{{device-id}}"
+  - type: script
+    name: analyze
+    language: javascript
+    location: "file:///app/capabilities/scripts"
+    file: "analyze-readings.js"
+    dependencies:
+      - "lib/math-utils.js"
+```
+
+**Script step with Control Port defaults (language and location omitted):**
+
+```yaml
+# Requires management.scripting.defaultLanguage and defaultLocation on the Control Port
+steps:
+  - type: call
+    name: list-members
+    call: github.list-org-members
+    with:
+      org: "{{org}}"
+  - type: script
+    name: filter-active
+    file: "filter-active.js"
 ```
 
 ---

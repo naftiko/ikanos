@@ -13,6 +13,7 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, **TSV**, **PSV**, **Avro**, **HTML**, and **Markdown** payloads into JSON |
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
 | Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
+| Inline Scripting | Embed **JavaScript**, **Python**, or **Groovy** transformations between API calls with sandboxed execution |
 | Domain-Driven Aggregates | Define reusable domain functions once, expose via multiple adapters — inspired by **DDD** Aggregate pattern |
 | Server Authentication | Secure exposed endpoints with **Bearer**, **API Key**, **Basic**, **Digest**, or **OAuth 2.1** authentication out of the box |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |

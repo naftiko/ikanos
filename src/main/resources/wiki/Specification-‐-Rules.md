@@ -219,6 +219,18 @@ These rules validate the control adapter configuration for safety and consistenc
 
 ---
 
+### 5. Scripting
+
+These rules validate inline script step configuration for completeness.
+
+#### `naftiko-script-defaults-required`
+
+- Severity: `error`
+- Scope: `capability.exposes` (cross-object: script steps + control adapter)
+- Purpose: script steps that omit `language` or `location` MUST have corresponding defaults (`management.scripting.defaultLanguage`, `management.scripting.defaultLocation`) configured on the Control Port. Without defaults, the engine cannot determine the script language or file location at runtime. This rule uses a custom function (`script-defaults-required.js`) that inspects all script steps across all adapters and validates against the control adapter's scripting configuration.
+
+---
+
 ## Rule Lineage Table
 
 | Naftiko Rule | Severity | Inspired By |
@@ -239,6 +251,7 @@ These rules validate the control adapter configuration for safety and consistenc
 | `naftiko-baseuri-not-example` | warn | `oas2-host-not-example`, `oas3-server-not-example.com` |
 | `naftiko-control-port-singleton-and-unique` | error | — (Naftiko-specific) |
 | `naftiko-control-address-localhost-warning` | warn | — (Naftiko-specific) |
+| `naftiko-script-defaults-required` | error | — (Naftiko-specific) |
 
 ---
 

@@ -267,3 +267,29 @@ How Naftiko achieves this technically:
 - [x] Spec-driven configuration — no code required
   - [x] Control port address, port, and authentication
   - [x] Per-endpoint enable/disable toggles
+
+## 12. Transform data between API calls
+
+Reshape, filter, or aggregate data between consumed API calls using inline script steps — without building a separate microservice or writing Java code.
+
+How Naftiko achieves this technically:
+- Add `type: script` steps in orchestrated operations to transform data between `call` steps using JavaScript, Python, or Groovy.
+- Scripts run in sandboxed environments (GraalVM for JS/Python, SecureASTCustomizer for Groovy) with no filesystem or network access.
+- Previous step results are bound as variables; scripts assign to `result` to produce output for subsequent steps or mappings.
+- Govern execution centrally via the Control Port's `management.scripting` block — set defaults, timeouts, statement limits, and allowed languages.
+
+#### Key features
+- [x] Inline script steps in orchestrated operations
+  - [x] JavaScript execution via GraalVM Truffle
+  - [x] Python execution via GraalVM Truffle
+  - [x] Groovy execution via GroovyShell
+  - [x] Script dependencies (shared helpers, libraries)
+  - [x] `with` injection for input parameter binding
+- [x] Security and governance
+  - [x] Sandboxed execution — no I/O, no network, no system access
+  - [x] Configurable statement limits and timeouts
+  - [x] Allowed languages restriction
+  - [x] Control Port `/scripting` endpoint for runtime management
+  - [x] CLI `naftiko scripting` command for governance
+- [x] Linting support
+  - [x] Spectral rule `naftiko-script-defaults-required` validates Control Port defaults

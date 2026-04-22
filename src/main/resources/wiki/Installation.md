@@ -174,3 +174,21 @@ If the capability has multiple REST adapters, use `--adapter` (or `-a`) to selec
 naftiko export openapi capability.yaml -a public-api
 ```
 When `--adapter` is omitted, the first REST adapter found is exported.
+
+### Manage scripting governance
+Query and update the scripting governance configuration on a running capability's Control Port:
+```bash
+# Display current scripting config and execution stats
+naftiko scripting
+
+# Update a scripting setting at runtime
+naftiko scripting --set timeout=5000
+
+# Disable scripting
+naftiko scripting --set enabled=false
+
+# Restrict allowed languages
+naftiko scripting --set allowedLanguages=javascript,python
+```
+
+> **Note:** Requires a running Control Port with `management.scripting` configured in the capability. The CLI connects to the control port address and port defined in the capability.

@@ -206,6 +206,7 @@ Catches semantic and style issues such as:
 | **URL hygiene** | Trailing slashes on `baseUri`, query strings in `path` fields |
 | **Quality** | Missing `description` on consumes entries, REST resources, or operations |
 | **Security** | `<script>` tags or `eval(` in description fields |
+| **Scripting** | Script steps missing `language`/`location` without Control Port defaults (`naftiko-script-defaults-required`) |
 
 For the full list, see the [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules) page.
 

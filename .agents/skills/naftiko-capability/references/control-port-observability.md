@@ -76,6 +76,7 @@ capability:
 | `POST /config/validate` | `management.validate` | Disabled | No |
 | `/logs` | `management.logs` (or `management.logs.level-control`) | Disabled | No |
 | `/logs/stream` | `management.logs.stream` | Disabled | No |
+| `/scripting` | `management.scripting` | Disabled | No |
 
 ### Rules
 
@@ -83,6 +84,58 @@ capability:
 - The control port **must not** collide with any business adapter port.
 - Bind `address` to `localhost` (default) for security. Use `0.0.0.0` only
   inside containers where Prometheus/k8s needs to reach the port externally.
+
+## Scripting Governance
+
+The control port can govern inline script step execution via `management.scripting`.
+This allows operators to enable/disable scripting, set defaults, enforce timeouts,
+limit statement counts, and restrict languages — all at runtime.
+
+### Configuration
+
+```yaml
+capability:
+  exposes:
+    - type: control
+      port: 9090
+      management:
+        scripting:
+          enabled: true
+          defaultLocation: "file:///app/capabilities/scripts"
+          defaultLanguage: javascript
+          timeout: 3000
+          statementLimit: 50000
+          allowedLanguages:
+            - javascript
+            - python
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | Enable/disable all script steps |
+| `defaultLocation` | `string (uri)` | — | Fallback `file:///` location for scripts |
+| `defaultLanguage` | `enum` | — | Fallback language (`javascript`, `python`, `groovy`) |
+| `timeout` | `integer` | `5000` | Max execution time in milliseconds |
+| `statementLimit` | `integer` | `100000` | Max statements per execution |
+| `allowedLanguages` | `string[]` | all | Restrict permitted languages |
+
+### REST API
+
+- **GET `/scripting`** — returns current scripting config and execution stats
+  (`totalExecutions`, `totalFailures`, `lastExecutionTime`, `lastFailureTime`).
+- **PUT `/scripting`** — updates scripting config at runtime. Accepts a JSON body
+  with any subset of the fields above.
+
+### CLI
+
+```bash
+naftiko scripting                          # Display current config and stats
+naftiko scripting --set timeout=5000       # Update a setting
+naftiko scripting --set enabled=false      # Disable scripting at runtime
+naftiko scripting --set allowedLanguages=javascript,python  # Restrict languages
+```
+
+Requires a running Control Port with `management.scripting` configured.
 
 ## Observability (OpenTelemetry)
 
@@ -205,4 +258,5 @@ Prometheus scrapes the control port's `/metrics` automatically.
   `naftiko-control-address-localhost-warning`
 - Blueprint: `src/main/resources/blueprints/control-port.md`
 - Blueprint: `src/main/resources/blueprints/opentelemetry-observability.md`
+- Blueprint: `src/main/resources/blueprints/inline-script-step.md`
 - Demo stack: `src/main/resources/demo/observability/`

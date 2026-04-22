@@ -31,6 +31,7 @@ Key spec objects you will work with:
 - **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), Skill (`type: skill`), or Control (`type: control`)
 - **Aggregates** — DDD-inspired domain building blocks; each aggregate groups reusable functions under a namespace. Tools and operations reference functions via `ref`
 - **Observability** — optional OTel configuration on the control adapter: trace sampling, propagation format, OTLP exporter endpoint
+- **Script Steps** — embed JavaScript, Python, or Groovy transformations between API calls using sandboxed GraalVM engines. Scripts read step results via bound variables and produce output through a `result` variable
 - **Binds** — variable injection from file (dev) or runtime (prod)
 - **Namespace** — unique identifier linking exposes to consumes via routing
 
@@ -56,6 +57,7 @@ for *how*.
 | "I want to define a domain function once and expose it via both REST and MCP" | Use `aggregates` with `ref` — read `references/design-guidelines.md` (Aggregate Design Guidelines) |
 | "I want to add health checks, Prometheus metrics, or trace inspection" | Read `references/control-port-observability.md` |
 | "I want to enable OpenTelemetry distributed tracing and RED metrics" | Read `references/control-port-observability.md` |
+| "I want to transform data between API calls using JavaScript, Python, or Groovy" | Read `references/inline-script-step.md` |
 | "I want to prototype a tool or endpoint before the backend exists" or "I want to return static or dynamic mock data" | Read `references/mock-capability.md` |
 | "I want to build a full-featured capability that does all of the above" | Read all stories in order, then use `assets/capability-example.yml` as structural reference |
 | "I have a YAML validation error" | Run `scripts/lint-capability.sh` — see **Lint workflow** below |
@@ -182,3 +184,16 @@ before writing any mock output parameters.
 27. The `observability.exporters.otlp.endpoint` field supports Mustache
     expressions for binds (e.g. `"{{OTEL_ENDPOINT}}"`). Use binds to
     keep exporter URLs environment-specific.
+28. Script steps require a `file` property. `language` and `location` are
+    optional when Control Port defaults are configured via
+    `management.scripting.defaultLanguage` and `management.scripting.defaultLocation`.
+29. Script `dependencies` are pre-evaluated in order before the main script.
+    Shared logic (helpers, constants) goes in dependencies.
+30. The script must assign to the `result` variable to produce output.
+    Previous step results are bound as variables matching step names.
+31. When `management.scripting` is configured on the Control Port,
+    `defaultLanguage` and `defaultLocation` serve as fallbacks — step-level
+    values take precedence.
+32. `allowedLanguages` restricts which languages script steps may use.
+    If omitted, all three languages (`javascript`, `python`, `groovy`) are
+    allowed.

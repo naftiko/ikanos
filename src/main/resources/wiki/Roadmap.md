@@ -22,7 +22,7 @@ The goal of this version is to solidify the MVP to enable common AI integration 
 - [ ] Use named objects for input and output parameters, like for properties, matching the JSON Structure syntax
 - [x] Enhance traceability and debuggability of engine (support Open Telemetry)
 - [x] Provide Control port usable via REST clients, Naftiko CLI
-- [ ] Support inline scripting steps (JavaScript and Python initially)
+- [x] Support inline scripting steps (JavaScript, Python, and Groovy)
 
 ### Packaging
 - [ ] Publish Naftiko JSON Structure
@@ -55,7 +55,6 @@ The goal of this version is to solidify the MVP to enable common AI integration 
 - [ ] Allow reuse of "binds" blocks across capabilities
 - [ ] Add conditional steps, for-each steps, parallel-join
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
-- [ ] Expand inline scripting steps (Ruby and Groovy)
 - [ ] Native integration with [Langchain4j](https://docs.langchain4j.dev/), see [issue #293](https://github.com/naftiko/framework/issues/293)
 
 ## Version 1.0 - First Beta - End of June :blossom:
