@@ -115,7 +115,7 @@ capability:
             status: shipyard-tools.status
           outputParameters:
             - type: array
-              mapping: "$."
+              mapping: "$.vessel"
               items:
                 type: object
                 properties:
@@ -357,7 +357,7 @@ capability:
                 status: shipyard-api.status
               outputParameters:
                 - type: array
-                  mapping: "$."
+                  mapping: "$.vessel"
                   items:
                     type: object
                     properties:
