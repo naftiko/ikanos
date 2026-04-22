@@ -257,4 +257,30 @@ public class ImportOpenApiCommandTest {
         assertTrue(content.contains("create-item"), "Operation name should be converted");
         assertTrue(content.contains("name"), "Body parameter 'name' should be present");
     }
+
+    @Test
+    void importShouldProduceNonEmptyOutputForSwagger20WithRefDefinitions() throws Exception {
+        Path oasFile = Path.of("src/test/resources/openapi/petstore-swagger2-full.json");
+
+        Path output = tempDir.resolve("petstore-full.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        StringWriter errWriter = new StringWriter();
+        cmd.setErr(new PrintWriter(errWriter));
+
+        int exitCode = cmd.execute("import", "openapi", oasFile.toAbsolutePath().toString(),
+                "-o", output.toString());
+
+        assertEquals(0, exitCode, "Import should succeed. Errors: " + errWriter);
+        assertTrue(Files.exists(output), "Output file should be created");
+
+        String content = Files.readString(output);
+        assertFalse(content.isBlank(), "Output should not be blank");
+        assertTrue(content.contains("naftiko:"), "Output should contain naftiko version");
+        assertTrue(content.contains("consumes:"), "Output should contain consumes section");
+        assertTrue(content.contains("swagger-petstore"), "Namespace should be derived from title");
+        assertTrue(content.contains("baseUri:"), "Output should contain baseUri");
+        assertTrue(content.contains("resources:"), "Output should contain resources");
+        assertTrue(content.contains("get-pet-by-id"), "Operation should be kebab-cased");
+    }
 }
