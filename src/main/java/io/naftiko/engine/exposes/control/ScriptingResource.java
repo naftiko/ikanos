@@ -40,7 +40,7 @@ public class ScriptingResource extends ServerResource {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     static final Set<String> SUPPORTED_LANGUAGES =
-            Set.of("javascript", "js", "python", "groovy");
+            Set.of("javascript", "python", "groovy");
 
     @Get("json")
     public Representation getScripting() {
@@ -100,10 +100,38 @@ public class ScriptingResource extends ServerResource {
                 scripting.setEnabled(update.get("enabled").asBoolean());
             }
             if (update.has("timeout")) {
-                scripting.setTimeout(update.get("timeout").asInt());
+                JsonNode timeoutNode = update.get("timeout");
+                if (!timeoutNode.isIntegralNumber()) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'timeout' must be an integer greater than or equal to 1\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                int timeout = timeoutNode.asInt();
+                if (timeout < 1) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'timeout' must be greater than or equal to 1\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                scripting.setTimeout(timeout);
             }
             if (update.has("statementLimit")) {
-                scripting.setStatementLimit(update.get("statementLimit").asLong());
+                JsonNode statementLimitNode = update.get("statementLimit");
+                if (!statementLimitNode.isIntegralNumber()) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'statementLimit' must be an integer greater than or equal to 1\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                long statementLimit = statementLimitNode.asLong();
+                if (statementLimit < 1L) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'statementLimit' must be greater than or equal to 1\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                scripting.setStatementLimit(statementLimit);
             }
             if (update.has("defaultLocation")) {
                 scripting.setDefaultLocation(update.get("defaultLocation").asText());

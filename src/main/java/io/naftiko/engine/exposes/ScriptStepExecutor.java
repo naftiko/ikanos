@@ -72,6 +72,8 @@ class ScriptStepExecutor {
 
     private static final long DEFAULT_STATEMENT_LIMIT = 100_000;
 
+    private static final int DEFAULT_TIMEOUT_MS = 60_000;
+
     private static final Map<String, String> LANGUAGE_ID_MAP = Map.of(
             "javascript", "js",
             "js", "js",
@@ -163,8 +165,9 @@ class ScriptStepExecutor {
             statementLimit = scriptingSpec.getStatementLimit();
         }
 
-        // Resolve timeout from governance (0 = no timeout when governance is not configured)
-        int timeoutMs = 0;
+        // Resolve timeout from governance, falling back to the documented engine default
+        // when governance is not configured or does not provide a positive timeout.
+        int timeoutMs = DEFAULT_TIMEOUT_MS;
         if (scriptingSpec != null && scriptingSpec.getTimeout() > 0) {
             timeoutMs = scriptingSpec.getTimeout();
         }
@@ -348,7 +351,7 @@ class ScriptStepExecutor {
                 "java.lang.ProcessBuilder.", "java.lang.reflect."));
         secure.setIndirectImportCheckEnabled(true);
         secure.setPackageAllowed(false);
-        secure.setMethodDefinitionAllowed(false);
+        secure.setMethodDefinitionAllowed(true);
 
         // Block dangerous receivers — prevents FQN access to System, Runtime, Process,
         // reflection, classloading, threading, and scripting/compilation APIs.
@@ -425,12 +428,13 @@ class ScriptStepExecutor {
             return t;
         });
 
-        try {
-            Future<?> future = executor.submit(
-                    () -> executeGroovyDirect(shell, mainSource, scriptStep, locationUri));
+        Future<?> future = executor.submit(
+                () -> executeGroovyDirect(shell, mainSource, scriptStep, locationUri));
 
+        try {
             future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
+            future.cancel(true);
             throw new IllegalArgumentException(
                     "Script step '" + scriptStep.getName()
                             + "' exceeded the timeout limit ("
