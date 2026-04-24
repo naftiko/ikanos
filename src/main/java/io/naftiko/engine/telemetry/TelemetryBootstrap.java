@@ -134,9 +134,7 @@ public class TelemetryBootstrap {
         DelegatingSpanProcessor spanProcessorSlot = new DelegatingSpanProcessor();
         Map<String, String> specProperties = buildSpecProperties(observabilitySpec);
         var builder = io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk.builder();
-        if (!specProperties.isEmpty()) {
-            builder.addPropertiesSupplier(() -> specProperties);
-        }
+        builder.addPropertiesSupplier(() -> specProperties);
         OpenTelemetry otel = builder
                 .addResourceCustomizer((resource, config) ->
                         resource.merge(io.opentelemetry.sdk.resources.Resource.create(
@@ -156,6 +154,11 @@ public class TelemetryBootstrap {
     static Map<String, String> buildSpecProperties(ObservabilitySpec spec) {
         Map<String, String> props = new HashMap<>();
         if (spec == null) {
+            // No observability spec — default to none to avoid spurious connection errors
+            // to localhost:4317 (e.g. inside Docker). OTel env vars still take precedence.
+            props.put("otel.traces.exporter", "none");
+            props.put("otel.metrics.exporter", "none");
+            props.put("otel.logs.exporter", "none");
             return props;
         }
         if (spec.getTraces() != null) {
@@ -172,11 +175,18 @@ public class TelemetryBootstrap {
                 props.put("otel.propagators", propagators);
             }
         }
-        if (spec.getExporters() != null && spec.getExporters().getOtlp() != null) {
-            String endpoint = spec.getExporters().getOtlp().getEndpoint();
-            if (endpoint != null && !endpoint.isBlank()) {
-                props.put("otel.exporter.otlp.endpoint", endpoint);
-            }
+        boolean hasOtlpEndpoint = spec.getExporters() != null
+                && spec.getExporters().getOtlp() != null
+                && spec.getExporters().getOtlp().getEndpoint() != null
+                && !spec.getExporters().getOtlp().getEndpoint().isBlank();
+        if (hasOtlpEndpoint) {
+            props.put("otel.exporter.otlp.endpoint", spec.getExporters().getOtlp().getEndpoint());
+        } else {
+            // No OTLP endpoint in spec — default to none to avoid spurious connection errors
+            // to localhost:4317 (e.g. inside Docker). OTel env vars still take precedence.
+            props.putIfAbsent("otel.traces.exporter", "none");
+            props.putIfAbsent("otel.metrics.exporter", "none");
+            props.putIfAbsent("otel.logs.exporter", "none");
         }
         return props;
     }

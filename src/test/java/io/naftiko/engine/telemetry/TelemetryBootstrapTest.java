@@ -370,16 +370,20 @@ public class TelemetryBootstrapTest {
     }
 
     @Test
-    void buildSpecPropertiesShouldReturnEmptyMapForNull() {
+    void buildSpecPropertiesShouldDefaultToNoneExportersForNull() {
         Map<String, String> props = TelemetryBootstrap.buildSpecProperties(null);
-        assertTrue(props.isEmpty());
+        assertEquals("none", props.get("otel.traces.exporter"));
+        assertEquals("none", props.get("otel.metrics.exporter"));
+        assertEquals("none", props.get("otel.logs.exporter"));
     }
 
     @Test
-    void buildSpecPropertiesShouldReturnEmptyMapForDefaults() {
+    void buildSpecPropertiesShouldDefaultToNoneExportersWhenNoEndpoint() {
         ObservabilitySpec spec = new ObservabilitySpec();
         Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
-        assertTrue(props.isEmpty());
+        assertEquals("none", props.get("otel.traces.exporter"));
+        assertEquals("none", props.get("otel.metrics.exporter"));
+        assertEquals("none", props.get("otel.logs.exporter"));
     }
 
     @Test
@@ -458,6 +462,10 @@ public class TelemetryBootstrapTest {
         Map<String, String> props = TelemetryBootstrap.buildSpecProperties(spec);
 
         assertFalse(props.containsKey("otel.exporter.otlp.endpoint"));
+        // blank endpoint falls through to none defaults
+        assertEquals("none", props.get("otel.traces.exporter"));
+        assertEquals("none", props.get("otel.metrics.exporter"));
+        assertEquals("none", props.get("otel.logs.exporter"));
     }
 
     @Test
