@@ -257,4 +257,99 @@ public class ScriptingCommandTest {
         assertTrue(receivedBody[0].contains("\"javascript\""));
         assertTrue(receivedBody[0].contains("\"python\""));
     }
+
+    @Test
+    void scriptingShouldReturnOneWhenServerError() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "Internal Server Error".getBytes();
+            exchange.sendResponseHeaders(500, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port));
+
+        assertEquals(1, exitCode);
+        String errOutput = errCapture.toString();
+        assertTrue(errOutput.contains("/scripting returned HTTP 500"));
+    }
+
+    @Test
+    void scriptingSetShouldUpdateDefaultLocationAndLanguage() {
+        String updatedJson = """
+                {"enabled":true,
+                 "defaultLocation":"file:///new/path",
+                 "defaultLanguage":"python",
+                 "timeout":5000,
+                 "statementLimit":100000,
+                 "stats":{
+                   "totalExecutions":0,
+                   "totalErrors":0,
+                   "averageDurationMs":0.0
+                 }}""";
+
+        final String[] receivedBody = {null};
+        server.createContext("/scripting", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                receivedBody[0] = new String(exchange.getRequestBody().readAllBytes());
+            }
+            byte[] body = updatedJson.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "defaultLocation=file:///new/path",
+                "--set", "defaultLanguage=python");
+
+        assertEquals(0, exitCode);
+        assertNotNull(receivedBody[0]);
+        assertTrue(receivedBody[0].contains("\"defaultLocation\""));
+        assertTrue(receivedBody[0].contains("file:///new/path"));
+        assertTrue(receivedBody[0].contains("\"defaultLanguage\""));
+        assertTrue(receivedBody[0].contains("\"python\""));
+    }
+
+    @Test
+    void scriptingSetShouldReturnOneWhenNotConfigured() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "{\"error\":\"Scripting is not configured\"}".getBytes();
+            exchange.sendResponseHeaders(404, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "enabled=true");
+
+        assertEquals(1, exitCode);
+        String errOutput = errCapture.toString();
+        assertTrue(errOutput.contains("Scripting is not configured"));
+    }
+
+    @Test
+    void scriptingSetShouldReturnOneWhenServerError() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "Internal Server Error".getBytes();
+            exchange.sendResponseHeaders(500, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "enabled=true");
+
+        assertEquals(1, exitCode);
+        String errOutput = errCapture.toString();
+        assertTrue(errOutput.contains("/scripting returned HTTP 500"));
+    }
 }
