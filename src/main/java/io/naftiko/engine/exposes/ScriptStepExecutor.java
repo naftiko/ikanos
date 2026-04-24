@@ -74,6 +74,20 @@ class ScriptStepExecutor {
 
     private static final int DEFAULT_TIMEOUT_MS = 60_000;
 
+    static boolean isScriptingPermitted(ScriptingManagementSpec scriptingSpec) {
+        if (scriptingSpec == null || scriptingSpec.getEnabled() == null) {
+            return SCRIPTING_PERMITTED;
+        }
+        return scriptingSpec.getEnabled();
+    }
+
+    static String scriptingDisabledReason(ScriptingManagementSpec scriptingSpec) {
+        if (scriptingSpec != null && scriptingSpec.getEnabled() != null) {
+            return " via management.scripting.enabled=false on the control adapter.";
+        }
+        return " via NAFTIKO_SCRIPTING=false.";
+    }
+
     private static final Map<String, String> LANGUAGE_ID_MAP = Map.of(
             "javascript", "js",
             "js", "js",
@@ -94,19 +108,11 @@ class ScriptStepExecutor {
      */
     static void requireScriptingPermitted(String stepName,
             ScriptingManagementSpec scriptingSpec) {
-        boolean permitted;
-        if (scriptingSpec != null) {
-            permitted = scriptingSpec.isEnabled();
-        } else {
-            permitted = SCRIPTING_PERMITTED;
-        }
-        if (!permitted) {
+        if (!isScriptingPermitted(scriptingSpec)) {
             throw new IllegalStateException(
                     "Script step '" + stepName
                             + "' requires scripting support. Scripting is disabled"
-                            + (scriptingSpec != null
-                                    ? " via management.scripting.enabled=false on the control adapter."
-                                    : " via NAFTIKO_SCRIPTING=false.")
+                            + scriptingDisabledReason(scriptingSpec)
                             + " Enable it to use script steps.");
         }
     }
@@ -141,6 +147,11 @@ class ScriptStepExecutor {
                     "Script step '" + scriptStep.getName()
                             + "' has no 'location'. Set 'location' on the step or configure "
                             + "'management.scripting.defaultLocation' on the control adapter.");
+        }
+        if (file == null || file.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Script step '" + scriptStep.getName()
+                            + "' has no 'file'. Every script step must specify the script file to execute.");
         }
         if (language == null || language.isBlank()) {
             throw new IllegalArgumentException(
@@ -260,9 +271,12 @@ class ScriptStepExecutor {
                 // Evaluate main script
                 context.eval(language, mainSource);
 
-                // Extract result
+                // Extract result — distinguish "no result assigned" from "result = null"
+                if (!isPython && !context.getBindings(language).hasMember("result")) {
+                    return null;
+                }
                 Value resultValue = extractPolyglotResult(context, language, isPython);
-                return convertPolyglotValue(resultValue);
+                return resultValue == null ? null : convertPolyglotValue(resultValue);
             } finally {
                 if (timeoutTask != null) {
                     timeoutTask.cancel(false);
@@ -402,8 +416,13 @@ class ScriptStepExecutor {
                     "Script step '" + scriptStep.getName() + "' failed: " + e.getMessage(), e);
         }
 
-        // Extract result
-        Object resultValue = binding.getVariable("result");
+        // Extract result — return null when script did not assign 'result'
+        Object resultValue = binding.getVariables().containsKey("result")
+                ? binding.getVariable("result")
+                : null;
+        if (resultValue == null) {
+            return null;
+        }
         return mapper.convertValue(resultValue, JsonNode.class);
     }
 

@@ -115,7 +115,7 @@ capability:
 | `enabled` | `boolean` | `true` | Enable/disable all script steps |
 | `defaultLocation` | `string (uri)` | — | Fallback `file:///` location for scripts |
 | `defaultLanguage` | `enum` | — | Fallback language (`javascript`, `python`, `groovy`) |
-| `timeout` | `integer` | `5000` | Max execution time in milliseconds |
+| `timeout` | `integer` | `60000` | Max execution time in milliseconds |
 | `statementLimit` | `integer` | `100000` | Max statements per execution |
 | `allowedLanguages` | `string[]` | all | Restrict permitted languages |
 
@@ -130,7 +130,7 @@ capability:
 
 ```bash
 naftiko scripting                          # Display current config and stats
-naftiko scripting --set timeout=5000       # Update a setting
+naftiko scripting --set timeout=60000      # Update a setting
 naftiko scripting --set enabled=false      # Disable scripting at runtime
 naftiko scripting --set allowedLanguages=javascript,python  # Restrict languages
 ```

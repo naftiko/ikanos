@@ -1141,7 +1141,7 @@ Registered in `OperationStepSpec`:
 class ScriptStepExecutor {
 
     private static final long DEFAULT_STATEMENT_LIMIT = 100_000;
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
 
     JsonNode execute(OperationStepScriptSpec scriptStep,
                      Map<String, Object> runtimeParameters,
@@ -1719,8 +1719,8 @@ Add a `scripting` object to the `ExposesControl.management` definition:
     "timeout": {
       "type": "integer",
       "minimum": 1,
-      "default": 5000,
-      "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (5000 ms)."
+      "default": 60000,
+      "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (60000 ms)."
     },
     "statementLimit": {
       "type": "integer",

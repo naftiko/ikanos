@@ -44,16 +44,21 @@ steps:
     file: "transform.js"
 ```
 
-The script `transform.js` receives the output of the `fetch-data` step as a
-bound variable named `fetchData` (step name camelCased) and must assign its
-output to `result`:
+The script `transform.js` receives previous step outputs through a single
+`context` object. Step names are used as keys exactly as declared, so the
+output of `fetch-data` is available as `context["fetch-data"]`. The script
+must assign its output to `result`:
 
 ```javascript
 // transform.js
+var fetchData = context["fetch-data"];
 var items = fetchData.items;
 var active = items.filter(function(item) { return item.status === "active"; });
 result = { activeCount: active.length, items: active };
 ```
+
+This same binding model applies across supported languages: use `context[...]`
+to read prior step results, and assign the final value to `result`.
 
 ### Full example with dependencies
 
@@ -166,7 +171,7 @@ capability:
 | `enabled` | `boolean` | `true` | Enable/disable all script steps at runtime |
 | `defaultLocation` | `string (uri)` | — | Fallback `file:///` location for scripts |
 | `defaultLanguage` | `enum` | — | Fallback language (`javascript`, `python`, `groovy`) |
-| `timeout` | `integer` | `5000` | Max execution time in milliseconds |
+| `timeout` | `integer` | `60000` | Max execution time in milliseconds |
 | `statementLimit` | `integer` | `100000` | Max statements per execution |
 | `allowedLanguages` | `string[]` | all | Restrict permitted languages |
 
@@ -183,7 +188,7 @@ The CLI also provides access:
 
 ```bash
 naftiko scripting                          # Display current config and stats
-naftiko scripting --set timeout=5000       # Update a setting at runtime
+naftiko scripting --set timeout=60000      # Update a setting at runtime
 naftiko scripting --set enabled=false      # Disable scripting
 ```
 

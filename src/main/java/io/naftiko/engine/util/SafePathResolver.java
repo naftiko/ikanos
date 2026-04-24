@@ -47,7 +47,18 @@ public final class SafePathResolver {
      */
     public static Path resolveAndValidate(String locationUri, String file) {
         try {
-            Path root = Paths.get(URI.create(locationUri)).normalize().toAbsolutePath();
+            URI uri;
+            try {
+                uri = URI.create(locationUri);
+            } catch (IllegalArgumentException e) {
+                throw new SecurityException(
+                        "Invalid location URI: " + locationUri, e);
+            }
+            if (!"file".equals(uri.getScheme())) {
+                throw new SecurityException(
+                        "Location URI must use the file:/// scheme: " + locationUri);
+            }
+            Path root = Paths.get(uri).normalize().toAbsolutePath();
 
             // When the root directory exists, canonicalize via toRealPath() for symlink
             // protection. When it does not exist (e.g. skill location not yet provisioned),

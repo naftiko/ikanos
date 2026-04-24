@@ -953,7 +953,7 @@ Governs inline script step execution. When present on the control adapter, the `
 | **enabled** | `boolean` | Enable or disable all script step execution. Default: `true`. |
 | **defaultLocation** | `string` | Default `file:///` URI for script files. Used when a script step omits `location`. MUST match pattern `^file:///`. |
 | **defaultLanguage** | `string` | Default language identifier. One of: `"javascript"`, `"python"`, `"groovy"`. Used when a script step omits `language`. |
-| **timeout** | `integer` | Maximum script execution time in milliseconds. Default: `5000`. |
+| **timeout** | `integer` | Maximum script execution time in milliseconds. Default: `60000`. |
 | **statementLimit** | `integer` | Maximum number of statements per script execution. Default: `100000`. |
 | **allowedLanguages** | `string[]` | Restrict which languages script steps may use. Each entry must be one of `"javascript"`, `"python"`, `"groovy"`. If omitted, all three languages are allowed. |
 

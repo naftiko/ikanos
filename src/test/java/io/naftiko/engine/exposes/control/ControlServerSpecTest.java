@@ -225,7 +225,7 @@ public class ControlServerSpecTest {
         assertTrue(scripting.isEnabled());
         assertNull(scripting.getDefaultLocation());
         assertNull(scripting.getDefaultLanguage());
-        assertEquals(5000, scripting.getTimeout());
+        assertEquals(60_000, scripting.getTimeout());
         assertEquals(100_000, scripting.getStatementLimit());
         assertTrue(scripting.getAllowedLanguages().isEmpty());
     }

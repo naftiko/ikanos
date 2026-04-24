@@ -24,14 +24,18 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Scripting governance controls exposed via the Control Port.
  *
  * <p>Configures defaults, limits, and runtime toggles for script steps. When present on the
- * control adapter, this spec overrides the {@code NAFTIKO_SCRIPTING} environment variable and
- * provides default {@code location} and {@code language} values for script steps that omit
- * them.</p>
+ * control adapter, this spec provides default {@code location} and {@code language} values for
+ * script steps that omit them.</p>
+ *
+ * <p>The {@code enabled} field is nullable. When {@code null} (omitted in YAML), the engine
+ * falls back to the {@code NAFTIKO_SCRIPTING} environment variable. When explicitly set to
+ * {@code true} or {@code false}, it overrides the environment variable.</p>
  */
 public class ScriptingManagementSpec {
 
     @JsonProperty("enabled")
-    private volatile boolean enabled = true;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile Boolean enabled;
 
     @JsonProperty("defaultLocation")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -42,7 +46,7 @@ public class ScriptingManagementSpec {
     private volatile String defaultLanguage;
 
     @JsonProperty("timeout")
-    private volatile int timeout = 5000;
+    private volatile int timeout = 60_000;
 
     @JsonProperty("statementLimit")
     private volatile long statementLimit = 100_000;
@@ -69,11 +73,15 @@ public class ScriptingManagementSpec {
         this.allowedLanguages = new CopyOnWriteArrayList<>();
     }
 
-    public boolean isEnabled() {
+    public Boolean getEnabled() {
         return enabled;
     }
 
-    public void setEnabled(boolean enabled) {
+    public boolean isEnabled() {
+        return enabled != null ? enabled : true;
+    }
+
+    public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
     }
 

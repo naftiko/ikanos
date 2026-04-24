@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.naftiko.spec.exposes.ScriptingManagementSpec;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -54,7 +55,9 @@ public class ScriptingResource extends ServerResource {
         }
 
         ObjectNode root = MAPPER.createObjectNode();
-        root.put("enabled", scripting.isEnabled());
+        if (scripting.getEnabled() != null) {
+            root.put("enabled", scripting.getEnabled());
+        }
         if (scripting.getDefaultLocation() != null) {
             root.put("defaultLocation", scripting.getDefaultLocation());
         }
@@ -134,10 +137,33 @@ public class ScriptingResource extends ServerResource {
                 scripting.setStatementLimit(statementLimit);
             }
             if (update.has("defaultLocation")) {
-                scripting.setDefaultLocation(update.get("defaultLocation").asText());
+                String location = update.get("defaultLocation").asText();
+                try {
+                    URI uri = URI.create(location);
+                    if (!"file".equals(uri.getScheme()) || !uri.isAbsolute()) {
+                        setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                        return new StringRepresentation(
+                                "{\"error\":\"'defaultLocation' must be an absolute file:/// URI\"}",
+                                MediaType.APPLICATION_JSON);
+                    }
+                } catch (IllegalArgumentException e) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"'defaultLocation' is not a valid URI\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                scripting.setDefaultLocation(location);
             }
             if (update.has("defaultLanguage")) {
-                scripting.setDefaultLanguage(update.get("defaultLanguage").asText());
+                String defaultLanguage = update.get("defaultLanguage").asText();
+                if (!SUPPORTED_LANGUAGES.contains(defaultLanguage)) {
+                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                    return new StringRepresentation(
+                            "{\"error\":\"Unsupported language '" + defaultLanguage
+                                    + "'. Supported: " + SUPPORTED_LANGUAGES + "\"}",
+                            MediaType.APPLICATION_JSON);
+                }
+                scripting.setDefaultLanguage(defaultLanguage);
             }
             if (update.has("allowedLanguages")) {
                 JsonNode langNode = update.get("allowedLanguages");

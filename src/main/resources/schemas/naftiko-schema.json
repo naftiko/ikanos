@@ -2576,8 +2576,8 @@
         "timeout": {
           "type": "integer",
           "minimum": 1,
-          "default": 5000,
-          "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (5000 ms)."
+          "default": 60000,
+          "description": "Execution timeout in milliseconds for each script step. Overrides the engine default (60000 ms)."
         },
         "statementLimit": {
           "type": "integer",

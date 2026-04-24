@@ -182,7 +182,7 @@ Query and update the scripting governance configuration on a running capability'
 naftiko scripting
 
 # Update a scripting setting at runtime
-naftiko scripting --set timeout=5000
+naftiko scripting --set timeout=60000
 
 # Disable scripting
 naftiko scripting --set enabled=false

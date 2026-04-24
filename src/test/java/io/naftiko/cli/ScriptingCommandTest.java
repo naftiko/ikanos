@@ -94,7 +94,7 @@ public class ScriptingCommandTest {
     void scriptingShouldShowDisabledState() {
         String json = """
                 {"enabled":false,
-                 "timeout":5000,
+                 "timeout":60000,
                  "statementLimit":100000,
                  "stats":{
                    "totalExecutions":0,
@@ -226,7 +226,7 @@ public class ScriptingCommandTest {
     void scriptingSetShouldUpdateAllowedLanguages() {
         String updatedJson = """
                 {"enabled":true,
-                 "timeout":5000,
+                 "timeout":60000,
                  "statementLimit":100000,
                  "allowedLanguages":["javascript","python"],
                  "stats":{
@@ -282,7 +282,7 @@ public class ScriptingCommandTest {
                 {"enabled":true,
                  "defaultLocation":"file:///new/path",
                  "defaultLanguage":"python",
-                 "timeout":5000,
+                 "timeout":60000,
                  "statementLimit":100000,
                  "stats":{
                    "totalExecutions":0,

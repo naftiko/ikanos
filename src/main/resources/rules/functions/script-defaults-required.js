@@ -18,8 +18,18 @@ export default function scriptDefaultsRequired(targetVal) {
       adapter.management.scripting
     ) {
       const scripting = adapter.management.scripting;
-      if (typeof scripting.defaultLocation === "string") hasDefaultLocation = true;
-      if (typeof scripting.defaultLanguage === "string") hasDefaultLanguage = true;
+      if (
+        typeof scripting.defaultLocation === "string" &&
+        scripting.defaultLocation.trim().length > 0
+      ) {
+        hasDefaultLocation = true;
+      }
+      if (
+        typeof scripting.defaultLanguage === "string" &&
+        scripting.defaultLanguage.trim().length > 0
+      ) {
+        hasDefaultLanguage = true;
+      }
       break;
     }
   }
