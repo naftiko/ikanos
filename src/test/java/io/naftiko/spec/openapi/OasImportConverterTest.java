@@ -15,6 +15,7 @@ package io.naftiko.spec.openapi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +57,14 @@ public class OasImportConverterTest {
     @BeforeEach
     void setUp() {
         converter = new OasImportConverter();
+    }
+
+    @Test
+    void convertShouldRejectNullOpenApi() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> converter.convert(null));
+
+        assertEquals("OpenAPI document must not be null", error.getMessage());
     }
 
     // ── Namespace derivation ──
@@ -119,6 +128,20 @@ public class OasImportConverterTest {
     void convertShouldUsePlaceholderBaseUriWhenNoServers() {
         OpenAPI openApi = minimalOpenApi("Test");
         openApi.setServers(null);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://api.example.com", result.getHttpClient().getBaseUri());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("No servers defined")));
+    }
+
+    @Test
+    void convertShouldUsePlaceholderBaseUriWhenFirstServerEntryIsNull() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        List<Server> servers = new ArrayList<>();
+        servers.add(null);
+        openApi.setServers(servers);
 
         OasImportResult result = converter.convert(openApi);
 
@@ -532,6 +555,21 @@ public class OasImportConverterTest {
         assertNull(result.getHttpClient().getAuthentication());
         assertTrue(result.getWarnings().stream()
                 .anyMatch(w -> w.contains("openIdConnect")));
+    }
+
+    @Test
+    void convertShouldWarnWhenSecuritySchemeTypeIsMissing() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setPaths(new Paths());
+        Components components = new Components();
+        components.addSecuritySchemes("broken", new SecurityScheme());
+        openApi.setComponents(components);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertNull(result.getHttpClient().getAuthentication());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("missing type")));
     }
 
     // ── Edge cases ──

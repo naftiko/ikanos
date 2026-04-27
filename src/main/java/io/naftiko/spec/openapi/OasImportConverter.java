@@ -52,6 +52,10 @@ public class OasImportConverter {
      * @return conversion result containing the HttpClientSpec and any warnings
      */
     public OasImportResult convert(OpenAPI openApi) {
+        if (openApi == null) {
+            throw new IllegalArgumentException("OpenAPI document must not be null");
+        }
+
         List<String> warnings = new ArrayList<>();
 
         String namespace = deriveNamespace(openApi, warnings);
@@ -94,7 +98,8 @@ public class OasImportConverter {
 
     String deriveBaseUri(OpenAPI openApi, List<String> warnings) {
         if (openApi.getServers() != null && !openApi.getServers().isEmpty()) {
-            String url = openApi.getServers().get(0).getUrl();
+            io.swagger.v3.oas.models.servers.Server firstServer = openApi.getServers().get(0);
+            String url = firstServer != null ? firstServer.getUrl() : null;
             if (url != null && !url.isEmpty() && !"/".equals(url)) {
                 // Strip trailing slash
                 if (url.endsWith("/")) {
@@ -119,6 +124,12 @@ public class OasImportConverter {
         Map.Entry<String, SecurityScheme> first =
                 schemes.entrySet().iterator().next();
         SecurityScheme scheme = first.getValue();
+
+        if (scheme == null || scheme.getType() == null) {
+            warnings.add("Security scheme '" + first.getKey()
+                + "' is missing type information and was ignored");
+            return null;
+        }
 
         switch (scheme.getType()) {
             case APIKEY:
