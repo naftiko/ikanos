@@ -116,7 +116,7 @@ capability:
 | `defaultLocation` | `string (uri)` | — | Fallback `file:///` location for scripts |
 | `defaultLanguage` | `enum` | — | Fallback language (`javascript`, `python`, `groovy`) |
 | `timeout` | `integer` | `60000` | Max execution time in milliseconds |
-| `statementLimit` | `integer` | `100000` | Max statements per execution |
+| `statementLimit` | `integer` | `100000` | Max statements per execution (JavaScript and Python only; Groovy scripts are not subject to this limit) |
 | `allowedLanguages` | `string[]` | all | Restrict permitted languages |
 
 ### REST API
