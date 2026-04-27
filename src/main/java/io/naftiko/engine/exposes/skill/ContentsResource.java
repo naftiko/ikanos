@@ -17,7 +17,10 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.io.IOException;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.restlet.ext.jackson.JacksonRepresentation;
@@ -34,6 +37,8 @@ import io.naftiko.spec.exposes.skill.ExposedSkillSpec;
  * <p>Returns 404 if the skill is not found or has no {@code location} configured.</p>
  */
 public class ContentsResource extends SkillServerResource {
+
+    private static final Logger logger = LoggerFactory.getLogger(ContentsResource.class);
 
     @Get("json")
     public Representation listContents() throws Exception {
@@ -60,7 +65,8 @@ public class ContentsResource extends SkillServerResource {
                 entry.put("path", root.relativize(file).toString().replace('\\', '/'));
                 try {
                     entry.put("size", Files.size(file));
-                } catch (Exception e) {
+                } catch (IOException e) {
+                    logger.debug("Could not read size of file '{}': {}", file, e.getMessage(), e);
                     entry.put("size", 0);
                 }
                 entry.put("type", detectMediaType(file.getFileName().toString()).getName());

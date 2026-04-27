@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
@@ -72,6 +74,8 @@ import org.jsoup.select.Elements;
  * Avro) and JSON, with support for JSONPath extraction.
  */
 public class Converter {
+
+    private static final Logger logger = LoggerFactory.getLogger(Converter.class);
 
     /** Convert various formats to JSON */
     public static JsonNode convertToJson(String format, String schema, Representation entity)
@@ -463,7 +467,7 @@ public class Converter {
                         return JsonPath.using(config).parse(root).read(fixedMapping,
                                 JsonNode.class);
                     } catch (Exception e2) {
-                        // If the fix didn't work, return null
+                        logger.debug("JSONPath bracket-notation retry also failed for path '{}': {}", fixedMapping, e2.getMessage(), e2);
                         return NullNode.instance;
                     }
                 }

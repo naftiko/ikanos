@@ -28,6 +28,8 @@ import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Get;
 import org.restlet.resource.Put;
 import org.restlet.resource.ServerResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Control Port resource for scripting governance.
@@ -37,6 +39,8 @@ import org.restlet.resource.ServerResource;
  * execution.</p>
  */
 public class ScriptingResource extends ServerResource {
+
+    private static final Logger logger = LoggerFactory.getLogger(ScriptingResource.class);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -193,6 +197,7 @@ public class ScriptingResource extends ServerResource {
             return getScripting();
         } catch (Exception e) {
             setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+            logger.debug("Scripting PATCH validation failed", e);
             String msg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "unexpected error";
             return new StringRepresentation(
                 "{\"error\":\"" + msg + "\"}",

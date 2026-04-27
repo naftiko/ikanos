@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CLI command that checks health status of a running capability via the control port. Connects to
@@ -31,6 +33,7 @@ import java.util.concurrent.Callable;
 public class HealthCommand implements Callable<Integer> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger logger = LoggerFactory.getLogger(HealthCommand.class);
 
     @Mixin
     ControlPortMixin controlPort;
@@ -87,6 +90,7 @@ public class HealthCommand implements Callable<Integer> {
             return 1;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Health command failed", e);
             return 1;
         }
     }

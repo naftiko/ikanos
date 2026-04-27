@@ -22,6 +22,8 @@ import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CLI command that manages scripting governance on a running capability via the control port.
@@ -36,6 +38,7 @@ import java.util.concurrent.Callable;
 public class ScriptingCommand implements Callable<Integer> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger logger = LoggerFactory.getLogger(ScriptingCommand.class);
 
     @Mixin
     ControlPortMixin controlPort;
@@ -58,6 +61,7 @@ public class ScriptingCommand implements Callable<Integer> {
             return 1;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Scripting command failed", e);
             return 1;
         }
     }

@@ -19,6 +19,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import java.time.Duration;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CLI command that retrieves runtime status of a running capability via the control port. Connects
@@ -32,6 +34,7 @@ import java.util.concurrent.Callable;
 public class StatusCommand implements Callable<Integer> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger logger = LoggerFactory.getLogger(StatusCommand.class);
 
     @Mixin
     ControlPortMixin controlPort;
@@ -106,6 +109,7 @@ public class StatusCommand implements Callable<Integer> {
             return 1;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Status command failed", e);
             return 1;
         }
     }
@@ -124,6 +128,7 @@ public class StatusCommand implements Callable<Integer> {
                 return seconds + "s";
             }
         } catch (Exception e) {
+            logger.debug("Duration formatting failed for '{}': {}", iso8601, e.getMessage(), e);
             return iso8601;
         }
     }

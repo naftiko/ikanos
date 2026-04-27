@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.restlet.Request;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +33,8 @@ import io.naftiko.spec.OutputParameterSpec;
  * Utility class for resolving Mustache-style template strings with provided parameters.
  */
 public class Resolver {
+
+    private static final Logger logger = LoggerFactory.getLogger(Resolver.class);
 
     private Resolver() {
         // Utility class, no instantiation
@@ -173,6 +177,7 @@ public class Resolver {
                 }
             }
         } catch (RuntimeException e) {
+            logger.debug("Input parameter resolution failed, returning null", e);
             return null;
         }
     }
@@ -230,8 +235,8 @@ public class Resolver {
                             + java.net.URLEncoder.encode(val.toString(), "UTF-8");
                     clientRequest.setResourceRef(newRef);
                 }
-            } catch (IOException e) {
-                // ignore individual param errors and continue
+            } catch (IOException | RuntimeException e) {
+                logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
     }

@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.MediaType;
@@ -61,6 +63,8 @@ import io.opentelemetry.context.Scope;
  * Used by both RestResourceRestlet and McpToolHandler to avoid duplication.
  */
 public class OperationStepExecutor {
+
+    private static final Logger logger = LoggerFactory.getLogger(OperationStepExecutor.class);
 
     private final Capability capability;
     private final ObjectMapper mapper;
@@ -114,6 +118,7 @@ public class OperationStepExecutor {
                 tmpRoot = mapper.readTree(request.getEntity().getReader());
             }
         } catch (IOException e) {
+            logger.debug("Request body is not valid JSON; treating as absent", e);
             tmpRoot = null;
         }
 
@@ -220,7 +225,7 @@ public class OperationStepExecutor {
                                 addStepOutputToParameters(runtimeParameters,
                                         callStep.getName(), stepOutput);
                             } catch (IOException ignoreJsonParseError) {
-                                // Ignore non-JSON call output for lookup indexing
+                                logger.debug("Step output is not JSON; skipping lookup index update", ignoreJsonParseError);
                             }
                         }
                     } catch (Exception e) {

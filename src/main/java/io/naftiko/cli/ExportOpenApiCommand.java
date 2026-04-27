@@ -28,6 +28,8 @@ import io.naftiko.spec.openapi.OasYamlWriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Command(
     name = "openapi",
@@ -35,6 +37,8 @@ import picocli.CommandLine.Parameters;
     description = "Export a Naftiko capability's REST adapter as an OpenAPI specification."
 )
 public class ExportOpenApiCommand implements Callable<Integer> {
+
+    private static final Logger logger = LoggerFactory.getLogger(ExportOpenApiCommand.class);
 
     @Parameters(index = "0", description = "Path to the Naftiko capability YAML file")
     private String capability;
@@ -103,6 +107,7 @@ public class ExportOpenApiCommand implements Callable<Integer> {
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Export command failed", e);
             return 1;
         }
     }

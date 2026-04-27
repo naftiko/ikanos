@@ -29,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CLI command that inspects recent traces from the engine's ring buffer via the control port.
@@ -42,6 +44,7 @@ import java.util.concurrent.Callable;
 public class TracesCommand implements Callable<Integer> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger logger = LoggerFactory.getLogger(TracesCommand.class);
 
     @Mixin
     ControlPortMixin controlPort;
@@ -70,6 +73,7 @@ public class TracesCommand implements Callable<Integer> {
             return 1;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Traces command failed", e);
             return 1;
         }
     }
@@ -197,6 +201,7 @@ public class TracesCommand implements Callable<Integer> {
             return String.format("%02d:%02d:%02d", time.getHour(), time.getMinute(),
                     time.getSecond());
         } catch (Exception e) {
+            logger.debug("Timestamp formatting failed for '{}': {}", timestamp, e.getMessage(), e);
             return timestamp;
         }
     }

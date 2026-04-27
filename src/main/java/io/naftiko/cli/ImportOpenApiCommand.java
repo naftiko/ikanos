@@ -32,6 +32,8 @@ import io.naftiko.util.VersionHelper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Command(
     name = "openapi",
@@ -39,6 +41,8 @@ import picocli.CommandLine.Parameters;
     description = "Import an OpenAPI specification into a Naftiko consumes YAML file."
 )
 public class ImportOpenApiCommand implements Callable<Integer> {
+
+    private static final Logger logger = LoggerFactory.getLogger(ImportOpenApiCommand.class);
 
     @Parameters(index = "0", description = "Path or URL to the OpenAPI specification file")
     private String source;
@@ -130,6 +134,7 @@ public class ImportOpenApiCommand implements Callable<Integer> {
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Import command failed", e);
             return 1;
         }
     }

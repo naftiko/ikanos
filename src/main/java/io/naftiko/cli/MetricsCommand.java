@@ -18,6 +18,8 @@ import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * CLI command that fetches Prometheus metrics from the control port. Connects to
@@ -29,6 +31,8 @@ import java.util.regex.Pattern;
     description = "Fetch Prometheus metrics from the control port."
 )
 public class MetricsCommand implements Callable<Integer> {
+
+    private static final Logger logger = LoggerFactory.getLogger(MetricsCommand.class);
 
     @Mixin
     ControlPortMixin controlPort;
@@ -68,6 +72,7 @@ public class MetricsCommand implements Callable<Integer> {
             return 1;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            logger.debug("Metrics command failed", e);
             return 1;
         }
     }
