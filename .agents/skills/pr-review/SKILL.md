@@ -85,8 +85,6 @@ foreach ($line in $diff) {
             $inHunk = $true
             $m = [regex]::Match($line, '\+(\d+)')
             if ($m.Success) { $lineNum = [int]$m.Groups[1].Value - 1 }
-        } elseif ($line -match "^\+\+\+" -or $line -match "^---") {
-            # diff header lines — do not increment
         } elseif ($inHunk -and $line -match "^\+") { $lineNum++ }
         elseif ($inHunk -and $line -match "^ ")  { $lineNum++ }
         # -: do not increment
@@ -105,7 +103,6 @@ awk '
     if (match($0, /\+[0-9]+/)) line_num = substr($0, RSTART + 1, RLENGTH - 1) - 1
     in_hunk = 1
   }
-  in_file && in_hunk && /^\+\+\+/ { next }
   in_file && in_hunk && /^\+/ { line_num++ }
   in_file && in_hunk && /^ /  { line_num++ }
   in_file && in_hunk && !/^-/ && /pattern to find/ { print "L" line_num " [" $0 "]" }
