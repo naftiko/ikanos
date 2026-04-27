@@ -15,7 +15,7 @@ allowed-tools:
 
 This skill guides the agent through a structured PR review workflow:
 check for existing reviews → offer Continue/Fresh-start choice → fetch the diff →
-compute line numbers accurately → verify each line →
+compute line numbers accurately → verify each line number →
 present findings → post only after explicit user confirmation.
 
 ---
@@ -46,23 +46,40 @@ gh api repos/{owner}/{repo}/pulls/<number>/comments \
 
 > «This PR already has N review(s) and M inline comment(s) (latest state: X, by [reviewers]).
 > How do you want to proceed?
-> - **Continue** — focus on open CHANGES_REQUESTED items, skip already-resolved or outdated comments, then add net-new findings only.
+> - **Continue** — check comments from `CHANGES_REQUESTED` reviews first, skip `outdated` comments, then add net-new findings only.
 > - **Fresh start** — ignore prior review activity and review the full diff from scratch.»
 
 Wait for the user's answer before proceeding.
 
 ### If the user chooses **Continue**
 
-Fetch the full inline comment list and build a filter:
+Join reviews and inline comments to identify which comments belong to a `CHANGES_REQUESTED` review:
 
 ```powershell
+# Step A — get review IDs with CHANGES_REQUESTED state
+gh api repos/{owner}/{repo}/pulls/<number>/reviews `
+  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login}]'
+
+# Step B — get inline comments including their review linkage
 gh api repos/{owner}/{repo}/pulls/<number>/comments `
-  --jq '[.[] | {id, path, line, user: .user.login, body, outdated}]'
+  --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
 ```
 
-- Extract open CHANGES_REQUESTED comment bodies → verify each one against the current diff first (is it fixed or still present?)
-- Mark `outdated: true` comments as resolved — do not re-raise unless the same defect reappears in current hunks
-- After checking open items, scan the diff for net-new findings only
+```bash
+# Step A
+gh api repos/{owner}/{repo}/pulls/<number>/reviews \
+  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login}]'
+
+# Step B
+gh api repos/{owner}/{repo}/pulls/<number>/comments \
+  --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
+```
+
+Cross-reference: a comment belongs to a `CHANGES_REQUESTED` review when its `pull_request_review_id` matches an ID from Step A.
+
+- Verify each `CHANGES_REQUESTED` comment against the current diff first (is the issue fixed or still present?)
+- Skip comments with `outdated: true` — they target stale code; do not re-raise unless the same defect reappears in current hunks
+- After checking those items, scan the diff for net-new findings only
 
 ### If the user chooses **Fresh start**
 
@@ -73,6 +90,7 @@ Ignore all prior review data. Proceed to Step 2 as if the PR had no prior activi
 ## Step 2 — Fetch and save the diff
 
 Save the diff to a temp file to enable repeated querying without extra API calls.
+
 
 
 ```powershell
@@ -102,7 +120,7 @@ gh pr view <number> --json files | python3 -c \
 
 ---
 
-## Step 2 — Compute line numbers for inline comments
+## Step 3 — Compute line numbers for inline comments
 
 GitHub inline comments require the **line number in the resulting file** (after the
 diff is applied). The algorithm:
@@ -118,7 +136,7 @@ diff is applied). The algorithm:
 
 ---
 
-## Step 3 — Verify each line number before reporting
+## Step 4 — Verify each line number before reporting
 
 **Always run the algorithm in a terminal** for each finding. Do not estimate or compute mentally.
 
@@ -167,7 +185,7 @@ reject the comment silently.
 
 ---
 
-## Step 4 — Present findings, then branch on user response
+## Step 5 — Present findings, then branch on user response
 
 Present all findings to the user in a table:
 
