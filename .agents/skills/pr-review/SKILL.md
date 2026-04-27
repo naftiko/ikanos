@@ -195,6 +195,8 @@ Present all findings to the user in a table:
 
 Severity scale: 🔴 HIGH (blocking) · 🟡 MEDIUM · 🔵 LOW (nit).
 
+**All comments must be written in English**, regardless of the language used in the conversation with the user — see AGENTS.md.
+
 **Then wait for the user's response and branch:**
 
 ### Branch A — User wants clarifications

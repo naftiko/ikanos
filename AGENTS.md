@@ -114,6 +114,7 @@ When designing or modifying a Capability:
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 
 - Open an Issue before starting work
+- **All GitHub interactions must be in English** — issues, PR titles/bodies, inline review comments, and commit messages. The codebase and its community are English-first.
 - Branch from `main`: `feat/`, `fix/`, or `chore/` prefix
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:` — no scopes for now
 - AGENTS.md improvements are `feat:`, not `chore:` — they add value to the agent workflow
