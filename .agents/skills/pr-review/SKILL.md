@@ -24,6 +24,12 @@ present findings → post only after explicit user confirmation.
 
 Before fetching the diff, check whether the PR already has reviews or inline comments.
 
+Retrieve `{owner}/{repo}` from the local git remote if not known:
+
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
 ```powershell
 # Windows (PowerShell)
 gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
@@ -90,8 +96,6 @@ Ignore all prior review data. Proceed to Step 2 as if the PR had no prior activi
 ## Step 2 — Fetch and save the diff
 
 Save the diff to a temp file to enable repeated querying without extra API calls.
-
-
 
 ```powershell
 # Windows (PowerShell)
@@ -224,12 +228,6 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews \
 Use `event=COMMENT` for a non-approving review.
 Use `event=REQUEST_CHANGES` when at least one finding is blocking (🔴 HIGH).
 Use `event=APPROVE` only when explicitly asked to approve the PR.
-
-Retrieve owner/repo from the local git remote if not known:
-
-```bash
-gh repo view --json nameWithOwner -q .nameWithOwner
-```
 
 After posting, verify the review was accepted:
 
