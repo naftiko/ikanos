@@ -73,20 +73,24 @@ diff is applied). The algorithm:
 ```powershell
 # Windows (PowerShell)
 $diff = Get-Content "$env:TEMP/pr<number>.diff" -Encoding utf8
-$inFile = $false; $lineNum = 0
+$inFile = $false; $inHunk = $false; $lineNum = 0
 foreach ($line in $diff) {
     if ($line -match "^diff --git") {
         $inFile = $line -match "YourFile\.java"
+        $inHunk = $false
         $lineNum = 0
     }
     if ($inFile) {
         if ($line -match "^@@") {
+            $inHunk = $true
             $m = [regex]::Match($line, '\+(\d+)')
             if ($m.Success) { $lineNum = [int]$m.Groups[1].Value - 1 }
-        } elseif ($line -match "^\+") { $lineNum++ }
-        elseif ($line -match "^ ")  { $lineNum++ }
+        } elseif ($line -match "^\+\+\+" -or $line -match "^---") {
+            # diff header lines — do not increment
+        } elseif ($inHunk -and $line -match "^\+") { $lineNum++ }
+        elseif ($inHunk -and $line -match "^ ")  { $lineNum++ }
         # -: do not increment
-        if ($line -match "pattern to find") {
+        if ($inHunk -and $line -notmatch "^-" -and $line -match "pattern to find") {
             Write-Host "L$lineNum [$line]"
         }
     }
@@ -94,13 +98,17 @@ foreach ($line in $diff) {
 ```
 
 ```bash
-# Linux / macOS
+# Linux / macOS (POSIX awk — compatible with macOS BSD awk and gawk)
 awk '
-  /^diff --git/ { in_file = ($0 ~ "YourFile\.java"); line_num = 0 }
-  in_file && /^@@/ { match($0, /\+([0-9]+)/, a); line_num = a[1] - 1 }
-  in_file && /^\+/ { line_num++ }
-  in_file && /^ /  { line_num++ }
-  in_file && /pattern to find/ { print "L" line_num " [" $0 "]" }
+  /^diff --git/ { in_file = ($0 ~ "YourFile\\.java"); in_hunk = 0; line_num = 0 }
+  in_file && /^@@/ {
+    if (match($0, /\+[0-9]+/)) line_num = substr($0, RSTART + 1, RLENGTH - 1) - 1
+    in_hunk = 1
+  }
+  in_file && in_hunk && /^\+\+\+/ { next }
+  in_file && in_hunk && /^\+/ { line_num++ }
+  in_file && in_hunk && /^ /  { line_num++ }
+  in_file && in_hunk && !/^-/ && /pattern to find/ { print "L" line_num " [" $0 "]" }
 ' /tmp/pr<number>.diff
 ```
 
