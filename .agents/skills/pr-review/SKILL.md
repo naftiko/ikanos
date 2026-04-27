@@ -14,7 +14,7 @@ allowed-tools:
 ## Overview
 
 This skill guides the agent through a structured PR review workflow:
-check for existing reviews → offer Continue/Fresh-start choice → fetch the diff →
+check for existing reviews → offer Continue/Fresh start choice → fetch the diff →
 compute line numbers accurately → verify each line number →
 present findings → post only after explicit user confirmation.
 
@@ -27,7 +27,7 @@ Before fetching the diff, check whether the PR already has reviews or inline com
 ```powershell
 # Windows (PowerShell)
 gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
-  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: .body[:80]}]'
+  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: (.body // "" | .[:80])}]'
 gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
   --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
 ```
@@ -35,7 +35,7 @@ gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
 ```bash
 # Linux / macOS
 gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate \
-  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: .body[:80]}]'
+  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: (.body // "" | .[:80])}]'
 gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
   --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
 ```
@@ -75,7 +75,7 @@ gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
   --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
 ```
 
-Verify both sources against the current diff:
+Fetch the diff in **Step 2**, then use it to verify both sources:
 - **Review bodies** (Step A) — each `CHANGES_REQUESTED` review may contain blocking feedback in its top-level body; verify whether the issue it describes is fixed in the current diff
 - **Inline comments** (Step B) — a comment belongs to a `CHANGES_REQUESTED` review when its `pull_request_review_id` matches an ID from Step A; verify each non-`outdated` one against the current diff
 - Skip inline comments with `outdated: true` — they target stale code; do not re-raise unless the same defect reappears in current hunks
