@@ -6,6 +6,7 @@ on:
     branches:
       - main
   workflow_dispatch:
+
 jobs:
   test-and-analyze:
     name: Unit Tests + JaCoCo + SonarQube + Security
@@ -36,6 +37,105 @@ jobs:
 
       - name: Run tests + JaCoCo coverage
         run: mvn clean test --no-transfer-progress
+
+      - name: Publish test failures summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          REPORTS_DIR="target/surefire-reports"
+
+          if [ ! -d "$REPORTS_DIR" ]; then
+            echo "> No Surefire reports found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          TOTAL=0; FAILURES=0; ERRORS=0; SKIPPED=0
+
+          for f in "$REPORTS_DIR"/TEST-*.xml; do
+            [ -f "$f" ] || continue
+            read T FA ER SK < <(
+              python3 -c "
+          import xml.etree.ElementTree as ET
+          import sys
+
+          root = ET.parse(sys.argv[1]).getroot()
+          print(
+              root.get('tests','0'),
+              root.get('failures','0'),
+              root.get('errors','0'),
+              root.get('skipped','0')
+          )
+          " "$f" 2>/dev/null
+            )
+            TOTAL=$((TOTAL + T)); FAILURES=$((FAILURES + FA))
+            ERRORS=$((ERRORS + ER)); SKIPPED=$((SKIPPED + SK))
+          done
+
+          PASSED=$((TOTAL - FAILURES - ERRORS - SKIPPED))
+
+          echo "| Passed | Failed | Errors | Skipped | Total |"  >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|----------|----------|-------|"        >> $GITHUB_STEP_SUMMARY
+          echo "| $PASSED  | $FAILURES | $ERRORS  | $SKIPPED | $TOTAL |"     >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $((FAILURES + ERRORS)) -eq 0 ]; then
+            echo "All tests passed." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "### Failures & Errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 << 'PYEOF' >> $GITHUB_STEP_SUMMARY
+          import xml.etree.ElementTree as ET
+          import os, glob
+
+          reports = glob.glob("target/surefire-reports/TEST-*.xml")
+          found = 0
+
+          for path in sorted(reports):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+
+              classname = root.get("name", os.path.basename(path))
+
+              for tc in root.findall("testcase"):
+                  for tag in ("failure", "error"):
+                      node = tc.find(tag)
+                      if node is None:
+                          continue
+                      found += 1
+                      test_name  = tc.get("name", "unknown")
+                      error_type = node.get("type", tag)
+                      message    = node.get("message", "").strip()
+                      body       = (node.text or "").strip()
+
+                      lines = body.splitlines()
+                      trimmed = "\n".join(lines[:20])
+                      if len(lines) > 20:
+                          trimmed += f"\n... ({len(lines)-20} more lines)"
+
+                      print(f"<details>")
+                      print(f"<summary><b>[{tag.upper()}]</b> <code>{classname}</code> | <code>{test_name}</code></summary>")
+                      print(f"")
+                      print(f"**Type:** `{error_type}`  ")
+                      if message:
+                          print(f"**Message:** {message}  ")
+                      print(f"")
+                      print(f"```")
+                      print(trimmed)
+                      print(f"```")
+                      print(f"</details>")
+                      print(f"")
+
+          if found == 0:
+              print("_No detailed failure info found in XML reports._")
+          PYEOF
 
       - name: Publish JaCoCo summary
         if: always()
