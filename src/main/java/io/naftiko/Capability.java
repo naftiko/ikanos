@@ -46,12 +46,16 @@ import io.naftiko.spec.exposes.rest.RestServerSpec;
 import io.naftiko.spec.exposes.mcp.McpServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 import io.naftiko.spec.exposes.skill.SkillServerSpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
  */
 public class Capability {
+
+    private static final Logger logger = LoggerFactory.getLogger(Capability.class);
 
     private volatile NaftikoSpec spec;
     private volatile List<ServerAdapter> serverAdapters;
@@ -253,7 +257,7 @@ public class Capability {
         String filePath = (args.length > 0) ? args[0] : "naftiko.yaml";
 
         File file = new File(filePath);
-        System.out.println("Reading configuration from: " + file.getAbsolutePath());
+        logger.info("Reading configuration from: {}", file.getAbsolutePath());
 
         // Read the configuraton file
         if (file.exists()) {
@@ -281,13 +285,12 @@ public class Capability {
                 String capabilityDir = file.getParent();
                 Capability capability = new Capability(spec, capabilityDir);
                 capability.start();
-                System.out.println("Capability started successfully.");
+                logger.info("Capability started successfully.");
             } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println("Error reading file: " + e.getMessage());
+                logger.error("Error reading file", e);
             }
         } else {
-            System.err.println("Error: File not found at " + filePath);
+            logger.error("Error: File not found at {}", filePath);
             System.exit(1);
         }
     }

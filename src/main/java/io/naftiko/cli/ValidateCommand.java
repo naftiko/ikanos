@@ -31,6 +31,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Command(
     name = "validate",
@@ -39,7 +41,9 @@ import java.util.Set;
     description = "Validate a YAML capability configuration file against a JSON Schema"
 )
 public class ValidateCommand implements Callable<Integer> {
-    
+
+    private static final Logger logger = LoggerFactory.getLogger(ValidateCommand.class);
+
     @Parameters(index = "0", description = "Path to the YAML capability configuration file to validate")
     private String filePath;
 
@@ -105,8 +109,7 @@ public class ValidateCommand implements Callable<Integer> {
             System.err.println("Error reading file: " + e.getMessage());
             return 1;
         } catch (Exception e) {
-            System.err.println("Validation error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Validation error", e);
             return 1;
         }
     }

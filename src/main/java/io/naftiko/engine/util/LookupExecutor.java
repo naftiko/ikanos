@@ -107,8 +107,11 @@ public class LookupExecutor {
      * Extract specified fields from an entry.
      */
     private static ObjectNode extractFields(JsonNode entry, List<String> fieldNames) {
-        if (entry == null || !entry.isObject() || fieldNames == null || fieldNames.isEmpty()) {
+        if (entry == null || !entry.isObject() || fieldNames == null) {
             return null;
+        }
+        if (fieldNames.isEmpty()) {
+            return JsonNodeFactory.instance.objectNode();
         }
 
         ObjectNode result = JsonNodeFactory.instance.objectNode();

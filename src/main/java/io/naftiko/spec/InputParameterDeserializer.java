@@ -109,7 +109,7 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
                         InputParameterSpec propSpec = deserializeNode(propNode, cxt);
                         spec.getProperties().add(propSpec);
                     } catch (Exception e) {
-                        throw new RuntimeException(
+                        throw new IllegalStateException(
                                 "Error deserializing property: " + entry.getKey(), e);
                     }
                 });

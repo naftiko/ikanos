@@ -13,6 +13,7 @@
  */
 package io.naftiko.engine.util;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -171,7 +172,7 @@ public class Resolver {
                     return root;
                 }
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -229,7 +230,7 @@ public class Resolver {
                             + java.net.URLEncoder.encode(val.toString(), "UTF-8");
                     clientRequest.setResourceRef(newRef);
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 // ignore individual param errors and continue
             }
         }
