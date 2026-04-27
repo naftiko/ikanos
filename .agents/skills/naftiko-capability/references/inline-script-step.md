@@ -172,7 +172,7 @@ capability:
 | `defaultLocation` | `string (uri)` | — | Fallback `file:///` location for scripts |
 | `defaultLanguage` | `enum` | — | Fallback language (`javascript`, `python`, `groovy`) |
 | `timeout` | `integer` | `60000` | Max execution time in milliseconds |
-| `statementLimit` | `integer` | `100000` | Max statements per execution |
+| `statementLimit` | `integer` | `100000` | Max statements per execution (JavaScript and Python only; Groovy scripts are not subject to this limit) |
 | `allowedLanguages` | `string[]` | all | Restrict permitted languages |
 
 ### Runtime management
@@ -201,7 +201,7 @@ Script execution is sandboxed:
 - **Groovy** — uses `SecureASTCustomizer` to restrict the AST: no `System`,
   `Runtime`, `ProcessBuilder`, `File`, `Socket`, or reflection APIs.
 - **Timeout** — configurable per capability via `management.scripting.timeout`.
-- **Statement limit** — configurable via `management.scripting.statementLimit`.
+- **Statement limit** — configurable via `management.scripting.statementLimit`. Applies to JavaScript and Python only. Groovy scripts are not subject to this limit.
 
 ## Common Mistakes
 
@@ -213,7 +213,7 @@ Script execution is sandboxed:
 3. **Using `..` in file paths** — the engine rejects path traversal attempts.
    All paths must be relative within the `location` directory.
 4. **Exceeding statement limit** — long-running or infinite scripts are
-   terminated. Increase `statementLimit` if legitimately needed.
+  terminated. Increase `statementLimit` if legitimately needed. Applies to JavaScript and Python only. Groovy scripts are not subject to this limit.
 5. **Using a language not in `allowedLanguages`** — the engine rejects the
    step at runtime. Ensure the step's language is permitted.
 

@@ -193,9 +193,10 @@ public class ScriptingResource extends ServerResource {
             return getScripting();
         } catch (Exception e) {
             setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+            String msg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "unexpected error";
             return new StringRepresentation(
-                    "{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}",
-                    MediaType.APPLICATION_JSON);
+                "{\"error\":\"" + msg + "\"}",
+                MediaType.APPLICATION_JSON);
         }
     }
 }

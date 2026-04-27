@@ -31,6 +31,32 @@ import static org.junit.jupiter.api.Assertions.*;
  * security, and file resolution.
  */
 class ScriptStepExecutorTest {
+    @Test
+    void executeShouldDenyGroovyInvokeMethod() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "invoke-method", "groovy", scriptsLocationUri, "groovy-invokemethod.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovyGetMetaClass() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "get-metaclass", "groovy", scriptsLocationUri, "groovy-getmetaclass.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
+
+    @Test
+    void executeShouldDenyGroovySetMetaClass() {
+        OperationStepScriptSpec step = new OperationStepScriptSpec(
+                "set-metaclass", "groovy", scriptsLocationUri, "groovy-setmetaclass.groovy");
+
+        assertThrows(Exception.class, () ->
+                executor.execute(step, new HashMap<>(), new StepExecutionContext()));
+    }
 
     private static String scriptsLocationUri;
 

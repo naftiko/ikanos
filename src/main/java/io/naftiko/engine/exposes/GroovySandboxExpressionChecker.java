@@ -38,7 +38,7 @@ import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
  */
 class GroovySandboxExpressionChecker implements SecureASTCustomizer.ExpressionChecker {
 
-    private static final Set<String> BLOCKED_METHODS = Set.of(
+        private static final Set<String> BLOCKED_METHODS = Set.of(
             "execute",
             "getClass",
             "forName",
@@ -55,8 +55,11 @@ class GroovySandboxExpressionChecker implements SecureASTCustomizer.ExpressionCh
             "getConstructor",
             "getConstructors",
             "newInstance",
-            "setAccessible"
-    );
+            "setAccessible",
+            "invokeMethod",
+            "getMetaClass",
+            "setMetaClass"
+        );
 
     private static final Set<String> BLOCKED_PROPERTIES = Set.of(
             "class"

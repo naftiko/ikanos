@@ -2583,7 +2583,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 100000,
-          "description": "Maximum number of statements a script can execute. Overrides the engine default (100,000)."
+          "description": "Maximum number of statements a script can execute. Applies to JavaScript and Python only. Groovy scripts are not subject to this limit. Overrides the engine default (100,000)."
         },
         "allowedLanguages": {
           "type": "array",
