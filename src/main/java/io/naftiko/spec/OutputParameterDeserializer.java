@@ -114,7 +114,7 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
                         }
                         spec.getProperties().add(propSpec);
                     } catch (Exception e) {
-                        throw new RuntimeException(
+                        throw new IllegalStateException(
                                 "Error deserializing property: " + entry.getKey(), e);
                     }
                 });

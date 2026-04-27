@@ -20,6 +20,7 @@ import io.naftiko.spec.NaftikoSpec;
 import io.naftiko.spec.exposes.control.ControlServerSpec;
 import io.naftiko.spec.exposes.ServerSpec;
 import picocli.CommandLine.Option;
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,11 +89,11 @@ public class ControlPortMixin {
                             }
                         }
                     }
-                } catch (Exception ignored) {
+                } catch (IOException ignored) {
                     // Not a valid Naftiko YAML — skip
                 }
             }
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {
             // CWD not readable — fall through
         }
         return -1;

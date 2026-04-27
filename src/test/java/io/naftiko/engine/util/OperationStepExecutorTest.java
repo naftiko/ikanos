@@ -14,12 +14,17 @@
 package io.naftiko.engine.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.restlet.Request;
+import org.restlet.data.MediaType;
+import org.restlet.data.Method;
+import io.naftiko.spec.exposes.rest.RestServerSpec;
 
 /**
  * Unit tests for {@link OperationStepExecutor#mergeWithParameters(Map, Map, String)}.
@@ -88,6 +93,27 @@ public class OperationStepExecutorTest {
         OperationStepExecutor.mergeWithParameters(null, target, null);
 
         assertEquals(1, target.size(), "Null 'with' map should not modify the target");
+    }
+
+    /**
+     * Guard: when the request body is malformed JSON, resolveInputParametersFromRequest
+     * must not propagate the parse error — it should return an empty (but non-null) map.
+     * The underlying IOException is intentionally swallowed here because a bad body
+     * is a client error handled at the HTTP level, not a fatal engine error.
+     */
+    @Test
+    public void resolveInputParametersFromRequestShouldHandleMalformedJsonBody() {
+        OperationStepExecutor executor = new OperationStepExecutor(null);
+        Request request = new Request(Method.POST, "http://localhost/test");
+        request.setEntity("{not-valid-json", MediaType.APPLICATION_JSON);
+
+        RestServerSpec serverSpec = new RestServerSpec();
+        serverSpec.setNamespace("test");
+
+        Map<String, Object> params = executor.resolveInputParametersFromRequest(
+                request, serverSpec, null, null);
+
+        assertNotNull(params, "Map must not be null when body is malformed JSON");
     }
 
     @Test

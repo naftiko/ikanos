@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,24 @@ public class LookupExecutorTest {
                 List.of("id"));
 
         assertNull(result);
+    }
+
+    /**
+     * Bug: extractFields returns null when outputFields is empty, but callers that
+     * iterate over results get a NullPointerException. An empty match should yield
+     * an empty ObjectNode so downstream code can safely call result.fieldNames().
+     */
+    @Test
+    public void executeLookupShouldReturnEmptyObjectNodeWhenOutputFieldsIsEmpty() throws Exception {
+        JsonNode indexData = MAPPER.readTree("""
+                [{"id":"u-1","name":"Alice"}]
+                """);
+
+        JsonNode result = LookupExecutor.executeLookup(indexData, "id", "u-1", List.of());
+
+        assertNotNull(result, "Result must not be null when a match is found with empty field list");
+        assertTrue(result.isObject(), "Result must be an ObjectNode");
+        assertEquals(0, result.size(), "No fields should be projected when outputFields is empty");
     }
 
     @Test

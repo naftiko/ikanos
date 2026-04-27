@@ -113,7 +113,7 @@ public class OperationStepExecutor {
             if ((request.getEntity() != null) && !request.getEntity().isEmpty()) {
                 tmpRoot = mapper.readTree(request.getEntity().getReader());
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             tmpRoot = null;
         }
 
@@ -194,7 +194,7 @@ public class OperationStepExecutor {
                         try {
                             lastContext.handle();
                         } catch (Exception e) {
-                            throw new RuntimeException(
+                            throw new IllegalStateException(
                                     "Error while handling an HTTP client call", e);
                         }
 
@@ -219,7 +219,7 @@ public class OperationStepExecutor {
                                 stepContext.storeStepOutput(callStep.getName(), stepOutput);
                                 addStepOutputToParameters(runtimeParameters,
                                         callStep.getName(), stepOutput);
-                            } catch (Exception ignoreJsonParseError) {
+                            } catch (IOException ignoreJsonParseError) {
                                 // Ignore non-JSON call output for lookup indexing
                             }
                         }

@@ -352,7 +352,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
                 if (metadata.has("jwks_uri")) {
                     discoveredJwksUri = metadata.get("jwks_uri").asText();
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Context.getCurrentLogger().log(Level.WARNING, "Failed to parse AS metadata", e);
             }
         }
@@ -390,7 +390,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             }
             try {
                 fetchAndCacheJwkSet(discoveredJwksUri);
-            } catch (Exception e) {
+            } catch (IOException e) {
                 Context.getCurrentLogger().log(Level.WARNING, "JWKS refresh failed", e);
             }
             return cachedJwkSet;
