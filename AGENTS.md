@@ -124,7 +124,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - Always read the repository templates before creating issues or PRs:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields
   - PRs: `.github/PULL_REQUEST_TEMPLATE.md` — follow the structure exactly, do not improvise
-- When creating issues or PRs with multiline bodies via `gh`, **never use PowerShell here-strings** (`@"..."@`) — they hang waiting for the closing delimiter in the VS Code terminal. Always write the body to a temp file with `create_file` and pass it via `--body-file "$env:TEMP\filename.md"`
+- When creating issues or PRs with multiline bodies via `gh`, **never use PowerShell here-strings** (`@"..."@`) — they hang waiting for the closing delimiter in the VS Code terminal. Always write the body to a temp `.md` file (e.g. `Set-Content -Path "$env:TEMP\gh-body.md" -Encoding utf8 -Value $body`) and pass it via `--body-file "$env:TEMP\gh-body.md"`
 - When asked to review a PR, load and follow the `pr-review` skill in `.agents/skills/pr-review/` before doing anything else
 - Do **not** use `git push --force` — use `--force-with-lease`
 - When the user corrects a mistake, note it immediately so the insight is not lost — see [Self-Improvement](#self-improvement)

@@ -26,17 +26,17 @@ Before fetching the diff, check whether the PR already has reviews or inline com
 
 ```powershell
 # Windows (PowerShell)
-gh api repos/{owner}/{repo}/pulls/<number>/reviews `
+gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
   --jq '[.[] | {id, state, submitted_at, user: .user.login, body: .body[:80]}]'
-gh api repos/{owner}/{repo}/pulls/<number>/comments `
+gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
   --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
 ```
 
 ```bash
 # Linux / macOS
-gh api repos/{owner}/{repo}/pulls/<number>/reviews \
+gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate \
   --jq '[.[] | {id, state, submitted_at, user: .user.login, body: .body[:80]}]'
-gh api repos/{owner}/{repo}/pulls/<number>/comments \
+gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
   --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
 ```
 
@@ -46,7 +46,7 @@ gh api repos/{owner}/{repo}/pulls/<number>/comments \
 
 > «This PR already has N review(s) and M inline comment(s) (latest state: X, by [reviewers]).
 > How do you want to proceed?
-> - **Continue** — check comments from `CHANGES_REQUESTED` reviews first, skip `outdated` comments, then add net-new findings only.
+> - **Continue** — check `CHANGES_REQUESTED` review bodies and their linked inline comments first, skip `outdated` inline comments, then add net-new findings only.
 > - **Fresh start** — ignore prior review activity and review the full diff from scratch.»
 
 Wait for the user's answer before proceeding.
@@ -56,29 +56,29 @@ Wait for the user's answer before proceeding.
 Join reviews and inline comments to identify which comments belong to a `CHANGES_REQUESTED` review:
 
 ```powershell
-# Step A — get review IDs with CHANGES_REQUESTED state
-gh api repos/{owner}/{repo}/pulls/<number>/reviews `
-  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login}]'
+# Step A — get CHANGES_REQUESTED reviews including their body feedback
+gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
+  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login, body}]'
 
 # Step B — get inline comments including their review linkage
-gh api repos/{owner}/{repo}/pulls/<number>/comments `
+gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
   --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
 ```
 
 ```bash
 # Step A
-gh api repos/{owner}/{repo}/pulls/<number>/reviews \
-  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login}]'
+gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate \
+  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login, body}]'
 
 # Step B
-gh api repos/{owner}/{repo}/pulls/<number>/comments \
+gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
   --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
 ```
 
-Cross-reference: a comment belongs to a `CHANGES_REQUESTED` review when its `pull_request_review_id` matches an ID from Step A.
-
-- Verify each `CHANGES_REQUESTED` comment against the current diff first (is the issue fixed or still present?)
-- Skip comments with `outdated: true` — they target stale code; do not re-raise unless the same defect reappears in current hunks
+Verify both sources against the current diff:
+- **Review bodies** (Step A) — each `CHANGES_REQUESTED` review may contain blocking feedback in its top-level body; verify whether the issue it describes is fixed in the current diff
+- **Inline comments** (Step B) — a comment belongs to a `CHANGES_REQUESTED` review when its `pull_request_review_id` matches an ID from Step A; verify each non-`outdated` one against the current diff
+- Skip inline comments with `outdated: true` — they target stale code; do not re-raise unless the same defect reappears in current hunks
 - After checking those items, scan the diff for net-new findings only
 
 ### If the user chooses **Fresh start**
