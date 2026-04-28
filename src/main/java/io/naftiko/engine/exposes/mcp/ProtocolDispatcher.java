@@ -55,6 +55,10 @@ public class ProtocolDispatcher {
      * @return the JSON-RPC response envelope, or {@code null} for notifications
      */
     public ObjectNode dispatch(JsonNode request) {
+        if (request == null) {
+            return buildJsonRpcError(null, -32600, "Invalid Request: request body is missing");
+        }
+
         try {
             String jsonrpc = request.path("jsonrpc").asText("");
             JsonNode idNode = request.get("id");

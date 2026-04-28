@@ -37,7 +37,9 @@ class ProtocolDispatcherCoverageTest {
         ObjectNode response = dispatcher.dispatch(null);
 
         assertNotNull(response);
-        assertEquals(-32603, response.path("error").path("code").asInt());
+        assertEquals(-32600, response.path("error").path("code").asInt());
+        assertEquals("Invalid Request: request body is missing",
+                response.path("error").path("message").asText());
         assertEquals("2.0", response.path("jsonrpc").asText());
     }
 
