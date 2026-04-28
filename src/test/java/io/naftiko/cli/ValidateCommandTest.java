@@ -14,12 +14,17 @@
 package io.naftiko.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import com.fasterxml.jackson.databind.JsonNode;
+import picocli.CommandLine;
 
 public class ValidateCommandTest {
 
@@ -50,5 +55,25 @@ public class ValidateCommandTest {
 
         assertEquals("Unsupported file format. Only .yaml and .yml are supported.",
                 error.getMessage());
+    }
+
+    @Test
+    public void callShouldPrintUserVisibleErrorForUnsupportedFileFormat() {
+        Path txt = tempDir.resolve("sample.txt");
+        assertDoesNotThrow(() -> Files.writeString(txt, "content\n"));
+
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        int exitCode;
+        try {
+            System.setErr(new PrintStream(err, true));
+            CommandLine cmd = new CommandLine(new ValidateCommand());
+            exitCode = cmd.execute(txt.toString());
+        } finally {
+            System.setErr(originalErr);
+        }
+
+        assertEquals(1, exitCode);
+        assertTrue(err.toString().contains("Error: Unsupported file format. Only .yaml and .yml are supported."));
     }
 }
