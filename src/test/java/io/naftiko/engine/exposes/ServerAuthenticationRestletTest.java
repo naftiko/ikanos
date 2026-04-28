@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package io.naftiko.engine.exposes.rest;
+package io.naftiko.engine.exposes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Set;
@@ -22,7 +22,6 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
-import io.naftiko.engine.exposes.ServerAuthenticationRestlet;
 import io.naftiko.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.naftiko.spec.consumes.http.BearerAuthenticationSpec;
 

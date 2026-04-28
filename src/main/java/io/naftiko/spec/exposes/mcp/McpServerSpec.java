@@ -16,6 +16,8 @@ package io.naftiko.spec.exposes.mcp;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
@@ -29,6 +31,7 @@ import io.naftiko.spec.exposes.ServerSpec;
  * </ul>
  * Each tool maps to one or more consumed HTTP operations.
  */
+@JsonDeserialize(using = JsonDeserializer.None.class)
 public class McpServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

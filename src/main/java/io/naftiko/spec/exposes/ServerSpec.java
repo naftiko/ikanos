@@ -16,29 +16,14 @@ package io.naftiko.spec.exposes;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.consumes.http.AuthenticationSpec;
-import io.naftiko.spec.exposes.control.ControlServerSpec;
-import io.naftiko.spec.exposes.mcp.McpServerSpec;
-import io.naftiko.spec.exposes.rest.RestServerSpec;
-import io.naftiko.spec.exposes.skill.SkillServerSpec;
 
 /**
  * Base Exposed Adapter Specification Element
  */
-@JsonTypeInfo(
-    use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY, // Include the type identifier as a property in the JSON
-    property = "type" // The name of the JSON property holding the type identifier
-)
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = RestServerSpec.class, name = "rest"),
-    @JsonSubTypes.Type(value = McpServerSpec.class, name = "mcp"),
-    @JsonSubTypes.Type(value = SkillServerSpec.class, name = "skill"),
-    @JsonSubTypes.Type(value = ControlServerSpec.class, name = "control")
-})
+@JsonDeserialize(using = ServerSpecDeserializer.class)
 public abstract class ServerSpec {
 
     private volatile String type;

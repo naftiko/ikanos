@@ -16,6 +16,8 @@ package io.naftiko.spec.exposes.skill;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
@@ -35,6 +37,7 @@ import io.naftiko.spec.exposes.ServerSpec;
  *   <li>{@code GET /skills/{name}/contents/{file}} — individual file from the skill's {@code location}</li>
  * </ul>
  */
+@JsonDeserialize(using = JsonDeserializer.None.class)
 public class SkillServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
