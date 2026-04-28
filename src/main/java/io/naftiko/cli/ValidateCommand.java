@@ -109,6 +109,8 @@ public class ValidateCommand implements Callable<Integer> {
             System.err.println("Error reading file: " + e.getMessage());
             return 1;
         } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : "unexpected validation error";
+            System.err.println("Error: " + message);
             logger.error("Validation error", e);
             return 1;
         }
