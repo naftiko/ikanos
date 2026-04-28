@@ -66,6 +66,13 @@ public class McpServerAdapter extends ServerAdapter {
         Context.getCurrentLogger().log(Level.INFO, "Building MCP Tool definitions from the spec");
 
         for (McpServerToolSpec toolSpec : serverSpec.getTools()) {
+            if (toolSpec == null || toolSpec.getName() == null
+                    || toolSpec.getName().isBlank()) {
+                Context.getCurrentLogger().warning(
+                        "Skipping malformed MCP tool declaration: tool or name is missing");
+                continue;
+            }
+
             this.tools.add(buildMcpTool(toolSpec));
             if (toolSpec.getLabel() != null) {
                 this.toolLabels.put(toolSpec.getName(), toolSpec.getLabel());

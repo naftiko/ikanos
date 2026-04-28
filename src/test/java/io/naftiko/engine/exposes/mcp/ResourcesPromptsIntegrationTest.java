@@ -223,6 +223,43 @@ public class ResourcesPromptsIntegrationTest {
                 "Tool label should be in the labels map");
     }
 
+    @Test
+    public void testToolHandlerCreatedWhenToolListContainsMalformedEntries() throws Exception {
+        McpServerToolSpec validTool = new McpServerToolSpec();
+        validTool.setName("ping");
+        validTool.setDescription("Minimal tool");
+
+        McpServerToolSpec nullNameTool = new McpServerToolSpec();
+        nullNameTool.setDescription("Malformed tool with null name");
+
+        McpServerToolSpec blankNameTool = new McpServerToolSpec();
+        blankNameTool.setName("   ");
+        blankNameTool.setDescription("Malformed tool with blank name");
+
+        McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
+        serverSpec.getTools().add(validTool);
+        serverSpec.getTools().add(null);
+        serverSpec.getTools().add(nullNameTool);
+        serverSpec.getTools().add(blankNameTool);
+
+        CapabilitySpec capabilitySpec = new CapabilitySpec();
+        capabilitySpec.getExposes().add(serverSpec);
+
+        NaftikoSpec spec = new NaftikoSpec();
+        spec.setNaftiko(schemaVersion);
+        spec.setCapability(capabilitySpec);
+
+        Capability localCapability = new Capability(spec);
+        McpServerAdapter localAdapter =
+                (McpServerAdapter) localCapability.getServerAdapters().get(0);
+
+        assertNotNull(localAdapter.getToolHandler(),
+                "ToolHandler should exist even when malformed tools are present");
+        assertEquals(1, localAdapter.getTools().size(),
+                "Only valid tools should be exposed");
+        assertEquals("ping", localAdapter.getTools().get(0).name());
+    }
+
     // ── MCP protocol: initialize ──────────────────────────────────────────────────────────────────
 
     @Test

@@ -57,8 +57,15 @@ public class ToolHandler {
         this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);
         this.exposeNamespace = exposeNamespace;
 
-        for (McpServerToolSpec tool : tools) {
-            toolSpecs.put(tool.getName(), tool);
+        if (tools != null) {
+            for (McpServerToolSpec tool : tools) {
+                if (tool == null || tool.getName() == null || tool.getName().isBlank()) {
+                    Context.getCurrentLogger().warning(
+                            "Skipping malformed MCP tool entry: tool or name is missing");
+                    continue;
+                }
+                toolSpecs.put(tool.getName(), tool);
+            }
         }
     }
 

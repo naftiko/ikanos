@@ -99,4 +99,30 @@ public class ToolHandlerTest {
         // (connection failure at HTTP level is acceptable — the template must be resolved first)
         assertDoesNotThrow(() -> handler.handleToolCall("get-ship", Map.of("imo", "IMO-9321483")));
     }
+
+    @Test
+    public void constructorShouldHandleNullToolList() {
+        ToolHandler handler = assertDoesNotThrow(() -> new ToolHandler(null, null));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> handler.handleToolCall("unknown-tool", Map.of()));
+        assertTrue(error.getMessage().contains("Unknown tool"));
+    }
+
+    @Test
+    public void constructorShouldIgnoreMalformedToolEntries() throws Exception {
+        McpServerToolSpec valid = new McpServerToolSpec();
+        valid.setName("valid-tool");
+
+        McpServerToolSpec nullName = new McpServerToolSpec();
+        nullName.setName(null);
+
+        McpServerToolSpec blankName = new McpServerToolSpec();
+        blankName.setName("   ");
+
+        ToolHandler handler = assertDoesNotThrow(
+                () -> new ToolHandler(null, List.of(valid, nullName, blankName)));
+
+        assertNotNull(handler.handleToolCall("valid-tool", Map.of()));
+    }
 }
