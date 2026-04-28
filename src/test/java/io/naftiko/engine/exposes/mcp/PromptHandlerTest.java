@@ -34,6 +34,17 @@ public class PromptHandlerTest {
     }
 
     @Test
+    public void constructorShouldSkipPromptEntriesWithNullName() {
+        McpServerPromptSpec malformed = new McpServerPromptSpec();
+        malformed.setName(null);
+
+        PromptHandler handler = new PromptHandler(List.of(malformed));
+
+        assertTrue(handler.listAll().isEmpty(),
+                "Prompt entries with null name should be ignored");
+    }
+
+    @Test
     public void renderShouldThrowWhenPromptUnknown() {
         McpServerPromptSpec spec = new McpServerPromptSpec();
         spec.setName("known-prompt");

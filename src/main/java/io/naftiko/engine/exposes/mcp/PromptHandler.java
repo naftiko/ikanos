@@ -51,7 +51,7 @@ public class PromptHandler {
             return;
         }
         for (McpServerPromptSpec prompt : prompts) {
-            if (prompt != null) {
+            if (prompt != null && prompt.getName() != null && !prompt.getName().isBlank()) {
                 promptSpecs.put(prompt.getName(), prompt);
             }
         }
