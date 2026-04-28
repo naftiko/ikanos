@@ -645,6 +645,11 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.naftiko.spec.exposes.ServerSpecDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "io.naftiko.spec.consumes.ClientSpecDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true

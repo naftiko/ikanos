@@ -16,11 +16,14 @@ package io.naftiko.spec.exposes.rest;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.exposes.ServerSpec;
 
 /**
  * Web API Server Specification Element
  */
+@JsonDeserialize(using = JsonDeserializer.None.class)
 public class RestServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

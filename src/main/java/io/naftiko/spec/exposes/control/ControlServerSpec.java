@@ -14,6 +14,8 @@
 package io.naftiko.spec.exposes.control;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.naftiko.spec.observability.ObservabilitySpec;
 import io.naftiko.spec.exposes.ServerSpec;
 
@@ -24,6 +26,7 @@ import io.naftiko.spec.exposes.ServerSpec;
  * Prometheus metrics, trace inspection, and runtime diagnostics. Unlike business adapters, the
  * control port does not expose user-defined tools, operations, or skills.</p>
  */
+@JsonDeserialize(using = JsonDeserializer.None.class)
 public class ControlServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
