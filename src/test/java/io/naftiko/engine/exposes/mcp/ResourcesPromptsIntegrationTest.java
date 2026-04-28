@@ -191,29 +191,29 @@ public class ResourcesPromptsIntegrationTest {
         assertNotNull(adapter.getPromptHandler(), "McpPromptHandler should be created");
     }
 
-        @Test
-        public void testPromptHandlerCreatedWhenPromptsAreOmitted() throws Exception {
-                McpServerToolSpec tool = new McpServerToolSpec();
-                tool.setName("ping");
-                tool.setDescription("Minimal tool");
+    @Test
+    public void testPromptHandlerCreatedWhenPromptsAreOmitted() throws Exception {
+        McpServerToolSpec tool = new McpServerToolSpec();
+        tool.setName("ping");
+        tool.setDescription("Minimal tool");
 
-                McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
-                serverSpec.getTools().add(tool);
+        McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
+        serverSpec.getTools().add(tool);
 
-                CapabilitySpec capabilitySpec = new CapabilitySpec();
-                capabilitySpec.getExposes().add(serverSpec);
+        CapabilitySpec capabilitySpec = new CapabilitySpec();
+        capabilitySpec.getExposes().add(serverSpec);
 
-                NaftikoSpec spec = new NaftikoSpec();
-                spec.setNaftiko(schemaVersion);
-                spec.setCapability(capabilitySpec);
+        NaftikoSpec spec = new NaftikoSpec();
+        spec.setNaftiko(schemaVersion);
+        spec.setCapability(capabilitySpec);
 
-                Capability localCapability = new Capability(spec);
-                McpServerAdapter localAdapter = (McpServerAdapter) localCapability.getServerAdapters().get(0);
+        Capability localCapability = new Capability(spec);
+        McpServerAdapter localAdapter = (McpServerAdapter) localCapability.getServerAdapters().get(0);
 
-                assertNotNull(localAdapter.getPromptHandler(), "PromptHandler should exist even when prompts are omitted");
-                assertTrue(localAdapter.getPromptHandler().listAll().isEmpty(),
-                                "Omitted prompts should behave like an empty prompt list");
-        }
+        assertNotNull(localAdapter.getPromptHandler(), "PromptHandler should exist even when prompts are omitted");
+        assertTrue(localAdapter.getPromptHandler().listAll().isEmpty(),
+                "Omitted prompts should behave like an empty prompt list");
+    }
 
     @Test
     public void testToolLabelsMap() {

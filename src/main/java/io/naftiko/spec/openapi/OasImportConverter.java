@@ -27,6 +27,7 @@ import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.http.ApiKeyAuthenticationSpec;
@@ -98,7 +99,7 @@ public class OasImportConverter {
 
     String deriveBaseUri(OpenAPI openApi, List<String> warnings) {
         if (openApi.getServers() != null && !openApi.getServers().isEmpty()) {
-            io.swagger.v3.oas.models.servers.Server firstServer = openApi.getServers().get(0);
+            Server firstServer = openApi.getServers().get(0);
             String url = firstServer != null ? firstServer.getUrl() : null;
             if (url != null && !url.isEmpty() && !"/".equals(url)) {
                 // Strip trailing slash
