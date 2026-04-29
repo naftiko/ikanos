@@ -140,7 +140,7 @@ info:
   stakeholders:
     - role: owner
       fullName: "Jane Doe"
-      email: "jane.doe@example.
+      email: "jane.doe@example."
 ```
 
 ---
@@ -470,6 +470,7 @@ MCP Server exposition configuration. Exposes capability operations as MCP tools,
 | **port** | `integer` | **REQUIRED when transport is `"http"`**. Port number (1–65535). MUST NOT be present when transport is `"stdio"`. |
 | **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed MCP server. |
 | **description** | `string` | *Recommended*. A meaningful description of the MCP server's purpose. Sent as server instructions during MCP initialization. |
+| **authentication** | `Authentication` | Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Supports all schemes described in [3.16 Authentication Object](#316-authentication-object). |
 | **tools** | `McpTool[]` | **REQUIRED**. List of MCP tools exposed by this server (minimum 1). |
 | **resources** | `McpResource[]` | List of MCP resources exposed by this server. Resources provide data that agents can read. Optional (minimum 1 entry when present). |
 | **prompts** | `McpPrompt[]` | List of MCP prompt templates exposed by this server. Prompts provide reusable, parameterized message templates for AI agents. Optional (minimum 1 entry when present). |
@@ -483,6 +484,7 @@ MCP Server exposition configuration. Exposes capability operations as MCP tools,
 - When `transport` is `"stdio"`, the `port` field MUST NOT be present.
 - When present, the `resources` array MUST contain at least one entry.
 - When present, the `prompts` array MUST contain at least one entry.
+- When `authentication` is present, all MCP endpoints (tools, resources, and prompts) are protected at the transport level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` schemes. Use `oauth2` for standards-compliant MCP authorization servers.
 - No additional properties are allowed.
 
 **MCP Initialize Capabilities:**
@@ -1321,18 +1323,18 @@ outputParameters:
 
 ---
 
-### 3.9 ExposedOperation Object
+### 3.9 Exposes Object
 
 Describes an operation exposed on an exposed resource.
 
-> Update (schema v0.5): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
+> Update (schema v0.5): ExposesObject now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
 >
 > Update (schema v1.0.0-alpha1): A third **ref mode** allows referencing an aggregate function, inheriting its fields. See [3.4.5 Aggregate Object](#345-aggregate-object).
 > 
 
 #### 3.9.1 Fixed Fields
 
-All fields available on ExposedOperation:
+All fields available on ExposesObject:
 
 | Field Name | Type | Description |
 | --- | --- | --- |
@@ -1383,7 +1385,7 @@ All fields available on ExposedOperation:
 - In ref mode, `ref` MUST resolve to an existing aggregate function at capability load time.
 - The `method` field is always required regardless of mode.
 
-#### 3.9.4 ExposedOperation Object Examples
+#### 3.9.4 ExposesObject Examples
 
 **Simple mode (direct call):**
 
@@ -2693,7 +2695,7 @@ capability:
                 - type: "lookup"
                   name: "find-member"
                   index: "list-members"
-                  match: "email"
+                  match: "login"
                   lookupValue: "team.email"
                   outputParameters:
                     - "fullName"
