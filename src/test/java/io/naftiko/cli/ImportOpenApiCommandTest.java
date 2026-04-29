@@ -64,6 +64,7 @@ public class ImportOpenApiCommandTest {
         assertEquals(0, exitCode);
         assertTrue(Files.exists(output));
         String content = Files.readString(output);
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
         assertTrue(content.contains("petstore"));
     }
 
@@ -87,6 +88,7 @@ public class ImportOpenApiCommandTest {
         assertEquals(0, exitCode);
         assertTrue(Files.exists(output));
         String content = Files.readString(output);
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
         assertTrue(content.contains("my-custom-ns"));
     }
 
@@ -172,6 +174,7 @@ public class ImportOpenApiCommandTest {
         String content = Files.readString(output);
         assertTrue(content.contains("petstore"), "Namespace should be derived from Swagger 2.0 title");
         assertTrue(content.contains("list-pets"), "Operation should be converted from Swagger 2.0");
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
     }
 
     @Test
@@ -207,6 +210,7 @@ public class ImportOpenApiCommandTest {
         assertTrue(content.contains("https://api.legacy.io/v2"),
                 "Base URI should be derived from Swagger 2.0 host + basePath");
         assertTrue(content.contains("my-legacy-api"), "Namespace should be kebab-cased title");
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
     }
 
     @Test
@@ -256,6 +260,7 @@ public class ImportOpenApiCommandTest {
         String content = Files.readString(output);
         assertTrue(content.contains("create-item"), "Operation name should be converted");
         assertTrue(content.contains("name"), "Body parameter 'name' should be present");
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
     }
 
     @Test
@@ -276,6 +281,7 @@ public class ImportOpenApiCommandTest {
 
         String content = Files.readString(output);
         assertFalse(content.isBlank(), "Output should not be blank");
+        assertTrue(content.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
         assertTrue(content.contains("naftiko:"), "Output should contain naftiko version");
         assertTrue(content.contains("consumes:"), "Output should contain consumes section");
         assertTrue(content.contains("swagger-petstore"), "Namespace should be derived from title");

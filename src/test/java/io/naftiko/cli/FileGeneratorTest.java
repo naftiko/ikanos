@@ -40,6 +40,7 @@ public class FileGeneratorTest {
 
             String yamlContent = Files.readString(yaml);
 
+            assertTrue(yamlContent.startsWith("# @naftiko\n---\n"), "Output should start with Naftiko modeline header");
             assertTrue(yamlContent.contains(capabilityName));
             assertTrue(yamlContent.contains("https://api.example.com"));
             assertTrue(yamlContent.contains("8080"));

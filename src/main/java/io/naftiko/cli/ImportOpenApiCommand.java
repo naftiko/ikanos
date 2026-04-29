@@ -13,6 +13,7 @@
  */
 package io.naftiko.cli;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
@@ -126,7 +127,13 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             spec.getConsumes().add(httpClient);
 
             Path path = Paths.get(outputPath);
-            mapper.writeValue(path.toFile(), spec);
+            if ("json".equalsIgnoreCase(format)) {
+                mapper.writeValue(path.toFile(), spec);
+            } else {
+                String yaml = mapper.writeValueAsString(spec);
+                // Add modeline header to be sure the file will be recognized by Naftiko VS Code extension
+                Files.writeString(path, "# @naftiko\n---\n" + yaml);
+            }
 
             System.out.println("✓ Imported OpenAPI specification successfully");
             System.out.println("  Output: " + path.toAbsolutePath());
