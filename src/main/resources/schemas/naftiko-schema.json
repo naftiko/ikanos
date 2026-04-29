@@ -2,16 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://naftiko.io/schemas/v1.0.0-alpha2/naftiko.json",
   "name": "Naftiko Specification",
-  "description": "This Schema should be used to describe and validate Naftiko Capabilities",
+  "description": "Naftiko Capability Specification — describes a capability document (adapter + metadata). A valid document must declare `naftiko` + either `capability` (adapter document) or `consumes` (shared consumer file). All adapter logic lives under `capability`; shared consumer definitions live at root `consumes`.",
   "type": "object",
   "properties": {
     "naftiko": {
       "type": "string",
-      "description": "Version of the Naftiko specification",
+      "description": "Naftiko specification version. Must be `1.0.0-alpha2`. Signals schema compatibility — always the first key in a capability file.",
       "const": "1.0.0-alpha2"
     },
     "info": {
-      "$ref": "#/$defs/Info"
+      "$ref": "#/$defs/Info",
+      "description": "Human-readable metadata: label, description, tags, dates, stakeholders.\n\n**When to use** — Required on every capability document. The richer the `description`, the better agents can discover and reason about this capability.\n**Format** — `created` / `modified` must be `YYYY-MM-DD`. `stakeholders[].role` is free-form (`owner`, `editor`, `reviewer`, etc.)."
     },
     "consumes": {
       "type": "array",
@@ -25,7 +26,8 @@
           }
         ]
       },
-      "minItems": 1
+      "minItems": 1,
+      "description": "External HTTP API adapters declared at file scope. Each entry is either an inline `ConsumesHttp` (with `type: http`) or an `ImportedConsumesHttp` (with `location` URI).\n\n**When to use** — Required when calling external APIs. Can appear at root level to share adapter definitions across capabilities, or under `capability.consumes` to scope them to one capability.\n**See also** — `capability.consumes[]` references namespaces declared here."
     },
     "binds": {
       "type": "array",
@@ -33,10 +35,11 @@
         "$ref": "#/$defs/Binding"
       },
       "minItems": 1,
-      "description": "List of external sources the capability binds to for variable injection."
+      "description": "External variable bindings available file-wide. Each entry binds to a secret store or config source (Vault, k8s secrets, GitHub secrets, local file). Variables are injected via Mustache expressions `{{MY_VAR}}`.\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** — `capability.binds` for bindings scoped to a single capability."
     },
     "capability": {
-      "$ref": "#/$defs/Capability"
+      "$ref": "#/$defs/Capability",
+      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** — `info` for metadata, `binds` for secrets."
     }
   },
   "oneOf": [
@@ -57,19 +60,19 @@
   "$defs": {
     "ImportedConsumesHttp": {
       "type": "object",
-      "description": "A globally imported consumed HTTP adapter. Discriminant: 'location' field present.",
+      "description": "References a `ConsumesHttp` adapter defined in an external capability file. Used in `consumes[]` to reuse adapter definitions across capability files without duplication.\n\n**When to use** — When multiple capabilities share the same upstream API adapter. The referenced file must declare a `ConsumesHttp` with a matching `namespace`.\n**Format** — `location` is a URI to the source `.yml` file; `import` is the namespace in that file; `as` is an optional local alias.\n**Example**:\n```yaml\nconsumes:\n  - location: file:///shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
       "properties": {
         "location": {
           "type": "string",
-          "description": "URI to the source consumes file"
+          "description": "URI to the capability file that contains the `ConsumesHttp` adapter to import (e.g. `file:///shared/notion.yml`)."
         },
         "import": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Namespace in the source consumes file"
+          "description": "Namespace of the `ConsumesHttp` adapter to import from the referenced file."
         },
         "as": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Optional local alias for the imported namespace"
+          "description": "Optional local alias. When set, the imported adapter is referenced as `as` instead of `import` in `call`, `with`, and `ForwardConfig.targetNamespace`."
         }
       },
       "required": [
@@ -1892,7 +1895,11 @@
             "name": true,
             "language": {
               "type": "string",
-              "enum": ["javascript", "python", "groovy"],
+              "enum": [
+                "javascript",
+                "python",
+                "groovy"
+              ],
               "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port — the engine falls back to the default."
             },
             "location": {
@@ -1919,7 +1926,9 @@
               "$ref": "#/$defs/WithInjector"
             }
           },
-          "required": ["file"],
+          "required": [
+            "file"
+          ],
           "unevaluatedProperties": false
         }
       ]
@@ -2570,7 +2579,11 @@
         },
         "defaultLanguage": {
           "type": "string",
-          "enum": ["javascript", "python", "groovy"],
+          "enum": [
+            "javascript",
+            "python",
+            "groovy"
+          ],
           "description": "Default language for all script steps. When set, individual steps can omit 'language' and the engine uses this default. Steps with an explicit 'language' override this default."
         },
         "timeout": {
@@ -2589,7 +2602,11 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["javascript", "python", "groovy"]
+            "enum": [
+              "javascript",
+              "python",
+              "groovy"
+            ]
           },
           "description": "Restrict which script languages are permitted. If omitted, all languages supported by the build are allowed."
         }
@@ -2641,7 +2658,10 @@
         },
         "propagation": {
           "type": "string",
-          "enum": ["w3c", "b3"],
+          "enum": [
+            "w3c",
+            "b3"
+          ],
           "default": "w3c",
           "description": "Context propagation format for outgoing HTTP calls."
         },
@@ -2702,7 +2722,9 @@
           "description": "OTLP exporter endpoint. Supports Mustache expressions for binds."
         }
       },
-      "required": ["endpoint"],
+      "required": [
+        "endpoint"
+      ],
       "unevaluatedProperties": false
     }
   }
