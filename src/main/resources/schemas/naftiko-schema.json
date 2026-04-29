@@ -223,14 +223,15 @@
     },
     "ConsumedOutputParameter": {
       "type": "object",
-      "description": "Output parameter of a consumed operation. Extracts a named value from the raw API response via JsonPath, for use in orchestration steps.",
+      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** — Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** — Extracted values are referenced by `name` in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** — For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
       "properties": {
         "name": {
           "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the output parameter. It will be used as a reference in the mapping definitions of the steps to indicate where to map values to."
+          "description": "Name of the extracted value. Referenced by `name` in step mapping definitions (e.g. `$this.namespace.resource.operation.param-name`)."
         },
         "type": {
           "type": "string",
+          "description": "Expected type of the extracted value. Used for type-checking in step mappings.",
           "enum": [
             "string",
             "number",
@@ -241,7 +242,7 @@
         },
         "value": {
           "type": "string",
-          "description": "JsonPath expression against the raw response payload. E.g. $.results[*].id"
+          "description": "JsonPath expression evaluated against the parsed response body to extract this parameter. Examples: `$.id`, `$.results[*].name`, `$.meta.total`."
         }
       },
       "required": [
@@ -937,7 +938,8 @@
           "description": "Unique identifier for this exposed API"
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication"
+          "$ref": "#/$defs/Authentication",
+          "description": "Authentication required on incoming requests to this REST adapter. Protects all resources and operations under this adapter. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` (JWT/introspection)."
         },
         "resources": {
           "type": "array",
@@ -989,7 +991,8 @@
           "description": "A meaningful description of this MCP server's purpose. Used as the server instructions sent during MCP initialization."
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication"
+          "$ref": "#/$defs/Authentication",
+          "description": "Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Use `oauth2` for standards-compliant MCP authorization servers."
         },
         "tools": {
           "type": "array",
@@ -1640,11 +1643,11 @@
     },
     "ConsumesHttp": {
       "type": "object",
-      "description": "HTTP API consumption configuration",
+      "description": "Inline HTTP API adapter. Declares the base URI, shared input parameters, authentication, and resources for an upstream HTTP service.\n\n**When to use** — Define one `ConsumesHttp` per upstream API (e.g. one for Notion, one for GitHub). Declare it at root-level `consumes[]` to share across capabilities, or under `capability.consumes[]` to scope it locally.\n**Execution model** — The framework uses `namespace` as the call target. Operations are resolved by matching `ConsumedHttpResource.name` + `ConsumedHttpOperation.name`.\n**See also** — `ImportedConsumesHttp` (cross-file reuse), `ForwardConfig` (header forwarding), `Authentication` (security).",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Unique identifier for this consumed API"
+          "description": "Unique adapter identifier (kebab-case). Used as the call target: `call: namespace.resource.operation`. Must be unique within the file."
         },
         "type": {
           "type": "string",
@@ -1652,25 +1655,27 @@
         },
         "description": {
           "type": "string",
-          "description": "Used to provide *meaningful* information about the operation. Remember, in a world of agents, context is king."
+          "description": "Human- and agent-readable description of this upstream API. Explain what the API does, its domain (e.g. project management, code hosting), and any important constraints. Agents use this to decide which adapter to call."
         },
         "baseUri": {
           "type": "string",
-          "description": "Target URI for the consumes API",
+          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here — use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
           "pattern": "^https?://[^/]+(/[^{]*)?$"
         },
         "inputParameters": {
           "type": "array",
+          "description": "Parameters injected into every request of this adapter (e.g. a shared `Notion-Version` header). Each entry is a `ConsumedInputParameter`. Operation-level `inputParameters` override adapter-level ones with the same `name`+`in` combination.",
           "items": {
             "$ref": "#/$defs/ConsumedInputParameter"
           }
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication"
+          "$ref": "#/$defs/Authentication",
+          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2`."
         },
         "resources": {
           "type": "array",
-          "description": "List of consumed resources",
+          "description": "Ordered list of HTTP resources exposed by this upstream API. Each resource groups operations sharing the same base path.",
           "items": {
             "$ref": "#/$defs/ConsumedHttpResource"
           },
@@ -1686,30 +1691,34 @@
     },
     "ConsumedHttpResource": {
       "type": "object",
-      "description": "A consumed HTTP resource",
+      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** — Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** — `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** — `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
         "name": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the resource. It will likely be used for reference"
+          "description": "Technical identifier for this resource (kebab-case). Used in call references: `call: adapter.resource-name.operation`."
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "Human-readable label for editors and documentation. Does not affect runtime behavior."
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object — a structured collection of pages'). Used for agent discovery."
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "Path segment appended to `ConsumesHttp.baseUri`. May include path parameters in curly-brace notation (e.g. `/databases/{databaseId}`). Path parameters must be declared in `inputParameters` with `in: path`."
         },
         "inputParameters": {
           "type": "array",
+          "description": "Parameters shared by all operations on this resource (e.g. a `{databaseId}` path param). Merged with adapter-level `inputParameters`; operation-level entries take precedence on conflict.",
           "items": {
             "$ref": "#/$defs/ConsumedInputParameter"
           }
         },
         "operations": {
           "type": "array",
-          "description": "Operations on this resource",
+          "description": "HTTP operations available on this resource (GET, POST, PUT, PATCH, DELETE). At least one required.",
           "items": {
             "$ref": "#/$defs/ConsumedHttpOperation"
           },
@@ -1747,7 +1756,8 @@
             "PATCH",
             "DELETE"
           ],
-          "default": "GET"
+          "default": "GET",
+          "description": "HTTP method for this operation. Defaults to `GET`."
         },
         "inputParameters": {
           "type": "array",
@@ -1774,7 +1784,7 @@
         },
         "outputSchema": {
           "type": "string",
-          "description": "Optional format-specific schema or selector. Required for avro and protobuf as the schema file path. For html, this may contain a CSS selector used to scope table extraction. For markdown, this may contain a heading prefix used to filter sections."
+          "description": "Format-specific schema or selector:\n- **avro / protobuf** — path to the schema file (required for these formats).\n- **html** — CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** — Heading prefix to filter sections (e.g. `## Results`).\n- Other formats — unused."
         },
         "outputParameters": {
           "type": "array",
@@ -1783,7 +1793,8 @@
           }
         },
         "body": {
-          "$ref": "#/$defs/RequestBody"
+          "$ref": "#/$defs/RequestBody",
+          "description": "Optional request body (POST/PUT/PATCH). Choose the variant matching the upstream API content-type: `json`, `text`/`xml`/`sparql`, `formUrlEncoded`, `multipartForm`, or a raw string."
         }
       },
       "required": [
@@ -1968,12 +1979,14 @@
     },
     "RequestBodyJson": {
       "type": "object",
+      "description": "JSON request body. Sends `data` serialized as `application/json`. `data` can be a static string, object, or array — or a Mustache template string resolved from the execution context.",
       "properties": {
         "type": {
           "type": "string",
           "const": "json"
         },
         "data": {
+          "description": "Payload serialized as JSON. Accepts a static string (Mustache-interpolated at runtime), an inline object, or an inline array.",
           "oneOf": [
             {
               "type": "string"
@@ -1995,9 +2008,11 @@
     },
     "RequestBodyText": {
       "type": "object",
+      "description": "Plain-text, XML, or SPARQL request body. Sends `data` as a string with the matching content-type (`text/plain`, `application/xml`, or `application/sparql-query`).",
       "properties": {
         "type": {
           "type": "string",
+          "description": "Content-type variant: `text` → `text/plain`, `xml` → `application/xml`, `sparql` → `application/sparql-query`.",
           "enum": [
             "text",
             "xml",
@@ -2005,7 +2020,8 @@
           ]
         },
         "data": {
-          "type": "string"
+          "type": "string",
+          "description": "Body string. Supports Mustache interpolation for runtime value injection."
         }
       },
       "required": [
@@ -2016,18 +2032,22 @@
     },
     "RequestBodyFormUrlEncoded": {
       "type": "object",
+      "description": "URL-encoded form request body (`application/x-www-form-urlencoded`). Suitable for OAuth token endpoints and legacy form APIs.",
       "properties": {
         "type": {
           "type": "string",
           "const": "formUrlEncoded"
         },
         "data": {
+          "description": "Form fields. Provide either a pre-encoded string or a key→value object whose values are URL-encoded by the framework.",
           "oneOf": [
             {
-              "type": "string"
+              "type": "string",
+              "description": "Pre-encoded form string (e.g. `grant_type=client_credentials&scope=read`)."
             },
             {
               "type": "object",
+              "description": "Key–value map of form fields. Values must be strings; the framework handles encoding.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2043,18 +2063,23 @@
     },
     "RequestBodyMultipartFormPart": {
       "type": "object",
+      "description": "A single part in a `multipart/form-data` request. Use `filename` + `contentType` to attach files; omit them for plain form fields.",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "Form field name for this part."
         },
         "value": {
-          "type": "string"
+          "type": "string",
+          "description": "Content of this part. For file parts, this is the base64-encoded or raw file content."
         },
         "filename": {
-          "type": "string"
+          "type": "string",
+          "description": "Optional file name hint sent in `Content-Disposition`. Presence signals to the server that this part is a file upload."
         },
         "contentType": {
-          "type": "string"
+          "type": "string",
+          "description": "MIME type for this part (e.g. `image/png`, `application/pdf`). Required when uploading a file."
         }
       },
       "required": [
@@ -2065,6 +2090,7 @@
     },
     "RequestBodyMultipartForm": {
       "type": "object",
+      "description": "Multipart form request body (`multipart/form-data`). Use for file uploads or mixed text+file payloads. Each part is a `RequestBodyMultipartFormPart`.",
       "properties": {
         "type": {
           "type": "string",
@@ -2072,6 +2098,7 @@
         },
         "data": {
           "type": "array",
+          "description": "Ordered list of form parts. Mix plain fields (no `filename`) and file parts (`filename` + `contentType`) as needed.",
           "items": {
             "$ref": "#/$defs/RequestBodyMultipartFormPart"
           }
@@ -2085,10 +2112,10 @@
     },
     "RequestBodyRaw": {
       "type": "string",
-      "description": "A raw body string. When used with a YAML block scalar (|), the string is sent as-is. Interpreted as JSON by default."
+      "description": "Raw body string sent as-is. Use a YAML block scalar (`|`) for multi-line payloads. The framework treats the string as JSON by default; pair with a `Content-Type` input parameter to override."
     },
     "RequestBody": {
-      "description": "Request body configuration",
+      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` → `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` → plain text / XML / SPARQL query\n- `formUrlEncoded` → `application/x-www-form-urlencoded`\n- `multipartForm` → `multipart/form-data` (file uploads)\n- raw string → sent as-is (override content-type via an `inputParameter` with `in: header`)",
       "oneOf": [
         {
           "$ref": "#/$defs/RequestBodyJson"
@@ -2109,18 +2136,18 @@
     },
     "ForwardConfig": {
       "type": "object",
-      "description": "Configuration for forwarding requests to a consumed namespace",
+      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** — Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** — Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** — `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
       "properties": {
         "targetNamespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "The namespace to forward requests to"
+          "description": "Namespace of the `ConsumesHttp` adapter to forward requests to. Must match a `namespace` declared in `consumes[]`."
         },
         "trustedHeaders": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "List of headers that can be forwarded",
+          "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
           "minItems": 1
         }
       },
@@ -2130,7 +2157,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication",
+      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` — HTTP Basic (username + password)\n- `apikey` — API key in header or query string\n- `bearer` — Static Bearer token\n- `digest` — HTTP Digest (username + password)\n- `oauth2` — OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -2151,7 +2178,7 @@
     },
     "AuthBasic": {
       "type": "object",
-      "description": "Basic authentication",
+      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime — do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
       "properties": {
         "type": {
           "type": "string",
@@ -2159,11 +2186,11 @@
         },
         "username": {
           "type": "string",
-          "description": "Username for basic auth"
+          "description": "Username. Supports environment variable expressions (e.g. `$env.API_USER`)."
         },
         "password": {
           "type": "string",
-          "description": "Password for basic auth"
+          "description": "Password. Supports environment variable expressions (e.g. `$env.API_PASSWORD`). Never hardcode secrets in YAML."
         }
       },
       "required": [
@@ -2173,7 +2200,7 @@
     },
     "AuthApiKey": {
       "type": "object",
-      "description": "API Key authentication",
+      "description": "API Key authentication. Injects a named key–value pair into every request, either as a request header or a query parameter. Common for services like Notion (`Authorization: Bearer`), OpenWeather (`appid=...`), etc.",
       "properties": {
         "type": {
           "type": "string",
@@ -2181,11 +2208,11 @@
         },
         "key": {
           "type": "string",
-          "description": "API key name"
+          "description": "Name of the header or query parameter (e.g. `X-Api-Key`, `api_key`, `Authorization`)."
         },
         "value": {
           "type": "string",
-          "description": "API key value"
+          "description": "API key value. Supports environment variable expressions (e.g. `$env.NOTION_TOKEN`). Never hardcode secrets."
         },
         "placement": {
           "type": "string",
@@ -2193,7 +2220,7 @@
             "header",
             "query"
           ],
-          "description": "Where to place the API key"
+          "description": "Where to place the key: `header` (as an HTTP request header) or `query` (as a URL query parameter). Defaults to `header` when omitted."
         }
       },
       "required": [
@@ -2203,7 +2230,7 @@
     },
     "AuthBearer": {
       "type": "object",
-      "description": "Bearer token authentication",
+      "description": "Static Bearer token authentication (`Authorization: Bearer <token>`). Use for APIs that issue long-lived tokens (service accounts, PATs). For dynamic token refresh, use `oauth2` instead.",
       "properties": {
         "type": {
           "type": "string",
@@ -2211,7 +2238,7 @@
         },
         "token": {
           "type": "string",
-          "description": "Bearer token"
+          "description": "Bearer token value. Supports environment variable expressions (e.g. `$env.GITHUB_TOKEN`). Never hardcode secrets."
         }
       },
       "required": [
@@ -2221,7 +2248,7 @@
     },
     "AuthDigest": {
       "type": "object",
-      "description": "Digest authentication",
+      "description": "HTTP Digest authentication (RFC 7616). The framework performs the full challenge–response handshake automatically. Used by older APIs that require digest over basic.",
       "properties": {
         "type": {
           "type": "string",
@@ -2229,11 +2256,11 @@
         },
         "username": {
           "type": "string",
-          "description": "Username for digest auth"
+          "description": "Username for digest auth. Supports environment variable expressions (e.g. `$env.API_USER`)."
         },
         "password": {
           "type": "string",
-          "description": "Password for digest auth"
+          "description": "Password for digest auth. Supports environment variable expressions (e.g. `$env.API_PASSWORD`). Never hardcode secrets."
         }
       },
       "required": [
@@ -2317,7 +2344,8 @@
           "description": "Description of this skill server's purpose"
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication"
+          "$ref": "#/$defs/Authentication",
+          "description": "Authentication required on incoming requests to this skill server. Protects the skills catalog and tool invocation endpoints."
         },
         "skills": {
           "type": "array",
