@@ -36,9 +36,14 @@ config_gpg(){
   mkdir -p ~/.gnupg/
   chmod 700 ~/.gnupg/
   
-  print "${GPG_SIGNING_KEY}" | base64 --decode > ~/.gnupg/private.key
+  echo "${GPG_SIGNING_KEY}" > ~/.gnupg/private.key
   chmod 600 ~/.gnupg/private.key
-  gpg --batch --import ~/.gnupg/private.key
+  
+  if ! gpg --batch --import ~/.gnupg/private.key 2>/dev/null; then
+    println "ERROR: Failed to import GPG key. Ensure it's in ASCII armor format."
+    println "Expected format: -----BEGIN PGP PRIVATE KEY BLOCK-----"
+    exit 201
+  fi
   
   cat <<EOF > ~/.gnupg/gpg.conf
 use-agent
