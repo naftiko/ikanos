@@ -37,6 +37,9 @@ public class ImportedConsumesHttpSpec extends ClientSpec {
     @JsonProperty("as")
     private volatile String alias;
 
+    @JsonProperty("description")
+    private volatile String description;
+
     public ImportedConsumesHttpSpec() {
         super(null, null);
     }
@@ -46,6 +49,14 @@ public class ImportedConsumesHttpSpec extends ClientSpec {
         this.location = location;
         this.importNamespace = importNamespace;
         this.alias = alias;
+    }
+
+    public ImportedConsumesHttpSpec(String location, String importNamespace, String alias, String description) {
+        super("http", null);
+        this.location = location;
+        this.importNamespace = importNamespace;
+        this.alias = alias;
+        this.description = description;
     }
 
     public String getLocation() {
@@ -70,6 +81,14 @@ public class ImportedConsumesHttpSpec extends ClientSpec {
 
     public void setAlias(String alias) {
         this.alias = alias;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     /**

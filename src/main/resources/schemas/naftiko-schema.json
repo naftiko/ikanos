@@ -73,6 +73,10 @@
         "as": {
           "$ref": "#/$defs/IdentifierKebab",
           "description": "Optional local alias. When set, the imported adapter is referenced as `as` instead of `import` in `call`, `with`, and `ForwardConfig.targetNamespace`."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human- and agent-readable description of this upstream API. Explain what the API does, its domain (e.g. project management, code hosting), and any important constraints. Agents use this to decide which adapter to call."
         }
       },
       "required": [

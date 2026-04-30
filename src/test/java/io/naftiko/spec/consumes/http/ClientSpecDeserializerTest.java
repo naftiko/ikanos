@@ -102,4 +102,35 @@ public class ClientSpecDeserializerTest {
         ImportedConsumesHttpSpec imported = (ImportedConsumesHttpSpec) result;
         assertEquals("", imported.getAlias());
     }
+
+    @Test
+    public void testDeserializeImportedConsumesWithDescriptionShouldPopulateDescriptionField() throws Exception {
+        String yaml = """
+            type: "http"
+            location: "./api.yml"
+            import: "myapi"
+            description: "Manages project tasks and issues."
+            """;
+
+        ClientSpec result = mapper.readValue(yaml, ClientSpec.class);
+
+        assertTrue(result instanceof ImportedConsumesHttpSpec);
+        ImportedConsumesHttpSpec imported = (ImportedConsumesHttpSpec) result;
+        assertEquals("Manages project tasks and issues.", imported.getDescription());
+    }
+
+    @Test
+    public void testDeserializeImportedConsumesWithoutDescriptionShouldLeaveDescriptionNull() throws Exception {
+        String yaml = """
+            type: "http"
+            location: "./api.yml"
+            import: "myapi"
+            """;
+
+        ClientSpec result = mapper.readValue(yaml, ClientSpec.class);
+
+        assertTrue(result instanceof ImportedConsumesHttpSpec);
+        ImportedConsumesHttpSpec imported = (ImportedConsumesHttpSpec) result;
+        assertNull(imported.getDescription());
+    }
 }
