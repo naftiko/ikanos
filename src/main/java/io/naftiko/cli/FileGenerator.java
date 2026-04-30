@@ -18,6 +18,7 @@ import com.samskivert.mustache.Template;
 import io.naftiko.util.VersionHelper;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,7 +40,8 @@ public class FileGenerator {
         }
         
         // Render template and write file.
-        Template mustache = Mustache.compiler().compile(new InputStreamReader(templateStream));
+        Template mustache = Mustache.compiler()
+            .compile(new InputStreamReader(templateStream, StandardCharsets.UTF_8));
         Map<String, Object> scope = new HashMap<>();
         scope.put("version", VersionHelper.getSchemaVersion());
         scope.put("capabilityName", capabilityName);
@@ -47,7 +49,7 @@ public class FileGenerator {
         scope.put("baseUri", baseUri);
         scope.put("path", "{{path}}"); // Let this keyword as is.
         Path outputPath = Paths.get(outputFileName);
-        try (Writer writer = Files.newBufferedWriter(outputPath)) {
+        try (Writer writer = new OutputStreamWriter(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
             mustache.execute(scope, writer);
             writer.flush();
         }
