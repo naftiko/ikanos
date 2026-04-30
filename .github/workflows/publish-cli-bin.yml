@@ -17,6 +17,10 @@ jobs:
           - os: ubuntu-latest
             artifact_name: naftiko-cli-linux-amd64
             
+          # Linux ARM64
+          - os: ubuntu-24.04-arm
+            artifact_name: naftiko-cli-linux-arm64
+            
           # macOS Apple Silicon (ARM64)
           - os: macos-latest  # macos-14+ uses Mx runners
             artifact_name: naftiko-cli-macos-arm64
@@ -75,6 +79,8 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: naftiko-cli-linux-amd64
+          - os: ubuntu-24.04-arm
+            artifact_name: naftiko-cli-linux-arm64
           - os: macos-latest
             artifact_name: naftiko-cli-macos-arm64
           - os: windows-latest
