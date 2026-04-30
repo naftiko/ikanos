@@ -1,7 +1,7 @@
 name: Publish MVN Release to GitHub Packages
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   publish:
