@@ -15,8 +15,6 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 |---|---|
 | Spec-Driven Integration | Declare capabilities entirely in **YAML** — no Java required |
 | Multi-Protocol Servers | Expose capabilities via **MCP**, **SKILL**, or **REST** servers out of the box |
-| Control Port | Built-in management plane with **health**, **metrics**, **traces**, and **status** endpoints |
-| Cloud Native | **OpenTelemetry** tracing & RED metrics, **Prometheus** scrape, single **Docker** image for all capabilities |
 | Data Format Conversion | Transform **Protobuf**, **XML**, **YAML**, **CSV**, **TSV**, **PSV**, **Avro**, **HTML**, and **Markdown** payloads into JSON |
 | HTTP API Consumption | Connect to any HTTP-based API with built-in authentication support |
 | Templating & Querying | Use **Mustache** templates and **JSONPath** expressions for flexible data mapping |
@@ -25,6 +23,8 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 | Server Authentication | Secure exposed endpoints with **Bearer**, **API Key**, **Basic**, **Digest**, or **OAuth 2.1** authentication out of the box |
 | AI Native | Designed for Context Engineering and Agent Orchestration, making capabilities directly consumable by AI agents |
 | OpenAPI Interoperability | Import **Swagger 2.0**, **OAS 3.0/3.1** into consumes adapters, export REST adapters as **OpenAPI** documents |
+| Control Port | Built-in management plane with **health**, **metrics**, **traces**, and **status** endpoints |
+| Cloud Native Operations| **OpenTelemetry** tracing & RED metrics, **Prometheus** scrape, single **Docker** image for all capabilities |
 | Extensible | Open-source core extensible with new protocols and adapters |
 
 ***
