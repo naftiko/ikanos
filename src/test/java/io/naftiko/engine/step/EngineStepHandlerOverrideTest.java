@@ -22,11 +22,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import io.naftiko.Capability;
 import io.naftiko.engine.NaftikoEngine;
 import io.naftiko.engine.util.OperationStepExecutor;
 import io.naftiko.spec.util.OperationStepCallSpec;
-import io.naftiko.spec.util.OperationStepSpec;
 
 /**
  * Integration test that verifies step handlers override normal step execution in the engine.

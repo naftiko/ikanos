@@ -19,7 +19,6 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.naftiko.engine.util.StepExecutionContext;
 
@@ -92,7 +91,6 @@ class StepHandlerRegistryTest {
 
     @Test
     void executeHandlerShouldDelegateToRegisteredHandler() {
-        ObjectMapper mapper = new ObjectMapper();
         StepHandler handler = ctx -> {
             String input = (String) ctx.inputParameter("name");
             return TextNode.valueOf("hello " + input);
