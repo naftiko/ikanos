@@ -37,6 +37,7 @@ import io.naftiko.engine.consumes.http.HttpClientAdapter;
 import io.naftiko.engine.observability.RestletHeaderSetter;
 import io.naftiko.engine.observability.TelemetryBootstrap;
 import io.naftiko.engine.scripting.ScriptStepExecutor;
+import io.naftiko.engine.step.StepHandlerRegistry;
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.consumes.http.HttpClientOperationSpec;
@@ -182,6 +183,48 @@ public class OperationStepExecutor {
 
         for (int stepIndex = 0; stepIndex < steps.size(); stepIndex++) {
             OperationStepSpec step = steps.get(stepIndex);
+
+            // Check step handler registry before normal dispatch
+            StepHandlerRegistry registry = capability != null
+                    ? capability.getStepHandlerRegistry() : null;
+            if (registry != null && step.getName() != null && registry.has(step.getName())) {
+                TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+                Span stepSpan = telemetry.startStepCallSpan(
+                        stepIndex, "handler:" + step.getName(), exposeNamespace);
+                long handlerStartNanos = System.nanoTime();
+                try (Scope stepScope = stepSpan.makeCurrent()) {
+                    Map<String, Object> withValues = null;
+                    if (step instanceof OperationStepCallSpec callSpec) {
+                        withValues = callSpec.getWith();
+                        if (withValues != null) {
+                            Map<String, Object> resolved = new ConcurrentHashMap<>(withValues);
+                            mergeWithParameters(resolved, runtimeParameters, exposeNamespace);
+                            withValues = resolved;
+                        }
+                    }
+                    JsonNode handlerResult = registry.executeHandler(
+                            step.getName(), runtimeParameters, stepContext, withValues);
+                    if (handlerResult != null) {
+                        stepContext.storeStepOutput(step.getName(), handlerResult);
+                        addStepOutputToParameters(
+                                runtimeParameters, step.getName(), handlerResult);
+                    }
+                } catch (Exception e) {
+                    TelemetryBootstrap.recordError(stepSpan, e);
+                    throw e instanceof IllegalStateException
+                            ? (IllegalStateException) e
+                            : new IllegalStateException(
+                                    "Step handler failed for step: " + step.getName(), e);
+                } finally {
+                    double handlerDurationSec =
+                            (System.nanoTime() - handlerStartNanos) / 1_000_000_000.0;
+                    telemetry.getMetrics().recordStep(
+                            "handler", exposeNamespace, handlerDurationSec);
+                    TelemetryBootstrap.endSpan(stepSpan);
+                }
+                continue;
+            }
+
             switch (step) {
                 case OperationStepCallSpec callStep -> {
                     TelemetryBootstrap telemetry = TelemetryBootstrap.get();

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.engine.aggregates.Aggregate;
 import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.engine.aggregates.AggregateRefResolver;
+import io.naftiko.engine.step.StepHandlerRegistry;
 import io.naftiko.engine.util.OperationStepExecutor;
 import io.naftiko.spec.aggregates.AggregateSpec;
 import io.naftiko.spec.util.ExecutionContext;
@@ -63,6 +64,7 @@ public class Capability {
     private volatile List<Aggregate> aggregates;
     private volatile Map<String, Object> bindings;
     private volatile ScriptingManagementSpec scriptingSpec;
+    private volatile StepHandlerRegistry stepHandlerRegistry;
 
     public Capability(NaftikoSpec spec) throws Exception {
         this(spec, null);
@@ -172,6 +174,14 @@ public class Capability {
 
     public ScriptingManagementSpec getScriptingSpec() {
         return scriptingSpec;
+    }
+
+    public StepHandlerRegistry getStepHandlerRegistry() {
+        return stepHandlerRegistry;
+    }
+
+    public void setStepHandlerRegistry(StepHandlerRegistry registry) {
+        this.stepHandlerRegistry = registry;
     }
 
     /**
