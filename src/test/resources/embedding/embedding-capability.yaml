@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+---
+naftiko: "1.0.0-alpha3"
+info:
+  label: "Embedding Test"
+  description: "Test capability for step handler registry integration"
+  tags:
+    - Test
+    - Embedding
+  created: "2026-05-01"
+  modified: "2026-05-01"
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9199
+      namespace: "embed-test"
+      description: "Test MCP server for embedding API validation."
+
+      tools:
+        - name: "greet"
+          description: "Greet by name"
+          inputParameters:
+            - name: "name"
+              type: "string"
+              description: "Name to greet"
+              required: true
+          steps:
+            - type: "call"
+              name: "do-greet"
+              call: "placeholder.greet"
+              with:
+                name: "{{name}}"
+          outputParameters:
+            - name: "message"
+              type: "string"
+          mappings:
+            - source: "do-greet.message"
+              targetName: "message"
+
+        - name: "compute"
+          description: "Compute two numbers"
+          inputParameters:
+            - name: "a"
+              type: "number"
+              description: "First number"
+              required: true
+            - name: "b"
+              type: "number"
+              description: "Second number"
+              required: true
+          steps:
+            - type: "call"
+              name: "add"
+              call: "placeholder.add"
+              with:
+                a: "{{a}}"
+                b: "{{b}}"
+          outputParameters:
+            - name: "result"
+              type: "number"
+          mappings:
+            - source: "add.result"
+              targetName: "result"
+
+  consumes:
+    - type: "http"
+      namespace: "placeholder"
+      baseUri: "http://localhost:19999"
+      resources:
+        - path: "greet"
+          operations:
+            - name: "greet"
+              method: "POST"
+        - path: "add"
+          operations:
+            - name: "add"
+              method: "POST"
