@@ -36,8 +36,8 @@ capability:
             - name: "message"
               type: "string"
           mappings:
-            - source: "do-greet.message"
-              targetName: "message"
+            - targetName: "message"
+              value: "$.do-greet.message"
 
         - name: "compute"
           description: "Compute two numbers"
@@ -61,19 +61,21 @@ capability:
             - name: "result"
               type: "number"
           mappings:
-            - source: "add.result"
-              targetName: "result"
+            - targetName: "result"
+              value: "$.add.result"
 
   consumes:
     - type: "http"
       namespace: "placeholder"
       baseUri: "http://localhost:19999"
       resources:
-        - path: "greet"
+        - name: "greet"
+          path: "greet"
           operations:
             - name: "greet"
               method: "POST"
-        - path: "add"
+        - name: "add"
+          path: "add"
           operations:
             - name: "add"
               method: "POST"
