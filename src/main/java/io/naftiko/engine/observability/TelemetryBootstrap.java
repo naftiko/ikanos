@@ -62,6 +62,9 @@ public class TelemetryBootstrap {
     private final OpenTelemetry openTelemetry;
     private final Tracer tracer;
     private final EngineMetrics metrics;
+    // When false, all span/metric recording is skipped with zero overhead (no string
+    // concatenation, no Attributes allocation, no virtual dispatch on noop objects).
+    private final boolean enabled;
     // Null when OTel is noop; holds a PullMetricReader when SDK is active.
     // Stored as Object to avoid loading SDK classes when the SDK is absent.
     private final Object metricReader;
@@ -75,17 +78,18 @@ public class TelemetryBootstrap {
             "io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk";
 
     TelemetryBootstrap(OpenTelemetry openTelemetry) {
-        this(openTelemetry, null, null);
+        this(openTelemetry, null, null, false);
     }
 
     TelemetryBootstrap(OpenTelemetry openTelemetry, Object metricReader,
-            DelegatingSpanProcessor delegatingSpanProcessor) {
+            DelegatingSpanProcessor delegatingSpanProcessor, boolean enabled) {
         this.openTelemetry = openTelemetry;
         this.tracer = openTelemetry.getTracer(INSTRUMENTATION_NAME);
         Meter meter = openTelemetry.getMeter(INSTRUMENTATION_NAME);
-        this.metrics = new EngineMetrics(meter);
+        this.metrics = new EngineMetrics(meter, enabled);
         this.metricReader = metricReader;
         this.delegatingSpanProcessor = delegatingSpanProcessor;
+        this.enabled = enabled;
     }
 
     /**
@@ -147,7 +151,7 @@ public class TelemetryBootstrap {
                         tracerProviderBuilder.addSpanProcessor(spanProcessorSlot))
                 .build()
                 .getOpenTelemetrySdk();
-        return new TelemetryBootstrap(otel, pullReader, spanProcessorSlot);
+        return new TelemetryBootstrap(otel, pullReader, spanProcessorSlot, true);
     }
 
     /**
@@ -197,7 +201,7 @@ public class TelemetryBootstrap {
      * Initialize with a provided OpenTelemetry instance (for testing).
      */
     public static TelemetryBootstrap init(OpenTelemetry openTelemetry) {
-        instance = new TelemetryBootstrap(openTelemetry);
+        instance = new TelemetryBootstrap(openTelemetry, null, null, true);
         return instance;
     }
 
@@ -226,6 +230,13 @@ public class TelemetryBootstrap {
 
     public EngineMetrics getMetrics() {
         return metrics;
+    }
+
+    /**
+     * Returns {@code true} when telemetry is enabled (not noop mode).
+     */
+    public boolean isEnabled() {
+        return enabled;
     }
 
     /**
@@ -265,6 +276,7 @@ public class TelemetryBootstrap {
      * Start a SERVER span for an inbound adapter request.
      */
     public Span startServerSpan(String adapterType, String operationId) {
+        if (!enabled) return Span.getInvalid();
         return tracer.spanBuilder(adapterType + ".request")
                 .setSpanKind(SpanKind.SERVER)
                 .setAttribute(ATTR_ADAPTER_TYPE, adapterType)
@@ -283,6 +295,7 @@ public class TelemetryBootstrap {
     public Span startServerSpan(String adapterType, String operationId,
             io.opentelemetry.context.Context parentContext, String httpMethod,
             String capabilityName) {
+        if (!enabled) return Span.getInvalid();
         boolean hasRemoteParent = parentContext != null
                 && Span.fromContext(parentContext).getSpanContext().isValid()
                 && Span.fromContext(parentContext).getSpanContext().isRemote();
@@ -307,6 +320,7 @@ public class TelemetryBootstrap {
      * Start an INTERNAL span for a call step.
      */
     public Span startStepCallSpan(int stepIndex, String call, String namespace) {
+        if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("step.call")
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_STEP_INDEX, stepIndex)
@@ -321,6 +335,7 @@ public class TelemetryBootstrap {
      * Start an INTERNAL span for a lookup step.
      */
     public Span startStepLookupSpan(int stepIndex, String match) {
+        if (!enabled) return Span.getInvalid();
         return tracer.spanBuilder("step.lookup")
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_STEP_INDEX, stepIndex)
@@ -332,6 +347,7 @@ public class TelemetryBootstrap {
      * Start an INTERNAL span for a script step.
      */
     public Span startStepScriptSpan(int stepIndex, String file, String language) {
+        if (!enabled) return Span.getInvalid();
         return tracer.spanBuilder("step.script")
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_STEP_INDEX, stepIndex)
@@ -344,6 +360,7 @@ public class TelemetryBootstrap {
      * Start an INTERNAL span for an aggregate function execution.
      */
     public Span startAggregateFunctionSpan(String ref) {
+        if (!enabled) return Span.getInvalid();
         return tracer.spanBuilder("aggregate.function")
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_AGGREGATE_REF, ref != null ? ref : "unknown")
@@ -357,6 +374,7 @@ public class TelemetryBootstrap {
      * to McpServerResource.  This span captures the tool-dispatch logic.</p>
      */
     public Span startToolHandlerSpan(String toolName) {
+        if (!enabled) return Span.getInvalid();
         return tracer.spanBuilder("mcp.tool")
                 .setSpanKind(SpanKind.INTERNAL)
                 .setAttribute(ATTR_ADAPTER_TYPE, "mcp")
@@ -368,6 +386,7 @@ public class TelemetryBootstrap {
      * Start a CLIENT span for an outbound HTTP call.
      */
     public Span startClientSpan(String method, String url, String namespace) {
+        if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("http.client." + (method != null ? method : "UNKNOWN"))
                 .setSpanKind(SpanKind.CLIENT)
                 .setAttribute(ATTR_HTTP_METHOD, method != null ? method : "UNKNOWN")

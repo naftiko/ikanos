@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.Capability;
+import io.naftiko.engine.observability.TelemetryBootstrap;
 import io.naftiko.engine.step.StepHandler;
 import io.naftiko.engine.step.StepHandlerRegistry;
 import io.naftiko.spec.NaftikoSpec;
@@ -84,6 +85,7 @@ public class NaftikoEngine {
         private NaftikoSpec spec;
         private String capabilityDir;
         private final StepHandlerRegistry registry = new StepHandlerRegistry();
+        private boolean telemetryEnabled;
 
         /** Load a capability from a YAML resource on the classpath. */
         public Builder capabilityFromClasspath(String resourcePath) {
@@ -135,6 +137,15 @@ public class NaftikoEngine {
             return this;
         }
 
+        /**
+         * Enable OpenTelemetry tracing and metrics. Disabled by default in embedded mode
+         * for zero overhead. When enabled, the OTel SDK autoconfigure is used.
+         */
+        public Builder telemetry(boolean enabled) {
+            this.telemetryEnabled = enabled;
+            return this;
+        }
+
         /** Build and return the engine (does not start it). */
         public NaftikoEngine build() {
             if (spec == null) {
@@ -142,6 +153,13 @@ public class NaftikoEngine {
                         "No capability loaded. Call capabilityFromClasspath() or capabilityFromFile() first.");
             }
             try {
+                if (telemetryEnabled) {
+                    String serviceName = "naftiko";
+                    if (spec.getInfo() != null && spec.getInfo().getLabel() != null) {
+                        serviceName = "naftiko-" + spec.getInfo().getLabel();
+                    }
+                    TelemetryBootstrap.init(serviceName);
+                }
                 Capability capability = new Capability(spec, capabilityDir);
                 capability.setStepHandlerRegistry(registry);
                 return new NaftikoEngine(capability, registry);

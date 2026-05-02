@@ -29,6 +29,7 @@ import io.opentelemetry.api.metrics.Meter;
 @SuppressWarnings("null")
 public class EngineMetrics {
 
+    private final boolean enabled;
     private final LongCounter requestTotal;
     private final DoubleHistogram requestDuration;
     private final LongCounter requestErrors;
@@ -37,7 +38,8 @@ public class EngineMetrics {
     private final DoubleHistogram httpClientDuration;
     private final LongUpDownCounter capabilityActive;
 
-    EngineMetrics(Meter meter) {
+    EngineMetrics(Meter meter, boolean enabled) {
+        this.enabled = enabled;
         this.requestTotal = meter.counterBuilder("naftiko.request.total")
                 .setDescription("Total number of requests handled by the engine")
                 .build();
@@ -74,6 +76,7 @@ public class EngineMetrics {
      * Record a completed server adapter request.
      */
     public void recordRequest(String adapter, String operation, String status, double durationSec) {
+        if (!enabled) return;
         Attributes attrs = Attributes.of(
                 TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
                 TelemetryBootstrap.ATTR_OPERATION_ID, operation,
@@ -86,6 +89,7 @@ public class EngineMetrics {
      * Record a request error.
      */
     public void recordRequestError(String adapter, String operation, String errorType) {
+        if (!enabled) return;
         Attributes attrs = Attributes.of(
                 TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
                 TelemetryBootstrap.ATTR_OPERATION_ID, operation,
@@ -97,6 +101,7 @@ public class EngineMetrics {
      * Record a completed step execution.
      */
     public void recordStep(String stepType, String namespace, double durationSec) {
+        if (!enabled) return;
         Attributes attrs = Attributes.of(
                 io.opentelemetry.api.common.AttributeKey.stringKey("step.type"), stepType,
                 TelemetryBootstrap.ATTR_NAMESPACE, namespace != null ? namespace : "unknown");
@@ -113,6 +118,7 @@ public class EngineMetrics {
      */
     public void recordHttpClient(String method, String host, int statusCode,
             double durationSec) {
+        if (!enabled) return;
         var builder = Attributes.builder()
                 .put(TelemetryBootstrap.ATTR_HTTP_METHOD, method)
                 .put(io.opentelemetry.api.common.AttributeKey.stringKey("server.address"), host);
@@ -131,6 +137,7 @@ public class EngineMetrics {
      * Increment active capability count (call on start).
      */
     public void capabilityStarted(String capabilityName) {
+        if (!enabled) return;
         Attributes attrs = Attributes.of(
                 TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
         capabilityActive.add(1, attrs);
@@ -140,6 +147,7 @@ public class EngineMetrics {
      * Decrement active capability count (call on stop).
      */
     public void capabilityStopped(String capabilityName) {
+        if (!enabled) return;
         Attributes attrs = Attributes.of(
                 TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
         capabilityActive.add(-1, attrs);
