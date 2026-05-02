@@ -14,6 +14,8 @@
 package io.naftiko;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.naftiko.engine.aggregates.Aggregate;
 import io.naftiko.engine.aggregates.AggregateFunction;
 import io.naftiko.engine.aggregates.AggregateRefResolver;
+import io.naftiko.engine.step.StepHandler;
 import io.naftiko.engine.step.StepHandlerRegistry;
 import io.naftiko.engine.util.OperationStepExecutor;
 import io.naftiko.spec.aggregates.AggregateSpec;
@@ -250,8 +253,116 @@ public class Capability {
         }
     }
 
+    /** Create a new builder for embedding the Naftiko engine as a library. */
+    public static Builder builder() {
+        return new Builder();
+    }
+
     /**
-     * Luanch the capability, reading its configuration from local NAFTIKO.yaml file unless a
+     * Builder for embedding the Naftiko engine as a library. Loads a capability from YAML
+     * (classpath or file), optionally exposes the spec for post-load modification, and registers
+     * step handlers.
+     *
+     * <p>Usage:
+     * <pre>{@code
+     * Capability capability = Capability.builder()
+     *     .capabilityFromClasspath("/my-capability.yml")
+     *     .stepHandler("validate", new MyHandler())
+     *     .build();
+     * capability.start();
+     * }</pre>
+     */
+    public static class Builder {
+
+        private NaftikoSpec spec;
+        private String capabilityDir;
+        private final StepHandlerRegistry registry = new StepHandlerRegistry();
+        private boolean telemetryEnabled;
+
+        /** Load a capability from a YAML resource on the classpath. */
+        public Builder loadFromClasspath(String resourcePath) {
+            try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
+                if (is == null) {
+                    throw new IllegalArgumentException(
+                            "Classpath resource not found: " + resourcePath);
+                }
+                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                this.spec = mapper.readValue(is, NaftikoSpec.class);
+                this.capabilityDir = null;
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Failed to load capability from classpath: " + resourcePath, e);
+            }
+            return this;
+        }
+
+        /** Load a capability from a YAML file. */
+        public Builder loadFromFile(Path yamlPath) {
+            File file = yamlPath.toFile();
+            if (!file.exists()) {
+                throw new IllegalArgumentException("File not found: " + yamlPath);
+            }
+            try {
+                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                this.spec = mapper.readValue(file, NaftikoSpec.class);
+                this.capabilityDir = file.getParent();
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "Failed to load capability from file: " + yamlPath, e);
+            }
+            return this;
+        }
+
+        /** Set an already-loaded (and possibly modified) NaftikoSpec. */
+        public Builder spec(NaftikoSpec spec) {
+            this.spec = spec;
+            return this;
+        }
+
+        /** Register a step handler by step name. Takes precedence over normal execution. */
+        public Builder stepHandler(String stepName, StepHandler handler) {
+            registry.register(stepName, handler);
+            return this;
+        }
+
+        /**
+         * Enable OpenTelemetry tracing and metrics. Disabled by default in embedded mode
+         * for zero overhead. When enabled, the OTel SDK autoconfigure is used.
+         */
+        public Builder telemetry(boolean enabled) {
+            this.telemetryEnabled = enabled;
+            return this;
+        }
+
+        /** Build and return the capability (does not start it). */
+        public Capability build() {
+            if (spec == null) {
+                throw new IllegalStateException(
+                        "No capability loaded. Call capabilityFromClasspath() or capabilityFromFile() first.");
+            }
+            try {
+                if (telemetryEnabled) {
+                    String serviceName = "naftiko";
+                    if (spec.getInfo() != null && spec.getInfo().getLabel() != null) {
+                        serviceName = "naftiko-" + spec.getInfo().getLabel();
+                    }
+                    TelemetryBootstrap.init(serviceName);
+                }
+                Capability capability = new Capability(spec, capabilityDir);
+                capability.setStepHandlerRegistry(registry);
+                return capability;
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to initialize capability", e);
+            }
+        }
+    }
+
+    /**
+     * Launch the capability, reading its configuration from local NAFTIKO.yaml file unless a
      * specific name is provided.
      * 
      * @param args The optional part and name of the capability configuration file.

@@ -16,54 +16,54 @@ package io.naftiko.engine;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.naftiko.Capability;
 import io.naftiko.engine.step.StepHandler;
 
-class NaftikoEngineBuilderTest {
+class CapabilityBuilderTest {
 
     @Test
     void buildShouldThrowWhenNoCapabilityLoaded() {
-        assertThrows(IllegalStateException.class, () -> NaftikoEngine.builder().build());
+        assertThrows(IllegalStateException.class, () -> Capability.builder().build());
     }
 
     @Test
     void capabilityFromClasspathShouldLoadYaml() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .build();
 
-        assertNotNull(engine.getCapability());
-        assertEquals("Embedding Test",
-                engine.getCapability().getSpec().getInfo().getLabel());
+        assertNotNull(capability);
+        assertEquals("Embedding Test", capability.getSpec().getInfo().getLabel());
     }
 
     @Test
     void capabilityFromClasspathShouldThrowOnMissingResource() {
         assertThrows(IllegalArgumentException.class,
-                () -> NaftikoEngine.builder().capabilityFromClasspath("/nonexistent.yaml"));
+                () -> Capability.builder().loadFromClasspath("/nonexistent.yaml"));
     }
 
     @Test
     void stepHandlerShouldRegisterHandler() {
         StepHandler handler = ctx -> TextNode.valueOf("test");
 
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", handler)
                 .build();
 
-        assertTrue(engine.getRegistry().has("do-greet"));
+        assertTrue(capability.getStepHandlerRegistry().has("do-greet"));
     }
 
     @Test
     void buildShouldSetRegistryOnCapability() {
         StepHandler handler = ctx -> TextNode.valueOf("test");
 
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", handler)
                 .build();
 
-        assertNotNull(engine.getCapability().getStepHandlerRegistry());
-        assertTrue(engine.getCapability().getStepHandlerRegistry().has("do-greet"));
+        assertNotNull(capability.getStepHandlerRegistry());
+        assertTrue(capability.getStepHandlerRegistry().has("do-greet"));
     }
 }
