@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import io.naftiko.engine.NaftikoEngine;
+import io.naftiko.Capability;
 import io.naftiko.engine.util.OperationStepExecutor;
 import io.naftiko.spec.util.OperationStepCallSpec;
 
@@ -33,8 +33,8 @@ class EngineStepHandlerOverrideTest {
 
     @Test
     void stepWithRegisteredHandlerShouldExecuteHandlerNotCallPath() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> {
                     String name = (String) ctx.inputParameter("name");
                     ObjectMapper m = new ObjectMapper();
@@ -45,7 +45,7 @@ class EngineStepHandlerOverrideTest {
                 .build();
 
         // Execute steps through the OperationStepExecutor
-        OperationStepExecutor executor = new OperationStepExecutor(engine.getCapability());
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step = new OperationStepCallSpec("do-greet", "placeholder.greet");
         Map<String, Object> params = new HashMap<>();
@@ -61,15 +61,15 @@ class EngineStepHandlerOverrideTest {
 
     @Test
     void stepWithoutRegisteredHandlerShouldFollowNormalPath() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> TextNode.valueOf("handled"))
                 .build();
 
         // A step with a different name should NOT be handled by the registry.
         // It will attempt the normal call path. We verify by checking that
         // "other-step" does NOT produce the handler's output ("handled").
-        OperationStepExecutor executor = new OperationStepExecutor(engine.getCapability());
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step = new OperationStepCallSpec("other-step", "placeholder.greet");
         Map<String, Object> params = new HashMap<>();
@@ -90,12 +90,12 @@ class EngineStepHandlerOverrideTest {
 
     @Test
     void handlerReturningNullShouldProduceNoOutput() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> null)
                 .build();
 
-        OperationStepExecutor executor = new OperationStepExecutor(engine.getCapability());
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step = new OperationStepCallSpec("do-greet", "placeholder.greet");
         Map<String, Object> params = new HashMap<>();
@@ -108,8 +108,8 @@ class EngineStepHandlerOverrideTest {
 
     @Test
     void multipleHandlersShouldExecuteIndependently() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> TextNode.valueOf("greeted"))
                 .stepHandler("add", ctx -> {
                     ObjectMapper m = new ObjectMapper();
@@ -119,7 +119,7 @@ class EngineStepHandlerOverrideTest {
                 })
                 .build();
 
-        OperationStepExecutor executor = new OperationStepExecutor(engine.getCapability());
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step1 = new OperationStepCallSpec("do-greet", "placeholder.greet");
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
@@ -134,8 +134,8 @@ class EngineStepHandlerOverrideTest {
 
     @Test
     void handlerOutputShouldFeedIntoSubsequentSteps() {
-        NaftikoEngine engine = NaftikoEngine.builder()
-                .capabilityFromClasspath("/embedding/embedding-capability.yaml")
+        Capability capability = Capability.builder()
+                .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> {
                     ObjectMapper m = new ObjectMapper();
                     ObjectNode node = m.createObjectNode();
@@ -152,7 +152,7 @@ class EngineStepHandlerOverrideTest {
                 })
                 .build();
 
-        OperationStepExecutor executor = new OperationStepExecutor(engine.getCapability());
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step1 = new OperationStepCallSpec("do-greet", "placeholder.greet");
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
