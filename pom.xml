@@ -436,6 +436,11 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
+                                </excludes>
+                            </artifactSet>
                         </configuration>
                     </execution>
                     <execution>
@@ -464,6 +469,23 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>org.graalvm.truffle:*</exclude>
+                                    <exclude>org.graalvm.polyglot:polyglot</exclude>
+                                    <exclude>org.graalvm.polyglot:js*</exclude>
+                                    <exclude>org.graalvm.polyglot:python*</exclude>
+                                    <exclude>org.graalvm.js:*</exclude>
+                                    <exclude>org.graalvm.python:*</exclude>
+                                    <exclude>org.graalvm.regex:*</exclude>
+                                    <exclude>org.graalvm.shadowed:*</exclude>
+                                    <exclude>org.graalvm.tools:*</exclude>
+                                    <exclude>org.graalvm.llvm:*</exclude>
+                                    <exclude>org.graalvm.sdk:*</exclude>
+                                    <exclude>org.apache.groovy:*</exclude>
+                                    <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
+                                </excludes>
+                            </artifactSet>
                         </configuration>
                     </execution>
                 </executions>
@@ -523,6 +545,7 @@
                                             <exclude>org.graalvm.llvm:*</exclude>
                                             <exclude>org.graalvm.sdk:*</exclude>
                                             <exclude>org.apache.groovy:*</exclude>
+                                            <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
                                         </excludes>
                                     </artifactSet>
                                 </configuration>
