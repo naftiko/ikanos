@@ -863,7 +863,7 @@ public class OperationStepExecutor {
         public Request clientRequest;
         public Response clientResponse;
 
-        @SuppressWarnings("null") // OTel SDK interop
+        @SuppressWarnings("null") // OTel SDK interop — @Nonnull annotations on Context/TextMapSetter
         public void handle() {
             TelemetryBootstrap telemetry = TelemetryBootstrap.get();
 
