@@ -1,0 +1,41 @@
+name: Force Version Bump after Release
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pom.xml'
+  workflow_dispatch:
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      snapshot_bump: ${{ steps.check.outputs.snapshot_bump }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Extract versions
+        id: check
+        run: |
+          OLD_VERSION=$(git show HEAD^:pom.xml | grep -oPm1 "(?<=<version>)[^<]+" )
+          NEW_VERSION=$(grep -oPm1 "(?<=<version>)[^<]+" pom.xml)
+
+
+          echo "old=$OLD_VERSION"
+          echo "new=$NEW_VERSION"
+
+          if [[ "$NEW_VERSION" == *"-SNAPSHOT" && "$OLD_VERSION" != *"-SNAPSHOT" ]]; then
+            echo "snapshot_bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "snapshot_bump=false" >> $GITHUB_OUTPUT
+          fi
+
+  sync-naftiko:
+    needs: detect
+    if: needs.detect.outputs.snapshot_bump == 'true'
+    uses: ./.github/workflows/synchronize-naftiko-version.yml
+    secrets: inherit
