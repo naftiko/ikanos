@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
 # Fixture for issue #290: namespace-qualified references in step-level WithInjector
 ---
-naftiko: "1.0.0-alpha3"
+naftiko: "1.0.0-alpha75"
 
 capability:
   consumes:
