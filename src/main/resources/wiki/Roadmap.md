@@ -51,7 +51,7 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
 
 ### Core developer experience
 - [ ] Provide additional governance rules to our initial set (error, warning, info, hint)
-- [ ] Facilitate authorization management (scope declarations and enforcement)
+- [ ] Facilitate authorization management (scope declarations and enforcement, via [Open Policy Agent](https://www.openpolicyagent.org/))
 - [ ] Publish starter capability templates (golden path skeletons with all required fields pre-filled)
 
 ## Version 1.0 - General Availability - September :apple:
