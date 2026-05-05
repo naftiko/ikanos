@@ -1,4 +1,4 @@
-name: Synchronize Naftiko Version
+name: Synchronize Naftiko Version in Other Repos
 
 on:
   push:
@@ -8,84 +8,11 @@ on:
       - 'pom.xml'
   workflow_dispatch:
 
-
 jobs:
-  sync-framework-version:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.FRAMEWORK_CONTENTS_WRITE_PR_WRITE }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Run version sync script
-        run: |
-          python3 src/main/resources/scripts/sync-naftiko-version.py
-
-      - name: Check for changes
-        id: git-check
-        run: |
-          if git diff --quiet; then
-            echo "changes=false" >> $GITHUB_OUTPUT
-          else
-            echo "changes=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create Pull Request
-        if: steps.git-check.outputs.changes == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.FRAMEWORK_CONTENTS_WRITE_PR_WRITE }}
-          base: main
-          branch: "chore/sync-naftiko-version"
-          commit-message: "chore: sync Naftiko version from pom.xml [skip ci]"
-          title: "chore: sync Naftiko version"
-          body: |
-            ## No related issue
-
-            ---
-
-            ## What does this PR do?
-
-            Automatically synchronizes the Naftiko version across the repository:
-            - Updates `naftiko` version in YAML files
-            - Updates `const` in JSON schema
-            - Updates `$id` schema URL
-
-            Source of truth: `pom.xml`
-
-            ---
-
-            ## Tests
-
-            No additional tests required.
-            This change is limited to version synchronization and does not impact runtime behavior.
-
-            ---
-
-            ## Checklist
-
-            - [ ] CI is green (build, tests, schema validation, security scans)
-            - [ ] Rebased on latest `main`
-            - [ ] Small and focused — one concern per PR
-            - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
-          delete-branch: true
-
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-backstage-version:
     runs-on: ubuntu-latest
-    needs: sync-framework-version
+    if: github.ref_name == 'main'
 
     steps:
       - name: Checkout framework
@@ -140,8 +67,10 @@ jobs:
             - `templates/skeletons/capabilities/*.naftiko.yml`
           delete-branch: true
 
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-vscode-version:
     runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
     needs: sync-backstage-version
 
     steps:
