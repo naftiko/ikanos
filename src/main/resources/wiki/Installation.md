@@ -15,43 +15,60 @@ To use Naftiko Framework, you need to install and then run the Naftiko Engine, p
   # {{RELEASE_TAG}}
   docker pull ghcr.io/naftiko/naftiko-framework:{{DOCKER_TAG}}
 
-  # If you want to play with the last snapshot
+  # Or if you prefer to play with the last snapshot
   docker pull ghcr.io/naftiko/naftiko-framework:latest
   ```
-  Then, you should see the image 'ghcr.io/naftiko/naftiko-framework' in your Docker Desktop. You can also display local images with this command:
+  Then, you should see the image 'ghcr.io/naftiko/naftiko-framework' in your Docker Desktop.\
+  <img src="https://naftiko.github.io/docs/images/technology/framework/docker-install-step-1.png" width="600">
+
+  You can also display local images in your terminal with this command:
   ```bash
   docker image ls
   ```
 
 ### Configure your own capability
-* Create your capability configuration file.\
-  The Naftiko Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally. You can use [this first Shipyard example](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) to start with, continue with [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) and [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2), and then move to the comprehensive [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules). This file must be a YAML file (yaml and yml extensions are supported).
+The Naftiko Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally.\
+  
+* The simpler to start is to download the following capability file example on your local machine: [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml).
 
-* Localhost in your capability configuration file.
-  * If your capability refers to some local hosts, be careful to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will refer to the container and not your local machine.\
+* Advanced usage\
+You can use more complex capability files from [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) and [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2), and then move to the comprehensive [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules). This file must be a YAML file (yaml and yml extensions are supported).
+
+  * ⚠️ Localhost references in your capability configuration file.
+    * If your capability refers to some local hosts, be careful to not use 'localhost', but 'host.docker.internal' instead. This is because your capability will run into an isolated docker container, so 'localhost' will refer to the container and not your local machine.\
     For example:
-    ```bash
-    baseUri: "http://host.docker.internal:8080/api"
-    ```
-  * In the same way, if your capability expose a local host, be careful to not use 'localhost', but '0.0.0.0' instead. Else requests to localhost coming from outside of the container won't succeed.\
+      ```bash
+      baseUri: "http://host.docker.internal:8080/api"
+      ```
+    * In the same way, if your capability expose a local host, be careful to not use 'localhost', but '0.0.0.0' instead. Else requests to localhost coming from outside of the container won't succeed.\
     For example:
-    ```bash
-    address: "0.0.0.0"
-    ```
+      ```bash
+      address: "0.0.0.0"
+      ```
 
 ### Run Naftiko Engine as a Docker container
-* Use a Docker volume.\
-  As you have to provide your local capability configuration file to the docker container, you must use a volume. This will be done using the '-v' option of the docker run command.
+Let's assume you downloaded [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) in your downloads folder. Then you should run:
+```bash
+# For Linux and Mac
+docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/naftiko-framework:{{DOCKER_TAG}} /app/test.capability.yaml
 
-* Use port forwarding.\
-  According to your configuration file, your capability will be exposed on a given port. Keep in mind that the framework engine runs in a container context, so this port won't be accessible from your local machine. You must use the port forwarding. This will be done using the '-p' option of the docker run command.
+# For windows
+docker run -p 8081:3001 -v %USERPROFILE%/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/naftiko-framework:{{DOCKER_TAG}} /app/test.capability.yaml
+```
+Then you should be able to request your capability at http://localhost:8081 (the step-1-shipyard-first-capability.yml exposes an MCP tool adapter).
+
+#### Options detail
+* Use of a Docker volume.\
+  As you have to provide your local capability configuration file to the docker container, you must use a volume. This is done using the '-v' option of the docker run command.
+
+* Use of port forwarding.\
+  According to your configuration file, your capability will be exposed on a given port (`port` field of the `expose` item). Keep in mind that the framework engine runs in a container context, so this port won't be accessible from your local machine. You must use the port forwarding. This will be done using the '-p' option of the docker run command.
 
 * Run your capability with Naftiko Engine.\
   Given a capability configuration file 'test.capability.yaml' and an exposition on port 8081, here is the command you have to execute to run the Framework Engine:
   ```bash
   docker run -p 8081:8081 -v full_path_to_your_capability_folder/test.capability.yaml:/app/test.capability.yaml ghcr.io/naftiko/framework:latest /app/test.capability.yaml
   ```
-  Then you should be able to request your capability at http://localhost:8081
 
 ## Naftiko CLI
 The Naftiko Framework also includes a CLI tool.\
