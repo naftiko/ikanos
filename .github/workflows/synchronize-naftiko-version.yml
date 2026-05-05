@@ -10,8 +10,10 @@ on:
 
 
 jobs:
+  # This job is only executed when the action is manually launched on a branch other than 'main'.
   sync-framework-version:
     runs-on: ubuntu-latest
+    if: github.ref_name != 'main'
 
     steps:
       - name: Checkout code
@@ -48,7 +50,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.FRAMEWORK_CONTENTS_WRITE_PR_WRITE }}
-          base: main
+          base: ${{ github.ref_name }}
           branch: "chore/sync-naftiko-version"
           commit-message: "chore: sync Naftiko version from pom.xml [skip ci]"
           title: "chore: sync Naftiko version"
@@ -83,9 +85,10 @@ jobs:
             - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
           delete-branch: true
 
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-backstage-version:
     runs-on: ubuntu-latest
-    needs: sync-framework-version
+    if: github.ref_name == 'main'
 
     steps:
       - name: Checkout framework
@@ -140,8 +143,10 @@ jobs:
             - `templates/skeletons/capabilities/*.naftiko.yml`
           delete-branch: true
 
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-vscode-version:
     runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
     needs: sync-backstage-version
 
     steps:
