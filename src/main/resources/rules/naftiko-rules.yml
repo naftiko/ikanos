@@ -20,13 +20,8 @@
 
 extends: []
 
-functionsDir: ./functions
-
-functions:
-  - unique-namespaces
-  - aggregate-semantics-consistency
-  - control-port-validation
-  - script-defaults-required
+# Custom functions are provided as native Java implementations via ServiceLoader
+# (polychro-ruleset module: JavaRuleFunction SPI). No JavaScript functions directory needed.
 
 rules:
 

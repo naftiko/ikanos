@@ -412,7 +412,7 @@ Fix: Set `API_SPECTRAL_FILTER_REGEX_INCLUDE` in `.mega-linter.yml` to explicitly
 
 Custom functions referenced via `functionsDir` are resolved relative to the ruleset file that declares them.
 
-- If you `extends` the Naftiko ruleset from a URL, Naftiko's built-in custom functions (like `unique-namespaces`) load from the GitHub-hosted `functions/` directory.
+- The Naftiko ruleset no longer uses JavaScript custom functions — all rules are now implemented as native Java via the Polychro engine. If you previously relied on the Spectral CLI path with custom functions, migrate to the Polychro CLI instead.
 - Your own custom functions must be in a `functions/` directory relative to *your* `.spectral.yaml`.
 
 ### MegaLinter: Docker image is too large
