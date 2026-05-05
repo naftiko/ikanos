@@ -6,7 +6,7 @@
 
     <groupId>io.naftiko</groupId>
     <artifactId>framework</artifactId>
-    <version>1.0.0-alpha3-SNAPSHOT</version>
+    <version>1.0.0-alpha4</version>
 
     <name>Naftiko Framework</name>
     <description>Framework for building and running Naftiko capabilities and CLI tooling.</description>
