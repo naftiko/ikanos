@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../main/resources/schemas/naftiko-schema.json
 # Fixture for issue #290: namespace-qualified references in aggregate function steps
 ---
-naftiko: "1.0.0-alpha3"
+naftiko: "1.0.0-alpha4"
 info:
   label: "Aggregate Step Namespace Test"
   description: "Test capability for namespace-qualified references in aggregate function steps"

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
 ---
-naftiko: "1.0.0-alpha3"
+naftiko: "1.0.0-alpha4"
 info:
   label: "BaseUri Trailing Slash Regression Test"
   description: "Capability intentionally using a trailing-slash baseUri to test strict validation"

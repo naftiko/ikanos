@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://naftiko.io/schemas/v1.0.0-alpha3/naftiko.json",
+  "$id": "https://naftiko.io/schemas/v1.0.0-alpha4/naftiko.json",
   "name": "Naftiko Specification",
   "description": "Naftiko Capability Specification \u2014 describes a capability document (adapter + metadata). A valid document must declare `naftiko` + either `capability` (adapter document) or `consumes` (shared consumer file). All adapter logic lives under `capability`; shared consumer definitions live at root `consumes`.",
   "type": "object",
@@ -8,7 +8,7 @@
     "naftiko": {
       "type": "string",
       "description": "Naftiko specification version. Must be `1.0.0-alpha2`. Signals schema compatibility \u2014 always the first key in a capability file.",
-      "const": "1.0.0-alpha3"
+      "const": "1.0.0-alpha4"
     },
     "info": {
       "$ref": "#/$defs/Info",
