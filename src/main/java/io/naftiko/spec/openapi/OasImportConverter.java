@@ -208,8 +208,16 @@ public class OasImportConverter {
     }
 
     String deriveResourceName(String path) {
+        // Defensive: fall back to "root" when the input path is null
+        // (fixes S2259: dereferencing path.replaceAll without a null guard).
+        if (path == null) {
+            return "root";
+        }
         // Use the path template without parameter placeholders as resource name
         String slug = toKebabCase(path.replaceAll("[{}]", ""));
+        if (slug == null) {
+            return "root";
+        }
         // Remove leading hyphen from the leading slash
         if (slug.startsWith("-")) {
             slug = slug.substring(1);
@@ -502,7 +510,9 @@ public class OasImportConverter {
                 // Collapse multiple hyphens
                 .replaceAll("-+", "-")
                 // Trim leading/trailing hyphens
-                .replaceAll("^-|-$", "")
+                // Use explicit grouping to avoid ambiguity (S5850):
+                // the regex "^-|-$" is parsed as "(^-)|(-$)" but reads ambiguously.
+                .replaceAll("(^-)|(-$)", "")
                 .toLowerCase();
     }
 

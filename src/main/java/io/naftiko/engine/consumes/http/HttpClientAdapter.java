@@ -100,7 +100,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     challengeResponse.setIdentifier(
                             Resolver.resolveMustacheTemplate(basicAuth.getUsername(), parameters));
                     challengeResponse.setSecret(Resolver
-                            .resolveMustacheTemplate(basicAuth.getPassword().toString(), parameters)
+                            .resolveMustacheTemplate(new String(basicAuth.getPassword()), parameters)
                             .toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
@@ -112,7 +112,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     challengeResponse.setIdentifier(
                             Resolver.resolveMustacheTemplate(digestAuth.getUsername(), parameters));
                     challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                            digestAuth.getPassword().toString(), parameters).toCharArray());
+                            new String(digestAuth.getPassword()), parameters).toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
 

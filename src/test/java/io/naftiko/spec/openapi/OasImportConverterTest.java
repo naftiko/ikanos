@@ -192,6 +192,14 @@ public class OasImportConverterTest {
         assertEquals("/users/{{id}}", result.getHttpClient().getResources().get(0).getPath());
     }
 
+    // Non-regression test for bug S2259: deriveResourceName must not throw NPE when
+    // the path is null. Before the fix, calling path.replaceAll(...) on a null path
+    // produced a NullPointerException. After the fix, the method falls back to "root".
+    @Test
+    void deriveResourceNameShouldFallBackToRootWhenPathIsNull() {
+        assertEquals("root", converter.deriveResourceName(null));
+    }
+
     // ── Operation name derivation ──
 
     @Test
@@ -594,6 +602,18 @@ public class OasImportConverterTest {
     @Test
     void toKebabCaseShouldConvertSpacesAndSpecialChars() {
         assertEquals("petstore-api", OasImportConverter.toKebabCase("Petstore API"));
+    }
+
+    // Non-regression test for bug S5850: toKebabCase must trim BOTH leading and trailing
+    // hyphens. The original regex `^-|-$` is ambiguous; the explicitly-grouped form
+    // `(^-)|(-$)` is unambiguous and trims both ends consistently.
+    @Test
+    void toKebabCaseShouldTrimLeadingAndTrailingHyphens() {
+        // Input that produces leading and trailing hyphens after non-alphanumeric replacement
+        assertEquals("foo-bar", OasImportConverter.toKebabCase("-foo-bar-"));
+        assertEquals("only", OasImportConverter.toKebabCase("-only-"));
+        // Single hyphen on each side via special chars
+        assertEquals("api", OasImportConverter.toKebabCase(" api "));
     }
 
     // ── Helper: mapSchemaType ──
