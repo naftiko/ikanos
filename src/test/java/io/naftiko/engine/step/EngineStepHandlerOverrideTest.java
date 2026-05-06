@@ -66,26 +66,18 @@ class EngineStepHandlerOverrideTest {
                 .stepHandler("do-greet", ctx -> TextNode.valueOf("handled"))
                 .build();
 
+        assertFalse(capability.getStepHandlerRegistry().has("other-step"));
+
         // A step with a different name should NOT be handled by the registry.
-        // It will attempt the normal call path. We verify by checking that
-        // "other-step" does NOT produce the handler's output ("handled").
+        // It will attempt the normal call path, which is expected to fail for
+        // the placeholder endpoint.
         OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         OperationStepCallSpec step = new OperationStepCallSpec("other-step", "placeholder.greet");
         Map<String, Object> params = new HashMap<>();
 
-        OperationStepExecutor.StepExecutionResult result;
-        try {
-            result = executor.executeSteps(List.of(step), params);
-        } catch (Exception e) {
-            // Exception is also acceptable — it means normal call path was attempted
-            return;
-        }
-        // If execution succeeds, the handler should NOT have been invoked
-        JsonNode output = result.stepContext.getStepOutput("other-step");
-        if (output != null) {
-            assertNotEquals("handled", output.asText());
-        }
+        assertThrows(IllegalArgumentException.class,
+                () -> executor.executeSteps(List.of(step), params));
     }
 
     @Test
