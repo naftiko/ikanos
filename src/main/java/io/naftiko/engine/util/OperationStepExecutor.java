@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.restlet.Request;
@@ -110,7 +109,7 @@ public class OperationStepExecutor {
     public Map<String, Object> resolveInputParametersFromRequest(Request request,
             RestServerSpec serverSpec, RestServerResourceSpec resourceSpec,
             RestServerOperationSpec serverOp) {
-        Map<String, Object> params = new ConcurrentHashMap<>();
+        Map<String, Object> params = new HashMap<>();
         JsonNode tmpRoot = null;
 
         // Read request body once (may be null)
@@ -171,7 +170,7 @@ public class OperationStepExecutor {
             Map<String, Object> baseParameters) {
         HandlingContext lastContext = null;
         StepExecutionContext stepContext = new StepExecutionContext();
-        Map<String, Object> runtimeParameters = new ConcurrentHashMap<>();
+        Map<String, Object> runtimeParameters = new HashMap<>();
 
         if (baseParameters != null) {
             runtimeParameters.putAll(baseParameters);
@@ -431,7 +430,7 @@ public class OperationStepExecutor {
     private HandlingContext executeCallStep(OperationStepCallSpec callStep,
             Map<String, Object> baseParameters) {
         // Merge step-level 'with' parameters with base parameters
-        Map<String, Object> stepParams = new ConcurrentHashMap<>(baseParameters);
+        Map<String, Object> stepParams = new HashMap<>(baseParameters);
 
         mergeWithParameters(callStep.getWith(), stepParams, exposeNamespace);
 
