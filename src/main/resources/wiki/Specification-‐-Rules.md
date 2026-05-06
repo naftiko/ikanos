@@ -2,7 +2,7 @@
 
 Version: {{RELEASE_TAG}}
 Category: Tooling  
-Last updated: March 2026
+Last updated: {{CURRENT_DATE}}
 
 ---
 

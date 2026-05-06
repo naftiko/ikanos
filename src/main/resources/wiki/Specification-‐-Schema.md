@@ -2,7 +2,7 @@
 
 **Version:** {{RELEASE_TAG}}
 
-**Publication Date:** May 2026
+**Publication Date:** {{CURRENT_DATE}}
 
 ## 1. Introduction
 
