@@ -62,6 +62,8 @@ If you still want to run the full pre-PR checks locally, install [Trivy](https:/
 
 **Method visibility** — prefer package-private (no modifier) over `private` for methods that implement non-trivial logic. This allows direct unit testing from the same package without reflection. Reserve `private` for truly internal helpers that are trivially covered by public API tests (e.g. one-liner formatters, simple getters).
 
+**Field type migration** — when changing the type of a field (e.g. `T` → `AtomicReference<T>`, plain `int` → `AtomicInteger`), grep the entire owning class for direct field accesses (`fieldName.someMethod()`, `fieldName.length`, etc.) before declaring the migration done. Updating only the getter and setter is not enough — every read inside the class becomes a compile error otherwise. The IDE may not flag these when the field name is also reused as a method parameter (shadowing). For long methods, snapshot the new wrapper into a local variable of the original type at the top of the method so the rest of the body stays unchanged and observes a consistent view for the call duration.
+
 Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch protection rules.
 
 ## Test Writing Rules
@@ -215,4 +217,4 @@ When all three conditions are met, propose the specific Do/Don't entry and the s
 
 When the conditions are **not** met, do not propose anything — avoid noise. Most corrections are one-off and do not need a rule.
 
-For reference, the Test Writing Rules and Method Visibility sections in this file were both added through this process.
+For reference, the Test Writing Rules, Method Visibility, and Field Type Migration sections in this file were all added through this process.
