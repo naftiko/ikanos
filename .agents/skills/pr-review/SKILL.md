@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: "1.1.0"
+version: "1.2.0"
 description: >
   On-demand skill for reviewing GitHub Pull Requests and posting inline
   comments via the GitHub API. Activate when the user asks to: review a PR,
@@ -249,6 +249,38 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews \
 Use `event=COMMENT` for a non-approving review.
 Use `event=REQUEST_CHANGES` when at least one finding is blocking (🔴 HIGH).
 Use `event=APPROVE` only when explicitly asked to approve the PR.
+
+> **Never post thread replies before the review**
+> Posting individual replies via `pulls/comments/{id}/replies` before the main review
+> creates a separate "ghost" review per reply on GitHub. Always bundle all inline
+> comments — including follow-up answers to existing threads — into a **single**
+> `POST /reviews` call. To reply to an existing thread, use the `in_reply_to` field:
+>
+> ```powershell
+> # Windows (PowerShell)
+> gh api repos/{owner}/{repo}/pulls/<number>/reviews `
+>   --method POST `
+>   --field event=REQUEST_CHANGES `
+>   --field 'body=Overall summary.' `
+>   --field 'comments[][path]=src/main/java/io/naftiko/Foo.java' `
+>   --field 'comments[][line]=42' `
+>   --field 'comments[][in_reply_to]=<existing_comment_id>' `
+>   --field 'comments[][body]=Reply text.'
+> ```
+>
+> ```bash
+> # Linux / macOS
+> gh api repos/{owner}/{repo}/pulls/<number>/reviews \
+>   --method POST \
+>   --field event=REQUEST_CHANGES \
+>   --field "body=Overall summary." \
+>   --field "comments[][path]=src/main/java/io/naftiko/Foo.java" \
+>   --field "comments[][line]=42" \
+>   --field "comments[][in_reply_to]=<existing_comment_id>" \
+>   --field "comments[][body]=Reply text."
+> ```
+>
+> The `line` field is still required even when using `in_reply_to`.
 
 After posting, verify the review was accepted:
 
