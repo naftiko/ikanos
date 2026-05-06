@@ -50,7 +50,12 @@ public class HttpClientAdapterTest {
 
         assertNotNull(clientRequest.getChallengeResponse());
         assertEquals("alice", clientRequest.getChallengeResponse().getIdentifier());
-                assertNotNull(clientRequest.getChallengeResponse().getSecret());
+        // Previously this only asserted non-null, which let bug S2116 slip through:
+        // calling toString() on a char[] returned the array identity (e.g. "[C@1a2b3c")
+        // instead of resolving the {{password}} Mustache placeholder. Compare the actual
+        // resolved secret to guard against that regression.
+        assertEquals("secret",
+                String.valueOf(clientRequest.getChallengeResponse().getSecret()));
     }
 
     @Test
@@ -70,7 +75,12 @@ public class HttpClientAdapterTest {
 
         assertNotNull(clientRequest.getChallengeResponse());
         assertEquals("digest-user", clientRequest.getChallengeResponse().getIdentifier());
-        assertNotNull(clientRequest.getChallengeResponse().getSecret());
+        // Previously this only asserted non-null, which let bug S2116 slip through:
+        // calling toString() on a char[] returned the array identity (e.g. "[C@1a2b3c")
+        // instead of the literal password. Compare the actual secret content to guard
+        // against that regression.
+        assertEquals("digest-pass",
+                String.valueOf(clientRequest.getChallengeResponse().getSecret()));
     }
 
     @Test
