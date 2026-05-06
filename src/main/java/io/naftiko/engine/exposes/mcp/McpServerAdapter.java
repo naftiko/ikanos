@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import org.restlet.Context;
 import org.restlet.Restlet;
@@ -47,9 +48,13 @@ import io.naftiko.spec.exposes.mcp.McpToolHintsSpec;
  */
 public class McpServerAdapter extends ServerAdapter {
 
-    /** Stdio handler and thread — only initialized for stdio transport */
-    private volatile StdioJsonRpcHandler stdioHandler;
-    private volatile Thread stdioThread;
+    /**
+     * Stdio handler and thread — only initialized for stdio transport. Held in
+     * {@link AtomicReference} so {@code start()} and {@code stop()} can publish/observe them
+     * safely (see SonarQube {@code java:S3077}).
+     */
+    private final AtomicReference<StdioJsonRpcHandler> stdioHandler = new AtomicReference<>();
+    private final AtomicReference<Thread> stdioThread = new AtomicReference<>();
 
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
@@ -132,7 +137,7 @@ public class McpServerAdapter extends ServerAdapter {
      */
     private void initStdioTransport() {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);
-        this.stdioHandler = new StdioJsonRpcHandler(dispatcher);
+        this.stdioHandler.set(new StdioJsonRpcHandler(dispatcher));
     }
 
     /**
@@ -229,9 +234,10 @@ public class McpServerAdapter extends ServerAdapter {
     @Override
     public void start() throws Exception {
         if (getMcpServerSpec().isStdio()) {
-            stdioThread = new Thread(stdioHandler, "mcp-stdio");
-            stdioThread.setDaemon(true);
-            stdioThread.start();
+            Thread thread = new Thread(stdioHandler.get(), "mcp-stdio");
+            thread.setDaemon(true);
+            thread.start();
+            stdioThread.set(thread);
             System.err.println("MCP Server started on stdio" + " (namespace: "
                     + getMcpServerSpec().getNamespace() + ")");
             Context.getCurrentLogger().log(Level.INFO, "MCP Server started on stdio"
@@ -251,9 +257,13 @@ public class McpServerAdapter extends ServerAdapter {
     @Override
     public void stop() throws Exception {
         if (getMcpServerSpec().isStdio()) {
-            if (stdioHandler != null) {
-                stdioHandler.shutdown();
-                stdioThread.join(5000); // Wait for the stdio thread to finish
+            StdioJsonRpcHandler handler = stdioHandler.get();
+            if (handler != null) {
+                handler.shutdown();
+                Thread thread = stdioThread.get();
+                if (thread != null) {
+                    thread.join(5000); // Wait for the stdio thread to finish
+                }
                 Context.getCurrentLogger().log(Level.INFO, "MCP Server stopped on stdio");
             }
         } else {

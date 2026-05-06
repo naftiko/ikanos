@@ -13,39 +13,46 @@
  */
 package io.naftiko.engine.consumes;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import io.naftiko.Capability;
 import io.naftiko.engine.Adapter;
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.http.HttpClientSpec;
 
 /**
- * Client Adapter implementation
+ * Client Adapter implementation.
+ *
+ * <h2>Thread safety</h2>
+ * The {@code capability} and {@code spec} references are held in {@link AtomicReference}s so
+ * that a future Control-port "hot reload" feature can replace them atomically while request
+ * threads read them. This satisfies SonarQube rule {@code java:S3077}.
  */
 public abstract class ClientAdapter extends Adapter {
 
-    private volatile Capability capability;
+    private final AtomicReference<Capability> capability = new AtomicReference<>();
 
-    private volatile ClientSpec spec;
+    private final AtomicReference<ClientSpec> spec = new AtomicReference<>();
 
     public ClientAdapter(Capability capability, ClientSpec spec) {
-        this.capability = capability;
-        this.spec = spec;
+        this.capability.set(capability);
+        this.spec.set(spec);
     }
 
     public Capability getCapability() {
-        return capability;
+        return capability.get();
     }
 
     public void setCapability(Capability capability) {
-        this.capability = capability;
+        this.capability.set(capability);
     }
 
     public ClientSpec getSpec() {
-        return spec;
+        return spec.get();
     }
 
     public void setSpec(HttpClientSpec spec) {
-        this.spec = spec;
+        this.spec.set(spec);
     }
 
 }

@@ -99,7 +99,8 @@ public class ScriptStepExecutor {
             !"false".equalsIgnoreCase(System.getenv("NAFTIKO_SCRIPTING"));
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private volatile ScriptingManagementSpec scriptingSpec;
+    private final java.util.concurrent.atomic.AtomicReference<ScriptingManagementSpec> scriptingSpec =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
      * Called by the capability loader when a capability containing script steps is being
@@ -118,15 +119,19 @@ public class ScriptStepExecutor {
     }
 
     public void setScriptingSpec(ScriptingManagementSpec scriptingSpec) {
-        this.scriptingSpec = scriptingSpec;
+        this.scriptingSpec.set(scriptingSpec);
     }
 
     public ScriptingManagementSpec getScriptingSpec() {
-        return scriptingSpec;
+        return scriptingSpec.get();
     }
 
     public JsonNode execute(OperationStepScriptSpec scriptStep, Map<String, Object> runtimeParameters,
             StepExecutionContext stepContext) {
+
+        // Snapshot the spec once so we observe a consistent view for the duration of this call,
+        // even if a future hot-reload swaps the AtomicReference mid-execution.
+        ScriptingManagementSpec scriptingSpec = this.scriptingSpec.get();
 
         // Resolve language — step-level overrides default
         String language = scriptStep.getLanguage();
