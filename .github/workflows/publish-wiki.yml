@@ -22,14 +22,6 @@ jobs:
         echo "VERSION_NO_V=$VERSION_NO_V" >> $GITHUB_ENV
         echo "Debug RELEASE_TAG: $RELEASE_TAG"
         echo "Debug VERSION_NO_V: $VERSION_NO_V"
-    - name: Compute Docker tag
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-      run: |
-        DOCKER_TAG=$(gh api /orgs/naftiko/packages/container/framework/versions \
-          --jq '[.[] | select(.metadata.container.tags[] | startswith("sha-"))] | .[0].metadata.container.tags[] | select(startswith("sha-"))' \
-          2>/dev/null || echo "latest")
-        echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
     - name: Update wiki data
       env:
         GH_WIKI_PUBLISH_TOKEN: ${{ secrets.GH_WIKI_PUBLISH_TOKEN }}
@@ -48,11 +40,11 @@ jobs:
         echo "Copying files"
         cp -R "$WIKI_DIR"/. "$tmp_dir"
 
-        echo "Replacing release tag and docker tag"
+        echo "Replacing release tag"
         find "$tmp_dir" -name "*.md" -exec sed -i \
           -e "s|{{RELEASE_TAG}}|$RELEASE_TAG|g" \
           -e "s|{{VERSION_NO_V}}|$VERSION_NO_V|g" \
-          -e "s|{{DOCKER_TAG}}|$DOCKER_TAG|g" {} +
+          {} \;
 
         cd "$tmp_dir"
         git config user.name "$GITHUB_ACTOR"
