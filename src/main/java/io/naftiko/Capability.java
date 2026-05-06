@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -61,13 +62,23 @@ public class Capability {
 
     private static final Logger logger = LoggerFactory.getLogger(Capability.class);
 
-    private volatile NaftikoSpec spec;
-    private volatile List<ServerAdapter> serverAdapters;
-    private volatile List<ClientAdapter> clientAdapters;
-    private volatile List<Aggregate> aggregates;
-    private volatile Map<String, Object> bindings;
-    private volatile ScriptingManagementSpec scriptingSpec;
-    private volatile StepHandlerRegistry stepHandlerRegistry;
+    /**
+     * Mutable runtime state held in {@link AtomicReference}s. This satisfies SonarQube rule
+     * {@code java:S3077} (volatile on non-thread-safe types) and prepares the engine for the
+     * Control-port "hot reload" feature, where a new {@code NaftikoSpec} can be swapped in
+     * atomically while request threads observe a consistent snapshot.
+     *
+     * <p>The list-typed slots (server/client adapters, aggregates) hold
+     * {@link CopyOnWriteArrayList} instances internally so that iteration during request
+     * handling is lock-free and safe even if a future hot-reload mutates the slot.</p>
+     */
+    private final AtomicReference<NaftikoSpec> spec = new AtomicReference<>();
+    private final AtomicReference<List<ServerAdapter>> serverAdapters = new AtomicReference<>();
+    private final AtomicReference<List<ClientAdapter>> clientAdapters = new AtomicReference<>();
+    private final AtomicReference<List<Aggregate>> aggregates = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> bindings = new AtomicReference<>();
+    private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
+    private final AtomicReference<StepHandlerRegistry> stepHandlerRegistry = new AtomicReference<>();
 
     public Capability(NaftikoSpec spec) throws Exception {
         this(spec, null);
@@ -81,7 +92,7 @@ public class Capability {
      * @throws Exception if bindings cannot be resolved
      */
     public Capability(NaftikoSpec spec, String capabilityDir) throws Exception {
-        this.spec = spec;
+        this.spec.set(spec);
 
         // Resolve consumes imports early before initializing adapters
         if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
@@ -94,25 +105,26 @@ public class Capability {
         aggregateRefResolver.resolve(spec);
 
         // Find ScriptingManagementSpec from control adapter (if any) before building executors
-        ScriptingManagementSpec scriptingSpec = null;
+        ScriptingManagementSpec resolvedScriptingSpec = null;
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if (serverSpec instanceof ControlServerSpec controlSpec
                     && controlSpec.getManagement() != null
                     && controlSpec.getManagement().getScripting() != null) {
-                scriptingSpec = controlSpec.getManagement().getScripting();
+                resolvedScriptingSpec = controlSpec.getManagement().getScripting();
                 break;
             }
         }
-        this.scriptingSpec = scriptingSpec;
+        this.scriptingSpec.set(resolvedScriptingSpec);
 
         // Build runtime aggregates (must happen after imports are resolved)
-        this.aggregates = new CopyOnWriteArrayList<>();
+        List<Aggregate> aggregateList = new CopyOnWriteArrayList<>();
         if (spec.getCapability() != null && !spec.getCapability().getAggregates().isEmpty()) {
             OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);
             for (AggregateSpec aggSpec : spec.getCapability().getAggregates()) {
-                this.aggregates.add(new Aggregate(aggSpec, sharedExecutor));
+                aggregateList.add(new Aggregate(aggSpec, sharedExecutor));
             }
         }
+        this.aggregates.set(aggregateList);
 
         // Resolve bindings early for injection into adapters
         BindingResolver bindingResolver = new BindingResolver();
@@ -124,13 +136,13 @@ public class Capability {
         };
         Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);
         // Convert Map<String, String> to Map<String, Object> for compatibility
-        this.bindings = new HashMap<>(resolvedBinds);
+        this.bindings.set(new HashMap<>(resolvedBinds));
 
         // Initialize client adapters first
-        this.clientAdapters = new CopyOnWriteArrayList<>();
+        List<ClientAdapter> clientList = new CopyOnWriteArrayList<>();
 
         // Then initialize server adapters with reference to source adapters
-        this.serverAdapters = new CopyOnWriteArrayList<>();
+        List<ServerAdapter> serverList = new CopyOnWriteArrayList<>();
 
         if (spec.getCapability().getExposes().isEmpty()) {
             throw new IllegalArgumentException("Capability must expose at least one endpoint.");
@@ -138,53 +150,56 @@ public class Capability {
 
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if ("rest".equals(serverSpec.getType())) {
-                this.serverAdapters.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));
+                serverList.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));
             } else if ("mcp".equals(serverSpec.getType())) {
-                this.serverAdapters.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
+                serverList.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
             } else if ("skill".equals(serverSpec.getType())) {
-                this.serverAdapters.add(new SkillServerAdapter(this, (SkillServerSpec) serverSpec));
+                serverList.add(new SkillServerAdapter(this, (SkillServerSpec) serverSpec));
             } else if ("control".equals(serverSpec.getType())) {
-                this.serverAdapters.add(new ControlServerAdapter(this, (ControlServerSpec) serverSpec));
+                serverList.add(new ControlServerAdapter(this, (ControlServerSpec) serverSpec));
             }
         }
 
         for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
             if ("http".equals(clientSpec.getType())) {
-                this.clientAdapters.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec));
+                clientList.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec));
             }
         }
+
+        this.clientAdapters.set(clientList);
+        this.serverAdapters.set(serverList);
     }
 
     public NaftikoSpec getSpec() {
-        return spec;
+        return spec.get();
     }
 
     public void setSpec(NaftikoSpec config) {
-        this.spec = config;
+        this.spec.set(config);
     }
 
     public List<ClientAdapter> getClientAdapters() {
-        return clientAdapters;
+        return clientAdapters.get();
     }
 
     public List<ServerAdapter> getServerAdapters() {
-        return serverAdapters;
+        return serverAdapters.get();
     }
 
     public List<Aggregate> getAggregates() {
-        return aggregates;
+        return aggregates.get();
     }
 
     public ScriptingManagementSpec getScriptingSpec() {
-        return scriptingSpec;
+        return scriptingSpec.get();
     }
 
     public StepHandlerRegistry getStepHandlerRegistry() {
-        return stepHandlerRegistry;
+        return stepHandlerRegistry.get();
     }
 
     public void setStepHandlerRegistry(StepHandlerRegistry registry) {
-        this.stepHandlerRegistry = registry;
+        this.stepHandlerRegistry.set(registry);
     }
 
     /**
@@ -204,7 +219,7 @@ public class Capability {
         String namespace = ref.substring(0, dot);
         String functionName = ref.substring(dot + 1);
 
-        for (Aggregate agg : aggregates) {
+        for (Aggregate agg : aggregates.get()) {
             if (agg.getNamespace().equals(namespace)) {
                 AggregateFunction fn = agg.findFunction(functionName);
                 if (fn != null) {
@@ -222,7 +237,7 @@ public class Capability {
      * @return Map of variable name to resolved value
      */
     public Map<String, Object> getBindings() {
-        return bindings;
+        return bindings.get();
     }
 
     public void start() throws Exception {
@@ -234,14 +249,16 @@ public class Capability {
             adapter.start();
         }
 
-        String capabilityName = spec.getInfo() != null && spec.getInfo().getLabel() != null
-                ? spec.getInfo().getLabel() : "unknown";
+        NaftikoSpec currentSpec = spec.get();
+        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getLabel() != null
+                ? currentSpec.getInfo().getLabel() : "unknown";
         TelemetryBootstrap.get().getMetrics().capabilityStarted(capabilityName);
     }
 
     public void stop() throws Exception {
-        String capabilityName = spec.getInfo() != null && spec.getInfo().getLabel() != null
-                ? spec.getInfo().getLabel() : "unknown";
+        NaftikoSpec currentSpec = spec.get();
+        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getLabel() != null
+                ? currentSpec.getInfo().getLabel() : "unknown";
         TelemetryBootstrap.get().getMetrics().capabilityStopped(capabilityName);
 
         for (ServerAdapter adapter : getServerAdapters()) {

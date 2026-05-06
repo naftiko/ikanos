@@ -25,6 +25,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.naftiko.spec.observability.ObservabilitySpec;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 /**
@@ -57,7 +58,13 @@ public class TelemetryBootstrap {
 
     private static final TelemetryBootstrap NOOP = new TelemetryBootstrap(OpenTelemetry.noop());
 
-    private static volatile TelemetryBootstrap instance;
+    /**
+     * Holds the current global instance. Replaced atomically by {@link #init(String, ObservabilitySpec)},
+     * {@link #init(OpenTelemetry)}, and {@link #reset()}. Reads are lock-free via {@link #get()}.
+     * {@code null} means "not initialized" — readers fall back to {@link #NOOP}.
+     * (See SonarQube {@code java:S3077}.)
+     */
+    private static final AtomicReference<TelemetryBootstrap> INSTANCE = new AtomicReference<>();
 
     private final OpenTelemetry openTelemetry;
     private final Tracer tracer;
@@ -113,21 +120,23 @@ public class TelemetryBootstrap {
     public static TelemetryBootstrap init(String serviceName, ObservabilitySpec observabilitySpec) {
         if (observabilitySpec != null && !observabilitySpec.isEnabled()) {
             logger.info("Observability disabled via spec — telemetry off");
-            instance = NOOP;
-            return instance;
+            INSTANCE.set(NOOP);
+            return NOOP;
         }
+        TelemetryBootstrap newInstance;
         try {
             Class.forName(AUTOCONFIGURE_CLASS);
-            instance = buildAutoConfigured(serviceName, observabilitySpec);
+            newInstance = buildAutoConfigured(serviceName, observabilitySpec);
         } catch (ClassNotFoundException e) {
             logger.info("OpenTelemetry SDK not on classpath — telemetry disabled");
-            instance = NOOP;
+            newInstance = NOOP;
         } catch (LinkageError | RuntimeException e) {
             logger.warning("OpenTelemetry SDK initialization failed \u2014 telemetry disabled: "
                     + e.getMessage());
-            instance = NOOP;
+            newInstance = NOOP;
         }
-        return instance;
+        INSTANCE.set(newInstance);
+        return newInstance;
     }
 
     /**
@@ -201,15 +210,16 @@ public class TelemetryBootstrap {
      * Initialize with a provided OpenTelemetry instance (for testing).
      */
     public static TelemetryBootstrap init(OpenTelemetry openTelemetry) {
-        instance = new TelemetryBootstrap(openTelemetry, null, null, true);
-        return instance;
+        TelemetryBootstrap newInstance = new TelemetryBootstrap(openTelemetry, null, null, true);
+        INSTANCE.set(newInstance);
+        return newInstance;
     }
 
     /**
      * Get the global instance, or a no-op instance if not initialized.
      */
     public static TelemetryBootstrap get() {
-        TelemetryBootstrap current = instance;
+        TelemetryBootstrap current = INSTANCE.get();
         return current != null ? current : NOOP;
     }
 
@@ -217,7 +227,7 @@ public class TelemetryBootstrap {
      * Reset the global instance. <strong>Test-only</strong> — do not call from production code.
      */
     public static void reset() {
-        instance = null;
+        INSTANCE.set(null);
     }
 
     public OpenTelemetry getOpenTelemetry() {
