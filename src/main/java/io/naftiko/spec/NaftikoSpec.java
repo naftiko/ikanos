@@ -15,32 +15,39 @@ package io.naftiko.spec;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.util.BindingSpec;
 
 /**
- * Naftiko Specification Root, including version and capabilities
+ * Naftiko Specification Root, including version and capabilities.
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
+ * Control-port runtime edits can replace values atomically while engine threads read them.
+ * The {@code binds} and {@code consumes} collections are {@link CopyOnWriteArrayList}s.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class NaftikoSpec {
 
-    private volatile String naftiko;
-
-    private volatile InfoSpec info;
+    private final AtomicReference<String> naftiko = new AtomicReference<>();
+    private final AtomicReference<InfoSpec> info = new AtomicReference<>();
+    private final AtomicReference<CapabilitySpec> capability = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<BindingSpec> binds;
 
-    private volatile CapabilitySpec capability;
-    
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<ClientSpec> consumes;
 
     public NaftikoSpec(String naftiko, InfoSpec info, CapabilitySpec capability) {
-        this.naftiko = naftiko;
-        this.info = info;
+        this.naftiko.set(naftiko);
+        this.info.set(info);
         this.binds = new CopyOnWriteArrayList<>();
-        this.capability = capability;
+        this.capability.set(capability);
         this.consumes = new CopyOnWriteArrayList<>();
     }
 
@@ -49,19 +56,19 @@ public class NaftikoSpec {
     }
 
     public String getNaftiko() {
-        return naftiko;
+        return naftiko.get();
     }
 
     public void setNaftiko(String naftiko) {
-        this.naftiko = naftiko;
+        this.naftiko.set(naftiko);
     }
 
     public InfoSpec getInfo() {
-        return info;
+        return info.get();
     }
 
     public void setInfo(InfoSpec info) {
-        this.info = info;
+        this.info.set(info);
     }
 
     public List<BindingSpec> getBinds() {
@@ -69,13 +76,13 @@ public class NaftikoSpec {
     }
 
     public CapabilitySpec getCapability() {
-        return capability;
+        return capability.get();
     }
 
     public void setCapability(CapabilitySpec capability) {
-        this.capability = capability;
+        this.capability.set(capability);
     }
-    
+
     public List<ClientSpec> getConsumes() {
         return consumes;
     }

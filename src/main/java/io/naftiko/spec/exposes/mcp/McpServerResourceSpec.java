@@ -16,42 +16,40 @@ package io.naftiko.spec.exposes.mcp;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.naftiko.spec.OutputParameterSpec;
-import io.naftiko.spec.util.OperationStepSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.spec.util.OperationStepSpec;
 
 /**
  * MCP Resource Specification Element.
  *
- * Defines an MCP resource that exposes data agents can read. Two source types are supported:
+ * <p>Defines an MCP resource that exposes data agents can read. Two source types are supported:</p>
  * <ul>
  *   <li><b>Dynamic</b> ({@code call}/{@code steps}): backed by consumed HTTP operations — same
  *       orchestration model as tools.</li>
  *   <li><b>Static</b> ({@code location}): served from local files identified by a
  *       {@code file:///} URI.</li>
  * </ul>
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
+ * stored as an immutable snapshot. List fields use {@link CopyOnWriteArrayList}. This
+ * satisfies SonarQube rule {@code java:S3077}.
  */
 public class McpServerResourceSpec {
 
-    private volatile String name;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String label;
-
-    private volatile String uri;
-
-    private volatile String description;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String mimeType;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ServerCallSpec call;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
+    private final AtomicReference<String> name = new AtomicReference<>();
+    private final AtomicReference<String> label = new AtomicReference<>();
+    private final AtomicReference<String> uri = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
+    private final AtomicReference<String> mimeType = new AtomicReference<>();
+    private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
+    private final AtomicReference<String> location = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
@@ -59,68 +57,69 @@ public class McpServerResourceSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String location;
-
     public McpServerResourceSpec() {
         this.steps = new CopyOnWriteArrayList<>();
         this.outputParameters = new CopyOnWriteArrayList<>();
     }
 
     public String getName() {
-        return name;
+        return name.get();
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLabel() {
-        return label;
+        return label.get();
     }
 
     public void setLabel(String label) {
-        this.label = label;
+        this.label.set(label);
     }
 
     public String getUri() {
-        return uri;
+        return uri.get();
     }
 
     public void setUri(String uri) {
-        this.uri = uri;
+        this.uri.set(uri);
     }
 
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getMimeType() {
-        return mimeType;
+        return mimeType.get();
     }
 
     public void setMimeType(String mimeType) {
-        this.mimeType = mimeType;
+        this.mimeType.set(mimeType);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ServerCallSpec getCall() {
-        return call;
+        return call.get();
     }
 
     public void setCall(ServerCallSpec call) {
-        this.call = call;
+        this.call.set(call);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
     public List<OperationStepSpec> getSteps() {
@@ -131,25 +130,27 @@ public class McpServerResourceSpec {
         return outputParameters;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLocation() {
-        return location;
+        return location.get();
     }
 
     public void setLocation(String location) {
-        this.location = location;
+        this.location.set(location);
     }
 
     /**
      * Returns {@code true} when this resource is served from a local file directory.
      */
     public boolean isStatic() {
-        return location != null;
+        return location.get() != null;
     }
 
     /**
      * Returns {@code true} when the URI contains {@code {param}} placeholders (resource template).
      */
     public boolean isTemplate() {
-        return uri != null && uri.contains("{") && uri.contains("}");
+        String value = uri.get();
+        return value != null && value.contains("{") && value.contains("}");
     }
 }

@@ -15,34 +15,39 @@ package io.naftiko.spec;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Operation Specification Element
+ * Operation Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
+ * Control-port runtime edits can replace values atomically while engine threads read them.
+ * The {@code inputParameters} and {@code outputParameters} lists are {@link CopyOnWriteArrayList}s.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class OperationSpec {
 
     @JsonIgnore
-    private volatile ResourceSpec parentResource;
+    private final AtomicReference<ResourceSpec> parentResource = new AtomicReference<>();
 
-    private volatile String method;
+    private final AtomicReference<String> method = new AtomicReference<>();
 
-    private volatile String name;
+    private final AtomicReference<String> name = new AtomicReference<>();
 
-    private volatile String label;
+    private final AtomicReference<String> label = new AtomicReference<>();
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String description;
+    private final AtomicReference<String> description = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String outputRawFormat;
+    private final AtomicReference<String> outputRawFormat = new AtomicReference<>();
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String outputSchema;
+    private final AtomicReference<String> outputSchema = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OutputParameterSpec> outputParameters;
@@ -60,83 +65,86 @@ public class OperationSpec {
     }
 
     public OperationSpec(ResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema) {
-        this.parentResource = parentResource;
-        this.method = method;
-        this.name = name;
-        this.label = label;
-        this.description = description;
-        this.outputRawFormat = outputRawFormat;
-        this.outputSchema = outputSchema;
+        this.parentResource.set(parentResource);
+        this.method.set(method);
+        this.name.set(name);
+        this.label.set(label);
+        this.description.set(description);
+        this.outputRawFormat.set(outputRawFormat);
+        this.outputSchema.set(outputSchema);
         this.inputParameters = new CopyOnWriteArrayList<>();
         this.outputParameters = new CopyOnWriteArrayList<>();
     }
 
     public ResourceSpec getParentResource() {
-        return parentResource;
+        return parentResource.get();
     }
 
     /**
      * Sets the parent resource for this operation.
      * This is called during deserialization to establish the parent-child relationship.
-     * 
+     *
      * @param parentResource the parent ResourceSpec
      */
     public void setParentResource(ResourceSpec parentResource) {
-        this.parentResource = parentResource;
+        this.parentResource.set(parentResource);
     }
 
     public String getMethod() {
-        return method;
+        return method.get();
     }
 
     public void setMethod(String method) {
-        this.method = method;
+        this.method.set(method);
     }
 
     public String getName() {
-        return name;
+        return name.get();
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
     public String getLabel() {
-        return label;
+        return label.get();
     }
 
     public void setLabel(String label) {
-        this.label = label;
+        this.label.set(label);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
     public List<InputParameterSpec> getInputParameters() {
         return inputParameters;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getOutputRawFormat() {
-        return outputRawFormat;
+        return outputRawFormat.get();
     }
 
     public void setOutputRawFormat(String outputRawFormat) {
-        this.outputRawFormat = outputRawFormat;
+        this.outputRawFormat.set(outputRawFormat);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getOutputSchema() {
-        return outputSchema;
+        return outputSchema.get();
     }
 
     public void setOutputSchema(String outputSchema) {
-        this.outputSchema = outputSchema;
+        this.outputSchema.set(outputSchema);
     }
-    
+
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
     }

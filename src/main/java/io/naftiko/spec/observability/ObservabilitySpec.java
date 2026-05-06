@@ -13,54 +13,59 @@
  */
 package io.naftiko.spec.observability;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Spec-driven observability configuration. All fields are optional — defaults to OTel env vars
  * when not specified.
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an atomic container ({@link AtomicReference} or {@link AtomicBoolean})
+ * so that fluent builders and Control-port runtime edits can replace values atomically while
+ * engine threads read them. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class ObservabilitySpec {
 
-    private volatile boolean enabled = true;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilityMetricsSpec metrics;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilityTracesSpec traces;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilityExportersSpec exporters;
+    private final AtomicBoolean enabled = new AtomicBoolean(true);
+    private final AtomicReference<ObservabilityMetricsSpec> metrics = new AtomicReference<>();
+    private final AtomicReference<ObservabilityTracesSpec> traces = new AtomicReference<>();
+    private final AtomicReference<ObservabilityExportersSpec> exporters = new AtomicReference<>();
 
     public boolean isEnabled() {
-        return enabled;
+        return enabled.get();
     }
 
     public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+        this.enabled.set(enabled);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilityMetricsSpec getMetrics() {
-        return metrics;
+        return metrics.get();
     }
 
     public void setMetrics(ObservabilityMetricsSpec metrics) {
-        this.metrics = metrics;
+        this.metrics.set(metrics);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilityTracesSpec getTraces() {
-        return traces;
+        return traces.get();
     }
 
     public void setTraces(ObservabilityTracesSpec traces) {
-        this.traces = traces;
+        this.traces.set(traces);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilityExportersSpec getExporters() {
-        return exporters;
+        return exporters.get();
     }
 
     public void setExporters(ObservabilityExportersSpec exporters) {
-        this.exporters = exporters;
+        this.exporters.set(exporters);
     }
 }

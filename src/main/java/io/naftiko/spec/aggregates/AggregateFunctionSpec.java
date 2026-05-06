@@ -13,40 +13,41 @@
  */
 package io.naftiko.spec.aggregates;
 
-import io.naftiko.spec.InputParameterSpec;
-import io.naftiko.spec.OutputParameterSpec;
-
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.naftiko.spec.util.StepOutputMappingSpec;
-import io.naftiko.spec.util.OperationStepSpec;
+
+import io.naftiko.spec.InputParameterSpec;
+import io.naftiko.spec.OutputParameterSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.spec.util.OperationStepSpec;
+import io.naftiko.spec.util.StepOutputMappingSpec;
 
 /**
  * Aggregate Function Specification Element.
  * 
- * A reusable invocable unit within an aggregate. Adapter units reference it via
- * ref: aggregate-namespace.function-name.
+ * <p>A reusable invocable unit within an aggregate. Adapter units reference it via
+ * {@code ref: aggregate-namespace.function-name}.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
+ * stored as an immutable snapshot inside an {@link AtomicReference} so that fluent builders and
+ * Control-port runtime edits can replace it atomically. List fields use {@link CopyOnWriteArrayList}.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class AggregateFunctionSpec {
 
-    private volatile String name;
-    private volatile String description;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile SemanticsSpec semantics;
+    private final AtomicReference<String> name = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
+    private final AtomicReference<SemanticsSpec> semantics = new AtomicReference<>();
+    private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ServerCallSpec call;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
@@ -65,47 +66,50 @@ public class AggregateFunctionSpec {
     }
 
     public String getName() {
-        return name;
+        return name.get();
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public SemanticsSpec getSemantics() {
-        return semantics;
+        return semantics.get();
     }
 
     public void setSemantics(SemanticsSpec semantics) {
-        this.semantics = semantics;
+        this.semantics.set(semantics);
     }
 
     public List<InputParameterSpec> getInputParameters() {
         return inputParameters;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ServerCallSpec getCall() {
-        return call;
+        return call.get();
     }
 
     public void setCall(ServerCallSpec call) {
-        this.call = call;
+        this.call.set(call);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
     public List<OperationStepSpec> getSteps() {

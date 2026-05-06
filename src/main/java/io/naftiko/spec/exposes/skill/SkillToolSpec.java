@@ -13,6 +13,8 @@
  */
 package io.naftiko.spec.exposes.skill;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -21,50 +23,51 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * <p>Exactly one of {@code from} (derived from a sibling {@code api} or {@code mcp} adapter) or
  * {@code instruction} (path to a local file relative to the skill's {@code location} directory)
  * must be specified.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference}. This satisfies SonarQube rule
+ * {@code java:S3077}.
  */
 public class SkillToolSpec {
 
-    private volatile String name;
-
-    private volatile String description;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile SkillToolFromSpec from;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String instruction;
+    private final AtomicReference<String> name = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
+    private final AtomicReference<SkillToolFromSpec> from = new AtomicReference<>();
+    private final AtomicReference<String> instruction = new AtomicReference<>();
 
     public SkillToolSpec() {}
 
     public String getName() {
-        return name;
+        return name.get();
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public SkillToolFromSpec getFrom() {
-        return from;
+        return from.get();
     }
 
     public void setFrom(SkillToolFromSpec from) {
-        this.from = from;
+        this.from.set(from);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getInstruction() {
-        return instruction;
+        return instruction.get();
     }
 
     public void setInstruction(String instruction) {
-        this.instruction = instruction;
+        this.instruction.set(instruction);
     }
 }

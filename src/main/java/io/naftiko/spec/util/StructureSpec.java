@@ -15,19 +15,33 @@ package io.naftiko.spec.util;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * JSON Structure Specification Element
+ * JSON Structure Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}. List fields use
+ * {@link CopyOnWriteArrayList}. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class StructureSpec<T extends StructureSpec<T>> {
 
-    @JsonProperty("name")
-    private volatile String name;
-
-    @JsonProperty("type")
-    private volatile String type;
+    private final AtomicReference<String> name = new AtomicReference<>();
+    private final AtomicReference<String> type = new AtomicReference<>();
+    private final AtomicReference<T> items = new AtomicReference<>();
+    private final AtomicReference<T> values = new AtomicReference<>();
+    private final AtomicReference<String> constant = new AtomicReference<>();
+    private final AtomicReference<String> selector = new AtomicReference<>();
+    private final AtomicReference<String> maxLength = new AtomicReference<>();
+    private final AtomicReference<Integer> precision = new AtomicReference<>();
+    private final AtomicReference<Integer> scale = new AtomicReference<>();
+    private final AtomicReference<String> contentEncoding = new AtomicReference<>();
+    private final AtomicReference<String> contentCompression = new AtomicReference<>();
+    private final AtomicReference<String> contentMediaType = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
 
     @JsonProperty("properties")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -37,50 +51,15 @@ public class StructureSpec<T extends StructureSpec<T>> {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final List<String> required;
 
-    @JsonProperty("items")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile T items;
-
-    @JsonProperty("values")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile T values;
-
     @JsonProperty("choices")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final List<T> choices;
 
-    @JsonProperty("const")
-    private volatile String constant;
-
     @JsonProperty("enum")
     private final List<String> enumeration;
 
-    @JsonProperty("selector")
-    private volatile String selector;
-
     @JsonProperty("tuple")
     private final List<String> tuple;
-
-    @JsonProperty("maxLength")
-    private volatile String maxLength;
-
-    @JsonProperty("precision")
-    private volatile Integer precision;
-
-    @JsonProperty("scale")
-    private volatile Integer scale;
-
-    @JsonProperty("contentEncoding")
-    private volatile String contentEncoding;
-
-    @JsonProperty("contentCompression")
-    private volatile String contentCompression;
-
-    @JsonProperty("contentMediaType")
-    private volatile String contentMediaType;
-
-    @JsonProperty("description")
-    private volatile String description;
 
     @JsonProperty("examples")
     private final List<String> examples;
@@ -93,41 +72,45 @@ public class StructureSpec<T extends StructureSpec<T>> {
             String constant, String selector, String maxLength, Integer precision, Integer scale,
             String contentEncoding, String contentCompression, String contentMediaType,
             String description) {
-        this.name = name;
-        this.type = type;
+        this.name.set(name);
+        this.type.set(type);
         this.properties = new CopyOnWriteArrayList<>();
         this.required = new CopyOnWriteArrayList<>();
-        this.items = items;
-        this.values = values;
-        this.constant = constant;
+        this.items.set(items);
+        this.values.set(values);
+        this.constant.set(constant);
         this.enumeration = new CopyOnWriteArrayList<>();
         this.choices = new CopyOnWriteArrayList<>();
-        this.selector = selector;
+        this.selector.set(selector);
         this.tuple = new CopyOnWriteArrayList<>();
-        this.maxLength = maxLength;
-        this.precision = precision;
-        this.scale = scale;
-        this.contentEncoding = contentEncoding;
-        this.contentCompression = contentCompression;
-        this.contentMediaType = contentMediaType;
-        this.description = description;
+        this.maxLength.set(maxLength);
+        this.precision.set(precision);
+        this.scale.set(scale);
+        this.contentEncoding.set(contentEncoding);
+        this.contentCompression.set(contentCompression);
+        this.contentMediaType.set(contentMediaType);
+        this.description.set(description);
         this.examples = new CopyOnWriteArrayList<>();
     }
 
+    @JsonProperty("name")
     public String getName() {
-        return name;
+        return name.get();
     }
 
+    @JsonProperty("name")
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
+    @JsonProperty("type")
     public String getType() {
-        return type;
+        return type.get();
     }
 
+    @JsonProperty("type")
     public void setType(String type) {
-        this.type = type;
+        this.type.set(type);
     }
 
     public List<T> getProperties() {
@@ -138,28 +121,36 @@ public class StructureSpec<T extends StructureSpec<T>> {
         return required;
     }
 
+    @JsonProperty("items")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public T getItems() {
-        return items;
+        return items.get();
     }
 
+    @JsonProperty("items")
     public void setItems(T items) {
-        this.items = items;
+        this.items.set(items);
     }
 
+    @JsonProperty("values")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public T getValues() {
-        return values;
+        return values.get();
     }
 
+    @JsonProperty("values")
     public void setValues(T values) {
-        this.values = values;
+        this.values.set(values);
     }
 
+    @JsonProperty("const")
     public String getConstant() {
-        return constant;
+        return constant.get();
     }
 
+    @JsonProperty("const")
     public void setConstant(String constant) {
-        this.constant = constant;
+        this.constant.set(constant);
     }
 
     public List<String> getEnumeration() {
@@ -170,68 +161,84 @@ public class StructureSpec<T extends StructureSpec<T>> {
         return choices;
     }
 
+    @JsonProperty("selector")
     public String getSelector() {
-        return selector;
+        return selector.get();
     }
 
+    @JsonProperty("selector")
     public void setSelector(String selector) {
-        this.selector = selector;
+        this.selector.set(selector);
     }
 
+    @JsonProperty("maxLength")
     public String getMaxLength() {
-        return maxLength;
+        return maxLength.get();
     }
 
+    @JsonProperty("maxLength")
     public void setMaxLength(String maxLength) {
-        this.maxLength = maxLength;
+        this.maxLength.set(maxLength);
     }
 
+    @JsonProperty("precision")
     public Integer getPrecision() {
-        return precision;
+        return precision.get();
     }
 
+    @JsonProperty("precision")
     public void setPrecision(Integer precision) {
-        this.precision = precision;
+        this.precision.set(precision);
     }
 
+    @JsonProperty("scale")
     public Integer getScale() {
-        return scale;
+        return scale.get();
     }
 
+    @JsonProperty("scale")
     public void setScale(Integer scale) {
-        this.scale = scale;
+        this.scale.set(scale);
     }
 
+    @JsonProperty("contentEncoding")
     public String getContentEncoding() {
-        return contentEncoding;
+        return contentEncoding.get();
     }
 
+    @JsonProperty("contentEncoding")
     public void setContentEncoding(String contentEncoding) {
-        this.contentEncoding = contentEncoding;
+        this.contentEncoding.set(contentEncoding);
     }
 
+    @JsonProperty("contentCompression")
     public String getContentCompression() {
-        return contentCompression;
+        return contentCompression.get();
     }
 
+    @JsonProperty("contentCompression")
     public void setContentCompression(String contentCompression) {
-        this.contentCompression = contentCompression;
+        this.contentCompression.set(contentCompression);
     }
 
+    @JsonProperty("contentMediaType")
     public String getContentMediaType() {
-        return contentMediaType;
+        return contentMediaType.get();
     }
 
+    @JsonProperty("contentMediaType")
     public void setContentMediaType(String contentMediaType) {
-        this.contentMediaType = contentMediaType;
+        this.contentMediaType.set(contentMediaType);
     }
 
+    @JsonProperty("description")
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
+    @JsonProperty("description")
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
     public List<String> getExamples() {

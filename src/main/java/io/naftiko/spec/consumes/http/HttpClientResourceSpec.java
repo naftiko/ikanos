@@ -15,17 +15,25 @@ package io.naftiko.spec.consumes.http;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSetter;
+
 import io.naftiko.spec.ResourceSpec;
 
 /**
- * HTTP Resource Specification Element
+ * HTTP Resource Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * The {@code operations} list is held in an {@link AtomicReference} wrapping a
+ * {@link CopyOnWriteArrayList} for both reference-level and element-level thread-safety.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class HttpClientResourceSpec extends ResourceSpec {
 
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private volatile List<HttpClientOperationSpec> operations;
+    private final AtomicReference<List<HttpClientOperationSpec>> operations =
+            new AtomicReference<>(new CopyOnWriteArrayList<>());
 
     public HttpClientResourceSpec() {
         this(null, null, null, null);
@@ -37,27 +45,30 @@ public class HttpClientResourceSpec extends ResourceSpec {
 
     public HttpClientResourceSpec(String path, String name, String label, String description) {
         super(path, name, label, description);
-        this.operations = new CopyOnWriteArrayList<>();
-    }   
+    }
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public List<HttpClientOperationSpec> getOperations() {
-        return operations;
+        return operations.get();
     }
 
     /**
      * Sets operations and establishes parent resource reference for each operation.
-     * This ensures that each OperationSpec knows its parent ResourceSpec.
-     * 
-     * @JsonSetter ensures this method is called by Jackson during deserialization
+     * This ensures that each {@link HttpClientOperationSpec} knows its parent
+     * {@link HttpClientResourceSpec}.
+     *
+     * <p>{@code @JsonSetter} ensures this method is called by Jackson during deserialization.</p>
      */
     @JsonSetter
     public void setOperations(List<HttpClientOperationSpec> operations) {
-        this.operations = operations;
-
-        if (operations != null) {
-            for (HttpClientOperationSpec operation : operations) {
-                operation.setParentResource(this);
-            }
+        if (operations == null) {
+            this.operations.set(new CopyOnWriteArrayList<>());
+            return;
         }
+        CopyOnWriteArrayList<HttpClientOperationSpec> snapshot = new CopyOnWriteArrayList<>(operations);
+        for (HttpClientOperationSpec operation : snapshot) {
+            operation.setParentResource(this);
+        }
+        this.operations.set(snapshot);
     }
 }

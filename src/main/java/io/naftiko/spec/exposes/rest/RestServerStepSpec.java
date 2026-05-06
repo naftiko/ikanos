@@ -14,27 +14,28 @@
 package io.naftiko.spec.exposes.rest;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.naftiko.spec.exposes.ServerCallSpec;
 
 /**
- * API Operation Step Specification Element
- * 
- * Represents a step in an API operation workflow.
+ * API Operation Step Specification Element.
+ *
+ * <p>Represents a step in an API operation workflow.
  * A step contains a call specification that defines which operation to invoke
- * and what parameters to pass to it.
+ * and what parameters to pass to it.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference}; the {@code with} parameter map is stored
+ * as an immutable snapshot. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class RestServerStepSpec {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ServerCallSpec call;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String description;
+    private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
 
     public RestServerStepSpec() {
         this(null, null, null);
@@ -49,33 +50,36 @@ public class RestServerStepSpec {
     }
 
     public RestServerStepSpec(ServerCallSpec call, Map<String, Object> with, String description) {
-        this.call = call;
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
-        this.description = description;
+        this.call.set(call);
+        this.with.set(with != null ? Map.copyOf(with) : null);
+        this.description.set(description);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ServerCallSpec getCall() {
-        return call;
+        return call.get();
     }
 
     public void setCall(ServerCallSpec call) {
-        this.call = call;
+        this.call.set(call);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
 }

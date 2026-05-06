@@ -13,10 +13,16 @@
  */
 package io.naftiko.spec.consumes.http;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import io.naftiko.spec.OperationSpec;
 
 /**
- * HTTP Operation Specification Element
+ * HTTP Operation Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * The {@code body} field is held in an {@link AtomicReference}. This satisfies SonarQube rule
+ * {@code java:S3077}.
  */
 public class HttpClientOperationSpec extends OperationSpec {
 
@@ -29,7 +35,7 @@ public class HttpClientOperationSpec extends OperationSpec {
      *       {@code RequestBody} object defined in the Naftiko specification</li>
      * </ul>
      */
-    private volatile Object body;
+    private final AtomicReference<Object> body = new AtomicReference<>();
 
     public HttpClientOperationSpec() {
         this(null, null, null, null, null, null, null);
@@ -45,15 +51,15 @@ public class HttpClientOperationSpec extends OperationSpec {
 
     public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String label, String description, Object body, String outputRawFormat, String outputSchema) {
         super(parentResource, method, name, label, description, outputRawFormat, outputSchema);
-        this.body = body;
+        this.body.set(body);
     }
 
     public Object getBody() {
-        return body;
+        return body.get();
     }
 
     public void setBody(Object body) {
-        this.body = body;
+        this.body.set(body);
     }
 
 }

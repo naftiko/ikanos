@@ -13,81 +13,94 @@
  */
 package io.naftiko.spec.exposes.control;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Toggles individual control port management endpoint groups. Does not include OTel-dependent
  * endpoints (metrics, traces) — those are configured under observability.
+ *
+ * <h2>Thread safety</h2>
+ * Boolean toggles use {@link AtomicBoolean}; reference fields use {@link AtomicReference}.
+ * Lazy initialization of {@code logs} uses {@link AtomicReference#compareAndSet} to remain
+ * thread-safe. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class ControlManagementSpec {
 
-    private volatile boolean health = true;
-    private volatile boolean info = false;
-    private volatile boolean reload = false;
-    private volatile boolean validate = false;
+    private final AtomicBoolean health = new AtomicBoolean(true);
+    private final AtomicBoolean info = new AtomicBoolean(false);
+    private final AtomicBoolean reload = new AtomicBoolean(false);
+    private final AtomicBoolean validate = new AtomicBoolean(false);
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ControlLogsEndpointSpec logs;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ScriptingManagementSpec scripting;
+    private final AtomicReference<ControlLogsEndpointSpec> logs = new AtomicReference<>();
+    private final AtomicReference<ScriptingManagementSpec> scripting = new AtomicReference<>();
 
     public boolean isHealth() {
-        return health;
+        return health.get();
     }
 
     public void setHealth(boolean health) {
-        this.health = health;
+        this.health.set(health);
     }
 
     public boolean isInfo() {
-        return info;
+        return info.get();
     }
 
     public void setInfo(boolean info) {
-        this.info = info;
+        this.info.set(info);
     }
 
     public boolean isReload() {
-        return reload;
+        return reload.get();
     }
 
     public void setReload(boolean reload) {
-        this.reload = reload;
+        this.reload.set(reload);
     }
 
     public boolean isValidate() {
-        return validate;
+        return validate.get();
     }
 
     public void setValidate(boolean validate) {
-        this.validate = validate;
+        this.validate.set(validate);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ControlLogsEndpointSpec getLogs() {
-        if (logs == null) {
-            logs = new ControlLogsEndpointSpec();
-            logs.setLevelControl(false);
+        ControlLogsEndpointSpec current = logs.get();
+        if (current == null) {
+            ControlLogsEndpointSpec candidate = new ControlLogsEndpointSpec();
+            candidate.setLevelControl(false);
+            if (logs.compareAndSet(null, candidate)) {
+                return candidate;
+            }
+            return logs.get();
         }
-        return logs;
+        return current;
     }
 
     public void setLogs(ControlLogsEndpointSpec logs) {
-        this.logs = logs;
+        this.logs.set(logs);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ScriptingManagementSpec getScripting() {
-        return scripting;
+        return scripting.get();
     }
 
     public void setScripting(ScriptingManagementSpec scripting) {
-        this.scripting = scripting;
+        this.scripting.set(scripting);
     }
 
     /**
      * Convenience accessor — returns true when log level control is enabled.
      */
     public boolean isLogging() {
-        return logs != null && logs.isLevelControl();
+        ControlLogsEndpointSpec current = logs.get();
+        return current != null && current.isLevelControl();
     }
 }

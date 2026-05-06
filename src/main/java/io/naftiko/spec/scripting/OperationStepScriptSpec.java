@@ -15,39 +15,36 @@ package io.naftiko.spec.scripting;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import io.naftiko.spec.util.OperationStepSpec;
 
 /**
- * Operation Step Script Specification Element
- * 
- * Represents a script step that executes JavaScript, Python, or Groovy code loaded from an external
- * file via the GraalVM Polyglot API or GroovyShell. The script result is stored in the step
- * execution context under the step's name.
+ * Operation Step Script Specification Element.
+ *
+ * <p>Represents a script step that executes JavaScript, Python, or Groovy code loaded from an
+ * external file via the GraalVM Polyglot API or GroovyShell. The script result is stored in the
+ * step execution context under the step's name.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
+ * stored as an immutable snapshot. The {@code dependencies} list is a {@link CopyOnWriteArrayList}.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class OperationStepScriptSpec extends OperationStepSpec {
 
-    @JsonProperty("language")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String language;
-
-    @JsonProperty("location")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String location;
-
-    @JsonProperty("file")
-    private volatile String file;
+    private final AtomicReference<String> language = new AtomicReference<>();
+    private final AtomicReference<String> location = new AtomicReference<>();
+    private final AtomicReference<String> file = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
 
     @JsonProperty("dependencies")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<String> dependencies;
-
-    @JsonProperty("with")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
 
     public OperationStepScriptSpec() {
         this(null, null, null, null, null, null);
@@ -60,50 +57,61 @@ public class OperationStepScriptSpec extends OperationStepSpec {
     public OperationStepScriptSpec(String name, String language, String location, String file,
             List<String> dependencies, Map<String, Object> with) {
         super("script", name);
-        this.language = language;
-        this.location = location;
-        this.file = file;
+        this.language.set(language);
+        this.location.set(location);
+        this.file.set(file);
         this.dependencies = new CopyOnWriteArrayList<>();
         if (dependencies != null) {
             this.dependencies.addAll(dependencies);
         }
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
+    @JsonProperty("language")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLanguage() {
-        return language;
+        return language.get();
     }
 
+    @JsonProperty("language")
     public void setLanguage(String language) {
-        this.language = language;
+        this.language.set(language);
     }
 
+    @JsonProperty("location")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLocation() {
-        return location;
+        return location.get();
     }
 
+    @JsonProperty("location")
     public void setLocation(String location) {
-        this.location = location;
+        this.location.set(location);
     }
 
+    @JsonProperty("file")
     public String getFile() {
-        return file;
+        return file.get();
     }
 
+    @JsonProperty("file")
     public void setFile(String file) {
-        this.file = file;
+        this.file.set(file);
     }
 
     public List<String> getDependencies() {
         return dependencies;
     }
 
+    @JsonProperty("with")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
+    @JsonProperty("with")
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
 }

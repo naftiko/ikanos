@@ -16,32 +16,34 @@ package io.naftiko.spec.exposes.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.naftiko.spec.OperationSpec;
-import io.naftiko.spec.util.OperationStepSpec;
 import io.naftiko.spec.exposes.ServerCallSpec;
+import io.naftiko.spec.util.OperationStepSpec;
 import io.naftiko.spec.util.StepOutputMappingSpec;
 
 /**
- * API Operation Specification Element
+ * API Operation Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
+ * stored as an immutable snapshot. List fields use {@link CopyOnWriteArrayList}. This
+ * satisfies SonarQube rule {@code java:S3077}.
  */
 public class RestServerOperationSpec extends OperationSpec {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ServerCallSpec call;
+    private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
+    private final AtomicReference<String> ref = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<OperationStepSpec> steps;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<StepOutputMappingSpec> mappings;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String ref;
 
     public RestServerOperationSpec() {
         this(null, null, null, null, null, null, null, null, null);
@@ -61,8 +63,8 @@ public class RestServerOperationSpec extends OperationSpec {
 
     public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call, Map<String, Object> with) {
         super(parentResource, method, name, label, description, outputRawFormat, outputSchema);
-        this.call = call;
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.call.set(call);
+        this.with.set(with != null ? Map.copyOf(with) : null);
         this.steps = new CopyOnWriteArrayList<>();
         this.mappings = new CopyOnWriteArrayList<>();
     }
@@ -75,28 +77,31 @@ public class RestServerOperationSpec extends OperationSpec {
         return mappings;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ServerCallSpec getCall() {
-        return call;
+        return call.get();
     }
 
     public void setCall(ServerCallSpec call) {
-        this.call = call;
+        this.call.set(call);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : null;
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getRef() {
-        return ref;
+        return ref.get();
     }
 
     public void setRef(String ref) {
-        this.ref = ref;
+        this.ref.set(ref);
     }
 
 }

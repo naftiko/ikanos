@@ -15,16 +15,23 @@ package io.naftiko.spec.aggregates;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Aggregate Specification Element.
- * 
- * A domain aggregate grouping reusable functions. Adapters reference these functions via ref.
+ *
+ * <p>A domain aggregate grouping reusable functions. Adapters reference these functions via ref.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
+ * Control-port runtime edits can replace values atomically while engine threads read them.
+ * The {@code functions} collection is a {@link CopyOnWriteArrayList} which provides the same
+ * guarantee at the element level. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class AggregateSpec {
 
-    private volatile String label;
-    private volatile String namespace;
+    private final AtomicReference<String> label = new AtomicReference<>();
+    private final AtomicReference<String> namespace = new AtomicReference<>();
     private final List<AggregateFunctionSpec> functions;
 
     public AggregateSpec() {
@@ -32,19 +39,19 @@ public class AggregateSpec {
     }
 
     public String getLabel() {
-        return label;
+        return label.get();
     }
 
     public void setLabel(String label) {
-        this.label = label;
+        this.label.set(label);
     }
 
     public String getNamespace() {
-        return namespace;
+        return namespace.get();
     }
 
     public void setNamespace(String namespace) {
-        this.namespace = namespace;
+        this.namespace.set(namespace);
     }
 
     public List<AggregateFunctionSpec> getFunctions() {

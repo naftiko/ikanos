@@ -16,6 +16,8 @@ package io.naftiko.spec.exposes.skill;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -32,40 +34,24 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *   <li>Declare instruction tools (via {@code instruction}) backed by local files</li>
  *   <li>Stand alone as purely descriptive (no tools, just metadata and {@code location} files)</li>
  * </ul>
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference}; the {@code metadata} map is stored
+ * as an immutable snapshot. The {@code tools} list is a {@link CopyOnWriteArrayList}. This
+ * satisfies SonarQube rule {@code java:S3077}.
  */
 public class ExposedSkillSpec {
 
-    private volatile String name;
-
-    private volatile String description;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String license;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String compatibility;
-
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private volatile Map<String, String> metadata;
-
-    @JsonProperty("allowed-tools")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String allowedTools;
-
-    @JsonProperty("argument-hint")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String argumentHint;
-
-    @JsonProperty("user-invocable")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Boolean userInvocable;
-
-    @JsonProperty("disable-model-invocation")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Boolean disableModelInvocation;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String location;
+    private final AtomicReference<String> name = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
+    private final AtomicReference<String> license = new AtomicReference<>();
+    private final AtomicReference<String> compatibility = new AtomicReference<>();
+    private final AtomicReference<Map<String, String>> metadata = new AtomicReference<>();
+    private final AtomicReference<String> allowedTools = new AtomicReference<>();
+    private final AtomicReference<String> argumentHint = new AtomicReference<>();
+    private final AtomicReference<Boolean> userInvocable = new AtomicReference<>();
+    private final AtomicReference<Boolean> disableModelInvocation = new AtomicReference<>();
+    private final AtomicReference<String> location = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<SkillToolSpec> tools;
@@ -75,83 +61,99 @@ public class ExposedSkillSpec {
     }
 
     public String getName() {
-        return name;
+        return name.get();
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name.set(name);
     }
 
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLicense() {
-        return license;
+        return license.get();
     }
 
     public void setLicense(String license) {
-        this.license = license;
+        this.license.set(license);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getCompatibility() {
-        return compatibility;
+        return compatibility.get();
     }
 
     public void setCompatibility(String compatibility) {
-        this.compatibility = compatibility;
+        this.compatibility.set(compatibility);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public Map<String, String> getMetadata() {
-        return metadata;
+        return metadata.get();
     }
 
     public void setMetadata(Map<String, String> metadata) {
-        this.metadata = metadata;
+        this.metadata.set(metadata != null ? Map.copyOf(metadata) : null);
     }
 
+    @JsonProperty("allowed-tools")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getAllowedTools() {
-        return allowedTools;
+        return allowedTools.get();
     }
 
+    @JsonProperty("allowed-tools")
     public void setAllowedTools(String allowedTools) {
-        this.allowedTools = allowedTools;
+        this.allowedTools.set(allowedTools);
     }
 
+    @JsonProperty("argument-hint")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getArgumentHint() {
-        return argumentHint;
+        return argumentHint.get();
     }
 
+    @JsonProperty("argument-hint")
     public void setArgumentHint(String argumentHint) {
-        this.argumentHint = argumentHint;
+        this.argumentHint.set(argumentHint);
     }
 
+    @JsonProperty("user-invocable")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Boolean getUserInvocable() {
-        return userInvocable;
+        return userInvocable.get();
     }
 
+    @JsonProperty("user-invocable")
     public void setUserInvocable(Boolean userInvocable) {
-        this.userInvocable = userInvocable;
+        this.userInvocable.set(userInvocable);
     }
 
+    @JsonProperty("disable-model-invocation")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Boolean getDisableModelInvocation() {
-        return disableModelInvocation;
+        return disableModelInvocation.get();
     }
 
+    @JsonProperty("disable-model-invocation")
     public void setDisableModelInvocation(Boolean disableModelInvocation) {
-        this.disableModelInvocation = disableModelInvocation;
+        this.disableModelInvocation.set(disableModelInvocation);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLocation() {
-        return location;
+        return location.get();
     }
 
     public void setLocation(String location) {
-        this.location = location;
+        this.location.set(location);
     }
 
     public List<SkillToolSpec> getTools() {
