@@ -13,13 +13,22 @@
  */
 package io.naftiko.spec.consumes.http;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
- * HTTP Basic Authentication Specification Element
+ * HTTP Basic Authentication Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * Credential fields are stored in {@link AtomicReference}s so they can be rotated atomically
+ * at runtime (token refresh, Control-port credential update). The {@code char[]} password is
+ * defensively cloned on both {@code set} and {@code get} so callers cannot mutate the stored
+ * credential in place. This satisfies SonarQube rule {@code java:S3077} and aligns with the
+ * blueprint's "atomic password storage" pattern.
  */
 public class BasicAuthenticationSpec extends AuthenticationSpec {
 
-    private volatile String username;
-    private volatile char[] password;
+    private final AtomicReference<String> username = new AtomicReference<>();
+    private final AtomicReference<char[]> password = new AtomicReference<>();
 
     public BasicAuthenticationSpec() {
         this(null, null);
@@ -27,24 +36,25 @@ public class BasicAuthenticationSpec extends AuthenticationSpec {
 
     public BasicAuthenticationSpec(String username, char[] password) {
         super("basic");
-        this.username = username;
-        this.password = password;
+        this.username.set(username);
+        this.password.set(password == null ? null : password.clone());
     }
 
     public String getUsername() {
-        return username;
+        return username.get();
     }
 
     public void setUsername(String username) {
-        this.username = username;
+        this.username.set(username);
     }
 
     public char[] getPassword() {
-        return password;
+        char[] current = password.get();
+        return current == null ? null : current.clone();
     }
 
     public void setPassword(char[] password) {
-        this.password = password;
+        this.password.set(password == null ? null : password.clone());
     }
 
 }
