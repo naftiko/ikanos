@@ -15,39 +15,41 @@ package io.naftiko.spec.consumes.http;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.consumes.ClientSpec;
 
 /**
- * Specification Element of consumed HTTP adapter endpoints
+ * Specification Element of consumed HTTP adapter endpoints.
+ *
+ * <h2>Thread safety</h2>
+ * The {@code baseUri} and {@code authentication} fields are held in {@link AtomicReference}s.
+ * The {@code inputParameters} and {@code resources} lists are {@link CopyOnWriteArrayList}s.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class HttpClientSpec extends ClientSpec {
 
-    private volatile String baseUri;
+    private final AtomicReference<String> baseUri = new AtomicReference<>();
+    private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile AuthenticationSpec authentication;
-
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<HttpClientResourceSpec> resources;
+    private final List<HttpClientResourceSpec> resources;
 
     public HttpClientSpec(String namespace, String baseUri, AuthenticationSpec authentication) {
         super("http", namespace);
-        // Validate: baseUri must not have a trailing slash per Naftiko specification
-        if (baseUri != null && baseUri.endsWith("/")) {
-            throw new IllegalArgumentException(
-                    "baseUri must not end with a trailing slash. Provided: '" + baseUri + "'");
-        }
-        this.baseUri = baseUri;
+        validateBaseUri(baseUri);
+        this.baseUri.set(baseUri);
         this.inputParameters = new CopyOnWriteArrayList<>();
-        this.authentication = authentication;
+        this.authentication.set(authentication);
         this.resources = new CopyOnWriteArrayList<>();
     }
 
@@ -60,28 +62,35 @@ public class HttpClientSpec extends ClientSpec {
     }
 
     public String getBaseUri() {
-        return baseUri;
+        return baseUri.get();
     }
 
     public void setBaseUri(String baseUri) {
-        // Validate: baseUri must not have a trailing slash per Naftiko specification
+        validateBaseUri(baseUri);
+        this.baseUri.set(baseUri);
+    }
+
+    /**
+     * Validates that {@code baseUri} does not have a trailing slash, per Naftiko specification.
+     */
+    private static void validateBaseUri(String baseUri) {
         if (baseUri != null && baseUri.endsWith("/")) {
             throw new IllegalArgumentException(
                     "baseUri must not end with a trailing slash. Provided: '" + baseUri + "'");
         }
-        this.baseUri = baseUri;
     }
 
     public List<InputParameterSpec> getInputParameters() {
         return inputParameters;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public AuthenticationSpec getAuthentication() {
-        return authentication;
+        return authentication.get();
     }
 
     public void setAuthentication(AuthenticationSpec authentication) {
-        this.authentication = authentication;
+        this.authentication.set(authentication);
     }
 
     public List<HttpClientResourceSpec> getResources() {

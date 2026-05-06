@@ -15,79 +15,85 @@ package io.naftiko.spec.exposes;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 import io.naftiko.spec.InputParameterSpec;
 import io.naftiko.spec.consumes.http.AuthenticationSpec;
 
 /**
- * Base Exposed Adapter Specification Element
+ * Base Exposed Adapter Specification Element.
+ *
+ * <h2>Thread safety</h2>
+ * Each scalar field is held in an {@link AtomicReference} or {@link AtomicInteger}; the
+ * {@code inputParameters} list is a {@link CopyOnWriteArrayList}. This satisfies SonarQube
+ * rule {@code java:S3077}.
  */
 @JsonDeserialize(using = ServerSpecDeserializer.class)
 public abstract class ServerSpec {
 
-    private volatile String type;
+    private final AtomicReference<String> type = new AtomicReference<>();
+    private final AtomicReference<String> address = new AtomicReference<>();
+    private final AtomicInteger port = new AtomicInteger();
 
-    private volatile String address;
-
-    private volatile int port;
-    
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<InputParameterSpec> inputParameters;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile AuthenticationSpec authentication;
+    private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
     public ServerSpec() {
         this(null, "localhost", 0);
     }
 
     public ServerSpec(String type) {
-        this();
-        this.type = type;
+        this(type, "localhost", 0);
     }
 
     public ServerSpec(String type, String address, int port) {
-        this.type = type;
-        this.address = address;
-        this.port = port;
+        this.type.set(type);
+        this.address.set(address);
+        this.port.set(port);
         this.inputParameters = new CopyOnWriteArrayList<>();
     }
 
     public String getType() {
-        return type;
+        return type.get();
     }
 
     public void setType(String type) {
-        this.type = type;
+        this.type.set(type);
     }
 
     public String getAddress() {
-        return address;
+        return address.get();
     }
 
     public void setAddress(String address) {
-        this.address = address;
+        this.address.set(address);
     }
 
     public int getPort() {
-        return port;
+        return port.get();
     }
 
     public void setPort(int port) {
-        this.port = port;
+        this.port.set(port);
     }
 
     public List<InputParameterSpec> getInputParameters() {
         return inputParameters;
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public AuthenticationSpec getAuthentication() {
-        return authentication;
+        return authentication.get();
     }
 
     public void setAuthentication(AuthenticationSpec authentication) {
-        this.authentication = authentication;
+        this.authentication.set(authentication);
     }
 
 }

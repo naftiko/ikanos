@@ -13,24 +13,38 @@
  */
 package io.naftiko.spec.observability;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Metrics collection and local exposure configuration.
+ *
+ * <h2>Thread safety</h2>
+ * The {@code local} field is held in an {@link AtomicReference} so that future fluent
+ * builders and Control-port runtime edits can replace the configuration atomically while
+ * engine threads read it. Lazy initialization on {@link #getLocal()} uses
+ * {@link AtomicReference#compareAndSet} to remain thread-safe. This satisfies SonarQube
+ * rule {@code java:S3077}.
  */
 public class ObservabilityMetricsSpec {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilityLocalEndpointSpec local;
+    private final AtomicReference<ObservabilityLocalEndpointSpec> local = new AtomicReference<>();
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilityLocalEndpointSpec getLocal() {
-        if (local == null) {
-            local = new ObservabilityLocalEndpointSpec();
+        ObservabilityLocalEndpointSpec current = local.get();
+        if (current == null) {
+            ObservabilityLocalEndpointSpec candidate = new ObservabilityLocalEndpointSpec();
+            if (local.compareAndSet(null, candidate)) {
+                return candidate;
+            }
+            return local.get();
         }
-        return local;
+        return current;
     }
 
     public void setLocal(ObservabilityLocalEndpointSpec local) {
-        this.local = local;
+        this.local.set(local);
     }
 }

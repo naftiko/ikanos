@@ -13,40 +13,47 @@
  */
 package io.naftiko.spec.observability;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Trace sampling, propagation, and local exposure configuration.
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference} so that fluent builders and
+ * Control-port runtime edits can replace values atomically while engine threads read them.
+ * The double {@code sampling} field is wrapped as {@code AtomicReference<Double>} for
+ * consistency. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class ObservabilityTracesSpec {
 
-    private volatile double sampling = 1.0;
-    private volatile String propagation = "w3c";
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilityTracesLocalSpec local;
+    private final AtomicReference<Double> sampling = new AtomicReference<>(1.0);
+    private final AtomicReference<String> propagation = new AtomicReference<>("w3c");
+    private final AtomicReference<ObservabilityTracesLocalSpec> local = new AtomicReference<>();
 
     public double getSampling() {
-        return sampling;
+        return sampling.get();
     }
 
     public void setSampling(double sampling) {
-        this.sampling = sampling;
+        this.sampling.set(sampling);
     }
 
     public String getPropagation() {
-        return propagation;
+        return propagation.get();
     }
 
     public void setPropagation(String propagation) {
-        this.propagation = propagation;
+        this.propagation.set(propagation);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilityTracesLocalSpec getLocal() {
-        return local;
+        return local.get();
     }
 
     public void setLocal(ObservabilityTracesLocalSpec local) {
-        this.local = local;
+        this.local.set(local);
     }
 }

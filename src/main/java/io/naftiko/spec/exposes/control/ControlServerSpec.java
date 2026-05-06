@@ -13,11 +13,14 @@
  */
 package io.naftiko.spec.exposes.control;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import io.naftiko.spec.observability.ObservabilitySpec;
+
 import io.naftiko.spec.exposes.ServerSpec;
+import io.naftiko.spec.observability.ObservabilitySpec;
 
 /**
  * Control Server Specification Element.
@@ -25,15 +28,17 @@ import io.naftiko.spec.exposes.ServerSpec;
  * <p>Defines a management adapter that provides engine-provided endpoints for health checks,
  * Prometheus metrics, trace inspection, and runtime diagnostics. Unlike business adapters, the
  * control port does not expose user-defined tools, operations, or skills.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference}; lazy initialization of {@code management}
+ * uses {@link AtomicReference#compareAndSet} to remain thread-safe. This satisfies SonarQube
+ * rule {@code java:S3077}.
  */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class ControlServerSpec extends ServerSpec {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ControlManagementSpec management;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile ObservabilitySpec observability;
+    private final AtomicReference<ControlManagementSpec> management = new AtomicReference<>();
+    private final AtomicReference<ObservabilitySpec> observability = new AtomicReference<>();
 
     public ControlServerSpec() {
         this("localhost", 0);
@@ -43,22 +48,29 @@ public class ControlServerSpec extends ServerSpec {
         super("control", address, port);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ControlManagementSpec getManagement() {
-        if (management == null) {
-            management = new ControlManagementSpec();
+        ControlManagementSpec current = management.get();
+        if (current == null) {
+            ControlManagementSpec candidate = new ControlManagementSpec();
+            if (management.compareAndSet(null, candidate)) {
+                return candidate;
+            }
+            return management.get();
         }
-        return management;
+        return current;
     }
 
     public void setManagement(ControlManagementSpec management) {
-        this.management = management;
+        this.management.set(management);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public ObservabilitySpec getObservability() {
-        return observability;
+        return observability.get();
     }
 
     public void setObservability(ObservabilitySpec observability) {
-        this.observability = observability;
+        this.observability.set(observability);
     }
 }

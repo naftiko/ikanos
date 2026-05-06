@@ -13,27 +13,31 @@
  */
 package io.naftiko.spec.exposes;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Server Call Specification Element
- * 
- * Represents a call to another operation with associated input parameters.
- * The "with" field contains key-value pairs that provide values to the input parameters
- * of the target operation.
+ * Server Call Specification Element.
+ *
+ * <p>Represents a call to another operation with associated input parameters.
+ * The {@code with} field contains key-value pairs that provide values to the input parameters
+ * of the target operation.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference}; the {@code with} parameter map is stored
+ * as an immutable snapshot. Mutations via {@link #setParameter(String, Object)} use
+ * {@link AtomicReference#updateAndGet} to perform a lock-free copy-on-write replacement.
+ * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class ServerCallSpec {
 
-    private volatile String operation;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile Map<String, Object> with;
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String description;
+    private final AtomicReference<String> operation = new AtomicReference<>();
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>(Map.of());
+    private final AtomicReference<String> description = new AtomicReference<>();
 
     public ServerCallSpec() {
         this(null, null, null);
@@ -49,56 +53,60 @@ public class ServerCallSpec {
     }
 
     public ServerCallSpec(String operation, Map<String, Object> with, String description) {
-        this.operation = operation;
-        this.with = with != null ? new ConcurrentHashMap<>(with) : new ConcurrentHashMap<>();
-        this.description = description;
+        this.operation.set(operation);
+        this.with.set(with != null ? Map.copyOf(with) : Map.of());
+        this.description.set(description);
     }
 
     public String getOperation() {
-        return operation;
+        return operation.get();
     }
 
     public void setOperation(String operation) {
-        this.operation = operation;
+        this.operation.set(operation);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public Map<String, Object> getWith() {
-        return with;
+        return with.get();
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with = with != null ? new ConcurrentHashMap<>(with) : new ConcurrentHashMap<>();
+        this.with.set(with != null ? Map.copyOf(with) : Map.of());
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
     /**
-     * Gets a parameter value from the "with" map by key.
-     * 
+     * Gets a parameter value from the {@code with} map by key.
+     *
      * @param key the parameter key
-     * @return the parameter value, or null if not present
+     * @return the parameter value, or {@code null} if not present
      */
     public Object getParameter(String key) {
-        return with != null ? with.get(key) : null;
+        return with.get().get(key);
     }
 
     /**
-     * Sets a parameter value in the "with" map.
-     * 
+     * Sets a parameter value in the {@code with} map.
+     * Performs a lock-free copy-on-write replacement of the immutable snapshot.
+     *
      * @param key the parameter key
      * @param value the parameter value
      */
     public void setParameter(String key, Object value) {
-        if (with == null) {
-            with = new ConcurrentHashMap<>();
-        }
-        with.put(key, value);
+        with.updateAndGet(current -> {
+            Map<String, Object> next = new HashMap<>(current);
+            next.put(key, value);
+            return Map.copyOf(next);
+        });
     }
 
 }

@@ -13,61 +13,65 @@
  */
 package io.naftiko.spec.util;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Binding Specification Element.
- * Declares that the capability binds to an external source of variables.
- * Variables declared via 'keys' are injected using mustache-style expressions.
+ *
+ * <p>Declares that the capability binds to an external source of variables.
+ * Variables declared via {@code keys} are injected using mustache-style expressions.</p>
+ *
+ * <h2>Thread safety</h2>
+ * Each field is held in an {@link AtomicReference}. This satisfies SonarQube rule
+ * {@code java:S3077}.
  */
 public class BindingSpec {
 
-    private volatile String namespace;
-
-    private volatile String description;
-
-    private volatile String location;
-
-    private volatile BindingKeysSpec keys;
+    private final AtomicReference<String> namespace = new AtomicReference<>();
+    private final AtomicReference<String> description = new AtomicReference<>();
+    private final AtomicReference<String> location = new AtomicReference<>();
+    private final AtomicReference<BindingKeysSpec> keys = new AtomicReference<>();
 
     public BindingSpec() {
     }
 
     public BindingSpec(String namespace, String description, String location, BindingKeysSpec keys) {
-        this.namespace = namespace;
-        this.description = description;
-        this.location = location;
-        this.keys = keys;
+        this.namespace.set(namespace);
+        this.description.set(description);
+        this.location.set(location);
+        this.keys.set(keys);
     }
 
     public String getNamespace() {
-        return namespace;
+        return namespace.get();
     }
 
     public void setNamespace(String namespace) {
-        this.namespace = namespace;
+        this.namespace.set(namespace);
     }
 
     public String getDescription() {
-        return description;
+        return description.get();
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        this.description.set(description);
     }
 
     public String getLocation() {
-        return location;
+        return location.get();
     }
 
     public void setLocation(String location) {
-        this.location = location;
+        this.location.set(location);
     }
 
     public BindingKeysSpec getKeys() {
-        return keys;
+        return keys.get();
     }
 
     public void setKeys(BindingKeysSpec keys) {
-        this.keys = keys;
+        this.keys.set(keys);
     }
 
 }
