@@ -266,7 +266,7 @@ public class Capability {
      * <p>Usage:
      * <pre>{@code
      * Capability capability = Capability.builder()
-     *     .capabilityFromClasspath("/my-capability.yml")
+     *     .loadFromClasspath("/my-capability.yml")
      *     .stepHandler("validate", new MyHandler())
      *     .build();
      * capability.start();
