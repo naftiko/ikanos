@@ -51,18 +51,6 @@ class CapabilityBuilderTest {
                 .stepHandler("do-greet", handler)
                 .build();
 
-        assertTrue(capability.getStepHandlerRegistry().has("do-greet"));
-    }
-
-    @Test
-    void buildShouldSetRegistryOnCapability() {
-        StepHandler handler = ctx -> TextNode.valueOf("test");
-
-        Capability capability = Capability.builder()
-                .loadFromClasspath("/embedding/embedding-capability.yaml")
-                .stepHandler("do-greet", handler)
-                .build();
-
         assertNotNull(capability.getStepHandlerRegistry());
         assertTrue(capability.getStepHandlerRegistry().has("do-greet"));
     }

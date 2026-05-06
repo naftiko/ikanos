@@ -342,7 +342,7 @@ public class Capability {
         public Capability build() {
             if (spec == null) {
                 throw new IllegalStateException(
-                        "No capability loaded. Call capabilityFromClasspath() or capabilityFromFile() first.");
+                        "No capability loaded. Call loadFromClasspath() or loadFromFile() first.");
             }
             try {
                 if (telemetryEnabled) {

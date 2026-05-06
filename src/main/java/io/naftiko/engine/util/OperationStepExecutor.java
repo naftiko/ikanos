@@ -181,12 +181,13 @@ public class OperationStepExecutor {
             return new StepExecutionResult(lastContext, stepContext);
         }
 
+        StepHandlerRegistry registry = capability != null
+            ? capability.getStepHandlerRegistry() : null;
+
         for (int stepIndex = 0; stepIndex < steps.size(); stepIndex++) {
             OperationStepSpec step = steps.get(stepIndex);
 
             // Check step handler registry before normal dispatch
-            StepHandlerRegistry registry = capability != null
-                    ? capability.getStepHandlerRegistry() : null;
             if (registry != null && step.getName() != null && registry.has(step.getName())) {
                 TelemetryBootstrap telemetry = TelemetryBootstrap.get();
                 Span stepSpan = telemetry.startStepCallSpan(
@@ -197,7 +198,7 @@ public class OperationStepExecutor {
                     if (step instanceof OperationStepCallSpec callSpec) {
                         withValues = callSpec.getWith();
                         if (withValues != null) {
-                            Map<String, Object> resolved = new ConcurrentHashMap<>(withValues);
+                            Map<String, Object> resolved = new HashMap<>(withValues);
                             mergeWithParameters(resolved, runtimeParameters, exposeNamespace);
                             withValues = resolved;
                         }
