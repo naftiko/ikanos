@@ -54,8 +54,8 @@ Write-Host "Diff saved: $diffPath ($lineCount lines)" -ForegroundColor Green
 
 # --- Existing reviews ---
 Write-Host "`n--- Existing Reviews ---" -ForegroundColor Yellow
-$reviews = gh api "repos/$Repo/pulls/$Pr/reviews" --paginate |
-    ConvertFrom-Json
+$reviews = @(gh api "repos/$Repo/pulls/$Pr/reviews" --paginate |
+    ConvertFrom-Json)
 if ($reviews.Count -eq 0) {
     Write-Host "  (none)"
 } else {
@@ -65,8 +65,8 @@ if ($reviews.Count -eq 0) {
 
 # --- Existing inline comments ---
 Write-Host "`n--- Existing Inline Comments ---" -ForegroundColor Yellow
-$comments = gh api "repos/$Repo/pulls/$Pr/comments" --paginate |
-    ConvertFrom-Json
+$comments = @(gh api "repos/$Repo/pulls/$Pr/comments" --paginate |
+    ConvertFrom-Json)
 if ($comments.Count -eq 0) {
     Write-Host "  (none)"
 } else {
