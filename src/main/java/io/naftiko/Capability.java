@@ -148,6 +148,14 @@ public class Capability {
             throw new IllegalArgumentException("Capability must expose at least one endpoint.");
         }
 
+        // NOTE: `this` escapes to adapter constructors below before clientAdapters
+        // and serverAdapters are published via AtomicReference.set() at the end of
+        // this constructor. Adapter constructors MUST NOT call getClientAdapters()
+        // or getServerAdapters() — those references are still null/unset at this
+        // point. Defer any such cross-adapter lookup to a post-construction
+        // lifecycle method (e.g. start()/init()) that runs after the constructor
+        // returns. The AtomicReference migration (S3077) addresses field-level
+        // visibility, not this construction-time publication ordering.
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if ("rest".equals(serverSpec.getType())) {
                 serverList.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));
