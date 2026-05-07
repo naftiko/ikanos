@@ -17,17 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
 import java.net.http.HttpClient;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.consumes.ClientSpec;
-import io.naftiko.spec.consumes.http.HttpClientSpec;
 
 /**
  * End-to-end integration test for {@code step-7-shipyard-orchestrated-lookup.yml}
@@ -44,35 +40,13 @@ public class Step7ShipyardMcpClientIntegrationTest
             "src/main/resources/tutorial/step-7-shipyard-orchestrated-lookup.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
-    private static final String TUTORIAL_DIR =
-            "src/main/resources/tutorial";
-        private static final String REGISTRY_MOCK_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
-    private static final String LEGACY_MOCK_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
+
 
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
         useMcpServerToken(SECRETS_FILE);
 
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-        spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
-
-        String tutorialAbsoluteDir = new File(TUTORIAL_DIR).getAbsolutePath();
-        new ConsumesImportResolver().resolveImports(
-                spec.getCapability().getConsumes(), tutorialAbsoluteDir);
-
-        for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec) {
-                if ("registry".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
-                } else if ("legacy".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
-                }
-            }
-        }
 
         startServerFromSpec(spec);
     }

@@ -75,7 +75,7 @@ jobs:
 
         find "$TUTORIAL_DIR" -name "*.yaml" -o -name "*.yml" | while read file; do
           COUNT=$(yq '.capability.consumes | length' "$file" 2>/dev/null)
-          [ -z "$COUNT" ] || [ "$COUNT" = "0" ] || [ "$COUNT" = "null" ] && continue
+          { [ -z "$COUNT" ] || [ "$COUNT" = "0" ] || [ "$COUNT" = "null" ]; } && continue
 
           for i in $(seq 0 $(($COUNT - 1))); do
             IMPORT=$(yq -r ".capability.consumes[$i].import // \"\"" "$file")
