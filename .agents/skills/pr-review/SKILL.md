@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: "1.2.1"
+version: "1.3.0"
 description: >
   On-demand skill for reviewing GitHub Pull Requests and posting inline
   comments via the GitHub API. Activate when the user asks to: review a PR,
@@ -18,33 +18,41 @@ check for existing reviews → offer Continue/Fresh start choice → fetch the d
 compute line numbers accurately → verify each line number →
 present findings → post only after explicit user confirmation.
 
+### Helper scripts (Windows / PowerShell)
+
+Three reusable scripts live in this skill's directory to minimize the number of
+terminal commands the user must confirm. **Use them instead of the manual ad-hoc
+commands shown in each step.**
+
+| Script | Platform | Replaces | When to use |
+|--------|----------|----------|-------------|
+| `pr-context.ps1 -Pr <N>` | Windows (PowerShell) | Steps 1 + 2 (5+ commands) | Once, at the start of every review |
+| `pr-context.sh <N>` | Linux / macOS | Steps 1 + 2 (5+ commands) | Once, at the start of every review |
+| `pr-find-lines.ps1 -Pr <N> -File <glob> -Pattern <regex>` | Windows (PowerShell) | Steps 3 + 4 (one script per finding) | Once per finding, after context is loaded |
+| `pr-find-lines.sh <N> <file-pattern> <line-pattern>` | Linux / macOS | Steps 3 + 4 (one script per finding) | Once per finding, after context is loaded |
+| `pr-submit-review.ps1 -Pr <N> -InputFile <path>` | Windows (PowerShell) | Step 5 Branch B + verification | Once, after the user confirms the findings |
+| `pr-submit-review.sh <N> <input-json>` | Linux / macOS | Step 5 Branch B + verification | Once, after the user confirms the findings |
+
 ---
 
 ## Step 1 — Check for existing review activity
 
-Before fetching the diff, check whether the PR already has reviews or inline comments.
-
-Retrieve `{owner}/{repo}` from the local git remote if not known:
-
-```bash
-gh repo view --json nameWithOwner -q .nameWithOwner
-```
+**Windows (PowerShell) — run the context script:**
 
 ```powershell
-# Windows (PowerShell)
-gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
-  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: (.body // "" | .[:80])}]'
-gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
-  --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
+.\.agents\skills\pr-review\pr-context.ps1 -Pr <number>
 ```
 
+**Linux / macOS — run the context script:**
+
 ```bash
-# Linux / macOS
-gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate \
-  --jq '[.[] | {id, state, submitted_at, user: .user.login, body: (.body // "" | .[:80])}]'
-gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
-  --jq '[.[] | {id, path, line, user: .user.login, outdated}]'
+bash .agents/skills/pr-review/pr-context.sh <number>
 ```
+
+Both scripts fetch PR metadata, changed files, existing reviews (with IDs and states),
+existing inline comments (with `pull_request_review_id` linkage), and save the diff to
+`$env:TEMP\pr<number>.diff` (Windows) or `/tmp/pr<number>.diff` (Linux/macOS).
+Read the output to determine whether prior review activity exists.
 
 **If no reviews and no inline comments exist** → proceed directly to Step 2.
 
@@ -59,32 +67,10 @@ Wait for the user's answer before proceeding.
 
 ### If the user chooses **Continue**
 
-Join reviews and inline comments to identify which comments belong to a `CHANGES_REQUESTED` review:
-
-```powershell
-# Step A — get CHANGES_REQUESTED reviews including their body feedback
-gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate `
-  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login, body}]'
-
-# Step B — get inline comments including their review linkage
-gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate `
-  --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
-```
-
-```bash
-# Step A
-gh api repos/{owner}/{repo}/pulls/<number>/reviews --paginate \
-  --jq '[.[] | select(.state == "CHANGES_REQUESTED") | {id, user: .user.login, body}]'
-
-# Step B
-gh api repos/{owner}/{repo}/pulls/<number>/comments --paginate \
-  --jq '[.[] | {id, pull_request_review_id, path, line, user: .user.login, body, outdated}]'
-```
-
-Fetch the diff in **Step 2**, then use it to verify both sources:
-- **Review bodies** (Step A) — each `CHANGES_REQUESTED` review may contain blocking feedback in its top-level body; verify whether the issue it describes is fixed in the current diff
-- **Inline comments** (Step B) — a comment belongs to a `CHANGES_REQUESTED` review when its `pull_request_review_id` matches an ID from Step A; verify each non-`outdated` one against the current diff
-- Skip inline comments with `outdated: true` — they target stale code; do not re-raise unless the same defect reappears in current hunks
+The context script output already includes all review bodies and inline comment
+linkage. Use it to:
+- Identify `CHANGES_REQUESTED` reviews and their body feedback — verify whether each issue is fixed in the current diff
+- For each inline comment whose `pull_request_review_id` matches a `CHANGES_REQUESTED` review ID: verify against the current diff; skip if `outdated`
 - After checking those items, scan the diff for net-new findings only
 
 ### If the user chooses **Fresh start**
@@ -95,32 +81,9 @@ Ignore all prior review data. Proceed to Step 2 as if the PR had no prior activi
 
 ## Step 2 — Fetch and save the diff
 
-Save the diff to a temp file to enable repeated querying without extra API calls.
-
-```powershell
-# Windows (PowerShell)
-gh pr diff <number> | Out-File -FilePath "$env:TEMP/pr<number>.diff" -Encoding utf8
-```
-
-```bash
-# Linux / macOS
-gh pr diff <number> > /tmp/pr<number>.diff
-```
-
-Then list the changed files for an overview:
-
-```powershell
-# Windows (PowerShell)
-gh pr view <number> --json files | ConvertFrom-Json |
-  Select-Object -ExpandProperty files |
-  Select-Object path, additions, deletions, status
-```
-
-```bash
-# Linux / macOS
-gh pr view <number> --json files | python3 -c \
-  "import json,sys; [print(f['path'], f['additions'], f['deletions']) for f in json.load(sys.stdin)['files']]"
-```
+Already done by the context script — the diff is at:
+- Windows: `$env:TEMP\pr<number>.diff`
+- Linux / macOS: `/tmp/pr<number>.diff`
 
 ---
 
@@ -142,46 +105,20 @@ diff is applied). The algorithm:
 
 ## Step 4 — Verify each line number before reporting
 
-**Always run the algorithm in a terminal** for each finding. Do not estimate or compute mentally.
+**Windows (PowerShell) — use the find-lines script (one call per finding):**
 
 ```powershell
-# Windows (PowerShell)
-$diff = Get-Content "$env:TEMP/pr<number>.diff" -Encoding utf8
-$inFile = $false; $inHunk = $false; $lineNum = 0
-foreach ($line in $diff) {
-    if ($line -match "^diff --git") {
-        $inFile = $line -match "YourFile\.java"
-        $inHunk = $false
-        $lineNum = 0
-    }
-    if ($inFile) {
-        if ($line -match "^@@") {
-            $inHunk = $true
-            $m = [regex]::Match($line, '\+(\d+)')
-            if ($m.Success) { $lineNum = [int]$m.Groups[1].Value - 1 }
-        } elseif ($inHunk -and $line -match "^\+") { $lineNum++ }
-        elseif ($inHunk -and $line -match "^ ")  { $lineNum++ }
-        # -: do not increment
-        if ($inHunk -and $line -notmatch "^-" -and $line -match "pattern to find") {
-            Write-Host "L$lineNum [$line]"
-        }
-    }
-}
+.\.agents\skills\pr-review\pr-find-lines.ps1 -Pr <number> -File "YourFile.java" -Pattern "pattern to find"
 ```
 
+**Linux / macOS — use the find-lines script (one call per finding):**
+
 ```bash
-# Linux / macOS (POSIX awk — compatible with macOS BSD awk and gawk)
-awk '
-  /^diff --git/ { in_file = ($0 ~ "YourFile\\.java"); in_hunk = 0; line_num = 0 }
-  in_file && /^@@/ {
-    if (match($0, /\+[0-9]+/)) line_num = substr($0, RSTART + 1, RLENGTH - 1) - 1
-    in_hunk = 1
-  }
-  in_file && in_hunk && /^\+/ { line_num++ }
-  in_file && in_hunk && /^ /  { line_num++ }
-  in_file && in_hunk && !/^-/ && /pattern to find/ { print "L" line_num " [" $0 "]" }
-' /tmp/pr<number>.diff
+bash .agents/skills/pr-review/pr-find-lines.sh <number> "YourFile.java" "pattern to find"
 ```
+
+Both scripts print `L<n> [+] <line>` for every match. Use the `L<n>` values directly
+in the findings table and in the review input JSON.
 
 **Before including any line in the findings table**: confirm the output shows a `+` or ` `
 line. A `-` line or a line not present in the diff cannot be targeted — GitHub will
@@ -213,74 +150,62 @@ Return to this step when the user is ready.
 Submit all inline comments in a **single** API call. Do not post without explicit
 user confirmation — this is an irreversible action on a shared system.
 
-> **PowerShell — backtick hazard in `--field` strings**
-> In PowerShell double-quoted strings (`"..."`), the backtick `` ` `` is an escape
-> character: `` `e `` → ESC, `` `n `` → newline, `` `t `` → tab, etc. Comment bodies
-> that contain Markdown inline code (e.g. `` `engine.exposes` ``) will be silently
-> corrupted before reaching the API (`` `e `` becomes ESC, rendering as `→ngine.exposes`
-> on GitHub). Always use **single-quoted strings** for `--field` body values on Windows.
+**Windows (PowerShell) — write a JSON input file, then run the submit script:**
 
 ```powershell
-# Windows (PowerShell) — use single quotes for body values to avoid backtick expansion
-gh api repos/{owner}/{repo}/pulls/<number>/reviews `
-  --method POST `
-  --field event=COMMENT `
-  --field 'comments[][path]=src/main/java/io/naftiko/Foo.java' `
-  --field 'comments[][line]=42' `
-  --field 'comments[][body]=Your comment here, safe to use `backticks` in single quotes.' `
-  --field 'comments[][path]=src/main/resources/schemas/naftiko-schema.json' `
-  --field 'comments[][line]=2586' `
-  --field 'comments[][body]=Another comment.'
+# 1. Write the review payload to a temp file (edit paths, lines, and bodies as needed)
+$review = @{
+    event    = "REQUEST_CHANGES"   # or COMMENT, APPROVE
+    body     = "Overall summary — see inline comments."
+    comments = @(
+        @{ path = "src/main/java/io/naftiko/Foo.java"; line = 42;   body = "Comment text." }
+        @{ path = "src/.../Bar.java";                  line = 17;   body = "Another comment." }
+    )
+} | ConvertTo-Json -Depth 5
+Set-Content -Path "$env:TEMP\review-<number>.json" -Encoding utf8 -Value $review
+
+# 2. Submit (includes post-submission verification automatically)
+.\.agents\skills\pr-review\pr-submit-review.ps1 -Pr <number> -InputFile "$env:TEMP\review-<number>.json"
 ```
+
+**Linux / macOS — write a JSON input file, then run the submit script:**
 
 ```bash
-# Linux / macOS
-gh api repos/{owner}/{repo}/pulls/<number>/reviews \
-  --method POST \
-  --field event=COMMENT \
-  --field "comments[][path]=src/main/java/io/naftiko/Foo.java" \
-  --field "comments[][line]=42" \
-  --field "comments[][body]=Your comment here." \
-  --field "comments[][path]=src/main/resources/schemas/naftiko-schema.json" \
-  --field "comments[][line]=2586" \
-  --field "comments[][body]=Another comment."
+# 1. Write the review payload to a temp file
+cat > /tmp/review-<number>.json <<'EOF'
+{
+  "event": "REQUEST_CHANGES",
+  "body": "Overall summary — see inline comments.",
+  "comments": [
+    { "path": "src/main/java/io/naftiko/Foo.java", "line": 42, "body": "Comment text." },
+    { "path": "src/.../Bar.java", "line": 17, "body": "Another comment." }
+  ]
+}
+EOF
+
+# 2. Submit (includes post-submission verification automatically)
+bash .agents/skills/pr-review/pr-submit-review.sh <number> /tmp/review-<number>.json
 ```
 
-Use `event=COMMENT` for a non-approving review.
-Use `event=REQUEST_CHANGES` when at least one finding is blocking (🔴 HIGH).
-Use `event=APPROVE` only when explicitly asked to approve the PR.
+Both scripts post via `gh api --input -` (no quoting hazard), run the verification GET
+immediately, and warn if any comment was silently dropped by GitHub.
 
 > **Never post thread replies before the review**
 > Posting individual replies via `pulls/comments/{id}/replies` before the main review
 > creates a separate "ghost" review per reply on GitHub. Always bundle all inline
 > comments — including follow-up answers to existing threads — into a **single**
-> `POST /reviews` call. To reply to an existing thread, use the `in_reply_to` field:
+> `POST /reviews` call. To reply to an existing thread, add `in_reply_to` to the
+> comment object in the JSON:
 >
 > ```powershell
-> # Windows (PowerShell)
-> gh api repos/{owner}/{repo}/pulls/<number>/reviews `
->   --method POST `
->   --field event=REQUEST_CHANGES `
->   --field 'body=Overall summary.' `
->   --field 'comments[][path]=src/main/java/io/naftiko/Foo.java' `
->   --field 'comments[][line]=42' `
->   --field 'comments[][in_reply_to]=<existing_comment_id>' `
->   --field 'comments[][body]=Reply text.'
-> ```
->
-> ```bash
-> # Linux / macOS
-> gh api repos/{owner}/{repo}/pulls/<number>/reviews \
->   --method POST \
->   --field event=REQUEST_CHANGES \
->   --field "body=Overall summary." \
->   --field "comments[][path]=src/main/java/io/naftiko/Foo.java" \
->   --field "comments[][line]=42" \
->   --field "comments[][in_reply_to]=<existing_comment_id>" \
->   --field "comments[][body]=Reply text."
+> @{ path = "src/.../Foo.java"; line = 42; in_reply_to = <existing_comment_id>; body = "Reply." }
 > ```
 >
 > The `line` field is still required even when using `in_reply_to`.
+
+Use `event=COMMENT` for a non-approving review.
+Use `event=REQUEST_CHANGES` when at least one finding is blocking (🔴 HIGH).
+Use `event=APPROVE` only when explicitly asked to approve the PR.
 
 > **Silent terminal output is not a failure signal**
 > On Windows (PowerShell), a `gh api --method POST` command that returns to the prompt
@@ -288,13 +213,12 @@ Use `event=APPROVE` only when explicitly asked to approve the PR.
 > HTTP responses unless `--jq` or `-q` is used. Do **not** retry the submission based on
 > a silent exit. Instead, immediately run the verification step below. Retrying a
 > submitted review creates an irrecoverable duplicate (GitHub returns HTTP 422 on
-> `DELETE` for non-pending reviews).
+> `DELETE` for non-pending reviews). The `pr-submit-review.ps1` script handles this
+> automatically — prefer it over manual `gh api` calls on Windows.
 
-After posting, verify the review was accepted:
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<number>/reviews --jq '.[-1] | {id, state, submitted_at, body}'
-```
+After posting manually, verify the review was accepted:
+- Windows: `gh api repos/{owner}/{repo}/pulls/<number>/reviews --jq '.[-1] | {id, state, submitted_at, body}'
+- Linux / macOS: `gh api repos/{owner}/{repo}/pulls/<number>/reviews --jq '.[-1] | {id, state, submitted_at, body}'
 
 Then check that all expected inline comments are present:
 
