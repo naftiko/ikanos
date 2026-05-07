@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: "1.2.0"
+version: "1.2.1"
 description: >
   On-demand skill for reviewing GitHub Pull Requests and posting inline
   comments via the GitHub API. Activate when the user asks to: review a PR,
@@ -281,6 +281,14 @@ Use `event=APPROVE` only when explicitly asked to approve the PR.
 > ```
 >
 > The `line` field is still required even when using `in_reply_to`.
+
+> **Silent terminal output is not a failure signal**
+> On Windows (PowerShell), a `gh api --method POST` command that returns to the prompt
+> with **no output and no error** has likely succeeded — PowerShell does not always echo
+> HTTP responses unless `--jq` or `-q` is used. Do **not** retry the submission based on
+> a silent exit. Instead, immediately run the verification step below. Retrying a
+> submitted review creates an irrecoverable duplicate (GitHub returns HTTP 422 on
+> `DELETE` for non-pending reviews).
 
 After posting, verify the review was accepted:
 
