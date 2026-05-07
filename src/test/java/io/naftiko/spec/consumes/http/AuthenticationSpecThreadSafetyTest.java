@@ -101,6 +101,14 @@ class AuthenticationSpecThreadSafetyTest {
     }
 
     @Test
+    @DisplayName("BasicAuth setUsername should round-trip the value")
+    void basicAuthSetUsernameShouldRoundTrip() {
+        BasicAuthenticationSpec spec = new BasicAuthenticationSpec();
+        spec.setUsername("alice");
+        assertEquals("alice", spec.getUsername());
+    }
+
+    @Test
     @DisplayName("DigestAuth setPassword should defensively clone the input array")
     void digestAuthSetPasswordShouldDefensivelyCloneInput() {
         DigestAuthenticationSpec spec = new DigestAuthenticationSpec();
