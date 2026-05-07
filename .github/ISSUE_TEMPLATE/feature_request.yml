@@ -1,6 +1,6 @@
 name: Feature Request
 description: Suggest a new feature or improvement for the Naftiko Framework
-labels: ["new feature"]
+labels: ["enhancement"]
 body:
   - type: dropdown
     id: component
@@ -54,6 +54,15 @@ body:
       description: |
         If this issue was created by an AI agent, paste agent metadata here (YAML).
         Example fields: agent_name, tool, run_id, confidence, source_event.
+      placeholder: |
+        agent_name:
+        llm:
+        tool:
+        confidence:          # low | medium | high
+        source_event:
+        discovery_method:    # runtime_observation | code_review | test_failure | user_report
+        files_suspected:
+          -
       render: yaml
     validations:
       required: false

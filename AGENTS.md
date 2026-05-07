@@ -69,12 +69,17 @@ Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch
 When writing or generating tests, follow these rules:
 
 **Do:**
+- Before writing any test setup code, identify the test type: **unit test** (isolated, in-process, no external I/O) or **integration test** (exercises the full engine stack against real or shared remote endpoints). If the type is ambiguous, **ask the user before writing any code**
+- In integration tests, let the YAML capability file and the CI environment own all endpoint configuration — if an endpoint is unreachable or incorrect, fix the YAML or the shared fixture, not the test
 - Test behavior through the public API — assert observable outcomes, not implementation details
 - When a method is not accessible from a test, make it package-private in the production code (remove `private`) rather than using reflection — this is the correct fix
 - Write one focused assertion per test, or group only closely related assertions in a single test
 - Name tests in the form `methodShouldDoSomethingWhenCondition`
 
 **Don't:**
+- Mix unit test patterns (local mock servers, in-process stubs, hardcoded XML/JSON payloads) into integration test classes — each test class must be one type, not both
+- Override `baseUri` or any YAML-declared value in Java test code as a workaround for a broken or outdated YAML file — that hides the real problem and propagates incorrect patterns to future tests
+- Treat a working workaround as a pattern to copy — if existing test code overrides configuration in ways that contradict these rules, do not reproduce it; flag it instead
 - Use `getDeclaredMethod` / `setAccessible(true)` to access non-public methods
 - Write tests whose only purpose is to reach a coverage threshold — every test must document a real behavior or guard against a real regression
 - Name tests `shouldCoverXxxBranches` or similar — names must describe behavior, not implementation structure
@@ -124,7 +129,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - Always read the repository templates before creating issues or PRs:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields
   - PRs: `.github/PULL_REQUEST_TEMPLATE.md` — follow the structure exactly, do not improvise
-- When creating issues or PRs with multiline bodies via `gh`, **never use PowerShell here-strings** (`@"..."@`) — they hang waiting for the closing delimiter in the VS Code terminal. Always write the body to a temp `.md` file (e.g. `Set-Content -Path "$env:TEMP\gh-body.md" -Encoding utf8 -Value $body`) and pass it via `--body-file "$env:TEMP\gh-body.md"`
+- When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"`
 - When asked to review a PR, load and follow the `pr-review` skill in `.agents/skills/pr-review/` before doing anything else
 - When editing documentation, skill, or instruction files (`.md`, `SKILL.md`, `AGENTS.md`), re-read the **entire file** after applying edits and before committing — to catch terminology drift, broken cross-references, and inconsistencies between sections that targeted edits cannot detect
 - Do **not** use `git push --force` — use `--force-with-lease`
