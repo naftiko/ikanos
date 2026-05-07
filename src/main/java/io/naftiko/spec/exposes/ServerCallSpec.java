@@ -36,7 +36,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class ServerCallSpec {
 
     private final AtomicReference<String> operation = new AtomicReference<>();
-    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
 
     public ServerCallSpec() {
@@ -54,7 +54,7 @@ public class ServerCallSpec {
 
     public ServerCallSpec(String operation, Map<String, Object> with, String description) {
         this.operation.set(operation);
-        this.with.set(with != null ? Map.copyOf(with) : Map.of());
+        this.with.set(with != null ? Map.copyOf(with) : null);
         this.description.set(description);
     }
 
@@ -72,7 +72,7 @@ public class ServerCallSpec {
     }
 
     public void setWith(Map<String, Object> with) {
-        this.with.set(with != null ? Map.copyOf(with) : Map.of());
+        this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -91,7 +91,8 @@ public class ServerCallSpec {
      * @return the parameter value, or {@code null} if not present
      */
     public Object getParameter(String key) {
-        return with.get().get(key);
+        Map<String, Object> snapshot = with.get();
+        return snapshot == null ? null : snapshot.get(key);
     }
 
     /**
@@ -103,7 +104,7 @@ public class ServerCallSpec {
      */
     public void setParameter(String key, Object value) {
         with.updateAndGet(current -> {
-            Map<String, Object> next = new HashMap<>(current);
+            Map<String, Object> next = current == null ? new HashMap<>() : new HashMap<>(current);
             next.put(key, value);
             return Map.copyOf(next);
         });
