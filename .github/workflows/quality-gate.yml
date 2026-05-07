@@ -459,8 +459,38 @@ jobs:
           path: gitleaks-report.json
           retention-days: 14
 
+      - name: Metrics summary (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          source /tmp/sonar_metrics.env 2>/dev/null || true
+          source /tmp/trivy_metrics.env 2>/dev/null || true
+          source /tmp/gitleaks_metrics.env 2>/dev/null || true
+
+          CSV="target/site/jacoco/jacoco.csv"
+
+          if [ -f "$CSV" ]; then
+            MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
+            COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
+            TOTAL=$((MISSED + COVERED))
+            COV_PCT=$([ "$TOTAL" -gt 0 ] && awk "BEGIN {printf \"%.0f\", ($COVERED/$TOTAL)*100}" || echo "0")
+          else
+            COV_PCT="N/A"
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Metrics (branch)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${COV_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bugs | ${BUGS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Critical | ${TRIVY_CRITICAL:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY          
+
       - name: Publish badges to Gist
-        if: always()
+        if: github.ref == 'refs/heads/main' && always()
         env:
           GIST_ID: 50bfcb34f6512cbad2dd4f460bfc6526
           GIST_TOKEN: ${{ secrets.GIST_SECRET }}
