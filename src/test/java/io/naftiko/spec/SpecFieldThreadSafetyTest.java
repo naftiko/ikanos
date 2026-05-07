@@ -70,7 +70,7 @@ import io.naftiko.spec.util.StructureSpec;
 class SpecFieldThreadSafetyTest {
 
     /**
-     * The 25 spec POJO classes covered by Phase 2 (issue #422). Engine-layer classes
+     * The 27 spec POJO classes covered by Phase 2 (issue #422). Engine-layer classes
      * ({@code Capability}, etc.) and {@code char[]} auth password fields are tracked
      * separately in Phase 3 and Phase 4.
      */
