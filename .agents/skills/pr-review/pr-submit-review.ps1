@@ -85,7 +85,7 @@ if (-not (Test-Path $InputFile)) {
 }
 
 $payload = Get-Content $InputFile -Raw | ConvertFrom-Json
-$expectedCommentCount = if ($payload.comments) { $payload.comments.Count } else { 0 }
+$expectedCommentCount = if ($payload.comments) { @($payload.comments).Count } else { 0 }
 
 Write-Host "`n=== Submitting review for PR #$Pr ($Repo) ===" -ForegroundColor Cyan
 Write-Host "  event    : $($payload.event)"
@@ -94,8 +94,8 @@ Write-Host "  comments : $expectedCommentCount"
 # --- Pre-submission duplicate check ---
 if (-not $Force) {
     $currentUser = gh api user -q .login
-    $existingReviews = gh api "repos/$Repo/pulls/$Pr/reviews" --paginate | ConvertFrom-Json |
-        Where-Object { $_.user.login -eq $currentUser -and $_.state -in @("CHANGES_REQUESTED","COMMENTED","APPROVED") }
+    $existingReviews = @(gh api "repos/$Repo/pulls/$Pr/reviews" --paginate | ConvertFrom-Json |
+        Where-Object { $_.user.login -eq $currentUser -and $_.state -in @("CHANGES_REQUESTED","COMMENTED","APPROVED") })
 
     if ($existingReviews.Count -gt 0) {
         Write-Warning "A review from '$currentUser' already exists on PR #$Pr (state: $($existingReviews[-1].state), id: $($existingReviews[-1].id))."
@@ -115,8 +115,8 @@ $result | Select-Object id, state, submitted_at | Format-List
 
 # --- Verify inline comments ---
 Write-Host "--- Verifying inline comments ---" -ForegroundColor Yellow
-$postedComments = gh api "repos/$Repo/pulls/$Pr/comments" --paginate | ConvertFrom-Json |
-    Where-Object { $_.pull_request_review_id -eq $result.id }
+$postedComments = @(gh api "repos/$Repo/pulls/$Pr/comments" --paginate | ConvertFrom-Json |
+    Where-Object { $_.pull_request_review_id -eq $result.id })
 
 $actualCount = $postedComments.Count
 Write-Host "  Expected : $expectedCommentCount"
