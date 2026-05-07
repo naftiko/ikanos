@@ -32,12 +32,9 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import io.naftiko.Capability;
-import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.engine.exposes.ServerAdapter;
 import io.naftiko.engine.exposes.skill.SkillServerAdapter;
 import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.consumes.ClientSpec;
-import io.naftiko.spec.consumes.http.HttpClientSpec;
 import io.naftiko.spec.exposes.rest.RestServerSpec;
 import io.naftiko.spec.exposes.skill.SkillServerSpec;
 
@@ -55,12 +52,6 @@ public class Step10ShipyardRestAdapterIntegrationTest
             "src/main/resources/tutorial/step-10-shipyard-rest-adapter.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
-    private static final String TUTORIAL_DIR =
-            "src/main/resources/tutorial";
-    private static final String REGISTRY_MOCK_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
-    private static final String LEGACY_MOCK_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha1";
 
     private int restPort;
     private List<ServerAdapter> allAdapters = new ArrayList<>();
@@ -81,23 +72,6 @@ public class Step10ShipyardRestAdapterIntegrationTest
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
         useMcpServerToken(SECRETS_FILE);
 
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-        spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
-
-        String tutorialAbsoluteDir = new File(TUTORIAL_DIR).getAbsolutePath();
-        new ConsumesImportResolver().resolveImports(
-                spec.getCapability().getConsumes(), tutorialAbsoluteDir);
-
-        for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec) {
-                if ("registry".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
-                } else if ("legacy".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
-                }
-            }
-        }
 
         restPort = findFreePort();
         int mcpPort = findFreePort();
@@ -269,19 +243,6 @@ public class Step10ShipyardRestAdapterIntegrationTest
         spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
         spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
 
-        String tutorialAbsoluteDir = new File(TUTORIAL_DIR).getAbsolutePath();
-        new ConsumesImportResolver().resolveImports(
-                spec.getCapability().getConsumes(), tutorialAbsoluteDir);
-
-        for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec) {
-                if ("registry".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
-                } else if ("legacy".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(LEGACY_MOCK_URI);
-                }
-            }
-        }
 
         return spec;
     }

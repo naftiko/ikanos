@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
 import java.net.http.HttpClient;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-import io.naftiko.spec.consumes.http.HttpClientSpec;
 import io.naftiko.spec.NaftikoSpec;
 
 /**
@@ -61,8 +59,6 @@ public class Step4ShipyardMcpClientIntegrationTest
 
         private static final String CAPABILITY_FILE =
             "src/main/resources/tutorial/step-4-shipyard-output-shaping.yml";
-        private static final String MOCK_BASE_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
 
@@ -71,13 +67,6 @@ public class Step4ShipyardMcpClientIntegrationTest
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
         useMcpServerToken(SECRETS_FILE);
 
-        // Patch bind location to absolute URI — the tutorial uses file:///./shared/secrets.yaml
-        // which resolves relative to the project root, not the tutorial subdirectory
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-
-        // Patch the consumed registry baseUri to the live mock endpoint used by this test.
-        ((HttpClientSpec) spec.getCapability().getConsumes().get(0)).setBaseUri(MOCK_BASE_URI);
 
         startServerFromSpec(spec);
     }

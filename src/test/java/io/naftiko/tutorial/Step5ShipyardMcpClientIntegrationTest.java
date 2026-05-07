@@ -17,24 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
 import java.net.http.HttpClient;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.restlet.Application;
-import org.restlet.Component;
-import org.restlet.Restlet;
-import org.restlet.data.MediaType;
-import org.restlet.data.Protocol;
-import org.restlet.data.Status;
-import org.restlet.routing.Router;
+
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.naftiko.engine.consumes.ConsumesImportResolver;
 import io.naftiko.spec.NaftikoSpec;
-import io.naftiko.spec.consumes.ClientSpec;
 import io.naftiko.spec.consumes.http.HttpClientSpec;
 
 /**
@@ -79,95 +70,18 @@ public class Step5ShipyardMcpClientIntegrationTest
             "src/main/resources/tutorial/step-5-shipyard-multi-source.yml";
     private static final String SECRETS_FILE =
             "src/main/resources/tutorial/shared/secrets.yaml";
-    private static final String TUTORIAL_DIR =
-            "src/main/resources/tutorial";
-        private static final String REGISTRY_MOCK_URI =
-            "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha1";
 
-    private static final String LEGACY_XML_RESPONSE = """
-            <vessels>
-              <vessel>
-                <vesselCode>LEGACY-4012</vesselCode>
-                <vesselName>Old Faithful</vesselName>
-                <category>cargo</category>
-                <flagState>GB</flagState>
-                <operationalStatus>active</operationalStatus>
-              </vessel>
-              <vessel>
-                <vesselCode>LEGACY-2087</vesselCode>
-                <vesselName>Iron Maiden</vesselName>
-                <category>bulk_carrier</category>
-                <flagState>PA</flagState>
-                <operationalStatus>laid_up</operationalStatus>
-              </vessel>
-            </vessels>
-            """;
 
-    private Component legacyMockServer;
 
     @BeforeEach
     public void startServer() throws Exception {
         NaftikoSpec spec = loadSpec(CAPABILITY_FILE);
         useMcpServerToken(SECRETS_FILE);
 
-        // Patch both bind locations to an absolute file URI
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-        spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
-
-        // Resolve imported consumes (./shared/*.yaml) against the tutorial directory.
-        // After this call the consumes list contains HttpClientSpec objects, so the
-        // subsequent Capability(spec) constructor finds nothing left to import.
-        String tutorialAbsoluteDir = new File(TUTORIAL_DIR).getAbsolutePath();
-        new ConsumesImportResolver().resolveImports(
-                spec.getCapability().getConsumes(), tutorialAbsoluteDir);
-
-        // Start a local XML mock for the legacy dockyard API
-        int legacyPort = findFreePort();
-        legacyMockServer = createLegacyXmlMock(legacyPort);
-        legacyMockServer.start();
-
-        // Patch baseUris: registry → remote mock, legacy → local XML mock
-        for (ClientSpec cs : spec.getCapability().getConsumes()) {
-            if (cs instanceof HttpClientSpec) {
-                if ("registry".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri(REGISTRY_MOCK_URI);
-                } else if ("legacy".equals(cs.getNamespace())) {
-                    ((HttpClientSpec) cs).setBaseUri("http://localhost:" + legacyPort);
-                }
-            }
-        }
 
         startServerFromSpec(spec);
     }
 
-    @AfterEach
-    public void stopLegacyMock() throws Exception {
-        if (legacyMockServer != null) {
-            legacyMockServer.stop();
-        }
-    }
-
-    private Component createLegacyXmlMock(int port) throws Exception {
-        Component component = new Component();
-        component.getServers().add(Protocol.HTTP, port);
-        component.getDefaultHost().attach(new Application() {
-            @Override
-            public Restlet createInboundRoot() {
-                Router router = new Router(getContext());
-                router.attach("/vessels", new Restlet() {
-                    @Override
-                    public void handle(org.restlet.Request request,
-                            org.restlet.Response response) {
-                        response.setStatus(Status.SUCCESS_OK);
-                        response.setEntity(LEGACY_XML_RESPONSE, MediaType.APPLICATION_XML);
-                    }
-                });
-                return router;
-            }
-        });
-        return component;
-    }
 
     // ── tools/list ────────────────────────────────────────────────────────────
 

@@ -35,6 +35,75 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
+      - name: Start Microcks
+        run: |
+          docker run -d \
+            -p 8080:8080 \
+            quay.io/microcks/microcks-uber:latest  
+
+      - name: Wait for Microcks
+        run: |
+          sleep 15
+          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
+
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in .github/microcks/*.yaml; do
+            echo "Importing $file"
+            curl -s -X POST "http://localhost:8080/api/artifact/upload" \
+              -F "file=@$file"
+          done
+
+      - name: Patch baseUri in capability files
+        run: |
+          TUTORIAL_DIR="src/main/resources/tutorial"
+
+          get_base_uri() {
+            case "$1" in
+              registry) echo "http://localhost:8080/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2" ;;
+              legacy)   echo "http://localhost:8080/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2" ;;
+              *)        echo "" ;;
+            esac
+          }
+
+          find "$TUTORIAL_DIR" -name "*.yaml" -o -name "*.yml" | while read file; do
+            COUNT=$(yq '.capability.consumes | length' "$file" 2>/dev/null)
+            { [ -z "$COUNT" ] || [ "$COUNT" = "0" ] || [ "$COUNT" = "null" ]; } && continue
+
+            for i in $(seq 0 $(($COUNT - 1))); do
+              IMPORT=$(yq -r ".capability.consumes[$i].import // \"\"" "$file")
+
+              if [ -n "$IMPORT" ]; then
+                # Import-style: patch the referenced shared file
+                LOCATION=$(yq -r ".capability.consumes[$i].location" "$file")
+                SHARED_FILE="$(dirname "$file")/$LOCATION"
+
+                [ ! -f "$SHARED_FILE" ] && echo "Warning: $SHARED_FILE not found, skipping" && continue
+
+                NAMESPACE=$(yq -r ".consumes[0].namespace" "$SHARED_FILE")
+                BASE_URI=$(get_base_uri "$NAMESPACE")
+                [ -z "$BASE_URI" ] && continue
+
+                echo "Patching shared file $SHARED_FILE: '$NAMESPACE' → $BASE_URI"
+                yq -i ".consumes[0].baseUri = \"$BASE_URI\"" "$SHARED_FILE"
+              else
+                # Inline-style: patch baseUri directly in the tutorial file
+                NAMESPACE=$(yq -r ".capability.consumes[$i].namespace // \"\"" "$file")
+                [ -z "$NAMESPACE" ] && continue
+
+                BASE_URI=$(get_base_uri "$NAMESPACE")
+                [ -z "$BASE_URI" ] && continue
+
+                echo "Patching $file inline: '$NAMESPACE' → $BASE_URI"
+                yq -i ".capability.consumes[$i].baseUri = \"$BASE_URI\"" "$file"
+              fi
+            done
+          done
+        
+      - name: Prepare shared path
+        run: ln -s src/main/resources/tutorial/shared shared
+
       - name: Run tests + JaCoCo coverage
         run: mvn clean test --no-transfer-progress
 
