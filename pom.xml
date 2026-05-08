@@ -74,6 +74,24 @@
         <opentelemetry.version>1.48.0</opentelemetry.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
+
+        <!--
+          JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
+          Each module's BUNDLE LINE / BRANCH coverage must stay >= these floors.
+          Floors are set to the lowest current per-module coverage so the gate
+          is enforceable but non-blocking on day one. Ratchet upward as test
+          coverage is added cluster by cluster (B1..B4), ending at 1.00 / 1.00
+          in Phase C. Do not lower these values.
+
+          Current per-module baseline (mvn verify, tutorial integration tests
+          excluded — they require Microcks):
+            ikanos-spec    line 0.68  branch 0.62
+            ikanos-engine  line 0.77  branch 0.67
+            ikanos-cli     line 0.76  branch 0.66
+        -->
+        <jacoco.halt>true</jacoco.halt>
+        <jacoco.line.min>0.68</jacoco.line.min>
+        <jacoco.branch.min>0.62</jacoco.branch.min>
     </properties>
 
     <distributionManagement>
@@ -357,6 +375,40 @@
                             <goals>
                                 <goal>report</goal>
                             </goals>
+                        </execution>
+                        <execution>
+                            <!--
+                                Coverage gate (Phase A of epic #445). Fails the
+                                build when a module's BUNDLE line or branch
+                                coverage drops below the floors defined by
+                                jacoco.line.min / jacoco.branch.min in the root
+                                pom. Ratchet those properties upward only.
+                            -->
+                            <id>check</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <configuration>
+                                <haltOnFailure>${jacoco.halt}</haltOnFailure>
+                                <rules>
+                                    <rule>
+                                        <element>BUNDLE</element>
+                                        <limits>
+                                            <limit>
+                                                <counter>LINE</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.line.min}</minimum>
+                                            </limit>
+                                            <limit>
+                                                <counter>BRANCH</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.branch.min}</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                </rules>
+                            </configuration>
                         </execution>
                     </executions>
                 </plugin>
