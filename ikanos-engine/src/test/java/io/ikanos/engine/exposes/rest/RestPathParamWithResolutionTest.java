@@ -38,7 +38,7 @@ import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Regression test: REST adapter must resolve Mustache templates in 'with' parameters

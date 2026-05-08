@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: io.ikanos.engine.exposes.skill.SkillIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.387 s -- in io.ikanos.engine.exposes.skill.SkillIntegrationTest

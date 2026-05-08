@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: io.ikanos.engine.consumes.http.ConsumesImportResolverTest
--------------------------------------------------------------------------------
-Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.358 s -- in io.ikanos.engine.consumes.http.ConsumesImportResolverTest

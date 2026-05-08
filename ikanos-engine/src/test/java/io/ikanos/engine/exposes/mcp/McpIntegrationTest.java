@@ -26,7 +26,7 @@ import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
 

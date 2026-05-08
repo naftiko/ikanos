@@ -23,7 +23,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 import org.restlet.routing.TemplateRoute;
 
 import java.io.File;

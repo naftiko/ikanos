@@ -20,7 +20,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.exposes.ServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 import io.opentelemetry.api.OpenTelemetry;
 import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;

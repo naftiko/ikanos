@@ -23,7 +23,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.Converter;
 import io.ikanos.spec.IkanosSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
 import java.io.InputStreamReader;

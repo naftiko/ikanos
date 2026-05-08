@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: io.ikanos.engine.aggregates.AggregateRefResolverTest
--------------------------------------------------------------------------------
-Tests run: 24, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.188 s -- in io.ikanos.engine.aggregates.AggregateRefResolverTest

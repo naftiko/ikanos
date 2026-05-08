@@ -5,6 +5,7 @@
 /target
 **/target/
 dependency-reduced-pom.xml
+**/dependency-reduced-pom.xml
 /.github/node_modules
 # ─── Python ────────────────────────────────────────────────────────────────────
 **/__pycache__/

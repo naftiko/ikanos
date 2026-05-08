@@ -29,7 +29,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.openapi.OasImportConverter;
 import io.ikanos.spec.openapi.OasImportResult;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;

@@ -36,7 +36,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 class ResourceHandlerDynamicTest {
     private String schemaVersion;

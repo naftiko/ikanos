@@ -48,7 +48,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Integration tests for MCP OAuth 2.1 authentication. Starts a mock authorization server

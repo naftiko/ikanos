@@ -28,7 +28,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpOAuth2Restlet;
 import io.ikanos.spec.IkanosSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Unit tests for the shared authentication chain wiring in {@link ServerAdapter#buildServerChain}.

@@ -15,7 +15,7 @@ package io.ikanos.cli;
 
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

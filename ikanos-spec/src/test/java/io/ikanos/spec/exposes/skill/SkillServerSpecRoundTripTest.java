@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Round-trip tests for {@link SkillServerSpec} — YAML deserialization, field validation, and
