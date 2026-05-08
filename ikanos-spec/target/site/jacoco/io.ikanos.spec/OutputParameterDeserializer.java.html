@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OutputParameterDeserializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec</a> &gt; <span class="el_source">OutputParameterDeserializer.java</span></div><h1>OutputParameterDeserializer.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec;
+
+import java.io.IOException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+
+/**
+ * Custom deserializer for OutputParameterSpec that handles nested structure definitions including
+ * properties, items, and values in a polymorphic manner.
+ */
+<span class="fc" id="L27">public class OutputParameterDeserializer extends JsonDeserializer&lt;OutputParameterSpec&gt; {</span>
+
+    @Override
+    public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt)
+            throws IOException, JsonProcessingException {
+<span class="fc" id="L32">        JsonNode node = p.getCodec().readTree(p);</span>
+<span class="fc" id="L33">        return deserializeNode(node, ctxt);</span>
+    }
+
+    /**
+     * Recursively deserialize a JsonNode into OutputParameterSpec.
+     */
+    private OutputParameterSpec deserializeNode(JsonNode node, DeserializationContext ctxt)
+            throws IOException {
+<span class="fc" id="L41">        OutputParameterSpec spec = new OutputParameterSpec();</span>
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (node.has(&quot;name&quot;)) {</span>
+<span class="fc" id="L44">            spec.setName(node.get(&quot;name&quot;).asText());</span>
+        }
+
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">        if (node.has(&quot;type&quot;)) {</span>
+<span class="fc" id="L48">            spec.setType(node.get(&quot;type&quot;).asText());</span>
+        }
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (node.has(&quot;mapping&quot;)) {</span>
+<span class="fc" id="L52">            spec.setMapping(node.get(&quot;mapping&quot;).asText());</span>
+        }
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (node.has(&quot;value&quot;)) {</span>
+<span class="fc" id="L56">            String rawValue = node.get(&quot;value&quot;).asText();</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            String trimmedValue = rawValue != null ? rawValue.trim() : &quot;&quot;;</span>
+
+            // ConsumedOutputParameter uses &quot;value&quot; for JsonPath extraction (name + value
+            // starting with $). Aggregate mock functions also use name + value, but with
+            // static/template strings — those must stay in setValue().
+<span class="pc bpc" id="L62" title="1 of 6 branches missed.">            if (node.has(&quot;name&quot;) &amp;&amp; trimmedValue.startsWith(&quot;$&quot;) &amp;&amp; !node.has(&quot;mapping&quot;)) {</span>
+<span class="fc" id="L63">                spec.setMapping(rawValue);</span>
+            } else {
+<span class="fc" id="L65">                spec.setValue(rawValue);</span>
+            }
+        }
+
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (node.has(&quot;const&quot;)) {</span>
+<span class="nc" id="L70">            spec.setConstant(node.get(&quot;const&quot;).asText());</span>
+        }
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (node.has(&quot;selector&quot;)) {</span>
+<span class="fc" id="L74">            spec.setSelector(node.get(&quot;selector&quot;).asText());</span>
+        }
+
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (node.has(&quot;description&quot;)) {</span>
+<span class="fc" id="L78">            spec.setDescription(node.get(&quot;description&quot;).asText());</span>
+        }
+
+        // Handle nested &quot;items&quot; array for array types
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (node.has(&quot;items&quot;)) {</span>
+<span class="fc" id="L83">            JsonNode itemsNode = node.get(&quot;items&quot;);</span>
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">            if (itemsNode.isArray() &amp;&amp; itemsNode.size() &gt; 0) {</span>
+<span class="fc" id="L85">                OutputParameterSpec itemsSpec = deserializeNode(itemsNode.get(0), ctxt);</span>
+<span class="fc" id="L86">                spec.setItems(itemsSpec);</span>
+<span class="pc bnc" id="L87" title="All 2 branches missed.">            } else if (itemsNode.isObject()) {</span>
+<span class="nc" id="L88">                OutputParameterSpec itemsSpec = deserializeNode(itemsNode, ctxt);</span>
+<span class="nc" id="L89">                spec.setItems(itemsSpec);</span>
+            }
+        }
+
+        // Handle nested &quot;values&quot; for map types
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (node.has(&quot;values&quot;)) {</span>
+<span class="nc" id="L95">            JsonNode valuesNode = node.get(&quot;values&quot;);</span>
+<span class="nc" id="L96">            OutputParameterSpec valuesSpec = deserializeNode(valuesNode, ctxt);</span>
+<span class="nc" id="L97">            spec.setValues(valuesSpec);</span>
+        }
+
+        // Handle nested &quot;properties&quot; object for object types
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (node.has(&quot;properties&quot;)) {</span>
+<span class="fc" id="L102">            JsonNode propertiesNode = node.get(&quot;properties&quot;);</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (propertiesNode.isObject()) {</span>
+<span class="fc" id="L104">                propertiesNode.properties().forEach(entry -&gt; {</span>
+                    try {
+<span class="fc" id="L106">                        String propName = entry.getKey();</span>
+<span class="fc" id="L107">                        JsonNode propNode = entry.getValue();</span>
+
+<span class="fc" id="L109">                        OutputParameterSpec propSpec = deserializeNode(propNode, ctxt);</span>
+                        // Set the name from the property key AFTER deserialization
+                        // so the dispatch logic sees the original node content
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">                        if (propSpec.getName() == null) {</span>
+<span class="fc" id="L113">                            propSpec.setName(propName);</span>
+                        }
+<span class="fc" id="L115">                        spec.getProperties().add(propSpec);</span>
+<span class="nc" id="L116">                    } catch (Exception e) {</span>
+<span class="nc" id="L117">                        throw new IllegalStateException(</span>
+<span class="nc" id="L118">                                &quot;Error deserializing property: &quot; + entry.getKey(), e);</span>
+<span class="fc" id="L119">                    }</span>
+<span class="fc" id="L120">                });</span>
+            }
+        }
+
+        // Handle &quot;required&quot; array
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (node.has(&quot;required&quot;)) {</span>
+<span class="fc" id="L126">            JsonNode requiredNode = node.get(&quot;required&quot;);</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">            if (requiredNode.isArray()) {</span>
+<span class="fc" id="L128">                requiredNode.forEach(item -&gt; spec.getRequired().add(item.asText()));</span>
+            }
+        }
+
+        // Handle &quot;enum&quot; array
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (node.has(&quot;enum&quot;)) {</span>
+<span class="fc" id="L134">            JsonNode enumNode = node.get(&quot;enum&quot;);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            if (enumNode.isArray()) {</span>
+<span class="fc" id="L136">                enumNode.forEach(item -&gt; spec.getEnumeration().add(item.asText()));</span>
+            }
+        }
+
+        // Handle numeric properties
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">        if (node.has(&quot;precision&quot;)) {</span>
+<span class="nc" id="L142">            spec.setPrecision(node.get(&quot;precision&quot;).asInt());</span>
+        }
+
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (node.has(&quot;scale&quot;)) {</span>
+<span class="nc" id="L146">            spec.setScale(node.get(&quot;scale&quot;).asInt());</span>
+        }
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        if (node.has(&quot;maxLength&quot;)) {</span>
+<span class="fc" id="L150">            spec.setMaxLength(node.get(&quot;maxLength&quot;).asText());</span>
+        }
+
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (node.has(&quot;contentEncoding&quot;)) {</span>
+<span class="nc" id="L154">            spec.setContentEncoding(node.get(&quot;contentEncoding&quot;).asText());</span>
+        }
+
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">        if (node.has(&quot;contentCompression&quot;)) {</span>
+<span class="nc" id="L158">            spec.setContentCompression(node.get(&quot;contentCompression&quot;).asText());</span>
+        }
+
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">        if (node.has(&quot;contentMediaType&quot;)) {</span>
+<span class="nc" id="L162">            spec.setContentMediaType(node.get(&quot;contentMediaType&quot;).asText());</span>
+        }
+
+<span class="fc" id="L165">        return spec;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

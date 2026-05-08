@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package test.records;
+
+message RecordsList {
+  repeated Record records = 1;
+}
+
+message Record {
+  required string id = 1;
+  required string title = 2;
+  required string description = 3;
+}

@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ToolHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.mcp</a> &gt; <span class="el_source">ToolHandler.java</span></div><h1>ToolHandler.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.mcp;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.restlet.Context;
+import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.FunctionResult;
+import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+/**
+ * Handles MCP tool calls by delegating to consumed HTTP operations.
+ * 
+ * Mirrors the logic in ApiOperationsRestlet but adapted for MCP tool invocations: - Input
+ * parameters come from MCP CallToolRequest arguments (not HTTP request) - Supports both simple call
+ * mode and full step orchestration - Returns McpSchema.CallToolResult (not HTTP response)
+ */
+public class ToolHandler {
+
+    private final Capability capability;
+    private final Map&lt;String, McpServerToolSpec&gt; toolSpecs;
+    private final OperationStepExecutor stepExecutor;
+    private final String exposeNamespace;
+
+    public ToolHandler(Capability capability, List&lt;McpServerToolSpec&gt; tools) {
+<span class="fc" id="L50">        this(capability, tools, null);</span>
+<span class="fc" id="L51">    }</span>
+
+    public ToolHandler(Capability capability, List&lt;McpServerToolSpec&gt; tools,
+<span class="fc" id="L54">            String exposeNamespace) {</span>
+<span class="fc" id="L55">        this.capability = capability;</span>
+<span class="fc" id="L56">        this.toolSpecs = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L57">        this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);</span>
+<span class="fc" id="L58">        this.exposeNamespace = exposeNamespace;</span>
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        if (tools != null) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            for (McpServerToolSpec tool : tools) {</span>
+<span class="fc bfc" id="L62" title="All 6 branches covered.">                if (tool == null || tool.getName() == null || tool.getName().isBlank()) {</span>
+<span class="fc" id="L63">                    Context.getCurrentLogger().warning(</span>
+                            &quot;Skipping malformed MCP tool entry: tool or name is missing&quot;);
+<span class="fc" id="L65">                    continue;</span>
+                }
+<span class="fc" id="L67">                toolSpecs.put(tool.getName(), tool);</span>
+<span class="fc" id="L68">            }</span>
+        }
+<span class="fc" id="L70">    }</span>
+
+    /**
+     * Handle an MCP tool call.
+     * 
+     * @param toolName the name of the tool to invoke
+     * @param arguments the tool input arguments (from MCP CallToolRequest)
+     * @return the tool result
+     */
+    public McpSchema.CallToolResult handleToolCall(String toolName, Map&lt;String, Object&gt; arguments)
+            throws Exception {
+
+<span class="fc" id="L82">        TelemetryBootstrap telemetry = TelemetryBootstrap.get();</span>
+<span class="fc" id="L83">        Span span = telemetry.startToolHandlerSpan(toolName);</span>
+<span class="fc" id="L84">        long startNanos = System.nanoTime();</span>
+<span class="fc" id="L85">        String status = &quot;OK&quot;;</span>
+<span class="fc" id="L86">        try (Scope scope = span.makeCurrent()) {</span>
+<span class="fc" id="L87">            McpSchema.CallToolResult result = doHandleToolCall(toolName, arguments);</span>
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">            if (result.isError() != null &amp;&amp; result.isError()) {</span>
+<span class="fc" id="L89">                status = &quot;ERROR&quot;;</span>
+<span class="fc" id="L90">                span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, &quot;tool returned error&quot;);</span>
+<span class="fc" id="L91">                telemetry.getMetrics().recordRequestError(&quot;mcp&quot;, toolName, &quot;handled_error&quot;);</span>
+            }
+<span class="fc" id="L93">            return result;</span>
+<span class="fc" id="L94">        } catch (Exception e) {</span>
+<span class="fc" id="L95">            status = &quot;ERROR&quot;;</span>
+<span class="fc" id="L96">            TelemetryBootstrap.recordError(span, e);</span>
+<span class="fc" id="L97">            telemetry.getMetrics().recordRequestError(&quot;mcp&quot;, toolName,</span>
+<span class="fc" id="L98">                    e.getClass().getSimpleName());</span>
+<span class="fc" id="L99">            throw e;</span>
+        } finally {
+<span class="fc" id="L101">            double durationSec = (System.nanoTime() - startNanos) / 1_000_000_000.0;</span>
+<span class="fc" id="L102">            telemetry.getMetrics().recordRequest(&quot;mcp&quot;, toolName, status, durationSec);</span>
+<span class="fc" id="L103">            TelemetryBootstrap.endSpan(span);</span>
+        }
+    }
+
+    McpSchema.CallToolResult doHandleToolCall(String toolName, Map&lt;String, Object&gt; arguments)
+            throws Exception {
+
+<span class="fc" id="L110">        McpServerToolSpec toolSpec = toolSpecs.get(toolName);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (toolSpec == null) {</span>
+<span class="fc" id="L112">            throw new IllegalArgumentException(&quot;Unknown tool: &quot; + toolName);</span>
+        }
+
+        // Merge arguments with tool-level 'with' parameters.
+        // 'with' values are Mustache templates resolved against the tool arguments,
+        // allowing parameter renaming (e.g. imo → imo_number).
+        // Arguments take precedence for keys not present in 'with'.
+<span class="fc" id="L119">        Map&lt;String, Object&gt; parameters = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (arguments != null) {</span>
+<span class="fc" id="L121">            parameters.putAll(arguments);</span>
+        }
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (toolSpec.getWith() != null) {</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : toolSpec.getWith().entrySet()) {</span>
+<span class="fc" id="L125">                Object rawValue = entry.getValue();</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                if (rawValue instanceof String) {</span>
+<span class="fc" id="L127">                    String strValue = (String) rawValue;</span>
+<span class="fc" id="L128">                    Object resolved = resolveWithValue(strValue, arguments);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">                    if (resolved != null) {</span>
+<span class="fc" id="L130">                        parameters.put(entry.getKey(), resolved);</span>
+                    }
+<span class="fc" id="L132">                } else {</span>
+<span class="nc" id="L133">                    parameters.put(entry.getKey(), rawValue);</span>
+                }
+<span class="fc" id="L135">            }</span>
+        }
+
+        // Delegate to aggregate function when ref is set
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (toolSpec.getRef() != null) {</span>
+<span class="fc" id="L140">            return executeViaAggregate(toolSpec, toolName, parameters);</span>
+        }
+
+        OperationStepExecutor.HandlingContext found;
+        try {
+<span class="fc" id="L145">            boolean isOrchestrated =</span>
+<span class="pc bpc" id="L146" title="2 of 4 branches missed.">                    toolSpec.getSteps() != null &amp;&amp; !toolSpec.getSteps().isEmpty();</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">            boolean hasCall = toolSpec.getCall() != null;</span>
+
+<span class="pc bpc" id="L149" title="1 of 4 branches missed.">            if (!hasCall &amp;&amp; !isOrchestrated) {</span>
+                // Mock mode — no call, no steps: build response from output value fields
+<span class="fc" id="L151">                return buildMockToolResult(toolSpec, parameters);</span>
+            }
+
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">            if (isOrchestrated) {</span>
+<span class="nc" id="L155">                OperationStepExecutor.StepExecutionResult stepResult =</span>
+<span class="nc" id="L156">                        stepExecutor.executeSteps(toolSpec.getSteps(), parameters);</span>
+
+                // Apply step output mappings if defined
+<span class="nc bnc" id="L159" title="All 4 branches missed.">                if (toolSpec.getMappings() != null &amp;&amp; !toolSpec.getMappings().isEmpty()) {</span>
+<span class="nc" id="L160">                    String mapped = stepExecutor.resolveStepMappings(</span>
+<span class="nc" id="L161">                            toolSpec.getMappings(), stepResult.stepContext);</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                    if (mapped != null) {</span>
+<span class="nc" id="L163">                        return new McpSchema.CallToolResult(</span>
+<span class="nc" id="L164">                                List.of(new McpSchema.TextContent(mapped)), false, null, null);</span>
+                    }
+                }
+
+<span class="nc" id="L168">                return buildToolResult(toolSpec, stepResult.lastContext);</span>
+            }
+
+<span class="fc" id="L171">            found = stepExecutor.execute(toolSpec.getCall(), toolSpec.getSteps(), parameters,</span>
+                    &quot;Tool '&quot; + toolName + &quot;'&quot;);
+<span class="nc" id="L173">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L174">            throw e;</span>
+<span class="nc" id="L175">        } catch (Exception e) {</span>
+<span class="nc" id="L176">            Context.getCurrentLogger().warning(&quot;Error during HTTP client call for tool '&quot; + toolName + &quot;': &quot; + e);</span>
+<span class="nc" id="L177">            return new McpSchema.CallToolResult(</span>
+<span class="nc" id="L178">                    List.of(new McpSchema.TextContent(</span>
+<span class="nc" id="L179">                            &quot;Error during HTTP client call: &quot; + e.getMessage())),</span>
+<span class="nc" id="L180">                    true, null, null);</span>
+<span class="fc" id="L181">        }</span>
+
+        // Map the response to MCP CallToolResult
+<span class="fc" id="L184">        return buildToolResult(toolSpec, found);</span>
+    }
+
+    /**
+     * Execute a tool call by delegating to its referenced aggregate function.
+     */
+    private McpSchema.CallToolResult executeViaAggregate(McpServerToolSpec toolSpec,
+            String toolName, Map&lt;String, Object&gt; parameters) throws Exception {
+        try {
+<span class="fc" id="L193">            AggregateFunction fn = capability.lookupFunction(toolSpec.getRef());</span>
+<span class="fc" id="L194">            FunctionResult result = fn.execute(parameters);</span>
+
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            if (result.isMock()) {</span>
+<span class="fc" id="L197">                ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L198">                String json = mapper.writeValueAsString(</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">                        result.mockOutput != null ? result.mockOutput</span>
+<span class="nc" id="L200">                                : mapper.createObjectNode());</span>
+<span class="fc" id="L201">                return new McpSchema.CallToolResult(</span>
+<span class="fc" id="L202">                        List.of(new McpSchema.TextContent(json)), false, null, null);</span>
+            }
+
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">            if (result.hasMappedOutput()) {</span>
+<span class="nc" id="L206">                return new McpSchema.CallToolResult(</span>
+<span class="nc" id="L207">                        List.of(new McpSchema.TextContent(result.mappedOutput)), false, null,</span>
+                        null);
+            }
+
+<span class="fc" id="L211">            return buildToolResult(toolSpec, result.lastContext);</span>
+<span class="nc" id="L212">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L213">            throw e;</span>
+<span class="nc" id="L214">        } catch (Exception e) {</span>
+<span class="nc" id="L215">            Context.getCurrentLogger().warning(&quot;Error during aggregate function call for tool '&quot; + toolName + &quot;': &quot;</span>
+                    + e);
+<span class="nc" id="L217">            return new McpSchema.CallToolResult(</span>
+<span class="nc" id="L218">                    List.of(new McpSchema.TextContent(</span>
+<span class="nc" id="L219">                            &quot;Error during aggregate function call: &quot; + e.getMessage())),</span>
+<span class="nc" id="L220">                    true, null, null);</span>
+        }
+    }
+
+    /**
+     * Build an MCP CallToolResult from output parameter {@code value} fields (mock mode).
+     * Mustache templates in values are resolved against the given parameters.
+     */
+    private McpSchema.CallToolResult buildMockToolResult(McpServerToolSpec toolSpec,
+            Map&lt;String, Object&gt; parameters) throws IOException {
+<span class="fc" id="L230">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L231">        JsonNode mockRoot = Resolver.buildMockData(toolSpec.getOutputParameters(), mapper,</span>
+                parameters);
+
+<span class="fc bfc" id="L234" title="All 2 branches covered.">        String json = mapper.writeValueAsString(mockRoot != null ? mockRoot : mapper.createObjectNode());</span>
+<span class="fc" id="L235">        return new McpSchema.CallToolResult(</span>
+<span class="fc" id="L236">                List.of(new McpSchema.TextContent(json)), false, null, null);</span>
+    }
+
+    /**
+     * Build an MCP CallToolResult from the HTTP client response.
+     */
+    private McpSchema.CallToolResult buildToolResult(McpServerToolSpec toolSpec,
+            OperationStepExecutor.HandlingContext found) throws IOException {
+
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">        if (found == null) {</span>
+<span class="nc" id="L246">            return new McpSchema.CallToolResult(</span>
+<span class="nc" id="L247">                    List.of(new McpSchema.TextContent(</span>
+                            &quot;No response received: no matching client adapter found&quot;)),
+<span class="nc" id="L249">                    true, null, null);</span>
+        }
+
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (found.clientResponse == null) {</span>
+<span class="nc" id="L253">            return new McpSchema.CallToolResult(List</span>
+<span class="nc" id="L254">                    .of(new McpSchema.TextContent(&quot;No response received: client response is null&quot;)),</span>
+<span class="nc" id="L255">                    true, null, null);</span>
+        }
+
+        // Check for error status
+<span class="fc" id="L259">        int statusCode = found.clientResponse.getStatus().getCode();</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">        boolean isError = statusCode &gt;= 400;</span>
+
+<span class="fc bfc" id="L262" title="All 2 branches covered.">        if (found.clientResponse.getEntity() == null) {</span>
+<span class="fc" id="L263">            return new McpSchema.CallToolResult(</span>
+<span class="fc" id="L264">                    List.of(new McpSchema.TextContent(</span>
+                            &quot;No response entity received (HTTP &quot; + statusCode + &quot; &quot;
+<span class="fc" id="L266">                                    + found.clientResponse.getStatus().getReasonPhrase() + &quot;)&quot;)),</span>
+<span class="fc" id="L267">                    true, null, null);</span>
+        }
+
+        // Buffer entity text before any mapping to avoid double-read issues
+<span class="fc" id="L271">        String responseText = found.clientResponse.getEntity().getText();</span>
+
+        // Apply output parameter mappings if defined, converting from the declared format
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        String outputRawFormat = found.clientOperation != null</span>
+<span class="pc" id="L275">                ? found.clientOperation.getOutputRawFormat() : null;</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">        String outputSchema = found.clientOperation != null</span>
+<span class="pc" id="L277">                ? found.clientOperation.getOutputSchema() : null;</span>
+<span class="fc" id="L278">        String mapped = stepExecutor.applyOutputMappings(responseText,</span>
+<span class="fc" id="L279">                toolSpec.getOutputParameters(), outputRawFormat, outputSchema);</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">        if (mapped != null) {</span>
+<span class="fc" id="L281">            return new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(mapped)),</span>
+<span class="fc" id="L282">                    isError, null, null);</span>
+        }
+
+        // Fall back to raw response
+<span class="nc" id="L286">        return new McpSchema.CallToolResult(</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                List.of(new McpSchema.TextContent(responseText != null ? responseText : &quot;&quot;)),</span>
+<span class="nc" id="L288">                isError, null, null);</span>
+    }
+
+    /**
+     * Resolve a {@code with} value. Handles two syntaxes:
+     * &lt;ul&gt;
+     *   &lt;li&gt;Namespace-qualified reference ({@code namespace.paramName}) per §3.15.1 —
+     *       resolved by looking up {@code paramName} in the caller's arguments.&lt;/li&gt;
+     *   &lt;li&gt;Mustache template ({@code {{paramName}}}) — resolved via JMustache.&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @return the resolved value, or {@code null} if the reference is a namespace-qualified
+     *         reference whose target parameter was not provided by the caller
+     */
+    private Object resolveWithValue(String value, Map&lt;String, Object&gt; arguments) {
+<span class="fc bfc" id="L303" title="All 4 branches covered.">        if (exposeNamespace != null &amp;&amp; value.startsWith(exposeNamespace + &quot;.&quot;)) {</span>
+<span class="fc" id="L304">            String paramName = value.substring(exposeNamespace.length() + 1);</span>
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">            return arguments != null ? arguments.get(paramName) : null;</span>
+        }
+<span class="fc" id="L307">        return Resolver.resolveMustacheTemplate(value, arguments);</span>
+    }
+
+    public Capability getCapability() {
+<span class="nc" id="L311">        return capability;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

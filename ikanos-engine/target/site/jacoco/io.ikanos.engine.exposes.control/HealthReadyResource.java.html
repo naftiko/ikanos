@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HealthReadyResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.control</a> &gt; <span class="el_source">HealthReadyResource.java</span></div><h1>HealthReadyResource.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.control;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.Capability;
+import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import org.restlet.data.MediaType;
+import org.restlet.data.Status;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.ServerResource;
+
+/**
+ * Readiness probe. Returns {@code 200} when all business adapters are started,
+ * {@code 503} when any adapter is not ready.
+ */
+<span class="nc" id="L36">public class HealthReadyResource extends ServerResource {</span>
+
+<span class="nc" id="L38">    private static final ObjectMapper MAPPER = new ObjectMapper();</span>
+
+    @Get(&quot;json&quot;)
+    public Representation getReady() {
+<span class="nc" id="L42">        Capability capability =</span>
+<span class="nc" id="L43">                (Capability) getContext().getAttributes().get(&quot;capability&quot;);</span>
+
+<span class="nc" id="L45">        boolean allReady = true;</span>
+<span class="nc" id="L46">        ArrayNode adaptersNode = MAPPER.createArrayNode();</span>
+
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        for (ServerAdapter adapter : capability.getServerAdapters()) {</span>
+<span class="nc" id="L49">            ServerSpec spec = adapter.getSpec();</span>
+<span class="nc" id="L50">            ObjectNode adapterNode = MAPPER.createObjectNode();</span>
+<span class="nc" id="L51">            adapterNode.put(&quot;type&quot;, spec.getType());</span>
+
+<span class="nc" id="L53">            String namespace = getNamespace(spec);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">            if (namespace != null) {</span>
+<span class="nc" id="L55">                adapterNode.put(&quot;namespace&quot;, namespace);</span>
+            }
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (spec.getPort() &gt; 0) {</span>
+<span class="nc" id="L58">                adapterNode.put(&quot;port&quot;, spec.getPort());</span>
+            }
+
+<span class="nc bnc" id="L61" title="All 4 branches missed.">            boolean started = adapter.getServer() != null &amp;&amp; adapter.getServer().isStarted();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">            adapterNode.put(&quot;state&quot;, started ? &quot;started&quot; : &quot;stopped&quot;);</span>
+
+<span class="nc bnc" id="L64" title="All 4 branches missed.">            if (!started &amp;&amp; !&quot;control&quot;.equals(spec.getType())) {</span>
+<span class="nc" id="L65">                allReady = false;</span>
+            }
+
+<span class="nc" id="L68">            adaptersNode.add(adapterNode);</span>
+<span class="nc" id="L69">        }</span>
+
+<span class="nc" id="L71">        ObjectNode root = MAPPER.createObjectNode();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        root.put(&quot;status&quot;, allReady ? &quot;UP&quot; : &quot;DEGRADED&quot;);</span>
+<span class="nc" id="L73">        root.set(&quot;adapters&quot;, adaptersNode);</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        setStatus(allReady ? Status.SUCCESS_OK : Status.SERVER_ERROR_SERVICE_UNAVAILABLE);</span>
+<span class="nc" id="L76">        return new StringRepresentation(root.toString(), MediaType.APPLICATION_JSON);</span>
+    }
+
+    static String getNamespace(ServerSpec spec) {
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (spec instanceof RestServerSpec rest) {</span>
+<span class="nc" id="L81">            return rest.getNamespace();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        } else if (spec instanceof McpServerSpec mcp) {</span>
+<span class="nc" id="L83">            return mcp.getNamespace();</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        } else if (spec instanceof SkillServerSpec skill) {</span>
+<span class="nc" id="L85">            return skill.getNamespace();</span>
+        }
+<span class="nc" id="L87">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

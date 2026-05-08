@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "Aggregate Basic Test"
+  description: "Test capability for aggregate function ref resolution"
+  tags:
+    - Test
+    - Aggregate
+  created: "2026-04-03"
+  modified: "2026-04-03"
+
+capability:
+  aggregates:
+    - label: "Forecast"
+      namespace: "forecast"
+      functions:
+        - name: "get-forecast"
+          description: "Fetch current weather forecast for a location."
+          semantics:
+            safe: true
+            idempotent: true
+          inputParameters:
+            - name: "location"
+              type: "string"
+              description: "City or coordinates"
+          call: "weather-api.get-forecast"
+          with:
+            location: "location"
+          outputParameters:
+            - type: "string"
+              mapping: "$.forecast"
+
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9100
+      namespace: "forecast-mcp"
+      description: "MCP server using aggregate ref."
+
+      tools:
+        - name: "get-forecast"
+          description: "Get the weather forecast."
+          ref: "forecast.get-forecast"
+
+        # Tool that omits name and description — inherited from function
+        - ref: "forecast.get-forecast"
+          name: "get-forecast-inherited"
+
+    - type: "rest"
+      address: "localhost"
+      port: 9101
+      namespace: "forecast-rest"
+      resources:
+        - path: "/forecast/{location}"
+          name: "forecast"
+          description: "Forecast resource"
+          operations:
+            - ref: "forecast.get-forecast"
+              method: "GET"
+              inputParameters:
+                - name: "location"
+                  in: "path"
+                  type: "string"
+                  description: "City or coordinates"
+            # Operation that omits name/description — inherited
+            - ref: "forecast.get-forecast"
+              method: "POST"
+
+  consumes:
+    - type: "http"
+      namespace: "weather-api"
+      baseUri: "http://localhost:8080/v1"
+      resources:
+        - path: "forecast"
+          name: "forecast"
+          operations:
+            - method: "GET"
+              name: "get-forecast"

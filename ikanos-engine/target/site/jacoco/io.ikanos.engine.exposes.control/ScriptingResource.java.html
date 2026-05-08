@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScriptingResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.control</a> &gt; <span class="el_source">ScriptingResource.java</span></div><h1>ScriptingResource.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.control;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import org.restlet.data.MediaType;
+import org.restlet.data.Status;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Put;
+import org.restlet.resource.ServerResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Control Port resource for scripting governance.
+ *
+ * &lt;p&gt;{@code GET /scripting} returns the current scripting configuration and execution stats.
+ * {@code PUT /scripting} updates configuration at runtime — takes effect on the next script
+ * execution.&lt;/p&gt;
+ */
+<span class="fc" id="L41">public class ScriptingResource extends ServerResource {</span>
+
+<span class="fc" id="L43">    private static final Logger logger = LoggerFactory.getLogger(ScriptingResource.class);</span>
+
+<span class="fc" id="L45">    private static final ObjectMapper MAPPER = new ObjectMapper();</span>
+
+<span class="fc" id="L47">    static final Set&lt;String&gt; SUPPORTED_LANGUAGES =</span>
+<span class="fc" id="L48">            Set.of(&quot;javascript&quot;, &quot;python&quot;, &quot;groovy&quot;);</span>
+
+    @Get(&quot;json&quot;)
+    public Representation getScripting() {
+<span class="fc" id="L52">        ScriptingManagementSpec scripting =</span>
+<span class="fc" id="L53">                (ScriptingManagementSpec) getContext().getAttributes().get(&quot;scriptingSpec&quot;);</span>
+
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        if (scripting == null) {</span>
+<span class="nc" id="L56">            setStatus(Status.CLIENT_ERROR_NOT_FOUND);</span>
+<span class="nc" id="L57">            return new StringRepresentation(</span>
+                    &quot;{\&quot;error\&quot;:\&quot;Scripting is not configured\&quot;}&quot;, MediaType.APPLICATION_JSON);
+        }
+
+<span class="fc" id="L61">        ObjectNode root = MAPPER.createObjectNode();</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">        if (scripting.getEnabled() != null) {</span>
+<span class="fc" id="L63">            root.put(&quot;enabled&quot;, scripting.getEnabled());</span>
+        }
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (scripting.getDefaultLocation() != null) {</span>
+<span class="fc" id="L66">            root.put(&quot;defaultLocation&quot;, scripting.getDefaultLocation());</span>
+        }
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (scripting.getDefaultLanguage() != null) {</span>
+<span class="fc" id="L69">            root.put(&quot;defaultLanguage&quot;, scripting.getDefaultLanguage());</span>
+        }
+<span class="fc" id="L71">        root.put(&quot;timeout&quot;, scripting.getTimeout());</span>
+<span class="fc" id="L72">        root.put(&quot;statementLimit&quot;, scripting.getStatementLimit());</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (!scripting.getAllowedLanguages().isEmpty()) {</span>
+<span class="fc" id="L74">            root.set(&quot;allowedLanguages&quot;,</span>
+<span class="fc" id="L75">                    MAPPER.valueToTree(scripting.getAllowedLanguages()));</span>
+        }
+
+<span class="fc" id="L78">        ObjectNode stats = MAPPER.createObjectNode();</span>
+<span class="fc" id="L79">        stats.put(&quot;totalExecutions&quot;, scripting.getTotalExecutions());</span>
+<span class="fc" id="L80">        stats.put(&quot;totalErrors&quot;, scripting.getTotalErrors());</span>
+<span class="fc" id="L81">        stats.put(&quot;averageDurationMs&quot;,</span>
+<span class="fc" id="L82">                Math.round(scripting.getAverageDurationMs() * 100.0) / 100.0);</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (scripting.getLastExecutionAt() != null) {</span>
+<span class="nc" id="L84">            stats.put(&quot;lastExecutionAt&quot;, scripting.getLastExecutionAt());</span>
+        }
+<span class="fc" id="L86">        root.set(&quot;stats&quot;, stats);</span>
+
+<span class="fc" id="L88">        return new StringRepresentation(root.toString(), MediaType.APPLICATION_JSON);</span>
+    }
+
+    @Put(&quot;json&quot;)
+    public Representation putScripting(Representation entity) {
+<span class="fc" id="L93">        ScriptingManagementSpec scripting =</span>
+<span class="fc" id="L94">                (ScriptingManagementSpec) getContext().getAttributes().get(&quot;scriptingSpec&quot;);</span>
+
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (scripting == null) {</span>
+<span class="nc" id="L97">            setStatus(Status.CLIENT_ERROR_NOT_FOUND);</span>
+<span class="nc" id="L98">            return new StringRepresentation(</span>
+                    &quot;{\&quot;error\&quot;:\&quot;Scripting is not configured\&quot;}&quot;, MediaType.APPLICATION_JSON);
+        }
+
+        try {
+<span class="fc" id="L103">            String body = entity.getText();</span>
+<span class="fc" id="L104">            JsonNode update = MAPPER.readTree(body);</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            if (update.has(&quot;enabled&quot;)) {</span>
+<span class="fc" id="L107">                scripting.setEnabled(update.get(&quot;enabled&quot;).asBoolean());</span>
+            }
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            if (update.has(&quot;timeout&quot;)) {</span>
+<span class="fc" id="L110">                JsonNode timeoutNode = update.get(&quot;timeout&quot;);</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                if (!timeoutNode.isIntegralNumber()) {</span>
+<span class="nc" id="L112">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L113">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'timeout' must be an integer greater than or equal to 1\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L117">                int timeout = timeoutNode.asInt();</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">                if (timeout &lt; 1) {</span>
+<span class="nc" id="L119">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L120">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'timeout' must be greater than or equal to 1\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L124">                scripting.setTimeout(timeout);</span>
+            }
+<span class="fc bfc" id="L126" title="All 2 branches covered.">            if (update.has(&quot;statementLimit&quot;)) {</span>
+<span class="fc" id="L127">                JsonNode statementLimitNode = update.get(&quot;statementLimit&quot;);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">                if (!statementLimitNode.isIntegralNumber()) {</span>
+<span class="nc" id="L129">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L130">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'statementLimit' must be an integer greater than or equal to 1\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L134">                long statementLimit = statementLimitNode.asLong();</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                if (statementLimit &lt; 1L) {</span>
+<span class="nc" id="L136">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L137">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'statementLimit' must be greater than or equal to 1\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L141">                scripting.setStatementLimit(statementLimit);</span>
+            }
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (update.has(&quot;defaultLocation&quot;)) {</span>
+<span class="fc" id="L144">                String location = update.get(&quot;defaultLocation&quot;).asText();</span>
+                try {
+<span class="fc" id="L146">                    URI uri = URI.create(location);</span>
+<span class="pc bpc" id="L147" title="2 of 4 branches missed.">                    if (!&quot;file&quot;.equals(uri.getScheme()) || !uri.isAbsolute()) {</span>
+<span class="nc" id="L148">                        setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L149">                        return new StringRepresentation(</span>
+                                &quot;{\&quot;error\&quot;:\&quot;'defaultLocation' must be an absolute file:/// URI\&quot;}&quot;,
+                                MediaType.APPLICATION_JSON);
+                    }
+<span class="nc" id="L153">                } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L154">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L155">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'defaultLocation' is not a valid URI\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+<span class="fc" id="L158">                }</span>
+<span class="fc" id="L159">                scripting.setDefaultLocation(location);</span>
+            }
+<span class="fc bfc" id="L161" title="All 2 branches covered.">            if (update.has(&quot;defaultLanguage&quot;)) {</span>
+<span class="fc" id="L162">                String defaultLanguage = update.get(&quot;defaultLanguage&quot;).asText();</span>
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">                if (!SUPPORTED_LANGUAGES.contains(defaultLanguage)) {</span>
+<span class="nc" id="L164">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L165">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;Unsupported language '&quot; + defaultLanguage
+                                    + &quot;'. Supported: &quot; + SUPPORTED_LANGUAGES + &quot;\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L170">                scripting.setDefaultLanguage(defaultLanguage);</span>
+            }
+<span class="fc bfc" id="L172" title="All 2 branches covered.">            if (update.has(&quot;allowedLanguages&quot;)) {</span>
+<span class="fc" id="L173">                JsonNode langNode = update.get(&quot;allowedLanguages&quot;);</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">                if (!langNode.isArray()) {</span>
+<span class="nc" id="L175">                    setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L176">                    return new StringRepresentation(</span>
+                            &quot;{\&quot;error\&quot;:\&quot;'allowedLanguages' must be an array\&quot;}&quot;,
+                            MediaType.APPLICATION_JSON);
+                }
+<span class="fc" id="L180">                List&lt;String&gt; validated = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                for (JsonNode entry : langNode) {</span>
+<span class="fc" id="L182">                    String lang = entry.asText();</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">                    if (!SUPPORTED_LANGUAGES.contains(lang)) {</span>
+<span class="nc" id="L184">                        setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L185">                        return new StringRepresentation(</span>
+                                &quot;{\&quot;error\&quot;:\&quot;Unsupported language '&quot; + lang
+                                        + &quot;'. Supported: &quot; + SUPPORTED_LANGUAGES + &quot;\&quot;}&quot;,
+                                MediaType.APPLICATION_JSON);
+                    }
+<span class="fc" id="L190">                    validated.add(lang);</span>
+<span class="fc" id="L191">                }</span>
+<span class="fc" id="L192">                scripting.getAllowedLanguages().clear();</span>
+<span class="fc" id="L193">                scripting.getAllowedLanguages().addAll(validated);</span>
+            }
+
+<span class="fc" id="L196">            setStatus(Status.SUCCESS_OK);</span>
+<span class="fc" id="L197">            return getScripting();</span>
+<span class="nc" id="L198">        } catch (Exception e) {</span>
+<span class="nc" id="L199">            setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L200">            logger.debug(&quot;Scripting PATCH validation failed&quot;, e);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            String msg = e.getMessage() != null ? e.getMessage().replace(&quot;\&quot;&quot;, &quot;'&quot;) : &quot;unexpected error&quot;;</span>
+<span class="nc" id="L202">            return new StringRepresentation(</span>
+                &quot;{\&quot;error\&quot;:\&quot;&quot; + msg + &quot;\&quot;}&quot;,
+                MediaType.APPLICATION_JSON);
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

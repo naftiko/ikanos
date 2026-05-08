@@ -1,0 +1,934 @@
+[
+  {
+    "name": "com.networknt.schema.TypeValidator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.networknt.schema.BaseJsonValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ValidatorTypeCode",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.StringValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NumberValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.IntegerValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ArrayValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ObjectValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.BooleanValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NullValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.EnumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ConstValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.OneOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AnyOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AllOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NotValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.RequiredValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.AdditionalPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.RefValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ItemsValidator202012",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinItemsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinimumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MaximumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PatternValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.swagger.v3.core.jackson.ModelResolver",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.core.jackson.SwaggerModule",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.OpenAPI",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.parser.OpenAPIV3Parser",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.parser.OpenAPIParser",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.parser.core.extensions.SwaggerParserExtension",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.parser.OpenAPIV3ParserExtension",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.v3.parser.converter.SwaggerConverter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.swagger.models.Swagger",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Info",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Contact",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.License",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Tag",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.ExternalDocs",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Path",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Operation",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Response",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Xml",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.Scheme",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.SecurityRequirement",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.ModelImpl",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.RefModel",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.ArrayModel",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.ComposedModel",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.AbstractParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.AbstractSerializableParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.BodyParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.PathParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.QueryParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.HeaderParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.FormParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.RefParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.parameters.CookieParameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.AbstractProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.StringProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.IntegerProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.LongProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.FloatProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.DoubleProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.DecimalProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.BaseIntegerProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.BooleanProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.ArrayProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.ObjectProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.MapProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.RefProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.DateProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.DateTimeProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.ByteArrayProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.BinaryProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.EmailProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.PasswordProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.UUIDProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.properties.UntypedProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.auth.BasicAuthDefinition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.auth.ApiKeyAuthDefinition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.auth.OAuth2Definition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.models.auth.In",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.ArraySchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.BinarySchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.BooleanSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.ByteArraySchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.ComposedSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.DateSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.DateTimeSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.EmailSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.FileSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.IntegerSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.JsonSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.MapSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.NumberSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.ObjectSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.PasswordSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.StringSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.swagger.v3.oas.models.media.UUIDSchema",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.IkanosSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.ClientSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.HttpClientSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.HttpClientResourceSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.HttpClientOperationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.OperationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.ResourceSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.InputParameterSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.OutputParameterSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.StructureSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.AuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.BearerAuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.BasicAuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.DigestAuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.ServerSpecDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.ClientSpecDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.InfoSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.StakeholderSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.CapabilitySpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.InputParameterDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.OutputParameterDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilitySpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityExportersSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityLocalEndpointSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityMetricsSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityOtlpExporterSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityTracesLocalSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.observability.ObservabilityTracesSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.BindingKeysSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.BindingSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateFunctionSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.SemanticsSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.ServerSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerResourceSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerOperationSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerForwardSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerStepSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.OperationStepSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.OperationStepCallSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.OperationStepLookupSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.scripting.OperationStepScriptSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.ServerCallSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.util.StepOutputMappingSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.ExposedSkillSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.SkillServerSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.SkillToolSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.SkillToolFromSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerToolSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpToolHintsSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpPromptArgumentSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpPromptMessageSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerPromptSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerResourceSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.control.ControlServerSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.control.ControlManagementSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpecDeserializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.control.ScriptingManagementSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.InputParameterSerializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.OutputParameterSerializer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  }
+]

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpServerPromptSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.mcp</a> &gt; <span class="el_source">McpServerPromptSpec.java</span></div><h1>McpServerPromptSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.mcp;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * MCP Prompt Specification Element.
+ *
+ * Defines an MCP prompt template with typed arguments that agents can discover and render.
+ * Two source types are supported:
+ * &lt;ul&gt;
+ *   &lt;li&gt;&lt;b&gt;Inline&lt;/b&gt; ({@code template}): prompt messages declared directly in YAML with
+ *       {@code {{arg}}} placeholders.&lt;/li&gt;
+ *   &lt;li&gt;&lt;b&gt;File-based&lt;/b&gt; ({@code location}): prompt content loaded from a {@code file:///} URI;
+ *       the file content becomes a single {@code user} role message.&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class McpServerPromptSpec {
+
+    private volatile String name;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String label;
+
+    private volatile String description;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;McpPromptArgumentSpec&gt; arguments;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;McpPromptMessageSpec&gt; template;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String location;
+
+<span class="nc" id="L50">    public McpServerPromptSpec() {</span>
+<span class="nc" id="L51">        this.arguments = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="nc" id="L52">        this.template = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="nc" id="L53">    }</span>
+
+    public String getName() {
+<span class="nc" id="L56">        return name;</span>
+    }
+
+    public void setName(String name) {
+<span class="nc" id="L60">        this.name = name;</span>
+<span class="nc" id="L61">    }</span>
+
+    public String getLabel() {
+<span class="nc" id="L64">        return label;</span>
+    }
+
+    public void setLabel(String label) {
+<span class="nc" id="L68">        this.label = label;</span>
+<span class="nc" id="L69">    }</span>
+
+    public String getDescription() {
+<span class="nc" id="L72">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L76">        this.description = description;</span>
+<span class="nc" id="L77">    }</span>
+
+    public List&lt;McpPromptArgumentSpec&gt; getArguments() {
+<span class="nc" id="L80">        return arguments;</span>
+    }
+
+    public List&lt;McpPromptMessageSpec&gt; getTemplate() {
+<span class="nc" id="L84">        return template;</span>
+    }
+
+    public String getLocation() {
+<span class="nc" id="L88">        return location;</span>
+    }
+
+    public void setLocation(String location) {
+<span class="nc" id="L92">        this.location = location;</span>
+<span class="nc" id="L93">    }</span>
+
+    /**
+     * Returns {@code true} when this prompt is rendered from a local file.
+     */
+    public boolean isFileBased() {
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        return location != null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

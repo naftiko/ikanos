@@ -1,0 +1,14 @@
+io\ikanos\cli\FileGeneratorTest.class
+io\ikanos\cli\ValidateCommandTest.class
+io\ikanos\cli\StatusCommandTest.class
+io\ikanos\cli\ExportOpenApiCommandTest.class
+io\ikanos\cli\NativeImageReflectConfigTest$ReflectEntry.class
+io\ikanos\cli\TracesCommandTest.class
+io\ikanos\cli\NativeImageReflectConfigTest.class
+io\ikanos\cli\HealthCommandTest.class
+io\ikanos\cli\ControlPortMixinTest.class
+io\ikanos\cli\ImportOpenApiCommandTest.class
+io\ikanos\cli\NativeImageReflectConfigTest$1.class
+io\ikanos\cli\FileFormatEnumTest.class
+io\ikanos\cli\MetricsCommandTest.class
+io\ikanos\cli\ScriptingCommandTest.class

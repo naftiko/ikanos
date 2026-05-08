@@ -1,0 +1,92 @@
+---
+ikanos: "1.0.0-alpha3"
+
+capability:
+  consumes:
+    - namespace: registry
+      type: http
+      baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+      resources:
+        - name: ships
+          path: "/ships"
+          operations:
+            - name: list-ships
+              method: GET
+              inputParameters:
+                - name: status
+                  in: query
+        - name: ship
+          path: "/ships/{{imo_number}}"
+          operations:
+            - name: get-ship
+              method: GET
+              inputParameters:
+                - name: imo_number
+                  in: path
+
+  exposes:
+    - type: mcp
+      address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
+      port: 3001
+      namespace: shipyard-tools
+      description: "Shipyard MCP tools for fleet management"
+      tools:
+        - name: list-ships
+          description: "List ships in the shipyard, optionally filtered by status"
+          inputParameters:
+            - name: status
+              type: string
+              required: false
+              description: "Filter by operational status"
+          call: registry.list-ships
+          with:
+            status: shipyard-tools.status
+          outputParameters:
+            - type: array
+              mapping: "$."
+              items:
+                type: object
+                properties:
+                  imo:
+                    type: string
+                    mapping: "$.imo_number"
+                  name:
+                    type: string
+                    mapping: "$.vessel_name"
+                  type:
+                    type: string
+                    mapping: "$.vessel_type"
+                  flag:
+                    type: string
+                    mapping: "$.flag_code"
+                  status:
+                    type: string
+                    mapping: "$.operational_status"
+        - name: get-ship
+          description: "Retrieve a ship's details by IMO number"
+          inputParameters:
+            - name: imo
+              type: string
+              required: true
+              description: "IMO number of the ship"
+          call: registry.get-ship
+          with:
+            imo_number: shipyard-tools.imo
+          outputParameters:
+            - type: object
+              properties:
+                imo:
+                  type: string
+                  mapping: "$.imo_number"
+                name:
+                  type: string
+                  mapping: "$.vessel_name"
+                type:
+                  type: string
+                  mapping: "$.vessel_type"
+                flag:
+                  type: string
+                  mapping: "$.flag_code"
+                status:
+                  type: string
+                  mapping: "$.operational_status"

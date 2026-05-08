@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpServerToolSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.mcp</a> &gt; <span class="el_source">McpServerToolSpec.java</span></div><h1>McpServerToolSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.mcp;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.exposes.ServerCallSpec;
+import io.ikanos.spec.util.OperationStepSpec;
+import io.ikanos.spec.util.StepOutputMappingSpec;
+
+/**
+ * MCP Tool Specification Element.
+ *
+ * &lt;p&gt;Defines an MCP tool that maps to consumed HTTP operations.
+ * Supports both simple call mode (call + with) and full orchestration (steps + mappings).&lt;/p&gt;
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
+ * stored as an immutable snapshot. List fields use {@link CopyOnWriteArrayList}. This
+ * satisfies SonarQube rule {@code java:S3077}.
+ */
+public class McpServerToolSpec {
+
+<span class="fc" id="L42">    private final AtomicReference&lt;String&gt; name = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L43">    private final AtomicReference&lt;String&gt; label = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L44">    private final AtomicReference&lt;String&gt; description = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L45">    private final AtomicReference&lt;String&gt; ref = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L46">    private final AtomicReference&lt;ServerCallSpec&gt; call = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L47">    private final AtomicReference&lt;Map&lt;String, Object&gt;&gt; with = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L48">    private final AtomicReference&lt;McpToolHintsSpec&gt; hints = new AtomicReference&lt;&gt;();</span>
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;InputParameterSpec&gt; inputParameters;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;OperationStepSpec&gt; steps;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;StepOutputMappingSpec&gt; mappings;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;OutputParameterSpec&gt; outputParameters;
+
+    public McpServerToolSpec() {
+<span class="fc" id="L63">        this(null, null, null);</span>
+<span class="fc" id="L64">    }</span>
+
+<span class="fc" id="L66">    public McpServerToolSpec(String name, String label, String description) {</span>
+<span class="fc" id="L67">        this.name.set(name);</span>
+<span class="fc" id="L68">        this.label.set(label);</span>
+<span class="fc" id="L69">        this.description.set(description);</span>
+<span class="fc" id="L70">        this.inputParameters = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L71">        this.steps = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L72">        this.mappings = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L73">        this.outputParameters = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L74">    }</span>
+
+    public String getName() {
+<span class="nc" id="L77">        return name.get();</span>
+    }
+
+    public void setName(String name) {
+<span class="nc" id="L81">        this.name.set(name);</span>
+<span class="nc" id="L82">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getLabel() {
+<span class="nc" id="L86">        return label.get();</span>
+    }
+
+    public void setLabel(String label) {
+<span class="nc" id="L90">        this.label.set(label);</span>
+<span class="nc" id="L91">    }</span>
+
+    public String getDescription() {
+<span class="nc" id="L94">        return description.get();</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L98">        this.description.set(description);</span>
+<span class="nc" id="L99">    }</span>
+
+    public List&lt;InputParameterSpec&gt; getInputParameters() {
+<span class="nc" id="L102">        return inputParameters;</span>
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public ServerCallSpec getCall() {
+<span class="nc" id="L107">        return call.get();</span>
+    }
+
+    public void setCall(ServerCallSpec call) {
+<span class="nc" id="L111">        this.call.set(call);</span>
+<span class="nc" id="L112">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Map&lt;String, Object&gt; getWith() {
+<span class="nc" id="L116">        return with.get();</span>
+    }
+
+    public void setWith(Map&lt;String, Object&gt; with) {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        this.with.set(with != null ? Map.copyOf(with) : null);</span>
+<span class="nc" id="L121">    }</span>
+
+    public List&lt;OperationStepSpec&gt; getSteps() {
+<span class="nc" id="L124">        return steps;</span>
+    }
+
+    public List&lt;StepOutputMappingSpec&gt; getMappings() {
+<span class="nc" id="L128">        return mappings;</span>
+    }
+
+    public List&lt;OutputParameterSpec&gt; getOutputParameters() {
+<span class="nc" id="L132">        return outputParameters;</span>
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public McpToolHintsSpec getHints() {
+<span class="nc" id="L137">        return hints.get();</span>
+    }
+
+    public void setHints(McpToolHintsSpec hints) {
+<span class="nc" id="L141">        this.hints.set(hints);</span>
+<span class="nc" id="L142">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getRef() {
+<span class="nc" id="L146">        return ref.get();</span>
+    }
+
+    public void setRef(String ref) {
+<span class="nc" id="L150">        this.ref.set(ref);</span>
+<span class="nc" id="L151">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

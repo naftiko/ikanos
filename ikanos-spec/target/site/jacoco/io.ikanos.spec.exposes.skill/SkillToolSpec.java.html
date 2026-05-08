@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SkillToolSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.skill</a> &gt; <span class="el_source">SkillToolSpec.java</span></div><h1>SkillToolSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.skill;
+
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * A tool declared within a skill.
+ *
+ * &lt;p&gt;Exactly one of {@code from} (derived from a sibling {@code api} or {@code mcp} adapter) or
+ * {@code instruction} (path to a local file relative to the skill's {@code location} directory)
+ * must be specified.&lt;/p&gt;
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each field is held in an {@link AtomicReference}. This satisfies SonarQube rule
+ * {@code java:S3077}.
+ */
+public class SkillToolSpec {
+
+<span class="fc" id="L33">    private final AtomicReference&lt;String&gt; name = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L34">    private final AtomicReference&lt;String&gt; description = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L35">    private final AtomicReference&lt;SkillToolFromSpec&gt; from = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L36">    private final AtomicReference&lt;String&gt; instruction = new AtomicReference&lt;&gt;();</span>
+
+<span class="fc" id="L38">    public SkillToolSpec() {}</span>
+
+    public String getName() {
+<span class="fc" id="L41">        return name.get();</span>
+    }
+
+    public void setName(String name) {
+<span class="fc" id="L45">        this.name.set(name);</span>
+<span class="fc" id="L46">    }</span>
+
+    public String getDescription() {
+<span class="fc" id="L49">        return description.get();</span>
+    }
+
+    public void setDescription(String description) {
+<span class="fc" id="L53">        this.description.set(description);</span>
+<span class="fc" id="L54">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public SkillToolFromSpec getFrom() {
+<span class="fc" id="L58">        return from.get();</span>
+    }
+
+    public void setFrom(SkillToolFromSpec from) {
+<span class="fc" id="L62">        this.from.set(from);</span>
+<span class="fc" id="L63">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getInstruction() {
+<span class="fc" id="L67">        return instruction.get();</span>
+    }
+
+    public void setInstruction(String instruction) {
+<span class="fc" id="L71">        this.instruction.set(instruction);</span>
+<span class="fc" id="L72">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

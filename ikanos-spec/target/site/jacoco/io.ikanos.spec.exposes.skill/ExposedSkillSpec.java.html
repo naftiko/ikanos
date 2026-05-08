@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExposedSkillSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.skill</a> &gt; <span class="el_source">ExposedSkillSpec.java</span></div><h1>ExposedSkillSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.skill;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * A skill definition.
+ *
+ * &lt;p&gt;Supports the full &lt;a href=&quot;https://agentskills.io/specification&quot;&gt;Agent Skills Spec&lt;/a&gt;
+ * frontmatter properties. Skills describe tools from sibling {@code api} or {@code mcp} adapters,
+ * or from local file instructions — they do not execute tools themselves.&lt;/p&gt;
+ *
+ * &lt;p&gt;A skill may:&lt;/p&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;Declare derived tools (via {@code from}) that reference sibling adapter operations&lt;/li&gt;
+ *   &lt;li&gt;Declare instruction tools (via {@code instruction}) backed by local files&lt;/li&gt;
+ *   &lt;li&gt;Stand alone as purely descriptive (no tools, just metadata and {@code location} files)&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each scalar field is held in an {@link AtomicReference}; the {@code metadata} map is stored
+ * as an immutable snapshot. The {@code tools} list is a {@link CopyOnWriteArrayList}. This
+ * satisfies SonarQube rule {@code java:S3077}.
+ */
+public class ExposedSkillSpec {
+
+<span class="fc" id="L45">    private final AtomicReference&lt;String&gt; name = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L46">    private final AtomicReference&lt;String&gt; description = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L47">    private final AtomicReference&lt;String&gt; license = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L48">    private final AtomicReference&lt;String&gt; compatibility = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L49">    private final AtomicReference&lt;Map&lt;String, String&gt;&gt; metadata = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L50">    private final AtomicReference&lt;String&gt; allowedTools = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L51">    private final AtomicReference&lt;String&gt; argumentHint = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L52">    private final AtomicReference&lt;Boolean&gt; userInvocable = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L53">    private final AtomicReference&lt;Boolean&gt; disableModelInvocation = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L54">    private final AtomicReference&lt;String&gt; location = new AtomicReference&lt;&gt;();</span>
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;SkillToolSpec&gt; tools;
+
+<span class="fc" id="L59">    public ExposedSkillSpec() {</span>
+<span class="fc" id="L60">        this.tools = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L61">    }</span>
+
+    public String getName() {
+<span class="fc" id="L64">        return name.get();</span>
+    }
+
+    public void setName(String name) {
+<span class="fc" id="L68">        this.name.set(name);</span>
+<span class="fc" id="L69">    }</span>
+
+    public String getDescription() {
+<span class="fc" id="L72">        return description.get();</span>
+    }
+
+    public void setDescription(String description) {
+<span class="fc" id="L76">        this.description.set(description);</span>
+<span class="fc" id="L77">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getLicense() {
+<span class="fc" id="L81">        return license.get();</span>
+    }
+
+    public void setLicense(String license) {
+<span class="nc" id="L85">        this.license.set(license);</span>
+<span class="nc" id="L86">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getCompatibility() {
+<span class="fc" id="L90">        return compatibility.get();</span>
+    }
+
+    public void setCompatibility(String compatibility) {
+<span class="nc" id="L94">        this.compatibility.set(compatibility);</span>
+<span class="nc" id="L95">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public Map&lt;String, String&gt; getMetadata() {
+<span class="fc" id="L99">        return metadata.get();</span>
+    }
+
+    public void setMetadata(Map&lt;String, String&gt; metadata) {
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        this.metadata.set(metadata != null ? Map.copyOf(metadata) : null);</span>
+<span class="nc" id="L104">    }</span>
+
+    @JsonProperty(&quot;allowed-tools&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getAllowedTools() {
+<span class="fc" id="L109">        return allowedTools.get();</span>
+    }
+
+    @JsonProperty(&quot;allowed-tools&quot;)
+    public void setAllowedTools(String allowedTools) {
+<span class="fc" id="L114">        this.allowedTools.set(allowedTools);</span>
+<span class="fc" id="L115">    }</span>
+
+    @JsonProperty(&quot;argument-hint&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getArgumentHint() {
+<span class="fc" id="L120">        return argumentHint.get();</span>
+    }
+
+    @JsonProperty(&quot;argument-hint&quot;)
+    public void setArgumentHint(String argumentHint) {
+<span class="fc" id="L125">        this.argumentHint.set(argumentHint);</span>
+<span class="fc" id="L126">    }</span>
+
+    @JsonProperty(&quot;user-invocable&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Boolean getUserInvocable() {
+<span class="fc" id="L131">        return userInvocable.get();</span>
+    }
+
+    @JsonProperty(&quot;user-invocable&quot;)
+    public void setUserInvocable(Boolean userInvocable) {
+<span class="nc" id="L136">        this.userInvocable.set(userInvocable);</span>
+<span class="nc" id="L137">    }</span>
+
+    @JsonProperty(&quot;disable-model-invocation&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Boolean getDisableModelInvocation() {
+<span class="fc" id="L142">        return disableModelInvocation.get();</span>
+    }
+
+    @JsonProperty(&quot;disable-model-invocation&quot;)
+    public void setDisableModelInvocation(Boolean disableModelInvocation) {
+<span class="nc" id="L147">        this.disableModelInvocation.set(disableModelInvocation);</span>
+<span class="nc" id="L148">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getLocation() {
+<span class="fc" id="L152">        return location.get();</span>
+    }
+
+    public void setLocation(String location) {
+<span class="fc" id="L156">        this.location.set(location);</span>
+<span class="fc" id="L157">    }</span>
+
+    public List&lt;SkillToolSpec&gt; getTools() {
+<span class="fc" id="L160">        return tools;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

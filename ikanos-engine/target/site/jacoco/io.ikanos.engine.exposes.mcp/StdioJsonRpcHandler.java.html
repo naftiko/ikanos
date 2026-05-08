@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StdioJsonRpcHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.mcp</a> &gt; <span class="el_source">StdioJsonRpcHandler.java</span></div><h1>StdioJsonRpcHandler.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.mcp;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.util.logging.Level;
+import org.restlet.Context;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+/**
+ * MCP stdio transport handler.
+ * 
+ * Reads newline-delimited JSON-RPC messages from stdin and writes responses
+ * to stdout. Designed for local IDE integration where the capability process
+ * is launched as a subprocess.
+ * 
+ * &lt;p&gt;All diagnostic logging goes to stderr since stdout is reserved for
+ * the JSON-RPC protocol.&lt;/p&gt;
+ */
+public class StdioJsonRpcHandler implements Runnable {
+
+    private final ProtocolDispatcher dispatcher;
+    private final InputStream input;
+    private final PrintStream output;
+    private volatile boolean running;
+
+    /**
+     * Create a stdio handler using System.in / System.out.
+     */
+    public StdioJsonRpcHandler(ProtocolDispatcher dispatcher) {
+<span class="fc" id="L50">        this(dispatcher, System.in, System.out);</span>
+<span class="fc" id="L51">    }</span>
+
+    /**
+     * Create a stdio handler with explicit streams (for testing).
+     */
+    public StdioJsonRpcHandler(ProtocolDispatcher dispatcher,
+<span class="fc" id="L57">                               InputStream input, OutputStream output) {</span>
+<span class="fc" id="L58">        this.dispatcher = dispatcher;</span>
+<span class="fc" id="L59">        this.input = input;</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        this.output = (output instanceof PrintStream)</span>
+<span class="fc" id="L61">                ? (PrintStream) output</span>
+<span class="fc" id="L62">                : new PrintStream(output, true, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L63">        this.running = true;</span>
+<span class="fc" id="L64">    }</span>
+
+    @Override
+    public void run() {
+<span class="fc" id="L68">        try (BufferedReader reader = new BufferedReader(</span>
+                new InputStreamReader(input, StandardCharsets.UTF_8))) {
+
+            String line;
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">            while (running &amp;&amp; (line = reader.readLine()) != null) {</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                if (line.isBlank()) {</span>
+<span class="nc" id="L74">                    continue;</span>
+                }
+
+                try {
+<span class="fc" id="L78">                    JsonNode request = dispatcher.getMapper().readTree(line);</span>
+<span class="fc" id="L79">                    ObjectNode response = dispatcher.dispatch(request);</span>
+
+                    // Notifications return null — no response to write
+<span class="fc bfc" id="L82" title="All 2 branches covered.">                    if (response != null) {</span>
+<span class="fc" id="L83">                        String json = dispatcher.getMapper().writeValueAsString(response);</span>
+<span class="fc" id="L84">                        output.println(json);</span>
+<span class="fc" id="L85">                        output.flush();</span>
+                    }
+<span class="nc" id="L87">                } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L88">                    Context.getCurrentLogger().log(Level.SEVERE, &quot;Error processing request&quot;, e);</span>
+
+
+                    // Malformed JSON — write parse error response
+<span class="nc" id="L92">                    ObjectNode errorResponse = dispatcher.buildJsonRpcError(</span>
+<span class="nc" id="L93">                            null, -32700, &quot;Parse error: &quot; + e.getMessage());</span>
+                    try {
+<span class="nc" id="L95">                        output.println(dispatcher.getMapper().writeValueAsString(errorResponse));</span>
+<span class="nc" id="L96">                        output.flush();</span>
+<span class="nc" id="L97">                    } catch (JsonProcessingException ignored) {</span>
+<span class="nc" id="L98">                        Context.getCurrentLogger().log(Level.SEVERE, &quot;Error serializing error response&quot;, ignored);</span>
+                        // Cannot serialize the error response — nothing more we can do
+<span class="nc" id="L100">                    }</span>
+<span class="pc" id="L101">                }</span>
+            }
+<span class="nc" id="L103">        } catch (IOException e) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">            if (running) {</span>
+<span class="nc" id="L105">                System.err.println(&quot;MCP stdio error: &quot; + e.getMessage());</span>
+<span class="nc" id="L106">                Context.getCurrentLogger().log(Level.SEVERE, &quot;MCP stdio error&quot;, e);</span>
+            }
+<span class="fc" id="L108">        }</span>
+<span class="fc" id="L109">    }</span>
+
+    /**
+     * Signal the handler to stop reading.
+     */
+    public void shutdown() {
+<span class="nc" id="L115">        this.running = false;</span>
+        try {
+<span class="nc" id="L117">            input.close();</span>
+<span class="nc" id="L118">        } catch (IOException ignored) {</span>
+<span class="nc" id="L119">            Context.getCurrentLogger().log(Level.SEVERE, &quot;Error closing input stream&quot;, ignored);</span>
+            // Best-effort close to interrupt the read loop
+<span class="nc" id="L121">        }</span>
+<span class="nc" id="L122">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

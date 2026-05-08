@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpOAuth2Restlet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.mcp</a> &gt; <span class="el_source">McpOAuth2Restlet.java</span></div><h1>McpOAuth2Restlet.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.mcp;
+
+import java.net.URI;
+import java.util.List;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.Restlet;
+import org.restlet.data.MediaType;
+import org.restlet.data.Method;
+import org.restlet.data.Status;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nimbusds.jose.jwk.JWKSet;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
+import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+
+/**
+ * MCP-specific OAuth 2.1 Restlet that extends {@link OAuth2AuthenticationRestlet} with
+ * MCP 2025-11-25 protocol behavior:
+ * &lt;ul&gt;
+ *   &lt;li&gt;Auto-serves Protected Resource Metadata (RFC 9728) at the well-known path&lt;/li&gt;
+ *   &lt;li&gt;Includes {@code resource_metadata} URL in {@code WWW-Authenticate} headers&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
+
+<span class="fc" id="L42">    private static final ObjectMapper JSON = new ObjectMapper();</span>
+
+    private final String metadataPath;
+    private final String metadataUri;
+    private final String metadataJson;
+
+    public McpOAuth2Restlet(OAuth2AuthenticationSpec spec, Restlet next) {
+<span class="fc" id="L49">        this(spec, next, null);</span>
+<span class="fc" id="L50">    }</span>
+
+    /**
+     * Test constructor — allows injecting a pre-loaded JWK set.
+     */
+    McpOAuth2Restlet(OAuth2AuthenticationSpec spec, Restlet next, JWKSet jwkSet) {
+<span class="fc" id="L56">        super(spec, next, jwkSet);</span>
+
+<span class="fc" id="L58">        URI resourceUri = URI.create(spec.getResource());</span>
+<span class="fc" id="L59">        String resourcePath = resourceUri.getPath();</span>
+<span class="pc bpc" id="L60" title="1 of 6 branches missed.">        if (resourcePath == null || &quot;/&quot;.equals(resourcePath) || resourcePath.isEmpty()) {</span>
+<span class="fc" id="L61">            this.metadataPath = &quot;/.well-known/oauth-protected-resource&quot;;</span>
+        } else {
+<span class="fc" id="L63">            this.metadataPath = &quot;/.well-known/oauth-protected-resource&quot; + resourcePath;</span>
+        }
+<span class="fc" id="L65">        this.metadataUri = resourceUri.getScheme() + &quot;://&quot; + resourceUri.getAuthority()</span>
+                + metadataPath;
+<span class="fc" id="L67">        this.metadataJson = buildProtectedResourceMetadata(spec);</span>
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public void handle(Request request, Response response) {
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        String path = request.getResourceRef() != null ? request.getResourceRef().getPath() : null;</span>
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">        if (Method.GET.equals(request.getMethod()) &amp;&amp; metadataPath.equals(path)) {</span>
+<span class="fc" id="L74">            serveProtectedResourceMetadata(response);</span>
+<span class="fc" id="L75">            return;</span>
+        }
+
+<span class="fc" id="L78">        super.handle(request, response);</span>
+<span class="fc" id="L79">    }</span>
+
+    @Override
+    protected String buildBearerChallengeParams(String error, String description, String scope) {
+<span class="fc" id="L83">        String baseParams = super.buildBearerChallengeParams(error, description, scope);</span>
+<span class="fc" id="L84">        String metadata = &quot;resource_metadata=\&quot;&quot; + metadataUri + &quot;\&quot;&quot;;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (baseParams.isEmpty()) {</span>
+<span class="fc" id="L86">            return metadata;</span>
+        }
+<span class="fc" id="L88">        return baseParams + &quot;, &quot; + metadata;</span>
+    }
+
+    void serveProtectedResourceMetadata(Response response) {
+<span class="fc" id="L92">        response.setStatus(Status.SUCCESS_OK);</span>
+<span class="fc" id="L93">        response.setEntity(metadataJson, MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L94">    }</span>
+
+    String getMetadataPath() {
+<span class="fc" id="L97">        return metadataPath;</span>
+    }
+
+    String getMetadataUri() {
+<span class="nc" id="L101">        return metadataUri;</span>
+    }
+
+    private static String buildProtectedResourceMetadata(OAuth2AuthenticationSpec spec) {
+<span class="fc" id="L105">        ObjectNode metadata = JSON.createObjectNode();</span>
+<span class="fc" id="L106">        metadata.put(&quot;resource&quot;, spec.getResource());</span>
+
+<span class="fc" id="L108">        ArrayNode authServers = metadata.putArray(&quot;authorization_servers&quot;);</span>
+<span class="fc" id="L109">        authServers.add(spec.getAuthorizationServerUri());</span>
+
+<span class="fc" id="L111">        List&lt;String&gt; scopes = spec.getScopes();</span>
+<span class="pc bpc" id="L112" title="1 of 4 branches missed.">        if (scopes != null &amp;&amp; !scopes.isEmpty()) {</span>
+<span class="fc" id="L113">            ArrayNode scopesArray = metadata.putArray(&quot;scopes_supported&quot;);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            for (String scope : scopes) {</span>
+<span class="fc" id="L115">                scopesArray.add(scope);</span>
+<span class="fc" id="L116">            }</span>
+        }
+
+<span class="fc" id="L119">        ArrayNode bearerMethods = metadata.putArray(&quot;bearer_methods_supported&quot;);</span>
+<span class="fc" id="L120">        bearerMethods.add(&quot;header&quot;);</span>
+
+        try {
+<span class="fc" id="L123">            return JSON.writeValueAsString(metadata);</span>
+<span class="nc" id="L124">        } catch (JsonProcessingException e) {</span>
+<span class="nc" id="L125">            throw new IllegalStateException(&quot;Failed to serialize Protected Resource Metadata&quot;, e);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

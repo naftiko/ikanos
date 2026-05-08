@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "MCP Hints Test Capability"
+  description: "Test capability for MCP tool hints (ToolAnnotations) support"
+  tags:
+    - Test
+    - MCP
+  created: "2026-04-03"
+  modified: "2026-04-03"
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9098
+      namespace: "hints-mcp"
+      description: "Test MCP server for validating tool hints mapped to ToolAnnotations."
+
+      tools:
+        - name: "read-data"
+          label: "Read Data"
+          description: "Read-only data retrieval tool."
+          hints:
+            readOnly: true
+            openWorld: true
+          call: "mock-api.get-data"
+          outputParameters:
+            - type: "string"
+              mapping: "$.result"
+
+        - name: "delete-record"
+          description: "Destructive record deletion tool."
+          hints:
+            readOnly: false
+            destructive: true
+            idempotent: true
+            openWorld: false
+          inputParameters:
+            - name: "record-id"
+              type: "string"
+              description: "ID of the record to delete"
+              required: true
+          call: "mock-api.delete-record"
+          with:
+            id: "$this.hints-mcp.record-id"
+
+        - name: "no-hints-tool"
+          description: "Tool without any hints for backward compatibility testing."
+          call: "mock-api.get-data"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-api"
+      baseUri: "http://localhost:8080/v1"
+      resources:
+        - path: "data"
+          name: "data"
+          operations:
+            - method: "GET"
+              name: "get-data"
+            - method: "DELETE"
+              name: "delete-record"

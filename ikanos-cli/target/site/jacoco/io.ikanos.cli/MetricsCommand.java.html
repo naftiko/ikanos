@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetricsCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos CLI</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.cli</a> &gt; <span class="el_source">MetricsCommand.java</span></div><h1>MetricsCommand.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.cli;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Option;
+import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * CLI command that fetches Prometheus metrics from the control port. Connects to
+ * {@code /metrics} and outputs Prometheus exposition format.
+ */
+@Command(
+    name = &quot;metrics&quot;,
+    mixinStandardHelpOptions = true,
+    description = &quot;Fetch Prometheus metrics from the control port.&quot;
+)
+<span class="fc" id="L33">public class MetricsCommand implements Callable&lt;Integer&gt; {</span>
+
+<span class="fc" id="L35">    private static final Logger logger = LoggerFactory.getLogger(MetricsCommand.class);</span>
+
+    @Mixin
+    ControlPortMixin controlPort;
+
+    @Option(names = &quot;--filter&quot;, description = &quot;Regex filter on metric names&quot;)
+    String filter;
+
+    @Override
+    public Integer call() {
+<span class="fc" id="L45">        ControlPortClient client = new ControlPortClient(controlPort.baseUrl());</span>
+
+        try {
+<span class="fc" id="L48">            ControlPortClient.ControlPortResponse response = client.getPlain(&quot;/metrics&quot;);</span>
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (response.statusCode() == 503) {</span>
+<span class="fc" id="L51">                System.err.println(&quot;Metrics unavailable: OpenTelemetry is not active.&quot;);</span>
+<span class="fc" id="L52">                return 1;</span>
+            }
+
+<span class="fc" id="L55">            String body = response.body();</span>
+
+<span class="pc bpc" id="L57" title="1 of 4 branches missed.">            if (filter != null &amp;&amp; !filter.isBlank()) {</span>
+<span class="fc" id="L58">                Pattern pattern = Pattern.compile(filter, Pattern.CASE_INSENSITIVE);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">                for (String line : body.split(&quot;\n&quot;)) {</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">                    if (pattern.matcher(line).find()) {</span>
+<span class="fc" id="L61">                        System.out.println(line);</span>
+                    }
+                }
+<span class="fc" id="L64">            } else {</span>
+<span class="fc" id="L65">                System.out.print(body);</span>
+            }
+
+<span class="fc" id="L68">            return 0;</span>
+
+<span class="fc" id="L70">        } catch (ControlPortClient.ControlPortUnreachableException e) {</span>
+<span class="fc" id="L71">            ControlPortMixin.printUnreachableError(controlPort.baseUrl());</span>
+<span class="fc" id="L72">            return 1;</span>
+<span class="nc" id="L73">        } catch (Exception e) {</span>
+<span class="nc" id="L74">            System.err.println(&quot;Error: &quot; + e.getMessage());</span>
+<span class="nc" id="L75">            logger.debug(&quot;Metrics command failed&quot;, e);</span>
+<span class="nc" id="L76">            return 1;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

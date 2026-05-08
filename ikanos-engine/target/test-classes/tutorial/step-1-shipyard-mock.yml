@@ -1,0 +1,32 @@
+ikanos: "1.0.0-alpha3"
+
+capability:
+  exposes:
+    - type: mcp
+      port: 3001
+      namespace: shipyard-tools
+      description: "Shipyard MCP tools — mock mode"
+      tools:
+        - name: get-ship
+          description: "Retrieve a ship's details by IMO number"
+          inputParameters:
+            - name: imo_number
+              type: string
+              required: true
+              description: "IMO number of the ship"
+          outputParameters:
+            - name: imo
+              type: string
+              value: "{{imo_number}}"
+            - name: name
+              type: string
+              value: "Northern Star"
+            - name: type
+              type: string
+              value: "cargo"
+            - name: flag
+              type: string
+              value: "NO"
+            - name: status
+              type: string
+              value: "active"

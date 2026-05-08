@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "XML Test Capability"
+  description: "Test capability for XML parsing from API responses"
+  tags:
+    - Test
+    - XML
+  created: "2026-02-21"
+  modified: "2026-02-21"
+
+capability:
+  exposes:
+    - type: "rest"
+      address: "localhost"
+      port: 9091
+      namespace: "test-xml"
+
+      resources:
+        - path: "/xml/users"
+          name: "users"
+          label: "XML Users Resource"
+          description: "Test resource that parses XML responses"
+          operations:
+            - method: "GET"
+              call: "mock-xml.get-users"
+              outputParameters:
+                - type: "array"
+                  mapping: "$.root.user"
+                  items:
+                    type: "object"
+                    properties:
+                      id:
+                        type: "string"
+                        mapping: "$.id"
+                      name:
+                        type: "string"
+                        mapping: "$.name"
+                      email:
+                        type: "string"
+                        mapping: "$.email"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-xml"
+      baseUri: "http://localhost:8080"
+      inputParameters:
+        - name: "User-Agent"
+          in: "header"
+          value: "Naftiko/1.0.0-alpha2"
+
+      resources:
+        - path: "api/users"
+          name: "users"
+          label: "Mock Users API"
+          operations:
+            - method: "GET"
+              name: "get-users"
+              label: "Get Users"
+              outputRawFormat: "xml"

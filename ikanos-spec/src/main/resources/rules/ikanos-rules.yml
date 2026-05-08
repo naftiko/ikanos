@@ -1,0 +1,380 @@
+# yaml-language-server: $schema=ruleset-schema.json
+# Ikanos Polychro Ruleset v0.5
+#
+# A Spectral ruleset adapted to the Ikanos Specification v0.5.
+#
+# IMPORTANT:
+# - This ruleset intentionally avoids duplicating constraints already enforced
+#   by src/main/resources/schemas/ikanos-schema.json.
+# - It focuses on cross-object consistency, style hygiene, and security checks.
+# - It supports both full capabilities and shared consumes documents
+#   (root-level `consumes` without `capability`).
+#
+# Usage:
+#   npx @stoplight/spectral-cli lint my-capability.yml --ruleset ikanos-rules.yml
+#
+# Rules are organized into three categories:
+#   1. Structure & consistency      — validate cross-object constraints not covered by schema
+#   2. Quality & discoverability    — promote good description hygiene for agent discovery
+#   3. Security                     — guard against injection and unsafe content
+
+extends: []
+
+functionsDir: ./functions
+
+functions:
+  - unique-namespaces
+  - aggregate-semantics-consistency
+  - control-port-validation
+  - script-defaults-required
+
+rules:
+
+  # ────────────────────────────────────────────────────────────────
+  # 1. STRUCTURE & CONSISTENCY
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-namespaces-unique:
+    message: "Namespaces must be globally unique across all adapters and bindings."
+    description: >
+      The same namespace must not be reused across root `consumes`,
+      `capability.consumes`, `capability.exposes`, root `binds`,
+      and `capability.binds`.
+      This prevents ambiguous routing, reference resolution, and
+      variable resolution.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: unique-namespaces
+
+  ikanos-consumes-baseuri-no-trailing-slash:
+    message: "The `consumes.baseUri` should not have a trailing slash."
+    description: >
+      A trailing slash on the baseUri can cause double-slash issues when the
+      resource path is appended (e.g. https://api.example.com//users).
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[*].baseUri"
+      - "$.capability.consumes[*].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  ikanos-consumed-resource-no-query-in-path:
+    message: "Consumed resource `path` must not contain a query string. Use `inputParameters` with `in: query` instead."
+    description: >
+      Query parameters belong in the inputParameters array with in: query,
+      not in the path string.
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'http')].resources[*].path"
+      - "$.capability.consumes[?(@.type == 'http')].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\\?"
+
+  ikanos-rest-resource-path-no-trailing-slash:
+    message: "Exposed resource `path` must not have a trailing slash."
+    description: >
+      Trailing slashes on resource paths can cause confusion in routing,
+      documentation, and client code generation.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  ikanos-rest-resource-path-no-query:
+    message: "Exposed resource `path` must not contain a query string. Use `inputParameters` with `in: query` instead."
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].path"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\\?"
+
+  ikanos-address-not-example:
+    message: "Server `address`, when present, should not be example.com."
+    description: >
+      Placeholder hosts are discouraged in production-bound capability documents.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest')].address"
+      - "$.capability.exposes[?(@.type == 'mcp')].address"
+      - "$.capability.exposes[?(@.type == 'skill')].address"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "example\\.com$"
+
+  ikanos-aggregate-function-description:
+    message: "Each aggregate function should have a `description` field."
+    description: >
+      Function descriptions are inherited by adapter units and improve agent
+      discoverability.
+    severity: warn
+    recommended: true
+    given: "$.capability.aggregates[*].functions[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  ikanos-aggregate-semantics-consistency:
+    message: "Aggregate function semantics must be consistent with MCP tool hints and REST operation methods."
+    description: >
+      When an MCP tool or REST operation references an aggregate function via `ref`,
+      any explicit hints or HTTP methods should not contradict the function's declared
+      semantics. For example, a safe function should not have destructive=true hints
+      or use a POST/DELETE method.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: aggregate-semantics-consistency
+
+  ikanos-mcp-auth-stdio-conflict:
+    message: "MCP `authentication` should not be set when `transport` is `stdio`."
+    description: >
+      Per MCP specification §1.2, stdio transport should not follow the HTTP
+      authorization flow — credentials are retrieved from the environment instead.
+      Authentication is only meaningful for the HTTP transport.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'mcp' && @.transport == 'stdio')]"
+    then:
+      field: "authentication"
+      function: falsy
+
+  ikanos-oauth2-https-authserver:
+    message: "OAuth2 `authorizationServerUri` must use the `https://` scheme."
+    description: >
+      The OAuth 2.1 specification requires all authorization server endpoints to be
+      served over HTTPS. A non-HTTPS authorization server URI is a security risk.
+    severity: error
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "authorizationServerUri"
+      function: pattern
+      functionOptions:
+        match: "^https://"
+
+  ikanos-oauth2-resource-https:
+    message: "OAuth2 `resource` should use the `https://` scheme for production."
+    description: >
+      The resource URI identifies this server in Protected Resource Metadata and
+      audience validation. Using HTTPS ensures proper security in production.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "resource"
+      function: pattern
+      functionOptions:
+        match: "^https://"
+
+  ikanos-oauth2-scopes-defined:
+    message: "OAuth2 authentication should define `scopes` for scope challenge support."
+    description: >
+      Defining scopes enables the server to include scope information in
+      WWW-Authenticate challenges and Protected Resource Metadata, improving
+      client interoperability.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
+    then:
+      field: "scopes"
+      function: truthy
+
+  # ────────────────────────────────────────────────────────────────
+  # 2. QUALITY & DISCOVERABILITY
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-info-tags:
+    message: "The `info.tags` array should be present and non-empty."
+    description: >
+      Tags help categorize the capability for discovery and filtering.
+      At least one tag improves agent cataloging.
+    severity: info
+    recommended: false
+    given: "$.info"
+    then:
+      field: "tags"
+      function: truthy
+
+  ikanos-consumes-description:
+    message: "Each `consumes` entry should have a `description` field."
+    description: >
+      A description of the consumed API improves agent understanding of
+      what external service is being used and why.
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[*]"
+      - "$.capability.consumes[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  ikanos-rest-resource-description:
+    message: "Each exposed REST resource should have a `description` field."
+    description: >
+      Resource descriptions are used by agents to understand the purpose of
+      each endpoint. In a world of agents, context is king.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  ikanos-rest-operation-description:
+    message: "Exposed REST operations should have a `description` field."
+    description: >
+      Analogous to operation-description in OAS. Descriptions help agents
+      understand which operations to invoke and when.
+    severity: info
+    recommended: false
+    given: "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*]"
+    then:
+      field: "description"
+      function: truthy
+
+  ikanos-steps-name-pattern:
+    message: "Orchestration step `name` should follow the pattern ^[A-Za-z0-9_-]+$."
+    description: >
+      Analogous to arazzo-step-stepId. Step names are used as references
+      within Mustache templates (e.g. {{step-name.output}}). Using a
+      consistent naming pattern prevents reference errors.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].steps[*].name"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].steps[*].name"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[A-Za-z0-9_-]+$"
+
+  # ────────────────────────────────────────────────────────────────
+  # 3. SECURITY
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-no-script-tags-in-markdown:
+    message: "Markdown fields must not contain <script> tags."
+    description: >
+      Analogous to no-script-tags-in-markdown (OAS) and arazzo-no-script-tags-in-markdown.
+      Protects against XSS attacks when capability documents from third parties
+      are rendered in HTML documentation or agent UIs.
+    severity: error
+    recommended: true
+    given:
+      - "$.info.description"
+      - "$.info.label"
+      - "$.capability.exposes[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
+      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
+      - "$.consumes[*].description"
+      - "$.capability.consumes[*].description"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "<script"
+
+  ikanos-no-eval-in-markdown:
+    message: "Markdown fields must not contain eval() calls."
+    description: >
+      Analogous to no-eval-in-markdown (OAS). Protects against JavaScript
+      injection attacks when description content is rendered in
+      HTML/JS-based documentation or agent tooling.
+    severity: error
+    recommended: true
+    given:
+      - "$.info.description"
+      - "$.info.label"
+      - "$.capability.exposes[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].description"
+      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
+      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
+      - "$.consumes[*].description"
+      - "$.capability.consumes[*].description"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "eval\\("
+
+  ikanos-baseuri-not-example:
+    message: "The `consumes.baseUri` should not point to example.com."
+    description: >
+      Analogous to oas2-host-not-example and oas3-server-not-example.com.
+      Placeholder example.com URIs should never appear in production-bound
+      capability documents — use real service URLs instead.
+    severity: warn
+    recommended: false
+    given:
+      - "$.consumes[*].baseUri"
+      - "$.capability.consumes[*].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "example\\.com"
+
+  # ────────────────────────────────────────────────────────────────
+  # 4. CONTROL PORT
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-control-port-singleton-and-unique:
+    message: "Control port validation failed."
+    description: >
+      At most one type: control adapter is allowed per capability, and its
+      port must not conflict with any business adapter port.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: control-port-validation
+
+  ikanos-control-address-localhost-warning:
+    message: "Control adapter `address` should be `localhost` or `127.0.0.1` for security."
+    description: >
+      Binding the control port to a non-localhost address exposes management
+      endpoints to the network. Use a Kubernetes NetworkPolicy or firewall
+      rule to restrict access in production.
+    severity: warn
+    recommended: true
+    given: "$.capability.exposes[?(@.type == 'control')].address"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(localhost|127\\.0\\.0\\.1)$"
+
+  # ────────────────────────────────────────────────────────────────
+  # 5. SCRIPT STEPS
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-script-defaults-required:
+    message: >-
+      {{error}}
+    description: >
+      Every script step must have a resolvable scripts directory and language.
+      When a step omits 'location' or 'language', the engine falls back to
+      'management.scripting.defaultLocation' or 'management.scripting.defaultLanguage'
+      on the control adapter. If neither is set, the capability will fail at load time.
+      This rule catches the misconfiguration at lint time.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: script-defaults-required

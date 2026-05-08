@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScriptingManagementSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.control</a> &gt; <span class="el_source">ScriptingManagementSpec.java</span></div><h1>ScriptingManagementSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.control;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Scripting governance controls exposed via the Control Port.
+ *
+ * &lt;p&gt;Configures defaults, limits, and runtime toggles for script steps. When present on the
+ * control adapter, this spec provides default {@code location} and {@code language} values for
+ * script steps that omit them.&lt;/p&gt;
+ *
+ * &lt;p&gt;The {@code enabled} field is nullable. When {@code null} (omitted in YAML), the engine
+ * falls back to the {@code IKANOS_SCRIPTING} environment variable. When explicitly set to
+ * {@code true} or {@code false}, it overrides the environment variable.&lt;/p&gt;
+ */
+public class ScriptingManagementSpec {
+
+    @JsonProperty(&quot;enabled&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile Boolean enabled;
+
+    @JsonProperty(&quot;defaultLocation&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String defaultLocation;
+
+    @JsonProperty(&quot;defaultLanguage&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String defaultLanguage;
+
+<span class="nc" id="L48">    @JsonProperty(&quot;timeout&quot;)</span>
+    private volatile int timeout = 60_000;
+
+<span class="nc" id="L51">    @JsonProperty(&quot;statementLimit&quot;)</span>
+    private volatile long statementLimit = 100_000;
+
+    @JsonProperty(&quot;allowedLanguages&quot;)
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;String&gt; allowedLanguages;
+
+    // ── Execution stats (runtime-only, not deserialized from YAML) ──
+
+<span class="nc" id="L60">    @JsonIgnore</span>
+    private final AtomicLong totalExecutions = new AtomicLong();
+
+<span class="nc" id="L63">    @JsonIgnore</span>
+    private final AtomicLong totalErrors = new AtomicLong();
+
+<span class="nc" id="L66">    @JsonIgnore</span>
+    private final AtomicLong totalDurationNanos = new AtomicLong();
+
+    @JsonIgnore
+    private volatile String lastExecutionAt;
+
+<span class="nc" id="L72">    public ScriptingManagementSpec() {</span>
+<span class="nc" id="L73">        this.allowedLanguages = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="nc" id="L74">    }</span>
+
+    public Boolean getEnabled() {
+<span class="nc" id="L77">        return enabled;</span>
+    }
+
+    public boolean isEnabled() {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        return enabled != null ? enabled : true;</span>
+    }
+
+    public void setEnabled(Boolean enabled) {
+<span class="nc" id="L85">        this.enabled = enabled;</span>
+<span class="nc" id="L86">    }</span>
+
+    public String getDefaultLocation() {
+<span class="nc" id="L89">        return defaultLocation;</span>
+    }
+
+    public void setDefaultLocation(String defaultLocation) {
+<span class="nc" id="L93">        this.defaultLocation = defaultLocation;</span>
+<span class="nc" id="L94">    }</span>
+
+    public String getDefaultLanguage() {
+<span class="nc" id="L97">        return defaultLanguage;</span>
+    }
+
+    public void setDefaultLanguage(String defaultLanguage) {
+<span class="nc" id="L101">        this.defaultLanguage = defaultLanguage;</span>
+<span class="nc" id="L102">    }</span>
+
+    public int getTimeout() {
+<span class="nc" id="L105">        return timeout;</span>
+    }
+
+    public void setTimeout(int timeout) {
+<span class="nc" id="L109">        this.timeout = timeout;</span>
+<span class="nc" id="L110">    }</span>
+
+    public long getStatementLimit() {
+<span class="nc" id="L113">        return statementLimit;</span>
+    }
+
+    public void setStatementLimit(long statementLimit) {
+<span class="nc" id="L117">        this.statementLimit = statementLimit;</span>
+<span class="nc" id="L118">    }</span>
+
+    public List&lt;String&gt; getAllowedLanguages() {
+<span class="nc" id="L121">        return allowedLanguages;</span>
+    }
+
+    // ── Execution stats accessors ──
+
+    public long getTotalExecutions() {
+<span class="nc" id="L127">        return totalExecutions.get();</span>
+    }
+
+    public long getTotalErrors() {
+<span class="nc" id="L131">        return totalErrors.get();</span>
+    }
+
+    public double getAverageDurationMs() {
+<span class="nc" id="L135">        long count = totalExecutions.get();</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (count == 0) {</span>
+<span class="nc" id="L137">            return 0;</span>
+        }
+<span class="nc" id="L139">        return (totalDurationNanos.get() / 1_000_000.0) / count;</span>
+    }
+
+    public String getLastExecutionAt() {
+<span class="nc" id="L143">        return lastExecutionAt;</span>
+    }
+
+    /**
+     * Records the outcome of a script step execution.
+     */
+    public void recordExecution(long durationNanos, boolean error) {
+<span class="nc" id="L150">        totalExecutions.incrementAndGet();</span>
+<span class="nc" id="L151">        totalDurationNanos.addAndGet(durationNanos);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (error) {</span>
+<span class="nc" id="L153">            totalErrors.incrementAndGet();</span>
+        }
+<span class="nc" id="L155">        lastExecutionAt = java.time.Instant.now().toString();</span>
+<span class="nc" id="L156">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

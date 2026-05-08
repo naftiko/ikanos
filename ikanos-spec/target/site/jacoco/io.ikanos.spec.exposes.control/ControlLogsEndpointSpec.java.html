@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ControlLogsEndpointSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.control</a> &gt; <span class="el_source">ControlLogsEndpointSpec.java</span></div><h1>ControlLogsEndpointSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.control;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
+/**
+ * Configuration for /logs endpoints on the control port. Supports a boolean shorthand ({@code logs:
+ * true}) that enables all log endpoints with defaults, or an object form for advanced configuration.
+ */
+@JsonDeserialize(using = ControlLogsEndpointSpecDeserializer.class)
+<span class="nc" id="L24">public class ControlLogsEndpointSpec {</span>
+
+<span class="nc" id="L26">    @JsonProperty(&quot;level-control&quot;)</span>
+    private volatile boolean levelControl = true;
+
+<span class="nc" id="L29">    private volatile boolean stream = false;</span>
+
+<span class="nc" id="L31">    @JsonProperty(&quot;max-subscribers&quot;)</span>
+    private volatile int maxSubscribers = 5;
+
+    public boolean isLevelControl() {
+<span class="nc" id="L35">        return levelControl;</span>
+    }
+
+    public void setLevelControl(boolean levelControl) {
+<span class="nc" id="L39">        this.levelControl = levelControl;</span>
+<span class="nc" id="L40">    }</span>
+
+    public boolean isStream() {
+<span class="nc" id="L43">        return stream;</span>
+    }
+
+    public void setStream(boolean stream) {
+<span class="nc" id="L47">        this.stream = stream;</span>
+<span class="nc" id="L48">    }</span>
+
+    public int getMaxSubscribers() {
+<span class="nc" id="L51">        return maxSubscribers;</span>
+    }
+
+    public void setMaxSubscribers(int maxSubscribers) {
+<span class="nc" id="L55">        this.maxSubscribers = maxSubscribers;</span>
+<span class="nc" id="L56">    }</span>
+
+    /**
+     * Creates a spec with all log endpoints enabled and default settings. Used when {@code logs:
+     * true} is specified.
+     */
+    static ControlLogsEndpointSpec allEnabled() {
+<span class="nc" id="L63">        ControlLogsEndpointSpec spec = new ControlLogsEndpointSpec();</span>
+<span class="nc" id="L64">        spec.setLevelControl(true);</span>
+<span class="nc" id="L65">        spec.setStream(true);</span>
+<span class="nc" id="L66">        return spec;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

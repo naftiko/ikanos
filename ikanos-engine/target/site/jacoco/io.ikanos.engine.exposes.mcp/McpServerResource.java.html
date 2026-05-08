@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpServerResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.mcp</a> &gt; <span class="el_source">McpServerResource.java</span></div><h1>McpServerResource.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.mcp;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.logging.Level;
+import org.restlet.data.MediaType;
+import org.restlet.data.Status;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Delete;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
+import org.restlet.resource.ServerResource;
+import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+/**
+ * Restlet ServerResource implementing the MCP Streamable HTTP transport protocol.
+ * 
+ * Handles a single endpoint supporting:
+ * &lt;ul&gt;
+ * &lt;li&gt;POST: JSON-RPC requests (initialize, tools/list, tools/call)&lt;/li&gt;
+ * &lt;li&gt;GET: SSE stream for server-initiated messages (returns 405 - not supported)&lt;/li&gt;
+ * &lt;li&gt;DELETE: Session termination&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * Delegates protocol dispatch to {@link ProtocolDispatcher} and adds HTTP-specific concerns:
+ * session management, HTTP status codes, content types.
+ */
+<span class="fc" id="L49">public class McpServerResource extends ServerResource {</span>
+
+    private static final String HEADER_MCP_SESSION_ID = &quot;Mcp-Session-Id&quot;;
+
+    @Post(&quot;json&quot;)
+    @SuppressWarnings(&quot;null&quot;) // OTel SDK interop
+    public Representation handlePost(Representation entity) {
+<span class="fc" id="L56">        ProtocolDispatcher dispatcher = getDispatcher();</span>
+<span class="fc" id="L57">        ObjectMapper mapper = dispatcher.getMapper();</span>
+
+        // Extract W3C trace context from incoming HTTP headers so downstream
+        // spans (tools/call) are linked to the caller's trace.
+<span class="fc" id="L61">        TelemetryBootstrap telemetry = TelemetryBootstrap.get();</span>
+<span class="fc" id="L62">        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(</span>
+<span class="fc" id="L63">                telemetry.getOpenTelemetry()</span>
+<span class="fc" id="L64">                        .getPropagators().getTextMapPropagator()</span>
+<span class="fc" id="L65">                        .extract(io.opentelemetry.context.Context.current(), getRequest(),</span>
+                                RestletHeaderGetter.INSTANCE));
+
+<span class="fc" id="L68">        try (Scope ignored = extractedContext.makeCurrent()) {</span>
+<span class="fc" id="L69">            return dispatchWithTraceContext(dispatcher, mapper, entity, extractedContext);</span>
+        }
+    }
+
+    private Representation dispatchWithTraceContext(ProtocolDispatcher dispatcher,
+            ObjectMapper mapper, Representation entity,
+            io.opentelemetry.context.Context extractedContext) {
+        try {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            String body = (entity != null) ? entity.getText() : null;</span>
+
+<span class="pc bpc" id="L79" title="1 of 4 branches missed.">            if (body == null || body.isBlank()) {</span>
+<span class="fc" id="L80">                getLogger().log(Level.WARNING,</span>
+                        &quot;Error processing request. Missing or empty body&quot;);
+<span class="fc" id="L82">                ObjectNode error = dispatcher.buildJsonRpcError(null, -32700,</span>
+                        &quot;Parse error: empty body&quot;);
+<span class="fc" id="L84">                return toJsonRepresentation(mapper, error);</span>
+            }
+
+<span class="fc" id="L87">            JsonNode root = mapper.readTree(body);</span>
+<span class="fc" id="L88">            String rpcMethod = root.path(&quot;method&quot;).asText(&quot;&quot;);</span>
+
+            // Handle initialize specially — create the session
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            if (&quot;initialize&quot;.equals(rpcMethod)) {</span>
+<span class="fc" id="L92">                String sessionId = UUID.randomUUID().toString();</span>
+<span class="fc" id="L93">                getActiveSessions().put(sessionId, true);</span>
+<span class="fc" id="L94">                getResponse().getHeaders().set(HEADER_MCP_SESSION_ID, sessionId);</span>
+            }
+
+            // Handle notifications/initialized — return 202 with no body
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            if (&quot;notifications/initialized&quot;.equals(rpcMethod)) {</span>
+<span class="fc" id="L99">                setStatus(Status.SUCCESS_ACCEPTED);</span>
+<span class="fc" id="L100">                return new StringRepresentation(&quot;&quot;);</span>
+            }
+
+            // Create a SERVER span for the inbound MCP request
+<span class="fc" id="L104">            String capabilityName = (String) getContext().getAttributes().get(&quot;capabilityName&quot;);</span>
+<span class="fc" id="L105">            Span span = TelemetryBootstrap.get().startServerSpan(&quot;mcp&quot;, rpcMethod,</span>
+                    extractedContext, null, capabilityName);
+<span class="fc" id="L107">            try (Scope scope = span.makeCurrent()) {</span>
+                // Delegate to the shared protocol dispatcher
+<span class="fc" id="L109">                ObjectNode result = dispatcher.dispatch(root);</span>
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                if (result != null) {</span>
+<span class="fc" id="L112">                    return toJsonRepresentation(mapper, result);</span>
+                } else {
+                    // Notification — no response body
+<span class="nc" id="L115">                    setStatus(Status.SUCCESS_ACCEPTED);</span>
+<span class="nc" id="L116">                    return new StringRepresentation(&quot;&quot;);</span>
+                }
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            } catch (Exception e) {</span>
+<span class="nc" id="L119">                TelemetryBootstrap.recordError(span, e);</span>
+<span class="nc" id="L120">                throw e;</span>
+            } finally {
+<span class="fc" id="L122">                TelemetryBootstrap.endSpan(span);</span>
+            }
+
+<span class="fc" id="L125">        } catch (JsonProcessingException e) {</span>
+<span class="fc" id="L126">            getLogger().log(Level.SEVERE, &quot;Error processing request&quot;, e);</span>
+<span class="fc" id="L127">            ObjectNode error = dispatcher.buildJsonRpcError(null, -32700,</span>
+<span class="fc" id="L128">                    &quot;Parse error: &quot; + e.getMessage());</span>
+            try {
+<span class="fc" id="L130">                return toJsonRepresentation(mapper, error);</span>
+<span class="nc" id="L131">            } catch (Exception ex) {</span>
+<span class="nc" id="L132">                setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L133">                return new StringRepresentation(&quot;Internal server error&quot;, MediaType.TEXT_PLAIN);</span>
+            }
+<span class="nc" id="L135">        } catch (Exception e) {</span>
+<span class="nc" id="L136">            getLogger().log(Level.SEVERE, &quot;Error processing request&quot;, e);</span>
+<span class="nc" id="L137">            ObjectNode error = dispatcher.buildJsonRpcError(null, -32603,</span>
+<span class="nc" id="L138">                    &quot;Internal error: &quot; + e.getMessage());</span>
+            try {
+<span class="nc" id="L140">                return toJsonRepresentation(mapper, error);</span>
+<span class="nc" id="L141">            } catch (Exception ex) {</span>
+<span class="nc" id="L142">                setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L143">                return new StringRepresentation(&quot;Internal server error&quot;, MediaType.TEXT_PLAIN);</span>
+            }
+        }
+    }
+
+    @Delete
+    public Representation handleDelete() {
+<span class="fc" id="L150">        String sessionId =</span>
+<span class="fc" id="L151">                getRequest().getHeaders().getFirstValue(HEADER_MCP_SESSION_ID);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if (sessionId != null) {</span>
+<span class="fc" id="L153">            getActiveSessions().remove(sessionId);</span>
+        }
+<span class="fc" id="L155">        setStatus(Status.SUCCESS_OK);</span>
+<span class="fc" id="L156">        return emptyOkRepresentation();</span>
+    }
+
+    @Get
+    public Representation handleGet() {
+<span class="fc" id="L161">        setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);</span>
+<span class="fc" id="L162">        return new StringRepresentation(&quot;GET not supported&quot;, MediaType.TEXT_PLAIN);</span>
+    }
+
+    /**
+     * Returns a representation that Restlet treats as available (preventing auto-204 adjustment)
+     * while carrying no meaningful content. This preserves HTTP 200 for DELETE responses,
+     * matching the original Jetty transport behavior.
+     */
+    private Representation emptyOkRepresentation() {
+<span class="fc" id="L171">        StringRepresentation repr = new StringRepresentation(&quot;&quot;, MediaType.APPLICATION_JSON) {</span>
+            @Override
+            public boolean isAvailable() {
+<span class="fc" id="L174">                return true;</span>
+            }
+        };
+<span class="fc" id="L177">        return repr;</span>
+    }
+
+    private ProtocolDispatcher getDispatcher() {
+<span class="fc" id="L181">        return (ProtocolDispatcher) getContext().getAttributes().get(&quot;dispatcher&quot;);</span>
+    }
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    private Map&lt;String, Boolean&gt; getActiveSessions() {
+<span class="fc" id="L186">        return (Map&lt;String, Boolean&gt;) getContext().getAttributes().get(&quot;activeSessions&quot;);</span>
+    }
+
+    private Representation toJsonRepresentation(ObjectMapper mapper, ObjectNode body)
+            throws JsonProcessingException {
+<span class="fc" id="L191">        String json = mapper.writeValueAsString(body);</span>
+<span class="fc" id="L192">        return new StringRepresentation(json, MediaType.APPLICATION_JSON);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

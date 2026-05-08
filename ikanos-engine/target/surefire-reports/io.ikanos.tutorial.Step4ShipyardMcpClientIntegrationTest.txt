@@ -1,0 +1,69 @@
+-------------------------------------------------------------------------------
+Test set: io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 5, Skipped: 0, Time elapsed: 0.251 s <<< FAILURE! -- in io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest
+io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.toolsListShouldAdvertiseBothTools -- Time elapsed: 0.066 s <<< ERROR!
+java.io.IOException: File not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\secrets.yaml
+	at io.ikanos.engine.util.BindingResolver.parseFileContent(BindingResolver.java:163)
+	at io.ikanos.engine.util.BindingResolver.resolveFileBinding(BindingResolver.java:92)
+	at io.ikanos.engine.util.BindingResolver.resolve(BindingResolver.java:62)
+	at io.ikanos.Capability.<init>(Capability.java:137)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.startServer(Step4ShipyardMcpClientIntegrationTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.getShipShouldReturnFlatFieldsAndNestedSpecsObject -- Time elapsed: 0.080 s <<< ERROR!
+java.io.IOException: File not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\secrets.yaml
+	at io.ikanos.engine.util.BindingResolver.parseFileContent(BindingResolver.java:163)
+	at io.ikanos.engine.util.BindingResolver.resolveFileBinding(BindingResolver.java:92)
+	at io.ikanos.engine.util.BindingResolver.resolve(BindingResolver.java:62)
+	at io.ikanos.Capability.<init>(Capability.java:137)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.startServer(Step4ShipyardMcpClientIntegrationTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.getShipInputSchemaShouldDeclareRequiredImoParameter -- Time elapsed: 0.022 s <<< ERROR!
+java.io.IOException: File not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\secrets.yaml
+	at io.ikanos.engine.util.BindingResolver.parseFileContent(BindingResolver.java:163)
+	at io.ikanos.engine.util.BindingResolver.resolveFileBinding(BindingResolver.java:92)
+	at io.ikanos.engine.util.BindingResolver.resolve(BindingResolver.java:62)
+	at io.ikanos.Capability.<init>(Capability.java:137)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.startServer(Step4ShipyardMcpClientIntegrationTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.listShipsShouldReturnMappedFlatFields -- Time elapsed: 0.034 s <<< ERROR!
+java.io.IOException: File not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\secrets.yaml
+	at io.ikanos.engine.util.BindingResolver.parseFileContent(BindingResolver.java:163)
+	at io.ikanos.engine.util.BindingResolver.resolveFileBinding(BindingResolver.java:92)
+	at io.ikanos.engine.util.BindingResolver.resolve(BindingResolver.java:62)
+	at io.ikanos.Capability.<init>(Capability.java:137)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.startServer(Step4ShipyardMcpClientIntegrationTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.listShipsInputSchemaShouldDeclareOptionalStatusParameter -- Time elapsed: 0.032 s <<< ERROR!
+java.io.IOException: File not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\secrets.yaml
+	at io.ikanos.engine.util.BindingResolver.parseFileContent(BindingResolver.java:163)
+	at io.ikanos.engine.util.BindingResolver.resolveFileBinding(BindingResolver.java:92)
+	at io.ikanos.engine.util.BindingResolver.resolve(BindingResolver.java:62)
+	at io.ikanos.Capability.<init>(Capability.java:137)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step4ShipyardMcpClientIntegrationTest.startServer(Step4ShipyardMcpClientIntegrationTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
