@@ -1,0 +1,60 @@
+ikanos: "1.0.0-alpha3"
+
+capability:
+  aggregates:
+    - label: Weather Service
+      namespace: weather
+      functions:
+        - name: get-forecast
+          description: Get weather forecast (safe, read-only)
+          semantics:
+            safe: true
+            idempotent: true
+          call: weather-api.get-forecast
+          inputParameters:
+            - name: city
+              type: string
+              description: City name
+          outputParameters:
+            - type: string
+              mapping: $.forecast
+
+  consumes:
+    - type: http
+      namespace: weather-api
+      description: Weather API
+      baseUri: https://api.weather.example.com
+      resources:
+        - name: forecasts
+          path: /forecast
+          operations:
+            - name: get-forecast
+              method: GET
+              inputParameters:
+                - name: city
+                  in: query
+              outputParameters:
+                - name: forecast
+                  type: object
+                  value: $.forecast
+
+  exposes:
+    - type: mcp
+      port: 9091
+      namespace: weather-mcp
+      description: Weather MCP server
+      tools:
+        - ref: weather.get-forecast
+          hints:
+            readOnly: false
+            destructive: true
+
+    - type: rest
+      port: 8081
+      namespace: weather-rest
+      resources:
+        - path: /forecast
+          description: Weather forecast endpoint
+          operations:
+            - method: DELETE
+              ref: weather.get-forecast

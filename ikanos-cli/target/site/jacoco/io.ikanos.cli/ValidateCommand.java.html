@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValidateCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos CLI</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.cli</a> &gt; <span class="el_source">ValidateCommand.java</span></div><h1>ValidateCommand.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.cli;
+
+import java.util.concurrent.Callable;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@Command(
+    name = &quot;validate&quot;,
+    mixinStandardHelpOptions = true,
+    aliases = {&quot;v&quot;, &quot;val&quot;},
+    description = &quot;Validate a YAML capability configuration file against a JSON Schema&quot;
+)
+<span class="fc" id="L43">public class ValidateCommand implements Callable&lt;Integer&gt; {</span>
+
+<span class="fc" id="L45">    private static final Logger logger = LoggerFactory.getLogger(ValidateCommand.class);</span>
+
+    @Parameters(index = &quot;0&quot;, description = &quot;Path to the YAML capability configuration file to validate&quot;)
+    private String filePath;
+
+    @Parameters(index = &quot;1&quot;, description = &quot;Version of the schema to use for validation (expected format: x.x). If not set this is the lastest.&quot;, defaultValue = &quot;&quot;)
+    private String schemaVersion;
+    
+    @Override
+    public Integer call() {
+        try {
+            // Check that file to validate exist and load it.
+<span class="fc" id="L57">            Path fileToValidate = Paths.get(filePath);</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if (!Files.exists(fileToValidate)) {</span>
+<span class="nc" id="L59">                System.err.println(&quot;Error: File not found: &quot; + filePath);</span>
+<span class="nc" id="L60">                return 1;</span>
+            }
+<span class="nc" id="L62">            JsonNode dataNode = loadFile(fileToValidate.toFile());</span>
+
+            // Load schema.
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            String schemaFileName = schemaVersion.isEmpty() ? &quot;ikanos-schema.json&quot; : &quot;ikanos-schema-v&quot; + schemaVersion + &quot;.json&quot;;</span>
+<span class="nc" id="L66">            InputStream schemaInputStream = getClass().getClassLoader().getResourceAsStream(&quot;schemas/&quot; + schemaFileName);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            if (schemaInputStream == null) {</span>
+<span class="nc" id="L68">                System.err.println(&quot;Error: Schema &quot; + schemaFileName + &quot; is not supported&quot;);</span>
+<span class="nc" id="L69">                return 1;</span>
+            }
+<span class="nc" id="L71">            JsonNode schemaNode = new ObjectMapper().readTree(schemaInputStream);</span>
+
+            // Create JSON Schema validator. Read version from $schema of file.
+            JsonSchemaFactory factory;
+<span class="nc" id="L75">            JsonNode schemaField = schemaNode.get(&quot;$schema&quot;);</span>
+<span class="nc bnc" id="L76" title="All 4 branches missed.">            if (schemaField != null &amp;&amp; schemaField.asText().contains(&quot;2020-12&quot;)) {</span>
+<span class="nc" id="L77">                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);</span>
+<span class="nc bnc" id="L78" title="All 4 branches missed.">            } else if (schemaField != null &amp;&amp; schemaField.asText().contains(&quot;2019-09&quot;)) {</span>
+<span class="nc" id="L79">                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V201909);</span>
+            } else {
+<span class="nc" id="L81">                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);</span>
+            }
+<span class="nc" id="L83">            JsonSchema schema = factory.getSchema(schemaNode);</span>
+            
+            // Validate.
+<span class="nc" id="L86">            Set&lt;ValidationMessage&gt; errors = schema.validate(dataNode);</span>
+            
+            // Display validation result.
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            if (errors.isEmpty()) {</span>
+<span class="nc" id="L90">                System.out.println(&quot;✓ Validation successful!&quot;);</span>
+<span class="nc" id="L91">                System.out.println(&quot;  File: &quot; + filePath);</span>
+<span class="nc" id="L92">                System.out.println(&quot;  Status: OK&quot;);</span>
+<span class="nc" id="L93">                return 0;</span>
+            } else {
+<span class="nc" id="L95">                System.err.println(&quot;✗ Validation failed!&quot;);</span>
+<span class="nc" id="L96">                System.err.println(&quot;  File: &quot; + filePath);</span>
+<span class="nc" id="L97">                System.err.println(&quot;\nErrors found:&quot;);</span>
+                
+<span class="nc" id="L99">                int errorCount = 1;</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                for (ValidationMessage error : errors) {</span>
+<span class="nc" id="L101">                    System.err.println(&quot;\n  [&quot; + errorCount + &quot;] &quot; + error.getMessage());</span>
+<span class="nc" id="L102">                    System.err.println(&quot;      Path: &quot; + error.getPath());</span>
+<span class="nc" id="L103">                    errorCount++;</span>
+<span class="nc" id="L104">                }</span>
+<span class="nc" id="L105">                return 1;</span>
+            }
+            
+<span class="nc" id="L108">        } catch (IOException e) {</span>
+<span class="nc" id="L109">            System.err.println(&quot;Error reading file: &quot; + e.getMessage());</span>
+<span class="nc" id="L110">            return 1;</span>
+<span class="fc" id="L111">        } catch (Exception e) {</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            String message = e.getMessage() != null ? e.getMessage() : &quot;unexpected validation error&quot;;</span>
+<span class="fc" id="L113">            System.err.println(&quot;Error: &quot; + message);</span>
+<span class="fc" id="L114">            logger.error(&quot;Validation error&quot;, e);</span>
+<span class="fc" id="L115">            return 1;</span>
+        }
+    }
+    
+    JsonNode loadFile(File file) throws IOException {
+<span class="fc" id="L120">        String fileName = file.getName().toLowerCase();</span>
+        
+<span class="pc bpc" id="L122" title="1 of 4 branches missed.">        if (fileName.endsWith(&quot;.yaml&quot;) || fileName.endsWith(&quot;.yml&quot;)) {</span>
+            // Parse YAML
+<span class="fc" id="L124">            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());</span>
+<span class="fc" id="L125">            return yamlMapper.readTree(file);</span>
+        } else {
+<span class="fc" id="L127">            throw new IllegalArgumentException(</span>
+                &quot;Unsupported file format. Only .yaml and .yml are supported.&quot;
+            );
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

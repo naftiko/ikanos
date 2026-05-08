@@ -1,0 +1,20 @@
+ikanos: "1.0.0-alpha3"
+consumes:
+  - namespace: legacy
+    type: http
+    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: X-Dock-Key
+      placement: header
+      value: "{{DOCKYARD_API_KEY}}"
+    resources:
+      - name: vessels
+        path: "/vessels"
+        operations:
+          - name: list-vessels
+            method: GET
+            outputRawFormat: xml
+            inputParameters:
+              - name: status
+                in: query

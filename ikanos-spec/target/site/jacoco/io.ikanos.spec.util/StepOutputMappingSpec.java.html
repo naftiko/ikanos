@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StepOutputMappingSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.util</a> &gt; <span class="el_source">StepOutputMappingSpec.java</span></div><h1>StepOutputMappingSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.util;
+
+/**
+ * Step Output Mapping Specification Element.
+ *
+ * Maps a step output field to a target name in the composite response. Used in orchestrated mode to
+ * assemble outputs from multiple steps into a single result.
+ */
+public class StepOutputMappingSpec {
+
+    private volatile String targetName;
+    private volatile String value;
+
+<span class="nc" id="L27">    public StepOutputMappingSpec() {}</span>
+
+<span class="nc" id="L29">    public StepOutputMappingSpec(String targetName, String value) {</span>
+<span class="nc" id="L30">        this.targetName = targetName;</span>
+<span class="nc" id="L31">        this.value = value;</span>
+<span class="nc" id="L32">    }</span>
+
+    public String getTargetName() {
+<span class="nc" id="L35">        return targetName;</span>
+    }
+
+    public void setTargetName(String targetName) {
+<span class="nc" id="L39">        this.targetName = targetName;</span>
+<span class="nc" id="L40">    }</span>
+
+    public String getValue() {
+<span class="nc" id="L43">        return value;</span>
+    }
+
+    public void setValue(String value) {
+<span class="nc" id="L47">        this.value = value;</span>
+<span class="nc" id="L48">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

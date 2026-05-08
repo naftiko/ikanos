@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScriptingCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos CLI</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.cli</a> &gt; <span class="el_source">ScriptingCommand.java</span></div><h1>ScriptingCommand.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.cli;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Option;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * CLI command that manages scripting governance on a running capability via the control port.
+ * Without {@code --set}, displays current scripting configuration and execution stats. With
+ * {@code --set key=value}, updates the specified fields at runtime via {@code PUT /scripting}.
+ */
+@Command(
+    name = &quot;scripting&quot;,
+    mixinStandardHelpOptions = true,
+    description = &quot;Manage scripting governance on a running capability via the control port.&quot;
+)
+<span class="fc" id="L38">public class ScriptingCommand implements Callable&lt;Integer&gt; {</span>
+
+<span class="fc" id="L40">    private static final ObjectMapper MAPPER = new ObjectMapper();</span>
+<span class="fc" id="L41">    private static final Logger logger = LoggerFactory.getLogger(ScriptingCommand.class);</span>
+
+    @Mixin
+    ControlPortMixin controlPort;
+
+    @Option(names = &quot;--set&quot;, description = &quot;Update a scripting config field (e.g. --set enabled=true)&quot;,
+            mapFallbackValue = &quot;&quot;)
+    Map&lt;String, String&gt; setFields;
+
+    @Override
+    public Integer call() {
+<span class="fc" id="L52">        ControlPortClient client = new ControlPortClient(controlPort.baseUrl());</span>
+
+        try {
+<span class="pc bpc" id="L55" title="1 of 4 branches missed.">            if (setFields != null &amp;&amp; !setFields.isEmpty()) {</span>
+<span class="fc" id="L56">                return updateScripting(client);</span>
+            }
+<span class="fc" id="L58">            return showScripting(client);</span>
+<span class="fc" id="L59">        } catch (ControlPortClient.ControlPortUnreachableException e) {</span>
+<span class="fc" id="L60">            ControlPortMixin.printUnreachableError(controlPort.baseUrl());</span>
+<span class="fc" id="L61">            return 1;</span>
+<span class="nc" id="L62">        } catch (Exception e) {</span>
+<span class="nc" id="L63">            System.err.println(&quot;Error: &quot; + e.getMessage());</span>
+<span class="nc" id="L64">            logger.debug(&quot;Scripting command failed&quot;, e);</span>
+<span class="nc" id="L65">            return 1;</span>
+        }
+    }
+
+    private int showScripting(ControlPortClient client)
+            throws ControlPortClient.ControlPortUnreachableException, Exception {
+
+<span class="fc" id="L72">        ControlPortClient.ControlPortResponse response = client.get(&quot;/scripting&quot;);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (response.statusCode() == 404) {</span>
+<span class="fc" id="L74">            System.err.println(&quot;Error: Scripting is not configured on this capability.&quot;);</span>
+<span class="fc" id="L75">            System.err.println(&quot;Hint: Add scripting to your control adapter:&quot;);</span>
+<span class="fc" id="L76">            System.err.println(&quot;  management:&quot;);</span>
+<span class="fc" id="L77">            System.err.println(&quot;    scripting:&quot;);</span>
+<span class="fc" id="L78">            System.err.println(&quot;      enabled: true&quot;);</span>
+<span class="fc" id="L79">            return 1;</span>
+        }
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (response.statusCode() != 200) {</span>
+<span class="fc" id="L82">            System.err.println(&quot;Error: /scripting returned HTTP &quot; + response.statusCode());</span>
+<span class="fc" id="L83">            return 1;</span>
+        }
+
+<span class="fc" id="L86">        JsonNode root = MAPPER.readTree(response.body());</span>
+
+<span class="fc" id="L88">        boolean enabled = root.path(&quot;enabled&quot;).asBoolean();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        System.out.println(&quot;Scripting: &quot; + (enabled ? &quot;ENABLED&quot; : &quot;DISABLED&quot;));</span>
+
+        // Config
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (root.has(&quot;defaultLocation&quot;)) {</span>
+<span class="fc" id="L93">            System.out.println(&quot;  Location:  &quot; + root.get(&quot;defaultLocation&quot;).asText());</span>
+        }
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (root.has(&quot;defaultLanguage&quot;)) {</span>
+<span class="fc" id="L96">            System.out.println(&quot;  Language:  &quot; + root.get(&quot;defaultLanguage&quot;).asText());</span>
+        }
+<span class="fc" id="L98">        System.out.println(&quot;  Timeout:   &quot; + root.path(&quot;timeout&quot;).asInt() + &quot; ms&quot;);</span>
+<span class="fc" id="L99">        System.out.println(&quot;  Stmt Limit: &quot; + root.path(&quot;statementLimit&quot;).asLong());</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (root.has(&quot;allowedLanguages&quot;)) {</span>
+<span class="fc" id="L101">            System.out.println(&quot;  Allowed:   &quot; + root.get(&quot;allowedLanguages&quot;));</span>
+        }
+
+        // Stats
+<span class="fc" id="L105">        JsonNode stats = root.path(&quot;stats&quot;);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (!stats.isMissingNode()) {</span>
+<span class="fc" id="L107">            System.out.println(&quot;  Stats:&quot;);</span>
+<span class="fc" id="L108">            System.out.println(&quot;    Executions: &quot; + stats.path(&quot;totalExecutions&quot;).asLong());</span>
+<span class="fc" id="L109">            System.out.println(&quot;    Errors:     &quot; + stats.path(&quot;totalErrors&quot;).asLong());</span>
+<span class="fc" id="L110">            System.out.println(&quot;    Avg Duration: &quot;</span>
+<span class="fc" id="L111">                    + String.format(&quot;%.2f&quot;, stats.path(&quot;averageDurationMs&quot;).asDouble()) + &quot; ms&quot;);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            if (stats.has(&quot;lastExecutionAt&quot;)) {</span>
+<span class="fc" id="L113">                System.out.println(&quot;    Last Run:   &quot; + stats.get(&quot;lastExecutionAt&quot;).asText());</span>
+            }
+        }
+
+<span class="fc" id="L117">        return 0;</span>
+    }
+
+    private int updateScripting(ControlPortClient client)
+            throws ControlPortClient.ControlPortUnreachableException, Exception {
+
+<span class="fc" id="L123">        ObjectNode body = MAPPER.createObjectNode();</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        for (Map.Entry&lt;String, String&gt; entry : setFields.entrySet()) {</span>
+<span class="fc" id="L125">            String key = entry.getKey();</span>
+<span class="fc" id="L126">            String value = entry.getValue();</span>
+<span class="fc bfc" id="L127" title="All 6 branches covered.">            switch (key) {</span>
+<span class="fc" id="L128">                case &quot;enabled&quot; -&gt; body.put(key, Boolean.parseBoolean(value));</span>
+<span class="fc" id="L129">                case &quot;timeout&quot; -&gt; body.put(key, Integer.parseInt(value));</span>
+<span class="fc" id="L130">                case &quot;statementLimit&quot; -&gt; body.put(key, Long.parseLong(value));</span>
+<span class="fc" id="L131">                case &quot;defaultLocation&quot;, &quot;defaultLanguage&quot; -&gt; body.put(key, value);</span>
+                case &quot;allowedLanguages&quot; -&gt; {
+<span class="fc" id="L133">                    ArrayNode arr = body.putArray(key);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">                    for (String lang : value.split(&quot;,&quot;)) {</span>
+<span class="fc" id="L135">                        String trimmed = lang.trim();</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                        if (!trimmed.isEmpty()) {</span>
+<span class="fc" id="L137">                            arr.add(trimmed);</span>
+                        }
+                    }
+<span class="fc" id="L140">                }</span>
+                default -&gt; {
+<span class="fc" id="L142">                    System.err.println(&quot;Error: Unknown scripting field: &quot; + key);</span>
+<span class="fc" id="L143">                    return 1;</span>
+                }
+            }
+<span class="fc" id="L146">        }</span>
+
+<span class="fc" id="L148">        ControlPortClient.ControlPortResponse response =</span>
+<span class="fc" id="L149">                client.put(&quot;/scripting&quot;, MAPPER.writeValueAsString(body));</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (response.statusCode() == 404) {</span>
+<span class="fc" id="L152">            System.err.println(&quot;Error: Scripting is not configured on this capability.&quot;);</span>
+<span class="fc" id="L153">            return 1;</span>
+        }
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (response.statusCode() != 200) {</span>
+<span class="fc" id="L156">            System.err.println(&quot;Error: /scripting returned HTTP &quot; + response.statusCode());</span>
+<span class="fc" id="L157">            return 1;</span>
+        }
+
+<span class="fc" id="L160">        System.out.println(&quot;Scripting configuration updated.&quot;);</span>
+<span class="fc" id="L161">        return showScripting(client);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

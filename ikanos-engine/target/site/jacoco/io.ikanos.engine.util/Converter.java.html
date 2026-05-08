@@ -1,0 +1,757 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Converter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.util</a> &gt; <span class="el_source">Converter.java</span></div><h1>Converter.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.util;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
+import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
+import com.fasterxml.jackson.dataformat.avro.AvroMapper;
+import com.fasterxml.jackson.dataformat.csv.CsvMapper;
+import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+import com.fasterxml.jackson.databind.MappingIterator;
+import org.apache.avro.Schema;
+import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.Decoder;
+import org.apache.avro.io.DecoderFactory;
+import org.restlet.representation.Representation;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
+import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
+import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.ikanos.spec.OutputParameterSpec;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
+import org.commonmark.Extension;
+import org.commonmark.ext.gfm.tables.TableBlock;
+import org.commonmark.ext.gfm.tables.TableBody;
+import org.commonmark.ext.gfm.tables.TableCell;
+import org.commonmark.ext.gfm.tables.TableHead;
+import org.commonmark.ext.gfm.tables.TableRow;
+import org.commonmark.ext.gfm.tables.TablesExtension;
+import org.commonmark.node.AbstractVisitor;
+import org.commonmark.node.Code;
+import org.commonmark.node.HardLineBreak;
+import org.commonmark.node.Heading;
+import org.commonmark.node.Node;
+import org.commonmark.node.SoftLineBreak;
+import org.commonmark.node.Text;
+import org.commonmark.parser.Parser;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+/**
+ * Utility class for converting between different data formats (XML, YAML, CSV, Protocol Buffer,
+ * Avro) and JSON, with support for JSONPath extraction.
+ */
+<span class="nc" id="L76">public class Converter {</span>
+
+<span class="fc" id="L78">    private static final Logger logger = LoggerFactory.getLogger(Converter.class);</span>
+
+    /** Convert various formats to JSON */
+    public static JsonNode convertToJson(String format, String schema, Representation entity)
+            throws IOException {
+<span class="fc" id="L83">        ConversionFormat fmt = ConversionFormat.fromLabel(format);</span>
+
+<span class="fc bfc" id="L85" title="All 4 branches covered.">        if (fmt == null &amp;&amp; format != null) {</span>
+<span class="fc" id="L86">            throw new IOException(&quot;Unsupported \&quot;&quot; + format + &quot;\&quot; format specified&quot;);</span>
+        }
+
+        // null format defaults to JSON
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (fmt == null) {</span>
+<span class="fc" id="L91">            fmt = ConversionFormat.JSON;</span>
+        }
+
+<span class="fc bfc" id="L94" title="All 10 branches covered.">        return switch (fmt) {</span>
+<span class="fc" id="L95">            case XML -&gt; Converter.convertXmlToJson(entity.getReader());</span>
+            case PROTOBUF -&gt; {
+<span class="pc bpc" id="L97" title="1 of 4 branches missed.">                if (schema == null || schema.isEmpty()) {</span>
+<span class="fc" id="L98">                    throw new IOException(</span>
+                            &quot;Protobuf format requires outputSchema to be specified in operation specification&quot;);
+                }
+<span class="nc" id="L101">                yield Converter.convertProtobufToJson(entity.getStream(), schema);</span>
+            }
+            case AVRO -&gt; {
+<span class="pc bpc" id="L104" title="2 of 4 branches missed.">                if (schema == null || schema.isEmpty()) {</span>
+<span class="fc" id="L105">                    throw new IOException(</span>
+                            &quot;Avro format requires outputSchema to be specified in operation specification&quot;);
+                }
+<span class="nc" id="L108">                yield Converter.convertAvroToJson(entity.getStream(), schema);</span>
+            }
+<span class="fc" id="L110">            case YAML -&gt; Converter.convertYamlToJson(entity.getReader());</span>
+<span class="fc" id="L111">            case CSV -&gt; Converter.convertDelimitedToJson(entity.getReader(), ',');</span>
+<span class="fc" id="L112">            case TSV -&gt; Converter.convertDelimitedToJson(entity.getReader(), '\t');</span>
+<span class="fc" id="L113">            case PSV -&gt; Converter.convertDelimitedToJson(entity.getReader(), '|');</span>
+<span class="fc" id="L114">            case HTML -&gt; Converter.convertHtmlToJson(entity.getReader(), schema);</span>
+<span class="fc" id="L115">            case MARKDOWN -&gt; Converter.convertMarkdownToJson(entity.getReader(), schema);</span>
+<span class="fc" id="L116">            case JSON -&gt; new ObjectMapper().readTree(entity.getReader());</span>
+        };
+    }
+
+    /**
+     * Convert a text-based response to a JSON tree, given the declared output format.
+     *
+     * &lt;p&gt;Handles every text-representable format (XML, YAML, CSV, TSV, PSV, HTML, Markdown,
+     * JSON). Binary formats (Protobuf, Avro) cannot be round-tripped through a
+     * {@link String} and will throw.&lt;/p&gt;
+     *
+     * @param format the declared {@code outputRawFormat} (may be {@code null} for JSON)
+     * @param schema the declared {@code outputSchema} (used by HTML/Markdown selectors)
+     * @param text   the raw response body as a string
+     * @return the parsed JSON tree
+     * @throws IOException if parsing or conversion fails
+     */
+    public static JsonNode convertToJson(String format, String schema, String text)
+            throws IOException {
+<span class="fc" id="L135">        ConversionFormat fmt = ConversionFormat.fromLabel(format);</span>
+
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">        if (fmt == null &amp;&amp; format != null) {</span>
+<span class="nc" id="L138">            throw new IOException(&quot;Unsupported \&quot;&quot; + format + &quot;\&quot; format specified&quot;);</span>
+        }
+
+        // null format defaults to JSON
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        if (fmt == null) {</span>
+<span class="fc" id="L143">            fmt = ConversionFormat.JSON;</span>
+        }
+
+<span class="pc bpc" id="L146" title="7 of 9 branches missed.">        return switch (fmt) {</span>
+<span class="fc" id="L147">            case XML -&gt; Converter.convertXmlToJson(new StringReader(text));</span>
+<span class="nc" id="L148">            case YAML -&gt; Converter.convertYamlToJson(new StringReader(text));</span>
+<span class="nc" id="L149">            case CSV -&gt; Converter.convertDelimitedToJson(new StringReader(text), ',');</span>
+<span class="nc" id="L150">            case TSV -&gt; Converter.convertDelimitedToJson(new StringReader(text), '\t');</span>
+<span class="nc" id="L151">            case PSV -&gt; Converter.convertDelimitedToJson(new StringReader(text), '|');</span>
+<span class="nc" id="L152">            case HTML -&gt; Converter.convertHtmlToJson(new StringReader(text), schema);</span>
+<span class="nc" id="L153">            case MARKDOWN -&gt; Converter.convertMarkdownToJson(new StringReader(text), schema);</span>
+<span class="nc" id="L154">            case PROTOBUF, AVRO -&gt; throw new IOException(fmt.label</span>
+                    + &quot; format cannot be converted from a text string; &quot;
+                    + &quot;use the Representation-based overload instead&quot;);
+<span class="fc" id="L157">            case JSON -&gt; new ObjectMapper().readTree(text);</span>
+        };
+    }
+
+    /**
+     * Convert XML input stream to JsonNode using Jackson XML support.
+     * 
+     * @param xmlReader Reader containing XML data
+     * @return JsonNode representing the parsed XML structure
+     * @throws IOException if XML parsing fails
+     */
+    public static JsonNode convertXmlToJson(Reader xmlReader) throws IOException {
+<span class="fc" id="L169">        XmlMapper xmlMapper = new XmlMapper();</span>
+<span class="fc" id="L170">        return xmlMapper.readTree(xmlReader);</span>
+    }
+
+    /**
+     * Convert YAML input stream to JsonNode using Jackson YAML support. No schema is required for
+     * YAML parsing.
+     * 
+     * @param yamlReader Reader containing YAML data
+     * @return JsonNode representing the parsed YAML structure
+     * @throws IOException if YAML parsing fails
+     */
+    public static JsonNode convertYamlToJson(Reader yamlReader) throws IOException {
+<span class="fc" id="L182">        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());</span>
+<span class="fc" id="L183">        return yamlMapper.readTree(yamlReader);</span>
+    }
+
+    /**
+     * Convert delimited text input to a JsonNode (array of objects) using Jackson CSV support.
+     * Supports any single-character column separator (comma for CSV, tab for TSV, pipe for PSV).
+     * Assumes first row contains headers. Returns an ArrayNode where each element is an object
+     * mapping header-&amp;gt;value for that row.
+     *
+     * @param reader Reader containing delimited data
+     * @param separator the column separator character
+     * @return JsonNode (ArrayNode) representing parsed rows
+     * @throws IOException if parsing fails
+     */
+    public static JsonNode convertDelimitedToJson(Reader reader, char separator)
+            throws IOException {
+<span class="fc" id="L199">        CsvMapper csvMapper = new CsvMapper();</span>
+<span class="fc" id="L200">        CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(separator);</span>
+
+<span class="fc" id="L202">        MappingIterator&lt;JsonNode&gt; it =</span>
+<span class="fc" id="L203">                csvMapper.readerFor(JsonNode.class).with(schema).readValues(reader);</span>
+
+<span class="fc" id="L205">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L206">        ArrayNode arr = mapper.createArrayNode();</span>
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        while (it.hasNext()) {</span>
+<span class="fc" id="L209">            JsonNode row = it.next();</span>
+<span class="fc" id="L210">            arr.add(row);</span>
+<span class="fc" id="L211">        }</span>
+
+<span class="fc" id="L213">        return arr;</span>
+    }
+
+    /**
+     * Convert CSV input (reader) to a JsonNode (array of objects). Convenience delegation to
+     * {@link #convertDelimitedToJson(Reader, char)} with comma separator.
+     *
+     * @param csvReader Reader containing CSV data
+     * @return JsonNode (ArrayNode) representing CSV rows
+     * @throws IOException if CSV parsing fails
+     */
+    public static JsonNode convertCsvToJson(Reader csvReader) throws IOException {
+<span class="fc" id="L225">        return convertDelimitedToJson(csvReader, ',');</span>
+    }
+
+    /**
+     * Convert HTML input to JsonNode using JSoup and a shared table contract.
+     *
+     * @param htmlReader Reader containing HTML data
+     * @param cssSelector optional selector provided via outputSchema
+     * @return JsonNode containing a tables array where each entry is an array of row objects
+     * @throws IOException if HTML parsing fails
+     */
+    public static JsonNode convertHtmlToJson(Reader htmlReader, String cssSelector)
+            throws IOException {
+<span class="fc" id="L238">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L239">        ObjectNode result = mapper.createObjectNode();</span>
+<span class="fc" id="L240">        ArrayNode tables = mapper.createArrayNode();</span>
+
+<span class="fc" id="L242">        Document document = Jsoup.parse(readFully(htmlReader));</span>
+<span class="fc" id="L243">        Elements selectedTables = resolveHtmlTables(document, cssSelector);</span>
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        for (Element table : selectedTables) {</span>
+<span class="fc" id="L246">            List&lt;String&gt; headers = extractHtmlHeaders(table);</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">            if (headers.isEmpty()) {</span>
+<span class="nc" id="L248">                continue;</span>
+            }
+
+<span class="fc" id="L251">            List&lt;List&lt;String&gt;&gt; rows = extractHtmlRows(table, headers);</span>
+<span class="fc" id="L252">            tables.add(mapRowsToTable(headers, rows, mapper));</span>
+<span class="fc" id="L253">        }</span>
+
+<span class="fc" id="L255">        result.set(&quot;tables&quot;, tables);</span>
+<span class="fc" id="L256">        return result;</span>
+    }
+
+    /**
+     * Convert Markdown input to JsonNode and extract front matter, tables, and sections using the
+     * commonmark parser with GFM tables extension.
+     *
+     * @param markdownReader Reader containing Markdown data
+     * @return JsonNode with frontMatter, tables, and sections
+     * @throws IOException if parsing fails
+     */
+    public static JsonNode convertMarkdownToJson(Reader markdownReader) throws IOException {
+<span class="fc" id="L268">        return convertMarkdownToJson(markdownReader, null);</span>
+    }
+
+    /**
+     * Convert Markdown input to JsonNode and extract front matter, tables, and sections using the
+     * commonmark parser with GFM tables extension.
+     *
+     * @param markdownReader Reader containing Markdown data
+     * @param sectionFilter optional heading prefix to scope section extraction; when non-null, only
+     *        sections whose heading starts with this value are included
+     * @return JsonNode with frontMatter, tables, and sections
+     * @throws IOException if parsing fails
+     */
+    public static JsonNode convertMarkdownToJson(Reader markdownReader, String sectionFilter)
+            throws IOException {
+<span class="fc" id="L283">        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L284">        ObjectNode result = mapper.createObjectNode();</span>
+
+<span class="fc" id="L286">        String markdown = readFully(markdownReader).replace(&quot;\r\n&quot;, &quot;\n&quot;);</span>
+<span class="fc" id="L287">        MarkdownDocumentParts parts = splitMarkdownFrontMatter(markdown, mapper);</span>
+
+<span class="fc" id="L289">        List&lt;Extension&gt; extensions = List.of(TablesExtension.create());</span>
+<span class="fc" id="L290">        Parser parser = Parser.builder().extensions(extensions).build();</span>
+<span class="fc" id="L291">        Node document = parser.parse(parts.body());</span>
+
+<span class="fc" id="L293">        result.set(&quot;frontMatter&quot;, parts.frontMatter());</span>
+<span class="fc" id="L294">        result.set(&quot;tables&quot;, extractTablesFromAst(document, mapper));</span>
+<span class="fc" id="L295">        result.set(&quot;sections&quot;, extractSectionsFromAst(document, mapper, sectionFilter));</span>
+<span class="fc" id="L296">        return result;</span>
+    }
+
+    /**
+     * Convert Protocol Buffer input stream to JsonNode using Jackson Protobuf support. Loads the
+     * proto schema file from local filesystem or classpath resources and uses it to deserialize the
+     * binary data.
+     * 
+     * Schema resolution order: 1. Local filesystem: {schemaFilename} (path relative to current
+     * working directory) 2. Classpath resource: {schemaFilename} (resource path)
+     * 
+     * Users can include folder names in the outputSchema value (e.g.,
+     * &quot;schemas/test-records.proto&quot;). This supports both development (classpath resources) and
+     * production (Docker volumes).
+     * 
+     * @param protoBufInputStream InputStream containing binary Protocol Buffer data
+     * @param schemaFilename path to the .proto schema file to load
+     * @return JsonNode representing the parsed Protocol Buffer data
+     * @throws IOException if Proto parsing fails or schema file not found in any location
+     */
+    public static JsonNode convertProtobufToJson(InputStream protoBufInputStream,
+            String schemaFilename) throws IOException {
+        try {
+<span class="fc" id="L319">            InputStream schemaInputStream = loadSchemaFile(schemaFilename);</span>
+
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">            if (schemaInputStream == null) {</span>
+<span class="fc" id="L322">                throw new IOException(&quot;Proto schema file not found: &quot; + schemaFilename</span>
+                        + &quot; (searched in current directory and classpath)&quot;);
+            }
+
+            // Parse the schema
+<span class="nc" id="L327">            ProtobufSchema schema = ProtobufSchemaLoader.std.load(schemaInputStream);</span>
+
+            // Create a ProtobufMapper with the schema and deserialize the binary data to JsonNode
+<span class="nc" id="L330">            ProtobufMapper mapper = new ProtobufMapper();</span>
+<span class="nc" id="L331">            return mapper.readerFor(JsonNode.class).with(schema).readValue(protoBufInputStream);</span>
+<span class="fc" id="L332">        } catch (IOException e) {</span>
+<span class="fc" id="L333">            throw new IOException(&quot;Failed to deserialize Protocol Buffer: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Convert Avro binary data to JsonNode using Jackson Avro support. Loads the Avro schema file
+     * from local filesystem or classpath resources and uses it to deserialize the binary data.
+     * 
+     * Schema resolution order: 1. Local filesystem: {schemaFilename} (path relative to current
+     * working directory) 2. Classpath resource: {schemaFilename} (resource path)
+     * 
+     * Users can include folder names in the outputSchema value (e.g., &quot;schemas/records.avsc&quot;). This
+     * supports both development (classpath resources) and production (Docker volumes).
+     * 
+     * @param avroInputStream InputStream containing binary Avro data
+     * @param schemaFilename path to the .avsc (Avro schema) file to load
+     * @return JsonNode representing the parsed Avro data
+     * @throws IOException if Avro parsing fails or schema file not found in any location
+     */
+    public static JsonNode convertAvroToJson(InputStream avroInputStream, String schemaFilename)
+            throws IOException {
+        try {
+<span class="fc" id="L355">            InputStream schemaInputStream = loadSchemaFile(schemaFilename);</span>
+
+<span class="pc bpc" id="L357" title="1 of 2 branches missed.">            if (schemaInputStream == null) {</span>
+<span class="fc" id="L358">                throw new IOException(&quot;Avro schema file not found: &quot; + schemaFilename</span>
+                        + &quot; (searched in current directory and classpath)&quot;);
+            }
+
+            // Parse the Avro schema
+<span class="nc" id="L363">            Schema schema = new Schema.Parser().parse(schemaInputStream);</span>
+
+            // Decode the Avro binary data
+<span class="nc" id="L366">            Decoder decoder = DecoderFactory.get().binaryDecoder(avroInputStream, null);</span>
+<span class="nc" id="L367">            DatumReader&lt;GenericRecord&gt; datumReader = new GenericDatumReader&lt;&gt;(schema);</span>
+<span class="nc" id="L368">            GenericRecord record = datumReader.read(null, decoder);</span>
+
+            // Convert GenericRecord to JsonNode using AvroMapper
+<span class="nc" id="L371">            AvroMapper mapper = new AvroMapper();</span>
+<span class="nc" id="L372">            return mapper.valueToTree(record);</span>
+<span class="fc" id="L373">        } catch (IOException e) {</span>
+<span class="fc" id="L374">            throw new IOException(&quot;Failed to deserialize Avro data: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Load a schema file from local filesystem or classpath resources. Attempts to load from local
+     * filesystem first, then falls back to classpath resources.
+     * 
+     * @param schemaFilename the path to the schema file to load (can include folder names)
+     * @return InputStream for the schema file, or null if not found anywhere
+     * @throws IOException if there are I/O errors reading the file
+     */
+    public static InputStream loadSchemaFile(String schemaFilename) throws IOException {
+        // Try loading from local filesystem first (for Docker/production environments)
+<span class="fc" id="L388">        java.io.File localFile = new java.io.File(schemaFilename);</span>
+<span class="pc bpc" id="L389" title="1 of 4 branches missed.">        if (localFile.exists() &amp;&amp; localFile.isFile()) {</span>
+<span class="fc" id="L390">            return new java.io.FileInputStream(localFile);</span>
+        }
+
+        // Fall back to classpath resources (for development/testing)
+<span class="fc" id="L394">        InputStream resourceStream =</span>
+<span class="fc" id="L395">                Converter.class.getClassLoader().getResourceAsStream(schemaFilename);</span>
+
+<span class="fc" id="L397">        return resourceStream;</span>
+    }
+
+    /**
+     * Apply maximum length constraint to a JsonNode string value if specified in the spec.
+     * 
+     * @param spec The output parameter specification containing maxLength constraint
+     * @param node The JsonNode to potentially truncate
+     * @return The node truncated to maxLength if applicable, or the original node
+     */
+    public static JsonNode applyMaxLengthIfNeeded(OutputParameterSpec spec, JsonNode node) {
+<span class="pc bpc" id="L408" title="1 of 6 branches missed.">        if (node == null || node.isNull() || spec == null) {</span>
+<span class="fc" id="L409">            return node;</span>
+        }
+
+<span class="fc" id="L412">        String maxLength = spec.getMaxLength();</span>
+<span class="pc bpc" id="L413" title="1 of 4 branches missed.">        if (maxLength != null &amp;&amp; node.isTextual()) {</span>
+            try {
+<span class="fc" id="L415">                int max = Integer.parseInt(maxLength);</span>
+<span class="fc" id="L416">                String s = node.asText();</span>
+<span class="pc bpc" id="L417" title="1 of 2 branches missed.">                if (s.length() &gt; max) {</span>
+<span class="fc" id="L418">                    return new ObjectMapper().getNodeFactory().textNode(s.substring(0, max));</span>
+                }
+<span class="fc" id="L420">            } catch (NumberFormatException nfe) {</span>
+                // ignore invalid maxLength
+<span class="nc" id="L422">            }</span>
+        }
+
+<span class="fc" id="L425">        return node;</span>
+    }
+
+    /**
+     * Simple JSON path extractor supporting paths like $.a.b[0].c — where $ refers to the provided
+     * root node (not the entire document unless that is the root).
+     * 
+     * @param root The root JsonNode to extract from
+     * @param mapping The JSONPath expression
+     * @return The extracted JsonNode, or NullNode if path not found
+     */
+    public static JsonNode jsonPathExtract(JsonNode root, String mapping) {
+<span class="fc bfc" id="L437" title="All 4 branches covered.">        if (mapping == null || mapping.isEmpty()) {</span>
+<span class="fc" id="L438">            return NullNode.instance;</span>
+        }
+
+<span class="fc" id="L441">        String m = mapping.trim();</span>
+
+<span class="fc bfc" id="L443" title="All 4 branches covered.">        if (m.equals(&quot;$&quot;) || m.equals(&quot;$.&quot;)) {</span>
+<span class="fc bfc" id="L444" title="All 2 branches covered.">            return root == null ? NullNode.instance : root;</span>
+        }
+
+        try {
+<span class="fc" id="L448">            ObjectMapper mapper = new ObjectMapper();</span>
+            Configuration config =
+<span class="fc" id="L450">                    Configuration.builder().jsonProvider(new JacksonJsonNodeJsonProvider(mapper))</span>
+<span class="fc" id="L451">                            .mappingProvider(new JacksonMappingProvider(mapper)).build();</span>
+<span class="fc" id="L452">            return JsonPath.using(config).parse(root).read(m, JsonNode.class);</span>
+<span class="fc" id="L453">        } catch (PathNotFoundException pnfe) {</span>
+<span class="fc" id="L454">            return NullNode.instance;</span>
+<span class="nc" id="L455">        } catch (Exception e) {</span>
+            // If the path contains properties with spaces, try to fix it by converting to bracket
+            // notation
+<span class="nc bnc" id="L458" title="All 4 branches missed.">            if (e.getMessage() != null &amp;&amp; e.getMessage().contains(&quot;bracket notion&quot;)) {</span>
+<span class="nc" id="L459">                String fixedMapping = fixJsonPathWithSpaces(m);</span>
+
+<span class="nc bnc" id="L461" title="All 2 branches missed.">                if (!fixedMapping.equals(m)) {</span>
+                    try {
+<span class="nc" id="L463">                        ObjectMapper mapper = new ObjectMapper();</span>
+<span class="nc" id="L464">                        Configuration config = Configuration.builder()</span>
+<span class="nc" id="L465">                                .jsonProvider(new JacksonJsonNodeJsonProvider(mapper))</span>
+<span class="nc" id="L466">                                .mappingProvider(new JacksonMappingProvider(mapper)).build();</span>
+<span class="nc" id="L467">                        return JsonPath.using(config).parse(root).read(fixedMapping,</span>
+                                JsonNode.class);
+<span class="nc" id="L469">                    } catch (Exception e2) {</span>
+<span class="nc" id="L470">                        logger.debug(&quot;JSONPath bracket-notation retry also failed for path '{}': {}&quot;, fixedMapping, e2.getMessage(), e2);</span>
+<span class="nc" id="L471">                        return NullNode.instance;</span>
+                    }
+                }
+            }
+            // For any other exception, return null
+<span class="nc" id="L476">            return NullNode.instance;</span>
+        }
+    }
+
+    /**
+     * Convert JSONPath expressions with spaces in property names to bracket notation. For example:
+     * $.foo bar.baz becomes $['foo bar'].baz
+     * 
+     * @param mapping The JSONPath expression to fix
+     * @return The fixed JSONPath expression with bracket notation for properties with spaces
+     */
+    public static String fixJsonPathWithSpaces(String mapping) {
+<span class="fc bfc" id="L488" title="All 4 branches covered.">        if (mapping == null || !mapping.contains(&quot; &quot;)) {</span>
+<span class="fc" id="L489">            return mapping;</span>
+        }
+
+        // Pattern to match dot-notation properties that contain spaces (not already in brackets)
+        // Matches: . followed by characters that aren't special chars but contain a space
+<span class="fc" id="L494">        String result = mapping;</span>
+
+        // Replace patterns like .foo bar with .['foo bar']
+        // Using regex to find dot followed by a property name with spaces
+<span class="fc" id="L498">        result = result.replaceAll(&quot;\\.([^.\\[\\]]+\\s+[^.\\[\\]]*)(?=[\\].\\[$]|$)&quot;, &quot;.['$1']&quot;);</span>
+
+<span class="fc" id="L500">        return result;</span>
+    }
+
+    private static String readFully(Reader reader) throws IOException {
+<span class="fc" id="L504">        StringWriter writer = new StringWriter();</span>
+<span class="fc" id="L505">        reader.transferTo(writer);</span>
+<span class="fc" id="L506">        return writer.toString();</span>
+    }
+
+    private static Elements resolveHtmlTables(Document document, String cssSelector) {
+<span class="pc bpc" id="L510" title="1 of 4 branches missed.">        if (cssSelector == null || cssSelector.isBlank()) {</span>
+<span class="fc" id="L511">            return document.select(&quot;table&quot;);</span>
+        }
+
+<span class="fc" id="L514">        Elements scoped = document.select(cssSelector);</span>
+<span class="fc" id="L515">        Elements tables = new Elements();</span>
+<span class="fc bfc" id="L516" title="All 2 branches covered.">        for (Element element : scoped) {</span>
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">            if (&quot;table&quot;.equalsIgnoreCase(element.tagName())) {</span>
+<span class="fc" id="L518">                tables.add(element);</span>
+            } else {
+<span class="nc" id="L520">                tables.addAll(element.select(&quot;table&quot;));</span>
+            }
+<span class="fc" id="L522">        }</span>
+<span class="fc" id="L523">        return tables;</span>
+    }
+
+    private static List&lt;String&gt; extractHtmlHeaders(Element table) {
+<span class="fc" id="L527">        Elements headerCells = table.select(&quot;thead tr:first-child th&quot;);</span>
+<span class="fc bfc" id="L528" title="All 2 branches covered.">        if (headerCells.isEmpty()) {</span>
+<span class="fc" id="L529">            headerCells = table.select(&quot;tr:first-child th&quot;);</span>
+        }
+
+<span class="fc" id="L532">        List&lt;String&gt; headers = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L533" title="All 2 branches covered.">        for (Element headerCell : headerCells) {</span>
+<span class="fc" id="L534">            String header = headerCell.text().trim();</span>
+<span class="fc" id="L535">            headers.add(header);</span>
+<span class="fc" id="L536">        }</span>
+<span class="fc" id="L537">        return sanitizeHeaders(headers);</span>
+    }
+
+    private static List&lt;List&lt;String&gt;&gt; extractHtmlRows(Element table, List&lt;String&gt; headers) {
+<span class="fc" id="L541">        List&lt;List&lt;String&gt;&gt; rows = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L542">        Elements rowElements = table.select(&quot;tbody tr&quot;);</span>
+<span class="pc bpc" id="L543" title="1 of 2 branches missed.">        if (rowElements.isEmpty()) {</span>
+<span class="nc" id="L544">            rowElements = table.select(&quot;tr&quot;);</span>
+        }
+
+<span class="fc bfc" id="L547" title="All 2 branches covered.">        for (Element rowElement : rowElements) {</span>
+            // Skip any row containing at least one &lt;th&gt; — it is a header row.
+<span class="fc bfc" id="L549" title="All 2 branches covered.">            if (!rowElement.select(&quot;th&quot;).isEmpty()) {</span>
+<span class="fc" id="L550">                continue;</span>
+            }
+
+<span class="fc" id="L553">            Elements cells = rowElement.select(&quot;td&quot;);</span>
+<span class="pc bpc" id="L554" title="1 of 2 branches missed.">            if (cells.isEmpty()) {</span>
+<span class="nc" id="L555">                continue;</span>
+            }
+
+<span class="fc" id="L558">            List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">            for (Element cell : cells) {</span>
+<span class="fc" id="L560">                values.add(cell.text().trim());</span>
+<span class="fc" id="L561">            }</span>
+<span class="fc" id="L562">            rows.add(values);</span>
+<span class="fc" id="L563">        }</span>
+
+<span class="fc" id="L565">        return rows;</span>
+    }
+
+    private static ArrayNode extractTablesFromAst(Node document, ObjectMapper mapper) {
+<span class="fc" id="L569">        ArrayNode tables = mapper.createArrayNode();</span>
+
+<span class="fc bfc" id="L571" title="All 2 branches covered.">        for (Node node = document.getFirstChild(); node != null; node = node.getNext()) {</span>
+<span class="fc bfc" id="L572" title="All 2 branches covered.">            if (node instanceof TableBlock table) {</span>
+<span class="fc" id="L573">                List&lt;String&gt; headers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L574">                List&lt;List&lt;String&gt;&gt; rows = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L576" title="All 2 branches covered.">                for (Node child = table.getFirstChild(); child != null;</span>
+<span class="fc" id="L577">                        child = child.getNext()) {</span>
+<span class="fc bfc" id="L578" title="All 2 branches covered.">                    if (child instanceof TableHead) {</span>
+<span class="fc" id="L579">                        Node headerRow = child.getFirstChild();</span>
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">                        if (headerRow instanceof TableRow) {</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">                            for (Node cell = headerRow.getFirstChild(); cell != null;</span>
+<span class="fc" id="L582">                                    cell = cell.getNext()) {</span>
+<span class="pc bpc" id="L583" title="1 of 2 branches missed.">                                if (cell instanceof TableCell) {</span>
+<span class="fc" id="L584">                                    headers.add(collectText(cell).trim());</span>
+                                }
+                            }
+                        }
+<span class="pc bpc" id="L588" title="1 of 2 branches missed.">                    } else if (child instanceof TableBody) {</span>
+<span class="fc bfc" id="L589" title="All 2 branches covered.">                        for (Node row = child.getFirstChild(); row != null;</span>
+<span class="fc" id="L590">                                row = row.getNext()) {</span>
+<span class="pc bpc" id="L591" title="1 of 2 branches missed.">                            if (row instanceof TableRow) {</span>
+<span class="fc" id="L592">                                List&lt;String&gt; values = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L593" title="All 2 branches covered.">                                for (Node cell = row.getFirstChild(); cell != null;</span>
+<span class="fc" id="L594">                                        cell = cell.getNext()) {</span>
+<span class="pc bpc" id="L595" title="1 of 2 branches missed.">                                    if (cell instanceof TableCell) {</span>
+<span class="fc" id="L596">                                        values.add(collectText(cell).trim());</span>
+                                    }
+                                }
+<span class="fc" id="L599">                                rows.add(values);</span>
+                            }
+                        }
+                    }
+                }
+
+<span class="fc" id="L605">                List&lt;String&gt; sanitized = sanitizeHeaders(headers);</span>
+<span class="pc bpc" id="L606" title="1 of 2 branches missed.">                if (!sanitized.isEmpty()) {</span>
+<span class="fc" id="L607">                    tables.add(mapRowsToTable(sanitized, rows, mapper));</span>
+                }
+            }
+        }
+
+<span class="fc" id="L612">        return tables;</span>
+    }
+
+    private static ArrayNode extractSectionsFromAst(Node document, ObjectMapper mapper,
+            String sectionFilter) {
+<span class="fc" id="L617">        ArrayNode sections = mapper.createArrayNode();</span>
+
+<span class="fc" id="L619">        String currentHeading = null;</span>
+<span class="fc" id="L620">        int currentLevel = 0;</span>
+<span class="fc" id="L621">        List&lt;Node&gt; currentContentNodes = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L623" title="All 2 branches covered.">        for (Node node = document.getFirstChild(); node != null; node = node.getNext()) {</span>
+<span class="fc bfc" id="L624" title="All 2 branches covered.">            if (node instanceof Heading heading) {</span>
+<span class="fc bfc" id="L625" title="All 4 branches covered.">                if (currentHeading != null &amp;&amp; matchesSectionFilter(currentHeading, sectionFilter)) {</span>
+<span class="fc" id="L626">                    sections.add(createSectionNode(currentHeading, currentLevel,</span>
+<span class="fc" id="L627">                            collectContentText(currentContentNodes), mapper));</span>
+                }
+<span class="fc" id="L629">                currentHeading = collectText(heading).trim();</span>
+<span class="fc" id="L630">                currentLevel = heading.getLevel();</span>
+<span class="fc" id="L631">                currentContentNodes = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L632" title="All 4 branches covered.">            } else if (currentHeading != null &amp;&amp; !(node instanceof TableBlock)) {</span>
+<span class="fc" id="L633">                currentContentNodes.add(node);</span>
+            }
+        }
+
+<span class="pc bpc" id="L637" title="1 of 4 branches missed.">        if (currentHeading != null &amp;&amp; matchesSectionFilter(currentHeading, sectionFilter)) {</span>
+<span class="fc" id="L638">            sections.add(createSectionNode(currentHeading, currentLevel,</span>
+<span class="fc" id="L639">                    collectContentText(currentContentNodes), mapper));</span>
+        }
+
+<span class="fc" id="L642">        return sections;</span>
+    }
+
+    private static boolean matchesSectionFilter(String heading, String sectionFilter) {
+<span class="pc bpc" id="L646" title="1 of 4 branches missed.">        return sectionFilter == null || sectionFilter.isBlank()</span>
+<span class="fc bfc" id="L647" title="All 2 branches covered.">                || heading.startsWith(sectionFilter);</span>
+    }
+
+    private static String collectText(Node node) {
+<span class="fc" id="L651">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L652">        node.accept(new AbstractVisitor() {</span>
+            @Override
+            public void visit(Text text) {
+<span class="fc" id="L655">                sb.append(text.getLiteral());</span>
+<span class="fc" id="L656">            }</span>
+
+            @Override
+            public void visit(Code code) {
+<span class="nc" id="L660">                sb.append(code.getLiteral());</span>
+<span class="nc" id="L661">            }</span>
+
+            @Override
+            public void visit(SoftLineBreak softLineBreak) {
+<span class="nc" id="L665">                sb.append(' ');</span>
+<span class="nc" id="L666">            }</span>
+
+            @Override
+            public void visit(HardLineBreak hardLineBreak) {
+<span class="nc" id="L670">                sb.append('\n');</span>
+<span class="nc" id="L671">            }</span>
+        });
+<span class="fc" id="L673">        return sb.toString();</span>
+    }
+
+    private static String collectContentText(List&lt;Node&gt; nodes) {
+<span class="fc" id="L677">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc bfc" id="L679" title="All 2 branches covered.">        for (Node node : nodes) {</span>
+<span class="fc" id="L680">            String text = collectText(node).trim();</span>
+<span class="pc bpc" id="L681" title="1 of 2 branches missed.">            if (!text.isEmpty()) {</span>
+<span class="pc bpc" id="L682" title="1 of 2 branches missed.">                if (sb.length() &gt; 0) {</span>
+<span class="nc" id="L683">                    sb.append('\n');</span>
+                }
+<span class="fc" id="L685">                sb.append(text);</span>
+            }
+<span class="fc" id="L687">        }</span>
+
+<span class="fc" id="L689">        return sb.toString().trim();</span>
+    }
+
+    private static ObjectNode createSectionNode(String heading, int level, String content,
+            ObjectMapper mapper) {
+<span class="fc" id="L694">        ObjectNode section = mapper.createObjectNode();</span>
+<span class="fc" id="L695">        section.put(&quot;heading&quot;, heading);</span>
+<span class="fc" id="L696">        section.put(&quot;level&quot;, level);</span>
+<span class="fc" id="L697">        section.put(&quot;content&quot;, content);</span>
+<span class="fc" id="L698">        return section;</span>
+    }
+
+    private static ArrayNode mapRowsToTable(List&lt;String&gt; headers, List&lt;List&lt;String&gt;&gt; rows,
+            ObjectMapper mapper) {
+<span class="fc" id="L703">        ArrayNode table = mapper.createArrayNode();</span>
+
+<span class="fc bfc" id="L705" title="All 2 branches covered.">        for (List&lt;String&gt; row : rows) {</span>
+<span class="fc" id="L706">            ObjectNode rowObject = mapper.createObjectNode();</span>
+<span class="fc bfc" id="L707" title="All 2 branches covered.">            for (int i = 0; i &lt; headers.size(); i++) {</span>
+<span class="pc bpc" id="L708" title="1 of 2 branches missed.">                String value = i &lt; row.size() ? row.get(i) : &quot;&quot;;</span>
+<span class="fc" id="L709">                rowObject.put(headers.get(i), value);</span>
+            }
+<span class="fc" id="L711">            table.add(rowObject);</span>
+<span class="fc" id="L712">        }</span>
+
+<span class="fc" id="L714">        return table;</span>
+    }
+
+    private static List&lt;String&gt; sanitizeHeaders(List&lt;String&gt; rawHeaders) {
+<span class="fc" id="L718">        List&lt;String&gt; headers = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L719" title="All 2 branches covered.">        for (String rawHeader : rawHeaders) {</span>
+<span class="pc bpc" id="L720" title="1 of 2 branches missed.">            String header = rawHeader == null ? &quot;&quot; : rawHeader.trim();</span>
+<span class="fc" id="L721">            headers.add(header);</span>
+<span class="fc" id="L722">        }</span>
+
+<span class="pc bpc" id="L724" title="1 of 2 branches missed.">        if (headers.stream().allMatch(String::isBlank)) {</span>
+<span class="nc" id="L725">            return List.of();</span>
+        }
+
+<span class="fc" id="L728">        return headers;</span>
+    }
+
+    private static MarkdownDocumentParts splitMarkdownFrontMatter(String markdown, ObjectMapper mapper)
+            throws IOException {
+<span class="fc" id="L733">        ObjectNode frontMatter = mapper.createObjectNode();</span>
+<span class="fc" id="L734">        String body = markdown;</span>
+
+<span class="fc bfc" id="L736" title="All 2 branches covered.">        if (markdown.startsWith(&quot;---\n&quot;)) {</span>
+<span class="fc" id="L737">            int endIndex = markdown.indexOf(&quot;\n---\n&quot;, 4);</span>
+<span class="pc bpc" id="L738" title="1 of 2 branches missed.">            if (endIndex &gt; -1) {</span>
+<span class="fc" id="L739">                String yamlBlock = markdown.substring(4, endIndex).trim();</span>
+<span class="fc" id="L740">                body = markdown.substring(endIndex + 5);</span>
+
+<span class="pc bpc" id="L742" title="1 of 2 branches missed.">                if (!yamlBlock.isBlank()) {</span>
+<span class="fc" id="L743">                    JsonNode parsed = new ObjectMapper(new YAMLFactory()).readTree(yamlBlock);</span>
+<span class="pc bpc" id="L744" title="2 of 4 branches missed.">                    if (parsed != null &amp;&amp; parsed.isObject()) {</span>
+<span class="fc" id="L745">                        frontMatter = (ObjectNode) parsed;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L751">        return new MarkdownDocumentParts(frontMatter, body);</span>
+    }
+
+<span class="fc" id="L754">    private record MarkdownDocumentParts(ObjectNode frontMatter, String body) {</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

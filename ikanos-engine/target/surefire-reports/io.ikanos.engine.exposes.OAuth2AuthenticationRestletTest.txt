@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.ikanos.engine.exposes.OAuth2AuthenticationRestletTest
+-------------------------------------------------------------------------------
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.779 s -- in io.ikanos.engine.exposes.OAuth2AuthenticationRestletTest

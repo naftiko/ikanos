@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StructureSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.util</a> &gt; <span class="el_source">StructureSpec.java</span></div><h1>StructureSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.util;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * JSON Structure Specification Element.
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each scalar field is held in an {@link AtomicReference}. List fields use
+ * {@link CopyOnWriteArrayList}. This satisfies SonarQube rule {@code java:S3077}.
+ */
+public class StructureSpec&lt;T extends StructureSpec&lt;T&gt;&gt; {
+
+<span class="fc" id="L32">    private final AtomicReference&lt;String&gt; name = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L33">    private final AtomicReference&lt;String&gt; type = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L34">    private final AtomicReference&lt;T&gt; items = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L35">    private final AtomicReference&lt;T&gt; values = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L36">    private final AtomicReference&lt;String&gt; constant = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L37">    private final AtomicReference&lt;String&gt; selector = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L38">    private final AtomicReference&lt;String&gt; maxLength = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L39">    private final AtomicReference&lt;Integer&gt; precision = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L40">    private final AtomicReference&lt;Integer&gt; scale = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L41">    private final AtomicReference&lt;String&gt; contentEncoding = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L42">    private final AtomicReference&lt;String&gt; contentCompression = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L43">    private final AtomicReference&lt;String&gt; contentMediaType = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L44">    private final AtomicReference&lt;String&gt; description = new AtomicReference&lt;&gt;();</span>
+
+    @JsonProperty(&quot;properties&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final List&lt;T&gt; properties;
+
+    @JsonProperty(&quot;required&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final List&lt;String&gt; required;
+
+    @JsonProperty(&quot;choices&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final List&lt;T&gt; choices;
+
+    @JsonProperty(&quot;enum&quot;)
+    private final List&lt;String&gt; enumeration;
+
+    @JsonProperty(&quot;tuple&quot;)
+    private final List&lt;String&gt; tuple;
+
+    @JsonProperty(&quot;examples&quot;)
+    private final List&lt;String&gt; examples;
+
+    public StructureSpec() {
+<span class="fc" id="L68">        this(null, null, null, null, null, null, null, null, null, null, null, null, null);</span>
+<span class="fc" id="L69">    }</span>
+
+    public StructureSpec(String name, String type, T items, T values,
+            String constant, String selector, String maxLength, Integer precision, Integer scale,
+            String contentEncoding, String contentCompression, String contentMediaType,
+<span class="fc" id="L74">            String description) {</span>
+<span class="fc" id="L75">        this.name.set(name);</span>
+<span class="fc" id="L76">        this.type.set(type);</span>
+<span class="fc" id="L77">        this.properties = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L78">        this.required = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L79">        this.items.set(items);</span>
+<span class="fc" id="L80">        this.values.set(values);</span>
+<span class="fc" id="L81">        this.constant.set(constant);</span>
+<span class="fc" id="L82">        this.enumeration = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L83">        this.choices = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L84">        this.selector.set(selector);</span>
+<span class="fc" id="L85">        this.tuple = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L86">        this.maxLength.set(maxLength);</span>
+<span class="fc" id="L87">        this.precision.set(precision);</span>
+<span class="fc" id="L88">        this.scale.set(scale);</span>
+<span class="fc" id="L89">        this.contentEncoding.set(contentEncoding);</span>
+<span class="fc" id="L90">        this.contentCompression.set(contentCompression);</span>
+<span class="fc" id="L91">        this.contentMediaType.set(contentMediaType);</span>
+<span class="fc" id="L92">        this.description.set(description);</span>
+<span class="fc" id="L93">        this.examples = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L94">    }</span>
+
+    @JsonProperty(&quot;name&quot;)
+    public String getName() {
+<span class="fc" id="L98">        return name.get();</span>
+    }
+
+    @JsonProperty(&quot;name&quot;)
+    public void setName(String name) {
+<span class="fc" id="L103">        this.name.set(name);</span>
+<span class="fc" id="L104">    }</span>
+
+    @JsonProperty(&quot;type&quot;)
+    public String getType() {
+<span class="fc" id="L108">        return type.get();</span>
+    }
+
+    @JsonProperty(&quot;type&quot;)
+    public void setType(String type) {
+<span class="fc" id="L113">        this.type.set(type);</span>
+<span class="fc" id="L114">    }</span>
+
+    public List&lt;T&gt; getProperties() {
+<span class="fc" id="L117">        return properties;</span>
+    }
+
+    public List&lt;String&gt; getRequired() {
+<span class="fc" id="L121">        return required;</span>
+    }
+
+    @JsonProperty(&quot;items&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public T getItems() {
+<span class="fc" id="L127">        return items.get();</span>
+    }
+
+    @JsonProperty(&quot;items&quot;)
+    public void setItems(T items) {
+<span class="fc" id="L132">        this.items.set(items);</span>
+<span class="fc" id="L133">    }</span>
+
+    @JsonProperty(&quot;values&quot;)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public T getValues() {
+<span class="fc" id="L138">        return values.get();</span>
+    }
+
+    @JsonProperty(&quot;values&quot;)
+    public void setValues(T values) {
+<span class="fc" id="L143">        this.values.set(values);</span>
+<span class="fc" id="L144">    }</span>
+
+    @JsonProperty(&quot;const&quot;)
+    public String getConstant() {
+<span class="fc" id="L148">        return constant.get();</span>
+    }
+
+    @JsonProperty(&quot;const&quot;)
+    public void setConstant(String constant) {
+<span class="fc" id="L153">        this.constant.set(constant);</span>
+<span class="fc" id="L154">    }</span>
+
+    public List&lt;String&gt; getEnumeration() {
+<span class="fc" id="L157">        return this.enumeration;</span>
+    }
+
+    public List&lt;T&gt; getChoices() {
+<span class="nc" id="L161">        return choices;</span>
+    }
+
+    @JsonProperty(&quot;selector&quot;)
+    public String getSelector() {
+<span class="fc" id="L166">        return selector.get();</span>
+    }
+
+    @JsonProperty(&quot;selector&quot;)
+    public void setSelector(String selector) {
+<span class="fc" id="L171">        this.selector.set(selector);</span>
+<span class="fc" id="L172">    }</span>
+
+    @JsonProperty(&quot;maxLength&quot;)
+    public String getMaxLength() {
+<span class="fc" id="L176">        return maxLength.get();</span>
+    }
+
+    @JsonProperty(&quot;maxLength&quot;)
+    public void setMaxLength(String maxLength) {
+<span class="fc" id="L181">        this.maxLength.set(maxLength);</span>
+<span class="fc" id="L182">    }</span>
+
+    @JsonProperty(&quot;precision&quot;)
+    public Integer getPrecision() {
+<span class="fc" id="L186">        return precision.get();</span>
+    }
+
+    @JsonProperty(&quot;precision&quot;)
+    public void setPrecision(Integer precision) {
+<span class="fc" id="L191">        this.precision.set(precision);</span>
+<span class="fc" id="L192">    }</span>
+
+    @JsonProperty(&quot;scale&quot;)
+    public Integer getScale() {
+<span class="fc" id="L196">        return scale.get();</span>
+    }
+
+    @JsonProperty(&quot;scale&quot;)
+    public void setScale(Integer scale) {
+<span class="fc" id="L201">        this.scale.set(scale);</span>
+<span class="fc" id="L202">    }</span>
+
+    @JsonProperty(&quot;contentEncoding&quot;)
+    public String getContentEncoding() {
+<span class="fc" id="L206">        return contentEncoding.get();</span>
+    }
+
+    @JsonProperty(&quot;contentEncoding&quot;)
+    public void setContentEncoding(String contentEncoding) {
+<span class="fc" id="L211">        this.contentEncoding.set(contentEncoding);</span>
+<span class="fc" id="L212">    }</span>
+
+    @JsonProperty(&quot;contentCompression&quot;)
+    public String getContentCompression() {
+<span class="fc" id="L216">        return contentCompression.get();</span>
+    }
+
+    @JsonProperty(&quot;contentCompression&quot;)
+    public void setContentCompression(String contentCompression) {
+<span class="fc" id="L221">        this.contentCompression.set(contentCompression);</span>
+<span class="fc" id="L222">    }</span>
+
+    @JsonProperty(&quot;contentMediaType&quot;)
+    public String getContentMediaType() {
+<span class="fc" id="L226">        return contentMediaType.get();</span>
+    }
+
+    @JsonProperty(&quot;contentMediaType&quot;)
+    public void setContentMediaType(String contentMediaType) {
+<span class="fc" id="L231">        this.contentMediaType.set(contentMediaType);</span>
+<span class="fc" id="L232">    }</span>
+
+    @JsonProperty(&quot;description&quot;)
+    public String getDescription() {
+<span class="fc" id="L236">        return description.get();</span>
+    }
+
+    @JsonProperty(&quot;description&quot;)
+    public void setDescription(String description) {
+<span class="fc" id="L241">        this.description.set(description);</span>
+<span class="fc" id="L242">    }</span>
+
+    public List&lt;String&gt; getExamples() {
+<span class="fc" id="L245">        return examples;</span>
+    }
+
+    public List&lt;String&gt; getTuple() {
+<span class="fc" id="L249">        return tuple;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

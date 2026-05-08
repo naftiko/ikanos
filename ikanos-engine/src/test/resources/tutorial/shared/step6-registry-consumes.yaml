@@ -1,0 +1,45 @@
+# shared/registry-consumes.yaml (updated — added voyages resource)
+ikanos: "1.0.0-alpha3"
+consumes:
+  - namespace: registry
+    type: http
+    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: bearer
+      token: "{{REGISTRY_TOKEN}}"
+    inputParameters:
+    - name: Registry-Version
+      in: header
+      value: "{{REGISTRY_VERSION}}"
+    resources:
+      - name: ships
+        path: "/ships"
+        operations:
+          - name: list-ships
+            method: GET
+            inputParameters:
+              - name: status
+                in: query
+      - name: ship
+        path: "/ships/{{imo_number}}"
+        operations:
+          - name: get-ship
+            method: GET
+            inputParameters:
+              - name: imo_number
+                in: path
+      - name: voyages
+        path: "/voyages"
+        operations:
+          - name: create-voyage
+            method: POST
+            body: |
+              {
+                "shipImo": "{{shipImo}}",
+                "departurePort": "{{departurePort}}",
+                "arrivalPort": "{{arrivalPort}}",
+                "departureDate": "{{departureDate}}",
+                "arrivalDate": "{{arrivalDate}}",
+                "crewIds": {{crewIds}},
+                "cargoIds": {{cargoIds}}
+              }

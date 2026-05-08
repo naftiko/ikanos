@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "Aggregate Invalid Ref Test"
+  description: "Test capability with an unknown aggregate ref"
+  tags:
+    - Test
+    - Aggregate
+  created: "2026-04-03"
+  modified: "2026-04-03"
+
+capability:
+  aggregates:
+    - label: "Data"
+      namespace: "data"
+      functions:
+        - name: "read-items"
+          description: "Read items."
+          call: "mock-api.get-items"
+
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9103
+      namespace: "bad-ref-mcp"
+      description: "MCP server with a bad ref."
+
+      tools:
+        - name: "bad-tool"
+          description: "Tool with unknown ref."
+          ref: "unknown.nonexistent"
+
+  consumes:
+    - type: "http"
+      namespace: "mock-api"
+      baseUri: "http://localhost:8080/v1"
+      resources:
+        - path: "items"
+          name: "items"
+          operations:
+            - method: "GET"
+              name: "get-items"

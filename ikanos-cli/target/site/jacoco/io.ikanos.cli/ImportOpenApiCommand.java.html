@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImportOpenApiCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos CLI</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.cli</a> &gt; <span class="el_source">ImportOpenApiCommand.java</span></div><h1>ImportOpenApiCommand.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.cli;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.Callable;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.parser.OpenAPIParser;
+import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.openapi.OasImportConverter;
+import io.ikanos.spec.openapi.OasImportResult;
+import io.ikanos.util.VersionHelper;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@Command(
+    name = &quot;openapi&quot;,
+    mixinStandardHelpOptions = true,
+    description = &quot;Import an OpenAPI specification into an Ikanos consumes YAML file.&quot;
+)
+<span class="fc" id="L44">public class ImportOpenApiCommand implements Callable&lt;Integer&gt; {</span>
+
+<span class="fc" id="L46">    private static final Logger logger = LoggerFactory.getLogger(ImportOpenApiCommand.class);</span>
+
+    @Parameters(index = &quot;0&quot;, description = &quot;Path or URL to the OpenAPI specification file&quot;)
+    private String source;
+
+    @Option(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;Output file path (default: ./&lt;namespace&gt;-consumes.yml)&quot;)
+    private String output;
+
+    @Option(names = {&quot;-n&quot;, &quot;--namespace&quot;}, description = &quot;Override the derived namespace&quot;)
+    private String namespace;
+
+<span class="fc" id="L57">    @Option(names = {&quot;-f&quot;, &quot;--format&quot;}, description = &quot;Output format: yaml or json (default: yaml)&quot;)</span>
+    private String format = &quot;yaml&quot;;
+
+    @Override
+    public Integer call() {
+        try {
+            // Parse the OpenAPI document (supports Swagger 2.0 and OAS 3.x)
+<span class="fc" id="L64">            SwaggerParseResult parseResult = new OpenAPIParser().readLocation(source, null, null);</span>
+
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">            if (parseResult.getOpenAPI() == null) {</span>
+<span class="nc" id="L67">                System.err.println(&quot;Error: Failed to parse OpenAPI specification from: &quot; + source);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">                if (parseResult.getMessages() != null) {</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">                    for (String msg : parseResult.getMessages()) {</span>
+<span class="nc" id="L70">                        System.err.println(&quot;  &quot; + msg);</span>
+<span class="nc" id="L71">                    }</span>
+                }
+<span class="nc" id="L73">                return 1;</span>
+            }
+
+<span class="fc" id="L76">            OpenAPI openApi = parseResult.getOpenAPI();</span>
+
+            // Convert to Naftiko HttpClientSpec
+<span class="fc" id="L79">            OasImportConverter converter = new OasImportConverter();</span>
+<span class="fc" id="L80">            OasImportResult result = converter.convert(openApi);</span>
+
+<span class="fc" id="L82">            HttpClientSpec httpClient = result.getHttpClient();</span>
+
+            // Override namespace if specified
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (namespace != null) {</span>
+<span class="fc" id="L86">                httpClient.setNamespace(namespace);</span>
+            }
+
+            // Print parse warnings (e.g. Swagger 2.0 -&gt; OAS 3 conversion notes)
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            if (parseResult.getMessages() != null) {</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">                for (String msg : parseResult.getMessages()) {</span>
+<span class="nc" id="L92">                    System.err.println(&quot;Warning: &quot; + msg);</span>
+<span class="nc" id="L93">                }</span>
+            }
+
+            // Print conversion warnings to stderr
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            for (String warning : result.getWarnings()) {</span>
+<span class="fc" id="L98">                System.err.println(&quot;Warning: &quot; + warning);</span>
+<span class="fc" id="L99">            }</span>
+
+            // Determine output path
+            String outputPath;
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (output != null) {</span>
+<span class="fc" id="L104">                outputPath = output;</span>
+            } else {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                String ext = &quot;json&quot;.equalsIgnoreCase(format) ? &quot;json&quot; : &quot;yml&quot;;</span>
+<span class="nc" id="L107">                outputPath = &quot;./&quot; + httpClient.getNamespace() + &quot;-consumes.&quot; + ext;</span>
+            }
+
+            // Build the appropriate mapper based on format
+            ObjectMapper mapper;
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            if (&quot;json&quot;.equalsIgnoreCase(format)) {</span>
+<span class="fc" id="L113">                mapper = new ObjectMapper();</span>
+<span class="fc" id="L114">                mapper.enable(SerializationFeature.INDENT_OUTPUT);</span>
+            } else {
+<span class="fc" id="L116">                YAMLFactory yamlFactory = YAMLFactory.builder()</span>
+<span class="fc" id="L117">                        .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)</span>
+<span class="fc" id="L118">                        .build();</span>
+<span class="fc" id="L119">                mapper = new ObjectMapper(yamlFactory);</span>
+            }
+<span class="fc" id="L121">            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_EMPTY);</span>
+<span class="fc" id="L122">            mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);</span>
+
+            // Wrap in a IkanosSpec document
+<span class="fc" id="L125">            IkanosSpec spec = new IkanosSpec();</span>
+<span class="fc" id="L126">            spec.setIkanos(VersionHelper.getSchemaVersion());</span>
+<span class="fc" id="L127">            spec.getConsumes().add(httpClient);</span>
+
+<span class="fc" id="L129">            Path path = Paths.get(outputPath);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if (&quot;json&quot;.equalsIgnoreCase(format)) {</span>
+<span class="fc" id="L131">                mapper.writeValue(path.toFile(), spec);</span>
+            } else {
+<span class="fc" id="L133">                String yaml = mapper.writeValueAsString(spec);</span>
+                // Add modeline header to be sure the file will be recognized by Naftiko VS Code extension
+<span class="fc" id="L135">                Files.writeString(path, &quot;# @ikanos\n---\n&quot; + yaml);</span>
+            }
+
+<span class="fc" id="L138">            System.out.println(&quot;✓ Imported OpenAPI specification successfully&quot;);</span>
+<span class="fc" id="L139">            System.out.println(&quot;  Output: &quot; + path.toAbsolutePath());</span>
+<span class="fc" id="L140">            return 0;</span>
+
+<span class="nc" id="L142">        } catch (Exception e) {</span>
+<span class="nc" id="L143">            System.err.println(&quot;Error: &quot; + e.getMessage());</span>
+<span class="nc" id="L144">            logger.debug(&quot;Import command failed&quot;, e);</span>
+<span class="nc" id="L145">            return 1;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

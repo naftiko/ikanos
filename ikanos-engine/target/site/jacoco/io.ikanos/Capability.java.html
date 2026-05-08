@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Capability.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos</a> &gt; <span class="el_source">Capability.java</span></div><h1>Capability.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos;
+
+import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.ikanos.engine.aggregates.Aggregate;
+import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.AggregateRefResolver;
+import io.ikanos.engine.step.StepHandler;
+import io.ikanos.engine.step.StepHandlerRegistry;
+import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.util.ExecutionContext;
+import io.ikanos.engine.consumes.ClientAdapter;
+import io.ikanos.engine.consumes.ConsumesImportResolver;
+import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.exposes.control.ControlServerAdapter;
+import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.rest.RestServerAdapter;
+import io.ikanos.engine.exposes.skill.SkillServerAdapter;
+import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.BindingResolver;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.exposes.control.ControlServerSpec;
+import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
+
+/**
+ * Main Capability class that initializes and manages adapters based on configuration
+ */
+public class Capability {
+
+<span class="fc" id="L63">    private static final Logger logger = LoggerFactory.getLogger(Capability.class);</span>
+
+    /**
+     * Mutable runtime state held in {@link AtomicReference}s. This satisfies SonarQube rule
+     * {@code java:S3077} (volatile on non-thread-safe types) and prepares the engine for the
+     * Control-port &quot;hot reload&quot; feature, where a new {@code IkanosSpec} can be swapped in
+     * atomically while request threads observe a consistent snapshot.
+     *
+     * &lt;p&gt;The list-typed slots (server/client adapters, aggregates) hold
+     * {@link CopyOnWriteArrayList} instances internally so that iteration during request
+     * handling is lock-free and safe even if a future hot-reload mutates the slot.&lt;/p&gt;
+     */
+<span class="fc" id="L75">    private final AtomicReference&lt;IkanosSpec&gt; spec = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L76">    private final AtomicReference&lt;List&lt;ServerAdapter&gt;&gt; serverAdapters = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L77">    private final AtomicReference&lt;List&lt;ClientAdapter&gt;&gt; clientAdapters = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L78">    private final AtomicReference&lt;List&lt;Aggregate&gt;&gt; aggregates = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L79">    private final AtomicReference&lt;Map&lt;String, Object&gt;&gt; bindings = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L80">    private final AtomicReference&lt;ScriptingManagementSpec&gt; scriptingSpec = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L81">    private final AtomicReference&lt;StepHandlerRegistry&gt; stepHandlerRegistry = new AtomicReference&lt;&gt;();</span>
+
+    public Capability(IkanosSpec spec) throws Exception {
+<span class="fc" id="L84">        this(spec, null);</span>
+<span class="fc" id="L85">    }</span>
+
+    /**
+     * Creates a capability with an optional capability directory for binding file resolution.
+     * 
+     * @param spec The Ikanos specification
+     * @param capabilityDir Directory containing the capability file (null for default)
+     * @throws Exception if bindings cannot be resolved
+     */
+<span class="fc" id="L94">    public Capability(IkanosSpec spec, String capabilityDir) throws Exception {</span>
+<span class="fc" id="L95">        this.spec.set(spec);</span>
+
+        // Resolve consumes imports early before initializing adapters
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">        if (spec.getCapability() != null &amp;&amp; spec.getCapability().getConsumes() != null) {</span>
+<span class="fc" id="L99">            ConsumesImportResolver importResolver = new ConsumesImportResolver();</span>
+<span class="fc" id="L100">            importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);</span>
+        }
+
+        // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
+<span class="fc" id="L104">        AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();</span>
+<span class="fc" id="L105">        aggregateRefResolver.resolve(spec);</span>
+
+        // Find ScriptingManagementSpec from control adapter (if any) before building executors
+<span class="fc" id="L108">        ScriptingManagementSpec resolvedScriptingSpec = null;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        for (ServerSpec serverSpec : spec.getCapability().getExposes()) {</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (serverSpec instanceof ControlServerSpec controlSpec</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                    &amp;&amp; controlSpec.getManagement() != null</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">                    &amp;&amp; controlSpec.getManagement().getScripting() != null) {</span>
+<span class="fc" id="L113">                resolvedScriptingSpec = controlSpec.getManagement().getScripting();</span>
+<span class="fc" id="L114">                break;</span>
+            }
+<span class="fc" id="L116">        }</span>
+<span class="fc" id="L117">        this.scriptingSpec.set(resolvedScriptingSpec);</span>
+
+        // Build runtime aggregates (must happen after imports are resolved)
+<span class="fc" id="L120">        List&lt;Aggregate&gt; aggregateList = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L121" title="1 of 4 branches missed.">        if (spec.getCapability() != null &amp;&amp; !spec.getCapability().getAggregates().isEmpty()) {</span>
+<span class="fc" id="L122">            OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            for (AggregateSpec aggSpec : spec.getCapability().getAggregates()) {</span>
+<span class="fc" id="L124">                aggregateList.add(new Aggregate(aggSpec, sharedExecutor));</span>
+<span class="fc" id="L125">            }</span>
+        }
+<span class="fc" id="L127">        this.aggregates.set(aggregateList);</span>
+
+        // Resolve bindings early for injection into adapters
+<span class="fc" id="L130">        BindingResolver bindingResolver = new BindingResolver();</span>
+<span class="fc" id="L131">        ExecutionContext context = new ExecutionContext() {</span>
+            @Override
+            public String getVariable(String key) {
+<span class="fc" id="L134">                return System.getenv(key);</span>
+            }
+        };
+<span class="fc" id="L137">        Map&lt;String, String&gt; resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);</span>
+        // Convert Map&lt;String, String&gt; to Map&lt;String, Object&gt; for compatibility
+<span class="fc" id="L139">        this.bindings.set(new HashMap&lt;&gt;(resolvedBinds));</span>
+
+        // Initialize client adapters first
+<span class="fc" id="L142">        List&lt;ClientAdapter&gt; clientList = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+        // Then initialize server adapters with reference to source adapters
+<span class="fc" id="L145">        List&lt;ServerAdapter&gt; serverList = new CopyOnWriteArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (spec.getCapability().getExposes().isEmpty()) {</span>
+<span class="fc" id="L148">            throw new IllegalArgumentException(&quot;Capability must expose at least one endpoint.&quot;);</span>
+        }
+
+        // NOTE: `this` escapes to adapter constructors below before clientAdapters
+        // and serverAdapters are published via AtomicReference.set() at the end of
+        // this constructor. Adapter constructors MUST NOT call getClientAdapters()
+        // or getServerAdapters() — those references are still null/unset at this
+        // point. Defer any such cross-adapter lookup to a post-construction
+        // lifecycle method (e.g. start()/init()) that runs after the constructor
+        // returns. The AtomicReference migration (S3077) addresses field-level
+        // visibility, not this construction-time publication ordering.
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        for (ServerSpec serverSpec : spec.getCapability().getExposes()) {</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            if (&quot;rest&quot;.equals(serverSpec.getType())) {</span>
+<span class="fc" id="L161">                serverList.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            } else if (&quot;mcp&quot;.equals(serverSpec.getType())) {</span>
+<span class="fc" id="L163">                serverList.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">            } else if (&quot;skill&quot;.equals(serverSpec.getType())) {</span>
+<span class="fc" id="L165">                serverList.add(new SkillServerAdapter(this, (SkillServerSpec) serverSpec));</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">            } else if (&quot;control&quot;.equals(serverSpec.getType())) {</span>
+<span class="fc" id="L167">                serverList.add(new ControlServerAdapter(this, (ControlServerSpec) serverSpec));</span>
+            }
+<span class="fc" id="L169">        }</span>
+
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">            if (&quot;http&quot;.equals(clientSpec.getType())) {</span>
+<span class="fc" id="L173">                clientList.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec));</span>
+            }
+<span class="fc" id="L175">        }</span>
+
+<span class="fc" id="L177">        this.clientAdapters.set(clientList);</span>
+<span class="fc" id="L178">        this.serverAdapters.set(serverList);</span>
+<span class="fc" id="L179">    }</span>
+
+    public IkanosSpec getSpec() {
+<span class="fc" id="L182">        return spec.get();</span>
+    }
+
+    public void setSpec(IkanosSpec config) {
+<span class="nc" id="L186">        this.spec.set(config);</span>
+<span class="nc" id="L187">    }</span>
+
+    public List&lt;ClientAdapter&gt; getClientAdapters() {
+<span class="fc" id="L190">        return clientAdapters.get();</span>
+    }
+
+    public List&lt;ServerAdapter&gt; getServerAdapters() {
+<span class="fc" id="L194">        return serverAdapters.get();</span>
+    }
+
+    public List&lt;Aggregate&gt; getAggregates() {
+<span class="nc" id="L198">        return aggregates.get();</span>
+    }
+
+    public ScriptingManagementSpec getScriptingSpec() {
+<span class="fc" id="L202">        return scriptingSpec.get();</span>
+    }
+
+    public StepHandlerRegistry getStepHandlerRegistry() {
+<span class="fc" id="L206">        return stepHandlerRegistry.get();</span>
+    }
+
+    public void setStepHandlerRegistry(StepHandlerRegistry registry) {
+<span class="fc" id="L210">        this.stepHandlerRegistry.set(registry);</span>
+<span class="fc" id="L211">    }</span>
+
+    /**
+     * Look up an aggregate function by ref key ({@code &quot;namespace.functionName&quot;}).
+     *
+     * @param ref the ref key, e.g. {@code &quot;forecast.get-forecast&quot;}
+     * @return the matching {@link AggregateFunction}
+     * @throws IllegalArgumentException if the ref cannot be resolved
+     */
+    public AggregateFunction lookupFunction(String ref) {
+<span class="fc" id="L221">        int dot = ref.indexOf('.');</span>
+<span class="pc bpc" id="L222" title="2 of 4 branches missed.">        if (dot &lt;= 0 || dot == ref.length() - 1) {</span>
+<span class="nc" id="L223">            throw new IllegalArgumentException(</span>
+                    &quot;Invalid aggregate function ref format: '&quot; + ref
+                            + &quot;'. Expected 'namespace.functionName'&quot;);
+        }
+<span class="fc" id="L227">        String namespace = ref.substring(0, dot);</span>
+<span class="fc" id="L228">        String functionName = ref.substring(dot + 1);</span>
+
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        for (Aggregate agg : aggregates.get()) {</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">            if (agg.getNamespace().equals(namespace)) {</span>
+<span class="fc" id="L232">                AggregateFunction fn = agg.findFunction(functionName);</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">                if (fn != null) {</span>
+<span class="fc" id="L234">                    return fn;</span>
+                }
+            }
+<span class="nc" id="L237">        }</span>
+<span class="nc" id="L238">        throw new IllegalArgumentException(</span>
+                &quot;Unknown aggregate function ref: '&quot; + ref + &quot;'&quot;);
+    }
+
+    /**
+     * Returns the map of resolved bindings. These are injected into parameter resolution contexts.
+     * 
+     * @return Map of variable name to resolved value
+     */
+    public Map&lt;String, Object&gt; getBindings() {
+<span class="fc" id="L248">        return bindings.get();</span>
+    }
+
+    public void start() throws Exception {
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        for (ClientAdapter adapter : getClientAdapters()) {</span>
+<span class="nc" id="L253">            adapter.start();</span>
+<span class="nc" id="L254">        }</span>
+
+<span class="nc bnc" id="L256" title="All 2 branches missed.">        for (ServerAdapter adapter : getServerAdapters()) {</span>
+<span class="nc" id="L257">            adapter.start();</span>
+<span class="nc" id="L258">        }</span>
+
+<span class="nc" id="L260">        IkanosSpec currentSpec = spec.get();</span>
+<span class="nc bnc" id="L261" title="All 4 branches missed.">        String capabilityName = currentSpec.getInfo() != null &amp;&amp; currentSpec.getInfo().getLabel() != null</span>
+<span class="nc" id="L262">                ? currentSpec.getInfo().getLabel() : &quot;unknown&quot;;</span>
+<span class="nc" id="L263">        TelemetryBootstrap.get().getMetrics().capabilityStarted(capabilityName);</span>
+<span class="nc" id="L264">    }</span>
+
+    public void stop() throws Exception {
+<span class="fc" id="L267">        IkanosSpec currentSpec = spec.get();</span>
+<span class="pc bpc" id="L268" title="2 of 4 branches missed.">        String capabilityName = currentSpec.getInfo() != null &amp;&amp; currentSpec.getInfo().getLabel() != null</span>
+<span class="pc" id="L269">                ? currentSpec.getInfo().getLabel() : &quot;unknown&quot;;</span>
+<span class="fc" id="L270">        TelemetryBootstrap.get().getMetrics().capabilityStopped(capabilityName);</span>
+
+<span class="fc bfc" id="L272" title="All 2 branches covered.">        for (ServerAdapter adapter : getServerAdapters()) {</span>
+<span class="fc" id="L273">            adapter.stop();</span>
+<span class="fc" id="L274">        }</span>
+
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        for (ClientAdapter adapter : getClientAdapters()) {</span>
+<span class="fc" id="L277">            adapter.stop();</span>
+<span class="fc" id="L278">        }</span>
+<span class="fc" id="L279">    }</span>
+
+    /** Create a new builder for embedding the Naftiko engine as a library. */
+    public static Builder builder() {
+<span class="fc" id="L283">        return new Builder();</span>
+    }
+
+    /**
+     * Builder for embedding the Naftiko engine as a library. Loads a capability from YAML
+     * (classpath or file), optionally exposes the spec for post-load modification, and registers
+     * step handlers.
+     *
+     * &lt;p&gt;Usage:
+     * &lt;pre&gt;{@code
+     * Capability capability = Capability.builder()
+     *     .loadFromClasspath(&quot;/my-capability.yml&quot;)
+     *     .stepHandler(&quot;validate&quot;, new MyHandler())
+     *     .build();
+     * capability.start();
+     * }&lt;/pre&gt;
+     */
+<span class="fc" id="L300">    public static class Builder {</span>
+
+        private IkanosSpec spec;
+        private String capabilityDir;
+<span class="fc" id="L304">        private final StepHandlerRegistry registry = new StepHandlerRegistry();</span>
+        private boolean telemetryEnabled;
+
+        /** Load a capability from a YAML resource on the classpath. */
+        public Builder loadFromClasspath(String resourcePath) {
+<span class="fc" id="L309">            try (InputStream is = getClass().getResourceAsStream(resourcePath)) {</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">                if (is == null) {</span>
+<span class="fc" id="L311">                    throw new IllegalArgumentException(</span>
+                            &quot;Classpath resource not found: &quot; + resourcePath);
+                }
+<span class="fc" id="L314">                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());</span>
+<span class="fc" id="L315">                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="fc" id="L316">                this.spec = mapper.readValue(is, IkanosSpec.class);</span>
+<span class="fc" id="L317">                this.capabilityDir = null;</span>
+<span class="fc" id="L318">            } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L319">                throw e;</span>
+<span class="nc" id="L320">            } catch (Exception e) {</span>
+<span class="nc" id="L321">                throw new IllegalArgumentException(</span>
+                        &quot;Failed to load capability from classpath: &quot; + resourcePath, e);
+<span class="fc" id="L323">            }</span>
+<span class="fc" id="L324">            return this;</span>
+        }
+
+        /** Load a capability from a YAML file. */
+        public Builder loadFromFile(Path yamlPath) {
+<span class="nc" id="L329">            File file = yamlPath.toFile();</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">            if (!file.exists()) {</span>
+<span class="nc" id="L331">                throw new IllegalArgumentException(&quot;File not found: &quot; + yamlPath);</span>
+            }
+            try {
+<span class="nc" id="L334">                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());</span>
+<span class="nc" id="L335">                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="nc" id="L336">                this.spec = mapper.readValue(file, IkanosSpec.class);</span>
+<span class="nc" id="L337">                this.capabilityDir = file.getParent();</span>
+<span class="nc" id="L338">            } catch (Exception e) {</span>
+<span class="nc" id="L339">                throw new IllegalArgumentException(</span>
+                        &quot;Failed to load capability from file: &quot; + yamlPath, e);
+<span class="nc" id="L341">            }</span>
+<span class="nc" id="L342">            return this;</span>
+        }
+
+        /** Set an already-loaded (and possibly modified) IkanosSpec. */
+        public Builder spec(IkanosSpec spec) {
+<span class="nc" id="L347">            this.spec = spec;</span>
+<span class="nc" id="L348">            return this;</span>
+        }
+
+        /** Register a step handler by step name. Takes precedence over normal execution. */
+        public Builder stepHandler(String stepName, StepHandler handler) {
+<span class="fc" id="L353">            registry.register(stepName, handler);</span>
+<span class="fc" id="L354">            return this;</span>
+        }
+
+        /**
+         * Enable OpenTelemetry tracing and metrics. Disabled by default in embedded mode
+         * for zero overhead. When enabled, the OTel SDK autoconfigure is used.
+         */
+        public Builder telemetry(boolean enabled) {
+<span class="nc" id="L362">            this.telemetryEnabled = enabled;</span>
+<span class="nc" id="L363">            return this;</span>
+        }
+
+        /** Build and return the capability (does not start it). */
+        public Capability build() {
+<span class="fc bfc" id="L368" title="All 2 branches covered.">            if (spec == null) {</span>
+<span class="fc" id="L369">                throw new IllegalStateException(</span>
+                        &quot;No capability loaded. Call loadFromClasspath() or loadFromFile() first.&quot;);
+            }
+            try {
+<span class="pc bpc" id="L373" title="1 of 2 branches missed.">                if (telemetryEnabled) {</span>
+<span class="nc" id="L374">                    String serviceName = &quot;ikanos&quot;;</span>
+<span class="nc bnc" id="L375" title="All 4 branches missed.">                    if (spec.getInfo() != null &amp;&amp; spec.getInfo().getLabel() != null) {</span>
+<span class="nc" id="L376">                        serviceName = &quot;ikanos-&quot; + spec.getInfo().getLabel();</span>
+                    }
+<span class="nc" id="L378">                    TelemetryBootstrap.init(serviceName);</span>
+                }
+<span class="fc" id="L380">                Capability capability = new Capability(spec, capabilityDir);</span>
+<span class="fc" id="L381">                capability.setStepHandlerRegistry(registry);</span>
+<span class="fc" id="L382">                return capability;</span>
+<span class="nc" id="L383">            } catch (Exception e) {</span>
+<span class="nc" id="L384">                throw new IllegalStateException(&quot;Failed to initialize capability&quot;, e);</span>
+            }
+        }
+    }
+
+    /**
+     * Launch the capability, reading its configuration from local NAFTIKO.yaml file unless a
+     * specific name is provided.
+     * 
+     * @param args The optional part and name of the capability configuration file.
+     */
+    public static void main(String[] args) {
+        // Route Restlet logging through SLF4J before any context is created
+<span class="nc" id="L397">        System.setProperty(&quot;org.restlet.engine.loggerFacadeClass&quot;,</span>
+                &quot;org.restlet.ext.slf4j.Slf4jLoggerFacade&quot;);
+<span class="nc" id="L399">        SLF4JBridgeHandler.removeHandlersForRootLogger();</span>
+<span class="nc" id="L400">        SLF4JBridgeHandler.install();</span>
+
+        // Determine file path: Argument if provided, otherwise default
+<span class="nc bnc" id="L403" title="All 2 branches missed.">        String filePath = (args.length &gt; 0) ? args[0] : &quot;ikanos.yaml&quot;;</span>
+
+<span class="nc" id="L405">        File file = new File(filePath);</span>
+<span class="nc" id="L406">        logger.info(&quot;Reading configuration from: {}&quot;, file.getAbsolutePath());</span>
+
+        // Read the configuraton file
+<span class="nc bnc" id="L409" title="All 2 branches missed.">        if (file.exists()) {</span>
+            try {
+<span class="nc" id="L411">                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());</span>
+                // Ignore unknown properties to handle potential Restlet framework classes
+<span class="nc" id="L413">                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="nc" id="L414">                IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);</span>
+                // Initialize OpenTelemetry with service name from spec
+<span class="nc" id="L416">                String serviceName = &quot;ikanos&quot;;</span>
+<span class="nc bnc" id="L417" title="All 4 branches missed.">                if (spec.getInfo() != null &amp;&amp; spec.getInfo().getLabel() != null) {</span>
+<span class="nc" id="L418">                    serviceName = &quot;ikanos-&quot; + spec.getInfo().getLabel();</span>
+                }
+<span class="nc" id="L420">                io.ikanos.spec.observability.ObservabilitySpec observabilitySpec = null;</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">                if (spec.getCapability() != null) {</span>
+<span class="nc bnc" id="L422" title="All 2 branches missed.">                    for (io.ikanos.spec.exposes.ServerSpec server : spec.getCapability().getExposes()) {</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">                        if (server instanceof io.ikanos.spec.exposes.control.ControlServerSpec controlSpec) {</span>
+<span class="nc" id="L424">                            observabilitySpec = controlSpec.getObservability();</span>
+<span class="nc" id="L425">                            break;</span>
+                        }
+<span class="nc" id="L427">                    }</span>
+                }
+<span class="nc" id="L429">                TelemetryBootstrap.init(serviceName, observabilitySpec);</span>
+                // Pass the capability directory for bind file resolution
+<span class="nc" id="L431">                String capabilityDir = file.getParent();</span>
+<span class="nc" id="L432">                Capability capability = new Capability(spec, capabilityDir);</span>
+<span class="nc" id="L433">                capability.start();</span>
+<span class="nc" id="L434">                logger.info(&quot;Capability started successfully.&quot;);</span>
+<span class="nc" id="L435">            } catch (Exception e) {</span>
+<span class="nc" id="L436">                logger.error(&quot;Error reading file&quot;, e);</span>
+<span class="nc" id="L437">            }</span>
+        } else {
+<span class="nc" id="L439">            logger.error(&quot;Error: File not found at {}&quot;, filePath);</span>
+<span class="nc" id="L440">            System.exit(1);</span>
+        }
+<span class="nc" id="L442">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

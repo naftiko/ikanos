@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "Control Port Scripting Test"
+  description: "Test capability for scripting governance on the Control Port"
+  tags:
+    - Test
+    - Control
+    - Scripting
+  created: "2026-04-21"
+  modified: "2026-04-21"
+
+capability:
+  exposes:
+    - type: "control"
+      address: "localhost"
+      port: 9198
+      management:
+        health: true
+        scripting:
+          enabled: true
+          defaultLocation: "file:///app/scripts"
+          defaultLanguage: "javascript"
+          timeout: 3000
+          statementLimit: 50000
+          allowedLanguages:
+            - javascript
+            - python

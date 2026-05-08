@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScriptStepExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.scripting</a> &gt; <span class="el_source">ScriptStepExecutor.java</span></div><h1>ScriptStepExecutor.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.scripting;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.EnvironmentAccess;
+import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.PolyglotException;
+import org.graalvm.polyglot.ResourceLimits;
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.io.IOAccess;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.LongNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import groovy.lang.Binding;
+import groovy.lang.GroovyShell;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.engine.util.SafePathResolver;
+import io.ikanos.engine.util.StepExecutionContext;
+import io.ikanos.spec.scripting.OperationStepScriptSpec;
+import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+
+/**
+ * Executor for script operation steps.
+ *
+ * &lt;p&gt;Executes JavaScript and Python scripts in a sandboxed GraalVM polyglot context and Groovy
+ * scripts via {@link GroovyShell} with AST security restrictions. Scripts are loaded from external
+ * files referenced by a {@code file:///} URI directory and a relative file path.&lt;/p&gt;
+ *
+ * &lt;p&gt;The executor injects previous step outputs and runtime parameters into the script context as
+ * a {@code context} binding. The script must assign its output to a {@code result} variable.&lt;/p&gt;
+ *
+ * &lt;p&gt;When a {@link ScriptingManagementSpec} is configured via the Control Port, the executor
+ * uses its settings for defaults, limits, allowed languages, and the enabled toggle. The Control
+ * Port settings override the {@code IKANOS_SCRIPTING} environment variable.&lt;/p&gt;
+ */
+<span class="fc" id="L71">public class ScriptStepExecutor {</span>
+
+    private static final long DEFAULT_STATEMENT_LIMIT = 100_000;
+
+    private static final int DEFAULT_TIMEOUT_MS = 60_000;
+
+    public static boolean isScriptingPermitted(ScriptingManagementSpec scriptingSpec) {
+<span class="pc bpc" id="L78" title="1 of 4 branches missed.">        if (scriptingSpec == null || scriptingSpec.getEnabled() == null) {</span>
+<span class="fc" id="L79">            return SCRIPTING_PERMITTED;</span>
+        }
+<span class="fc" id="L81">        return scriptingSpec.getEnabled();</span>
+    }
+
+    public static String scriptingDisabledReason(ScriptingManagementSpec scriptingSpec) {
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">        if (scriptingSpec != null &amp;&amp; scriptingSpec.getEnabled() != null) {</span>
+<span class="fc" id="L86">            return &quot; via management.scripting.enabled=false on the control adapter.&quot;;</span>
+        }
+<span class="nc" id="L88">        return &quot; via IKANOS_SCRIPTING=false.&quot;;</span>
+    }
+
+<span class="fc" id="L91">    private static final Map&lt;String, String&gt; LANGUAGE_ID_MAP = Map.of(</span>
+            &quot;javascript&quot;, &quot;js&quot;,
+            &quot;js&quot;, &quot;js&quot;,
+            &quot;python&quot;, &quot;python&quot;,
+            &quot;groovy&quot;, &quot;groovy&quot;
+    );
+
+<span class="fc" id="L98">    private static final boolean SCRIPTING_PERMITTED =</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            !&quot;false&quot;.equalsIgnoreCase(System.getenv(&quot;IKANOS_SCRIPTING&quot;));</span>
+
+<span class="fc" id="L101">    private final ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L102">    private final java.util.concurrent.atomic.AtomicReference&lt;ScriptingManagementSpec&gt; scriptingSpec =</span>
+            new java.util.concurrent.atomic.AtomicReference&lt;&gt;();
+
+    /**
+     * Called by the capability loader when a capability containing script steps is being
+     * initialized — before any request is served. The Control Port {@code scripting.enabled}
+     * overrides the environment variable when set.
+     */
+    public static void requireScriptingPermitted(String stepName,
+            ScriptingManagementSpec scriptingSpec) {
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (!isScriptingPermitted(scriptingSpec)) {</span>
+<span class="fc" id="L113">            throw new IllegalStateException(</span>
+                    &quot;Script step '&quot; + stepName
+                            + &quot;' requires scripting support. Scripting is disabled&quot;
+<span class="fc" id="L116">                            + scriptingDisabledReason(scriptingSpec)</span>
+                            + &quot; Enable it to use script steps.&quot;);
+        }
+<span class="fc" id="L119">    }</span>
+
+    public void setScriptingSpec(ScriptingManagementSpec scriptingSpec) {
+<span class="fc" id="L122">        this.scriptingSpec.set(scriptingSpec);</span>
+<span class="fc" id="L123">    }</span>
+
+    public ScriptingManagementSpec getScriptingSpec() {
+<span class="nc" id="L126">        return scriptingSpec.get();</span>
+    }
+
+    public JsonNode execute(OperationStepScriptSpec scriptStep, Map&lt;String, Object&gt; runtimeParameters,
+            StepExecutionContext stepContext) {
+
+        // Snapshot the spec once so we observe a consistent view for the duration of this call,
+        // even if a future hot-reload swaps the AtomicReference mid-execution.
+<span class="fc" id="L134">        ScriptingManagementSpec scriptingSpec = this.scriptingSpec.get();</span>
+
+        // Resolve language — step-level overrides default
+<span class="fc" id="L137">        String language = scriptStep.getLanguage();</span>
+<span class="pc bpc" id="L138" title="1 of 6 branches missed.">        if ((language == null || language.isBlank()) &amp;&amp; scriptingSpec != null) {</span>
+<span class="fc" id="L139">            language = scriptingSpec.getDefaultLanguage();</span>
+        }
+
+        // Resolve location — step-level overrides default
+<span class="fc" id="L143">        String locationUri = scriptStep.getLocation();</span>
+<span class="pc bpc" id="L144" title="1 of 6 branches missed.">        if ((locationUri == null || locationUri.isBlank()) &amp;&amp; scriptingSpec != null) {</span>
+<span class="fc" id="L145">            locationUri = scriptingSpec.getDefaultLocation();</span>
+        }
+
+<span class="fc" id="L148">        String file = scriptStep.getFile();</span>
+
+<span class="pc bpc" id="L150" title="1 of 4 branches missed.">        if (locationUri == null || locationUri.isBlank()) {</span>
+<span class="fc" id="L151">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L152">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' has no 'location'. Set 'location' on the step or configure &quot;
+                            + &quot;'management.scripting.defaultLocation' on the control adapter.&quot;);
+        }
+<span class="pc bpc" id="L156" title="2 of 4 branches missed.">        if (file == null || file.isBlank()) {</span>
+<span class="nc" id="L157">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L158">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' has no 'file'. Every script step must specify the script file to execute.&quot;);
+        }
+<span class="pc bpc" id="L161" title="1 of 4 branches missed.">        if (language == null || language.isBlank()) {</span>
+<span class="fc" id="L162">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L163">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' has no 'language'. Set 'language' on the step or configure &quot;
+                            + &quot;'management.scripting.defaultLanguage' on the control adapter.&quot;);
+        }
+
+        // Check allowed languages
+<span class="fc bfc" id="L169" title="All 4 branches covered.">        if (scriptingSpec != null &amp;&amp; !scriptingSpec.getAllowedLanguages().isEmpty()</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                &amp;&amp; !scriptingSpec.getAllowedLanguages().contains(language)) {</span>
+<span class="fc" id="L171">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L172">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' uses language '&quot; + language
+                            + &quot;' which is not in the allowed languages: &quot;
+<span class="fc" id="L175">                            + scriptingSpec.getAllowedLanguages());</span>
+        }
+
+        // Resolve statement limit from governance
+<span class="fc" id="L179">        long statementLimit = DEFAULT_STATEMENT_LIMIT;</span>
+<span class="pc bpc" id="L180" title="1 of 4 branches missed.">        if (scriptingSpec != null &amp;&amp; scriptingSpec.getStatementLimit() &gt; 0) {</span>
+<span class="fc" id="L181">            statementLimit = scriptingSpec.getStatementLimit();</span>
+        }
+
+        // Resolve timeout from governance, falling back to the documented engine default
+        // when governance is not configured or does not provide a positive timeout.
+<span class="fc" id="L186">        int timeoutMs = DEFAULT_TIMEOUT_MS;</span>
+<span class="pc bpc" id="L187" title="1 of 4 branches missed.">        if (scriptingSpec != null &amp;&amp; scriptingSpec.getTimeout() &gt; 0) {</span>
+<span class="fc" id="L188">            timeoutMs = scriptingSpec.getTimeout();</span>
+        }
+
+<span class="fc" id="L191">        String mainSource = readScript(locationUri, file, scriptStep.getName());</span>
+
+<span class="fc" id="L193">        Map&lt;String, Object&gt; bindings =</span>
+<span class="fc" id="L194">                buildBindings(runtimeParameters, stepContext, scriptStep.getWith());</span>
+
+<span class="fc" id="L196">        long startNanos = System.nanoTime();</span>
+<span class="fc" id="L197">        boolean error = false;</span>
+        try {
+            JsonNode result;
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            if (&quot;groovy&quot;.equals(language)) {</span>
+<span class="fc" id="L201">                result = executeGroovy(mainSource, bindings, scriptStep, locationUri,</span>
+                        timeoutMs);
+            } else {
+<span class="fc" id="L204">                String polyglotId = LANGUAGE_ID_MAP.getOrDefault(language, language);</span>
+<span class="fc" id="L205">                result = executePolyglot(polyglotId, mainSource, bindings, scriptStep,</span>
+                        locationUri, statementLimit, timeoutMs);
+            }
+<span class="fc" id="L208">            return result;</span>
+<span class="fc" id="L209">        } catch (Exception e) {</span>
+<span class="fc" id="L210">            error = true;</span>
+<span class="fc" id="L211">            throw e;</span>
+        } finally {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            if (scriptingSpec != null) {</span>
+<span class="fc" id="L214">                scriptingSpec.recordExecution(System.nanoTime() - startNanos, error);</span>
+            }
+        }
+    }
+
+    private JsonNode executePolyglot(String language, String mainSource,
+            Map&lt;String, Object&gt; bindings, OperationStepScriptSpec scriptStep,
+            String locationUri, long statementLimit, int timeoutMs) {
+
+<span class="fc" id="L223">        boolean isPython = &quot;python&quot;.equals(language);</span>
+
+<span class="fc" id="L225">        Context.Builder builder = Context.newBuilder(language)</span>
+<span class="fc" id="L226">                .allowAllAccess(false)</span>
+<span class="fc" id="L227">                .allowHostAccess(HostAccess.NONE)</span>
+<span class="fc" id="L228">                .allowIO(IOAccess.NONE)</span>
+<span class="fc" id="L229">                .allowCreateThread(false)</span>
+<span class="fc" id="L230">                .allowCreateProcess(false)</span>
+<span class="fc" id="L231">                .allowEnvironmentAccess(EnvironmentAccess.NONE)</span>
+<span class="fc" id="L232">                .allowNativeAccess(false)</span>
+<span class="fc" id="L233">                .option(&quot;engine.WarnInterpreterOnly&quot;, &quot;false&quot;)</span>
+<span class="fc" id="L234">                .resourceLimits(ResourceLimits.newBuilder()</span>
+<span class="fc" id="L235">                        .statementLimit(statementLimit, null)</span>
+<span class="fc" id="L236">                        .build());</span>
+
+<span class="fc bfc" id="L238" title="All 2 branches covered.">        if (isPython) {</span>
+<span class="fc" id="L239">            builder.option(&quot;python.ForceImportSite&quot;, &quot;false&quot;);</span>
+        }
+
+<span class="fc" id="L242">        try (Context context = builder.build()) {</span>
+
+            // Schedule a watchdog that cancels the context after the timeout
+<span class="fc" id="L245">            ScheduledExecutorService watchdog = null;</span>
+<span class="fc" id="L246">            ScheduledFuture&lt;?&gt; timeoutTask = null;</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">            if (timeoutMs &gt; 0) {</span>
+<span class="fc" id="L248">                watchdog = Executors.newSingleThreadScheduledExecutor(r -&gt; {</span>
+<span class="fc" id="L249">                    Thread t = new Thread(r, &quot;script-timeout-watchdog&quot;);</span>
+<span class="fc" id="L250">                    t.setDaemon(true);</span>
+<span class="fc" id="L251">                    return t;</span>
+                });
+<span class="pc" id="L253">                timeoutTask = watchdog.schedule(() -&gt; context.close(true), timeoutMs,</span>
+                        TimeUnit.MILLISECONDS);
+            }
+
+            try {
+                // Inject bindings
+<span class="fc" id="L259">                String bindingsJson = mapper.writeValueAsString(bindings);</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">                if (isPython) {</span>
+<span class="fc" id="L261">                    injectPythonBindings(context, language, bindingsJson);</span>
+                } else {
+<span class="fc" id="L263">                    context.eval(language, &quot;var context = &quot; + bindingsJson + &quot;;&quot;);</span>
+                }
+
+                // Evaluate dependent scripts in order
+<span class="fc" id="L267">                List&lt;String&gt; dependencies = scriptStep.getDependencies();</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">                if (dependencies != null) {</span>
+<span class="fc bfc" id="L269" title="All 2 branches covered.">                    for (String depPath : dependencies) {</span>
+<span class="fc" id="L270">                        String depSource =</span>
+<span class="fc" id="L271">                                readScript(locationUri, depPath, scriptStep.getName());</span>
+<span class="fc" id="L272">                        context.eval(language, depSource);</span>
+<span class="fc" id="L273">                    }</span>
+                }
+
+                // Evaluate main script
+<span class="fc" id="L277">                context.eval(language, mainSource);</span>
+
+                // Extract result — distinguish &quot;no result assigned&quot; from &quot;result = null&quot;
+<span class="fc bfc" id="L280" title="All 4 branches covered.">                if (!isPython &amp;&amp; !context.getBindings(language).hasMember(&quot;result&quot;)) {</span>
+<span class="fc" id="L281">                    return null;</span>
+                }
+<span class="fc" id="L283">                Value resultValue = extractPolyglotResult(context, language, isPython);</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">                return resultValue == null ? null : convertPolyglotValue(resultValue);</span>
+            } finally {
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">                if (timeoutTask != null) {</span>
+<span class="fc" id="L287">                    timeoutTask.cancel(false);</span>
+                }
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">                if (watchdog != null) {</span>
+<span class="fc" id="L290">                    watchdog.shutdownNow();</span>
+                }
+            }
+
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">        } catch (PolyglotException e) {</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">            if (e.isResourceExhausted()) {</span>
+<span class="fc" id="L296">                throw new IllegalArgumentException(</span>
+<span class="fc" id="L297">                        &quot;Script step '&quot; + scriptStep.getName()</span>
+                                + &quot;' exceeded the statement limit (&quot;
+                                + statementLimit + &quot;)&quot;,
+                        e);
+            }
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">            if (e.isCancelled()) {</span>
+<span class="nc" id="L303">                throw new IllegalArgumentException(</span>
+<span class="nc" id="L304">                        &quot;Script step '&quot; + scriptStep.getName()</span>
+                                + &quot;' exceeded the timeout limit (&quot;
+                                + timeoutMs + &quot; ms)&quot;,
+                        e);
+            }
+<span class="fc" id="L309">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L310">                    &quot;Script step '&quot; + scriptStep.getName() + &quot;' failed: &quot; + e.getMessage(), e);</span>
+<span class="nc" id="L311">        } catch (IOException e) {</span>
+<span class="nc" id="L312">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L313">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+<span class="nc" id="L314">                            + &quot;' failed to serialize bindings: &quot; + e.getMessage(),</span>
+                    e);
+<span class="fc" id="L316">        } catch (Exception e) {</span>
+<span class="fc bfc" id="L317" title="All 2 branches covered.">            if (e instanceof IllegalArgumentException) {</span>
+<span class="fc" id="L318">                throw e;</span>
+            }
+<span class="fc" id="L320">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L321">                    &quot;Script step '&quot; + scriptStep.getName() + &quot;' failed: &quot; + e.getMessage(), e);</span>
+        }
+    }
+
+    /**
+     * Injects bindings into a Python context. Python cannot parse JSON literals as native syntax,
+     * so the JSON string is passed as a binding variable and parsed via {@code json.loads()}.
+     */
+    private void injectPythonBindings(Context context, String language, String bindingsJson) {
+<span class="fc" id="L330">        context.getBindings(language).putMember(&quot;__ctx_json&quot;, bindingsJson);</span>
+<span class="fc" id="L331">        context.eval(language, &quot;import json as __json\n&quot;</span>
+                + &quot;context = __json.loads(__ctx_json)\n&quot;
+                + &quot;del __ctx_json\n&quot;
+                + &quot;del __json&quot;);
+<span class="fc" id="L335">    }</span>
+
+    /**
+     * Extracts the {@code result} variable from the polyglot context. Python uses different scoping
+     * — module-level variables are not exposed via {@code getBindings()}, so we evaluate
+     * {@code result} as an expression instead.
+     */
+    private Value extractPolyglotResult(Context context, String language, boolean isPython) {
+<span class="fc bfc" id="L343" title="All 2 branches covered.">        if (isPython) {</span>
+            try {
+<span class="fc" id="L345">                return context.eval(language, &quot;result&quot;);</span>
+<span class="fc" id="L346">            } catch (PolyglotException e) {</span>
+<span class="pc bpc" id="L347" title="1 of 2 branches missed.">                if (e.isGuestException()) {</span>
+<span class="fc" id="L348">                    return null;</span>
+                }
+<span class="nc" id="L350">                throw e;</span>
+            }
+        }
+<span class="fc" id="L353">        return context.getBindings(language).getMember(&quot;result&quot;);</span>
+    }
+
+    private JsonNode executeGroovy(String mainSource, Map&lt;String, Object&gt; bindings,
+            OperationStepScriptSpec scriptStep, String locationUri, int timeoutMs) {
+
+<span class="fc" id="L359">        CompilerConfiguration config = new CompilerConfiguration();</span>
+<span class="fc" id="L360">        SecureASTCustomizer secure = new SecureASTCustomizer();</span>
+<span class="fc" id="L361">        secure.setDisallowedImports(List.of(&quot;java.io.**&quot;, &quot;java.nio.**&quot;,</span>
+                &quot;java.net.**&quot;, &quot;java.lang.Process&quot;, &quot;java.lang.Runtime&quot;));
+<span class="fc" id="L363">        secure.setDisallowedStarImports(List.of(&quot;java.io.&quot;, &quot;java.nio.&quot;, &quot;java.net.&quot;,</span>
+                &quot;java.lang.reflect.&quot;, &quot;javax.&quot;));
+<span class="fc" id="L365">        secure.setDisallowedStaticImports(List.of(</span>
+                &quot;java.lang.System.*&quot;, &quot;java.lang.Runtime.*&quot;,
+                &quot;java.lang.ProcessBuilder.*&quot;));
+<span class="fc" id="L368">        secure.setDisallowedStaticStarImports(List.of(</span>
+                &quot;java.lang.System.&quot;, &quot;java.lang.Runtime.&quot;,
+                &quot;java.lang.ProcessBuilder.&quot;, &quot;java.lang.reflect.&quot;));
+<span class="fc" id="L371">        secure.setIndirectImportCheckEnabled(true);</span>
+<span class="fc" id="L372">        secure.setPackageAllowed(false);</span>
+<span class="fc" id="L373">        secure.setMethodDefinitionAllowed(true);</span>
+
+        // Block dangerous receivers — prevents FQN access to System, Runtime, Process,
+        // reflection, classloading, threading, and scripting/compilation APIs.
+<span class="fc" id="L377">        secure.setDisallowedReceivers(List.of(</span>
+                &quot;java.lang.System&quot;,
+                &quot;java.lang.Runtime&quot;,
+                &quot;java.lang.ProcessBuilder&quot;,
+                &quot;java.lang.Process&quot;,
+                &quot;java.lang.Thread&quot;,
+                &quot;java.lang.ThreadGroup&quot;,
+                &quot;java.lang.ClassLoader&quot;,
+                &quot;java.lang.reflect.Field&quot;,
+                &quot;java.lang.reflect.Method&quot;,
+                &quot;java.lang.reflect.Constructor&quot;,
+                &quot;java.lang.reflect.Proxy&quot;,
+                &quot;java.lang.Class&quot;,
+                &quot;groovy.lang.GroovyShell&quot;,
+                &quot;groovy.lang.GroovyClassLoader&quot;,
+                &quot;groovy.util.Eval&quot;,
+                &quot;javax.script.ScriptEngineManager&quot;,
+                &quot;org.codehaus.groovy.runtime.InvokerHelper&quot;
+        ));
+
+        // Block dangerous method calls that bypass static receiver checks at runtime:
+        // - execute/execute(String[]): Groovy GDK adds these to String for process execution
+        // - getClass: prevents dynamic reflection access via any object
+        // - forName/getDeclaredMethod/getDeclaredField: Class reflection methods
+<span class="fc" id="L401">        secure.addExpressionCheckers(new GroovySandboxExpressionChecker());</span>
+<span class="fc" id="L402">        config.addCompilationCustomizers(secure);</span>
+
+<span class="fc" id="L404">        Binding binding = new Binding();</span>
+<span class="fc" id="L405">        binding.setVariable(&quot;context&quot;, bindings);</span>
+
+<span class="fc" id="L407">        GroovyShell shell = new GroovyShell(binding, config);</span>
+
+        try {
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">            if (timeoutMs &gt; 0) {</span>
+<span class="fc" id="L411">                executeGroovyWithTimeout(shell, mainSource, scriptStep, locationUri, timeoutMs);</span>
+            } else {
+<span class="nc" id="L413">                executeGroovyDirect(shell, mainSource, scriptStep, locationUri);</span>
+            }
+<span class="fc" id="L415">        } catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L416">            throw e;</span>
+<span class="nc" id="L417">        } catch (Exception | Error e) {</span>
+            // Groovy's SecureASTCustomizer and compiler may throw Error subtypes
+            // (e.g. GroovyBugError) when sandbox rules reject code at compile time.
+<span class="nc" id="L420">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L421">                    &quot;Script step '&quot; + scriptStep.getName() + &quot;' failed: &quot; + e.getMessage(), e);</span>
+<span class="fc" id="L422">        }</span>
+
+        // Extract result — return null when script did not assign 'result'
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">        Object resultValue = binding.getVariables().containsKey(&quot;result&quot;)</span>
+<span class="fc" id="L426">                ? binding.getVariable(&quot;result&quot;)</span>
+<span class="pc" id="L427">                : null;</span>
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">        if (resultValue == null) {</span>
+<span class="nc" id="L429">            return null;</span>
+        }
+<span class="fc" id="L431">        return mapper.convertValue(resultValue, JsonNode.class);</span>
+    }
+
+    private void executeGroovyDirect(GroovyShell shell, String mainSource,
+            OperationStepScriptSpec scriptStep, String locationUri) {
+<span class="fc" id="L436">        List&lt;String&gt; dependencies = scriptStep.getDependencies();</span>
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">        if (dependencies != null) {</span>
+<span class="pc bpc" id="L438" title="1 of 2 branches missed.">            for (String depPath : dependencies) {</span>
+<span class="nc" id="L439">                String depSource = readScript(locationUri, depPath, scriptStep.getName());</span>
+<span class="nc" id="L440">                shell.evaluate(depSource);</span>
+<span class="nc" id="L441">            }</span>
+        }
+<span class="fc" id="L443">        shell.evaluate(mainSource);</span>
+<span class="fc" id="L444">    }</span>
+
+    private void executeGroovyWithTimeout(GroovyShell shell, String mainSource,
+            OperationStepScriptSpec scriptStep, String locationUri, int timeoutMs) {
+
+<span class="fc" id="L449">        ExecutorService executor = Executors.newSingleThreadExecutor(r -&gt; {</span>
+<span class="fc" id="L450">            Thread t = new Thread(r, &quot;groovy-script-executor&quot;);</span>
+<span class="fc" id="L451">            t.setDaemon(true);</span>
+<span class="fc" id="L452">            return t;</span>
+        });
+
+<span class="fc" id="L455">        Future&lt;?&gt; future = executor.submit(</span>
+<span class="fc" id="L456">                () -&gt; executeGroovyDirect(shell, mainSource, scriptStep, locationUri));</span>
+
+        try {
+<span class="fc" id="L459">            future.get(timeoutMs, TimeUnit.MILLISECONDS);</span>
+<span class="nc" id="L460">        } catch (TimeoutException e) {</span>
+<span class="nc" id="L461">            future.cancel(true);</span>
+<span class="nc" id="L462">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L463">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' exceeded the timeout limit (&quot;
+                            + timeoutMs + &quot; ms)&quot;,
+                    e);
+<span class="fc" id="L467">        } catch (ExecutionException e) {</span>
+<span class="fc" id="L468">            Throwable cause = e.getCause();</span>
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">            if (cause instanceof IllegalArgumentException) {</span>
+<span class="nc" id="L470">                throw (IllegalArgumentException) cause;</span>
+            }
+<span class="fc" id="L472">            throw new IllegalArgumentException(</span>
+<span class="fc" id="L473">                    &quot;Script step '&quot; + scriptStep.getName() + &quot;' failed: &quot;</span>
+<span class="pc bpc" id="L474" title="1 of 2 branches missed.">                            + (cause != null ? cause.getMessage() : e.getMessage()),</span>
+<span class="pc bpc" id="L475" title="1 of 2 branches missed.">                    cause != null ? cause : e);</span>
+<span class="nc" id="L476">        } catch (InterruptedException e) {</span>
+<span class="nc" id="L477">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L478">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L479">                    &quot;Script step '&quot; + scriptStep.getName()</span>
+                            + &quot;' was interrupted&quot;,
+                    e);
+        } finally {
+<span class="fc" id="L483">            executor.shutdownNow();</span>
+        }
+<span class="fc" id="L485">    }</span>
+
+    public Map&lt;String, Object&gt; buildBindings(Map&lt;String, Object&gt; runtimeParameters,
+            StepExecutionContext stepContext, Map&lt;String, Object&gt; with) {
+
+<span class="fc" id="L490">        Map&lt;String, Object&gt; bindings = new LinkedHashMap&lt;&gt;();</span>
+
+        // Add all runtime parameters
+<span class="pc bpc" id="L493" title="1 of 2 branches missed.">        if (runtimeParameters != null) {</span>
+<span class="fc" id="L494">            bindings.putAll(runtimeParameters);</span>
+        }
+
+        // Add step outputs (converted to plain Java objects)
+<span class="pc bpc" id="L498" title="1 of 2 branches missed.">        if (stepContext != null) {</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">            for (Map.Entry&lt;String, JsonNode&gt; entry : stepContext.getAllStepOutputs().entrySet()) {</span>
+<span class="fc" id="L500">                bindings.put(entry.getKey(), mapper.convertValue(entry.getValue(), Object.class));</span>
+<span class="fc" id="L501">            }</span>
+        }
+
+        // Apply 'with' overrides (Mustache-resolved)
+<span class="fc bfc" id="L505" title="All 2 branches covered.">        if (with != null) {</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : with.entrySet()) {</span>
+<span class="fc" id="L507">                Object rawValue = entry.getValue();</span>
+<span class="pc bpc" id="L508" title="1 of 2 branches missed.">                if (rawValue instanceof String rawStringValue) {</span>
+<span class="fc" id="L509">                    bindings.put(entry.getKey(),</span>
+<span class="fc" id="L510">                            Resolver.resolveMustacheTemplate(rawStringValue, bindings));</span>
+                } else {
+<span class="nc" id="L512">                    bindings.put(entry.getKey(), rawValue);</span>
+                }
+<span class="fc" id="L514">            }</span>
+        }
+
+<span class="fc" id="L517">        return bindings;</span>
+    }
+
+    private String readScript(String locationUri, String relativePath, String stepName) {
+<span class="fc" id="L521">        Path resolved = SafePathResolver.resolveAndValidate(locationUri, relativePath);</span>
+        try {
+<span class="fc" id="L523">            return Files.readString(resolved, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L524">        } catch (IOException e) {</span>
+<span class="fc" id="L525">            throw new IllegalArgumentException(</span>
+                    &quot;Script step '&quot; + stepName + &quot;' cannot read file '&quot;
+                            + relativePath + &quot;' from location '&quot; + locationUri
+<span class="fc" id="L528">                            + &quot;': &quot; + e.getMessage(),</span>
+                    e);
+        }
+    }
+
+    public JsonNode convertPolyglotValue(Value value) {
+<span class="pc bpc" id="L534" title="2 of 4 branches missed.">        if (value == null || value.isNull()) {</span>
+<span class="nc" id="L535">            return NullNode.instance;</span>
+        }
+<span class="fc bfc" id="L537" title="All 2 branches covered.">        if (value.isBoolean()) {</span>
+<span class="fc" id="L538">            return BooleanNode.valueOf(value.asBoolean());</span>
+        }
+<span class="fc bfc" id="L540" title="All 2 branches covered.">        if (value.isNumber()) {</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">            if (value.fitsInLong()) {</span>
+<span class="fc" id="L542">                return LongNode.valueOf(value.asLong());</span>
+            }
+<span class="fc" id="L544">            return DoubleNode.valueOf(value.asDouble());</span>
+        }
+<span class="fc bfc" id="L546" title="All 2 branches covered.">        if (value.isString()) {</span>
+<span class="fc" id="L547">            return TextNode.valueOf(value.asString());</span>
+        }
+<span class="fc bfc" id="L549" title="All 2 branches covered.">        if (value.hasArrayElements()) {</span>
+<span class="fc" id="L550">            ArrayNode array = mapper.createArrayNode();</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">            for (long i = 0; i &lt; value.getArraySize(); i++) {</span>
+<span class="fc" id="L552">                array.add(convertPolyglotValue(value.getArrayElement(i)));</span>
+            }
+<span class="fc" id="L554">            return array;</span>
+        }
+<span class="fc bfc" id="L556" title="All 2 branches covered.">        if (value.hasHashEntries()) {</span>
+<span class="fc" id="L557">            ObjectNode obj = mapper.createObjectNode();</span>
+<span class="fc" id="L558">            Value iterator = value.getHashKeysIterator();</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">            while (iterator.hasIteratorNextElement()) {</span>
+<span class="fc" id="L560">                Value key = iterator.getIteratorNextElement();</span>
+<span class="fc" id="L561">                obj.set(key.asString(), convertPolyglotValue(value.getHashValue(key)));</span>
+<span class="fc" id="L562">            }</span>
+<span class="fc" id="L563">            return obj;</span>
+        }
+<span class="pc bpc" id="L565" title="1 of 2 branches missed.">        if (value.hasMembers()) {</span>
+<span class="fc" id="L566">            ObjectNode obj = mapper.createObjectNode();</span>
+<span class="fc bfc" id="L567" title="All 2 branches covered.">            for (String key : value.getMemberKeys()) {</span>
+<span class="fc" id="L568">                obj.set(key, convertPolyglotValue(value.getMember(key)));</span>
+<span class="fc" id="L569">            }</span>
+<span class="fc" id="L570">            return obj;</span>
+        }
+        // Fallback: try to convert to string
+<span class="nc" id="L573">        return TextNode.valueOf(value.toString());</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

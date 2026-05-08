@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpServerAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.mcp</a> &gt; <span class="el_source">McpServerAdapter.java</span></div><h1>McpServerAdapter.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.mcp;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import org.restlet.Context;
+import org.restlet.Restlet;
+import org.restlet.routing.Router;
+import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
+
+/**
+ * MCP Server Adapter implementation.
+ * 
+ * Supports two transports, selected via the spec's {@code transport} field:
+ * &lt;ul&gt;
+ * &lt;li&gt;{@code http} (default) — Restlet-based Streamable HTTP server&lt;/li&gt;
+ * &lt;li&gt;{@code stdio} — stdin/stdout JSON-RPC for local IDE integration&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * In both modes, tool definitions and the {@link ToolHandler} are shared. Only the I/O layer
+ * differs.
+ */
+public class McpServerAdapter extends ServerAdapter {
+
+    /**
+     * Stdio handler and thread — only initialized for stdio transport. Held in
+     * {@link AtomicReference} so {@code start()} and {@code stop()} can publish/observe them
+     * safely (see SonarQube {@code java:S3077}).
+     */
+<span class="fc" id="L56">    private final AtomicReference&lt;StdioJsonRpcHandler&gt; stdioHandler = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L57">    private final AtomicReference&lt;Thread&gt; stdioThread = new AtomicReference&lt;&gt;();</span>
+
+    private final ToolHandler toolHandler;
+    private final List&lt;McpSchema.Tool&gt; tools;
+    private final Map&lt;String, String&gt; toolLabels;
+    private final ResourceHandler resourceHandler;
+    private final PromptHandler promptHandler;
+
+    public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
+<span class="fc" id="L66">        super(capability, serverSpec);</span>
+
+        // Build MCP Tool definitions from the spec
+<span class="fc" id="L69">        this.tools = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L70">        this.toolLabels = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L71">        Context.getCurrentLogger().log(Level.INFO, &quot;Building MCP Tool definitions from the spec&quot;);</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        for (McpServerToolSpec toolSpec : serverSpec.getTools()) {</span>
+<span class="fc bfc" id="L74" title="All 4 branches covered.">            if (toolSpec == null || toolSpec.getName() == null</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">                    || toolSpec.getName().isBlank()) {</span>
+<span class="fc" id="L76">                Context.getCurrentLogger().warning(</span>
+                        &quot;Skipping malformed MCP tool declaration: tool or name is missing&quot;);
+<span class="fc" id="L78">                continue;</span>
+            }
+
+<span class="fc" id="L81">            this.tools.add(buildMcpTool(toolSpec));</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">            if (toolSpec.getLabel() != null) {</span>
+<span class="fc" id="L83">                this.toolLabels.put(toolSpec.getName(), toolSpec.getLabel());</span>
+            }
+<span class="fc" id="L85">        }</span>
+
+        // Create the tool handler (transport-agnostic)
+<span class="fc" id="L88">        this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),</span>
+<span class="fc" id="L89">                serverSpec.getNamespace());</span>
+
+        // Create the resource handler (transport-agnostic)
+<span class="fc" id="L92">        this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),</span>
+<span class="fc" id="L93">                serverSpec.getNamespace());</span>
+
+        // Create the prompt handler (transport-agnostic)
+<span class="fc" id="L96">        this.promptHandler = new PromptHandler(serverSpec.getPrompts());</span>
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (serverSpec.isStdio()) {</span>
+<span class="fc" id="L99">            initStdioTransport();</span>
+        } else {
+<span class="fc" id="L101">            initHttpTransport(serverSpec);</span>
+        }
+<span class="fc" id="L103">    }</span>
+
+    /**
+     * Initialize the Streamable HTTP transport (Restlet).
+     */
+    private void initHttpTransport(McpServerSpec serverSpec) {
+<span class="fc" id="L109">        ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);</span>
+<span class="fc" id="L110">        Map&lt;String, Boolean&gt; activeSessions = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L112">        Context context = new Context();</span>
+<span class="fc" id="L113">        context.getAttributes().put(&quot;dispatcher&quot;, dispatcher);</span>
+<span class="fc" id="L114">        context.getAttributes().put(&quot;activeSessions&quot;, activeSessions);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (getCapability().getSpec().getInfo() != null</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                &amp;&amp; getCapability().getSpec().getInfo().getLabel() != null) {</span>
+<span class="fc" id="L117">            context.getAttributes().put(&quot;capabilityName&quot;,</span>
+<span class="fc" id="L118">                    getCapability().getSpec().getInfo().getLabel());</span>
+        }
+
+<span class="fc" id="L121">        Router router = new Router(context);</span>
+<span class="fc" id="L122">        router.attachDefault(McpServerResource.class);</span>
+
+<span class="fc" id="L124">        Restlet chain = buildServerChain(router);</span>
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : &quot;localhost&quot;;</span>
+<span class="fc" id="L127">        initServer(address, serverSpec.getPort(), chain);</span>
+<span class="fc" id="L128">    }</span>
+
+    @Override
+    protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
+<span class="fc" id="L132">        return new McpOAuth2Restlet(oauth2, next);</span>
+    }
+
+    /**
+     * Initialize the stdio transport (stdin/stdout JSON-RPC).
+     */
+    private void initStdioTransport() {
+<span class="fc" id="L139">        ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);</span>
+<span class="fc" id="L140">        this.stdioHandler.set(new StdioJsonRpcHandler(dispatcher));</span>
+<span class="fc" id="L141">    }</span>
+
+    /**
+     * Build an MCP Tool from a tool spec. Converts input parameters to a JSON Schema map for the
+     * tool's inputSchema.
+     */
+    private McpSchema.Tool buildMcpTool(McpServerToolSpec toolSpec) {
+        // Build JSON Schema properties from input parameters
+<span class="fc" id="L149">        Map&lt;String, Object&gt; schemaProperties = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L150">        List&lt;String&gt; required = new ArrayList&lt;&gt;();</span>
+
+        // Resolve inputParameters: prefer tool-level, fall back to aggregate function
+<span class="fc" id="L153">        List&lt;InputParameterSpec&gt; inputParams = toolSpec.getInputParameters();</span>
+<span class="pc bpc" id="L154" title="1 of 6 branches missed.">        if ((inputParams == null || inputParams.isEmpty()) &amp;&amp; toolSpec.getRef() != null) {</span>
+<span class="fc" id="L155">            AggregateFunction fn = getCapability().lookupFunction(toolSpec.getRef());</span>
+<span class="fc" id="L156">            inputParams = fn.getInputParameters();</span>
+        }
+
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if (inputParams != null) {</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            for (InputParameterSpec param : inputParams) {</span>
+<span class="fc" id="L161">                Map&lt;String, Object&gt; property = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">                property.put(&quot;type&quot;, param.getType() != null ? param.getType() : &quot;string&quot;);</span>
+
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">                if (param.getDescription() != null) {</span>
+<span class="fc" id="L165">                    property.put(&quot;description&quot;, param.getDescription());</span>
+                }
+
+<span class="fc" id="L168">                Context.getCurrentLogger().log(Level.INFO,</span>
+<span class="fc" id="L169">                        &quot;Adding parameter to schema: &quot; + param.getName());</span>
+<span class="fc" id="L170">                schemaProperties.put(param.getName(), property);</span>
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">                if (param.isRequired()) {</span>
+<span class="fc" id="L173">                    required.add(param.getName());</span>
+                }
+<span class="fc" id="L175">            }</span>
+        }
+
+        // Build the input schema using McpSchema.JsonSchema
+<span class="fc" id="L179">        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema(&quot;object&quot;,</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">                schemaProperties.isEmpty() ? null : schemaProperties,</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                required.isEmpty() ? null : required, null, null, null);</span>
+
+        // Build ToolAnnotations from spec hints and label
+<span class="fc" id="L184">        McpSchema.ToolAnnotations annotations = buildToolAnnotations(toolSpec);</span>
+
+<span class="fc" id="L186">        return McpSchema.Tool.builder().name(toolSpec.getName())</span>
+<span class="fc" id="L187">                .description(toolSpec.getDescription()).inputSchema(inputSchema)</span>
+<span class="fc" id="L188">                .annotations(annotations).build();</span>
+    }
+
+    /**
+     * Build MCP ToolAnnotations from the tool spec's hints and label. Returns null if neither hints
+     * nor label are present.
+     */
+    McpSchema.ToolAnnotations buildToolAnnotations(McpServerToolSpec toolSpec) {
+<span class="fc" id="L196">        McpToolHintsSpec hints = toolSpec.getHints();</span>
+<span class="fc" id="L197">        String label = toolSpec.getLabel();</span>
+
+<span class="fc bfc" id="L199" title="All 4 branches covered.">        if (hints == null &amp;&amp; label == null) {</span>
+<span class="fc" id="L200">            return null;</span>
+        }
+
+<span class="fc" id="L203">        return new McpSchema.ToolAnnotations(label,</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">                hints != null ? hints.getReadOnly() : null,</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                hints != null ? hints.getDestructive() : null,</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">                hints != null ? hints.getIdempotent() : null,</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">                hints != null ? hints.getOpenWorld() : null, null);</span>
+    }
+
+    public McpServerSpec getMcpServerSpec() {
+<span class="fc" id="L211">        return (McpServerSpec) getSpec();</span>
+    }
+
+    public ToolHandler getToolHandler() {
+<span class="fc" id="L215">        return toolHandler;</span>
+    }
+
+    public ResourceHandler getResourceHandler() {
+<span class="fc" id="L219">        return resourceHandler;</span>
+    }
+
+    public PromptHandler getPromptHandler() {
+<span class="fc" id="L223">        return promptHandler;</span>
+    }
+
+    public List&lt;McpSchema.Tool&gt; getTools() {
+<span class="fc" id="L227">        return tools;</span>
+    }
+
+    public Map&lt;String, String&gt; getToolLabels() {
+<span class="fc" id="L231">        return toolLabels;</span>
+    }
+
+    @Override
+    public void start() throws Exception {
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if (getMcpServerSpec().isStdio()) {</span>
+<span class="nc" id="L237">            Thread thread = new Thread(stdioHandler.get(), &quot;mcp-stdio&quot;);</span>
+<span class="nc" id="L238">            thread.setDaemon(true);</span>
+<span class="nc" id="L239">            thread.start();</span>
+<span class="nc" id="L240">            stdioThread.set(thread);</span>
+<span class="nc" id="L241">            System.err.println(&quot;MCP Server started on stdio&quot; + &quot; (namespace: &quot;</span>
+<span class="nc" id="L242">                    + getMcpServerSpec().getNamespace() + &quot;)&quot;);</span>
+<span class="nc" id="L243">            Context.getCurrentLogger().log(Level.INFO, &quot;MCP Server started on stdio&quot;</span>
+<span class="nc" id="L244">                    + &quot; (namespace: &quot; + getMcpServerSpec().getNamespace() + &quot;)&quot;);</span>
+<span class="nc" id="L245">        } else {</span>
+<span class="fc" id="L246">            super.start();</span>
+<span class="fc" id="L247">            System.out.println(&quot;MCP Server started on &quot; + getMcpServerSpec().getAddress() + &quot;:&quot;</span>
+<span class="fc" id="L248">                    + getMcpServerSpec().getPort() + &quot; (namespace: &quot;</span>
+<span class="fc" id="L249">                    + getMcpServerSpec().getNamespace() + &quot;)&quot;);</span>
+<span class="fc" id="L250">            Context.getCurrentLogger().log(Level.INFO,</span>
+<span class="fc" id="L251">                    &quot;MCP Server started on &quot; + getMcpServerSpec().getAddress() + &quot;:&quot;</span>
+<span class="fc" id="L252">                            + getMcpServerSpec().getPort() + &quot; (namespace: &quot;</span>
+<span class="fc" id="L253">                            + getMcpServerSpec().getNamespace() + &quot;)&quot;);</span>
+        }
+<span class="fc" id="L255">    }</span>
+
+    @Override
+    public void stop() throws Exception {
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">        if (getMcpServerSpec().isStdio()) {</span>
+<span class="nc" id="L260">            StdioJsonRpcHandler handler = stdioHandler.get();</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            if (handler != null) {</span>
+<span class="nc" id="L262">                handler.shutdown();</span>
+<span class="nc" id="L263">                Thread thread = stdioThread.get();</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                if (thread != null) {</span>
+<span class="nc" id="L265">                    thread.join(5000); // Wait for the stdio thread to finish</span>
+                }
+<span class="nc" id="L267">                Context.getCurrentLogger().log(Level.INFO, &quot;MCP Server stopped on stdio&quot;);</span>
+            }
+<span class="nc" id="L269">        } else {</span>
+<span class="fc" id="L270">            super.stop();</span>
+<span class="fc" id="L271">            Context.getCurrentLogger().log(Level.INFO, &quot;MCP Server stopped on &quot;</span>
+<span class="fc" id="L272">                    + getMcpServerSpec().getAddress() + &quot;:&quot; + getMcpServerSpec().getPort());</span>
+        }
+<span class="fc" id="L274">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

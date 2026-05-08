@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DelegatingSpanProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.observability</a> &gt; <span class="el_source">DelegatingSpanProcessor.java</span></div><h1>DelegatingSpanProcessor.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.observability;
+
+import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.trace.ReadWriteSpan;
+import io.opentelemetry.sdk.trace.ReadableSpan;
+import io.opentelemetry.sdk.trace.SpanProcessor;
+
+/**
+ * A {@link SpanProcessor} that delegates to another processor set after construction.
+ *
+ * &lt;p&gt;Registered at OTel SDK build time as a placeholder. Once the actual processor is
+ * available (e.g. when the control adapter creates the {@code TraceRingBuffer}), call
+ * {@link #setDelegate(SpanProcessor)} to start forwarding spans.&lt;/p&gt;
+ *
+ * &lt;p&gt;Thread-safe: the delegate reference is volatile so updates are visible to all
+ * exporter threads immediately.&lt;/p&gt;
+ */
+<span class="fc" id="L32">class DelegatingSpanProcessor implements SpanProcessor {</span>
+
+    private volatile SpanProcessor delegate;
+
+    @Override
+    @SuppressWarnings(&quot;null&quot;)
+    public void onStart(Context parentContext, ReadWriteSpan span) {
+<span class="nc" id="L39">        SpanProcessor d = delegate;</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">        if (d != null) {</span>
+<span class="nc" id="L41">            d.onStart(parentContext, span);</span>
+        }
+<span class="nc" id="L43">    }</span>
+
+    @Override
+    public boolean isStartRequired() {
+<span class="fc" id="L47">        SpanProcessor d = delegate;</span>
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">        return d != null &amp;&amp; d.isStartRequired();</span>
+    }
+
+    @Override
+    @SuppressWarnings(&quot;null&quot;)
+    public void onEnd(ReadableSpan span) {
+<span class="fc" id="L54">        SpanProcessor d = delegate;</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (d != null) {</span>
+<span class="fc" id="L56">            d.onEnd(span);</span>
+        }
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public boolean isEndRequired() {
+<span class="fc" id="L62">        return true; // Always required so we don't miss spans set after build</span>
+    }
+
+    @Override
+    public CompletableResultCode shutdown() {
+<span class="fc" id="L67">        SpanProcessor d = delegate;</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (d != null) {</span>
+<span class="fc" id="L69">            return d.shutdown();</span>
+        }
+<span class="fc" id="L71">        return CompletableResultCode.ofSuccess();</span>
+    }
+
+    @Override
+    public CompletableResultCode forceFlush() {
+<span class="fc" id="L76">        SpanProcessor d = delegate;</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (d != null) {</span>
+<span class="nc" id="L78">            return d.forceFlush();</span>
+        }
+<span class="fc" id="L80">        return CompletableResultCode.ofSuccess();</span>
+    }
+
+    void setDelegate(SpanProcessor delegate) {
+<span class="fc" id="L84">        this.delegate = delegate;</span>
+<span class="fc" id="L85">    }</span>
+
+    SpanProcessor getDelegate() {
+<span class="fc" id="L88">        return delegate;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EngineMetrics.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.observability</a> &gt; <span class="el_source">EngineMetrics.java</span></div><h1>EngineMetrics.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.observability;
+
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleHistogram;
+import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.LongUpDownCounter;
+import io.opentelemetry.api.metrics.Meter;
+
+/**
+ * Centralized registry for OTel metrics recorded by the Naftiko engine.
+ *
+ * &lt;p&gt;Instruments are created once during {@link TelemetryBootstrap} initialization and shared
+ * across the engine. When the OTel SDK is absent (noop mode), all recording calls are zero-cost
+ * no-ops.&lt;/p&gt;
+ */
+@SuppressWarnings(&quot;null&quot;)
+public class EngineMetrics {
+
+    private final boolean enabled;
+    private final LongCounter requestTotal;
+    private final DoubleHistogram requestDuration;
+    private final LongCounter requestErrors;
+    private final DoubleHistogram stepDuration;
+    private final LongCounter httpClientTotal;
+    private final DoubleHistogram httpClientDuration;
+    private final LongUpDownCounter capabilityActive;
+
+<span class="fc" id="L41">    EngineMetrics(Meter meter, boolean enabled) {</span>
+<span class="fc" id="L42">        this.enabled = enabled;</span>
+<span class="fc" id="L43">        this.requestTotal = meter.counterBuilder(&quot;ikanos.request.total&quot;)</span>
+<span class="fc" id="L44">                .setDescription(&quot;Total number of requests handled by the engine&quot;)</span>
+<span class="fc" id="L45">                .build();</span>
+
+<span class="fc" id="L47">        this.requestDuration = meter.histogramBuilder(&quot;ikanos.request.duration.seconds&quot;)</span>
+<span class="fc" id="L48">                .setDescription(&quot;Duration of request handling in seconds&quot;)</span>
+<span class="fc" id="L49">                .setUnit(&quot;s&quot;)</span>
+<span class="fc" id="L50">                .build();</span>
+
+<span class="fc" id="L52">        this.requestErrors = meter.counterBuilder(&quot;ikanos.request.errors&quot;)</span>
+<span class="fc" id="L53">                .setDescription(&quot;Total number of request errors&quot;)</span>
+<span class="fc" id="L54">                .build();</span>
+
+<span class="fc" id="L56">        this.stepDuration = meter.histogramBuilder(&quot;ikanos.step.duration.seconds&quot;)</span>
+<span class="fc" id="L57">                .setDescription(&quot;Duration of step execution in seconds&quot;)</span>
+<span class="fc" id="L58">                .setUnit(&quot;s&quot;)</span>
+<span class="fc" id="L59">                .build();</span>
+
+<span class="fc" id="L61">        this.httpClientTotal = meter.counterBuilder(&quot;ikanos.http.client.total&quot;)</span>
+<span class="fc" id="L62">                .setDescription(&quot;Total number of outbound HTTP client calls&quot;)</span>
+<span class="fc" id="L63">                .build();</span>
+
+<span class="fc" id="L65">        this.httpClientDuration = meter.histogramBuilder(&quot;ikanos.http.client.duration.seconds&quot;)</span>
+<span class="fc" id="L66">                .setDescription(&quot;Duration of outbound HTTP client calls in seconds&quot;)</span>
+<span class="fc" id="L67">                .setUnit(&quot;s&quot;)</span>
+<span class="fc" id="L68">                .build();</span>
+
+<span class="fc" id="L70">        this.capabilityActive = meter.upDownCounterBuilder(&quot;ikanos.capability.active&quot;)</span>
+<span class="fc" id="L71">                .setDescription(&quot;Number of active capabilities&quot;)</span>
+<span class="fc" id="L72">                .build();</span>
+<span class="fc" id="L73">    }</span>
+
+    /**
+     * Record a completed server adapter request.
+     */
+    public void recordRequest(String adapter, String operation, String status, double durationSec) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (!enabled) return;</span>
+<span class="fc" id="L80">        Attributes attrs = Attributes.of(</span>
+                TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
+                TelemetryBootstrap.ATTR_OPERATION_ID, operation,
+<span class="fc" id="L83">                io.opentelemetry.api.common.AttributeKey.stringKey(&quot;status&quot;), status);</span>
+<span class="fc" id="L84">        requestTotal.add(1, attrs);</span>
+<span class="fc" id="L85">        requestDuration.record(durationSec, attrs);</span>
+<span class="fc" id="L86">    }</span>
+
+    /**
+     * Record a request error.
+     */
+    public void recordRequestError(String adapter, String operation, String errorType) {
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (!enabled) return;</span>
+<span class="fc" id="L93">        Attributes attrs = Attributes.of(</span>
+                TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
+                TelemetryBootstrap.ATTR_OPERATION_ID, operation,
+<span class="fc" id="L96">                io.opentelemetry.api.common.AttributeKey.stringKey(&quot;error.type&quot;), errorType);</span>
+<span class="fc" id="L97">        requestErrors.add(1, attrs);</span>
+<span class="fc" id="L98">    }</span>
+
+    /**
+     * Record a completed step execution.
+     */
+    public void recordStep(String stepType, String namespace, double durationSec) {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (!enabled) return;</span>
+<span class="fc" id="L105">        Attributes attrs = Attributes.of(</span>
+<span class="fc" id="L106">                io.opentelemetry.api.common.AttributeKey.stringKey(&quot;step.type&quot;), stepType,</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">                TelemetryBootstrap.ATTR_NAMESPACE, namespace != null ? namespace : &quot;unknown&quot;);</span>
+<span class="fc" id="L108">        stepDuration.record(durationSec, attrs);</span>
+<span class="fc" id="L109">    }</span>
+
+    /**
+     * Record a completed outbound HTTP client call.
+     *
+     * &lt;p&gt;When {@code statusCode} is {@code 0} (transport failure — no HTTP response received),
+     * the {@code http.response.status_code} attribute is omitted and an {@code error.type}
+     * attribute is set to {@code &quot;transport&quot;} instead. This avoids polluting metrics with a
+     * non-HTTP status value.&lt;/p&gt;
+     */
+    public void recordHttpClient(String method, String host, int statusCode,
+            double durationSec) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (!enabled) return;</span>
+<span class="fc" id="L122">        var builder = Attributes.builder()</span>
+<span class="fc" id="L123">                .put(TelemetryBootstrap.ATTR_HTTP_METHOD, method)</span>
+<span class="fc" id="L124">                .put(io.opentelemetry.api.common.AttributeKey.stringKey(&quot;server.address&quot;), host);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (statusCode &gt; 0) {</span>
+<span class="fc" id="L126">            builder.put(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE, (long) statusCode);</span>
+        } else {
+<span class="fc" id="L128">            builder.put(io.opentelemetry.api.common.AttributeKey.stringKey(&quot;error.type&quot;),</span>
+                    &quot;transport&quot;);
+        }
+<span class="fc" id="L131">        Attributes attrs = builder.build();</span>
+<span class="fc" id="L132">        httpClientTotal.add(1, attrs);</span>
+<span class="fc" id="L133">        httpClientDuration.record(durationSec, attrs);</span>
+<span class="fc" id="L134">    }</span>
+
+    /**
+     * Increment active capability count (call on start).
+     */
+    public void capabilityStarted(String capabilityName) {
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (!enabled) return;</span>
+<span class="fc" id="L141">        Attributes attrs = Attributes.of(</span>
+                TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
+<span class="fc" id="L143">        capabilityActive.add(1, attrs);</span>
+<span class="fc" id="L144">    }</span>
+
+    /**
+     * Decrement active capability count (call on stop).
+     */
+    public void capabilityStopped(String capabilityName) {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        if (!enabled) return;</span>
+<span class="fc" id="L151">        Attributes attrs = Attributes.of(</span>
+                TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
+<span class="fc" id="L153">        capabilityActive.add(-1, attrs);</span>
+<span class="fc" id="L154">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

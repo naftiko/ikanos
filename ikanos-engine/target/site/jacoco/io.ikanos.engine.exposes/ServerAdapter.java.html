@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes</a> &gt; <span class="el_source">ServerAdapter.java</span></div><h1>ServerAdapter.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import org.restlet.Context;
+import org.restlet.Restlet;
+import org.restlet.Server;
+import org.restlet.data.ChallengeScheme;
+import org.restlet.data.Protocol;
+import org.restlet.security.ChallengeAuthenticator;
+import org.restlet.security.SecretVerifier;
+import org.restlet.security.Verifier;
+import io.ikanos.Capability;
+import io.ikanos.engine.Adapter;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.util.BindingKeysSpec;
+import io.ikanos.spec.util.BindingSpec;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
+import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.ServerSpec;
+
+/**
+ * Base class for server adapters. All HTTP-based adapters share the same Restlet {@link Server}
+ * lifecycle: create, start, stop. Subclasses configure routing in their constructor and call
+ * {@link #initServer(String, int, Restlet)} to wire the transport.
+ */
+public abstract class ServerAdapter extends Adapter {
+
+    private final Capability capability;
+    private final ServerSpec spec;
+    private Server server;
+
+<span class="fc" id="L53">    public ServerAdapter(Capability capability, ServerSpec spec) {</span>
+<span class="fc" id="L54">        this.capability = capability;</span>
+<span class="fc" id="L55">        this.spec = spec;</span>
+<span class="fc" id="L56">    }</span>
+
+    /**
+     * Initialize the Restlet HTTP server. Subclasses call this after building their router/chain.
+     */
+    protected void initServer(String address, int port, Restlet handler) {
+<span class="fc" id="L62">        this.server = new Server(Protocol.HTTP, address, port);</span>
+<span class="fc" id="L63">        this.server.setContext(new Context());</span>
+
+        // TODO: Make idle timeout configurable
+<span class="fc" id="L66">        this.server.getContext().getParameters().add(&quot;socketTimeout&quot;, &quot;12000&quot;);</span>
+
+<span class="fc" id="L68">        this.server.setNext(handler);</span>
+<span class="fc" id="L69">    }</span>
+
+    public Capability getCapability() {
+<span class="fc" id="L72">        return capability;</span>
+    }
+
+    public ServerSpec getSpec() {
+<span class="fc" id="L76">        return spec;</span>
+    }
+
+    public Server getServer() {
+<span class="fc" id="L80">        return server;</span>
+    }
+
+    @Override
+    public void start() throws Exception {
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (server != null) {</span>
+<span class="fc" id="L86">            server.start();</span>
+        }
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    public void stop() throws Exception {
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (server != null) {</span>
+<span class="fc" id="L93">            server.stop();</span>
+        }
+<span class="fc" id="L95">    }</span>
+
+    /**
+     * Extracts all allowed variable names from the capability spec's bindings. These are the
+     * variable names defined in the binds keys mapping.
+     *
+     * @param spec The Naftiko spec
+     * @return Set of allowed variable names from binds declarations
+     */
+    public static Set&lt;String&gt; extractAllowedVariables(IkanosSpec spec) {
+<span class="fc" id="L105">        Set&lt;String&gt; allowed = new HashSet&lt;&gt;();</span>
+
+<span class="pc bpc" id="L107" title="2 of 4 branches missed.">        if (spec == null || spec.getBinds() == null) {</span>
+<span class="nc" id="L108">            return allowed;</span>
+        }
+
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        for (BindingSpec bind : spec.getBinds()) {</span>
+<span class="fc" id="L112">            BindingKeysSpec keysSpec = bind.getKeys();</span>
+<span class="pc bpc" id="L113" title="2 of 4 branches missed.">            if (keysSpec != null &amp;&amp; keysSpec.getKeys() != null) {</span>
+<span class="fc" id="L114">                allowed.addAll(keysSpec.getKeys().keySet());</span>
+            }
+<span class="fc" id="L116">        }</span>
+
+<span class="fc" id="L118">        return allowed;</span>
+    }
+
+    /**
+     * Builds the Restlet handler chain, optionally wrapping the next restlet with an
+     * authentication filter based on the adapter's spec. Subclasses may override
+     * {@link #createOAuth2Restlet} to provide adapter-specific OAuth 2.1 behaviour.
+     */
+    protected Restlet buildServerChain(Restlet next) {
+<span class="fc" id="L127">        AuthenticationSpec authentication = getSpec().getAuthentication();</span>
+<span class="pc bpc" id="L128" title="1 of 4 branches missed.">        if (authentication == null || authentication.getType() == null) {</span>
+<span class="fc" id="L129">            return next;</span>
+        }
+
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (&quot;basic&quot;.equals(authentication.getType())</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">                || &quot;digest&quot;.equals(authentication.getType())) {</span>
+<span class="fc" id="L134">            return buildChallengeAuthenticator(authentication, next);</span>
+        }
+
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">        if (&quot;oauth2&quot;.equals(authentication.getType())</span>
+<span class="fc" id="L138">                &amp;&amp; authentication instanceof OAuth2AuthenticationSpec oauth2) {</span>
+<span class="fc" id="L139">            return createOAuth2Restlet(oauth2, next);</span>
+        }
+
+<span class="fc" id="L142">        Set&lt;String&gt; allowedVariables = extractAllowedVariables(getCapability().getSpec());</span>
+<span class="fc" id="L143">        return new ServerAuthenticationRestlet(authentication, next, allowedVariables);</span>
+    }
+
+    /**
+     * Creates the OAuth 2.1 authentication restlet. Subclasses may override to return an
+     * adapter-specific variant (e.g. MCP's Protected Resource Metadata extension).
+     */
+    protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
+<span class="fc" id="L151">        return new OAuth2AuthenticationRestlet(oauth2, next);</span>
+    }
+
+    private Restlet buildChallengeAuthenticator(AuthenticationSpec authentication, Restlet next) {
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        ChallengeScheme scheme = &quot;digest&quot;.equals(authentication.getType())</span>
+<span class="fc" id="L156">                ? ChallengeScheme.HTTP_DIGEST</span>
+<span class="fc" id="L157">                : ChallengeScheme.HTTP_BASIC;</span>
+
+<span class="fc" id="L159">        Set&lt;String&gt; allowedVariables = extractAllowedVariables(getCapability().getSpec());</span>
+<span class="fc" id="L160">        ChallengeAuthenticator authenticator =</span>
+<span class="fc" id="L161">                new ChallengeAuthenticator(next.getContext(), false, scheme, &quot;ikanos&quot;);</span>
+<span class="fc" id="L162">        authenticator.setVerifier(new SecretVerifier() {</span>
+
+            @Override
+            public int verify(String identifier, char[] secret) {
+<span class="nc" id="L166">                String expectedUsername = null;</span>
+<span class="nc" id="L167">                char[] expectedPassword = null;</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                if (authentication instanceof BasicAuthenticationSpec basic) {</span>
+<span class="nc" id="L170">                    expectedUsername = resolveTemplate(basic.getUsername(), allowedVariables);</span>
+<span class="nc" id="L171">                    expectedPassword = resolveTemplateChars(basic.getPassword(), allowedVariables);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                } else if (authentication instanceof DigestAuthenticationSpec digest) {</span>
+<span class="nc" id="L173">                    expectedUsername = resolveTemplate(digest.getUsername(), allowedVariables);</span>
+<span class="nc" id="L174">                    expectedPassword = resolveTemplateChars(digest.getPassword(), allowedVariables);</span>
+                }
+
+<span class="nc bnc" id="L177" title="All 8 branches missed.">                if (expectedUsername == null || expectedPassword == null || identifier == null</span>
+                        || secret == null) {
+<span class="nc" id="L179">                    return Verifier.RESULT_INVALID;</span>
+                }
+
+<span class="nc" id="L182">                boolean usernameMatches = secureEquals(expectedUsername, identifier);</span>
+<span class="nc" id="L183">                boolean passwordMatches = secureEquals(expectedPassword, secret);</span>
+
+<span class="nc bnc" id="L185" title="All 4 branches missed.">                return (usernameMatches &amp;&amp; passwordMatches) ? Verifier.RESULT_VALID</span>
+<span class="nc" id="L186">                        : Verifier.RESULT_INVALID;</span>
+            }
+        });
+<span class="fc" id="L189">        authenticator.setNext(next);</span>
+<span class="fc" id="L190">        return authenticator;</span>
+    }
+
+    private static String resolveTemplate(String value, Set&lt;String&gt; allowedVariables) {
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L195">            return null;</span>
+        }
+<span class="nc" id="L197">        Map&lt;String, Object&gt; env = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L198" title="All 4 branches missed.">        if (value.contains(&quot;{{&quot;) &amp;&amp; value.contains(&quot;}}&quot;)) {</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            for (String varName : allowedVariables) {</span>
+<span class="nc" id="L200">                String varValue = System.getenv(varName);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                if (varValue != null) {</span>
+<span class="nc" id="L202">                    env.put(varName, varValue);</span>
+                }
+<span class="nc" id="L204">            }</span>
+        }
+<span class="nc" id="L206">        return Resolver.resolveMustacheTemplate(value, env);</span>
+    }
+
+    private static char[] resolveTemplateChars(char[] value, Set&lt;String&gt; allowedVariables) {
+<span class="nc bnc" id="L210" title="All 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L211">            return null;</span>
+        }
+<span class="nc" id="L213">        String resolved = resolveTemplate(new String(value), allowedVariables);</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        return resolved == null ? null : resolved.toCharArray();</span>
+    }
+
+    private static boolean secureEquals(String expected, String actual) {
+<span class="nc bnc" id="L218" title="All 4 branches missed.">        if (expected == null || actual == null) {</span>
+<span class="nc" id="L219">            return false;</span>
+        }
+<span class="nc" id="L221">        return MessageDigest.isEqual(</span>
+<span class="nc" id="L222">                expected.getBytes(StandardCharsets.UTF_8),</span>
+<span class="nc" id="L223">                actual.getBytes(StandardCharsets.UTF_8));</span>
+    }
+
+    private static boolean secureEquals(char[] expected, char[] actual) {
+<span class="nc bnc" id="L227" title="All 4 branches missed.">        if (expected == null || actual == null) {</span>
+<span class="nc" id="L228">            return false;</span>
+        }
+<span class="nc" id="L230">        return MessageDigest.isEqual(</span>
+<span class="nc" id="L231">                new String(expected).getBytes(StandardCharsets.UTF_8),</span>
+<span class="nc" id="L232">                new String(actual).getBytes(StandardCharsets.UTF_8));</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.ikanos.cli.ImportOpenApiCommandTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.847 s -- in io.ikanos.cli.ImportOpenApiCommandTest

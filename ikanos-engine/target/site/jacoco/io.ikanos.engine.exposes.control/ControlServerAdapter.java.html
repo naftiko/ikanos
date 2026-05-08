@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ControlServerAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.control</a> &gt; <span class="el_source">ControlServerAdapter.java</span></div><h1>ControlServerAdapter.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.control;
+
+import io.ikanos.Capability;
+import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.spec.observability.ObservabilitySpec;
+import io.ikanos.spec.observability.ObservabilityTracesLocalSpec;
+import io.ikanos.spec.exposes.control.ControlManagementSpec;
+import io.ikanos.spec.exposes.control.ControlServerSpec;
+import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+import org.restlet.Context;
+import org.restlet.Restlet;
+import org.restlet.routing.Router;
+
+/**
+ * Server adapter for the control port — management plane for health, metrics, traces, and runtime
+ * diagnostics. Endpoints are engine-provided; capability authors declare the adapter but do not
+ * define routes.
+ *
+ * &lt;p&gt;Each {@link org.restlet.resource.ServerResource} subclass is instantiated per request by
+ * Restlet's routing layer and receives shared state via {@link Context} attributes.&lt;/p&gt;
+ */
+public class ControlServerAdapter extends ServerAdapter {
+
+    private final Router router;
+    private final TraceRingBuffer traceRingBuffer;
+
+    public ControlServerAdapter(Capability capability, ControlServerSpec serverSpec) {
+<span class="fc" id="L42">        super(capability, serverSpec);</span>
+
+<span class="fc" id="L44">        ControlManagementSpec management = serverSpec.getManagement();</span>
+<span class="fc" id="L45">        ObservabilitySpec observability = serverSpec.getObservability();</span>
+
+        // Trace ring buffer — shared between the SpanProcessor and the TracesResource
+<span class="fc" id="L48">        int bufferSize = resolveTracesBufferSize(observability);</span>
+<span class="fc" id="L49">        this.traceRingBuffer = new TraceRingBuffer(bufferSize);</span>
+
+        // Shared context for per-request ServerResource instances
+<span class="fc" id="L52">        Context context = new Context();</span>
+<span class="fc" id="L53">        context.getAttributes().put(&quot;capability&quot;, capability);</span>
+<span class="fc" id="L54">        context.getAttributes().put(&quot;traceRingBuffer&quot;, traceRingBuffer);</span>
+
+<span class="fc" id="L56">        this.router = new Router(context);</span>
+
+        // Management endpoints
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (management.isHealth()) {</span>
+<span class="fc" id="L60">            router.attach(&quot;/health/live&quot;, HealthLiveResource.class);</span>
+<span class="fc" id="L61">            router.attach(&quot;/health/ready&quot;, HealthReadyResource.class);</span>
+        }
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (management.isInfo()) {</span>
+<span class="fc" id="L65">            router.attach(&quot;/status&quot;, StatusResource.class);</span>
+        }
+
+        // Scripting governance endpoint
+<span class="fc" id="L69">        ScriptingManagementSpec scripting = management.getScripting();</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (scripting != null) {</span>
+<span class="fc" id="L71">            context.getAttributes().put(&quot;scriptingSpec&quot;, scripting);</span>
+<span class="fc" id="L72">            router.attach(&quot;/scripting&quot;, ScriptingResource.class);</span>
+        }
+
+        // Observability endpoints — metrics and traces live under observability
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (isMetricsEnabled(observability)) {</span>
+<span class="fc" id="L77">            router.attach(&quot;/metrics&quot;, MetricsResource.class);</span>
+        }
+
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (isTracesEnabled(observability)) {</span>
+<span class="fc" id="L81">            router.attach(&quot;/traces&quot;, TracesResource.class);</span>
+<span class="fc" id="L82">            router.attach(&quot;/traces/{traceId}&quot;, TracesResource.class);</span>
+            // Wire the span processor so completed spans flow into the ring buffer
+<span class="fc" id="L84">            TelemetryBootstrap.get().registerSpanProcessor(</span>
+                    new TraceCapturingSpanProcessor(traceRingBuffer));
+        }
+
+<span class="fc" id="L88">        Restlet chain = buildServerChain(this.router);</span>
+<span class="fc" id="L89">        initServer(serverSpec.getAddress(), serverSpec.getPort(), chain);</span>
+<span class="fc" id="L90">    }</span>
+
+    boolean isMetricsEnabled(ObservabilitySpec observability) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (observability == null) {</span>
+<span class="fc" id="L94">            return true; // default: enabled</span>
+        }
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (!observability.isEnabled()) {</span>
+<span class="fc" id="L97">            return false;</span>
+        }
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">        if (observability.getMetrics() != null &amp;&amp; observability.getMetrics().getLocal() != null) {</span>
+<span class="fc" id="L100">            return observability.getMetrics().getLocal().isEnabled();</span>
+        }
+<span class="fc" id="L102">        return true; // default: enabled</span>
+    }
+
+    boolean isTracesEnabled(ObservabilitySpec observability) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (observability == null) {</span>
+<span class="fc" id="L107">            return true; // default: enabled</span>
+        }
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (!observability.isEnabled()) {</span>
+<span class="fc" id="L110">            return false;</span>
+        }
+<span class="pc bpc" id="L112" title="1 of 4 branches missed.">        if (observability.getTraces() != null &amp;&amp; observability.getTraces().getLocal() != null) {</span>
+<span class="fc" id="L113">            return observability.getTraces().getLocal().isEnabled();</span>
+        }
+<span class="fc" id="L115">        return true; // default: enabled</span>
+    }
+
+    int resolveTracesBufferSize(ObservabilitySpec observability) {
+<span class="fc bfc" id="L119" title="All 4 branches covered.">        if (observability != null &amp;&amp; observability.getTraces() != null</span>
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                &amp;&amp; observability.getTraces().getLocal() != null) {</span>
+<span class="fc" id="L121">            return observability.getTraces().getLocal().getBufferSize();</span>
+        }
+<span class="fc" id="L123">        return new ObservabilityTracesLocalSpec().getBufferSize(); // default: 100</span>
+    }
+
+    public ControlServerSpec getControlServerSpec() {
+<span class="fc" id="L127">        return (ControlServerSpec) getSpec();</span>
+    }
+
+    public Router getRouter() {
+<span class="fc" id="L131">        return router;</span>
+    }
+
+    public TraceRingBuffer getTraceRingBuffer() {
+<span class="fc" id="L135">        return traceRingBuffer;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

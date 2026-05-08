@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>McpPromptArgumentSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes.mcp</a> &gt; <span class="el_source">McpPromptArgumentSpec.java</span></div><h1>McpPromptArgumentSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes.mcp;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * An argument for an MCP prompt template.
+ *
+ * Arguments are always strings per the MCP specification. They are substituted into
+ * prompt templates via {@code {{name}}} placeholders.
+ */
+public class McpPromptArgumentSpec {
+
+    private volatile String name;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String label;
+
+    private volatile String description;
+
+    /** Defaults to {@code true} — arguments are required unless explicitly set to false. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile Boolean required;
+
+<span class="nc" id="L37">    public McpPromptArgumentSpec() {}</span>
+
+    public String getName() {
+<span class="nc" id="L40">        return name;</span>
+    }
+
+    public void setName(String name) {
+<span class="nc" id="L44">        this.name = name;</span>
+<span class="nc" id="L45">    }</span>
+
+    public String getLabel() {
+<span class="nc" id="L48">        return label;</span>
+    }
+
+    public void setLabel(String label) {
+<span class="nc" id="L52">        this.label = label;</span>
+<span class="nc" id="L53">    }</span>
+
+    public String getDescription() {
+<span class="nc" id="L56">        return description;</span>
+    }
+
+    public void setDescription(String description) {
+<span class="nc" id="L60">        this.description = description;</span>
+<span class="nc" id="L61">    }</span>
+
+    public Boolean getRequired() {
+<span class="nc" id="L64">        return required;</span>
+    }
+
+    public void setRequired(Boolean required) {
+<span class="nc" id="L68">        this.required = required;</span>
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * Returns {@code true} unless {@code required} is explicitly set to {@code false}.
+     */
+    public boolean isRequired() {
+<span class="nc bnc" id="L75" title="All 4 branches missed.">        return required == null || required;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

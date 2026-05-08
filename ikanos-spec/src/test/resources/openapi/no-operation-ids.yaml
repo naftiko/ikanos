@@ -1,0 +1,44 @@
+openapi: "3.0.3"
+info:
+  title: "No Operation IDs API"
+  version: "1.0.0"
+servers:
+  - url: "https://api.noopids.io"
+paths:
+  /widgets:
+    get:
+      summary: List widgets
+      tags:
+        - Widgets
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create widget
+      tags:
+        - Widgets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created
+  /widgets/{widgetId}:
+    delete:
+      summary: Delete widget
+      tags:
+        - Widgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted

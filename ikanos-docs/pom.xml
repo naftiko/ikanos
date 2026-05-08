@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.ikanos</groupId>
+        <artifactId>ikanos-parent</artifactId>
+        <version>1.0.0-alpha3-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ikanos-docs</artifactId>
+    <packaging>pom</packaging>
+    <name>Ikanos Docs</name>
+    <description>Documentation-only module — wiki pages, tutorial YAML capabilities, and demo content. No JAR produced.</description>
+
+</project>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerCallSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes</a> &gt; <span class="el_source">ServerCallSpec.java</span></div><h1>ServerCallSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+/**
+ * Server Call Specification Element.
+ *
+ * &lt;p&gt;Represents a call to another operation with associated input parameters.
+ * The {@code with} field contains key-value pairs that provide values to the input parameters
+ * of the target operation.&lt;/p&gt;
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each field is held in an {@link AtomicReference}; the {@code with} parameter map is stored
+ * as an immutable snapshot. Mutations via {@link #setParameter(String, Object)} use
+ * {@link AtomicReference#updateAndGet} to perform a lock-free copy-on-write replacement.
+ * This satisfies SonarQube rule {@code java:S3077}.
+ */
+public class ServerCallSpec {
+
+<span class="fc" id="L38">    private final AtomicReference&lt;String&gt; operation = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L39">    private final AtomicReference&lt;Map&lt;String, Object&gt;&gt; with = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L40">    private final AtomicReference&lt;String&gt; description = new AtomicReference&lt;&gt;();</span>
+
+    public ServerCallSpec() {
+<span class="fc" id="L43">        this(null, null, null);</span>
+<span class="fc" id="L44">    }</span>
+
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+    public ServerCallSpec(String operation) {
+<span class="fc" id="L48">        this(operation, null, null);</span>
+<span class="fc" id="L49">    }</span>
+
+    public ServerCallSpec(String operation, Map&lt;String, Object&gt; with) {
+<span class="fc" id="L52">        this(operation, with, null);</span>
+<span class="fc" id="L53">    }</span>
+
+<span class="fc" id="L55">    public ServerCallSpec(String operation, Map&lt;String, Object&gt; with, String description) {</span>
+<span class="fc" id="L56">        this.operation.set(operation);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        this.with.set(with != null ? Map.copyOf(with) : null);</span>
+<span class="fc" id="L58">        this.description.set(description);</span>
+<span class="fc" id="L59">    }</span>
+
+    public String getOperation() {
+<span class="fc" id="L62">        return operation.get();</span>
+    }
+
+    public void setOperation(String operation) {
+<span class="fc" id="L66">        this.operation.set(operation);</span>
+<span class="fc" id="L67">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Map&lt;String, Object&gt; getWith() {
+<span class="fc" id="L71">        return with.get();</span>
+    }
+
+    public void setWith(Map&lt;String, Object&gt; with) {
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        this.with.set(with != null ? Map.copyOf(with) : null);</span>
+<span class="nc" id="L76">    }</span>
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getDescription() {
+<span class="fc" id="L80">        return description.get();</span>
+    }
+
+    public void setDescription(String description) {
+<span class="fc" id="L84">        this.description.set(description);</span>
+<span class="fc" id="L85">    }</span>
+
+    /**
+     * Gets a parameter value from the {@code with} map by key.
+     *
+     * @param key the parameter key
+     * @return the parameter value, or {@code null} if not present
+     */
+    public Object getParameter(String key) {
+<span class="nc" id="L94">        Map&lt;String, Object&gt; snapshot = with.get();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        return snapshot == null ? null : snapshot.get(key);</span>
+    }
+
+    /**
+     * Sets a parameter value in the {@code with} map.
+     * Performs a lock-free copy-on-write replacement of the immutable snapshot.
+     *
+     * @param key the parameter key
+     * @param value the parameter value
+     */
+    public void setParameter(String key, Object value) {
+<span class="nc" id="L106">        with.updateAndGet(current -&gt; {</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            Map&lt;String, Object&gt; next = current == null ? new HashMap&lt;&gt;() : new HashMap&lt;&gt;(current);</span>
+<span class="nc" id="L108">            next.put(key, value);</span>
+<span class="nc" id="L109">            return Map.copyOf(next);</span>
+        });
+<span class="nc" id="L111">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

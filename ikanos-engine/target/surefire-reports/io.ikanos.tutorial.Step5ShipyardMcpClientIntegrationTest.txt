@@ -1,0 +1,88 @@
+-------------------------------------------------------------------------------
+Test set: io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 7, Skipped: 0, Time elapsed: 0.297 s <<< FAILURE! -- in io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.toolsListShouldAdvertiseThreeTools -- Time elapsed: 0.055 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.getShipShouldReturnFlatFieldsAndNestedSpecsObject -- Time elapsed: 0.024 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.getShipInputSchemaShouldDeclareRequiredImoParameter -- Time elapsed: 0.060 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.listShipsShouldReturnMappedFlatFields -- Time elapsed: 0.033 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.listLegacyVesselsInputSchemaShouldDeclareOptionalStatusParameter -- Time elapsed: 0.035 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.listLegacyVesselsShouldReturnMappedVesselArray -- Time elapsed: 0.030 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.listShipsInputSchemaShouldDeclareOptionalStatusParameter -- Time elapsed: 0.036 s <<< ERROR!
+java.io.IOException: Import source file not found: C:\Users\jlouv\naftiko-workspace\ikanos\ikanos-engine\shared\step5-registry-consumes.yaml
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImport(ConsumesImportResolver.java:104)
+	at io.ikanos.engine.consumes.ConsumesImportResolver.resolveImports(ConsumesImportResolver.java:72)
+	at io.ikanos.Capability.<init>(Capability.java:100)
+	at io.ikanos.Capability.<init>(Capability.java:84)
+	at io.ikanos.tutorial.AbstractShipyardMcpClientIntegrationTest.startServerFromSpec(AbstractShipyardMcpClientIntegrationTest.java:101)
+	at io.ikanos.tutorial.Step5ShipyardMcpClientIntegrationTest.startServer(Step5ShipyardMcpClientIntegrationTest.java:82)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+

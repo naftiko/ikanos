@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExportOpenApiCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos CLI</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.cli</a> &gt; <span class="el_source">ExportOpenApiCommand.java</span></div><h1>ExportOpenApiCommand.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.cli;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.Callable;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.swagger.v3.oas.models.SpecVersion;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.openapi.OasExportBuilder;
+import io.ikanos.spec.openapi.OasExportResult;
+import io.ikanos.spec.openapi.OasYamlWriter;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@Command(
+    name = &quot;openapi&quot;,
+    mixinStandardHelpOptions = true,
+    description = &quot;Export a Ikanos capability's REST adapter as an OpenAPI specification.&quot;
+)
+<span class="fc" id="L39">public class ExportOpenApiCommand implements Callable&lt;Integer&gt; {</span>
+
+<span class="fc" id="L41">    private static final Logger logger = LoggerFactory.getLogger(ExportOpenApiCommand.class);</span>
+
+    @Parameters(index = &quot;0&quot;, description = &quot;Path to the Ikanos capability YAML file&quot;)
+    private String capability;
+
+    @Option(names = {&quot;-o&quot;, &quot;--output&quot;}, description = &quot;Output file path (default: ./openapi.yaml)&quot;)
+    private String output;
+
+<span class="fc" id="L49">    @Option(names = {&quot;-f&quot;, &quot;--format&quot;}, description = &quot;Output format: yaml or json (default: yaml)&quot;)</span>
+    private String format = &quot;yaml&quot;;
+
+    @Option(names = {&quot;-a&quot;, &quot;--adapter&quot;}, description = &quot;Namespace of the REST adapter to export&quot;)
+    private String adapter;
+
+<span class="fc" id="L55">    @Option(names = {&quot;--spec-version&quot;}, description = &quot;OpenAPI Specification version: 3.0 or 3.1 (default: 3.0)&quot;)</span>
+    private String specVersionOption = &quot;3.0&quot;;
+
+    @Override
+    public Integer call() {
+        try {
+            // Load the capability YAML
+<span class="fc" id="L62">            File capabilityFile = new File(capability);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">            if (!capabilityFile.exists()) {</span>
+<span class="nc" id="L64">                System.err.println(&quot;Error: File not found: &quot; + capability);</span>
+<span class="nc" id="L65">                return 1;</span>
+            }
+
+<span class="fc" id="L68">            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());</span>
+<span class="fc" id="L69">            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);</span>
+<span class="fc" id="L70">            IkanosSpec IkanosSpec = yamlMapper.readValue(capabilityFile, IkanosSpec.class);</span>
+
+            // Validate and parse spec version
+            SpecVersion specVersion;
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">            if (&quot;3.1&quot;.equals(specVersionOption)) {</span>
+<span class="nc" id="L75">                specVersion = SpecVersion.V31;</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">            } else if (&quot;3.0&quot;.equals(specVersionOption)) {</span>
+<span class="fc" id="L77">                specVersion = SpecVersion.V30;</span>
+            } else {
+<span class="nc" id="L79">                System.err.println(&quot;Error: Unsupported spec version '&quot; + specVersionOption + &quot;'. Supported versions: 3.0, 3.1&quot;);</span>
+<span class="nc" id="L80">                return 1;</span>
+            }
+
+            // Build the OpenAPI document
+<span class="fc" id="L84">            OasExportBuilder builder = new OasExportBuilder();</span>
+<span class="fc" id="L85">            OasExportResult result = builder.build(IkanosSpec, adapter, specVersion);</span>
+
+            // Print warnings to stderr
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            for (String warning : result.getWarnings()) {</span>
+<span class="nc" id="L89">                System.err.println(&quot;Warning: &quot; + warning);</span>
+<span class="nc" id="L90">            }</span>
+
+            // Determine output path
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            String outputPath = output != null ? output : &quot;./openapi.&quot; + format;</span>
+<span class="fc" id="L94">            Path path = Paths.get(outputPath);</span>
+
+            // Write output
+<span class="fc" id="L97">            OasYamlWriter writer = new OasYamlWriter();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            if (&quot;json&quot;.equalsIgnoreCase(format)) {</span>
+<span class="fc" id="L99">                writer.writeJson(result.getOpenApi(), path);</span>
+            } else {
+<span class="fc" id="L101">                writer.writeYaml(result.getOpenApi(), path);</span>
+            }
+
+<span class="fc" id="L104">            System.out.println(&quot;✓ Exported OpenAPI specification successfully&quot;);</span>
+<span class="fc" id="L105">            System.out.println(&quot;  Output: &quot; + path.toAbsolutePath());</span>
+<span class="fc" id="L106">            return 0;</span>
+
+<span class="nc" id="L108">        } catch (Exception e) {</span>
+<span class="nc" id="L109">            System.err.println(&quot;Error: &quot; + e.getMessage());</span>
+<span class="nc" id="L110">            logger.debug(&quot;Export command failed&quot;, e);</span>
+<span class="nc" id="L111">            return 1;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,540 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResourceRestlet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Engine</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.engine.exposes.rest</a> &gt; <span class="el_source">ResourceRestlet.java</span></div><h1>ResourceRestlet.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.engine.exposes.rest;
+
+import org.restlet.Context;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.Restlet;
+import org.restlet.data.MediaType;
+import org.restlet.data.Status;
+import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.FunctionResult;
+import io.ikanos.engine.consumes.ClientAdapter;
+import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.util.Converter;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
+import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
+import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Restlet that handles calls to an API resource
+ */
+public class ResourceRestlet extends Restlet {
+
+    private final Capability capability;
+    private final RestServerSpec serverSpec;
+    private final RestServerResourceSpec resourceSpec;
+    private final OperationStepExecutor stepExecutor;
+
+    public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
+<span class="fc" id="L57">            RestServerResourceSpec resourceSpec) {</span>
+<span class="fc" id="L58">        this.capability = capability;</span>
+<span class="fc" id="L59">        this.serverSpec = serverSpec;</span>
+<span class="fc" id="L60">        this.resourceSpec = resourceSpec;</span>
+<span class="fc" id="L61">        this.stepExecutor = new OperationStepExecutor(capability, serverSpec.getNamespace());</span>
+<span class="fc" id="L62">    }</span>
+
+    @Override
+    @SuppressWarnings(&quot;null&quot;) // OTel SDK interop
+    public void handle(Request request, Response response) {
+        // Extract W3C traceparent from inbound headers
+<span class="fc" id="L68">        TelemetryBootstrap telemetry = TelemetryBootstrap.get();</span>
+<span class="fc" id="L69">        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(</span>
+<span class="fc" id="L70">                telemetry.getOpenTelemetry()</span>
+<span class="fc" id="L71">                        .getPropagators().getTextMapPropagator()</span>
+<span class="fc" id="L72">                        .extract(io.opentelemetry.context.Context.current(), request,</span>
+                                RestletHeaderGetter.INSTANCE));
+
+<span class="fc" id="L75">        String operationId = resourceSpec.getPath() + &quot; &quot; + request.getMethod().getName();</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        String capabilityName = capability.getSpec().getInfo() != null</span>
+<span class="fc" id="L77">                ? capability.getSpec().getInfo().getLabel() : null;</span>
+<span class="fc" id="L78">        Span span = telemetry.startServerSpan(&quot;rest&quot;, operationId, extractedContext,</span>
+<span class="fc" id="L79">                request.getMethod().getName(), capabilityName);</span>
+
+<span class="fc" id="L81">        long startNanos = System.nanoTime();</span>
+<span class="fc" id="L82">        boolean error = false;</span>
+<span class="fc" id="L83">        try (Scope scope = span.makeCurrent()) {</span>
+<span class="fc" id="L84">            boolean handled = handleFromOperationSpec(request, response);</span>
+
+<span class="fc bfc" id="L86" title="All 4 branches covered.">            if (!handled &amp;&amp; getResourceSpec().getForward() != null) {</span>
+<span class="fc" id="L87">                handled = handleFromForwardSpec(request, response);</span>
+            }
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            if (!handled) {</span>
+<span class="fc" id="L91">                response.setStatus(Status.CLIENT_ERROR_NOT_FOUND);</span>
+<span class="fc" id="L92">                response.setEntity(</span>
+                        &quot;Unable to handle the request. Please check the capability specification.&quot;,
+                        MediaType.TEXT_PLAIN);
+            }
+<span class="nc" id="L96">        } catch (Exception e) {</span>
+<span class="nc" id="L97">            error = true;</span>
+<span class="nc" id="L98">            TelemetryBootstrap.recordError(span, e);</span>
+<span class="nc" id="L99">            telemetry.getMetrics().recordRequestError(&quot;rest&quot;, operationId,</span>
+<span class="nc" id="L100">                    e.getClass().getSimpleName());</span>
+<span class="nc" id="L101">            throw e;</span>
+        } finally {
+<span class="fc" id="L103">            double durationSec = (System.nanoTime() - startNanos) / 1_000_000_000.0;</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">            String status = error ? &quot;500&quot;</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                    : response.getStatus() != null</span>
+<span class="pc" id="L106">                            ? String.valueOf(response.getStatus().getCode()) : &quot;200&quot;;</span>
+<span class="fc" id="L107">            telemetry.getMetrics().recordRequest(&quot;rest&quot;, operationId, status, durationSec);</span>
+<span class="fc" id="L108">            TelemetryBootstrap.endSpan(span);</span>
+        }
+<span class="fc" id="L110">    }</span>
+
+    /**
+     * Prepare a client request context by looking for a call configuration in the operation steps.
+     * If a valid call configuration is found, constructs a client request context with the
+     * corresponding client request and adapter. If an invalid call format is found, sets the
+     * response to indicate a bad request and marks the context as handled.
+     */
+    private boolean handleFromOperationSpec(Request request, Response response) {
+<span class="fc" id="L119">        OperationStepExecutor.HandlingContext found = null;</span>
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        for (RestServerOperationSpec serverOp : getResourceSpec().getOperations()) {</span>
+
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            if (serverOp.getMethod().equals(request.getMethod().getName())) {</span>
+
+                // Build request-scoped input parameter map (resource + operation)
+<span class="fc" id="L126">                Map&lt;String, Object&gt; inputParameters =</span>
+<span class="fc" id="L127">                    stepExecutor.resolveInputParametersFromRequest(request, getServerSpec(),</span>
+<span class="fc" id="L128">                        getResourceSpec(), serverOp);</span>
+
+                // Include operation-level 'with' parameters for template resolution
+<span class="fc" id="L131">                OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,</span>
+<span class="fc" id="L132">                        getServerSpec().getNamespace());</span>
+
+                // Delegate to aggregate function when ref is set
+<span class="fc bfc" id="L135" title="All 2 branches covered.">                if (serverOp.getRef() != null) {</span>
+<span class="fc" id="L136">                    return executeViaAggregate(serverOp, request, response, inputParameters);</span>
+                }
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">                if (serverOp.getCall() != null) {</span>
+                    try {
+<span class="fc" id="L141">                        found = stepExecutor.findClientRequestFor(serverOp.getCall(),</span>
+                                inputParameters);
+<span class="nc" id="L143">                    } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L144">                        Context.getCurrentLogger().warning(&quot;Error resolving request parameters: &quot; + e);</span>
+<span class="nc" id="L145">                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L146">                        response.setEntity(&quot;Error resolving request parameters: &quot; + e.getMessage(),</span>
+                                MediaType.TEXT_PLAIN);
+<span class="nc" id="L148">                        return true;</span>
+<span class="fc" id="L149">                    }</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">                    if (found != null) {</span>
+                        try {
+                            // Send the request to the target endpoint
+<span class="fc" id="L154">                            found.handle();</span>
+<span class="fc" id="L155">                            response.setStatus(found.clientResponse.getStatus());</span>
+<span class="nc" id="L156">                        } catch (Exception e) {</span>
+<span class="nc" id="L157">                            Context.getCurrentLogger().warning(&quot;Error while handling HTTP client call in call mode: &quot; + e);</span>
+<span class="nc" id="L158">                            response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L159">                            response.setEntity(</span>
+<span class="nc" id="L160">                                    &quot;Error while handling an HTTP client call\n\n&quot; + e.toString(),</span>
+                                    MediaType.TEXT_PLAIN);
+<span class="nc" id="L162">                            return true;</span>
+<span class="fc" id="L163">                        }</span>
+
+<span class="fc" id="L165">                        sendResponse(serverOp, response, found);</span>
+<span class="fc" id="L166">                        return true;</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">                    } else if (canBuildMockResponse(serverOp)) {</span>
+                        // No HTTP client adapter found, use mock mode with static values
+<span class="nc" id="L169">                        sendMockResponse(serverOp, response, inputParameters);</span>
+<span class="nc" id="L170">                        return true;</span>
+                    } else {
+<span class="fc" id="L172">                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="fc" id="L173">                        response.setEntity(&quot;Invalid call format: &quot;</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">                                + (serverOp.getCall() != null ? serverOp.getCall().getOperation()</span>
+<span class="pc" id="L175">                                        : &quot;null&quot;),</span>
+                                MediaType.TEXT_PLAIN);
+<span class="fc" id="L177">                        return true;</span>
+                    }
+                } else {
+                    // Orchestrated mode - execute steps in sequence
+                    try {
+<span class="fc" id="L182">                        OperationStepExecutor.StepExecutionResult stepResult =</span>
+<span class="fc" id="L183">                                stepExecutor.executeSteps(serverOp.getSteps(), inputParameters);</span>
+<span class="fc" id="L184">                        found = stepResult.lastContext;</span>
+
+                        // Apply step output mappings if defined
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">                        if (serverOp.getMappings() != null</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">                                &amp;&amp; !serverOp.getMappings().isEmpty()) {</span>
+<span class="nc" id="L189">                            String mapped = stepExecutor.resolveStepMappings(</span>
+<span class="nc" id="L190">                                    serverOp.getMappings(), stepResult.stepContext);</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                            if (mapped != null) {</span>
+<span class="nc" id="L192">                                response.setStatus(Status.SUCCESS_OK);</span>
+<span class="nc" id="L193">                                response.setEntity(mapped, MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L194">                                response.commit();</span>
+<span class="nc" id="L195">                                return true;</span>
+                            }
+                        }
+<span class="nc" id="L198">                    } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L199">                        Context.getCurrentLogger().warning(&quot;Invalid argument in orchestrated steps: &quot; + e);</span>
+<span class="nc" id="L200">                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L201">                        response.setEntity(e.getMessage(), MediaType.TEXT_PLAIN);</span>
+<span class="nc" id="L202">                        return true;</span>
+<span class="nc" id="L203">                    } catch (RuntimeException e) {</span>
+<span class="nc" id="L204">                        Context.getCurrentLogger().warning(&quot;Error while handling orchestrated steps: &quot; + e);</span>
+<span class="nc" id="L205">                        response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L206">                        response.setEntity(</span>
+<span class="nc" id="L207">                                &quot;Error while handling an HTTP client call\n\n&quot; + e.toString(),</span>
+                                MediaType.TEXT_PLAIN);
+<span class="nc" id="L209">                        return true;</span>
+<span class="nc" id="L210">                    } catch (IOException e) {</span>
+<span class="nc" id="L211">                        Context.getCurrentLogger().warning(&quot;Error resolving step output mappings: &quot; + e);</span>
+<span class="nc" id="L212">                        response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L213">                        response.setEntity(</span>
+<span class="nc" id="L214">                                &quot;Error resolving step output mappings\n\n&quot; + e.toString(),</span>
+                                MediaType.TEXT_PLAIN);
+<span class="nc" id="L216">                        return true;</span>
+<span class="fc" id="L217">                    }</span>
+
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">                    if (found != null) {</span>
+                        // Return the response based on the last client request
+<span class="nc" id="L221">                        response.setStatus(found.clientResponse.getStatus());</span>
+<span class="nc" id="L222">                        sendResponse(serverOp, response, found);</span>
+<span class="nc" id="L223">                        return true;</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">                    } else if (canBuildMockResponse(serverOp)) {</span>
+                        // No HTTP client adapter found, use mock mode with static values
+<span class="fc" id="L226">                        sendMockResponse(serverOp, response, inputParameters);</span>
+<span class="fc" id="L227">                        return true;</span>
+                    }
+                }
+            }
+<span class="fc" id="L231">        }</span>
+
+<span class="fc" id="L233">        return false;</span>
+    }
+
+    /**
+     * Execute an operation by delegating to its referenced aggregate function.
+     */
+    private boolean executeViaAggregate(RestServerOperationSpec serverOp, Request request,
+            Response response, Map&lt;String, Object&gt; inputParameters) {
+        try {
+<span class="fc" id="L242">            AggregateFunction fn = capability.lookupFunction(serverOp.getRef());</span>
+<span class="fc" id="L243">            FunctionResult result = fn.execute(inputParameters);</span>
+
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">            if (result.isMock()) {</span>
+<span class="fc" id="L246">                ObjectMapper mapper = new ObjectMapper();</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">                if (result.mockOutput != null) {</span>
+<span class="fc" id="L248">                    response.setStatus(Status.SUCCESS_OK);</span>
+<span class="fc" id="L249">                    response.setEntity(</span>
+<span class="fc" id="L250">                            mapper.writerWithDefaultPrettyPrinter()</span>
+<span class="fc" id="L251">                                    .writeValueAsString(result.mockOutput),</span>
+                            MediaType.APPLICATION_JSON);
+                } else {
+<span class="nc" id="L254">                    response.setStatus(Status.SUCCESS_NO_CONTENT);</span>
+                }
+<span class="fc" id="L256">                response.commit();</span>
+<span class="fc" id="L257">                return true;</span>
+            }
+
+<span class="nc bnc" id="L260" title="All 2 branches missed.">            if (result.hasMappedOutput()) {</span>
+<span class="nc" id="L261">                response.setStatus(Status.SUCCESS_OK);</span>
+<span class="nc" id="L262">                response.setEntity(result.mappedOutput, MediaType.APPLICATION_JSON);</span>
+<span class="nc" id="L263">                response.commit();</span>
+<span class="nc" id="L264">                return true;</span>
+            }
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            if (result.lastContext != null) {</span>
+<span class="nc" id="L268">                response.setStatus(result.lastContext.clientResponse.getStatus());</span>
+<span class="nc" id="L269">                sendResponse(serverOp, response, result.lastContext);</span>
+<span class="nc" id="L270">                return true;</span>
+            }
+
+<span class="nc" id="L273">            response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L274">            response.setEntity(&quot;No result from aggregate function: &quot; + serverOp.getRef(),</span>
+                    MediaType.TEXT_PLAIN);
+<span class="nc" id="L276">            return true;</span>
+<span class="nc" id="L277">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L278">            Context.getCurrentLogger().warning(&quot;Error in aggregate function call: &quot; + e);</span>
+<span class="nc" id="L279">            response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);</span>
+<span class="nc" id="L280">            response.setEntity(e.getMessage(), MediaType.TEXT_PLAIN);</span>
+<span class="nc" id="L281">            return true;</span>
+<span class="nc" id="L282">        } catch (Exception e) {</span>
+<span class="nc" id="L283">            Context.getCurrentLogger().warning(&quot;Error in aggregate function call: &quot; + e);</span>
+<span class="nc" id="L284">            response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L285">            response.setEntity(&quot;Error in aggregate function call\n\n&quot; + e.toString(),</span>
+                    MediaType.TEXT_PLAIN);
+<span class="nc" id="L287">            return true;</span>
+        }
+    }
+
+    /**
+     * Check if an operation can build a mock response using static values from outputParameters.
+     * Returns true if the operation has at least one outputParameter with a value.
+     */
+    boolean canBuildMockResponse(RestServerOperationSpec serverOp) {
+<span class="pc bpc" id="L296" title="1 of 4 branches missed.">        if (serverOp.getOutputParameters() == null || serverOp.getOutputParameters().isEmpty()) {</span>
+<span class="fc" id="L297">            return false;</span>
+        }
+
+        // Check if at least one output parameter has a static value
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">        for (OutputParameterSpec param : serverOp.getOutputParameters()) {</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">            if (param.getValue() != null) {</span>
+<span class="fc" id="L303">                return true;</span>
+            }
+            // Check nested properties for static values
+<span class="pc bpc" id="L306" title="2 of 4 branches missed.">            if (param.getProperties() != null &amp;&amp; !param.getProperties().isEmpty()) {</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">                for (OutputParameterSpec prop : param.getProperties()) {</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">                    if (hasStaticValue(prop)) {</span>
+<span class="fc" id="L309">                        return true;</span>
+                    }
+<span class="nc" id="L311">                }</span>
+            }
+            // Check items for static values
+<span class="nc bnc" id="L314" title="All 4 branches missed.">            if (param.getItems() != null &amp;&amp; hasStaticValue(param.getItems())) {</span>
+<span class="nc" id="L315">                return true;</span>
+            }
+<span class="nc" id="L317">        }</span>
+
+<span class="nc" id="L319">        return false;</span>
+    }
+
+    /**
+     * Recursively check if a parameter or its nested structure has any static values.
+     */
+    private boolean hasStaticValue(OutputParameterSpec param) {
+<span class="pc bpc" id="L326" title="1 of 2 branches missed.">        if (param == null) {</span>
+<span class="nc" id="L327">            return false;</span>
+        }
+
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">        if (param.getValue() != null) {</span>
+<span class="fc" id="L331">            return true;</span>
+        }
+
+<span class="nc bnc" id="L334" title="All 2 branches missed.">        if (param.getProperties() != null) {</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            for (OutputParameterSpec prop : param.getProperties()) {</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                if (hasStaticValue(prop)) {</span>
+<span class="nc" id="L337">                    return true;</span>
+                }
+<span class="nc" id="L339">            }</span>
+        }
+
+<span class="nc bnc" id="L342" title="All 2 branches missed.">        if (param.getItems() != null) {</span>
+<span class="nc" id="L343">            return hasStaticValue(param.getItems());</span>
+        }
+
+<span class="nc" id="L346">        return false;</span>
+    }
+
+    /**
+     * Send a mock response using static or templated values from outputParameters.
+     */
+    void sendMockResponse(RestServerOperationSpec serverOp, Response response,
+            Map&lt;String, Object&gt; inputParameters) {
+        try {
+<span class="fc" id="L355">            ObjectMapper mapper = new ObjectMapper();</span>
+
+            // Build a JSON response using static/templated values from outputParameters
+<span class="fc" id="L358">            JsonNode mockRoot = Resolver.buildMockData(serverOp.getOutputParameters(), mapper,</span>
+                    inputParameters);
+
+<span class="pc bpc" id="L361" title="1 of 2 branches missed.">            if (mockRoot != null) {</span>
+<span class="fc" id="L362">                response.setStatus(Status.SUCCESS_OK);</span>
+<span class="fc" id="L363">                response.setEntity(</span>
+<span class="fc" id="L364">                        mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mockRoot),</span>
+                        MediaType.APPLICATION_JSON);
+            } else {
+<span class="nc" id="L367">                response.setStatus(Status.SUCCESS_NO_CONTENT);</span>
+            }
+<span class="nc" id="L369">        } catch (Exception e) {</span>
+<span class="nc" id="L370">            Context.getCurrentLogger().warning(&quot;Error building mock response: &quot; + e);</span>
+<span class="nc" id="L371">            response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L372">            response.setEntity(&quot;Error building mock response: &quot; + e.getMessage(),</span>
+                    MediaType.TEXT_PLAIN);
+<span class="fc" id="L374">        }</span>
+
+<span class="fc" id="L376">        response.commit();</span>
+<span class="fc" id="L377">    }</span>
+
+    void sendResponse(RestServerOperationSpec serverOp, Response response,
+            OperationStepExecutor.HandlingContext found) {
+        // Apply output mappings if present or forward the raw entity
+<span class="pc bpc" id="L382" title="1 of 4 branches missed.">        if (serverOp.getOutputParameters() != null &amp;&amp; !serverOp.getOutputParameters().isEmpty()) {</span>
+            try {
+<span class="fc" id="L384">                String mapped = mapOutputParameters(serverOp, found);</span>
+
+<span class="pc bpc" id="L386" title="1 of 2 branches missed.">                if (mapped != null) {</span>
+<span class="fc" id="L387">                    response.setEntity(mapped, MediaType.APPLICATION_JSON);</span>
+                } else {
+<span class="nc" id="L389">                    response.setEntity(found.clientResponse.getEntity());</span>
+                }
+<span class="fc" id="L391">            } catch (Exception e) {</span>
+<span class="fc" id="L392">                Context.getCurrentLogger().warning(&quot;Failed to map output parameters: &quot; + e);</span>
+<span class="fc" id="L393">                response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="fc" id="L394">                response.setEntity(&quot;Failed to map output parameters: &quot; + e.getMessage(),</span>
+                        MediaType.TEXT_PLAIN);
+<span class="fc" id="L396">            }</span>
+        } else {
+<span class="fc" id="L398">            response.setEntity(found.clientResponse.getEntity());</span>
+        }
+
+<span class="fc" id="L401">        response.commit();</span>
+<span class="fc" id="L402">    }</span>
+
+    /**
+     * Prepare a client request context based on a forward specification. This is used for direct
+     * calls to the resource that should be forwarded to a target endpoint without going through the
+     * operation steps.
+     */
+    boolean handleFromForwardSpec(Request request, Response response) {
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">        for (ClientAdapter adapter : getCapability().getClientAdapters()) {</span>
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">            if (adapter instanceof HttpClientAdapter) {</span>
+<span class="fc" id="L412">                HttpClientAdapter httpAdapter = (HttpClientAdapter) adapter;</span>
+<span class="fc" id="L413">                RestServerForwardSpec forwardSpec = getResourceSpec().getForward();</span>
+
+<span class="fc" id="L415">                if (httpAdapter.getHttpClientSpec().getNamespace()</span>
+<span class="pc bpc" id="L416" title="1 of 2 branches missed.">                        .equals(forwardSpec.getTargetNamespace())) {</span>
+                    try {
+                        // Prepare the HTTP client request
+<span class="fc" id="L419">                        String path = (String) request.getAttributes().get(&quot;path&quot;);</span>
+<span class="pc bpc" id="L420" title="2 of 4 branches missed.">                        String normalizedPath = (path == null || path.isEmpty()) ? &quot;&quot; : &quot;/&quot; + path;</span>
+<span class="fc" id="L421">                        String targetRef = httpAdapter.getHttpClientSpec().getBaseUri()</span>
+                                + normalizedPath;
+<span class="fc" id="L423">                        Request clientRequest = new Request(request.getMethod(), targetRef);</span>
+<span class="fc" id="L424">                        clientRequest.setEntity(request.getEntity());</span>
+
+                        // Copy trusted headers from the original request to the client request
+<span class="fc" id="L427">                        copyTrustedHeaders(request, clientRequest,</span>
+<span class="fc" id="L428">                                getResourceSpec().getForward().getTrustedHeaders());</span>
+
+                        // Prepare parameters map for template resolution
+<span class="fc" id="L431">                        Map&lt;String, Object&gt; parameters = new ConcurrentHashMap&lt;&gt;();</span>
+
+                        // Resolve client input parameters first so authentication templates
+                        // (e.g. bearer token from environment) can be resolved correctly
+<span class="fc" id="L435">                        Resolver.resolveInputParametersToRequest(clientRequest,</span>
+<span class="fc" id="L436">                                httpAdapter.getHttpClientSpec().getInputParameters(), parameters);</span>
+
+                        // Set any authentication needed on the client request
+<span class="fc" id="L439">                        Response clientResponse = new Response(clientRequest);</span>
+<span class="fc" id="L440">                        httpAdapter.setChallengeResponse(request, clientRequest,</span>
+<span class="fc" id="L441">                                clientRequest.getResourceRef().toString(), parameters);</span>
+<span class="fc" id="L442">                        httpAdapter.setHeaders(clientRequest);</span>
+
+                        // Send the request to the target endpoint
+<span class="fc" id="L445">                        httpAdapter.getHttpClient().handle(clientRequest, clientResponse);</span>
+<span class="fc" id="L446">                        response.setStatus(clientResponse.getStatus());</span>
+<span class="fc" id="L447">                        response.setEntity(clientResponse.getEntity());</span>
+<span class="fc" id="L448">                        response.commit();</span>
+<span class="fc" id="L449">                        return true;</span>
+<span class="nc" id="L450">                    } catch (Exception e) {</span>
+<span class="nc" id="L451">                        Context.getCurrentLogger().warning(&quot;Error while handling HTTP client call in forward mode: &quot; + e);</span>
+<span class="nc" id="L452">                        response.setStatus(Status.SERVER_ERROR_INTERNAL);</span>
+<span class="nc" id="L453">                        response.setEntity(</span>
+<span class="nc" id="L454">                                &quot;Error while handling an HTTP client call\n\n&quot; + e.toString(),</span>
+                                MediaType.TEXT_PLAIN);
+<span class="nc" id="L456">                        return true;</span>
+                    }
+                }
+            }
+<span class="nc" id="L460">        }</span>
+
+<span class="nc" id="L462">        return false;</span>
+    }
+
+    /**
+     * Copy a set of trusted headers from one request to another.
+     */
+    void copyTrustedHeaders(Request from, Request to, Iterable&lt;String&gt; trustedHeaders) {
+<span class="fc bfc" id="L469" title="All 2 branches covered.">        if (trustedHeaders == null) {</span>
+<span class="fc" id="L470">            return;</span>
+        }
+
+<span class="fc bfc" id="L473" title="All 2 branches covered.">        for (String trustedHeader : trustedHeaders) {</span>
+<span class="fc" id="L474">            String headerValue = from.getHeaders().getFirstValue(trustedHeader, true);</span>
+
+<span class="fc bfc" id="L476" title="All 2 branches covered.">            if (headerValue != null) {</span>
+<span class="fc" id="L477">                to.getHeaders().add(trustedHeader, headerValue);</span>
+            }
+<span class="fc" id="L479">        }</span>
+<span class="fc" id="L480">    }</span>
+
+    /**
+     * Map client response to the operation's declared outputParameters and return a JSON string to
+     * send to the client. Returns null when mapping could not be applied and the caller should fall
+     * back to the raw entity.
+     * 
+     * Handles conversion to JSON if outputRawFormat is specified.
+     */
+    String mapOutputParameters(RestServerOperationSpec serverOp,
+            OperationStepExecutor.HandlingContext found) throws IOException {
+<span class="pc bpc" id="L491" title="1 of 4 branches missed.">        if (found == null || found.clientResponse == null</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                || found.clientResponse.getEntity() == null) {</span>
+<span class="fc" id="L493">            return null;</span>
+        }
+
+<span class="fc bfc" id="L496" title="All 2 branches covered.">        String outputRawFormat = found.clientOperation != null</span>
+<span class="fc" id="L497">                ? found.clientOperation.getOutputRawFormat() : null;</span>
+<span class="fc bfc" id="L498" title="All 2 branches covered.">        String outputSchema = found.clientOperation != null</span>
+<span class="fc" id="L499">                ? found.clientOperation.getOutputSchema() : null;</span>
+<span class="fc" id="L500">        JsonNode root = Converter.convertToJson(outputRawFormat, outputSchema,</span>
+<span class="fc" id="L501">                found.clientResponse.getEntity());</span>
+
+<span class="pc bpc" id="L503" title="1 of 2 branches missed.">        for (OutputParameterSpec outputParameter : serverOp.getOutputParameters()) {</span>
+<span class="pc bpc" id="L504" title="1 of 2 branches missed.">            if (&quot;body&quot;.equalsIgnoreCase(inOrDefault(outputParameter))) {</span>
+<span class="fc" id="L505">                ObjectMapper mapper = new ObjectMapper();</span>
+<span class="fc" id="L506">                JsonNode mapped = Resolver.resolveOutputMappings(outputParameter, root, mapper);</span>
+
+<span class="pc bpc" id="L508" title="2 of 4 branches missed.">                if (mapped != null &amp;&amp; !(mapped instanceof NullNode)) {</span>
+<span class="fc" id="L509">                    return mapper.writeValueAsString(mapped);</span>
+                }
+            }
+<span class="nc" id="L512">        }</span>
+
+<span class="nc" id="L514">        return null;</span>
+    }
+
+    /**
+     * Return the `in` value for a spec, defaulting to &quot;body&quot; when missing.
+     */
+    String inOrDefault(OutputParameterSpec spec) {
+<span class="fc bfc" id="L521" title="All 2 branches covered.">        if (spec == null)</span>
+<span class="fc" id="L522">            return &quot;body&quot;;</span>
+<span class="fc" id="L523">        String in = spec.getIn();</span>
+<span class="fc bfc" id="L524" title="All 2 branches covered.">        return in == null ? &quot;body&quot; : in;</span>
+    }
+
+    public Capability getCapability() {
+<span class="fc" id="L528">        return capability;</span>
+    }
+
+    public RestServerSpec getServerSpec() {
+<span class="fc" id="L532">        return serverSpec;</span>
+    }
+
+    public RestServerResourceSpec getResourceSpec() {
+<span class="fc" id="L536">        return resourceSpec;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

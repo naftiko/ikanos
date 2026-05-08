@@ -1,0 +1,36 @@
+{
+  "type": "record",
+  "namespace": "io.naftiko.test",
+  "name": "RecordsList",
+  "fields": [
+    {
+      "name": "records",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "Record",
+          "fields": [
+            {
+              "name": "id",
+              "type": "string"
+            },
+            {
+              "name": "title",
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "type": [
+                "null",
+                "string"
+              ],
+              "default": null
+            }
+          ]
+        }
+      },
+      "doc": "List of records"
+    }
+  ]
+}

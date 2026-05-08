@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.ikanos.engine.consumes.http.YamlIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.227 s -- in io.ikanos.engine.consumes.http.YamlIntegrationTest

@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+# Fixture for issue #290: namespace-qualified references in aggregate function steps
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "Aggregate Step Namespace Test"
+  description: "Test capability for namespace-qualified references in aggregate function steps"
+  tags:
+    - Test
+    - Aggregate
+  created: "2026-04-13"
+  modified: "2026-04-13"
+
+capability:
+  aggregates:
+    - label: "Shipyard"
+      namespace: "shipyard"
+      functions:
+        - name: "get-voyage-manifest"
+          description: "Assemble a voyage manifest using an orchestrated step."
+          inputParameters:
+            - name: "voyage-id"
+              type: "string"
+              description: "Voyage identifier"
+          steps:
+            - name: "fetch-voyage"
+              type: call
+              call: "registry.get-voyage"
+              with:
+                voyage-id: "shipyard.voyage-id"
+          mappings:
+            - targetName: "voyage-id"
+              value: "$.fetch-voyage.voyageId"
+          outputParameters:
+            - name: "voyage-id"
+              type: "string"
+
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 9200
+      namespace: "shipyard-mcp"
+      description: "MCP server using aggregate function with namespace-qualified step with."
+      tools:
+        - name: "get-voyage-manifest"
+          description: "Get the voyage manifest."
+          ref: "shipyard.get-voyage-manifest"
+
+  consumes:
+    - type: "http"
+      namespace: "registry"
+      baseUri: "http://localhost:19999"
+      resources:
+        - name: "voyage"
+          path: "/voyages/{{voyage-id}}"
+          operations:
+            - name: "get-voyage"
+              method: GET
+              inputParameters:
+                - name: "voyage-id"
+                  in: path

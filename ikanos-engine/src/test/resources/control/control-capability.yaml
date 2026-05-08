@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+---
+ikanos: "1.0.0-alpha3"
+info:
+  label: "Control Port Test Capability"
+  description: "Test capability for Control Server Adapter deserialization and wiring"
+  tags:
+    - Test
+    - Control
+  created: "2026-06-01"
+  modified: "2026-06-01"
+
+capability:
+  exposes:
+    - type: "control"
+      address: "localhost"
+      port: 9199
+      management:
+        health: true
+        info: true
+      observability:
+        traces:
+          local:
+            buffer-size: 50

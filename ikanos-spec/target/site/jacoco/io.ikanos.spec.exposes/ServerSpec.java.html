@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServerSpec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Ikanos Spec</a> &gt; <a href="index.source.html" class="el_package">io.ikanos.spec.exposes</a> &gt; <span class="el_source">ServerSpec.java</span></div><h1>ServerSpec.java</h1><pre class="source lang-java linenums">/**
+ * Copyright 2025-2026 Naftiko
+ * 
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+package io.ikanos.spec.exposes;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
+import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
+
+/**
+ * Base Exposed Adapter Specification Element.
+ *
+ * &lt;h2&gt;Thread safety&lt;/h2&gt;
+ * Each scalar field is held in an {@link AtomicReference} or {@link AtomicInteger}; the
+ * {@code inputParameters} list is a {@link CopyOnWriteArrayList}. This satisfies SonarQube
+ * rule {@code java:S3077}.
+ */
+@JsonDeserialize(using = ServerSpecDeserializer.class)
+public abstract class ServerSpec {
+
+<span class="fc" id="L38">    private final AtomicReference&lt;String&gt; type = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L39">    private final AtomicReference&lt;String&gt; address = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L40">    private final AtomicInteger port = new AtomicInteger();</span>
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List&lt;InputParameterSpec&gt; inputParameters;
+
+<span class="fc" id="L45">    private final AtomicReference&lt;AuthenticationSpec&gt; authentication = new AtomicReference&lt;&gt;();</span>
+
+    public ServerSpec() {
+<span class="nc" id="L48">        this(null, &quot;localhost&quot;, 0);</span>
+<span class="nc" id="L49">    }</span>
+
+    public ServerSpec(String type) {
+<span class="nc" id="L52">        this(type, &quot;localhost&quot;, 0);</span>
+<span class="nc" id="L53">    }</span>
+
+<span class="fc" id="L55">    public ServerSpec(String type, String address, int port) {</span>
+<span class="fc" id="L56">        this.type.set(type);</span>
+<span class="fc" id="L57">        this.address.set(address);</span>
+<span class="fc" id="L58">        this.port.set(port);</span>
+<span class="fc" id="L59">        this.inputParameters = new CopyOnWriteArrayList&lt;&gt;();</span>
+<span class="fc" id="L60">    }</span>
+
+    public String getType() {
+<span class="fc" id="L63">        return type.get();</span>
+    }
+
+    public void setType(String type) {
+<span class="fc" id="L67">        this.type.set(type);</span>
+<span class="fc" id="L68">    }</span>
+
+    public String getAddress() {
+<span class="fc" id="L71">        return address.get();</span>
+    }
+
+    public void setAddress(String address) {
+<span class="fc" id="L75">        this.address.set(address);</span>
+<span class="fc" id="L76">    }</span>
+
+    public int getPort() {
+<span class="fc" id="L79">        return port.get();</span>
+    }
+
+    public void setPort(int port) {
+<span class="fc" id="L83">        this.port.set(port);</span>
+<span class="fc" id="L84">    }</span>
+
+    public List&lt;InputParameterSpec&gt; getInputParameters() {
+<span class="fc" id="L87">        return inputParameters;</span>
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public AuthenticationSpec getAuthentication() {
+<span class="fc" id="L92">        return authentication.get();</span>
+    }
+
+    public void setAuthentication(AuthenticationSpec authentication) {
+<span class="fc" id="L96">        this.authentication.set(authentication);</span>
+<span class="fc" id="L97">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

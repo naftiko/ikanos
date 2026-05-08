@@ -1,0 +1,9 @@
+{
+  "resources": [
+    { "pattern": "schemas/.*" },
+    { "pattern": "templates/.*" },
+    { "pattern": "jsv-messages.*\\.properties" },
+    { "pattern": "version\\.properties" },
+    { "pattern": "META-INF/services/.*" }
+  ]
+}
