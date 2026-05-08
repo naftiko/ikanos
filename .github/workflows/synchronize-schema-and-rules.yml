@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'src/main/resources/schemas/naftiko-schema.json'
-      - 'src/main/resources/rules/naftiko-rules.yml'
+      - 'src/main/resources/schemas/ikanos-schema.json'
+      - 'src/main/resources/rules/ikanos-rules.yml'
       - 'src/main/resources/rules/functions/**'
   workflow_dispatch:
 
@@ -29,8 +29,8 @@ jobs:
 
       - name: Copy schema and rules
         run: |
-          cp framework/src/main/resources/schemas/naftiko-schema.json \
-             vscode/extensions/naftiko-vscode/src/resources/schemas/naftiko-schema.json
+          cp framework/src/main/resources/schemas/ikanos-schema.json \
+             vscode/extensions/naftiko-vscode/src/resources/schemas/ikanos-schema.json
 
           rm -rf vscode/extensions/naftiko-vscode/src/resources/rules/*
           cp -R framework/src/main/resources/rules/* \
@@ -49,7 +49,7 @@ jobs:
             Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `naftiko-schema.json`
+            - `ikanos-schema.json`
             - `rules/*`
           delete-branch: true
 
@@ -71,8 +71,8 @@ jobs:
 
       - name: Copy schema
         run: |
-          cp framework/src/main/resources/schemas/naftiko-schema.json \
-             schema-viewer/src/schemas/naftiko-schema.json
+          cp framework/src/main/resources/schemas/ikanos-schema.json \
+             schema-viewer/src/schemas/ikanos-schema.json
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
@@ -87,5 +87,5 @@ jobs:
             Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `naftiko-schema.json`
+            - `ikanos-schema.json`
           delete-branch: true

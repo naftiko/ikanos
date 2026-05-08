@@ -16,4 +16,4 @@ jobs:
         run: |
           curl -fL  https://github.com/json-structure/sdk/releases/download/jstruct-v0.5.5/jstruct_0.5.5_amd64.deb -o /tmp/jstruct.deb
           sudo dpkg -i /tmp/jstruct.deb
-          jstruct check src/main/resources/schemas/naftiko-schema.json
+          jstruct check src/main/resources/schemas/ikanos-schema.json

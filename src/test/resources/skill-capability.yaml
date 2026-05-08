@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
 ---
-naftiko: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha3"
 info:
   label: "Skill Test Capability"
   description: "Test capability for Skill Server Adapter deserialization and wiring"
@@ -34,7 +34,7 @@ capability:
       skills:
         - name: "order-management"
           description: "Tools for managing orders"
-          location: "file:///tmp/naftiko-test-skills/order-management"
+          location: "file:///tmp/ikanos-test-skills/order-management"
           allowed-tools: "list-orders"
           argument-hint: "Use for order operations"
           tools:

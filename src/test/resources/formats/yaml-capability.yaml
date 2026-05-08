@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=../../main/resources/schemas/naftiko-schema.json
+# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
 ---
-naftiko: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha3"
 info:
   label: "YAML Test Capability"
   description: "Test capability for YAML parsing from API responses"

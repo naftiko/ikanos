@@ -4,10 +4,10 @@ ENABLE_LINTERS:
   - YAML_V8R
 
 POST_COMMANDS:
-  - name: Naftiko Spectral Validation
+  - name: Ikanos Polychro Validation
     command: "spectral lint -r .spectral.yaml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
     continue_on_error: false
 
 YAML_V8R_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
-YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/naftiko-schema.json"
+YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/ikanos-schema.json"
 YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|src/test/resources/openapi/)"

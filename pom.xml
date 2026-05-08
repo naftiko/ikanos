@@ -4,13 +4,13 @@
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.naftiko</groupId>
-    <artifactId>framework</artifactId>
+    <groupId>io.ikanos</groupId>
+    <artifactId>ikanos</artifactId>
     <version>1.0.0-alpha3-SNAPSHOT</version>
 
-    <name>Naftiko Framework</name>
-    <description>Framework for building and running Naftiko capabilities and CLI tooling.</description>
-    <url>https://github.com/naftiko/framework</url>
+    <name>Ikanos</name>
+    <description>Framework for building and running Ikanos capabilities and CLI tooling.</description>
+    <url>https://github.com/naftiko/ikanos</url>
     <inceptionYear>2026</inceptionYear>
 
     <licenses>
@@ -45,9 +45,9 @@
     </developers>
 
     <scm>
-        <url>https://github.com/naftiko/framework</url>
-        <connection>scm:git:https://github.com/naftiko/framework.git</connection>
-        <developerConnection>scm:git:ssh://github.com:naftiko/framework.git</developerConnection>
+        <url>https://github.com/naftiko/ikanos</url>
+        <connection>scm:git:https://github.com/naftiko/ikanos.git</connection>
+        <developerConnection>scm:git:ssh://github.com:naftiko/ikanos.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 
@@ -72,12 +72,12 @@
         <repository>
             <id>github</id>
             <name>GitHub Releases</name>
-            <url>https://maven.pkg.github.com/naftiko/framework</url>
+            <url>https://maven.pkg.github.com/naftiko/ikanos</url>
         </repository>
         <snapshotRepository>
             <id>github</id>
             <name>GitHub Snapshots</name>
-            <url>https://maven.pkg.github.com/naftiko/framework</url>
+            <url>https://maven.pkg.github.com/naftiko/ikanos</url>
         </snapshotRepository>
     </distributionManagement>
 
@@ -421,7 +421,7 @@
                             <transformers>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>io.naftiko.Capability</mainClass>
+                                    <mainClass>io.ikanos.Capability</mainClass>
                                 </transformer>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
@@ -454,7 +454,7 @@
                             <transformers>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>io.naftiko.Cli</mainClass>
+                                    <mainClass>io.ikanos.Cli</mainClass>
                                 </transformer>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
@@ -516,7 +516,7 @@
                                     <transformers>
                                         <transformer
                                             implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>io.naftiko.Cli</mainClass>
+                                            <mainClass>io.ikanos.Cli</mainClass>
                                         </transformer>
                                         <transformer
                                             implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
@@ -565,8 +565,8 @@
                                 </goals>
                                 <phase>package</phase>
                                 <configuration>
-                                    <mainClass>io.naftiko.Cli</mainClass>
-                                    <imageName>naftiko-cli</imageName>
+                                    <mainClass>io.ikanos.Cli</mainClass>
+                                    <imageName>ikanos-cli</imageName>
                                     <classpath>
                                         <param>${project.build.directory}/cli-native.jar</param>
                                     </classpath>
