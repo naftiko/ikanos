@@ -105,7 +105,7 @@ jobs:
         run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
 
       - name: Run tests + JaCoCo coverage
-        run: mvn clean test --no-transfer-progress
+        run: mvn clean verify --no-transfer-progress
 
       - name: Publish test failures summary
         if: always()
