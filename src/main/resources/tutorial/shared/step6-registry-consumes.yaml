@@ -1,5 +1,5 @@
 # shared/registry-consumes.yaml (updated — added voyages resource)
-naftiko: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha3"
 consumes:
   - namespace: registry
     type: http

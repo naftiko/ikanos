@@ -543,391 +543,391 @@
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.NaftikoSpec",
+    "name": "io.ikanos.spec.IkanosSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.ClientSpec",
+    "name": "io.ikanos.spec.consumes.ClientSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.HttpClientSpec",
+    "name": "io.ikanos.spec.consumes.http.HttpClientSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.HttpClientResourceSpec",
+    "name": "io.ikanos.spec.consumes.http.HttpClientResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.HttpClientOperationSpec",
+    "name": "io.ikanos.spec.consumes.http.HttpClientOperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.OperationSpec",
+    "name": "io.ikanos.spec.OperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.ResourceSpec",
+    "name": "io.ikanos.spec.ResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.InputParameterSpec",
+    "name": "io.ikanos.spec.InputParameterSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.OutputParameterSpec",
+    "name": "io.ikanos.spec.OutputParameterSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.StructureSpec",
+    "name": "io.ikanos.spec.util.StructureSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.AuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.AuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.ApiKeyAuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.BearerAuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.BearerAuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.BasicAuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.BasicAuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.DigestAuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.DigestAuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.OAuth2AuthenticationSpec",
+    "name": "io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.consumes.http.ImportedConsumesHttpSpec",
+    "name": "io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.ServerSpecDeserializer",
+    "name": "io.ikanos.spec.exposes.ServerSpecDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.consumes.ClientSpecDeserializer",
+    "name": "io.ikanos.spec.consumes.ClientSpecDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.InfoSpec",
+    "name": "io.ikanos.spec.InfoSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.StakeholderSpec",
+    "name": "io.ikanos.spec.StakeholderSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.CapabilitySpec",
+    "name": "io.ikanos.spec.CapabilitySpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.InputParameterDeserializer",
+    "name": "io.ikanos.spec.InputParameterDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.OutputParameterDeserializer",
+    "name": "io.ikanos.spec.OutputParameterDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilitySpec",
+    "name": "io.ikanos.spec.observability.ObservabilitySpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityExportersSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityExportersSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityLocalEndpointSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityLocalEndpointSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityMetricsSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityMetricsSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityOtlpExporterSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityOtlpExporterSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityTracesLocalSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityTracesLocalSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.observability.ObservabilityTracesSpec",
+    "name": "io.ikanos.spec.observability.ObservabilityTracesSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.BindingKeysSpec",
+    "name": "io.ikanos.spec.util.BindingKeysSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.BindingSpec",
+    "name": "io.ikanos.spec.util.BindingSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.aggregates.AggregateFunctionSpec",
+    "name": "io.ikanos.spec.aggregates.AggregateFunctionSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.aggregates.AggregateSpec",
+    "name": "io.ikanos.spec.aggregates.AggregateSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.aggregates.SemanticsSpec",
+    "name": "io.ikanos.spec.aggregates.SemanticsSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.ServerSpec",
+    "name": "io.ikanos.spec.exposes.ServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.rest.RestServerSpec",
+    "name": "io.ikanos.spec.exposes.rest.RestServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.rest.RestServerResourceSpec",
+    "name": "io.ikanos.spec.exposes.rest.RestServerResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.rest.RestServerOperationSpec",
+    "name": "io.ikanos.spec.exposes.rest.RestServerOperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.rest.RestServerForwardSpec",
+    "name": "io.ikanos.spec.exposes.rest.RestServerForwardSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.rest.RestServerStepSpec",
+    "name": "io.ikanos.spec.exposes.rest.RestServerStepSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.OperationStepSpec",
+    "name": "io.ikanos.spec.util.OperationStepSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.OperationStepCallSpec",
+    "name": "io.ikanos.spec.util.OperationStepCallSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.OperationStepLookupSpec",
+    "name": "io.ikanos.spec.util.OperationStepLookupSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.scripting.OperationStepScriptSpec",
+    "name": "io.ikanos.spec.scripting.OperationStepScriptSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.ServerCallSpec",
+    "name": "io.ikanos.spec.exposes.ServerCallSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.util.StepOutputMappingSpec",
+    "name": "io.ikanos.spec.util.StepOutputMappingSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.skill.ExposedSkillSpec",
+    "name": "io.ikanos.spec.exposes.skill.ExposedSkillSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.skill.SkillServerSpec",
+    "name": "io.ikanos.spec.exposes.skill.SkillServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.skill.SkillToolSpec",
+    "name": "io.ikanos.spec.exposes.skill.SkillToolSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.skill.SkillToolFromSpec",
+    "name": "io.ikanos.spec.exposes.skill.SkillToolFromSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpServerSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpServerToolSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpServerToolSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpToolHintsSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpToolHintsSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpPromptArgumentSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpPromptArgumentSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpPromptMessageSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpPromptMessageSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpServerPromptSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpServerPromptSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.mcp.McpServerResourceSpec",
+    "name": "io.ikanos.spec.exposes.mcp.McpServerResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.control.ControlServerSpec",
+    "name": "io.ikanos.spec.exposes.control.ControlServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.control.ControlManagementSpec",
+    "name": "io.ikanos.spec.exposes.control.ControlManagementSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.control.ControlLogsEndpointSpec",
+    "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.exposes.control.ControlLogsEndpointSpecDeserializer",
+    "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpecDeserializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.exposes.control.ScriptingManagementSpec",
+    "name": "io.ikanos.spec.exposes.control.ScriptingManagementSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
   },
   {
-    "name": "io.naftiko.spec.InputParameterSerializer",
+    "name": "io.ikanos.spec.InputParameterSerializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
   {
-    "name": "io.naftiko.spec.OutputParameterSerializer",
+    "name": "io.ikanos.spec.OutputParameterSerializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   }

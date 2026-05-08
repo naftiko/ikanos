@@ -6,7 +6,7 @@ COPY pom.xml .
 COPY src ./src
 # Build the jar
 RUN mvn clean package -DskipTests
-LABEL org.opencontainers.image.title="naftiko-cli"
+LABEL org.opencontainers.image.title="ikanos-cli"
 
 # Stage 2: Create the runtime image
 FROM eclipse-temurin:21-jre-alpine
