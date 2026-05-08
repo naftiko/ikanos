@@ -3,6 +3,7 @@
 /src/.vscode
 /.vscode
 /target
+**/target/
 dependency-reduced-pom.xml
 /.github/node_modules
 # ─── Python ────────────────────────────────────────────────────────────────────
