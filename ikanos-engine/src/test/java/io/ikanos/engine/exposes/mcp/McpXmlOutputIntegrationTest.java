@@ -32,7 +32,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Regression test for #339: MCP tools calling operations with outputRawFormat: xml

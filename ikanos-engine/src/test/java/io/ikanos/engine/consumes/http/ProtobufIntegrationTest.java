@@ -26,7 +26,7 @@ import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
 import java.io.InputStream;

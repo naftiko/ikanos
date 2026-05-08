@@ -22,7 +22,7 @@ import io.ikanos.cli.ScriptingCommand;
 import io.ikanos.cli.StatusCommand;
 import io.ikanos.cli.TracesCommand;
 import io.ikanos.cli.ValidateCommand;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.IVersionProvider;

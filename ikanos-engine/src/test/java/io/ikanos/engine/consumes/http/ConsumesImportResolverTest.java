@@ -29,7 +29,7 @@ import io.ikanos.engine.consumes.ConsumesImportResolver;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
-import io.ikanos.util.VersionHelper;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Unit tests for ConsumesImportResolver.
