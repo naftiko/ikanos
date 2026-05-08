@@ -4,7 +4,7 @@ ENABLE_LINTERS:
   - YAML_V8R
 
 POST_COMMANDS:
-  - name: Ikanos Polychro Validation
+  - name: Spectral Validation
     command: "spectral lint -r .spectral.yaml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
     continue_on_error: false
 
