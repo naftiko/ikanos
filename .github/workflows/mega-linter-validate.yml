@@ -1,4 +1,4 @@
-name: Lint Naftiko Capabilities
+name: Lint Ikanos Capabilities
 
 on:
   push:

@@ -1,6 +1,6 @@
 # ============================================================
 # pr-check.ps1 — Run all checks before opening a PR (Windows)
-# Usage: from root run: '.\src\main\resources\scripts\pr-check-wind.ps1'
+# Usage: from root run: '.\scripts\pr-check-wind.ps1'
 # Requirements: maven, trivy, gitleaks (winget or choco)
 # ============================================================
 

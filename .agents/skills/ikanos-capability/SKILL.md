@@ -1,14 +1,14 @@
 ---
-name: naftiko-capability
+name: ikanos-capability
 version: "1.0.0-alpha1"
 description: >
-  Skill for authoring, validating, and debugging Naftiko Capability YAML files
+  Skill for authoring, validating, and debugging Ikanos Capability YAML files
   (spec v1.0.0-alpha1). Activate when the user wants to: write a new capability
   document, add or change authentication on a consumed API, configure orchestration
   steps or parameter mappings, set up a forward proxy, expose an MCP server or Skill
   server, configure external references for secrets, add a control port for health
   checks and metrics, enable OpenTelemetry observability, or run the Spectral linter.
-  The Naftiko Specification defines modular, composable capabilities that consume
+  The Ikanos Specification defines modular, composable capabilities that consume
   external APIs and expose REST, MCP, Skill, or Control adapters.
 allowed-tools:
   - Read
@@ -19,9 +19,9 @@ allowed-tools:
 
 ## Overview
 
-The Naftiko Framework lets you declare **capabilities** — functional units that
+Ikanos lets you declare **capabilities** — functional units that
 **consume** external APIs and **expose** adapters (REST, MCP, Skill). A capability
-is a single YAML file validated against the Naftiko JSON Schema (v1.0.0-alpha1).
+is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-alpha1).
 
 Key spec objects you will work with:
 
@@ -37,14 +37,14 @@ Key spec objects you will work with:
 
 Canonical sources (read these, never duplicate them):
 
-- Specification: `src/main/resources/wiki/Specification.md`
-- JSON Schema: `src/main/resources/schemas/capability-schema.json`
-- Spectral Ruleset: `src/main/resources/schemas/naftiko-rules.yml`
+- Specification: `ikanos-docs/wiki/Specification.md`
+- JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Ruleset: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`
 
 ## Decision Framework
 
 Match the user's situation to a story reference. Each story explains *why*
-(the user's problem), *what* (the Naftiko pattern), and points to the spec
+(the user's problem), *what* (the Ikanos pattern), and points to the spec
 for *how*.
 
 | Situation | Action |
@@ -74,7 +74,7 @@ Specification directly.
    files, existing capabilities). Read that story file, then present a
    capability outline for the user to validate. Only ask what you cannot infer.
 2. **Scaffold.** Copy `assets/capability-template.yml`. The document must
-   begin with `naftiko: "1.0.0-alpha1"`.
+   begin with `ikanos: "1.0.0-alpha1"`.
 3. **Fill exposes.** Choose the adapter type (REST, MCP, or Skill) and
    follow the pattern from the story. For REST operations, use `call` +
    `with` (simple) or `steps` + `mappings` (orchestrated) — never both.
@@ -94,15 +94,15 @@ Specification directly.
        bash scripts/lint-capability.sh path/to/capability.yml
    Do NOT regenerate or modify this script.
 2. Spectral reports errors and warnings with rule names. Common rules:
-   - `naftiko-namespaces-unique` (error) — duplicate namespace
-   - `naftiko-consumes-baseuri-no-trailing-slash` (warn) — trailing `/`
-   - `naftiko-consumed-resource-no-query-in-path` (warn) — query in path
-   - `naftiko-rest-resource-path-no-trailing-slash` (warn)
-   - `naftiko-baseuri-not-example` (warn) — placeholder URI
-   - `naftiko-no-script-tags-in-markdown` (error) — XSS in descriptions
-   - `naftiko-consumes-description` (warn) — missing description
-   - `naftiko-control-port-singleton-and-unique` (error) — more than one control adapter, or port collision
-   - `naftiko-control-address-localhost-warning` (warn) — control port bound to non-localhost
+   - `ikanos-namespaces-unique` (error) — duplicate namespace
+   - `ikanos-consumes-baseuri-no-trailing-slash` (warn) — trailing `/`
+   - `ikanos-consumed-resource-no-query-in-path` (warn) — query in path
+   - `ikanos-rest-resource-path-no-trailing-slash` (warn)
+   - `ikanos-baseuri-not-example` (warn) — placeholder URI
+   - `ikanos-no-script-tags-in-markdown` (error) — XSS in descriptions
+   - `ikanos-consumes-description` (warn) — missing description
+   - `ikanos-control-port-singleton-and-unique` (error) — more than one control adapter, or port collision
+   - `ikanos-control-address-localhost-warning` (warn) — control port bound to non-localhost
    For the full rule list, read the Spectral ruleset file directly.
 3. Fix and re-lint. Repeat until clean.
 

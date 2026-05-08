@@ -39,7 +39,7 @@ Before writing MCP exposition:
 - Recommended hygiene:
     - every `consumes` entry should have a meaningful `description` (helps discovery and avoids Spectral warnings).
 
-## Core concept: MCP exposition in Naftiko
+## Core concept: MCP exposition in Ikanos
 
 MCP exposition is declared under:
 
@@ -187,5 +187,5 @@ Before considering the MCP wrapper complete:
 
 ## References
 
-- Naftiko JSON Schema: `src/main/resources/schemas/naftiko-schema.json`
-- Spectral Rules: `src/main/resources/rules/naftiko-rules.yml`
+- Ikanos JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Rules: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`

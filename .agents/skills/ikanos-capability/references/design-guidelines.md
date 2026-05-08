@@ -1,7 +1,7 @@
 ---
 name: design-guidelines-reference
 description: >
-  Design guidelines for authoring Naftiko capability documents that are easy to
+  Design guidelines for authoring Ikanos capability documents that are easy to
   maintain, safe to run, and easy for agents to discover and use. Use this reference
   when the user asks “what should I check before shipping?” or when reviewing a
   capability for quality beyond schema validity (style, consistency, ergonomics).
@@ -12,7 +12,7 @@ description: >
 
 These guidelines complement:
 
-- the Naftiko JSON Schema (structural correctness),
+- the Ikanos JSON Schema (structural correctness),
 - the Spectral ruleset (cross-object consistency, hygiene, and security checks).
 
 They focus on:
@@ -217,5 +217,5 @@ Before shipping a capability:
 
 ## References
 
-- Naftiko JSON Schema: `src/main/resources/schemas/naftiko-schema.json`
-- Spectral Rules: `src/main/resources/rules/naftiko-rules.yml`
+- Ikanos JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Rules: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`

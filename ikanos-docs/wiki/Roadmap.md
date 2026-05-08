@@ -18,25 +18,25 @@
 - [ ] Deterministic orchestration
   - [ ] Add conditional steps, for-each steps, parallel-join
 - [ ] Agentic with A2A server adapter with tool discovery and execution
-  - [ ] Native integration with [Langchain4j](https://docs.langchain4j.dev/), see [issue #293](https://github.com/naftiko/framework/issues/293)
+  - [ ] Native integration with [Langchain4j](https://docs.langchain4j.dev/), see [issue #293](https://github.com/naftiko/ikanos/issues/293)
 
 ### Core developer experience
-- [ ] Run capabilities simply from Naftiko's CLI (aka Docker-less mode)
+- [ ] Run capabilities simply from Ikanos's CLI (aka Docker-less mode)
 - [ ] Use named objects for input and output parameters, like for properties, matching the JSON Structure syntax
 - [ ] Externalize individual "exposes" objects into separate files, similar to "consumes" objects
-- [ ] Expand support for "tags" and "labels" in Naftiko Spec
+- [ ] Expand support for "tags" and "labels" in Ikanos Spec
 - [ ] Allow reuse of "binds" blocks across capabilities
 - [ ] Complete test coverage and overall quality
 - [ ] Complete the Javadoc descriptions, at package level in particular
 
 ### Packaging
-- [ ] Publish Naftiko JSON Structure
-- [ ] Publish Naftiko Skill based on Naftiko CLI
-- [ ] Publish Naftiko Ruleset based on Spectral
+- [ ] Publish Ikanos JSON Structure
+- [ ] Publish Ikanos Skill based on Ikanos CLI
+- [ ] Publish Ikanos ruleset based on Spectral
 
 ## Version 1.0 - First Beta - End of June :blossom:
 
-The goal of this version is to deliver a stable MVP, including a stable Naftiko Specification.
+The goal of this version is to deliver a stable MVP, including a stable Ikanos Specification.
 
 ### Rightsize AI context
 - [ ] Enable interactive [MCP Apps](https://apps.extensions.modelcontextprotocol.io/)
@@ -46,7 +46,7 @@ The goal of this version is to deliver a stable MVP, including a stable Naftiko 
 
 ### Enable API reusability
 - [ ] Increase HTTP client resiliency (circuit breaker, rate limiter, bulkhead, cache, fallback)
-- [ ] Add client SDKs generation to Naftiko CLI for top languages (TypeScript, Python, Java, Go)
+- [ ] Add client SDKs generation to Ikanos CLI for top languages (TypeScript, Python, Java, Go)
   - [ ] Ensure it is extensible to bring your own client SDK generator (Apimatic, Fern, Stainless, Speakeasy, etc.)
 
 ### Core developer experience

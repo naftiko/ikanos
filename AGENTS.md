@@ -1,44 +1,45 @@
-# Naftiko Framework — Agent Guidelines
+# Ikanos — Agent Guidelines
 
 ## Project Context
 
-**Naftiko Framework** is the engine for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
+**Ikanos** is the engine for [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec%E2%80%90Driven-Integration). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
 
-- **Language**: Java 21, Maven build system
-- **Specification**: `src/main/resources/schemas/naftiko-schema.json` — keep this as first-class citizen in your context
-- **Wiki**: https://github.com/naftiko/framework/wiki (Specification, Tutorial, Use Cases, FAQ)
+- **Language**: Java 21, Maven build system (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
+- **Specification**: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
+- **Wiki**: https://github.com/naftiko/ikanos/wiki (Specification, Tutorial, Use Cases, FAQ)
 
 ## Key Files
 
 | Path | Purpose |
 |---|---|
-| `src/main/resources/schemas/naftiko-schema.json` | Naftiko JSON Schema (source of truth) |
-| `src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
-| `src/main/resources/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
-| `src/test/resources/` | Test fixtures (not examples) |
-| `src/main/resources/scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
-| `src/main/resources/scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
+| `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos JSON Schema (source of truth) |
+| `ikanos-spec/src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
+| `ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
+| `ikanos-docs/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
+| `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
+| `scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
+| `scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
 | `CONTRIBUTING.md` | Full contribution workflow |
 
 ## Build & Test
 
-All commands must be run from the repository root (`framework/`).
+All commands must be run from the repository root (`ikanos/`).
 
 ```bash
 # Run unit tests (standard local workflow — requires JDK 21)
 mvn clean test --no-transfer-progress
 
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
-docker build -f src/main/resources/deployment/Dockerfile -t naftiko .
+docker build -f deployment/Dockerfile -t ikanos .
 
 # Build native CLI binary (requires GraalVM 21 — triggered by version tags in CI)
-mvn -B clean package -Pnative
+mvn -B clean package -Pnative -pl ikanos-cli -am
 
 # Pre-PR validation (Windows)
-.\src\main\resources\scripts\pr-check-wind.ps1
+.\scripts\pr-check-wind.ps1
 
 # Pre-PR validation (Unix)
-bash ./src/main/resources/scripts/pr-check-mac-linux.sh
+bash ./scripts/pr-check-mac-linux.sh
 ```
 
 ## Local Bootstrap
@@ -92,8 +93,8 @@ When writing or generating tests, follow these rules:
 When designing or modifying a Capability:
 
 **Do:**
-- Keep the [Naftiko Specification](src/main/resources/schemas/naftiko-schema.json) and the [Naftiko Rules](src/main/resources/rules/naftiko-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
-- Look at `src/main/resources/schemas/examples/` for patterns before writing new capabilities
+- Keep the [Ikanos Specification](ikanos-spec/src/main/resources/schemas/ikanos-schema.json) and the [Ikanos Rules](ikanos-spec/src/main/resources/rules/ikanos-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
+- Look at `ikanos-spec/src/main/resources/schemas/examples/` for patterns before writing new capabilities
 - When renaming a consumed field for a lookup `match`, also add a `ConsumedOutputParameter` on the consumed operation to map the raw field name to a kebab-case name — otherwise the lookup has nothing to match against
 - Use `aggregates` to define reusable domain functions when the same operation is exposed through multiple adapters (REST and MCP) — this follows the DDD Aggregate pattern: one definition, multiple projections
 - Declare `semantics` (safe, idempotent, cacheable) on aggregate functions to describe domain behavior — the engine derives MCP `hints` automatically
@@ -179,7 +180,7 @@ For every bug fix, two tests are required:
 
 **Unit test** — targets the smallest unit of code that contains the bug (method or class level). Place it in the test class corresponding to the fixed class (e.g. `ConverterTest`, `ResolverTest`). If the class has no test file yet, create one. If a test already covers the scenario but is wrong, fix the test first and explain why in a comment.
 
-**Integration test** — validates the fix end-to-end, typically loading a YAML capability fixture and exercising the full chain (deserialization → engine → output). Place the fixture in `src/test/resources/` and the test class in the package closest to the integration point (e.g. `io.naftiko.engine.exposes.mcp`).
+**Integration test** — validates the fix end-to-end, typically loading a YAML capability fixture and exercising the full chain (deserialization → engine → output). Place the fixture under the appropriate module (`ikanos-engine/src/test/resources/` or `ikanos-cli/src/test/resources/`) and the test class in the package closest to the integration point (e.g. `io.ikanos.engine.exposes.mcp`).
 
 Run the full test suite before committing:
 
@@ -188,9 +189,9 @@ mvn test
 ```
 
 **Ordering:**
-1. Write the tests first — only modify files under `src/test/` (and `src/test/resources/`)
+1. Write the tests first — only modify files under `src/test/` (and `src/test/resources/`) of the relevant module
 2. Run `mvn test` and confirm the new tests **fail** (proving the bug exists)
-3. Only then implement the fix in `src/main/`
+3. Only then implement the fix in `src/main/` of the relevant module
 4. Run `mvn test` again and confirm all tests **pass**
 
 Do not edit production code (`src/main/`) and test code (`src/test/`) in the same phase.

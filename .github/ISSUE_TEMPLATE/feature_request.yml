@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest a new feature or improvement for the Naftiko Framework
+description: Suggest a new feature or improvement for Ikanos
 labels: ["enhancement"]
 body:
   - type: dropdown

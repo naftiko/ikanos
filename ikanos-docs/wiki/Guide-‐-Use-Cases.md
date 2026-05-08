@@ -1,17 +1,17 @@
 # Guide - Use Cases
 
-Here is an overview of typical use cases where Naftiko Framework can help developers and supporting features available. Additional features are being added as described in the [roadmap](https://github.com/naftiko/framework/wiki/Roadmap).
+Here is an overview of typical use cases where Ikanos can help developers and supporting features available. Additional features are being added as described in the [roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap).
 
 ## 1. AI integration
 
 Connect AI assistants to your systems through capabilities, so they can access trusted business data and actions without custom glue code.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Declare upstream systems in `capability.consumes` (typically `type: http`) with `namespace`, `baseUri`, authentication, headers, and operation contracts.
 - Expose the same domain as `type: mcp` tools and/or `type: api` resources in `capability.exposes`, so both AI agents and traditional clients use one integration layer.
 - Use `call`, `with`, `steps`, and JSONPath `mapping` in `outputParameters` to return normalized, task-ready payloads instead of raw provider responses.
 
-![Integrate AI](https://naftiko.github.io/docs/images/technology/use_case_AI_integration.png)
+![Integrate AI](https://Ikanos.github.io/docs/images/technology/use_case_AI_integration.png)
 
 #### Key features
 - [x] Declarative HTTP consumption with namespace-scoped adapters
@@ -30,12 +30,12 @@ How Naftiko achieves this technically:
 
 Expose only the context an AI task needs, reducing noise, improving relevance, and keeping prompts efficient.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Shape response payloads with typed `outputParameters` (string, object, array) and fine-grained JSONPath `mapping` expressions.
 - Keep only relevant fields in exposed tool/resource schemas, while hiding irrelevant upstream fields from the AI surface.
 - Attach meaningful `info.description`, tool descriptions, and tags so discovery is semantic and context quality stays high.
 
-![Rightsize AI context](https://naftiko.github.io/docs/images/technology/use_case_context_engineering_rightsize_ai_context.png)
+![Rightsize AI context](https://Ikanos.github.io/docs/images/technology/use_case_context_engineering_rightsize_ai_context.png)
 
 #### Key features
 - [x] Declarative applied capability exposing MCP
@@ -53,13 +53,13 @@ How Naftiko achieves this technically:
 
 Wrap a current API as a capability to make it easier to discover, reuse, and consume across teams and channels.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Model the legacy/existing API once in `consumes.resources.operations` with explicit methods, paths, parameters, and body formats.
 - Add a stable capability namespace and expose curated resource paths/tools that are easier to consume than vendor-native endpoints.
 - Reshape not just data but also operation semantics: declare `semantics` (safe, idempotent, cacheable) on aggregate functions so the engine derives correct HTTP methods for REST adapters and `hints` for MCP tools automatically.
 - Enforce schema-based validation (`capability-schema.json`) so the elevated contract remains consistent and machine-checkable.
 
-![Elevate existing APIs](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_elevate_existing_apis.png)
+![Elevate existing APIs](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_elevate_existing_apis.png)
 
 #### Key features
 - [x] Pass thru source capability
@@ -82,12 +82,12 @@ How Naftiko achieves this technically:
 
 Wrap Google Sheets as a capability so spreadsheet rows become a reusable, domain-specific API for traditional clients and AI agents.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Consume the Google Sheets values endpoint in `consumes.resources.operations`, with templated `spreadsheet_id` and `range` path parameters plus API key injection through `binds`.
 - Transform raw row arrays from `$.values` into named objects using positional JSONPath mappings such as `$[0]`, `$[1]`, and `$[2]` inside typed `outputParameters`.
 - Expose the normalized result through `type: rest`, `type: mcp`, or both, so one spreadsheet integration serves both application and agent use cases.
 
-![Elevate GSheets API](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_elevate_gsheets_api.png)
+![Elevate GSheets API](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_elevate_gsheets_api.png)
 
 #### Key features
 - [x] Declarative Google Sheets API consumption
@@ -104,12 +104,12 @@ How Naftiko achieves this technically:
 
 Combine data from multiple APIs into one capability to deliver richer, task-ready context to AI clients.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Register multiple consumed APIs with unique namespaces, then orchestrate cross-source calls using ordered `steps`.
 - Bridge calls through step `mappings` and per-step input injection, so outputs from one source feed inputs of the next.
 - Return a single composed output model via mapped `outputParameters`, giving AI clients one coherent result.
 
-![Rightsize AI context](https://naftiko.github.io/docs/images/technology/use_case_context_engineering_compose_ai_context.png)
+![Rightsize AI context](https://Ikanos.github.io/docs/images/technology/use_case_context_engineering_compose_ai_context.png)
 
 #### Key features
 - [x] Declarative source HTTP adapter and target MCP adapter
@@ -127,12 +127,12 @@ How Naftiko achieves this technically:
 
 Create a simpler capability layer over many microservices to reduce client complexity and improve consistency.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Aggregate multiple microservice endpoints under one exposed namespace and a small set of business-oriented resources/tools.
 - Standardize auth/header behavior and parameter handling at capability level instead of duplicating logic in every client.
 - Use orchestration and output shaping to hide service fragmentation and return consistent contracts.
 
-![Rightsize microservices](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_rightsize_microservices.png)
+![Rightsize microservices](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_rightsize_microservices.png)
 
 #### Key features
 - [x] Declarative source HTTP adapter and target REST adapter
@@ -149,12 +149,12 @@ How Naftiko achieves this technically:
 
 Extract focused capabilities from a broad monolith API so consumers get only what they need for each use case.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Select only required monolith operations in `consumes` and remap them to narrower exposed resources/tools.
 - Use output filtering/mapping to publish smaller, purpose-built payloads for each consumer scenario.
 - Optionally forward selected routes with `forward.targetNamespace` to keep passthrough paths where full transformation is not needed.
 
-![Rightsize monolith APIs](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_rightsize_monolith_apis.png)
+![Rightsize monolith APIs](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_rightsize_monolith_apis.png)
 
 #### Key features
 - [x] Selective operation exposure from a broad API
@@ -171,12 +171,12 @@ How Naftiko achieves this technically:
 
 Design capabilities first for MCP clients, then map them to underlying APIs for a clean AI-native integration model.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Define `type: mcp` exposure with server-level description and tool-level contracts (name, description, input/output parameters).
 - Support MCP transports (`http` or `stdio`) so the same capability can run in remote server mode or local IDE/agent mode.
 - Wire tools to one or many consumed operations via `call` or orchestrated `steps`, without changing upstream APIs.
 
-![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_context_engineering_capability_first.png)
+![Capability-first approach](https://Ikanos.github.io/docs/images/technology/use_case_context_engineering_capability_first.png)
 
 #### Key features
 - [x] Declarative MCP server with tools, resources, and prompts
@@ -196,12 +196,12 @@ How Naftiko achieves this technically:
 
 Start from existing APIs and define reusable capabilities on top, so API investments can power new AI and app experiences.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Begin with consumed API declarations (`baseUri`, auth, resources, operations), then incrementally add exposed REST/MCP adapters.
 - Reuse existing security and configuration using `binds` with file or runtime injection and injected variables (e.g., `{{API_TOKEN}}`).
 - Add format-aware parsing and mapping (JSON, YAML, XML, CSV, TSV, PSV, Avro, Protobuf, HTML, Markdown support in the framework) to normalize diverse backends.
 
-![Capability-first approach](https://naftiko.github.io/docs/images/technology/use_case_api_reusability_capability_first.png)
+![Capability-first approach](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_capability_first.png)
 
 #### Key features
 - [x] Externalized secrets via `binds`
@@ -218,15 +218,15 @@ How Naftiko achieves this technically:
 
 ## 10. Interoperate with OpenAPI
 
-Bridge existing OpenAPI ecosystems with Naftiko capabilities: import OAS documents to bootstrap consumption adapters, and export REST adapters as standard OpenAPI specifications.
+Bridge existing OpenAPI ecosystems with Ikanos capabilities: import OAS documents to bootstrap consumption adapters, and export REST adapters as standard OpenAPI specifications.
 
-How Naftiko achieves this technically:
-- Import an OpenAPI 3.0 or 3.1 document (or a Swagger 2.0 document, which is auto-converted) with `naftiko import openapi`, generating a ready-to-use `consumes` HTTP adapter with authentication, operations, input parameters, and output parameters pre-filled.
-- Export a REST `exposes` adapter with `naftiko export openapi`, producing a standards-compliant OAS document that can be shared with API gateways, developer portals, and documentation tools.
+How Ikanos achieves this technically:
+- Import an OpenAPI 3.0 or 3.1 document (or a Swagger 2.0 document, which is auto-converted) with `ikanos import openapi`, generating a ready-to-use `consumes` HTTP adapter with authentication, operations, input parameters, and output parameters pre-filled.
+- Export a REST `exposes` adapter with `ikanos export openapi`, producing a standards-compliant OAS document that can be shared with API gateways, developer portals, and documentation tools.
 - Use `--adapter <namespace>` to target a specific REST adapter when the capability exposes more than one.
 
 #### Key features
-- [x] OpenAPI import into Naftiko `consumes` adapter
+- [x] OpenAPI import into Ikanos `consumes` adapter
   - [x] Swagger 2.0 support (auto-converted to OAS 3.0)
   - [x] OAS 3.0 and 3.1 support
   - [x] Authentication mapping (bearer, basic, API key, digest)
@@ -234,7 +234,7 @@ How Naftiko achieves this technically:
   - [x] Operation grouping by tag into separate resources
   - [x] Input parameter conversion (query, header, path, cookie, body)
   - [x] Output parameter conversion (object, array, scalar, allOf, oneOf)
-- [x] OpenAPI export from Naftiko REST `exposes` adapter
+- [x] OpenAPI export from Ikanos REST `exposes` adapter
   - [x] OAS 3.0 and 3.1 output via `--spec-version`
   - [x] YAML and JSON output formats
   - [x] Multi-adapter selection with `--adapter`
@@ -246,7 +246,7 @@ How Naftiko achieves this technically:
 
 Observe capability behavior in real time with built-in metrics, distributed traces, and health checks — configured entirely from the spec.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Add a `type: control` adapter in `capability.exposes` to expose a management plane with health, metrics, traces, and diagnostic endpoints on a dedicated port.
 - Configure `capability.observability` to enable OpenTelemetry-based distributed tracing and RED metrics (Rate, Errors, Duration) with configurable sampling and OTLP export.
 - Scrape Prometheus-format metrics from the control port's `/metrics` endpoint and inspect recent traces via `/traces` — no additional infrastructure code required.
@@ -272,7 +272,7 @@ How Naftiko achieves this technically:
 
 Reshape, filter, or aggregate data between consumed API calls using inline script steps — without building a separate microservice or writing Java code.
 
-How Naftiko achieves this technically:
+How Ikanos achieves this technically:
 - Add `type: script` steps in orchestrated operations to transform data between `call` steps using JavaScript, Python, or Groovy.
 - Scripts run in sandboxed environments (GraalVM for JS/Python, SecureASTCustomizer for Groovy) with no filesystem or network access.
 - Previous step results are bound as variables; scripts assign to `result` to produce output for subsequent steps or mappings.
@@ -290,6 +290,6 @@ How Naftiko achieves this technically:
   - [x] Configurable statement limits and timeouts
   - [x] Allowed languages restriction
   - [x] Control Port `/scripting` endpoint for runtime management
-  - [x] CLI `naftiko scripting` command for governance
+  - [x] CLI `ikanos scripting` command for governance
 - [x] Linting support
-  - [x] Spectral rule `naftiko-script-defaults-required` validates Control Port defaults
+  - [x] Spectral rule `ikanos-script-defaults-required` validates Control Port defaults

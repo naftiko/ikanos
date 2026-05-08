@@ -1,8 +1,8 @@
-Welcome to Naftiko Framework, the first Open Source project for [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
+Welcome to Ikanos, the first Open Source project for [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
 
-<img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="600">
+<img src="https://Ikanos.github.io/docs/images/technology/architecture_capability.png" width="600">
 
-Each capability is a coarse piece of domain that consumes existing HTTP-based APIs then exposes them in several protocols to enable AI integration and self-integrating agents. Naftiko Framework includes a specification, an engine and a CLI.
+Each capability is a coarse piece of domain that consumes existing HTTP-based APIs then exposes them in several protocols to enable AI integration and self-integrating agents. Ikanos includes a specification, an engine and a CLI.
 
 | Feature | Description |
 |---|---|
@@ -24,22 +24,22 @@ Each capability is a coarse piece of domain that consumes existing HTTP-based AP
 
 Here are additional documents to learn more:
 
-- :compass: [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec%E2%80%90Driven-Integration)
-- :rowboat: [Installation](https://github.com/naftiko/framework/wiki/Installation)
-- :sailboat: [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1)
-- :speedboat: [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2)
-- :ship: [Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-%E2%80%90-Use-Cases)
-- :mag: [Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-%E2%80%90-Linting)
-- :anchor: [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Schema)
-- :triangular_ruler: [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules)
-- :ocean: [FAQ](https://github.com/naftiko/framework/wiki/FAQ)
-- :mega: [Releases](https://github.com/naftiko/framework/wiki/Releases)
-- :telescope: [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)
-- :nut_and_bolt: [Contribute](https://github.com/naftiko/framework/blob/main/CONTRIBUTING.md)
+- :compass: [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec%E2%80%90Driven-Integration)
+- :rowboat: [Installation](https://github.com/naftiko/ikanos/wiki/Installation)
+- :sailboat: [Tutorial - Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-1)
+- :speedboat: [Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-2)
+- :ship: [Guide - Use Cases](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Use-Cases)
+- :mag: [Guide - Linting](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Linting)
+- :anchor: [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Schema)
+- :triangular_ruler: [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules)
+- :ocean: [FAQ](https://github.com/naftiko/ikanos/wiki/FAQ)
+- :mega: [Releases](https://github.com/naftiko/ikanos/wiki/Releases)
+- :telescope: [Roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap)
+- :nut_and_bolt: [Contribute](https://github.com/naftiko/ikanos/blob/main/CONTRIBUTING.md)
 
 ***
 
-Naftiko Framework is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which adds free complementary tools:
+Ikanos is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which adds free complementary tools:
 
 | Tool | What it does |
 |---|---|
@@ -47,6 +47,6 @@ Naftiko Framework is part of [Naftiko Fleet (Community Edition)](https://github.
 | [Naftiko Templates for Backstage](https://github.com/naftiko/fleet/wiki/Naftiko-Templates-for-Backstage) | Scaffold and catalog capabilities from CNCF Backstage |
 | Naftiko Operator for Kubernetes | Deploy and operate capabilities on Kubernetes *(coming soon)* |
 
-Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).
+Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/Ikanos/discussions).
 
-<img src="https://naftiko.github.io/docs/images/navi/navi_hello.svg" width="50">
+<img src="https://Ikanos.github.io/docs/images/navi/navi_hello.svg" width="50">

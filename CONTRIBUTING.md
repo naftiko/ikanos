@@ -1,6 +1,6 @@
-# Contributing to Naftiko Framework
+# Contributing to Ikanos
 
-> We welcome **all** contributions to Naftiko Framework, from the smallest to the largest — they all make a positive impact. This guide applies to both human developers and AI-assisted coding agents.
+> We welcome **all** contributions to Ikanos, from the smallest to the largest — they all make a positive impact. This guide applies to both human developers and AI-assisted coding agents.
 
 ---
 
@@ -10,7 +10,7 @@
 2. Fork the repo and branch from `main` (`feat/`, `fix/`, `chore/`)
 3. Keep PRs **atomic**, rebased on `main`, with CI green
 4. A **maintainer** will review and merge your PR
-5. All contributions are accepted under the [Apache 2.0 License](https://github.com/naftiko/framework/blob/main/LICENSE)
+5. All contributions are accepted under the [Apache 2.0 License](https://github.com/naftiko/ikanos/blob/main/LICENSE)
 
 ---
 
@@ -31,17 +31,17 @@ If you still want to run the full pre-PR checks locally, install [Trivy](https:/
 
 ```bash
 # Unix/macOS
-bash ./src/main/resources/scripts/pr-check-mac-linux.sh
+bash ./scripts/pr-check-mac-linux.sh
 
 # Windows (PowerShell)
-.\src\main\resources\scripts\pr-check-wind.ps1
+.\scripts\pr-check-wind.ps1
 ```
 
 ---
 
 ## Bugs & Features
 
-- Report bugs and suggest features in the [Issue Tracker](https://github.com/naftiko/framework/issues)
+- Report bugs and suggest features in the [Issue Tracker](https://github.com/naftiko/ikanos/issues)
 - Please **search existing issues** before creating a new one to avoid duplicates
 - When opening an issue, select the appropriate **template** — GitHub will guide you through the required fields:
   - **Bug Report** — for unexpected behavior or broken functionality
@@ -76,14 +76,14 @@ bash ./src/main/resources/scripts/pr-check-mac-linux.sh
 - Run the local validation script before opening your PR:
 
         # Unix/macOS
-        bash ./src/main/resources/scripts/pr-check-mac-linux.sh
+        bash ./scripts/pr-check-mac-linux.sh
 
         # Windows (PowerShell)
-        .\src\main\resources\scripts\pr-check-wind.ps1
+        .\scripts\pr-check-wind.ps1
 
 ### 3. Open a Pull Request
 
-Submit your work via a [Pull Request](https://github.com/naftiko/framework/pulls):
+Submit your work via a [Pull Request](https://github.com/naftiko/ikanos/pulls):
 
 - [ ] Fill in the **PR template** (`.github/PULL_REQUEST_TEMPLATE.md`, loaded automatically by GitHub)
 - [ ] Link the related Issue
@@ -107,11 +107,11 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 
 ### Repository context
 
-- **Language**: Java 21 (Maven build system)
-- **Specification**: The Naftiko Specification defines the capability schema. See `src/main/resources/schemas/naftiko-schema.json` for the latest JSON Schema.
-- **Examples**: `src/main/resources/schemas/examples/` contains capability examples. `src/main/resources/tutorial/` contains step-by-step tutorial capabilities.
-- **Test fixtures**: `src/test/resources/` contains YAML capabilities used for unit tests.
-- **Wiki**: the [project wiki](https://github.com/naftiko/framework/wiki) contains the full specification, tutorial, FAQ, and use cases.
+- **Language**: Java 21, Maven (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
+- **Specification**: The Ikanos Specification defines the capability schema. See `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` for the latest JSON Schema.
+- **Examples**: `ikanos-spec/src/main/resources/schemas/examples/` contains capability examples. `ikanos-docs/tutorial/` contains step-by-step tutorial capabilities.
+- **Test fixtures**: `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` contain YAML capabilities used for unit tests.
+- **Wiki**: the [project wiki](https://github.com/naftiko/ikanos/wiki) contains the full specification, tutorial, FAQ, and use cases.
 
 ### Agent contribution rules
 
@@ -121,25 +121,26 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 - Keep changes **atomic**: one logical change per PR
 - Always include a clear PR description explaining the problem and solution
 - Do **not** modify CI/CD workflows, security configs, or branch protection rules
-- Keep the Naftiko Specification as a **first-class citizen** in your context
+- Keep the Ikanos Specification as a **first-class citizen** in your context
 
 ### Key files for agent context
 
 | File / Path | Purpose |
 |---|---|
-| `src/main/resources/schemas/naftiko-schema.json` | Naftiko Specification JSON Schema (latest) |
-| `src/main/resources/schemas/examples/` | Capability examples: `cir.yml`, `notion.yml`, `skill-adapter.yml`, `multi-consumes-*.yml`... |
-| `src/main/resources/tutorial/` | Step-by-step tutorial capabilities (`step-1-` to `step-10-`) |
-| `src/test/resources/` | Test fixtures (not examples) |
+| `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos Specification JSON Schema (latest) |
+| `ikanos-spec/src/main/resources/schemas/examples/` | Capability examples: `cir.yml`, `notion.yml`, `skill-adapter.yml`, `multi-consumes-*.yml`... |
+| `ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
+| `ikanos-docs/tutorial/` | Step-by-step tutorial capabilities (`step-1-` to `step-10-`) |
+| `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
 | `.github/workflows/` | CI/CD pipelines |
-| `src/main/resources/scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
-| `src/main/resources/scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
+| `scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
+| `scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
 | `CONTRIBUTING.md` | This file |
 
 ---
 
 ## License
 
-All contributions are accepted under the [Apache 2.0 License](https://github.com/naftiko/framework/blob/main/LICENSE).
+All contributions are accepted under the [Apache 2.0 License](https://github.com/naftiko/ikanos/blob/main/LICENSE).
 
-> ⚠️ You must ensure you have **full rights** on the code you are submitting, for example from your employer. 
+> ⚠️ You must ensure you have **full rights** on the code you are submitting, for example from your employer.

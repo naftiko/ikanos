@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to synchronize the Naftiko version from pom.xml into the VS Code extension package.json.
+Script to synchronize the Ikanos version from pom.xml into the VS Code extension package.json.
 """
 
 import argparse
@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
-from naftiko_version import extract_version_from_pom
+from ikanos_version import extract_version_from_pom
 
 
 def update_package_json_version(file_path, new_version):
@@ -35,8 +35,8 @@ def update_package_json_version(file_path, new_version):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync Naftiko version to VS Code extension package.json")
-    parser.add_argument("--pom", required=True, help="Path to framework pom.xml")
+    parser = argparse.ArgumentParser(description="Sync Ikanos version to VS Code extension package.json")
+    parser.add_argument("--pom", required=True, help="Path to ikanos pom.xml")
     parser.add_argument("--target", required=True, help="Path to extensions/naftiko-vscode/package.json")
     args = parser.parse_args()
 

@@ -1,11 +1,11 @@
-Welcome to the Naftiko Framework FAQ! This guide answers common questions from developers who are learning, using, and contributing to Naftiko. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules).
+Welcome to the Ikanos FAQ! This guide answers common questions from developers who are learning, using, and contributing to Ikanos. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules).
 
 ---
 
 ## ⛵ Getting Started
 
-### Q: What is Naftiko Framework and why would I use it?
-**A:** Naftiko Framework is the first open-source platform for **Spec-Driven Integration**. Instead of writing boilerplate code to consume HTTP APIs and expose unified interfaces, you declare them in YAML. This enables:
+### Q: What is Ikanos and why would I use it?
+**A:** Ikanos is the first open-source platform for **Spec-Driven Integration**. Instead of writing boilerplate code to consume HTTP APIs and expose unified interfaces, you declare them in YAML. This enables:
 - **API composability**: Combine multiple APIs into a single capability
 - **Format conversion**: Convert between JSON, XML, Avro, Protobuf, CSV, TSV, PSV, HTML, Markdown, and YAML
 - **AI-ready integration**: Better context engineering for AI systems
@@ -21,11 +21,11 @@ Use it when you need to integrate multiple APIs, standardize data formats, or ex
 
 You don't need to write Java or other code unless you want to extend the framework itself.
 
-### Q: Is Naftiko a code generator or a runtime engine?
-**A:** It's a **runtime engine**. The Naftiko Engine, provided as a Docker container, reads your YAML capability file at startup and immediately exposes HTTP or MCP interfaces. There's no compilation step - declare your capability, start the engine, and it works.
+### Q: Is Ikanos a code generator or a runtime engine?
+**A:** It's a **runtime engine**. The Ikanos Engine, provided as a Docker container, reads your YAML capability file at startup and immediately exposes HTTP or MCP interfaces. There's no compilation step - declare your capability, start the engine, and it works.
 
-### Q: Are there other tools that complement Naftiko Framework?
-**A:** Yes. Naftiko Framework is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which includes free complementary tools:
+### Q: Are there other tools that complement Ikanos?
+**A:** Yes. Ikanos is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which includes free complementary tools:
 
 - **[Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code)** — Inline structure and rules validation while editing capability files (`.naftiko.yaml`)
 - **[Naftiko Templates for Backstage](https://github.com/naftiko/fleet/wiki/Naftiko-Templates-for-Backstage)** — Scaffold new capabilities and catalog them from CNCF Backstage
@@ -35,35 +35,35 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 ## :rowboat: Installation & Setup
 
-### Q: How do I install Naftiko?
+### Q: How do I install Ikanos?
 **A:** There are two ways:
 
 1. **Docker (recommended)**  
    ```bash
-  docker pull ghcr.io/naftiko/framework:v1.0.0-alpha1
-  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/framework:v1.0.0-alpha1 /app/capability.yaml
+  docker pull ghcr.io/Ikanos/framework:v1.0.0-alpha1
+  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/Ikanos/framework:v1.0.0-alpha1 /app/capability.yaml
    ```
 
 2. **CLI tool** (for configuration and validation)  
-  Download the binary for [macOS](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-macos-arm64), [Linux](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-linux-amd64), or [Windows](https://github.com/naftiko/framework/releases/download/v1.0.0-alpha1/naftiko-cli-windows-amd64.exe)
+  Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-windows-amd64.exe)
 
-See the [Installation guide](https://github.com/naftiko/framework/wiki/Installation) for detailed setup instructions.
+See the [Installation guide](https://github.com/naftiko/ikanos/wiki/Installation) for detailed setup instructions.
 
 ### Q: How do I validate my capability file before running it?
 **A:** Use the CLI validation command:
 ```bash
-naftiko validate path/to/capability.yaml
-naftiko validate path/to/capability.yaml 1.0.0-alpha1  # Specify schema version
+ikanos validate path/to/capability.yaml
+ikanos validate path/to/capability.yaml 1.0.0-alpha1  # Specify schema version
 ```
 
-This checks your YAML against the Naftiko schema and reports any errors.
+This checks your YAML against the Ikanos schema and reports any errors.
 
 ### Q: Which version of the schema should I use?
 **A:** Use the current framework schema version: **1.0.0-alpha1**.
 
 Set it in your YAML:
 ```yaml
-naftiko: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha1"
 ```
 
 ---
@@ -307,7 +307,7 @@ outputParameters:
     type: number
 ```
 
-Mappings tell Naftiko how to wire step outputs to your final response.
+Mappings tell Ikanos how to wire step outputs to your final response.
 
 ---
 
@@ -316,18 +316,18 @@ Mappings tell Naftiko how to wire step outputs to your final response.
 ### Q: Can I bootstrap a capability from an existing OpenAPI specification?
 **A:** Yes. Use the CLI import command:
 ```bash
-naftiko import openapi petstore.yaml
-naftiko import openapi petstore.yaml -o my-capability.yaml
+ikanos import openapi petstore.yaml
+ikanos import openapi petstore.yaml -o my-capability.yaml
 ```
-This parses an OAS 3.0 or 3.1 document and generates a Naftiko capability YAML with a pre-filled `consumes` HTTP adapter — including authentication, resources, operations, input parameters, and output parameters.
+This parses an OAS 3.0 or 3.1 document and generates a Ikanos capability YAML with a pre-filled `consumes` HTTP adapter — including authentication, resources, operations, input parameters, and output parameters.
 
 ### Q: Can I export my REST adapter as an OpenAPI document?
 **A:** Yes. Use the CLI export command:
 ```bash
-naftiko export openapi capability.yaml
-naftiko export openapi capability.yaml --spec-version 3.1 -f json
+ikanos export openapi capability.yaml
+ikanos export openapi capability.yaml --spec-version 3.1 -f json
 ```
-This reads a Naftiko capability and generates an OpenAPI document from its REST `exposes` adapter.
+This reads a Ikanos capability and generates an OpenAPI document from its REST `exposes` adapter.
 
 ### Q: Which OpenAPI versions are supported?
 **A:** OAS **3.0** and **3.1** are fully supported for both import and export. OAS 3.2 support is deferred until the upstream Java libraries (`swagger-parser`, `swagger-core`) add it.
@@ -335,7 +335,7 @@ This reads a Naftiko capability and generates an OpenAPI document from its REST 
 ### Q: What if my capability has multiple REST adapters?
 **A:** Use the `--adapter` option to target a specific namespace:
 ```bash
-naftiko export openapi capability.yaml --adapter public-api
+ikanos export openapi capability.yaml --adapter public-api
 ```
 When omitted, the first REST adapter found is exported.
 
@@ -635,14 +635,14 @@ capability:
 
 This enables distributed tracing and RED metrics (Rate, Errors, Duration) for all capability operations. Metrics are exposed in Prometheus format on the control port's `/metrics` endpoint.
 
-### Q: What metrics does Naftiko expose?
+### Q: What metrics does Ikanos expose?
 **A:** The engine emits three histogram metrics following the RED method:
 
-- `naftiko.request.duration.seconds` — end-to-end request duration by tool/operation name and status
-- `naftiko.step.duration.seconds` — individual orchestration step duration
-- `naftiko.http.client.duration.seconds` — outbound HTTP call duration by namespace, method, and status code
+- `Ikanos.request.duration.seconds` — end-to-end request duration by tool/operation name and status
+- `Ikanos.step.duration.seconds` — individual orchestration step duration
+- `Ikanos.http.client.duration.seconds` — outbound HTTP call duration by namespace, method, and status code
 
-A counter `naftiko.request.errors` tracks failed requests. All metrics are available in Prometheus text format on the control port's `/metrics` endpoint.
+A counter `Ikanos.request.errors` tracks failed requests. All metrics are available in Prometheus text format on the control port's `/metrics` endpoint.
 
 ### Q: How do I connect Prometheus and Grafana?
 **A:** Point Prometheus at the control port's `/metrics` endpoint:
@@ -650,13 +650,13 @@ A counter `naftiko.request.errors` tracks failed requests. All metrics are avail
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: naftiko
+  - job_name: Ikanos
     metrics_path: /metrics
     static_configs:
       - targets: ['localhost:9090']
 ```
 
-A sample Grafana dashboard is provided in `demo/shared/observability/grafana-naftiko.json`.
+A sample Grafana dashboard is provided in `demo/shared/observability/grafana-Ikanos.json`.
 
 ---
 
@@ -667,12 +667,12 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-naf
 
 1. **Validate your YAML first:**
    ```bash
-   naftiko validate capability.yaml
+   ikanos validate capability.yaml
    ```
 
 2. **Check the Docker logs:**
    ```bash
-  docker run ... ghcr.io/naftiko/framework:v1.0.0-alpha1 /app/capability.yaml
+  docker run ... ghcr.io/Ikanos/framework:v1.0.0-alpha1 /app/capability.yaml
    # Look for error messages in the output
    ```
 
@@ -727,13 +727,13 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-naf
 
 ## 🚣 Contributing
 
-### Q: How do I contribute to Naftiko Framework?
+### Q: How do I contribute to Ikanos?
 **A:** We welcome all contributions! Here's how:
 
-1. **Report bugs or request features** - [GitHub Issues](https://github.com/naftiko/framework/issues)
+1. **Report bugs or request features** - [GitHub Issues](https://github.com/naftiko/ikanos/issues)
    - Search for existing issues first to avoid duplicates
    
-2. **Submit code changes** - [GitHub Pull Requests](https://github.com/naftiko/framework/pulls)
+2. **Submit code changes** - [GitHub Pull Requests](https://github.com/naftiko/ikanos/pulls)
    - Create a local branch
    - Ensure your code passes all build validation
    - Rebase on `main` before submitting
@@ -745,11 +745,11 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-naf
 4. **Improve documentation** - Fix typos, clarify docs, add examples
 
 ### Q: What's the code structure and how do I set up a development environment?
-**A:** Naftiko is a **Java project** using Maven. To build and develop:
+**A:** Ikanos is a **Java project** using Maven. To build and develop:
 
 ```bash
 # Clone the repository
-git clone https://github.com/naftiko/framework.git
+git clone https://github.com/naftiko/ikanos.git
 cd framework
 
 # Build the project
@@ -759,20 +759,20 @@ mvn clean install
 mvn test
 
 # Build Docker image
-docker build -t naftiko:local .
+docker build -t Ikanos:local .
 ```
 
 Key directories:
-- `src/main/java/io/naftiko/`  Core engine code
-- `src/main/resources/schemas/`  JSON Schema definitions
+- `src/main/java/io/Ikanos/`  Core engine code
+- `ikanos-spec/src/main/resources/schemas/`  JSON Schema definitions
 - `src/test/`  Unit and integration tests
-- `src/main/resources/schemas/examples/`  Capability examples
-- `src/main/resources/tutorial/`  Tutorial capability files
+- `ikanos-spec/src/main/resources/schemas/examples/`  Capability examples
+- `ikanos-docs/tutorial/`  Tutorial capability files
 
 ### Q: What are the design guidelines for creating capabilities?
 **A:**
 
-1. **Keep the Naftiko Specification as a first-class citizen** - refer to it often
+1. **Keep the Ikanos Specification as a first-class citizen** - refer to it often
 2. **Don't expose unused input parameters** - every parameter should be used in steps
 3. **Don't declare consumed outputs you don't use** - be precise in mappings
 4. **Don't prefix variables unnecessarily** - let scope provide clarity
@@ -805,11 +805,11 @@ outputParameters:
 
 1. **Unit tests** - Add tests in `src/test/java`
 2. **Integration tests** - Test against real or mock APIs
-3. **Validation** - Use the CLI tool: `naftiko validate capability.yaml`
+3. **Validation** - Use the CLI tool: `ikanos validate capability.yaml`
 4. **Docker testing** - Build and run the Docker image with your capability
 
 ### Q: Which version of Java is required?
-**A:** Naftiko requires **Java 21 or later**. This is specified in the Maven configuration.
+**A:** Ikanos requires **Java 21 or later**. This is specified in the Maven configuration.
 
 ---
 
@@ -849,12 +849,12 @@ consumes:
 This way, Capability B can combine Capability A with other APIs.
 
 ### Q: How do I handle errors or retries?
-**A:** Naftiko currently doesn't have built-in retry logic in v1.0.0-alpha1. Options:
+**A:** Ikanos currently doesn't have built-in retry logic in v1.0.0-alpha1. Options:
 
 1. **At the HTTP client level** - use an API gateway with retry policies
 2. **In future versions** - this is on the roadmap
 
-Check the [Roadmap](https://github.com/naftiko/framework/wiki/Roadmap) for planned features.
+Check the [Roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap) for planned features.
 
 ### Q: Can I expose the same capability on both REST and MCP?
 **A:** Yes! Add multiple entries to `exposes`:
@@ -880,18 +880,18 @@ Both adapters consume the same sources but expose different interfaces.
 
 ## 💨 Performance & Deployment
 
-### Q: How scalable is Naftiko for high-load scenarios?
-**A:** Naftiko is suitable for moderate to high loads depending on:
-- **Your consumed APIs' performance** - Naftiko's overhead is minimal
+### Q: How scalable is Ikanos for high-load scenarios?
+**A:** Ikanos is suitable for moderate to high loads depending on:
+- **Your consumed APIs' performance** - Ikanos's overhead is minimal
 - **Docker/Kubernetes scaling** - deploy multiple instances behind a load balancer
 - **Orchestration complexity** - simpler capabilities (forward, single calls) are faster
 
 For production workloads:
 - Use Kubernetes for auto-scaling
 - Monitor consuming/consumed API latencies
-- Consider caching strategies above Naftiko
+- Consider caching strategies above Ikanos
 
-### Q: How do I deploy Naftiko to production?
+### Q: How do I deploy Ikanos to production?
 **A:** 
 
 1. **Kubernetes** (recommended):
@@ -899,14 +899,14 @@ For production workloads:
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: naftiko-engine
+     name: Ikanos-engine
    spec:
      replicas: 3
      template:
        spec:
          containers:
-         - name: naftiko
-           image: ghcr.io/naftiko/framework:v1.0.0-alpha1
+         - name: Ikanos
+           image: ghcr.io/Ikanos/framework:v1.0.0-alpha1
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -915,22 +915,22 @@ For production workloads:
            - name: GITHUB_TOKEN
              valueFrom:
                secretKeyRef:
-                 name: naftiko-secrets
+                 name: Ikanos-secrets
                  key: github-token
    ```
 
 2. **Docker Compose** - for simpler setups
 3. **Environment Variables** - inject secrets via `binds` (omit `location` for runtime injection)
 
-### Q: Can I use Naftiko behind a reverse proxy (nginx, Envoy)?
-**A:** Yes, absolutely. Naftiko exposes standard HTTP endpoints, so it works with any reverse proxy.
+### Q: Can I use Ikanos behind a reverse proxy (nginx, Envoy)?
+**A:** Yes, absolutely. Ikanos exposes standard HTTP endpoints, so it works with any reverse proxy.
 
 Example (nginx):
 ```nginx
 server {
     listen 80;
     location / {
-        proxy_pass http://naftiko:8081;
+        proxy_pass http://Ikanos:8081;
     }
 }
 ```
@@ -939,22 +939,22 @@ server {
 
 ## 📜 Specifications & Standards
 
-### Q: How does Naftiko compare to OpenAPI, AsyncAPI, or Arazzo?
-**A:** Naftiko is **complementary** to these specifications and combines their strengths into a single runtime model:
+### Q: How does Ikanos compare to OpenAPI, AsyncAPI, or Arazzo?
+**A:** Ikanos is **complementary** to these specifications and combines their strengths into a single runtime model:
 - **Consume/expose duality** - like OpenAPI's interface description, but bidirectional
 - **Orchestration** - like Arazzo's workflow sequencing
 - **AI-driven discovery** - beyond what all three cover natively
-- **Namespace-based routing** - unique to Naftiko's runtime approach
+- **Namespace-based routing** - unique to Ikanos's runtime approach
 
-See the [Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration) overview and the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema) for the formal model.
+See the [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec-Driven-Integration) overview and the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) for the formal model.
 
-### Q: Is the Naftiko Specification stable?
+### Q: Is the Ikanos Specification stable?
 **A:** The current public version is **1.0.0-alpha1**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
 - **Major versions** (1.x.x) - breaking changes
 - **Minor versions** (x.1.0) - new features, backward-compatible
 - **Patch versions** (x.x.1) - bug fixes
 
-Check the naftiko field in your YAML to specify the version.
+Check the Ikanos field in your YAML to specify the version.
 
 ---
 
@@ -962,21 +962,21 @@ Check the naftiko field in your YAML to specify the version.
 
 ### Q: Where can I ask questions or discuss ideas?
 **A:** Join the community at:
-- **[GitHub Discussions](https://github.com/orgs/naftiko/discussions)** - Ask questions and share ideas
-- **[GitHub Issues](https://github.com/naftiko/framework/issues)** - Report bugs or request features
+- **[GitHub Discussions](https://github.com/orgs/Ikanos/discussions)** - Ask questions and share ideas
+- **[GitHub Issues](https://github.com/naftiko/ikanos/issues)** - Report bugs or request features
 - **Pull Requests** - Review and discuss code changes
 
 ### Q: Are there examples I can reference?
 **A:** Yes! Several resources:
 
-- **[Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)** - MCP foundations and step-by-step guide
-- **[Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)** - Agent Skills, REST, and fleet manifest
-- **[Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)** - Real-world examples
-- **Repository examples** - In `src/main/resources/schemas/examples/`, `src/main/resources/tutorial/`, and test resources
-- **Specification examples** - In the [Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema#4-complete-examples) (Section 4)
+- **[Tutorial - Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-1)** - MCP foundations and step-by-step guide
+- **[Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-2)** - Agent Skills, REST, and fleet manifest
+- **[Use Cases](https://github.com/naftiko/ikanos/wiki/Guide-Use-Cases)** - Real-world examples
+- **Repository examples** - In `ikanos-spec/src/main/resources/schemas/examples/`, `ikanos-docs/tutorial/`, and test resources
+- **Specification examples** - In the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema#4-complete-examples) (Section 4)
 
-### Q: How often is Naftiko updated?
-**A:** Check the [Releases](https://github.com/naftiko/framework/wiki/Releases) page for version history. The project follows a regular release cadence with security updates prioritized.
+### Q: How often is Ikanos updated?
+**A:** Check the [Releases](https://github.com/naftiko/ikanos/wiki/Releases) page for version history. The project follows a regular release cadence with security updates prioritized.
 
 ---
 
@@ -1001,9 +1001,9 @@ Check the naftiko field in your YAML to specify the version.
 5. **Test with Claude** - configure Claude Desktop with your MCP server
 6. **Publish** - share your capability spec with the community
 
-See [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1) for a full MCP example, then continue with [Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2) for Skill and REST exposure.
+See [Tutorial - Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-1) for a full MCP example, then continue with [Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-2) for Skill and REST exposure.
 
-### Q: I want to standardize data from multiple SaaS tools. How do I use Naftiko?
+### Q: I want to standardize data from multiple SaaS tools. How do I use Ikanos?
 **A:**
 
 1. **Consume multiple SaaS APIs** - define each in `consumes`
@@ -1011,30 +1011,30 @@ See [Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-P
 3. **Expose unified interface** - create a single API with harmonized formats
 4. **Use orchestration** - combine data from multiple sources if needed
 
-This is Naftiko's core strength for managing API sprawl.
+This is Ikanos's core strength for managing API sprawl.
 
 ---
 
 ## 🏝️ Additional Resources
 
--  **[Installation](https://github.com/naftiko/framework/wiki/Installation)** - Setup instructions
--  **[Spec-Driven Integration](https://github.com/naftiko/framework/wiki/Spec-Driven-Integration)** - Methodology overview
--  **[Tutorial - Part 1](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-1)** - MCP foundations
--  **[Tutorial - Part 2](https://github.com/naftiko/framework/wiki/Tutorial-MCP-Part-2)** - Skills, REST, and fleet manifest
--  **[Guide - Use Cases](https://github.com/naftiko/framework/wiki/Guide-Use-Cases)** - Real-world examples
--  **[Guide - Linting](https://github.com/naftiko/framework/wiki/Guide-Linting)** - Validation workflow and CLI usage
--  **[Specification - Schema](https://github.com/naftiko/framework/wiki/Specification-Schema)** - Complete technical reference
--  **[Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-Rules)** - Validation and linting rules
--  **[Releases](https://github.com/naftiko/framework/wiki/Releases)** - Version history
--  **[Roadmap](https://github.com/naftiko/framework/wiki/Roadmap)** - Future plans
--  **[Contribute](https://github.com/naftiko/framework/wiki/Contribute)** - Become a contributor
--  **[Discussions](https://github.com/orgs/naftiko/discussions)** - Community Q&A
+-  **[Installation](https://github.com/naftiko/ikanos/wiki/Installation)** - Setup instructions
+-  **[Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec-Driven-Integration)** - Methodology overview
+-  **[Tutorial - Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-1)** - MCP foundations
+-  **[Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-MCP-Part-2)** - Skills, REST, and fleet manifest
+-  **[Guide - Use Cases](https://github.com/naftiko/ikanos/wiki/Guide-Use-Cases)** - Real-world examples
+-  **[Guide - Linting](https://github.com/naftiko/ikanos/wiki/Guide-Linting)** - Validation workflow and CLI usage
+-  **[Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema)** - Complete technical reference
+-  **[Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules)** - Validation and linting rules
+-  **[Releases](https://github.com/naftiko/ikanos/wiki/Releases)** - Version history
+-  **[Roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap)** - Future plans
+-  **[Contribute](https://github.com/naftiko/ikanos/wiki/Contribute)** - Become a contributor
+-  **[Discussions](https://github.com/orgs/Ikanos/discussions)** - Community Q&A
 
 ---
 
 ## 🔔 Feedback
 
 Did this FAQ help you? Have questions not covered here? 
-- **Add an issue** - [GitHub Issues](https://github.com/naftiko/framework/issues)
-- **Start a discussion** - [GitHub Discussions](https://github.com/orgs/naftiko/discussions)
+- **Add an issue** - [GitHub Issues](https://github.com/naftiko/ikanos/issues)
+- **Start a discussion** - [GitHub Discussions](https://github.com/orgs/Ikanos/discussions)
 - **Submit a PR** - Help us improve this FAQ!

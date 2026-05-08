@@ -1,4 +1,4 @@
-name: Synchronize Naftiko Version in Other Repos
+name: Synchronize Ikanos Version in Other Repos
 
 on:
   push:
@@ -15,10 +15,10 @@ jobs:
     if: github.ref_name == 'main'
 
     steps:
-      - name: Checkout framework
+      - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
-          path: framework
+          path: ikanos
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,11 +32,11 @@ jobs:
           token: ${{ secrets.BACKSTAGE_CONTENTS_WRITE_PR_WRITE }}
           path: backstage
 
-      - name: Sync Naftiko version to backstage
+      - name: Sync Ikanos version to backstage
         id: sync
         run: |
-          VERSION=$(python3 framework/src/main/resources/scripts/sync-naftiko-version-to-backstage.py \
-            --pom framework/pom.xml \
+          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-backstage.py \
+            --pom ikanos/pom.xml \
             --target backstage/templates/skeletons/capabilities)
           echo "value=${VERSION}" >> $GITHUB_OUTPUT
 
@@ -57,11 +57,11 @@ jobs:
           token: ${{ secrets.BACKSTAGE_CONTENTS_WRITE_PR_WRITE }}
           path: backstage
           base: main
-          branch: "chore/sync-naftiko-version"
-          commit-message: "chore: sync Naftiko version to ${{ steps.sync.outputs.value }} [skip ci]"
-          title: "chore: sync Naftiko version to ${{ steps.sync.outputs.value }}"
+          branch: "chore/sync-ikanos-version"
+          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
+          title: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           body: |
-            Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
             - `templates/skeletons/capabilities/*.naftiko.yml`
@@ -74,10 +74,10 @@ jobs:
     needs: sync-backstage-version
 
     steps:
-      - name: Checkout framework
+      - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
-          path: framework
+          path: ikanos
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -91,11 +91,11 @@ jobs:
           token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
           path: vscode
 
-      - name: Sync Naftiko version to vscode
+      - name: Sync Ikanos version to vscode
         id: sync
         run: |
-          VERSION=$(python3 framework/src/main/resources/scripts/sync-naftiko-version-to-vscode.py \
-            --pom framework/pom.xml \
+          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-vscode.py \
+            --pom ikanos/pom.xml \
             --target vscode/extensions/naftiko-vscode/package.json)
           echo "value=${VERSION}" >> $GITHUB_OUTPUT
 
@@ -116,11 +116,11 @@ jobs:
           token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
           path: vscode
           base: main
-          branch: "chore/sync-naftiko-version"
-          commit-message: "chore: sync Naftiko version to ${{ steps.sync.outputs.value }} [skip ci]"
-          title: "chore: sync Naftiko version to ${{ steps.sync.outputs.value }}"
+          branch: "chore/sync-ikanos-version"
+          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
+          title: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           body: |
-            Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
             - `extensions/naftiko-vscode/package.json`

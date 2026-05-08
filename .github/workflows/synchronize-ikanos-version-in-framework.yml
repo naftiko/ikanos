@@ -1,4 +1,4 @@
-name: Synchronize Naftiko Version in Framework
+name: Synchronize Ikanos Version in Repository
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run version sync script
         run: |
-          python3 src/main/resources/scripts/sync-naftiko-version.py
+          python3 scripts/sync-ikanos-version.py
 
       - name: Check for changes
         id: git-check
@@ -45,9 +45,9 @@ jobs:
         with:
           token: ${{ secrets.FRAMEWORK_CONTENTS_WRITE_PR_WRITE }}
           base: ${{ github.ref_name }}
-          branch: "chore/sync-naftiko-version"
-          commit-message: "chore: sync Naftiko version from pom.xml [skip ci]"
-          title: "chore: sync Naftiko version"
+          branch: "chore/sync-ikanos-version"
+          commit-message: "chore: sync Ikanos version from pom.xml [skip ci]"
+          title: "chore: sync Ikanos version"
           body: |
             ## No related issue
 
@@ -55,8 +55,8 @@ jobs:
 
             ## What does this PR do?
 
-            Automatically synchronizes the Naftiko version across the repository:
-            - Updates `naftiko` version in YAML files
+            Automatically synchronizes the Ikanos version across the repository:
+            - Updates `ikanos` version in YAML files
             - Updates `const` in JSON schema
             - Updates `$id` schema URL
 

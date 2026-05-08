@@ -1,5 +1,5 @@
 #!/bin/sh 
-cd "$(dirname "$0")/../../../.." || exit 1
+cd "$(dirname "$0")/.." || exit 1
 
 # FUNCTIONS
 print(){ printf "%s" "$*"; }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to synchronize the Naftiko version from pom.xml into Backstage skeleton templates.
+Script to synchronize the Ikanos version from pom.xml into Backstage skeleton templates.
 """
 
 import argparse
@@ -8,12 +8,12 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
-from naftiko_version import extract_version_from_pom, update_yaml_version
+from ikanos_version import extract_version_from_pom, update_yaml_version
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync Naftiko version to Backstage skeletons")
-    parser.add_argument("--pom", required=True, help="Path to framework pom.xml")
+    parser = argparse.ArgumentParser(description="Sync Ikanos version to Backstage skeletons")
+    parser.add_argument("--pom", required=True, help="Path to ikanos pom.xml")
     parser.add_argument("--target", required=True, help="Path to skeleton capabilities directory")
     args = parser.parse_args()
 

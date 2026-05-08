@@ -9,11 +9,11 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
-from naftiko_version import extract_version_from_pom, update_yaml_version
+from ikanos_version import extract_version_from_pom, update_yaml_version
 
 
 def update_json_version(file_path, new_version):
-    """Updates version in JSON (naftiko.const + $id URL)."""
+    """Updates version in JSON (ikanos.const + $id URL)."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -22,11 +22,11 @@ def update_json_version(file_path, new_version):
 
         if (
             "properties" in data and
-            "naftiko" in data["properties"] and
-            "const" in data["properties"]["naftiko"]
+            "ikanos" in data["properties"] and
+            "const" in data["properties"]["ikanos"]
         ):
-            if data["properties"]["naftiko"]["const"] != new_version:
-                data["properties"]["naftiko"]["const"] = new_version
+            if data["properties"]["ikanos"]["const"] != new_version:
+                data["properties"]["ikanos"]["const"] = new_version
                 updated = True
 
         if "$id" in data and isinstance(data["$id"], str):
@@ -77,15 +77,16 @@ def find_files(base_paths):
 def main():
     """Main function."""
     print("=" * 60)
-    print("Naftiko version synchronization")
+    print("Ikanos version synchronization")
     print("=" * 60)
 
     version = extract_version_from_pom()
 
     search_paths = [
-        "src/main/resources/schemas/naftiko-schema.json",
-        "src/main/resources/tutorial",
-        "src/test/resources",
+        "ikanos-spec/src/main/resources/schemas/ikanos-schema.json",
+        "ikanos-docs/tutorial",
+        "ikanos-engine/src/test/resources",
+        "ikanos-cli/src/test/resources",
     ]
 
     print(" Searching for YAML/JSON files in:")
