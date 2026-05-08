@@ -1,7 +1,7 @@
 ---
 name: inline-script-step-reference
 description: >
-  Reference for adding inline script steps to a Naftiko capability. Use when the
+  Reference for adding inline script steps to a Ikanos capability. Use when the
   user wants to transform, filter, aggregate, or reshape data between API calls
   using JavaScript, Python, or Groovy — without building a separate microservice.
 
@@ -142,7 +142,7 @@ bound as variables, and the script must assign to `result` to produce output.
 
 When `location` is omitted on the step, the engine falls back to
 `management.scripting.defaultLocation` on the Control Port. If neither is set,
-the Spectral rule `naftiko-script-defaults-required` reports an error.
+the Spectral rule `ikanos-script-defaults-required` reports an error.
 
 ## Control Port Governance
 
@@ -187,9 +187,9 @@ The Control Port exposes a `/scripting` endpoint for runtime governance:
 The CLI also provides access:
 
 ```bash
-naftiko scripting                          # Display current config and stats
-naftiko scripting --set timeout=60000      # Update a setting at runtime
-naftiko scripting --set enabled=false      # Disable scripting
+ikanos scripting                          # Display current config and stats
+ikanos scripting --set timeout=60000      # Update a setting at runtime
+ikanos scripting --set enabled=false      # Disable scripting
 ```
 
 ## Security Model
@@ -209,7 +209,7 @@ Script execution is sandboxed:
    subsequent mappings referencing the step return null.
 2. **Omitting `language` and `location` without Control Port defaults** — the
    engine cannot determine which language or directory to use. The Spectral rule
-   `naftiko-script-defaults-required` catches this at lint time.
+   `ikanos-script-defaults-required` catches this at lint time.
 3. **Using `..` in file paths** — the engine rejects path traversal attempts.
    All paths must be relative within the `location` directory.
 4. **Exceeding statement limit** — long-running or infinite scripts are
@@ -220,8 +220,8 @@ Script execution is sandboxed:
 ## References
 
 - Schema: `OperationStepScript`, `ScriptingManagementSpec` in
-  `src/main/resources/schemas/naftiko-schema.json`
-- Spectral rule: `naftiko-script-defaults-required` in
-  `src/main/resources/rules/naftiko-rules.yml`
+  `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Spectral rule: `ikanos-script-defaults-required` in
+  `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`
 - Example: `src/main/resources/schemas/examples/script-step.yml`
 - Blueprint: `src/main/resources/blueprints/inline-script-step.md`

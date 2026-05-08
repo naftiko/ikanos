@@ -10,7 +10,7 @@
   - [Run Locally](#run-locally)
   - [GitHub Actions Workflow](#github-actions-workflow)
 - [What Gets Validated](#what-gets-validated)
-- [Extending the Naftiko Ruleset](#extending-the-naftiko-ruleset)
+- [Extending the Ikanos Ruleset](#extending-the-ikanos-ruleset)
   - [Adding Custom Rules](#adding-custom-rules)
   - [Overriding Built-in Rules](#overriding-built-in-rules)
   - [Adding Custom Functions](#adding-custom-functions)
@@ -21,7 +21,7 @@
 
 ## Overview
 
-Naftiko capabilities are declared in YAML. Two complementary validation layers ensure your capability documents are correct and follow best practices:
+Ikanos capabilities are declared in YAML. Two complementary validation layers ensure your capability documents are correct and follow best practices:
 
 | Layer | Tool | What it checks |
 |---|---|---|
@@ -33,7 +33,7 @@ Both tools can be run standalone or orchestrated together via [MegaLinter](https
 
 > **JSON Schema** catches "is this valid YAML?", **Spectral** catches "is this *good* YAML?"
 
-For a full reference of all Spectral rules, see the [Ruleset](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules) page.
+For a full reference of all Spectral rules, see the [Ruleset](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules) page.
 
 ---
 
@@ -45,16 +45,16 @@ If you just want to lint a capability file right now:
 # Install Spectral CLI (one-time)
 npm install -g @stoplight/spectral-cli
 
-# Lint a single file against the Naftiko ruleset
+# Lint a single file against the Ikanos ruleset
 npx @stoplight/spectral-cli lint my-capability.yml \
-  --ruleset https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  --ruleset https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 ```
 
-If you have cloned the Naftiko Framework repository locally:
+If you have cloned the Ikanos repository locally:
 
 ```bash
 npx @stoplight/spectral-cli lint my-capability.yml \
-  --ruleset path/to/framework/src/main/resources/rules/naftiko-rules.yml
+  --ruleset path/to/framework/src/main/resources/rules/ikanos-rules.yml
 ```
 
 ---
@@ -74,23 +74,23 @@ Create two files at the root of your project:
 
 #### `.spectral.yaml`
 
-This file tells Spectral where to find the Naftiko ruleset. If the Naftiko Framework repository is a sibling directory or submodule:
+This file tells Spectral where to find the Ikanos ruleset. If the Ikanos repository is a sibling directory or submodule:
 
 ```yaml
 extends:
-  - ./path/to/framework/src/main/resources/rules/naftiko-rules.yml
+  - ./path/to/framework/src/main/resources/rules/ikanos-rules.yml
 ```
 
 Or reference the ruleset directly from GitHub:
 
 ```yaml
 extends:
-  - https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  - https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 ```
 
 #### `.mega-linter.yml`
 
-This file configures MegaLinter to only run the two linters relevant to Naftiko capabilities:
+This file configures MegaLinter to only run the two linters relevant to Ikanos capabilities:
 
 ```yaml
 # .mega-linter.yml
@@ -106,7 +106,7 @@ API_SPECTRAL_FILTER_REGEX_INCLUDE: "capabilities/.*\\.(yaml|yml)$"
 
 # ── v8r (JSON Schema validation) ──
 YAML_V8R_FILTER_REGEX_INCLUDE: "capabilities/.*\\.(yaml|yml)$"
-YAML_V8R_ARGUMENTS: "-s path/to/naftiko-schema.json"
+YAML_V8R_ARGUMENTS: "-s path/to/ikanos-schema.json"
 
 # General settings
 APPLY_FIXES: none
@@ -115,7 +115,7 @@ VALIDATE_ALL_CODEBASE: true
 
 > **Adapt the filter regex** to match the directory where you store your capability YAML files. The example above assumes a `capabilities/` directory.
 
-> **v8r requires an explicit schema path** via the `-s` flag. v8r does not auto-detect schemas from `# yaml-language-server: $schema=...` comments. You must point it to a local copy of `naftiko-schema.json` or use a URL.
+> **v8r requires an explicit schema path** via the `-s` flag. v8r does not auto-detect schemas from `# yaml-language-server: $schema=...` comments. You must point it to a local copy of `ikanos-schema.json` or use a URL.
 
 ### Run Locally
 
@@ -141,7 +141,7 @@ docker run --rm -v "$(pwd):/tmp/lint" oxsecurity/megalinter:v9
 npx @stoplight/spectral-cli lint "capabilities/*.yml" --ruleset .spectral.yaml
 
 # v8r only (JSON Schema)
-npx v8r "capabilities/*.yml" -s path/to/naftiko-schema.json
+npx v8r "capabilities/*.yml" -s path/to/ikanos-schema.json
 ```
 
 ### GitHub Actions Workflow
@@ -190,7 +190,7 @@ MegaLinter reads the `.mega-linter.yml` file automatically. No inline `env:` con
 
 Catches structural issues such as:
 
-- Missing required fields (`naftiko`, `info`, `capability`)
+- Missing required fields (`Ikanos`, `info`, `capability`)
 - Invalid types (e.g., `port` must be an integer)
 - Invalid enum values (e.g., `method` must be GET, POST, PUT, PATCH, or DELETE)
 - Invalid patterns (e.g., `namespace` must match `^[a-zA-Z0-9-]+$`)
@@ -206,23 +206,23 @@ Catches semantic and style issues such as:
 | **URL hygiene** | Trailing slashes on `baseUri`, query strings in `path` fields |
 | **Quality** | Missing `description` on consumes entries, REST resources, or operations |
 | **Security** | `<script>` tags or `eval(` in description fields |
-| **Scripting** | Script steps missing `language`/`location` without Control Port defaults (`naftiko-script-defaults-required`) |
+| **Scripting** | Script steps missing `language`/`location` without Control Port defaults (`ikanos-script-defaults-required`) |
 
-For the full list, see the [Specification - Rules](https://github.com/naftiko/framework/wiki/Specification-%E2%80%90-Rules) page.
+For the full list, see the [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules) page.
 
 ---
 
-## Extending the Naftiko Ruleset
+## Extending the Ikanos Ruleset
 
-The Naftiko ruleset covers the specification's common pitfalls. You can extend it with your own rules to enforce organization-specific conventions — without forking the original ruleset.
+the Ikanos ruleset covers the specification's common pitfalls. You can extend it with your own rules to enforce organization-specific conventions — without forking the original ruleset.
 
 ### Adding Custom Rules
 
-Create your own `.spectral.yaml` that extends the Naftiko ruleset and adds new rules:
+Create your own `.spectral.yaml` that extends the Ikanos ruleset and adds new rules:
 
 ```yaml
 extends:
-  - https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  - https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 
 rules:
   # Enforce that all capabilities have at least two tags
@@ -261,21 +261,21 @@ rules:
 
 ### Overriding Built-in Rules
 
-You can change the severity of any Naftiko rule, or disable it entirely:
+You can change the severity of any Ikanos rule, or disable it entirely:
 
 ```yaml
 extends:
-  - https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  - https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 
 rules:
   # Promote trailing slash from warning to error
-  naftiko-consumes-baseuri-no-trailing-slash: error
+  ikanos-consumes-baseuri-no-trailing-slash: error
 
   # Disable the info-tags rule (your org doesn't use tags)
-  naftiko-info-tags: off
+  Ikanos-info-tags: off
 
   # Downgrade missing REST operation description from info to hint
-  naftiko-rest-operation-description: hint
+  Ikanos-rest-operation-description: hint
 ```
 
 ### Adding Custom Functions
@@ -317,7 +317,7 @@ module.exports = function checkBindsLocationScheme(targetVal) {
 
 ```yaml
 extends:
-  - https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  - https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 
 functionsDir: ./functions
 
@@ -337,12 +337,12 @@ rules:
 
 ### Full Example
 
-Here is a complete `.spectral.yaml` that extends the Naftiko ruleset with organization-specific rules:
+Here is a complete `.spectral.yaml` that extends the Ikanos ruleset with organization-specific rules:
 
 ```yaml
 # .spectral.yaml — ACME Corp capability linting
 extends:
-  - https://raw.githubusercontent.com/naftiko/framework/main/src/main/resources/rules/naftiko-rules.yml
+  - https://raw.githubusercontent.com/Ikanos/ikanos/main/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
 
 functionsDir: ./functions
 
@@ -351,8 +351,8 @@ functions:
 
 rules:
   # ── Override built-in severities ──
-  naftiko-consumes-baseuri-no-trailing-slash: error
-  naftiko-info-tags: off
+  ikanos-consumes-baseuri-no-trailing-slash: error
+  Ikanos-info-tags: off
 
   # ── Organization rules ──
   acme-min-tags:
@@ -393,18 +393,18 @@ This is a success message — your file has no errors. Warnings and info message
 v8r does not auto-detect schemas from `# yaml-language-server: $schema=...` comments. You must pass the schema explicitly:
 
 ```bash
-npx v8r my-capability.yml -s path/to/naftiko-schema.json
+npx v8r my-capability.yml -s path/to/ikanos-schema.json
 ```
 
 Or in `.mega-linter.yml`:
 
 ```yaml
-YAML_V8R_ARGUMENTS: "-s path/to/naftiko-schema.json"
+YAML_V8R_ARGUMENTS: "-s path/to/ikanos-schema.json"
 ```
 
 ### MegaLinter: Spectral finds no files
 
-MegaLinter's Spectral integration auto-detects files by looking for OpenAPI/AsyncAPI content keywords (`openapi:`, `swagger:`, `asyncapi:`). Naftiko files use `naftiko:` instead, so they are **not auto-detected**.
+MegaLinter's Spectral integration auto-detects files by looking for OpenAPI/AsyncAPI content keywords (`openapi:`, `swagger:`, `asyncapi:`). Ikanos files use `Ikanos:` instead, so they are **not auto-detected**.
 
 Fix: Set `API_SPECTRAL_FILTER_REGEX_INCLUDE` in `.mega-linter.yml` to explicitly target your capability YAML directory.
 
@@ -412,7 +412,7 @@ Fix: Set `API_SPECTRAL_FILTER_REGEX_INCLUDE` in `.mega-linter.yml` to explicitly
 
 Custom functions referenced via `functionsDir` are resolved relative to the ruleset file that declares them.
 
-- If you `extends` the Naftiko ruleset from a URL, Naftiko's built-in custom functions (like `unique-namespaces`) load from the GitHub-hosted `functions/` directory.
+- If you `extends` the Ikanos ruleset from a URL, Ikanos's built-in custom functions (like `unique-namespaces`) load from the GitHub-hosted `functions/` directory.
 - Your own custom functions must be in a `functions/` directory relative to *your* `.spectral.yaml`.
 
 ### MegaLinter: Docker image is too large

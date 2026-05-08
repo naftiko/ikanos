@@ -1,9 +1,9 @@
 | Version & Notes | Release | EOL | Requirements | Java EOL | Maven Group ID | Maven Repo | Docker Repo | 
 | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-| [0.4](https://github.com/naftiko/framework/releases/tag/v0.4)  | 2026-03-03  | 2026-03-17 | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
-| [0.5](https://github.com/naftiko/framework/releases/tag/v0.5) | 2026-03-17 | 2026-03-30 * | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
-| [1.0 Alpha 1](https://github.com/naftiko/framework/releases/tag/v1.0.0-alpha1) | 2026-04-02 | 2026-04-30 | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
-| [1.0 Alpha 2](https://github.com/naftiko/framework/releases/tag/v1.0.0-alpha2) | 2026-04-30 | 2026-05-22 | Java 21 LTS | Sept. 2028 | io.naftiko | Maven Central | Docker Hub |
-| 1.0 Alpha 3 * | 2026-05-22 | 2026-06-19 | Java 21 LTS | Sept. 2028 | io.naftiko | Maven Central | Docker Hub |
+| [0.4](https://github.com/naftiko/ikanos/releases/tag/v0.4)  | 2026-03-03  | 2026-03-17 | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
+| [0.5](https://github.com/naftiko/ikanos/releases/tag/v0.5) | 2026-03-17 | 2026-03-30 * | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
+| [1.0 Alpha 1](https://github.com/naftiko/ikanos/releases/tag/v1.0.0-alpha1) | 2026-04-02 | 2026-04-30 | Java 21 LTS | Sept. 2028 | io.naftiko | GitHub Packages | GitHub Packages |
+| [1.0 Alpha 2](https://github.com/naftiko/ikanos/releases/tag/v1.0.0-alpha2) | 2026-04-30 | 2026-05-22 | Java 21 LTS | Sept. 2028 | io.naftiko | Maven Central | Docker Hub |
+| 1.0 Alpha 3 * | 2026-05-22 | 2026-06-19 | Java 21 LTS | Sept. 2028 | io.ikanos | Maven Central | Docker Hub |
 
 \* Future release

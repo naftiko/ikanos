@@ -36,7 +36,7 @@ Before adding dev/prod secret handling:
 
 ## Core concept: `binds` = external variable injection
 
-Naftiko uses `binds` to declare external sources of variables (secrets/config). Variables declared in `binds[*].keys` are injected using mustache-style expressions.
+Ikanos uses `binds` to declare external sources of variables (secrets/config). Variables declared in `binds[*].keys` are injected using mustache-style expressions.
 
 ### What a binding provides
 
@@ -171,5 +171,5 @@ Before calling dev→prod done:
 
 ## References
 
-- Naftiko JSON Schema: `src/main/resources/schemas/naftiko-schema.json`
-- Spectral Rules: `src/main/resources/rules/naftiko-rules.yml`
+- Ikanos JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Rules: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`

@@ -177,5 +177,5 @@ Before considering “chain-api-calls” complete:
 
 ## References
 
-- Naftiko JSON Schema: `src/main/resources/schemas/naftiko-schema.json`
-- Spectral Rules: `src/main/resources/rules/naftiko-rules.yml`
+- Ikanos JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Rules: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`

@@ -158,7 +158,7 @@ $review = @{
     event    = "REQUEST_CHANGES"   # or COMMENT, APPROVE
     body     = "Overall summary — see inline comments."
     comments = @(
-        @{ path = "src/main/java/io/naftiko/Foo.java"; line = 42;   body = "Comment text." }
+        @{ path = "ikanos-engine/src/main/java/io/ikanos/Foo.java"; line = 42;   body = "Comment text." }
         @{ path = "src/.../Bar.java";                  line = 17;   body = "Another comment." }
     )
 } | ConvertTo-Json -Depth 5
@@ -177,7 +177,7 @@ cat > /tmp/review-<number>.json <<'EOF'
   "event": "REQUEST_CHANGES",
   "body": "Overall summary — see inline comments.",
   "comments": [
-    { "path": "src/main/java/io/naftiko/Foo.java", "line": 42, "body": "Comment text." },
+    { "path": "ikanos-engine/src/main/java/io/ikanos/Foo.java", "line": 42, "body": "Comment text." },
     { "path": "src/.../Bar.java", "line": 17, "body": "Another comment." }
   ]
 }

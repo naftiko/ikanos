@@ -1,8 +1,8 @@
 ---
 name: control-port-observability-reference
 description: >
-  Reference for adding a control port and OpenTelemetry observability to a
-  Naftiko capability. Use when the user wants health checks, Prometheus metrics,
+  Reference for adding a control port and OpenTelemetry observability to an
+  Ikanos capability. Use when the user wants health checks, Prometheus metrics,
   trace inspection, or distributed tracing with OTLP export.
 
 ---
@@ -16,7 +16,7 @@ Every production capability needs:
 - **Trace inspection** for debugging request flows without an external collector.
 - **Distributed tracing** with W3C context propagation for end-to-end visibility.
 
-Naftiko provides all of this declaratively via `type: "control"` (the management
+Ikanos provides all of this declaratively via `type: "control"` (the management
 adapter) and `capability.observability` (the OTel configuration).
 
 ## Control Port (type: "control")
@@ -129,10 +129,10 @@ capability:
 ### CLI
 
 ```bash
-naftiko scripting                          # Display current config and stats
-naftiko scripting --set timeout=60000      # Update a setting
-naftiko scripting --set enabled=false      # Disable scripting at runtime
-naftiko scripting --set allowedLanguages=javascript,python  # Restrict languages
+ikanos scripting                          # Display current config and stats
+ikanos scripting --set timeout=60000      # Update a setting
+ikanos scripting --set enabled=false      # Disable scripting at runtime
+ikanos scripting --set allowedLanguages=javascript,python  # Restrict languages
 ```
 
 Requires a running Control Port with `management.scripting` configured.
@@ -187,13 +187,13 @@ binds:
 
 | Metric | Type | Description |
 |---|---|---|
-| `naftiko.request.total` | Counter | Requests by adapter, operation, status |
-| `naftiko.request.duration.seconds` | Histogram | Request duration |
-| `naftiko.request.errors` | Counter | Errors by adapter, operation, error type |
-| `naftiko.step.duration.seconds` | Histogram | Step duration by type and namespace |
-| `naftiko.http.client.total` | Counter | Outbound HTTP calls by method, host, status |
-| `naftiko.http.client.duration.seconds` | Histogram | Outbound HTTP call duration |
-| `naftiko.capability.active` | UpDownCounter | Active capability count |
+| `ikanos.request.total` | Counter | Requests by adapter, operation, status |
+| `ikanos.request.duration.seconds` | Histogram | Request duration |
+| `ikanos.request.errors` | Counter | Errors by adapter, operation, error type |
+| `ikanos.step.duration.seconds` | Histogram | Step duration by type and namespace |
+| `ikanos.http.client.total` | Counter | Outbound HTTP calls by method, host, status |
+| `ikanos.http.client.duration.seconds` | Histogram | Outbound HTTP call duration |
+| `ikanos.capability.active` | UpDownCounter | Active capability count |
 
 ### Combining control port + observability
 
@@ -244,7 +244,7 @@ Prometheus scrapes the control port's `/metrics` automatically.
    absent, metrics and traces default to enabled but return 503 if the OTel SDK
    is not on the classpath.
 2. **Port collision** — using the same port for control and a business adapter.
-   The linter catches this via `naftiko-control-port-singleton-and-unique`.
+   The linter catches this via `ikanos-control-port-singleton-and-unique`.
 3. **Binding control to `0.0.0.0` in dev** — exposes management endpoints on
    all interfaces. Use `localhost` (the default) unless inside a container.
 4. **Forgetting binds for OTLP endpoint** — hardcoding `http://localhost:4318`
@@ -253,9 +253,9 @@ Prometheus scrapes the control port's `/metrics` automatically.
 ## References
 
 - Schema: `ExposesControl`, `ControlManagementSpec`, `ObservabilitySpec` in
-  `src/main/resources/schemas/naftiko-schema.json`
-- Spectral rules: `naftiko-control-port-singleton-and-unique`,
-  `naftiko-control-address-localhost-warning`
+  `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
+- Polychro Rules: `ikanos-control-port-singleton-and-unique`,
+  `ikanos-control-address-localhost-warning`
 - Blueprint: `src/main/resources/blueprints/control-port.md`
 - Blueprint: `src/main/resources/blueprints/opentelemetry-observability.md`
 - Blueprint: `src/main/resources/blueprints/inline-script-step.md`

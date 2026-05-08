@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Validate a Naftiko capability YAML file against:
-#   1. The Naftiko JSON Schema (naftiko-schema.json)
-#   2. The Naftiko Spectral Rules (naftiko-rules.yml)
+# Validate an Ikanos capability YAML file against:
+#   1. The Ikanos JSON Schema (ikanos-schema.json)
+#   2. The Ikanos Polychro Rules (ikanos-rules.yml)
 #
 # Usage: ./lint-capability.sh <path-to-capability.yml>
 
@@ -26,8 +26,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
 
-SCHEMA_FILE="$PROJECT_ROOT/src/main/resources/schemas/naftiko-schema.json"
-RULES_FILE="$PROJECT_ROOT/src/main/resources/rules/naftiko-rules.yml"
+SCHEMA_FILE="$PROJECT_ROOT/ikanos-spec/src/main/resources/schemas/ikanos-schema.json"
+RULES_FILE="$PROJECT_ROOT/ikanos-spec/src/main/resources/rules/ikanos-rules.yml"
 
 if [[ ! -f "$SCHEMA_FILE" ]]; then
   echo "Error: JSON Schema file not found: $SCHEMA_FILE" >&2
@@ -43,7 +43,7 @@ EXIT_CODE=0
 
 # ── Step 1: JSON Schema validation ──────────────────────────────
 # Uses ajv-cli v5, same as .github/workflows/validate-schemas.yml
-echo "==> Validating against JSON Schema (naftiko-schema.json)..."
+echo "==> Validating against JSON Schema (ikanos-schema.json)..."
 
 if ! npx -y ajv-cli@5 validate \
   -s "$SCHEMA_FILE" \
@@ -57,7 +57,7 @@ else
 fi
 
 # ── Step 2: Spectral linting ────────────────────────────────────
-echo "==> Running Spectral rules (naftiko-rules.yml)..."
+echo "==> Running Spectral rules (ikanos-rules.yml)..."
 
 if command -v spectral &> /dev/null; then
   spectral lint "$CAPABILITY_FILE" --ruleset "$RULES_FILE" || EXIT_CODE=1

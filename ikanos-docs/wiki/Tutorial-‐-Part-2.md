@@ -6,17 +6,17 @@ Part 2 adds four layers on top of Part 1's foundation without touching the core 
 
 Same YAML. Still no code.
 
-> ⚓ **Before you start.** You should have completed [Part 1](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-1) (Steps 1–7). All files for this part live alongside the earlier ones in `src/main/resources/tutorial/`.
+> ⚓ **Before you start.** You should have completed [Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-1) (Steps 1–7). All files for this part live alongside the earlier ones in `ikanos-docs/tutorial/`.
 
 ---
 
 ## Step 8 — Skill Groups
 
-**File:** `step-8-shipyard-skill-groups.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-8-shipyard-skill-groups.yml)
+**File:** `step-8-shipyard-skill-groups.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-8-shipyard-skill-groups.yml)
 
 Five tools today. Twenty tomorrow. Fifty next quarter. An agent landing on your MCP endpoint sees a flat list and has to figure out on its own which tools matter for *planning a voyage* versus *auditing the fleet*. That's noise, and noise burns context.
 
-**Agent Skills** are the table of contents for your toolbox. They group related tools under a business-facing label (`fleet-ops`, `voyage-ops`) with a description the agent reads *before* deciding what to do. The [Agent Skills website](https://agentskills.io/) documents the broader model; Naftiko exposes it as a third expose type alongside MCP and REST.
+**Agent Skills** are the table of contents for your toolbox. They group related tools under a business-facing label (`fleet-ops`, `voyage-ops`) with a description the agent reads *before* deciding what to do. The [Agent Skills website](https://agentskills.io/) documents the broader model; Ikanos exposes it as a third expose type alongside MCP and REST.
 
 ~~~yaml
 - type: skill
@@ -64,7 +64,7 @@ Typical workflow: **discover** with `GET /skills`, **inspect** with `GET /skills
 
 ## Step 9 — Aggregates & Ref
 
-**File:** `step-9-shipyard-aggregates.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-9-shipyard-aggregates.yml)
+**File:** `step-9-shipyard-aggregates.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-9-shipyard-aggregates.yml)
 
 Something's starting to smell. Step 7 defined a three-step chain inside `get-ship-with-crew` — fetch ship, fetch crew, lookup. Step 11 will chain seven steps for the Fleet Manifest. And the REST adapter in Step 10 wants to expose `get-ship-with-crew` too. That's the *same* logic needed in three places. Copy-paste is where capabilities go to die.
 
@@ -129,7 +129,7 @@ The tool output is byte-for-byte identical to Step 7. The *spec* got dramaticall
 
 ## Step 10 — REST adapter
 
-**File:** `step-10-shipyard-rest-adapter.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-10-shipyard-rest-adapter.yml)
+**File:** `step-10-shipyard-rest-adapter.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-10-shipyard-rest-adapter.yml)
 
 Not every consumer is an AI agent. The operations dashboard is a plain React app. The partner logistics company speaks OpenAPI. The mobile team doesn't care what MCP is — they want `GET /ships/{imo}` and they want it *now*.
 
@@ -186,9 +186,9 @@ Two things to notice. First, REST operations declare HTTP-level parameter placem
 
 **Files:** `step-11-shipyard-fleet-manifest.yml`, `shared/step11-registry-consumes.yml`, `shared/legacy-consumes.yaml`
 
-- [step-11-shipyard-fleet-manifest.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-11-shipyard-fleet-manifest.yml)
-- [step11-registry-consumes.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step11-registry-consumes.yml)
-- [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
+- [step-11-shipyard-fleet-manifest.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-11-shipyard-fleet-manifest.yml)
+- [step11-registry-consumes.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step11-registry-consumes.yml)
+- [legacy-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 The voyage is planned. The crew is confirmed. Oslo to Singapore, Northern Star, Captain Erik, Aiko in the galley. And now operations walks in with the final ask: *"I need one document. Voyage, ship, crew, cargo — all of it, resolved, in one payload. Before the ship leaves."*
 
@@ -294,7 +294,7 @@ Three front doors (MCP, Skills, REST) share one engine, one set of consumes, one
 
 That's the Shipyard.
 
-**File:** `step-9-shipyard-rest-adapter.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-9-shipyard-rest-adapter.yml)
+**File:** `step-9-shipyard-rest-adapter.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-9-shipyard-rest-adapter.yml)
 
 Not every consumer is an AI agent. The operations dashboard is a plain React app. The partner logistics company speaks OpenAPI. The mobile app team doesn't even know what MCP is — they want `GET /ships/{imo}` and they want it *now*.
 
@@ -341,7 +341,7 @@ Exactly the same `call` + `with` wiring you learned in Part 1 — just a differe
 
 **Files:** `step-10-shipyard-fleet-manifest.yml`, `shared/step10-registry-consumes.yml`, `shared/legacy-consumes.yaml`
 
-- [step-10-shipyard-fleet-manifest.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-10-shipyard-fleet-manifest.yml)
+- [step-10-shipyard-fleet-manifest.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-10-shipyard-fleet-manifest.yml)
 
 The voyage is planned. The crew is confirmed. Oslo to Singapore, Northern Star, Captain Erik, Aiko in the galley. Now operations walks in and says: *"I need one document. Ship, crew, cargo — all of it, resolved, in one payload. Before the ship leaves."*
 

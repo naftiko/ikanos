@@ -7,7 +7,7 @@ design — defining the exposed shape before any upstream service is available.
 You need the MCP tool or REST endpoint to return realistic, shaped data so
 consumers (agents, developers, tests) can start integrating immediately.
 
-## Naftiko pattern
+## Ikanos pattern
 
 A **mock capability** is a capability that omits `consumes`, `call`, and
 `steps`. Output parameters carry a `value` field instead of a `mapping` field.
@@ -33,7 +33,7 @@ parameter shape works for both adapter types.
 ## Minimal MCP mock example
 
 ```yaml
-naftiko: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha1"
 
 capability:
   exposes:
@@ -58,7 +58,7 @@ capability:
 ## Minimal REST mock example
 
 ```yaml
-naftiko: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha1"
 
 capability:
   exposes:

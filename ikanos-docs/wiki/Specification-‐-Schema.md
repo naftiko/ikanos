@@ -1,4 +1,4 @@
-# Naftiko Specification - Schema
+# Ikanos Specification - Schema
 
 **Version:** {{RELEASE_TAG}}
 
@@ -6,9 +6,9 @@
 
 ## 1. Introduction
 
-The Naftiko Specification defines a standard, language-agnostic interface for describing modular, composable capabilities. In short, a **capability** is a functional unit that consumes external APIs (sources) and exposes adapters that allow other systems to interact with it.
+The Ikanos Specification defines a standard, language-agnostic interface for describing modular, composable capabilities. In short, a **capability** is a functional unit that consumes external APIs (sources) and exposes adapters that allow other systems to interact with it.
 
-A Naftiko capability focuses on declaring the **integration intent** — what a system needs to consume and what it exposes — rather than implementation details. This higher-level abstraction makes capabilities naturally suitable for AI-driven discovery, orchestration and integration use cases, and beyond. When properly defined, a capability can be discovered, orchestrated, validated and executed with minimal implementation logic. The specification enables description of:
+A Ikanos capability focuses on declaring the **integration intent** — what a system needs to consume and what it exposes — rather than implementation details. This higher-level abstraction makes capabilities naturally suitable for AI-driven discovery, orchestration and integration use cases, and beyond. When properly defined, a capability can be discovered, orchestrated, validated and executed with minimal implementation logic. The specification enables description of:
 
 - **Consumed sources**: External APIs or services that the capability uses
 - **Exposed adapters**: Server interfaces that the capability provides (HTTP, REST, etc.)
@@ -17,10 +17,10 @@ A Naftiko capability focuses on declaring the **integration intent** — what a 
 
 ### 1.1 Schema Access
 
-The JSON Schema for the Naftiko Specification is available in two forms:
+The JSON Schema for the Ikanos Specification is available in two forms:
 
-- **Raw file** — The schema source file is hosted on GitHub: [naftiko-schema.json](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/naftiko-schema.json)
-- **Interactive viewer** — A human-friendly viewer is available at: [Schema Viewer](https://naftiko.github.io/schema-viewer/)
+- **Raw file** — The schema source file is hosted on GitHub: [ikanos-schema.json](https://github.com/naftiko/ikanos/blob/main/ikanos-spec/src/main/resources/schemas/ikanos-schema.json)
+- **Interactive viewer** — A human-friendly viewer is available at: [Schema Viewer](https://Ikanos.github.io/schema-viewer/)
 
 ### 1.2 Core Objects
 
@@ -51,13 +51,13 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 <aside>
 💡
 
-**Acknowledgments** — The Naftiko Specification is inspired by and builds upon foundational work from [OpenAPI](https://www.openapis.org/), [Arazzo](https://spec.openapis.org/arazzo/latest.html), and [OpenCollections](https://opencollections.io/). We gratefully credit these initiatives and their communities for the patterns and conventions that informed this specification.
+**Acknowledgments** — The Ikanos Specification is inspired by and builds upon foundational work from [OpenAPI](https://www.openapis.org/), [Arazzo](https://spec.openapis.org/arazzo/latest.html), and [OpenCollections](https://opencollections.io/). We gratefully credit these initiatives and their communities for the patterns and conventions that informed this specification.
 
 </aside>
 
 Three specifications that work better together.
 
-|  | **OpenAPI** | **Arazzo** | **OpenCollections** | **Naftiko** |
+|  | **OpenAPI** | **Arazzo** | **OpenCollections** | **Ikanos** |
 | --- | --- | --- | --- | --- |
 | **Focus** | Defines *what* your API is — the contract, the schema, the structure. | Defines *how* API calls are sequenced — the workflows between endpoints. | Defines *how* to use your API — the scenarios, the runnable collections. | Defines *what* a capability consumes and exposes — the integration intent. |
 | **Scope** | Single API surface | Workflows across one or more APIs | Runnable collections of API calls | Modular capability spanning multiple APIs |
@@ -65,17 +65,17 @@ Three specifications that work better together.
 | **Analogy** | The *parts list* and dimensions | The *assembly sequence* between parts | The *step-by-step assembly guide* you can run | The *product blueprint* — what goes in, what comes out |
 | **Best used when you need to…** | Define & document an API contract, generate SDKs, validate payloads | Describe multi-step API workflows with dependencies | Share runnable API examples, test workflows, onboard developers | Declare a composable capability that consumes sources and exposes unified interfaces |
 
-**OpenAPI** tells you the shape of the door. **Arazzo** describes the sequence of doors to walk through. **OpenCollections** lets you actually walk through them. **Naftiko** combines the features of those 3 specs into a single, coherent spec, reducing complexity and offering consistent tooling out of the box
+**OpenAPI** tells you the shape of the door. **Arazzo** describes the sequence of doors to walk through. **OpenCollections** lets you actually walk through them. **Ikanos** combines the features of those 3 specs into a single, coherent spec, reducing complexity and offering consistent tooling out of the box
 
 ---
 
 ## 2. Format
 
-Naftiko specifications can be represented in YAML format, complying with the provided Naftiko schema which is made available in both JSON Schema and [JSON Structure](https://json-structure.org/) formats.
+Ikanos Specifications can be represented in YAML format, complying with the provided Ikanos schema which is made available in both JSON Schema and [JSON Structure](https://json-structure.org/) formats.
 
 All field names in the specification are **case-sensitive**.
 
-Naftiko Objects expose two types of fields:
+Ikanos Objects expose two types of fields:
 
 - **Fixed fields**: which have a declared name
 - **Patterned fields**: which have a declared pattern for the field name
@@ -84,22 +84,22 @@ Naftiko Objects expose two types of fields:
 
 ## 3. Objects and Fields
 
-### 3.1 Naftiko Object
+### 3.1 Ikanos Object
 
-This is the root object of the Naftiko document.
+This is the root object of the Ikanos document.
 
 #### 3.1.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"0.5"` for this version. |
+| **Ikanos** | `string` | **REQUIRED**. Version of the Ikanos schema. MUST be `"0.5"` for this version. |
 | **info** | `Info` | *Recommended*. Metadata about the capability. |
 | **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
 | **binds** | `Bind[]` | List of external bindings for variable injection. Each entry declares injected variables via a `keys` map. |
 
 #### 3.1.2 Rules
 
-- The `naftiko` field MUST be present and MUST have the value `"0.5"` for documents conforming to this version of the specification.
+- The `Ikanos` field MUST be present and MUST have the value `"0.5"` for documents conforming to this version of the specification.
 - The `capability` object MUST be present. The `info` object is recommended.
 - The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
 - No additional properties are allowed at the root level.
@@ -489,7 +489,7 @@ MCP Server exposition configuration. Exposes capability operations as MCP tools,
 
 **MCP Initialize Capabilities:**
 
-During the MCP `initialize` handshake, the Naftiko runtime advertises the server's supported capability groups to the connecting client. The advertised capabilities are derived directly from the MCP Expose configuration:
+During the MCP `initialize` handshake, the Ikanos runtime advertises the server's supported capability groups to the connecting client. The advertised capabilities are derived directly from the MCP Expose configuration:
 
 - **`tools`** — advertised when the `tools` array is present and contains at least one entry.
 - **`resources`** — advertised when the `resources` array is present and contains at least one entry.
@@ -706,7 +706,7 @@ resources:
     uri: docs://api/reference
     description: "API reference documentation served from local markdown files"
     mimeType: text/markdown
-    location: file:///etc/naftiko/resources/api-docs
+    location: file:///etc/Ikanos/resources/api-docs
 ```
 
 ---
@@ -1875,7 +1875,7 @@ Executes a sandboxed script file to transform, filter, or aggregate data between
 - `type`, `name`, and `file` are mandatory.
 - `language` is optional only when `management.scripting.defaultLanguage` is configured on the Control Port; otherwise it is effectively required at runtime.
 - `location` is optional only when `management.scripting.defaultLocation` is configured on the Control Port; otherwise it is effectively required at runtime.
-- The Spectral rule `naftiko-script-defaults-required` validates that omitted `language`/`location` fields have corresponding Control Port defaults.
+- The Spectral rule `ikanos-script-defaults-required` validates that omitted `language`/`location` fields have corresponding Control Port defaults.
 - Previous step results are bound as variables using the step name (camelCased).
 - The script MUST assign to the `result` variable to produce output.
 - No additional properties are allowed.
@@ -2263,7 +2263,7 @@ with:
 > **Updated**: The former `ExternalRef` discriminated union (file-resolved / runtime-resolved) has been replaced by a single **`Bind`** object. The `name` field is now `namespace`, `type` and `resolution` have been removed, and `uri` has been replaced by the optional `location` field. Variable names (keys in the `keys` map) now follow `SCREAMING_SNAKE_CASE` convention.
 > 
 
-Declares an external binding that provides variables to the capability. Bindings are declared at the root level of the Naftiko document via the `binds` array.
+Declares an external binding that provides variables to the capability. Bindings are declared at the root level of the Ikanos document via the `binds` array.
 
 #### 3.19.1 Fixed Fields
 
@@ -2425,7 +2425,7 @@ The simplest capability: forward incoming requests to a consumed API without any
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 info:
   label: "Notion Proxy"
   description: "Pass-through proxy to the Notion API for development and debugging"
@@ -2468,7 +2468,7 @@ A single exposed operation that directly calls a consumed operation, maps parame
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 binds:
   - namespace: "env"
     keys:
@@ -2547,7 +2547,7 @@ An exposed operation that chains two consumed operations using named steps and `
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 binds:
   - namespace: "env"
     keys:
@@ -2656,7 +2656,7 @@ Demonstrates a `lookup` step that cross-references the output of a previous call
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 binds:
   - namespace: "env"
     keys:
@@ -2755,7 +2755,7 @@ Combines forward proxy, simple-mode operations, orchestrated multi-step with loo
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 binds:
   - namespace: "env"
     keys:
@@ -2843,7 +2843,7 @@ capability:
                   name: "list-github-users"
                   call: "github.list-org-members"
                   with:
-                    org: "naftiko"
+                    org: "Ikanos"
                 - type: "lookup"
                   name: "match-contributors"
                   index: "list-github-users"
@@ -2960,7 +2960,7 @@ Exposes a single MCP tool over Streamable HTTP that calls a consumed operation, 
 
 ```yaml
 ---
-naftiko: "0.5"
+ikanos: "0.5"
 binds:
   - namespace: "env"
     keys:
@@ -3020,9 +3020,9 @@ capability:
 
 ## 5. Versioning
 
-The Naftiko Specification uses semantic versioning. The `naftiko` field in the Naftiko Object specifies the exact version of the specification (e.g., `"0.5"`). 
+The Ikanos Specification uses semantic versioning. The `Ikanos` field in the Ikanos Object specifies the exact version of the specification (e.g., `"0.5"`). 
 
-Tools processing Naftiko documents MUST validate this field to ensure compatibility with the specification version they support.
+Tools processing Ikanos documents MUST validate this field to ensure compatibility with the specification version they support.
 
 ---
 

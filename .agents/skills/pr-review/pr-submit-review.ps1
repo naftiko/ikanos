@@ -46,12 +46,12 @@
       "body": "Two findings — see inline comments.",
       "comments": [
         {
-          "path": "src/test/java/io/naftiko/engine/EngineFieldThreadSafetyTest.java",
+          "path": "ikanos-engine/src/test/java/io/ikanos/engine/EngineFieldThreadSafetyTest.java",
           "line": 68,
           "body": "This uses getDeclaredFields() via reflection..."
         },
         {
-          "path": "src/main/java/io/naftiko/Capability.java",
+          "path": "ikanos-engine/src/main/java/io/ikanos/Capability.java",
           "line": 152,
           "body": "`this` escapes here before clientAdapters/serverAdapters are published..."
         }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shared utilities for Naftiko version synchronization.
+Shared utilities for Ikanos version synchronization.
 """
 
 import re
@@ -42,7 +42,7 @@ def update_yaml_version(file_path, new_version):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        pattern = r'(naftiko:\s*")[^"]*(")'
+        pattern = r'(ikanos:\s*")[^"]*(")'
         replacement = rf'\g<1>{new_version}\g<2>'
 
         updated_content = re.sub(pattern, replacement, content)

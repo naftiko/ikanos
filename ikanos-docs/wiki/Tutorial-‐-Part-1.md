@@ -6,7 +6,7 @@ Good news: you don't have to. This tutorial opens with a **mock**. One YAML file
 
 No code. Just a spec. Contract-first.
 
-> ⚓ **Prerequisites.** A running Naftiko Engine (see the [installation instructions](https://github.com/naftiko/framework/wiki/Installation)). All capability files for this tutorial live in `src/main/resources/tutorial/`.
+> ⚓ **Prerequisites.** A running Ikanos Engine (see the [installation instructions](https://github.com/naftiko/ikanos/wiki/Installation)). All capability files for this tutorial live in `ikanos-docs/tutorial/`.
 >
 > **Editor support.** For inline validation and autocompletion while writing capability files, install the free [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code). Name your files `*.naftiko.yaml` / `*.naftiko.yml` to activate it.
 
@@ -14,14 +14,14 @@ No code. Just a spec. Contract-first.
 
 ## Step 1 — Mock First
 
-**File:** `step-1-shipyard-mock.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-1-shipyard-mock.yml)
+**File:** `step-1-shipyard-mock.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-1-shipyard-mock.yml)
 
 You don't have a backend. You *will*, eventually — but operations hasn't finished migrating ship data, and the registry API is still in review. Meanwhile, the agent needs to demo next week.
 
 Contract-first says: define what the agent sees *first*, fill it with mock data, worry about the wire later. One expose block, one tool, no `consumes`, no `call`. Just `value`:
 
 ~~~yaml
-naftiko: "1.0.0-alpha2"
+ikanos: "1.0.0-alpha2"
 
 capability:
   exposes:
@@ -69,7 +69,7 @@ The agent works. The contract is locked. Step 2 will swap every `value` for a `m
 
 ## Step 2 — Wiring to a real API
 
-**File:** `step-2-shipyard-wiring.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-2-shipyard-wiring.yml)
+**File:** `step-2-shipyard-wiring.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-2-shipyard-wiring.yml)
 
 The Maritime Registry is live. `GET /ships/{imo_number}` returns real data. Time to honor the contract you defined in Step 1 — same tool signature, same output shape, real data behind it.
 
@@ -155,7 +155,7 @@ The mock is gone. The contract survived.
 
 ## Step 3 — Auth & Binds — both doors
 
-**File:** `step-3-shipyard-auth.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-3-shipyard-auth.yml)
+**File:** `step-3-shipyard-auth.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-3-shipyard-auth.yml)
 
 The registry's public tier returns 5 fields per ship. Nice for a demo, useless for operations. Specs, dimensions, certifications, crew assignments — all of that sits behind a bearer token. And while we're handling tokens, there's a second door to lock: the MCP server itself. Right now *anyone* on the network can call `get-ship`. Not acceptable.
 
@@ -212,7 +212,7 @@ mcp-server-token: "sk-mcp-YYYYYYYYYYYY"
 
 ## Step 4 — Shaping the ship card
 
-**File:** `step-4-shipyard-output-shaping.yml` — [download](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-4-shipyard-output-shaping.yml)
+**File:** `step-4-shipyard-output-shaping.yml` — [download](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-4-shipyard-output-shaping.yml)
 
 Auth unlocked the firehose. 30+ fields on every `get-ship` call: year built, gross tonnage, length overall, beam, draft, classification society, certifications, crew assignments, port of registry… An agent asked *"tell me about Northern Star"* doesn't need all of that. It needs a **ship card**.
 
@@ -262,9 +262,9 @@ Four steps in. Contract-first → wire → auth → shape. A clean progression.
 
 **Files:** `step-5-shipyard-multi-source.yml`, `shared/step5-registry-consumes.yaml`, `shared/legacy-consumes.yaml`
 
-- [step-5-shipyard-multi-source.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-5-shipyard-multi-source.yml)
-- [step5-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step5-registry-consumes.yaml)
-- [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
+- [step-5-shipyard-multi-source.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-5-shipyard-multi-source.yml)
+- [step5-registry-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step5-registry-consumes.yaml)
+- [legacy-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Data rarely sits in one place. The modern registry is clean, but older vessels still live in the **legacy Dockyard** — a system that predates JSON, speaks **XML**, and authenticates with an API key instead of a bearer token.
 
@@ -329,9 +329,9 @@ Two tools now, one per source: `list-ships` (registry) and `list-legacy-vessels`
 
 **Files:** `step-6-shipyard-write-operations.yml`, `shared/step6-registry-consumes.yaml`, `shared/legacy-consumes.yaml`
 
-- [step-6-shipyard-write-operations.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-6-shipyard-write-operations.yml)
-- [step6-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step6-registry-consumes.yaml)
-- [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
+- [step-6-shipyard-write-operations.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-6-shipyard-write-operations.yml)
+- [step6-registry-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step6-registry-consumes.yaml)
+- [legacy-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Captain Erik Lindström walks into the office. He wants to take the *Northern Star* from Oslo to Singapore. He's got his crew lined up, his cargo booked, the dates locked. Can the agent plan the voyage? Right now: no. Every tool so far is read-only — the agent can *observe* the shipyard, never *act* on it.
 
@@ -384,9 +384,9 @@ Captain Erik has his voyage. The agent went from observer to operator.
 
 **Files:** `step-7-shipyard-orchestrated-lookup.yml`, `shared/step7-registry-consumes.yaml`, `shared/legacy-consumes.yaml`
 
-- [step-7-shipyard-orchestrated-lookup.yml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-7-shipyard-orchestrated-lookup.yml)
-- [step7-registry-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step7-registry-consumes.yaml)
-- [legacy-consumes.yaml](https://raw.githubusercontent.com/naftiko/framework/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
+- [step-7-shipyard-orchestrated-lookup.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/step-7-shipyard-orchestrated-lookup.yml)
+- [step7-registry-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/step7-registry-consumes.yaml)
+- [legacy-consumes.yaml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha2/src/main/resources/tutorial/shared/legacy-consumes.yaml)
 
 Back to the captain. He insists on his cook: *"No Aiko, no departure."* The agent calls `get-ship` for the Northern Star and gets back `assignedCrew: ["CREW-001", "CREW-003"]`. Raw IDs. Useless. Who is CREW-003? Is that Aiko?
 
@@ -466,4 +466,4 @@ No code. Welcome to Spec-Driven Integration.
 
 Ready to expose your tools as **Agent Skills**, factor logic into reusable **aggregates**, add a **REST front door**, and assemble a full **Fleet Manifest** capstone?
 
-Continue with [Tutorial — Part 2](https://github.com/naftiko/framework/wiki/Tutorial-%E2%80%90-Part-2).
+Continue with [Tutorial — Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-2).
