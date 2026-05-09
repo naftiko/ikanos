@@ -160,6 +160,44 @@ public class TracesCommandTest {
     }
 
     @Test
+    void tracesShouldApplyOperationAndStatusFiltersInRequest() {
+        final String[] requestUri = {""};
+        server.createContext("/traces", exchange -> {
+            requestUri[0] = exchange.getRequestURI().toString();
+            byte[] body = "{\"traces\":[],\"bufferSize\":100,\"bufferUsed\":0}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port),
+                "--operation", "get-forecast", "--status", "ERROR");
+
+        assertEquals(0, exitCode);
+        assertTrue(requestUri[0].contains("operation=get-forecast"));
+        assertTrue(requestUri[0].contains("status=ERROR"));
+    }
+
+    @Test
+    void tracesShouldShowNoSpansMessageForEmptyTraceDetail() {
+        server.createContext("/traces/trace-123", exchange -> {
+            byte[] body = "{\"traceId\":\"trace-123\",\"spans\":[]}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port), "trace-123");
+
+        assertEquals(0, exitCode);
+        assertTrue(outCapture.toString().contains("no spans"));
+    }
+
+    @Test
     void formatDurationShouldFormatMilliseconds() {
         assertEquals("342ms", TracesCommand.formatDuration(342));
     }

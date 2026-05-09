@@ -99,4 +99,40 @@ public class ExportOpenApiCommandTest {
         String content = Files.readString(output);
         assertTrue(content.contains("\"openapi\""));
     }
+
+    @Test
+    void exportShouldFailWhenCapabilityFileDoesNotExist() {
+        CommandLine cmd = new CommandLine(new Cli());
+
+        int exitCode = cmd.execute("export", "openapi", "missing-capability.yml");
+
+        assertEquals(1, exitCode);
+    }
+
+    @Test
+    void exportShouldFailWhenSpecVersionIsUnsupported() throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "1.0.0-alpha1"
+                info:
+                  label: "Spec Version Test"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      resources:
+                        - path: /items
+                          name: items
+                          operations:
+                            - method: GET
+                              name: list-items
+                """);
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("export", "openapi", capFile.toString(),
+                "--spec-version", "2.0");
+
+        assertEquals(1, exitCode);
+    }
 }

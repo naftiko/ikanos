@@ -19,8 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,6 +33,25 @@ public class ValidateCommandTest {
 
     @TempDir
     Path tempDir;
+
+    private final PrintStream originalOut = System.out;
+    private final PrintStream originalErr = System.err;
+    private ByteArrayOutputStream outCapture;
+    private ByteArrayOutputStream errCapture;
+
+    @BeforeEach
+    void setUp() {
+        outCapture = new ByteArrayOutputStream();
+        errCapture = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(outCapture, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(errCapture, true, StandardCharsets.UTF_8));
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.setOut(originalOut);
+        System.setErr(originalErr);
+    }
 
     @Test
     public void loadFileShouldParseYaml() throws Exception {
@@ -76,4 +98,65 @@ public class ValidateCommandTest {
         assertEquals(1, exitCode);
         assertTrue(err.toString().contains("Error: Unsupported file format. Only .yaml and .yml are supported."));
     }
+
+        @Test
+        public void callShouldFailWhenInputFileDoesNotExist() {
+                Path missing = tempDir.resolve("missing.yaml");
+
+                int exitCode = new CommandLine(new ValidateCommand()).execute(missing.toString());
+
+                assertEquals(1, exitCode);
+                assertTrue(errCapture.toString().contains("Error: File not found"));
+        }
+
+        @Test
+        public void callShouldFailWhenSchemaVersionIsUnsupported() {
+                Path yaml = tempDir.resolve("capability.yaml");
+                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+
+                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "9.9");
+
+                assertEquals(1, exitCode);
+                assertTrue(errCapture.toString().contains("Schema ikanos-schema-v9.9.json is not supported"));
+        }
+
+        @Test
+        public void callShouldFailWhenValidationDetectsSchemaErrors() {
+                Path yaml = tempDir.resolve("invalid-capability.yaml");
+                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\ninfo: {}\n"));
+
+                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+                assertEquals(1, exitCode);
+                assertTrue(errCapture.toString().contains("Validation failed"));
+        }
+
+        @Test
+        public void callShouldSucceedForValidCapabilityYaml() {
+                Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
+                                .toAbsolutePath().normalize();
+
+                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+                assertEquals(0, exitCode);
+                assertTrue(outCapture.toString().contains("Validation successful"));
+        }
+
+        @Test
+        public void callShouldReturnOneWhenUnexpectedExceptionOccurs() {
+                ValidateCommand command = new ValidateCommand() {
+                        @Override
+                        JsonNode loadFile(java.io.File file) {
+                                throw new RuntimeException("boom");
+                        }
+                };
+
+                Path yaml = tempDir.resolve("unexpected.yaml");
+                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+
+                int exitCode = new CommandLine(command).execute(yaml.toString());
+
+                assertEquals(1, exitCode);
+                assertTrue(errCapture.toString().contains("Error: boom"));
+        }
 }
