@@ -746,6 +746,539 @@ public class OasImportConverterTest {
         assertEquals("string", inputs.get(0).getType());
     }
 
+    // ── B2: Additional branch-coverage tests ──
+
+    @Test
+    void convertShouldUsePlaceholderBaseUriWhenServerUrlIsSlash() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setServers(List.of(server("/")));
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://api.example.com", result.getHttpClient().getBaseUri());
+    }
+
+    @Test
+    void convertShouldUsePlaceholderBaseUriWhenServerUrlIsEmpty() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setServers(List.of(server("")));
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://api.example.com", result.getHttpClient().getBaseUri());
+    }
+
+    @Test
+    void convertShouldUsePlaceholderBaseUriWhenServersListIsEmpty() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setServers(List.of());
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://api.example.com", result.getHttpClient().getBaseUri());
+    }
+
+    @Test
+    void convertShouldUsePlaceholderNamespaceWhenInfoIsNull() {
+        OpenAPI openApi = new OpenAPI();
+        openApi.setServers(List.of(server("https://api.example.com")));
+        openApi.setPaths(new Paths());
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("unknown-api", result.getHttpClient().getNamespace());
+    }
+
+    @Test
+    void convertShouldWarnOnUnsupportedHttpScheme() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setPaths(new Paths());
+        Components components = new Components();
+        SecurityScheme scheme = new SecurityScheme()
+                .type(SecurityScheme.Type.HTTP)
+                .scheme("ntlm");
+        components.addSecuritySchemes("ntlm", scheme);
+        openApi.setComponents(components);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertNull(result.getHttpClient().getAuthentication());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("Unsupported HTTP security scheme")));
+    }
+
+    @Test
+    void convertShouldSkipAuthenticationWhenNoComponents() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setPaths(new Paths());
+        openApi.setComponents(null);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertNull(result.getHttpClient().getAuthentication());
+    }
+
+    @Test
+    void convertShouldSkipAuthenticationWhenSecuritySchemesAreEmpty() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setPaths(new Paths());
+        openApi.setComponents(new Components());
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertNull(result.getHttpClient().getAuthentication());
+    }
+
+    @Test
+    void convertShouldHandleNonObjectRequestBodyAsSingleParam() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("upload", "Upload data", null);
+        RequestBody body = new RequestBody();
+        body.setRequired(true);
+        body.setContent(new Content().addMediaType("application/json",
+                new MediaType().schema(new StringSchema())));
+        op.setRequestBody(body);
+
+        paths.addPathItem("/upload", pathItem("POST", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters();
+        assertEquals(1, inputs.size());
+        assertEquals("body", inputs.get(0).getName());
+        assertEquals("body", inputs.get(0).getIn());
+        assertTrue(inputs.get(0).isRequired());
+    }
+
+    @Test
+    void convertShouldHandleRequestBodyWithNullContent() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("post", "Post data", null);
+        RequestBody body = new RequestBody();
+        body.setContent(null);
+        op.setRequestBody(body);
+
+        paths.addPathItem("/data", pathItem("POST", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertTrue(result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters().isEmpty());
+    }
+
+    @Test
+    void convertShouldFallbackToNonJsonMediaTypeForRequestBody() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("post", "Post data", null);
+        RequestBody body = new RequestBody();
+        ObjectSchema schema = new ObjectSchema();
+        schema.addProperty("data", new StringSchema());
+        body.setContent(new Content().addMediaType("application/xml",
+                new MediaType().schema(schema)));
+        op.setRequestBody(body);
+
+        paths.addPathItem("/data", pathItem("POST", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters();
+        assertEquals(1, inputs.size());
+        assertEquals("data", inputs.get(0).getName());
+    }
+
+    @Test
+    void convertShouldMapNonObjectRequestBodyWithNullRequired() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("upload", "Upload", null);
+        RequestBody body = new RequestBody();
+        body.setRequired(null);
+        body.setContent(new Content().addMediaType("application/json",
+                new MediaType().schema(new StringSchema())));
+        op.setRequestBody(body);
+
+        paths.addPathItem("/upload", pathItem("POST", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        InputParameterSpec param = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters().get(0);
+        assertFalse(param.isRequired());
+    }
+
+    @Test
+    void convertShouldMapAllOfOutputResponseByMergingProperties() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Schema<?> baseSchema = new ObjectSchema();
+        baseSchema.addProperty("id", new IntegerSchema());
+
+        Schema<?> extSchema = new ObjectSchema();
+        extSchema.addProperty("name", new StringSchema());
+
+        Schema<?> composedSchema = new Schema<>();
+        composedSchema.setAllOf(List.of(baseSchema, extSchema));
+
+        Operation op = operation("get", "Get item", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(composedSchema))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/items", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters();
+        assertEquals(2, outputs.size());
+    }
+
+    @Test
+    void convertShouldMapOneOfOutputResponseUsingFirstVariant() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Schema<?> variant1 = new ObjectSchema();
+        variant1.addProperty("text", new StringSchema());
+
+        Schema<?> variant2 = new ObjectSchema();
+        variant2.addProperty("number", new IntegerSchema());
+
+        Schema<?> composedSchema = new Schema<>();
+        composedSchema.setOneOf(List.of(variant1, variant2));
+
+        Operation op = operation("get", "Get", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(composedSchema))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/data", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters();
+        assertEquals(1, outputs.size());
+        assertEquals("text", outputs.get(0).getName());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("oneOf")));
+    }
+
+    @Test
+    void convertShouldMapScalarOutputResponse() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("count", "Count items", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(new IntegerSchema()))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/count", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters();
+        assertEquals(1, outputs.size());
+        assertEquals("number", outputs.get(0).getType());
+        assertEquals("$", outputs.get(0).getMapping());
+    }
+
+    @Test
+    void convertShouldMapArrayOutputWithPrimitiveItems() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        ArraySchema arraySchema = new ArraySchema();
+        arraySchema.setItems(new StringSchema());
+
+        Operation op = operation("list", "List tags", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(arraySchema))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/tags", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters();
+        assertEquals(1, outputs.size());
+        assertEquals("array", outputs.get(0).getType());
+        assertNotNull(outputs.get(0).getItems());
+        assertEquals("string", outputs.get(0).getItems().getType());
+    }
+
+    @Test
+    void convertShouldMapPropertyArrayWithPrimitiveItems() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        ObjectSchema responseSchema = new ObjectSchema();
+        ArraySchema tagArray = new ArraySchema();
+        tagArray.setItems(new StringSchema());
+        responseSchema.addProperty("tags", tagArray);
+
+        Operation op = operation("get", "Get", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(responseSchema))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/item", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters();
+        OutputParameterSpec tagsParam = outputs.stream()
+                .filter(o -> "tags".equals(o.getName())).findFirst().orElseThrow();
+        assertEquals("array", tagsParam.getType());
+        assertNotNull(tagsParam.getItems());
+        assertEquals("string", tagsParam.getItems().getType());
+    }
+
+    @Test
+    void convertShouldMapPropertyArrayWithObjectItems() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        ObjectSchema responseSchema = new ObjectSchema();
+        ArraySchema itemsArray = new ArraySchema();
+        ObjectSchema itemSchema = new ObjectSchema();
+        itemSchema.addProperty("name", new StringSchema());
+        itemsArray.setItems(itemSchema);
+        responseSchema.addProperty("results", itemsArray);
+
+        Operation op = operation("search", "Search", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(responseSchema))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/search", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        OutputParameterSpec resultsParam = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters().stream()
+                .filter(o -> "results".equals(o.getName())).findFirst().orElseThrow();
+        assertEquals("array", resultsParam.getType());
+        assertNotNull(resultsParam.getItems());
+        assertEquals("object", resultsParam.getItems().getType());
+    }
+
+    @Test
+    void convertShouldFallbackToNonJsonResponseMediaType() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("get", "Get XML", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("200", new ApiResponse()
+                .content(new Content().addMediaType("application/xml",
+                        new MediaType().schema(new ObjectSchema()
+                                .addProperty("value", new StringSchema())))));
+        op.setResponses(responses);
+
+        paths.addPathItem("/data", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertFalse(result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters().isEmpty());
+    }
+
+    @Test
+    void convertShouldReturnNullOutputsWhenNoSuccessResponse() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("delete", "Delete item", null);
+        ApiResponses responses = new ApiResponses();
+        responses.addApiResponse("404", new ApiResponse().description("Not found"));
+        op.setResponses(responses);
+
+        paths.addPathItem("/items/1", pathItem("DELETE", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertTrue(result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getOutputParameters().isEmpty());
+    }
+
+    @Test
+    void convertShouldGroupHeadAndOptionsOperations() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        PathItem item = new PathItem();
+        item.setHead(operation("headPets", "Head pets", null));
+        item.setOptions(operation("optionsPets", "Options pets", null));
+        paths.addPathItem("/pets", item);
+
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals(1, result.getHttpClient().getResources().size());
+        assertEquals(2, result.getHttpClient().getResources().get(0).getOperations().size());
+    }
+
+    @Test
+    void convertShouldMapInputParameterWithNullRequired() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("get", "Get", null);
+        Parameter param = new Parameter();
+        param.setName("filter");
+        param.setIn("query");
+        param.setRequired(null);
+        param.setSchema(new StringSchema());
+        op.setParameters(List.of(param));
+
+        paths.addPathItem("/items", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters().get(0);
+        assertFalse(inputParam.isRequired());
+    }
+
+    @Test
+    void convertShouldMapPathParameterAsRequiredByDefault() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("get", "Get", null);
+        Parameter param = new Parameter();
+        param.setName("id");
+        param.setIn("path");
+        param.setRequired(null);
+        param.setSchema(new StringSchema());
+        op.setParameters(List.of(param));
+
+        paths.addPathItem("/items/{id}", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters().get(0);
+        assertTrue(inputParam.isRequired());
+    }
+
+    @Test
+    void convertShouldMapInputParameterWithNullSchemaType() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Paths paths = new Paths();
+
+        Operation op = operation("get", "Get", null);
+        Parameter param = new Parameter();
+        param.setName("q");
+        param.setIn("query");
+        param.setSchema(new Schema<>());
+        op.setParameters(List.of(param));
+
+        paths.addPathItem("/search", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
+                .getOperations().get(0).getInputParameters().get(0);
+        assertNull(inputParam.getType());
+    }
+
+    @Test
+    void toKebabCaseShouldReturnNullForNullInput() {
+        assertNull(OasImportConverter.toKebabCase(null));
+    }
+
+    @Test
+    void mapSchemaTypeShouldReturnStringForNull() {
+        assertEquals("string", OasImportConverter.mapSchemaType(null));
+    }
+
+    @Test
+    void mapSchemaTypeShouldMapBooleanToBoolean() {
+        assertEquals("boolean", OasImportConverter.mapSchemaType("boolean"));
+    }
+
+    @Test
+    void mapSchemaTypeShouldMapArrayToArray() {
+        assertEquals("array", OasImportConverter.mapSchemaType("array"));
+    }
+
+    @Test
+    void mapSchemaTypeShouldMapObjectToObject() {
+        assertEquals("object", OasImportConverter.mapSchemaType("object"));
+    }
+
+    @Test
+    void mapSchemaTypeShouldMapNumberToNumber() {
+        assertEquals("number", OasImportConverter.mapSchemaType("number"));
+    }
+
+    @Test
+    void mapSchemaTypeShouldMapUnknownToString() {
+        assertEquals("string", OasImportConverter.mapSchemaType("binary"));
+    }
+
+    @Test
+    void resolveSchemaTypeShouldReturnNullWhenOnlyNullInTypes() {
+        Schema<?> schema = new Schema<>(SpecVersion.V31);
+        schema.setTypes(Set.of("null"));
+
+        assertEquals("null", OasImportConverter.resolveSchemaType(schema));
+    }
+
+    @Test
+    void deriveResourceNameShouldReturnRootForSlashPath() {
+        assertEquals("root", converter.deriveResourceName("/"));
+    }
+
+    @Test
+    void deriveResourceNameShouldStripLeadingHyphen() {
+        assertEquals("users", converter.deriveResourceName("/users"));
+    }
+
     // ── Utility methods ──
 
     private OpenAPI minimalOpenApi(String title) {

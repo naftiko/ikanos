@@ -19,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.SpecVersion;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.ikanos.spec.CapabilitySpec;
@@ -29,6 +30,7 @@ import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
@@ -496,6 +498,304 @@ public class OasExportBuilderTest {
         String yaml = io.swagger.v3.core.util.Yaml31.pretty(result.getOpenApi());
         assertNotNull(yaml);
         assertTrue(yaml.contains("openapi: 3.1.0") || yaml.contains("openapi: \"3.1.0\""));
+    }
+
+    // ── B2: Additional branch-coverage tests ──
+
+    @Test
+    void buildShouldWarnWhenCapabilityIsNull() {
+        IkanosSpec spec = new IkanosSpec();
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("No capability")));
+    }
+
+    @Test
+    void buildShouldWarnWhenExposesIsEmpty() {
+        IkanosSpec spec = new IkanosSpec();
+        CapabilitySpec cap = new CapabilitySpec();
+        spec.setCapability(cap);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("No REST adapter")));
+    }
+
+    @Test
+    void buildShouldWarnWhenNoRestAdapterMatchesNamespace() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.setNamespace("api-v1");
+
+        OasExportResult result = builder.build(spec, "api-v2");
+
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("api-v2")));
+    }
+
+    @Test
+    void buildShouldUseDefaultTitleWhenInfoIsNull() {
+        IkanosSpec spec = new IkanosSpec();
+        CapabilitySpec cap = new CapabilitySpec();
+        RestServerSpec rest = new RestServerSpec("localhost", 8080, null);
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        cap.getExposes().add(rest);
+        spec.setCapability(cap);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals("ikanos Capability", result.getOpenApi().getInfo().getTitle());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("No info.label")));
+    }
+
+    @Test
+    void buildShouldUseLocalhostWhenAddressIsNull() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.setAddress(null);
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals("http://localhost:8080", result.getOpenApi().getServers().get(0).getUrl());
+    }
+
+    @Test
+    void buildShouldOmitPortWhenZero() {
+        IkanosSpec spec = new IkanosSpec();
+        spec.setInfo(new InfoSpec("Test", null, null, null));
+        CapabilitySpec cap = new CapabilitySpec();
+        RestServerSpec rest = new RestServerSpec("myhost", 0, null);
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        cap.getExposes().add(rest);
+        spec.setCapability(cap);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals("http://myhost", result.getOpenApi().getServers().get(0).getUrl());
+    }
+
+    @Test
+    void buildShouldUseResourceNameAsPathWhenPathIsNull() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setName("widgets");
+        resource.setPath(null);
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("list");
+        resource.setOperations(List.of(op));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNotNull(result.getOpenApi().getPaths().get("/widgets"));
+    }
+
+    @Test
+    void buildShouldConvertMustachePathSegmentsToOpenApi() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.getResources().add(resourceWithOperation("/users/{{userId}}", "users",
+                "GET", "get-user", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNotNull(result.getOpenApi().getPaths().get("/users/{userId}"));
+    }
+
+    @Test
+    void buildShouldMapAllHttpMethods() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/items");
+        resource.setName("items");
+        RestServerOperationSpec get = new RestServerOperationSpec();
+        get.setMethod("GET"); get.setName("get");
+        RestServerOperationSpec post = new RestServerOperationSpec();
+        post.setMethod("POST"); post.setName("post");
+        RestServerOperationSpec put = new RestServerOperationSpec();
+        put.setMethod("PUT"); put.setName("put");
+        RestServerOperationSpec delete = new RestServerOperationSpec();
+        delete.setMethod("DELETE"); delete.setName("delete");
+        RestServerOperationSpec patch = new RestServerOperationSpec();
+        patch.setMethod("PATCH"); patch.setName("patch");
+        RestServerOperationSpec head = new RestServerOperationSpec();
+        head.setMethod("HEAD"); head.setName("head");
+        RestServerOperationSpec options = new RestServerOperationSpec();
+        options.setMethod("OPTIONS"); options.setName("options");
+        resource.setOperations(List.of(get, post, put, delete, patch, head, options));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        PathItem pathItem = result.getOpenApi().getPaths().get("/items");
+        assertNotNull(pathItem.getGet());
+        assertNotNull(pathItem.getPost());
+        assertNotNull(pathItem.getPut());
+        assertNotNull(pathItem.getDelete());
+        assertNotNull(pathItem.getPatch());
+        assertNotNull(pathItem.getHead());
+        assertNotNull(pathItem.getOptions());
+    }
+
+    @Test
+    void buildShouldMapDigestAuthentication() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        DigestAuthenticationSpec digest = new DigestAuthenticationSpec();
+        digest.setUsername("user");
+        digest.setPassword("pass".toCharArray());
+        rest.setAuthentication(digest);
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        SecurityScheme scheme = result.getOpenApi().getComponents()
+                .getSecuritySchemes().get("digestAuth");
+        assertNotNull(scheme);
+        assertEquals(SecurityScheme.Type.HTTP, scheme.getType());
+        assertEquals("digest", scheme.getScheme());
+    }
+
+    @Test
+    void buildShouldWarnOnUnsupportedAuthType() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        // Use a concrete auth type that isn't explicitly handled
+        rest.setAuthentication(new io.ikanos.spec.consumes.http.AuthenticationSpec() {});
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("Unsupported authentication type")));
+    }
+
+    @Test
+    void buildShouldMapApiKeyAuthWithNullPlacement() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
+        apiKey.setKey("X-Token");
+        apiKey.setPlacement(null);
+        rest.setAuthentication(apiKey);
+        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        SecurityScheme scheme = result.getOpenApi().getComponents()
+                .getSecuritySchemes().get("apiKeyAuth");
+        assertNotNull(scheme);
+        assertNull(scheme.getIn());
+    }
+
+    @Test
+    void buildShouldMapArrayOutputWithNullItems() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/data");
+        resource.setName("data");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("get");
+        OutputParameterSpec arrayParam = new OutputParameterSpec();
+        arrayParam.setName("tags");
+        arrayParam.setType("array");
+        arrayParam.setItems(null);
+        op.getOutputParameters().add(arrayParam);
+        resource.setOperations(List.of(op));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation operation = result.getOpenApi().getPaths().get("/data").getGet();
+        assertNotNull(operation.getResponses().get("200"));
+    }
+
+    @Test
+    void buildShouldMapOperationWithoutNameOrDescription() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/data");
+        resource.setName(null);
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName(null);
+        op.setDescription(null);
+        resource.setOperations(List.of(op));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation operation = result.getOpenApi().getPaths().get("/data").getGet();
+        assertNull(operation.getOperationId());
+        assertNull(operation.getTags());
+    }
+
+    @Test
+    void buildShouldMapBodyParameterWithRequiredFields() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/data");
+        resource.setName("data");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("POST");
+        op.setName("create");
+        InputParameterSpec bodyParam = new InputParameterSpec();
+        bodyParam.setName("title");
+        bodyParam.setIn("body");
+        bodyParam.setType("string");
+        bodyParam.setRequired(true);
+        op.getInputParameters().add(bodyParam);
+        resource.setOperations(List.of(op));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation operation = result.getOpenApi().getPaths().get("/data").getPost();
+        assertNotNull(operation.getRequestBody());
+        List<String> required = operation.getRequestBody().getContent()
+                .get("application/json").getSchema().getRequired();
+        assertTrue(required.contains("title"));
+    }
+
+    @Test
+    void buildShouldMapInputParameterWithDefaultInAsQuery() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/data");
+        resource.setName("data");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("list");
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("filter");
+        param.setIn(null);
+        param.setType("string");
+        op.getInputParameters().add(param);
+        resource.setOperations(List.of(op));
+        rest.getResources().add(resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals("query", result.getOpenApi().getPaths().get("/data")
+                .getGet().getParameters().get(0).getIn());
     }
 
     // ── Utility methods ──
