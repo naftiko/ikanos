@@ -214,4 +214,116 @@ public class TracesCommandTest {
         assertFalse(formatted.contains("T"));
         assertTrue(formatted.contains(":"));
     }
+
+    @Test
+    void formatTimestampShouldHandleInvalidTimestamp() {
+        String formatted = TracesCommand.formatTimestamp("not-a-timestamp");
+        assertEquals("not-a-timestamp", formatted);
+    }
+
+    @Test
+    void formatDurationShouldFormatLargeSeconds() {
+        assertEquals("5.0s", TracesCommand.formatDuration(5000));
+    }
+
+    @Test
+    void tracesShouldRenderMultiLevelSpanTree() {
+        String json = """
+                {"traceId":"tree-test",
+                 "spans":[
+                   {"spanId":"s1","name":"root","kind":"SERVER","durationMs":500,"status":"OK"},
+                   {"spanId":"s2","parentSpanId":"s1","name":"level1-a","kind":"INTERNAL","durationMs":200,"status":"OK"},
+                   {"spanId":"s3","parentSpanId":"s1","name":"level1-b","kind":"INTERNAL","durationMs":150,"status":"OK"},
+                   {"spanId":"s4","parentSpanId":"s2","name":"level2-a","kind":"INTERNAL","durationMs":100,"status":"OK"}
+                 ]}""";
+
+        server.createContext("/traces/tree-test", exchange -> {
+            byte[] body = json.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port), "tree-test");
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("root"));
+        assertTrue(output.contains("level1-a"));
+        assertTrue(output.contains("level1-b"));
+        assertTrue(output.contains("level2-a"));
+        assertTrue(output.contains("├──") || output.contains("└──"));
+    }
+
+    @Test
+    void tracesShouldFilterByOperationOnly() {
+        final String[] requestUri = {""};
+        server.createContext("/traces", exchange -> {
+            requestUri[0] = exchange.getRequestURI().toString();
+            byte[] body = "{\"traces\":[],\"bufferSize\":100,\"bufferUsed\":0}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port),
+                "--operation", "my-op");
+
+        assertEquals(0, exitCode);
+        assertTrue(requestUri[0].contains("operation=my-op"));
+        assertFalse(requestUri[0].contains("status="));
+    }
+
+    @Test
+    void tracesShouldFilterByStatusOnly() {
+        final String[] requestUri = {""};
+        server.createContext("/traces", exchange -> {
+            requestUri[0] = exchange.getRequestURI().toString();
+            byte[] body = "{\"traces\":[],\"bufferSize\":100,\"bufferUsed\":0}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port),
+                "--status", "ERROR");
+
+        assertEquals(0, exitCode);
+        assertTrue(requestUri[0].contains("status=ERROR"));
+        assertFalse(requestUri[0].contains("operation="));
+    }
+
+    @Test
+    void tracesShouldRenderSpanWithChildrenUsingConnectors() {
+        String json = """
+                {"traceId":"connector-test",
+                 "spans":[
+                   {"spanId":"s1","name":"parent","kind":"SERVER","durationMs":300,"status":"OK"},
+                   {"spanId":"s2","parentSpanId":"s1","name":"child1","kind":"INTERNAL","durationMs":150,"status":"OK"},
+                   {"spanId":"s3","parentSpanId":"s1","name":"child2","kind":"INTERNAL","durationMs":100,"status":"OK"}
+                 ]}""";
+
+        server.createContext("/traces/connector-test", exchange -> {
+            byte[] body = json.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("traces", "--port", String.valueOf(port), "connector-test");
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("parent"));
+        assertTrue(output.contains("child1"));
+        assertTrue(output.contains("child2"));
+    }
 }
