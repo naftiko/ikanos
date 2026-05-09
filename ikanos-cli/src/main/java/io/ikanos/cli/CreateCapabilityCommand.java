@@ -16,6 +16,8 @@ package io.ikanos.cli;
 import picocli.CommandLine.Command;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
 
@@ -26,40 +28,49 @@ import java.util.concurrent.Callable;
     description = "Create a new capability configuration file"
 )
 public class CreateCapabilityCommand implements Callable<Integer> {
+
+    InputStream input = System.in;
+    PrintStream out = System.out;
+    PrintStream err = System.err;
+
+    void generateCapabilityFile(String capabilityName, String baseUri, String port)
+            throws IOException {
+        FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML, baseUri, port);
+    }
     
     @Override
     public Integer call() {
-        try (Scanner scanner = new Scanner(System.in)) {
+        try (Scanner scanner = new Scanner(input)) {
             // Capability name.
-            System.out.print("Type your capability name: ");
+            out.print("Type your capability name: ");
             String capabilityName = scanner.nextLine().trim();
             if (capabilityName.isEmpty()) {
-                System.err.println("Error: capability name cannot be empty");
+                err.println("Error: capability name cannot be empty");
                 return 1;
             }
 
             // Base URI.
-            System.out.print("Type the targted URI: ");
+            out.print("Type the targted URI: ");
             String baseUri = scanner.nextLine().trim();
             if (baseUri.isEmpty()) {
-                System.err.println("Error: targetUri cannot be empty");
+                err.println("Error: targetUri cannot be empty");
                 return 1;
             }
 
             // Port.
-            System.out.print("Type your capability exposition port: ");
+            out.print("Type your capability exposition port: ");
             String port = scanner.nextLine().trim();
             if (port.isEmpty()) {
-                System.err.println("Error: port cannot be empty");
+                err.println("Error: port cannot be empty");
                 return 1;
             }
             
-            System.out.println("Creating capability: " + capabilityName + " " + FileFormat.YAML + " " + baseUri + " " + port);
-            FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML, baseUri, port);
+            out.println("Creating capability: " + capabilityName + " " + FileFormat.YAML + " " + baseUri + " " + port);
+            generateCapabilityFile(capabilityName, baseUri, port);
             
             return 0;
         } catch (IOException e) {
-            System.err.println("Error: " + e.getMessage());
+            err.println("Error: " + e.getMessage());
             return 1;
         }
     }

@@ -124,6 +124,47 @@ public class StatusCommandTest {
     }
 
     @Test
+    void statusShouldReturnOneWhenEndpointReturnsNon200() {
+        server.createContext("/status", exchange -> {
+            byte[] body = "{\"error\":\"boom\"}".getBytes();
+            exchange.sendResponseHeaders(500, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("status", "--port", String.valueOf(port));
+
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("/status returned HTTP 500"));
+    }
+
+    @Test
+    void statusShouldDisplayActiveOtelExporterWhenPresent() {
+        String json = """
+                {"capability":{"label":"Weather Service"},
+                 "engine":{"version":"1.0.0","java":"21","native":false},
+                 "uptime":"PT15S",
+                 "otel":{"status":"active","exporter":"otlp","endpoint":"http://otel:4317"},
+                 "adapters":[]}""";
+
+        server.createContext("/status", exchange -> {
+            byte[] body = json.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("status", "--port", String.valueOf(port));
+
+        assertEquals(0, exitCode);
+        assertTrue(outCapture.toString().contains("active (otlp → http://otel:4317)"));
+    }
+
+    @Test
     void formatDurationShouldFormatHoursMinutesSeconds() {
         assertEquals("2h 34m 12s", StatusCommand.formatDuration("PT2H34M12S"));
     }

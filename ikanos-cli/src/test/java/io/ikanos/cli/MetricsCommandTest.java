@@ -128,4 +128,22 @@ public class MetricsCommandTest {
         assertEquals(1, exitCode);
         assertTrue(errCapture.toString().contains("Cannot connect to control port"));
     }
+
+    @Test
+    void metricsShouldReturnOneWhenFilterRegexIsInvalid() {
+        String metrics = "IKANOS_up 1\n";
+        server.createContext("/metrics", exchange -> {
+            byte[] body = metrics.getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("metrics", "--port", String.valueOf(port), "--filter", "[");
+
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Error:"));
+    }
 }

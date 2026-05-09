@@ -19,6 +19,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -289,4 +290,40 @@ public class ImportOpenApiCommandTest {
         assertTrue(content.contains("resources:"), "Output should contain resources");
         assertTrue(content.contains("get-pet-by-id"), "Operation should be kebab-cased");
     }
+
+      @Test
+      void importShouldFailWhenSourceCannotBeParsed() {
+        CommandLine cmd = new CommandLine(new Cli());
+
+        int exitCode = cmd.execute("import", "openapi", "does-not-exist.yaml");
+
+        assertEquals(1, exitCode);
+      }
+
+      @Test
+      void importShouldWriteDefaultOutputPathWhenOutputNotProvided() throws Exception {
+        Path oasFile = tempDir.resolve("default-output.yaml");
+        Files.writeString(oasFile, """
+            openapi: "3.0.3"
+            info:
+              title: "Default Output API"
+              version: "1.0.0"
+            paths: {}
+            """);
+
+        String originalDir = System.getProperty("user.dir");
+        try {
+          System.setProperty("user.dir", tempDir.toString());
+
+          CommandLine cmd = new CommandLine(new Cli());
+          int exitCode = cmd.execute("import", "openapi", oasFile.toString());
+
+          assertEquals(0, exitCode);
+          Path expectedOutput = Paths.get("./default-output-api-consumes.yml");
+          assertTrue(Files.exists(expectedOutput));
+        } finally {
+          System.setProperty("user.dir", originalDir);
+          Files.deleteIfExists(Path.of("default-output-api-consumes.yml"));
+        }
+      }
 }
