@@ -54,6 +54,12 @@
             <artifactId>org.restlet.ext.slf4j</artifactId>
         </dependency>
 
+        <!-- REST client (for ControlPortClient) -->
+        <dependency>
+            <groupId>org.restlet</groupId>
+            <artifactId>org.restlet</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
