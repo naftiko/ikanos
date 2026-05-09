@@ -135,4 +135,106 @@ public class ExportOpenApiCommandTest {
 
         assertEquals(1, exitCode);
     }
+
+    @Test
+    void exportShouldSupportSpecVersion31() throws Exception {
+        Path capFile = tempDir.resolve("spec31-capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "1.0.0-alpha1"
+                info:
+                  label: "OpenAPI 3.1 Test"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      resources:
+                        - path: /items
+                          name: items
+                          operations:
+                            - method: GET
+                              name: list-items
+                """);
+
+        Path output = tempDir.resolve("openapi31.yaml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("export", "openapi", capFile.toString(),
+                "-o", output.toString(), "--spec-version", "3.1");
+
+        assertEquals(0, exitCode);
+        assertTrue(Files.exists(output));
+    }
+
+    @Test
+    void exportShouldUseDefaultOutputPathWhenOutputNotProvided() throws Exception {
+        Path capFile = tempDir.resolve("default-output-cap.yml");
+        Files.writeString(capFile, """
+                ikanos: "1.0.0-alpha1"
+                info:
+                  label: "Default Output Test"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      resources:
+                        - path: /items
+                          name: items
+                          operations:
+                            - method: GET
+                              name: list-items
+                """);
+
+        String originalDir = System.getProperty("user.dir");
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+
+            CommandLine cmd = new CommandLine(new Cli());
+            int exitCode = cmd.execute("export", "openapi", capFile.toString());
+
+            assertEquals(0, exitCode);
+            Path expectedOutput = Path.of("./openapi.yaml");
+            assertTrue(Files.exists(expectedOutput));
+        } finally {
+            System.setProperty("user.dir", originalDir);
+            Files.deleteIfExists(Path.of("./openapi.yaml"));
+        }
+    }
+
+    @Test
+    void exportShouldUseJsonExtensionForDefaultOutputWhenFormatIsJson() throws Exception {
+        Path capFile = tempDir.resolve("json-default-cap.yml");
+        Files.writeString(capFile, """
+                ikanos: "1.0.0-alpha1"
+                info:
+                  label: "JSON Default Output Test"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      resources:
+                        - path: /items
+                          name: items
+                          operations:
+                            - method: GET
+                              name: list-items
+                """);
+
+        String originalDir = System.getProperty("user.dir");
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+
+            CommandLine cmd = new CommandLine(new Cli());
+            int exitCode = cmd.execute("export", "openapi", capFile.toString(), "-f", "json");
+
+            assertEquals(0, exitCode);
+            Path expectedOutput = Path.of("./openapi.json");
+            assertTrue(Files.exists(expectedOutput));
+        } finally {
+            System.setProperty("user.dir", originalDir);
+            Files.deleteIfExists(Path.of("./openapi.json"));
+        }
+    }
 }

@@ -352,4 +352,79 @@ public class ScriptingCommandTest {
         String errOutput = errCapture.toString();
         assertTrue(errOutput.contains("/scripting returned HTTP 500"));
     }
+
+    @Test
+    void scriptingSetShouldParseIntegerValues() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "{\"enabled\":true,\"timeout\":5000,\"statementLimit\":100}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "timeout=5000");
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("timeout"));
+    }
+
+    @Test
+    void scriptingSetShouldParseLongValues() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "{\"enabled\":true,\"timeout\":3000,\"statementLimit\":1000000}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "statementLimit=1000000");
+
+        assertEquals(0, exitCode);
+        assertTrue(outCapture.toString().contains("Set successfully"));
+    }
+
+    @Test
+    void scriptingSetShouldParseArrayValues() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "{\"enabled\":true,\"allowedLanguages\":[\"python\",\"javascript\"]}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "allowedLanguages=python,javascript");
+
+        assertEquals(0, exitCode);
+        assertTrue(outCapture.toString().contains("Set successfully"));
+    }
+
+    @Test
+    void scriptingGetShouldReturnScriptingConfiguration() {
+        server.createContext("/scripting", exchange -> {
+            byte[] body = "{\"enabled\":true,\"timeout\":3000,\"statementLimit\":50000," +
+                    "\"allowedLanguages\":[\"python\",\"javascript\"]}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port));
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("enabled"));
+        assertTrue(output.contains("timeout"));
+    }
 }
