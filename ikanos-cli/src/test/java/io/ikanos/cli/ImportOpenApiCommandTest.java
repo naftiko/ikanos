@@ -337,4 +337,98 @@ public class ImportOpenApiCommandTest {
         assertTrue(path.contains("default-output-api-consumes.yml"),
                 "Default output path should follow pattern ./<namespace>-consumes.yml");
       }
+
+    @Test
+    void importShouldHandleParseResultWithWarningMessages() throws Exception {
+        Path oasFile = tempDir.resolve("with-warnings.yaml");
+        Files.writeString(oasFile, """
+                openapi: "3.0.3"
+                info:
+                  title: "API With Warnings"
+                  version: "1.0.0"
+                paths: {}
+                """);
+
+        Path output = tempDir.resolve("warned-output.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(), "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        assertTrue(Files.exists(output));
+        String content = Files.readString(output);
+        assertTrue(content.contains("api-with-warnings"));
+    }
+
+    @Test
+    void importShouldWriteJsonFormatWhenFormatSpecifiedAsJson() throws Exception {
+        Path oasFile = tempDir.resolve("json-format-test.yaml");
+        Files.writeString(oasFile, """
+                openapi: "3.0.3"
+                info:
+                  title: "JSON Format Test"
+                  version: "1.0.0"
+                paths: {}
+                """);
+
+        Path output = tempDir.resolve("output-spec.json");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        assertTrue(Files.exists(output));
+        String content = Files.readString(output);
+        assertTrue(content.startsWith("{"), "Output should be valid JSON");
+        assertTrue(content.contains("ikanos"));
+    }
+
+    @Test
+    void importShouldSelectJsonExtensionForDefaultOutputWhenFormatIsJson() throws Exception {
+        Path oasFile = tempDir.resolve("json-ext-test.yaml");
+        Files.writeString(oasFile, """
+                openapi: "3.0.3"
+                info:
+                  title: "JSON Extension API"
+                  version: "1.0.0"
+                paths: {}
+                """);
+
+        String originalDir = System.getProperty("user.dir");
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+
+            CommandLine cmd = new CommandLine(new Cli());
+            int exitCode = cmd.execute("import", "openapi", oasFile.toString(), "-f", "json");
+
+            assertEquals(0, exitCode);
+            Path expectedOutput = Paths.get("./json-extension-api-consumes.json");
+            assertTrue(Files.exists(expectedOutput));
+        } finally {
+            System.setProperty("user.dir", originalDir);
+            Files.deleteIfExists(Path.of("./json-extension-api-consumes.json"));
+        }
+    }
+
+    @Test
+    void importShouldApplyNamespaceOverrideToOutput() throws Exception {
+        Path oasFile = tempDir.resolve("ns-test.yaml");
+        Files.writeString(oasFile, """
+                openapi: "3.0.3"
+                info:
+                  title: "Original Title"
+                  version: "1.0.0"
+                paths: {}
+                """);
+
+        Path output = tempDir.resolve("ns-output.yml");
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("import", "openapi", oasFile.toString(), 
+            "-o", output.toString(), "-n", "my-override-namespace");
+
+        assertEquals(0, exitCode);
+        String content = Files.readString(output);
+        assertTrue(content.contains("my-override-namespace"));
+    }
 }

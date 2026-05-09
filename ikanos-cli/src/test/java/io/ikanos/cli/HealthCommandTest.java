@@ -120,4 +120,81 @@ public class HealthCommandTest {
         String errOutput = errCapture.toString();
         assertTrue(errOutput.contains("Cannot connect to control port"));
     }
+
+    @Test
+    void healthShouldHandleEmptyAdaptersList() {
+        server.createContext("/health/live", exchange -> {
+            byte[] body = "{\"status\":\"UP\"}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.createContext("/health/ready", exchange -> {
+            byte[] body = "{\"status\":\"UP\",\"adapters\":[]}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("health", "--port", String.valueOf(port));
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("0/0 adapters"));
+    }
+
+    @Test
+    void healthShouldDisplayAdapterReasonWhenPresent() {
+        server.createContext("/health/live", exchange -> {
+            byte[] body = "{\"status\":\"UP\"}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.createContext("/health/ready", exchange -> {
+            byte[] body = ("{\"status\":\"DEGRADED\",\"adapters\":["
+                    + "{\"type\":\"mcp\",\"port\":3000,\"state\":\"stopped\","
+                    + "\"reason\":\"Connection timeout\"}"
+                    + "]}").getBytes();
+            exchange.sendResponseHeaders(503, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("health", "--port", String.valueOf(port));
+
+        assertEquals(1, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("Connection timeout"));
+    }
+
+    @Test
+    void healthShouldHandleAdapterWithoutReason() {
+        server.createContext("/health/live", exchange -> {
+            byte[] body = "{\"status\":\"UP\"}".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.createContext("/health/ready", exchange -> {
+            byte[] body = ("{\"status\":\"UP\",\"adapters\":["
+                    + "{\"type\":\"rest\",\"port\":8080,\"state\":\"started\"}"
+                    + "]}").getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        CommandLine cmd = new CommandLine(new Cli());
+        int exitCode = cmd.execute("health", "--port", String.valueOf(port));
+
+        assertEquals(0, exitCode);
+        String output = outCapture.toString();
+        assertTrue(output.contains("started"));
+    }
 }
