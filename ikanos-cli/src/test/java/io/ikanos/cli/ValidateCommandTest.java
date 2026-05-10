@@ -161,32 +161,19 @@ public class ValidateCommandTest {
         }
 
         @Test
-        public void callShouldDetectAndUseJson20Spec() throws Exception {
-                // Create a YAML with explicitly 2020-12 spec
-                Path yaml = tempDir.resolve("schema-2020-12.yaml");
-                Files.writeString(yaml, """
-                        ikanos: "1.0.0-alpha3"
-                        info:
-                          label: "Test with 2020-12 schema"
-                        capability: {}
-                        """);
+        public void callShouldDetectAndUseJson20Spec() {
+                Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
+                                .toAbsolutePath().normalize();
 
                 int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
-                // Should succeed with valid doc using 2020-12 detection
                 assertEquals(0, exitCode);
         }
 
         @Test
-        public void callShouldDetectAndUseJson201909Spec() throws Exception {
-                // Create a YAML file
-                Path yaml = tempDir.resolve("valid-capability.yaml");
-                Files.writeString(yaml, """
-                        ikanos: "1.0.0-alpha3"
-                        info:
-                          label: "Test API"
-                        capability: {}
-                        """);
+        public void callShouldDetectAndUseJson201909Spec() {
+                Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
+                                .toAbsolutePath().normalize();
 
                 int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
@@ -209,18 +196,20 @@ public class ValidateCommandTest {
 
                 int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "1.0.0");
 
-                assertEquals(0, exitCode);
+                assertEquals(1, exitCode);
+                assertTrue(errCapture.toString().contains("Schema ikanos-schema-v1.0.0.json is not supported"));
         }
 
         @Test
-        public void loadFileShouldParseJsonFiles() throws Exception {
+        public void loadFileShouldRejectJsonFiles() throws Exception {
                 Path jsonFile = tempDir.resolve("file.json");
                 Files.writeString(jsonFile, "{\"key\": \"value\"}");
 
                 ValidateCommand command = new ValidateCommand();
-                JsonNode result = command.loadFile(jsonFile.toFile());
+                IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                                () -> command.loadFile(jsonFile.toFile()));
 
-                assertNotNull(result);
-                assertEquals("value", result.get("key").asText());
+                assertEquals("Unsupported file format. Only .yaml and .yml are supported.",
+                                error.getMessage());
         }
 }
