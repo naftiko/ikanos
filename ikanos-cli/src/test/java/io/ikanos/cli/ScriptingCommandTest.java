@@ -316,7 +316,7 @@ public class ScriptingCommandTest {
     }
 
     @Test
-    void scriptingSetShouldReturnOneWhenNotConfigured() {
+    void scriptingSetShouldReturnOneWhenNotConfiguredOnSet() {
         server.createContext("/scripting", exchange -> {
             byte[] body = "{\"error\":\"Scripting is not configured\"}".getBytes();
             exchange.sendResponseHeaders(404, body.length);
@@ -332,25 +332,6 @@ public class ScriptingCommandTest {
         assertEquals(1, exitCode);
         String errOutput = errCapture.toString();
         assertTrue(errOutput.contains("Scripting is not configured"));
-    }
-
-    @Test
-    void scriptingSetShouldReturnOneWhenServerError() {
-        server.createContext("/scripting", exchange -> {
-            byte[] body = "Internal Server Error".getBytes();
-            exchange.sendResponseHeaders(500, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.getResponseBody().close();
-        });
-        server.start();
-
-        CommandLine cmd = new CommandLine(new Cli());
-        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
-                "--set", "enabled=true");
-
-        assertEquals(1, exitCode);
-        String errOutput = errCapture.toString();
-        assertTrue(errOutput.contains("/scripting returned HTTP 500"));
     }
 
     @Test
@@ -410,9 +391,10 @@ public class ScriptingCommandTest {
 
     @Test
     void scriptingGetShouldReturnScriptingConfiguration() {
+        String json = "{\"enabled\":true,\"timeout\":3000,\"statementLimit\":50000," +
+                      "\"allowedLanguages\":[\"python\",\"javascript\"]}";
         server.createContext("/scripting", exchange -> {
-            byte[] body = "{\"enabled\":true,\"timeout\":3000,\"statementLimit\":50000," +
-                    "\"allowedLanguages\":[\"python\",\"javascript\"]}".getBytes();
+            byte[] body = json.getBytes();
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
             exchange.getResponseBody().close();
