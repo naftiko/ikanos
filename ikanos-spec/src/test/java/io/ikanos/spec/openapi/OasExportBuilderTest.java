@@ -769,7 +769,8 @@ public class OasExportBuilderTest {
 
         Operation operation = result.getOpenApi().getPaths().get("/data").getPost();
         assertNotNull(operation.getRequestBody());
-        List<String> required = operation.getRequestBody().getContent()
+        @SuppressWarnings("unchecked")
+        List<String> required = (List<String>) operation.getRequestBody().getContent()
                 .get("application/json").getSchema().getRequired();
         assertTrue(required.contains("title"));
     }
