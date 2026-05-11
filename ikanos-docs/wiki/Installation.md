@@ -13,12 +13,12 @@ To use Ikanos, you need to install and then run the Ikanos Engine, passing a Ika
 * Ikanos provides a docker image hosted in GitHub packages platform. It is public, so you can easily pull it locally.
   ```bash
   # {{RELEASE_TAG}}
-  docker pull ghcr.io/Ikanos/Ikanos-framework:{{RELEASE_TAG}}
+  docker pull ghcr.io/naftiko/ikanos:{{RELEASE_TAG}}
 
   # Or if you prefer to play with the last snapshot
-  docker pull ghcr.io/Ikanos/Ikanos-framework:latest
+  docker pull ghcr.io/naftiko/ikanos:latest
   ```
-  Then, you should see the image 'ghcr.io/Ikanos/Ikanos-framework' in your Docker Desktop.\
+  Then, you should see the image 'ghcr.io/naftiko/ikanos' in your Docker Desktop.\
   <img src="https://Ikanos.github.io/docs/images/technology/framework/docker-install-step-1.png" width="600">
 
   You can also display local images in your terminal with this command:
@@ -50,10 +50,10 @@ You can use more complex capability files from [Tutorial - Part 1](https://githu
 Let's assume you downloaded [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) in your downloads folder. Then you should run:
 ```bash
 # For Linux and Mac
-docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/Ikanos/Ikanos-framework:{{RELEASE_TAG}} /app/test.capability.yaml
+docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} /app/test.capability.yaml
 
 # For windows
-docker run -p 8081:3001 -v %USERPROFILE%/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/Ikanos/Ikanos-framework:{{RELEASE_TAG}} /app/test.capability.yaml
+docker run -p 8081:3001 -v %USERPROFILE%/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} /app/test.capability.yaml
 ```
 Then you should be able to request your capability at http://localhost:8081 (the step-1-shipyard-first-capability.yml exposes an MCP tool adapter).
 
@@ -67,7 +67,7 @@ Then you should be able to request your capability at http://localhost:8081 (the
 * Run your capability with Ikanos Engine.\
   Given a capability configuration file 'test.capability.yaml' and an exposition on port 8081, here is the command you have to execute to run the Framework Engine:
   ```bash
-  docker run -p 8081:8081 -v full_path_to_your_capability_folder/test.capability.yaml:/app/test.capability.yaml ghcr.io/Ikanos/framework:latest/app/test.capability.yaml
+  docker run -p 8081:8081 -v full_path_to_your_capability_folder/test.capability.yaml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:latest /app/test.capability.yaml
   ```
 
 ## Ikanos CLI
