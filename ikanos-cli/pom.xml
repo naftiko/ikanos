@@ -116,7 +116,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
             </plugin>
 
-            <!-- Shade: cli.jar — CLI with engine, GraalVM excluded -->
+            <!-- Shade: ikanos.jar — executable CLI/runtime jar with engine, GraalVM excluded -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -129,7 +129,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <outputFile>${project.build.directory}/cli.jar</outputFile>
+                            <outputFile>${project.build.directory}/ikanos.jar</outputFile>
                             <transformers>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">

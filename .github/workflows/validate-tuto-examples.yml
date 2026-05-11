@@ -154,7 +154,7 @@ jobs:
           TYPE=$(yq -r ".tests[$i].type // \"mcp\"" $TEST_FILE)
 
           # Start server with a timeout guard
-          timeout 120 java -jar ikanos-engine/target/ikanos.jar ikanos-engine/src/test/resources/tutorial/$FILE &
+          timeout 120 java -jar ikanos-cli/target/ikanos.jar serve ikanos-engine/src/test/resources/tutorial/$FILE &
           PID=$!
 
           echo "Waiting for server on port $PORT (type: $TYPE)..."

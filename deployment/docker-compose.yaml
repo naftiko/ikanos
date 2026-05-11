@@ -10,7 +10,7 @@ services:
     volumes:
       - ./naftiko.yaml:/data/mounted-naftiko.yaml
     
-    # Override the default entrypoint arguments
-    # We pass the path to the mounted file as an argument to the Java app
-    command: ["/data/mounted-naftiko.yaml"]
+    # Override the default command arguments
+    # We pass the runtime subcommand and the mounted file to the CLI jar
+    command: ["serve", "/data/mounted-naftiko.yaml"]
     

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../main/resources/schemas/ikanos-schema.json
+# yaml-language-server: $schema=../../../../../ikanos-spec/src/main/resources/schemas/ikanos-schema.json
 ---
 ikanos: "1.0.0-alpha3"
 info:
