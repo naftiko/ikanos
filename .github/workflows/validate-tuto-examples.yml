@@ -63,7 +63,7 @@ jobs:
 
     - name: Patch baseUri in capability files
       run: |
-        TUTORIAL_DIR="src/main/resources/tutorial"
+        TUTORIAL_DIR="ikanos-engine/src/test/resources/tutorial"
 
         get_base_uri() {
           case "$1" in
