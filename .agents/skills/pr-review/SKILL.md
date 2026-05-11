@@ -154,6 +154,16 @@ Return to this step when the user is ready.
 
 ### Branch B — User confirms: post the review
 
+> **Pre-submission guard — always run this first, even on a retry**
+> Before writing or posting any payload, check whether a review from you already exists:
+> ```powershell
+> gh api repos/{owner}/{repo}/pulls/<number>/reviews --jq '[.[] | {id, state, submitted_at, body: .body[:80]}]'
+> ```
+> - If a review with `state = CHANGES_REQUESTED` or `COMMENT` from `eskenazit` already exists → **do not post a new review**. Instead, inspect its inline comments with `gh api repos/{owner}/{repo}/pulls/<number>/comments` and report the current state to the user. Any missing inline comment can only be added as a follow-up `COMMENT`-event review, not as a duplicate `REQUEST_CHANGES`.
+> - If no review exists (empty array or only PENDING) → proceed with submission below.
+>
+> This guard prevents irrecoverable duplicates when a previous submission appeared to fail (silent exit, timeout, ^C) but actually succeeded.
+
 Submit all inline comments in a **single** API call. Do not post without explicit
 user confirmation — this is an irreversible action on a shared system.
 
