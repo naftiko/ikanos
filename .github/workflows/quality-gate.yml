@@ -57,7 +57,7 @@ jobs:
 
       - name: Patch baseUri in capability files
         run: |
-          TUTORIAL_DIR="src/main/resources/tutorial"
+          TUTORIAL_DIR="ikanos-engine/src/test/resources/tutorial"
 
           get_base_uri() {
             case "$1" in
@@ -100,9 +100,9 @@ jobs:
               fi
             done
           done
-        
+
       - name: Prepare shared path
-        run: ln -s src/main/resources/tutorial/shared shared
+        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
 
       - name: Run tests + JaCoCo coverage
         run: mvn clean test --no-transfer-progress
@@ -272,10 +272,10 @@ jobs:
             -e SONAR_TOKEN="$SONAR_TOKEN" \
             -v "${{ github.workspace }}:/usr/src" \
             sonarsource/sonar-scanner-cli \
-            -Dsonar.projectKey=io.naftiko:framework \
-            -Dsonar.sources=src/main/java \
-            -Dsonar.java.binaries=target/classes \
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            -Dsonar.projectKey=io.naftiko:ikanos \
+            -Dsonar.sources=ikanos-engine/src/main/java \
+            -Dsonar.java.binaries=ikanos-engine/target/classes \
+            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-engine/target/site/jacoco/jacoco.xml \
             -Dsonar.host.url=http://localhost:9000
 
       - name: Export + Publish SonarQube summary
@@ -285,7 +285,7 @@ jobs:
           sleep 15 
           mkdir -p sonar-report
           AUTH="admin:admin"
-          PROJECT="io.naftiko:framework"
+          PROJECT="io.naftiko:ikanos"
           BASE="http://localhost:9000"
 
           curl -s -u $AUTH "$BASE/api/measures/component?component=$PROJECT&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc" -o sonar-report/measures.json
