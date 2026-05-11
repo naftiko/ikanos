@@ -22,7 +22,7 @@ Use it when you need to integrate multiple APIs, standardize data formats, or ex
 You don't need to write Java or other code unless you want to extend the framework itself.
 
 ### Q: Is Ikanos a code generator or a runtime engine?
-**A:** It's a **runtime engine**. The Ikanos Engine, provided as a Docker container, reads your YAML capability file at startup and immediately exposes HTTP or MCP interfaces. There's no compilation step - declare your capability, start the engine, and it works.
+**A:** It's a **runtime engine**. Ikanos reads your YAML capability file at startup and immediately exposes HTTP or MCP interfaces, either through the Docker image or directly with `ikanos serve`. There's no compilation step - declare your capability, start the engine, and it works.
 
 ### Q: Are there other tools that complement Ikanos?
 **A:** Yes. Ikanos is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko/fleet), which includes free complementary tools:
@@ -40,30 +40,43 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 1. **Docker (recommended)**  
    ```bash
-  docker pull ghcr.io/naftiko/ikanos:v1.0.0-alpha1
-  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/ikanos:v1.0.0-alpha1 /app/capability.yaml
+  docker pull ghcr.io/naftiko/ikanos:v1.0.0-alpha3
+  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/ikanos:v1.0.0-alpha3 serve /app/capability.yaml
    ```
 
-2. **CLI tool** (for configuration and validation)  
-  Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha1/ikanos-cli-windows-amd64.exe)
+  If your capability is mounted at `/app/ikanos.yaml`, you can rely on the image default command and omit `serve` entirely.
+
+2. **CLI tool** (for configuration, validation, and local execution)  
+  Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-windows-amd64.exe)
 
 See the [Installation guide](https://github.com/naftiko/ikanos/wiki/Installation) for detailed setup instructions.
+
+### Q: How do I run a capability locally without Docker?
+**A:** Use the CLI `serve` command:
+```bash
+ikanos serve path/to/capability.yaml
+
+# Or, if the file is named ikanos.yaml in the current directory
+ikanos serve
+```
+
+This starts the same runtime path as the Docker image, but directly on your machine, and stops cleanly with `Ctrl-C`.
 
 ### Q: How do I validate my capability file before running it?
 **A:** Use the CLI validation command:
 ```bash
 ikanos validate path/to/capability.yaml
-ikanos validate path/to/capability.yaml 1.0.0-alpha1  # Specify schema version
+ikanos validate path/to/capability.yaml 1.0.0-alpha3  # Specify schema version
 ```
 
 This checks your YAML against the Ikanos schema and reports any errors.
 
 ### Q: Which version of the schema should I use?
-**A:** Use the current framework schema version: **1.0.0-alpha1**.
+**A:** Use the current framework schema version: **1.0.0-alpha3**.
 
 Set it in your YAML:
 ```yaml
-ikanos: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha3"
 ```
 
 ---
@@ -672,9 +685,14 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-ika
 
 2. **Check the Docker logs:**
    ```bash
-  docker run ... ghcr.io/naftiko/ikanos:v1.0.0-alpha1 /app/capability.yaml
+  docker run ... ghcr.io/naftiko/ikanos:v1.0.0-alpha3 serve /app/capability.yaml
    # Look for error messages in the output
    ```
+
+  Or, when running locally:
+  ```bash
+  ikanos serve capability.yaml
+  ```
 
 3. **Verify your file path** - if using Docker, ensure:
    - The volume mount is correct: `-v /absolute/path:/app/capability.yaml`
@@ -849,7 +867,7 @@ consumes:
 This way, Capability B can combine Capability A with other APIs.
 
 ### Q: How do I handle errors or retries?
-**A:** Ikanos currently doesn't have built-in retry logic in v1.0.0-alpha1. Options:
+**A:** Ikanos currently doesn't have built-in retry logic in v1.0.0-alpha3. Options:
 
 1. **At the HTTP client level** - use an API gateway with retry policies
 2. **In future versions** - this is on the roadmap
@@ -906,7 +924,7 @@ For production workloads:
        spec:
          containers:
          - name: ikanos
-           image: ghcr.io/naftiko/ikanos:v1.0.0-alpha1
+           image: ghcr.io/naftiko/ikanos:v1.0.0-alpha3
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -949,7 +967,7 @@ server {
 See the [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec-Driven-Integration) overview and the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) for the formal model.
 
 ### Q: Is the Ikanos Specification stable?
-**A:** The current public version is **1.0.0-alpha1**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
+**A:** The current public version is **1.0.0-alpha3**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
 - **Major versions** (1.x.x) - breaking changes
 - **Minor versions** (x.1.0) - new features, backward-compatible
 - **Patch versions** (x.x.1) - bug fixes
