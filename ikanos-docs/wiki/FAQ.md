@@ -40,8 +40,8 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 1. **Docker (recommended)**  
    ```bash
-  docker pull ghcr.io/Ikanos/framework:v1.0.0-alpha1
-  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/Ikanos/framework:v1.0.0-alpha1 /app/capability.yaml
+  docker pull ghcr.io/naftiko/ikanos:v1.0.0-alpha1
+  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/ikanos:v1.0.0-alpha1 /app/capability.yaml
    ```
 
 2. **CLI tool** (for configuration and validation)  
@@ -638,11 +638,11 @@ This enables distributed tracing and RED metrics (Rate, Errors, Duration) for al
 ### Q: What metrics does Ikanos expose?
 **A:** The engine emits three histogram metrics following the RED method:
 
-- `Ikanos.request.duration.seconds` — end-to-end request duration by tool/operation name and status
-- `Ikanos.step.duration.seconds` — individual orchestration step duration
-- `Ikanos.http.client.duration.seconds` — outbound HTTP call duration by namespace, method, and status code
+- `ikanos.request.duration.seconds` — end-to-end request duration by tool/operation name and status
+- `ikanos.step.duration.seconds` — individual orchestration step duration
+- `ikanos.http.client.duration.seconds` — outbound HTTP call duration by namespace, method, and status code
 
-A counter `Ikanos.request.errors` tracks failed requests. All metrics are available in Prometheus text format on the control port's `/metrics` endpoint.
+A counter `ikanos.request.errors` tracks failed requests. All metrics are available in Prometheus text format on the control port's `/metrics` endpoint.
 
 ### Q: How do I connect Prometheus and Grafana?
 **A:** Point Prometheus at the control port's `/metrics` endpoint:
@@ -650,13 +650,13 @@ A counter `Ikanos.request.errors` tracks failed requests. All metrics are availa
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: Ikanos
+  - job_name: ikanos
     metrics_path: /metrics
     static_configs:
       - targets: ['localhost:9090']
 ```
 
-A sample Grafana dashboard is provided in `demo/shared/observability/grafana-Ikanos.json`.
+A sample Grafana dashboard is provided in `demo/shared/observability/grafana-ikanos.json`.
 
 ---
 
@@ -672,7 +672,7 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-Ika
 
 2. **Check the Docker logs:**
    ```bash
-  docker run ... ghcr.io/Ikanos/framework:v1.0.0-alpha1 /app/capability.yaml
+  docker run ... ghcr.io/naftiko/ikanos:v1.0.0-alpha1 /app/capability.yaml
    # Look for error messages in the output
    ```
 
@@ -750,7 +750,7 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-Ika
 ```bash
 # Clone the repository
 git clone https://github.com/naftiko/ikanos.git
-cd framework
+cd ikanos
 
 # Build the project
 mvn clean install
@@ -759,13 +759,13 @@ mvn clean install
 mvn test
 
 # Build Docker image
-docker build -t Ikanos:local .
+docker build -t ikanos:local .
 ```
 
 Key directories:
-- `src/main/java/io/Ikanos/`  Core engine code
+- `ikanos-engine/src/main/java/io/ikanos/`  Core engine code
 - `ikanos-spec/src/main/resources/schemas/`  JSON Schema definitions
-- `src/test/`  Unit and integration tests
+- `ikanos-engine/src/test/` and `ikanos-cli/src/test/`  Unit and integration tests
 - `ikanos-spec/src/main/resources/schemas/examples/`  Capability examples
 - `ikanos-docs/tutorial/`  Tutorial capability files
 
@@ -899,14 +899,14 @@ For production workloads:
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: Ikanos-engine
+     name: ikanos-engine
    spec:
      replicas: 3
      template:
        spec:
          containers:
-         - name: Ikanos
-           image: ghcr.io/Ikanos/framework:v1.0.0-alpha1
+         - name: ikanos
+           image: ghcr.io/naftiko/ikanos:v1.0.0-alpha1
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -915,7 +915,7 @@ For production workloads:
            - name: GITHUB_TOKEN
              valueFrom:
                secretKeyRef:
-                 name: Ikanos-secrets
+                 name: ikanos-secrets
                  key: github-token
    ```
 
@@ -962,7 +962,7 @@ Check the Ikanos field in your YAML to specify the version.
 
 ### Q: Where can I ask questions or discuss ideas?
 **A:** Join the community at:
-- **[GitHub Discussions](https://github.com/orgs/Ikanos/discussions)** - Ask questions and share ideas
+- **[GitHub Discussions](https://github.com/orgs/naftiko/discussions)** - Ask questions and share ideas
 - **[GitHub Issues](https://github.com/naftiko/ikanos/issues)** - Report bugs or request features
 - **Pull Requests** - Review and discuss code changes
 
@@ -1028,7 +1028,7 @@ This is Ikanos's core strength for managing API sprawl.
 -  **[Releases](https://github.com/naftiko/ikanos/wiki/Releases)** - Version history
 -  **[Roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap)** - Future plans
 -  **[Contribute](https://github.com/naftiko/ikanos/wiki/Contribute)** - Become a contributor
--  **[Discussions](https://github.com/orgs/Ikanos/discussions)** - Community Q&A
+-  **[Discussions](https://github.com/orgs/naftiko/discussions)** - Community Q&A
 
 ---
 
@@ -1036,5 +1036,5 @@ This is Ikanos's core strength for managing API sprawl.
 
 Did this FAQ help you? Have questions not covered here? 
 - **Add an issue** - [GitHub Issues](https://github.com/naftiko/ikanos/issues)
-- **Start a discussion** - [GitHub Discussions](https://github.com/orgs/Ikanos/discussions)
+- **Start a discussion** - [GitHub Discussions](https://github.com/orgs/naftiko/discussions)
 - **Submit a PR** - Help us improve this FAQ!
