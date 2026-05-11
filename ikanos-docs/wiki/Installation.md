@@ -1,4 +1,4 @@
-To use Ikanos, you need to install and then run the Ikanos Engine, passing a Ikanos YAML file to it. A command-line interface is also provided.
+To use Ikanos, you need to install Ikanos and then run a capability YAML file either through the Docker image or directly with the CLI. The same runtime verb is used in both cases: `serve`.
 
 ## Ikanos Engine
 ### Prerequisites
@@ -50,12 +50,17 @@ You can use more complex capability files from [Tutorial - Part 1](https://githu
 Let's assume you downloaded [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) in your downloads folder. Then you should run:
 ```bash
 # For Linux and Mac
-docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} /app/test.capability.yaml
+docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} serve /app/test.capability.yaml
 
 # For windows
-docker run -p 8081:3001 -v %USERPROFILE%/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} /app/test.capability.yaml
+docker run -p 8081:3001 -v %USERPROFILE%/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} serve /app/test.capability.yaml
 ```
 Then you should be able to request your capability at http://localhost:8081 (the step-1-shipyard-first-capability.yml exposes an MCP tool adapter).
+
+The Docker image now defaults to `ikanos serve`. If you mount your capability file at `/app/ikanos.yaml`, you can omit the explicit command entirely:
+```bash
+docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/ikanos.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}}
+```
 
 #### Options detail
 * Use of a Docker volume.\
@@ -67,12 +72,12 @@ Then you should be able to request your capability at http://localhost:8081 (the
 * Run your capability with Ikanos Engine.\
   Given a capability configuration file 'test.capability.yaml' and an exposition on port 8081, here is the command you have to execute to run the Framework Engine:
   ```bash
-  docker run -p 8081:8081 -v full_path_to_your_capability_folder/test.capability.yaml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:latest /app/test.capability.yaml
+  docker run -p 8081:8081 -v full_path_to_your_capability_folder/test.capability.yaml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:latest serve /app/test.capability.yaml
   ```
 
 ## Ikanos CLI
 The Ikanos also includes a CLI tool.\
-The goal of this CLI is to simplify configuration and validation. While everything can be done manually, the CLI provides helper commands.
+The goal of this CLI is to simplify configuration, validation, and local execution without Docker. While everything can be done manually, the CLI provides helper commands and now starts capabilities directly with `ikanos serve`.
 
 ## Installation
 ### macOS
@@ -127,7 +132,15 @@ ikanos --help
 You should see the help of the command.
 
 ## Use
-There are two available features for the moment: the creation of a "minimum" valid capability configuration file, and the validation of a capability file.
+The CLI supports several features, including running a capability locally, creating a "minimum" valid capability configuration file, and validating a capability file.
+### Run a capability locally
+```bash
+ikanos serve path_to_your_capability_file
+# If the file is named ikanos.yaml in the current directory:
+ikanos serve
+```
+This runs the same runtime contract as the Docker image, but directly from the CLI. The process blocks until you stop it with `Ctrl-C`.
+
 ### Create a capability configuration file
 ```bash
 ikanos create capability
@@ -151,6 +164,8 @@ By default, validation is performed on the latest schema version. If you want to
 ikanos validate path_to_your_capability_file 0.5
 ```
 The result will tell you if the file is valid or if there are any errors.
+
+> **💡 Tip:** The Docker image and the CLI now use the same runtime verb. `docker run ... ghcr.io/naftiko/ikanos serve your-file.yaml` and `ikanos serve your-file.yaml` both start a capability with the same command contract.
 
 > **💡 Tip:** For inline validation as you type, install the free [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code). It validates both JSON Schema structure and Spectral rules directly in your editor.
 
