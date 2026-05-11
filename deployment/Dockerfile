@@ -16,7 +16,8 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Copy the built jar from the build stage
-COPY --from=build /app/ikanos-engine/target/ikanos.jar ikanos.jar
+COPY --from=build /app/ikanos-cli/target/ikanos.jar ikanos.jar
 
-# Set the entrypoint to run the jar
+# Set the entrypoint to run the CLI jar and default to the runtime subcommand
 ENTRYPOINT ["java", "-jar", "ikanos.jar"]
+CMD ["serve"]

@@ -51,16 +51,11 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.bridge.SLF4JBridgeHandler;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
  */
 public class Capability {
-
-    private static final Logger logger = LoggerFactory.getLogger(Capability.class);
 
     /**
      * Mutable runtime state held in {@link AtomicReference}s. This satisfies SonarQube rule
@@ -383,61 +378,6 @@ public class Capability {
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to initialize capability", e);
             }
-        }
-    }
-
-    /**
-     * Launch the capability, reading its configuration from local NAFTIKO.yaml file unless a
-     * specific name is provided.
-     * 
-     * @param args The optional part and name of the capability configuration file.
-     */
-    public static void main(String[] args) {
-        // Route Restlet logging through SLF4J before any context is created
-        System.setProperty("org.restlet.engine.loggerFacadeClass",
-                "org.restlet.ext.slf4j.Slf4jLoggerFacade");
-        SLF4JBridgeHandler.removeHandlersForRootLogger();
-        SLF4JBridgeHandler.install();
-
-        // Determine file path: Argument if provided, otherwise default
-        String filePath = (args.length > 0) ? args[0] : "ikanos.yaml";
-
-        File file = new File(filePath);
-        logger.info("Reading configuration from: {}", file.getAbsolutePath());
-
-        // Read the configuraton file
-        if (file.exists()) {
-            try {
-                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                // Ignore unknown properties to handle potential Restlet framework classes
-                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
-                // Initialize OpenTelemetry with service name from spec
-                String serviceName = "ikanos";
-                if (spec.getInfo() != null && spec.getInfo().getLabel() != null) {
-                    serviceName = "ikanos-" + spec.getInfo().getLabel();
-                }
-                io.ikanos.spec.observability.ObservabilitySpec observabilitySpec = null;
-                if (spec.getCapability() != null) {
-                    for (io.ikanos.spec.exposes.ServerSpec server : spec.getCapability().getExposes()) {
-                        if (server instanceof io.ikanos.spec.exposes.control.ControlServerSpec controlSpec) {
-                            observabilitySpec = controlSpec.getObservability();
-                            break;
-                        }
-                    }
-                }
-                TelemetryBootstrap.init(serviceName, observabilitySpec);
-                // Pass the capability directory for bind file resolution
-                String capabilityDir = file.getParent();
-                Capability capability = new Capability(spec, capabilityDir);
-                capability.start();
-                logger.info("Capability started successfully.");
-            } catch (Exception e) {
-                logger.error("Error reading file", e);
-            }
-        } else {
-            logger.error("Error: File not found at {}", filePath);
-            System.exit(1);
         }
     }
 

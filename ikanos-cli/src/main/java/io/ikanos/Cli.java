@@ -18,6 +18,7 @@ import io.ikanos.cli.ExportCommand;
 import io.ikanos.cli.HealthCommand;
 import io.ikanos.cli.ImportCommand;
 import io.ikanos.cli.MetricsCommand;
+import io.ikanos.cli.ServeCommand;
 import io.ikanos.cli.ScriptingCommand;
 import io.ikanos.cli.StatusCommand;
 import io.ikanos.cli.TracesCommand;
@@ -32,8 +33,8 @@ import picocli.CommandLine.IVersionProvider;
     mixinStandardHelpOptions = true,
     versionProvider = Cli.VersionProvider.class,
     description = "Ikanos CLI",
-    subcommands = {CreateCommand.class, ValidateCommand.class, ImportCommand.class,
-            ExportCommand.class, HealthCommand.class, StatusCommand.class,
+        subcommands = {CreateCommand.class, ValidateCommand.class, ImportCommand.class,
+            ExportCommand.class, ServeCommand.class, HealthCommand.class, StatusCommand.class,
             TracesCommand.class, MetricsCommand.class, ScriptingCommand.class}
 )
 public class Cli implements Runnable {
