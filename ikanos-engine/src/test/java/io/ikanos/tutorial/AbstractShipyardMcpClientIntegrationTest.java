@@ -23,6 +23,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
@@ -35,8 +38,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.util.BindingSpec;
 
 /**
  * Shared infrastructure for Shipyard tutorial MCP client integration tests.
@@ -52,6 +58,10 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
 
     private static final String DEFAULT_TUTORIAL_SECRETS_FILE =
             "src/test/resources/tutorial/shared/secrets.yaml";
+    private static final String SHARED_RELATIVE_PREFIX = "./shared/";
+    private static final String SHARED_FILE_URI_PREFIX = "file:///./shared/";
+    private static final Path TUTORIAL_SHARED_DIR =
+            Paths.get("src", "test", "resources", "tutorial", "shared").toAbsolutePath().normalize();
 
     protected McpServerAdapter adapter;
     protected String serverUrl;
@@ -74,7 +84,9 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
 
         ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
         yaml.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return yaml.readValue(file, IkanosSpec.class);
+        IkanosSpec spec = yaml.readValue(file, IkanosSpec.class);
+        normalizeTutorialSharedLocations(spec);
+        return spec;
     }
 
     protected void useMcpServerToken(String secretsFile) throws Exception {
@@ -207,5 +219,43 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    private void normalizeTutorialSharedLocations(IkanosSpec spec) {
+        normalizeBindLocations(spec.getBinds());
+        normalizeConsumesImports(spec.getConsumes());
+
+        if (spec.getCapability() == null) {
+            return;
+        }
+
+        normalizeBindLocations(spec.getCapability().getBinds());
+        normalizeConsumesImports(spec.getCapability().getConsumes());
+    }
+
+    private void normalizeBindLocations(List<BindingSpec> binds) {
+        for (BindingSpec bind : binds) {
+            String location = bind.getLocation();
+            if (location != null && location.startsWith(SHARED_FILE_URI_PREFIX)) {
+                bind.setLocation(resolveSharedPath(location.substring(SHARED_FILE_URI_PREFIX.length())).toUri().toString());
+            }
+        }
+    }
+
+    private void normalizeConsumesImports(List<ClientSpec> consumes) {
+        for (ClientSpec client : consumes) {
+            if (!(client instanceof ImportedConsumesHttpSpec importSpec)) {
+                continue;
+            }
+
+            String location = importSpec.getLocation();
+            if (location != null && location.startsWith(SHARED_RELATIVE_PREFIX)) {
+                importSpec.setLocation(resolveSharedPath(location.substring(SHARED_RELATIVE_PREFIX.length())).toString());
+            }
+        }
+    }
+
+    private Path resolveSharedPath(String relativeLocation) {
+        return TUTORIAL_SHARED_DIR.resolve(relativeLocation).normalize();
     }
 }
