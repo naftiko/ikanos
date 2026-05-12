@@ -28,6 +28,7 @@ import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -670,7 +671,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
         // Use a concrete auth type that isn't explicitly handled
-        rest.setAuthentication(new io.ikanos.spec.consumes.http.AuthenticationSpec() {});
+        rest.setAuthentication(new AuthenticationSpec() {});
         rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);

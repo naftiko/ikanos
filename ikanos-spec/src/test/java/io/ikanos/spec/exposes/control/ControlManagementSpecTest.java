@@ -83,6 +83,9 @@ class ControlManagementSpecTest {
 
     @Test
     void getLogsShouldLazyInitializeWithLevelControlFalse() {
+        // Lazy-init explicitly sets levelControl=false (via getLogs() implementation)
+        // even though the POJO default is true. This is intentional and documented in
+        // ControlManagementSpec.getLogs().
         ControlLogsEndpointSpec logs = spec.getLogs();
         assertNotNull(logs);
         assertFalse(logs.isLevelControl());

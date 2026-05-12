@@ -108,20 +108,23 @@ public class DocumentationMetadataTest {
 
     @Test
     public void extractResourceDocumentationShouldSkipNullOperationsAndUnnamedOperations() {
-        RestServerResourceSpec resource = new RestServerResourceSpec("/pets");
-        // CopyOnWriteArrayList allows null elements when added directly, but
-        // RestServerResourceSpec.setOperations() rejects them. So mutate the
-        // backing list directly via getOperations() to verify the defensive
-        // `op != null` branch in DocumentationMetadata.
-        List<RestServerOperationSpec> ops = resource.getOperations();
-        ops.add(null);
-        RestServerOperationSpec unnamed = new RestServerOperationSpec();
-        // no name
-        ops.add(unnamed);
-        RestServerOperationSpec named = new RestServerOperationSpec();
-        named.setName("ok");
-        named.setDescription("kept");
-        ops.add(named);
+        // Override operations() to return a list that contains nulls explicitly,
+        // making the null injection independent of the collection type implementation.
+        RestServerResourceSpec resource = new RestServerResourceSpec("/pets") {
+            @Override
+            public List<RestServerOperationSpec> getOperations() {
+                List<RestServerOperationSpec> ops = super.getOperations();
+                ops.add(null);
+                RestServerOperationSpec unnamed = new RestServerOperationSpec();
+                // no name
+                ops.add(unnamed);
+                RestServerOperationSpec named = new RestServerOperationSpec();
+                named.setName("ok");
+                named.setDescription("kept");
+                ops.add(named);
+                return ops;
+            }
+        };
 
         Map<String, Object> docs = DocumentationMetadata.extractResourceDocumentation(resource);
 
