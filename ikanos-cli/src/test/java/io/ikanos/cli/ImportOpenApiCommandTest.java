@@ -311,19 +311,30 @@ public class ImportOpenApiCommandTest {
             paths: {}
             """);
 
-        String originalDir = System.getProperty("user.dir");
-        try {
-          System.setProperty("user.dir", tempDir.toString());
+        // Capture the output by subclassing and overriding the derivation
+        java.util.concurrent.atomic.AtomicReference<String> derivedPath =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        ImportOpenApiCommand command = new ImportOpenApiCommand() {
+          @Override
+          String deriveOutputPath(String namespace, String format) {
+            String derived = super.deriveOutputPath(namespace, format);
+            derivedPath.set(derived);
+            // Override to write to tempDir instead of CWD
+            String ext = "json".equalsIgnoreCase(format) ? "json" : "yml";
+            return tempDir.resolve(namespace + "-consumes." + ext).toString();
+          }
+        };
 
-          CommandLine cmd = new CommandLine(new Cli());
-          int exitCode = cmd.execute("import", "openapi", oasFile.toString());
+        // Use reflection to set the private fields (simulating CommandLine's behavior)
+        java.lang.reflect.Field sourceField = ImportOpenApiCommand.class.getDeclaredField("source");
+        sourceField.setAccessible(true);
+        sourceField.set(command, oasFile.toString());
 
-          assertEquals(0, exitCode);
-          Path expectedOutput = Paths.get("./default-output-api-consumes.yml");
-          assertTrue(Files.exists(expectedOutput));
-        } finally {
-          System.setProperty("user.dir", originalDir);
-          Files.deleteIfExists(Path.of("default-output-api-consumes.yml"));
-        }
+        int exitCode = command.call();
+
+        assertEquals(0, exitCode);
+        String path = derivedPath.get();
+        assertTrue(path.contains("default-output-api-consumes.yml"),
+                "Default output path should follow pattern ./<namespace>-consumes.yml");
       }
 }

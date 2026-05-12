@@ -99,64 +99,73 @@ public class ValidateCommandTest {
         assertTrue(err.toString().contains("Error: Unsupported file format. Only .yaml and .yml are supported."));
     }
 
-        @Test
-        public void callShouldFailWhenInputFileDoesNotExist() {
-                Path missing = tempDir.resolve("missing.yaml");
+    @Test
+    public void callShouldFailWhenInputFileDoesNotExist() {
+        Path missing = tempDir.resolve("missing.yaml");
 
-                int exitCode = new CommandLine(new ValidateCommand()).execute(missing.toString());
+        int exitCode = new CommandLine(new ValidateCommand()).execute(missing.toString());
 
-                assertEquals(1, exitCode);
-                assertTrue(errCapture.toString().contains("Error: File not found"));
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Error: File not found"));
+    }
+
+    @Test
+    public void callShouldFailWhenSchemaVersionIsUnsupported() {
+        Path yaml = tempDir.resolve("capability.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "9.9");
+
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Schema ikanos-schema-v9.9.json is not supported"));
+    }
+
+    @Test
+    public void callShouldFailWhenValidationDetectsSchemaErrors() {
+        Path yaml = tempDir.resolve("invalid-capability.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\ninfo: {}\n"));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Validation failed"));
+    }
+
+    @Test
+    public void callShouldSucceedForValidCapabilityYaml() {
+        // Use a path relative to the project basedir set by Maven, not the JVM working directory.
+        // The maven-surefire-plugin sets user.dir to the project root during testing.
+        String projectBasedir = System.getProperty("user.dir");
+        Path yaml = java.nio.file.Paths.get(projectBasedir)
+                .resolve("ikanos-docs/tutorial/step-1-shipyard-mock.yml");
+
+        if (!Files.exists(yaml)) {
+            // Fallback: try the old relative path (useful for IDE debugging)
+            yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
+                    .toAbsolutePath().normalize();
         }
 
-        @Test
-        public void callShouldFailWhenSchemaVersionIsUnsupported() {
-                Path yaml = tempDir.resolve("capability.yaml");
-                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
-                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "9.9");
+        assertEquals(0, exitCode);
+        assertTrue(outCapture.toString().contains("Validation successful"));
+    }
 
-                assertEquals(1, exitCode);
-                assertTrue(errCapture.toString().contains("Schema ikanos-schema-v9.9.json is not supported"));
-        }
+    @Test
+    public void callShouldReturnOneWhenUnexpectedExceptionOccurs() {
+        ValidateCommand command = new ValidateCommand() {
+            @Override
+            JsonNode loadFile(java.io.File file) {
+                throw new RuntimeException("boom");
+            }
+        };
 
-        @Test
-        public void callShouldFailWhenValidationDetectsSchemaErrors() {
-                Path yaml = tempDir.resolve("invalid-capability.yaml");
-                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\ninfo: {}\n"));
+        Path yaml = tempDir.resolve("unexpected.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
 
-                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+        int exitCode = new CommandLine(command).execute(yaml.toString());
 
-                assertEquals(1, exitCode);
-                assertTrue(errCapture.toString().contains("Validation failed"));
-        }
-
-        @Test
-        public void callShouldSucceedForValidCapabilityYaml() {
-                Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
-                                .toAbsolutePath().normalize();
-
-                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
-
-                assertEquals(0, exitCode);
-                assertTrue(outCapture.toString().contains("Validation successful"));
-        }
-
-        @Test
-        public void callShouldReturnOneWhenUnexpectedExceptionOccurs() {
-                ValidateCommand command = new ValidateCommand() {
-                        @Override
-                        JsonNode loadFile(java.io.File file) {
-                                throw new RuntimeException("boom");
-                        }
-                };
-
-                Path yaml = tempDir.resolve("unexpected.yaml");
-                assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
-
-                int exitCode = new CommandLine(command).execute(yaml.toString());
-
-                assertEquals(1, exitCode);
-                assertTrue(errCapture.toString().contains("Error: boom"));
-        }
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Error: boom"));
+    }
 }

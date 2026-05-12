@@ -89,7 +89,6 @@
             ikanos-engine  line 0.77  branch 0.67
             ikanos-cli     line 0.76  branch 0.66
         -->
-        <jacoco.halt>true</jacoco.halt>
         <jacoco.line.min>0.75</jacoco.line.min>
         <jacoco.branch.min>0.65</jacoco.branch.min>
     </properties>
@@ -390,7 +389,7 @@
                                 <goal>check</goal>
                             </goals>
                             <configuration>
-                                <haltOnFailure>${jacoco.halt}</haltOnFailure>
+                                <haltOnFailure>true</haltOnFailure>
                                 <rules>
                                     <rule>
                                         <element>BUNDLE</element>

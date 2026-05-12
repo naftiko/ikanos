@@ -51,7 +51,8 @@ public class CliTest {
         String[] version = new Cli.VersionProvider().getVersion();
 
         assertEquals(1, version.length);
-        assertTrue(version[0].startsWith("1.0.0-alpha3"));
+        // Use the same source as the actual version provider to stay in sync
+        assertEquals(io.ikanos.spec.util.VersionHelper.getSchemaVersion(), version[0]);
     }
 
     @Test

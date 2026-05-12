@@ -57,6 +57,12 @@ public class ImportOpenApiCommand implements Callable<Integer> {
     @Option(names = {"-f", "--format"}, description = "Output format: yaml or json (default: yaml)")
     private String format = "yaml";
 
+    // package-private for testing
+    String deriveOutputPath(String namespace, String format) {
+        String ext = "json".equalsIgnoreCase(format) ? "json" : "yml";
+        return "./" + namespace + "-consumes." + ext;
+    }
+
     @Override
     public Integer call() {
         try {
@@ -103,8 +109,7 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             if (output != null) {
                 outputPath = output;
             } else {
-                String ext = "json".equalsIgnoreCase(format) ? "json" : "yml";
-                outputPath = "./" + httpClient.getNamespace() + "-consumes." + ext;
+                outputPath = deriveOutputPath(httpClient.getNamespace(), format);
             }
 
             // Build the appropriate mapper based on format

@@ -161,7 +161,7 @@ public class StatusCommandTest {
         int exitCode = cmd.execute("status", "--port", String.valueOf(port));
 
         assertEquals(0, exitCode);
-        assertTrue(outCapture.toString().contains("active (otlp → http://otel:4317)"));
+        assertTrue(outCapture.toString().contains("active (otlp \u2192 http://otel:4317)"));
     }
 
     @Test
