@@ -121,7 +121,7 @@ When designing or modifying a Capability:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 
-- Open an Issue before starting work
+- **Open an Issue before starting work** — this applies to every change (feat, fix, chore, skill update, doc edit). Before writing any code or modifying any file, propose opening a GitHub issue and wait for the user's confirmation. The user may explicitly waive the issue step; only then proceed without one.
 - **All GitHub interactions must be in English** — issues, PR titles/bodies, inline review comments, and commit messages. The codebase and its community are English-first.
 - Branch from `main`: `feat/`, `fix/`, or `chore/` prefix
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:` — no scopes for now
