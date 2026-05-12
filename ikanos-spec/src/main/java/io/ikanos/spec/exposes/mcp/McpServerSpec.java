@@ -13,8 +13,10 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -23,13 +25,13 @@ import io.ikanos.spec.exposes.ServerSpec;
 /**
  * MCP Server Specification Element.
  * 
- * Defines an MCP server that exposes tools over a configurable transport.
- * Supported transports:
+ * <p>Defines an MCP server that exposes tools, resources, and prompts over a configurable
+ * transport. Supported transports:
  * <ul>
  *   <li>{@code http} (default) — Streamable HTTP via Restlet, for networked deployments</li>
  *   <li>{@code stdio} — stdin/stdout JSON-RPC, for local IDE development</li>
  * </ul>
- * Each tool maps to one or more consumed HTTP operations.
+ * Tools, resources, and prompts are keyed by their name (kebab-case identifier).</p>
  */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class McpServerSpec extends ServerSpec {
@@ -44,13 +46,19 @@ public class McpServerSpec extends ServerSpec {
     private volatile String description;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<McpServerToolSpec> tools;
+    @JsonDeserialize(using = McpServerToolMapDeserializer.class)
+    private final Map<String, McpServerToolSpec> tools =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<McpServerResourceSpec> resources;
+    @JsonDeserialize(using = McpServerResourceMapDeserializer.class)
+    private final Map<String, McpServerResourceSpec> resources =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<McpServerPromptSpec> prompts;
+    @JsonDeserialize(using = McpServerPromptMapDeserializer.class)
+    private final Map<String, McpServerPromptSpec> prompts =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public McpServerSpec() {
         this(null, 0, null, null);
@@ -60,14 +68,8 @@ public class McpServerSpec extends ServerSpec {
         super("mcp", address, port);
         this.namespace = namespace;
         this.description = description;
-        this.tools = new CopyOnWriteArrayList<>();
-        this.resources = new CopyOnWriteArrayList<>();
-        this.prompts = new CopyOnWriteArrayList<>();
     }
 
-    /**
-     * Returns the transport type. Defaults to {@code "http"} when not set.
-     */
     public String getTransport() {
         return transport != null ? transport : "http";
     }
@@ -96,16 +98,39 @@ public class McpServerSpec extends ServerSpec {
         this.description = description;
     }
 
-    public List<McpServerToolSpec> getTools() {
+    public Map<String, McpServerToolSpec> getTools() {
         return tools;
     }
 
-    public List<McpServerResourceSpec> getResources() {
+    public void setTools(Map<String, McpServerToolSpec> tools) {
+        if (tools == null) return;
+        synchronized (this.tools) {
+            this.tools.clear();
+            this.tools.putAll(tools);
+        }
+    }
+
+    public Map<String, McpServerResourceSpec> getResources() {
         return resources;
     }
 
-    public List<McpServerPromptSpec> getPrompts() {
+    public void setResources(Map<String, McpServerResourceSpec> resources) {
+        if (resources == null) return;
+        synchronized (this.resources) {
+            this.resources.clear();
+            this.resources.putAll(resources);
+        }
+    }
+
+    public Map<String, McpServerPromptSpec> getPrompts() {
         return prompts;
     }
 
+    public void setPrompts(Map<String, McpServerPromptSpec> prompts) {
+        if (prompts == null) return;
+        synchronized (this.prompts) {
+            this.prompts.clear();
+            this.prompts.putAll(prompts);
+        }
+    }
 }

@@ -13,12 +13,12 @@
  */
 package io.ikanos.spec.consumes.http;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.ResourceSpec;
 
@@ -26,14 +26,14 @@ import io.ikanos.spec.ResourceSpec;
  * HTTP Resource Specification Element.
  *
  * <h2>Thread safety</h2>
- * The {@code operations} list is held in an {@link AtomicReference} wrapping a
- * {@link CopyOnWriteArrayList} for both reference-level and element-level thread-safety.
- * This satisfies SonarQube rule {@code java:S3077}.
+ * The {@code operations} map is a synchronized {@link LinkedHashMap} preserving YAML insertion
+ * order (critical for call-reference resolution). This satisfies SonarQube rule {@code java:S3077}.
  */
 public class HttpClientResourceSpec extends ResourceSpec {
 
-    private final AtomicReference<List<HttpClientOperationSpec>> operations =
-            new AtomicReference<>(new CopyOnWriteArrayList<>());
+    @JsonDeserialize(using = HttpClientOperationMapDeserializer.class)
+    private final Map<String, HttpClientOperationSpec> operations =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public HttpClientResourceSpec() {
         this(null, null, null, null);
@@ -48,27 +48,18 @@ public class HttpClientResourceSpec extends ResourceSpec {
     }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public List<HttpClientOperationSpec> getOperations() {
-        return operations.get();
+    public Map<String, HttpClientOperationSpec> getOperations() {
+        return operations;
     }
 
-    /**
-     * Sets operations and establishes parent resource reference for each operation.
-     * This ensures that each {@link HttpClientOperationSpec} knows its parent
-     * {@link HttpClientResourceSpec}.
-     *
-     * <p>{@code @JsonSetter} ensures this method is called by Jackson during deserialization.</p>
-     */
-    @JsonSetter
-    public void setOperations(List<HttpClientOperationSpec> operations) {
-        if (operations == null) {
-            this.operations.set(new CopyOnWriteArrayList<>());
-            return;
+    public void setOperations(Map<String, HttpClientOperationSpec> operations) {
+        if (operations == null) return;
+        synchronized (this.operations) {
+            this.operations.clear();
+            operations.forEach((name, op) -> {
+                op.setParentResource(this);
+                this.operations.put(name, op);
+            });
         }
-        CopyOnWriteArrayList<HttpClientOperationSpec> snapshot = new CopyOnWriteArrayList<>(operations);
-        for (HttpClientOperationSpec operation : snapshot) {
-            operation.setParentResource(this);
-        }
-        this.operations.set(snapshot);
     }
 }

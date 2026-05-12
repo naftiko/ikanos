@@ -13,16 +13,15 @@
  */
 package io.ikanos.spec.exposes.rest;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.exposes.ServerSpec;
 
-/**
- * Web API Server Specification Element
- */
+/** Web API Server Specification Element */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class RestServerSpec extends ServerSpec {
 
@@ -30,7 +29,9 @@ public class RestServerSpec extends ServerSpec {
     private volatile String namespace;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<RestServerResourceSpec> resources;
+    @JsonDeserialize(using = RestServerResourceMapDeserializer.class)
+    private final Map<String, RestServerResourceSpec> resources =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public RestServerSpec() {
         this(null, 0, null);
@@ -39,19 +40,18 @@ public class RestServerSpec extends ServerSpec {
     public RestServerSpec(String address, int port, String namespace) {
         super("rest", address, port);
         this.namespace = namespace;
-        this.resources = new CopyOnWriteArrayList<>();
     }
 
-    public String getNamespace() {
-        return namespace;
-    }
+    public String getNamespace() { return namespace; }
+    public void setNamespace(String namespace) { this.namespace = namespace; }
 
-    public void setNamespace(String namespace) {
-        this.namespace = namespace;
-    }
+    public Map<String, RestServerResourceSpec> getResources() { return resources; }
 
-    public List<RestServerResourceSpec> getResources() {
-        return resources;
+    public void setResources(Map<String, RestServerResourceSpec> resources) {
+        if (resources == null) return;
+        synchronized (this.resources) {
+            this.resources.clear();
+            this.resources.putAll(resources);
+        }
     }
-
 }

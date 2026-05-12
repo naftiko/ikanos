@@ -66,14 +66,14 @@ public class AggregateRefResolver {
         // Validate refs and derive metadata in all adapter units
         for (ServerSpec serverSpec : capability.getExposes()) {
             if (serverSpec instanceof McpServerSpec mcpSpec) {
-                for (McpServerToolSpec tool : mcpSpec.getTools()) {
+                for (McpServerToolSpec tool : mcpSpec.getTools().values()) {
                     if (tool.getRef() != null) {
                         resolveMcpToolRef(tool, functionMap);
                     }
                 }
             } else if (serverSpec instanceof RestServerSpec restSpec) {
-                for (RestServerResourceSpec resource : restSpec.getResources()) {
-                    for (RestServerOperationSpec op : resource.getOperations()) {
+                for (RestServerResourceSpec resource : restSpec.getResources().values()) {
+                    for (RestServerOperationSpec op : resource.getOperations().values()) {
                         if (op.getRef() != null) {
                             resolveRestOperationRef(op, functionMap);
                         }
@@ -89,8 +89,8 @@ public class AggregateRefResolver {
     Map<String, AggregateFunctionSpec> buildFunctionMap(CapabilitySpec capability) {
         Map<String, AggregateFunctionSpec> map = new HashMap<>();
 
-        for (AggregateSpec aggregate : capability.getAggregates()) {
-            for (AggregateFunctionSpec function : aggregate.getFunctions()) {
+        for (AggregateSpec aggregate : capability.getAggregates().values()) {
+            for (AggregateFunctionSpec function : aggregate.getFunctions().values()) {
                 String key = aggregate.getNamespace() + "." + function.getName();
                 if (map.containsKey(key)) {
                     throw new IllegalArgumentException(

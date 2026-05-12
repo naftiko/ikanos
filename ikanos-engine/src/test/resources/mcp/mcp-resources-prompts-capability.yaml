@@ -1,114 +1,102 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 info:
-  label: "MCP Resources & Prompts Test Capability"
-  description: "Test capability for MCP Server Adapter resources and prompts support"
+  label: MCP Resources & Prompts Test Capability
+  description: Test capability for MCP Server Adapter resources and prompts support
   tags:
-    - Test
-    - MCP
-  created: "2026-03-06"
-  modified: "2026-03-06"
-
+  - Test
+  - MCP
+  created: '2026-03-06'
+  modified: '2026-03-06'
 capability:
   exposes:
-    - type: "mcp"
-      address: "localhost"
-      port: 9096
-      namespace: "test-mcp-resources-prompts"
-      description: "Test MCP server for validating resources and prompts support."
+  - type: mcp
+    address: localhost
+    port: 9096
+    namespace: test-mcp-resources-prompts
+    description: Test MCP server for validating resources and prompts support.
+    tools:
+      query-database:
+        label: Query Database
+        description: Query the test database to retrieve committed participants.
+        call: mock-api.query-db
+        with:
+          datasource_id: test-db-id-123
+        outputParameters:
+        - type: array
+          mapping: $.results
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                mapping: $.id
+    resources:
+      database-schema:
+        label: Database Schema
+        uri: data://databases/pre-release/schema
+        description: Schema of the pre-release participants database
+        mimeType: application/json
+        call: mock-api.query-db
+        with:
+          datasource_id: test-db-id-123
+      user-profile:
+        label: User Profile
+        uri: data://users/{userId}/profile
+        description: User profile by ID
+        mimeType: application/json
+        call: mock-api.query-db
+        with:
+          datasource_id: '{{userId}}'
+    prompts:
+      participant-outreach:
+        label: Participant Outreach
+        description: Draft outreach message to pre-release participants
+        arguments:
+          participant_name:
+            description: Name of the participant
+            required: true
+          product_name:
+            description: Name of the product
+            required: true
+        template:
+        - role: user
+          content: Draft a personalized outreach email to {{participant_name}} about
+            the upcoming {{product_name}} pre-release. Be professional but friendly.
+      summary-prompt:
+        label: Summary Prompt
+        description: Summarize data in a given format
+        arguments:
+          data:
+            description: The raw data to summarize
+            required: true
+          format:
+            description: 'Output format: bullet-points, paragraph, or table'
+            required: false
+        template:
+        - role: user
+          content: 'Summarize the following data in {{format}} format:
 
-      tools:
-        - name: "query-database"
-          label: "Query Database"
-          description: "Query the test database to retrieve committed participants."
-          call: "mock-api.query-db"
-          with:
-            datasource_id: "test-db-id-123"
-          outputParameters:
-            - type: "array"
-              mapping: "$.results"
-              items:
-                type: "object"
-                properties:
-                  id:
-                    type: "string"
-                    mapping: "$.id"
-      resources:
-        - name: "database-schema"
-          label: "Database Schema"
-          uri: "data://databases/pre-release/schema"
-          description: "Schema of the pre-release participants database"
-          mimeType: "application/json"
-          call: "mock-api.query-db"
-          with:
-            datasource_id: "test-db-id-123"
 
-        - name: "user-profile"
-          label: "User Profile"
-          uri: "data://users/{userId}/profile"
-          description: "User profile by ID"
-          mimeType: "application/json"
-          call: "mock-api.query-db"
-          with:
-            datasource_id: "{{userId}}"
-
-      prompts:
-        - name: "participant-outreach"
-          label: "Participant Outreach"
-          description: "Draft outreach message to pre-release participants"
-          arguments:
-            - name: "participant_name"
-              description: "Name of the participant"
-              required: true
-            - name: "product_name"
-              description: "Name of the product"
-              required: true
-          template:
-            - role: "user"
-              content: "Draft a personalized outreach email to {{participant_name}} about the upcoming {{product_name}} pre-release. Be professional but friendly."
-
-        - name: "summary-prompt"
-          label: "Summary Prompt"
-          description: "Summarize data in a given format"
-          arguments:
-            - name: "data"
-              description: "The raw data to summarize"
-              required: true
-            - name: "format"
-              description: "Output format: bullet-points, paragraph, or table"
-              required: false
-          template:
-            - role: "user"
-              content: "Summarize the following data in {{format}} format:\n\n{{data}}"
-            - role: "assistant"
-              content: "I'll summarize the data for you."
-            - role: "user"
-              content: "Please focus on the key insights."
-
+            {{data}}'
+        - role: assistant
+          content: I'll summarize the data for you.
+        - role: user
+          content: Please focus on the key insights.
   consumes:
-    - type: "http"
-      namespace: "mock-api"
-      baseUri: "http://localhost:8080/v1"
-      inputParameters:
-        - name: "Content-Type"
-          in: "header"
-          value: "application/json"
-
-      resources:
-        - path: "databases/{{datasource_id}}/query"
-          name: "query"
-          label: "Query database resource"
-          operations:
-            - method: "POST"
-              name: "query-db"
-              label: "Query Database"
-              body: |
-                {
-                  "filter": {
-                    "property": "Status",
-                    "select": {
-                      "equals": "Committed"
-                    }
-                  }
-                }
+  - type: http
+    namespace: mock-api
+    baseUri: http://localhost:8080/v1
+    inputParameters:
+      Content-Type:
+        in: header
+        value: application/json
+    resources:
+      query:
+        path: databases/{{datasource_id}}/query
+        label: Query database resource
+        operations:
+          query-db:
+            method: POST
+            label: Query Database
+            body: "{\n  \"filter\": {\n    \"property\": \"Status\",\n    \"select\"\
+              : {\n      \"equals\": \"Committed\"\n    }\n  }\n}\n"

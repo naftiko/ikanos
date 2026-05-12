@@ -62,11 +62,11 @@ public class DocumentationMetadataTest {
     public void testExtractResourceDocumentationWithMultipleOperations() {
         RestServerOperationSpec op1 = new RestServerOperationSpec(resource, "GET", "list", "List Users");
         op1.setDescription("List all users");
-        resource.getOperations().add(op1);
+        resource.getOperations().put(op1.getName(), op1);
         
         RestServerOperationSpec op2 = new RestServerOperationSpec(resource, "POST", "create", "Create User");
         op2.setDescription("Create a new user");
-        resource.getOperations().add(op2);
+        resource.getOperations().put(op2.getName(), op2);
         
         Map<String, Object> docs = DocumentationMetadata.extractResourceDocumentation(resource);
         
@@ -137,7 +137,7 @@ public class DocumentationMetadataTest {
     @Test
     public void testFormatOperationDocumentation() {
         OperationStepCallSpec step = new OperationStepCallSpec("Fetch user from database", "db.fetchUser");
-        operation.getSteps().add(step);
+        operation.getSteps().put(step.getName(), step);
         
         String doc = DocumentationMetadata.formatOperationDocumentation(resource, operation);
         
@@ -197,3 +197,4 @@ public class DocumentationMetadataTest {
     }
 
 }
+

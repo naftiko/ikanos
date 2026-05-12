@@ -128,7 +128,7 @@ public class RestPathParamWithResolutionTest {
             Capability capability = new Capability(spec);
             RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(0);
             RestServerSpec serverSpec = (RestServerSpec) adapter.getSpec();
-            RestServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
+            RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
             ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec, resourceSpec);
 
             Request request = new Request(Method.GET, "http://localhost/ships/IMO-9321483");

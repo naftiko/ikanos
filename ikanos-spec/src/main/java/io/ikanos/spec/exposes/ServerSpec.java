@@ -13,14 +13,17 @@
  */
 package io.ikanos.spec.exposes;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
+import io.ikanos.spec.InputParameterMapDeserializer;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 
@@ -29,8 +32,8 @@ import io.ikanos.spec.consumes.http.AuthenticationSpec;
  *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} or {@link AtomicInteger}; the
- * {@code inputParameters} list is a {@link CopyOnWriteArrayList}. This satisfies SonarQube
- * rule {@code java:S3077}.
+ * {@code inputParameters} map is a synchronized {@link LinkedHashMap} wrapped in an
+ * {@link AtomicReference}. This satisfies SonarQube rule {@code java:S3077}.
  */
 @JsonDeserialize(using = ServerSpecDeserializer.class)
 public abstract class ServerSpec {
@@ -40,7 +43,9 @@ public abstract class ServerSpec {
     private final AtomicInteger port = new AtomicInteger();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<InputParameterSpec> inputParameters;
+    @JsonDeserialize(using = InputParameterMapDeserializer.class)
+    private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
+            new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
@@ -56,7 +61,6 @@ public abstract class ServerSpec {
         this.type.set(type);
         this.address.set(address);
         this.port.set(port);
-        this.inputParameters = new CopyOnWriteArrayList<>();
     }
 
     public String getType() {
@@ -84,7 +88,13 @@ public abstract class ServerSpec {
     }
 
     public List<InputParameterSpec> getInputParameters() {
-        return inputParameters;
+        return List.copyOf(inputParameters.get().values());
+    }
+
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        Map<String, InputParameterSpec> snapshot = Collections.synchronizedMap(
+                new LinkedHashMap<>(params != null ? params : Map.of()));
+        inputParameters.set(snapshot);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

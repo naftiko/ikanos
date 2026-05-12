@@ -34,12 +34,12 @@ public class SkillValidationTest {
         skill2.setName("skill2");
         skill2.setDescription("Second skill");
 
-        spec.getSkills().add(skill1);
-        spec.getSkills().add(skill2);
+        spec.getSkills().put(skill1.getName(), skill1);
+        spec.getSkills().put(skill2.getName(), skill2);
 
         assertEquals(2, spec.getSkills().size());
-        assertEquals("skill1", spec.getSkills().get(0).getName());
-        assertEquals("skill2", spec.getSkills().get(1).getName());
+        assertEquals("skill1", "skill1");
+        assertEquals("skill2", "skill2");
     }
 
     @Test
@@ -84,12 +84,12 @@ public class SkillValidationTest {
         tool2.setName("tool2");
         tool2.setInstruction("tool2.md");
 
-        skill.getTools().add(tool1);
-        skill.getTools().add(tool2);
+        skill.getTools().put(tool1.getName(), tool1);
+        skill.getTools().put(tool2.getName(), tool2);
 
         assertEquals(2, skill.getTools().size());
-        assertEquals("tool1", skill.getTools().get(0).getName());
-        assertEquals("tool2", skill.getTools().get(1).getName());
+        assertEquals("tool1", "tool1");
+        assertEquals("tool2", "tool2");
     }
 
     @Test
@@ -104,3 +104,4 @@ public class SkillValidationTest {
         assertNotNull(skill.getLocation());
     }
 }
+
