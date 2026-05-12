@@ -347,7 +347,7 @@ public class ProtocolDispatcher {
             }
             if (!spec.getArguments().isEmpty()) {
                 ArrayNode argsArray = promptNode.putArray("arguments");
-                for (McpPromptArgumentSpec arg : spec.getArguments()) {
+                for (McpPromptArgumentSpec arg : spec.getArguments().values()) {
                     ObjectNode argNode = mapper.createObjectNode();
                     argNode.put("name", arg.getName());
                     if (arg.getLabel() != null) {

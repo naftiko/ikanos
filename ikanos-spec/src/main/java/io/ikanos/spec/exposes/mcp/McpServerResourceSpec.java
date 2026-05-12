@@ -13,32 +13,29 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
+import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
  * MCP Resource Specification Element.
  *
- * <p>Defines an MCP resource that exposes data agents can read. Two source types are supported:</p>
- * <ul>
- *   <li><b>Dynamic</b> ({@code call}/{@code steps}): backed by consumed HTTP operations — same
- *       orchestration model as tools.</li>
- *   <li><b>Static</b> ({@code location}): served from local files identified by a
- *       {@code file:///} URI.</li>
- * </ul>
- *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
- * stored as an immutable snapshot. List fields use {@link CopyOnWriteArrayList}. This
- * satisfies SonarQube rule {@code java:S3077}.
+ * stored as an immutable snapshot. {@code steps} is a synchronized {@link LinkedHashMap}.
+ * {@code outputParameters} uses {@link CopyOnWriteArrayList}. This satisfies SonarQube
+ * rule {@code java:S3077}.
  */
 public class McpServerResourceSpec {
 
@@ -52,103 +49,61 @@ public class McpServerResourceSpec {
     private final AtomicReference<String> location = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<OperationStepSpec> steps;
+    @JsonDeserialize(using = OperationStepMapDeserializer.class)
+    private final Map<String, OperationStepSpec> steps =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<OutputParameterSpec> outputParameters;
+    private final CopyOnWriteArrayList<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
 
-    public McpServerResourceSpec() {
-        this.steps = new CopyOnWriteArrayList<>();
-        this.outputParameters = new CopyOnWriteArrayList<>();
-    }
+    public McpServerResourceSpec() {}
 
-    public String getName() {
-        return name.get();
-    }
-
-    public void setName(String name) {
-        this.name.set(name);
-    }
+    public String getName() { return name.get(); }
+    public void setName(String name) { this.name.set(name); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getLabel() {
-        return label.get();
-    }
+    public String getLabel() { return label.get(); }
+    public void setLabel(String label) { this.label.set(label); }
 
-    public void setLabel(String label) {
-        this.label.set(label);
-    }
+    public String getUri() { return uri.get(); }
+    public void setUri(String uri) { this.uri.set(uri); }
 
-    public String getUri() {
-        return uri.get();
-    }
-
-    public void setUri(String uri) {
-        this.uri.set(uri);
-    }
-
-    public String getDescription() {
-        return description.get();
-    }
-
-    public void setDescription(String description) {
-        this.description.set(description);
-    }
+    public String getDescription() { return description.get(); }
+    public void setDescription(String description) { this.description.set(description); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getMimeType() {
-        return mimeType.get();
-    }
-
-    public void setMimeType(String mimeType) {
-        this.mimeType.set(mimeType);
-    }
+    public String getMimeType() { return mimeType.get(); }
+    public void setMimeType(String mimeType) { this.mimeType.set(mimeType); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public ServerCallSpec getCall() {
-        return call.get();
-    }
-
-    public void setCall(ServerCallSpec call) {
-        this.call.set(call);
-    }
+    public ServerCallSpec getCall() { return call.get(); }
+    public void setCall(ServerCallSpec call) { this.call.set(call); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public Map<String, Object> getWith() {
-        return with.get();
-    }
+    public Map<String, Object> getWith() { return with.get(); }
+    public void setWith(Map<String, Object> with) { this.with.set(with != null ? Map.copyOf(with) : null); }
 
-    public void setWith(Map<String, Object> with) {
-        this.with.set(with != null ? Map.copyOf(with) : null);
-    }
-
-    public List<OperationStepSpec> getSteps() {
-        return steps;
+    public Map<String, OperationStepSpec> getSteps() { return steps; }
+    public void setSteps(Map<String, OperationStepSpec> steps) {
+        if (steps == null) return;
+        synchronized (this.steps) { this.steps.clear(); this.steps.putAll(steps); }
     }
 
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
     }
 
+    public void setOutputParameters(List<OutputParameterSpec> params) {
+        outputParameters.clear();
+        if (params != null) outputParameters.addAll(params);
+    }
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getLocation() {
-        return location.get();
-    }
+    public String getLocation() { return location.get(); }
+    public void setLocation(String location) { this.location.set(location); }
 
-    public void setLocation(String location) {
-        this.location.set(location);
-    }
+    public boolean isStatic() { return location.get() != null; }
 
-    /**
-     * Returns {@code true} when this resource is served from a local file directory.
-     */
-    public boolean isStatic() {
-        return location.get() != null;
-    }
-
-    /**
-     * Returns {@code true} when the URI contains {@code {param}} placeholders (resource template).
-     */
     public boolean isTemplate() {
         String value = uri.get();
         return value != null && value.contains("{") && value.contains("}");

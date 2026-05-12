@@ -162,14 +162,16 @@ class McpServerToolSpecTest {
     @Test
     void inputParametersShouldBeMutable() {
         McpServerToolSpec spec = new McpServerToolSpec();
-        spec.getInputParameters().add(new InputParameterSpec());
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("p1");
+        spec.setInputParameters(Map.of("p1", param));
         assertEquals(1, spec.getInputParameters().size());
     }
 
     @Test
     void stepsShouldBeMutable() {
         McpServerToolSpec spec = new McpServerToolSpec();
-        spec.getSteps().add(new OperationStepCallSpec());
+        spec.getSteps().put("step1", new OperationStepCallSpec());
         assertEquals(1, spec.getSteps().size());
     }
 

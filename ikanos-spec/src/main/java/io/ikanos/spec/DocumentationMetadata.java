@@ -43,9 +43,9 @@ public class DocumentationMetadata {
             
             // Extract operation descriptions
             Map<String, String> operations = new HashMap<>();
-            List<RestServerOperationSpec> ops = resource.getOperations();
+            Map<String, RestServerOperationSpec> ops = resource.getOperations();
             if (ops != null) {
-                for (RestServerOperationSpec op : ops) {
+                for (RestServerOperationSpec op : ops.values()) {
                     if (op != null && op.getName() != null) {
                         operations.put(op.getName(), op.getDescription() != null ? op.getDescription() : "");
                     }
@@ -186,8 +186,8 @@ public class DocumentationMetadata {
             
             if (operation.getSteps() != null && !operation.getSteps().isEmpty()) {
                 doc.append("\nSteps:\n");
-                for (int i = 0; i < operation.getSteps().size(); i++) {
-                    OperationStepSpec step = operation.getSteps().get(i);
+                int i = 0;
+                for (OperationStepSpec step : operation.getSteps().values()) {
                     doc.append("  ").append(i + 1).append(". ");
                     if (step.getName() != null && !step.getName().isEmpty()) {
                         doc.append(step.getName());
@@ -202,6 +202,7 @@ public class DocumentationMetadata {
                         doc.append("(No description)");
                     }
                     doc.append("\n");
+                    i++;
                 }
             }
         }

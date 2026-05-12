@@ -1,33 +1,31 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 info:
-  label: "HTTP Forward with Value Field Test"
-  description: "Test capability for forward spec with value field supporting Mustache templates"
-  created: "2026-03-03"
-  modified: "2026-03-03"
-
+  label: HTTP Forward with Value Field Test
+  description: Test capability for forward spec with value field supporting Mustache
+    templates
+  created: '2026-03-03'
+  modified: '2026-03-03'
 capability:
   exposes:
-    - type: rest
-      address: localhost
-      port: 8083
-      namespace: sample
-      resources:
-        - path: "/forward/{{path}}"
-          description: "Forward requests with value field parameter"
-          forward:
-            targetNamespace: external
-
+  - type: rest
+    address: localhost
+    port: 8083
+    namespace: sample
+    resources:
+      forward:
+        path: /forward/{{path}}
+        description: Forward requests with value field parameter
+        forward:
+          targetNamespace: external
   consumes:
-    - type: http
-      description: "External API endpoint"
-      namespace: external
-      baseUri: "https://api.example.com/v1"
-      inputParameters:
-        - name: "X-API-Version"
-          in: "header"
-          value: "2026-03-03"
-        - name: "X-API-Key"
-          in: "header"
-          value: "secret-key-123"
+  - type: http
+    description: External API endpoint
+    namespace: external
+    baseUri: https://api.example.com/v1
+    inputParameters:
+      X-API-Version:
+        in: header
+        value: '2026-03-03'
+      X-API-Key:
+        in: header
+        value: secret-key-123

@@ -74,16 +74,17 @@ public class OasImportConverter {
             resource.setPath(path.replaceAll("\\{([^}]+)}", "{{$1}}"));
             resource.setName(deriveResourceName(path));
 
-            List<HttpClientOperationSpec> operations = new ArrayList<>();
+            Map<String, HttpClientOperationSpec> operations = new LinkedHashMap<>();
             for (OperationEntry opEntry : ops) {
                 HttpClientOperationSpec opSpec = convertOperation(
                         opEntry.path, opEntry.method, opEntry.operation, warnings);
                 opSpec.setParentResource(resource);
-                operations.add(opSpec);
+                operations.put(opSpec.getName(), opSpec);
             }
             resource.setOperations(operations);
 
-            httpClient.getResources().add(resource);
+            String resourceName = resource.getName();
+            httpClient.getResources().put(resourceName, resource);
         }
 
         return new OasImportResult(httpClient, warnings);
@@ -242,10 +243,11 @@ public class OasImportConverter {
         }
 
         // Input parameters from path/query/header/cookie
+        Map<String, InputParameterSpec> inputMap = new LinkedHashMap<>();
         if (operation.getParameters() != null) {
             for (Parameter param : operation.getParameters()) {
                 InputParameterSpec inputParam = convertInputParameter(param);
-                opSpec.getInputParameters().add(inputParam);
+                inputMap.put(inputParam.getName(), inputParam);
             }
         }
 
@@ -253,7 +255,13 @@ public class OasImportConverter {
         if (operation.getRequestBody() != null) {
             List<InputParameterSpec> bodyParams =
                     convertRequestBody(operation.getRequestBody(), warnings);
-            opSpec.getInputParameters().addAll(bodyParams);
+            for (InputParameterSpec bp : bodyParams) {
+                inputMap.put(bp.getName(), bp);
+            }
+        }
+
+        if (!inputMap.isEmpty()) {
+            opSpec.setInputParameters(inputMap);
         }
 
         // Output parameters from success response

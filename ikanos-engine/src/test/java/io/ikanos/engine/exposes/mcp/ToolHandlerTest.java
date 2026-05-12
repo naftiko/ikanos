@@ -15,7 +15,6 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -33,7 +32,7 @@ public class ToolHandlerTest {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("known-tool");
 
-        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        ToolHandler handler = new ToolHandler(null, Map.of(tool.getName(), tool));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> handler.handleToolCall("unknown-tool", Map.of()));
@@ -48,7 +47,7 @@ public class ToolHandlerTest {
         tool.setWith(Map.of("default_param", "default_value"));
         // No call or steps — mock mode returns an empty JSON object
 
-        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        ToolHandler handler = new ToolHandler(null, Map.of(tool.getName(), tool));
 
         var result = handler.handleToolCall("test-tool", null);
         assertNotNull(result);
@@ -60,7 +59,7 @@ public class ToolHandlerTest {
         tool.setName("test-tool");
         tool.setWith(Map.of("fromTool", "fromToolValue"));
 
-        ToolHandler handler = new ToolHandler(null, List.of(tool));
+        ToolHandler handler = new ToolHandler(null, Map.of(tool.getName(), tool));
 
         // No call or steps — mock mode returns an empty JSON object
         var result = handler.handleToolCall("test-tool",
@@ -120,9 +119,15 @@ public class ToolHandlerTest {
         McpServerToolSpec blankName = new McpServerToolSpec();
         blankName.setName("   ");
 
+        java.util.LinkedHashMap<String, McpServerToolSpec> toolMap = new java.util.LinkedHashMap<>();
+        toolMap.put(valid.getName(), valid);
+        toolMap.put("_null-name_", nullName);
+        toolMap.put(blankName.getName(), blankName);
         ToolHandler handler = assertDoesNotThrow(
-                () -> new ToolHandler(null, List.of(valid, nullName, blankName)));
+                () -> new ToolHandler(null, toolMap));
 
         assertNotNull(handler.handleToolCall("valid-tool", Map.of()));
     }
 }
+
+

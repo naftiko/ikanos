@@ -34,7 +34,7 @@ public class RestServerAdapter extends ServerAdapter {
         super(capability, serverSpec);
         this.router = new Router();
 
-        for (RestServerResourceSpec res : getRestServerSpec().getResources()) {
+        for (RestServerResourceSpec res : getRestServerSpec().getResources().values()) {
             String pathTemplate = toUriTemplate(res.getPath());
             Restlet resourceRestlet = new ResourceRestlet(capability, serverSpec, res);
             TemplateRoute route = getRouter().attach(pathTemplate, resourceRestlet);

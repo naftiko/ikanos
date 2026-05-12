@@ -5,20 +5,21 @@ info:
   label: "Control Port Test Capability"
   description: "Test capability for Control Server Adapter deserialization and wiring"
   tags:
-    - Test
-    - Control
+  - Test
+  - Control
   created: "2026-06-01"
   modified: "2026-06-01"
 
 capability:
   exposes:
-    - type: "control"
-      address: "localhost"
-      port: 9199
-      management:
-        health: true
-        info: true
-      observability:
-        traces:
-          local:
-            buffer-size: 50
+  - type: "control"
+    address: "localhost"
+    port: 9199
+    management:
+      health: true
+      info: true
+    observability:
+      traces:
+        local:
+          buffer-size: 50
+

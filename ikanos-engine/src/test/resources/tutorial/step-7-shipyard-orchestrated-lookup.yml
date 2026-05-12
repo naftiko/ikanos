@@ -1,79 +1,384 @@
----
 ikanos: "1.0.0-alpha3"
 
 binds:
-  - namespace: "registry-env"
-    description: "Maritime Registry API credentials and config."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      REGISTRY_TOKEN: "registry-bearer-token"
-      REGISTRY_VERSION: "registry-api-version"
-      MCP_SERVER_TOKEN: "mcp-server-token"
-  - namespace: "dockyard-env"
-    description: "Legacy Dockyard API credentials."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      DOCKYARD_API_KEY: "dockyard-api-key"
+- namespace: "registry-env"
+  description: "Maritime Registry API credentials and config."
+  location: "file:///./shared/secrets.yaml"
+  keys:
+    REGISTRY_TOKEN: "registry-bearer-token"
+    REGISTRY_VERSION: "registry-api-version"
+    MCP_SERVER_TOKEN: "mcp-server-token"
+- namespace: "dockyard-env"
+  description: "Legacy Dockyard API credentials."
+  location: "file:///./shared/secrets.yaml"
+  keys:
+    DOCKYARD_API_KEY: "dockyard-api-key"
 
 capability:
   consumes:
-    - import: registry
-      location: ./shared/step7-registry-consumes.yml
-    - import: legacy
-      location: ./shared/legacy-consumes.yaml
+  - import: registry
+    location: ./shared/step7-registry-consumes.yml
+  - import: legacy
+    location: ./shared/legacy-consumes.yaml
 
   exposes:
-    - type: mcp
-      address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
-      port: 3001
-      namespace: shipyard-tools
-      authentication:
-        type: bearer
-        token: "{{MCP_SERVER_TOKEN}}"
-      description: "Shipyard MCP tools for fleet management"
-      tools:
-        - name: list-ships
-          description: "List ships in the shipyard, optionally filtered by status"
-          inputParameters:
-            - name: status
+  - type: mcp
+    address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
+    port: 3001
+    namespace: shipyard-tools
+    authentication:
+      type: bearer
+      token: "{{MCP_SERVER_TOKEN}}"
+    description: "Shipyard MCP tools for fleet management"
+    tools:
+      list-ships:
+        description: "List ships in the shipyard, optionally filtered by status"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry.list-ships
+        with:
+          status: shipyard-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              type:
+                type: string
+                mapping: "$.vessel_type"
+              flag:
+                type: string
+                mapping: "$.flag_code"
+              status:
+                type: string
+                mapping: "$.operational_status"
+      get-ship:
+        description: "Retrieve a ship's details by IMO number"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry.get-ship
+        with:
+          imo_number: shipyard-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
               type: string
-              required: false
-              description: "Filter by operational status"
-          call: registry.list-ships
-          with:
-            status: shipyard-tools.status
-          outputParameters:
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            type:
+              type: string
+              mapping: "$.vessel_type"
+            flag:
+              type: string
+              mapping: "$.flag_code"
+            status:
+              type: string
+              mapping: "$.operational_status"
+            specs:
+              type: object
+              properties:
+                yearBuilt:
+                  type: number
+                  mapping: "$.year_built"
+                tonnage:
+                  type: number
+                  mapping: "$.gross_tonnage"
+                length:
+                  type: number
+                  mapping: "$.dimensions.length_overall"
+      list-legacy-vessels:
+        description: "List vessels from the legacy Dockyard, optionally filtered by status"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status (active, laid_up, scrapped)"
+        call: legacy.list-vessels
+        with:
+          status: shipyard-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$.vessel"
+          items:
+            type: object
+            properties:
+              vesselCode:
+                type: string
+                mapping: "$.vesselCode"
+              name:
+                type: string
+                mapping: "$.vesselName"
+              type:
+                type: string
+                mapping: "$.category"
+              flag:
+                type: string
+                mapping: "$.flagState"
+              status:
+                type: string
+                mapping: "$.operationalStatus"
+      create-voyage:
+        description: "Plan a new voyage with ship, crew, route, and dates"
+        inputParameters:
+          shipImo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+          departurePort:
+            type: string
+            required: true
+            description: "Port of departure"
+          arrivalPort:
+            type: string
+            required: true
+            description: "Port of arrival"
+          departureDate:
+            type: string
+            required: true
+            description: "Departure date (ISO-8601)"
+          arrivalDate:
+            type: string
+            required: true
+            description: "Arrival date (ISO-8601)"
+          crewIds:
+            type: array
+            required: true
+            description: "List of crew member IDs"
+          cargoIds:
+            type: array
+            required: false
+            description: "List of cargo item IDs (optional)"
+        call: registry.create-voyage
+        hints:
+          readOnly: false
+          destructive: false
+          idempotent: false
+          openWorld: true
+        with:
+          shipImo: shipyard-tools.shipImo
+          departurePort: shipyard-tools.departurePort
+          arrivalPort: shipyard-tools.arrivalPort
+          departureDate: shipyard-tools.departureDate
+          arrivalDate: shipyard-tools.arrivalDate
+          crewIds: shipyard-tools.crewIds
+          cargoIds: shipyard-tools.cargoIds
+        outputParameters:
+        - type: object
+          properties:
+            voyageId:
+              type: string
+              mapping: "$.voyageId"
+            shipImo:
+              type: string
+              mapping: "$.shipImo"
+            route:
+              type: object
+              properties:
+                from:
+                  type: string
+                  mapping: "$.departurePort"
+                to:
+                  type: string
+                  mapping: "$.arrivalPort"
+            dates:
+              type: object
+              properties:
+                departure:
+                  type: string
+                  mapping: "$.departureDate"
+                arrival:
+                  type: string
+                  mapping: "$.arrivalDate"
+            crewIds:
+              type: array
+              mapping: "$.crewIds"
+              items:
+                type: string
+                mapping: "$."
+            cargoIds:
+              type: array
+              mapping: "$.cargoIds"
+              items:
+                type: string
+                mapping: "$."
+            status:
+              type: string
+              mapping: "$.status"
+      get-ship-with-crew:
+        description: "Get ship details with resolved crew names"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        steps:
+          get-ship:
+            type: call
+            call: registry.get-ship
+            with:
+              imo_number: "{{imo}}"
+          list-crew:
+            type: call
+            call: registry.list-crew
+          resolve-crew:
+            type: lookup
+            index: list-crew
+            match: crewId
+            lookupValue: "$.get-ship.assignedCrew"
+            outputParameters:
+            - "fullName"
+            - "role"
+        mappings:
+        - targetName: imo
+          value: "$.get-ship.imo_number"
+        - targetName: name
+          value: "$.get-ship.vessel_name"
+        - targetName: type
+          value: "$.get-ship.vessel_type"
+        - targetName: flag
+          value: "$.get-ship.flag_code"
+        - targetName: status
+          value: "$.get-ship.operational_status"
+        - targetName: yearBuilt
+          value: "$.get-ship.year_built"
+        - targetName: tonnage
+          value: "$.get-ship.gross_tonnage"
+        - targetName: length
+          value: "$.get-ship.dimensions.length_overall"
+        - targetName: crew
+          value: "$.resolve-crew"
+        outputParameters:
+          - name: imo
+            type: string
+          - name: name
+            type: string
+          - name: type
+            type: string
+          - name: flag
+            type: string
+          - name: status
+            type: string
+          - name: yearBuilt
+            type: number
+          - name: tonnage
+            type: number
+          - name: length
+            type: number
+          - name: crew
+            type: array
+            items:
+            - name: fullName
+              type: string
+            - name: role
+              type: string
+
+  - type: skill
+    address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
+    port: 3003
+    namespace: shipyard-skills
+    description: "Shipyard skill groups for structured agent discovery"
+    skills:
+      fleet-ops:
+        description: "Fleet management — list, search, and inspect ships across all registries"
+        tools:
+          list-ships:
+            description: "List ships in the shipyard, optionally filtered by status"
+            from:
+              sourceNamespace: shipyard-tools
+              action: list-ships
+          get-ship:
+            description: "Retrieve a ship's details by IMO number"
+            from:
+              sourceNamespace: shipyard-tools
+              action: get-ship
+          list-legacy-vessels:
+            description: "List vessels from the legacy Dockyard"
+            from:
+              sourceNamespace: shipyard-tools
+              action: list-legacy-vessels
+          get-ship-with-crew:
+            description: "Get ship details with resolved crew names"
+            from:
+              sourceNamespace: shipyard-tools
+              action: get-ship-with-crew
+      voyage-ops:
+        description: "Voyage planning — create and manage voyages"
+        tools:
+          create-voyage:
+            description: "Plan a new voyage with ship, crew, route, and dates"
+            from:
+              sourceNamespace: shipyard-tools
+              action: create-voyage
+
+  - type: rest
+    address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
+    port: 3002
+    namespace: shipyard-api
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+                type: string
+                description: "Filter by operational status"
+            call: registry.list-ships
+            with:
+              status: shipyard-api.status
+            outputParameters:
             - type: array
               mapping: "$."
               items:
                 type: object
                 properties:
-                    imo:
-                      type: string
-                      mapping: "$.imo_number"
-                    name:
-                      type: string
-                      mapping: "$.vessel_name"
-                    type:
-                      type: string
-                      mapping: "$.vessel_type"
-                    flag:
-                      type: string
-                      mapping: "$.flag_code"
-                    status:
-                      type: string
-                      mapping: "$.operational_status"
-        - name: get-ship
-          description: "Retrieve a ship's details by IMO number"
-          inputParameters:
-            - name: imo
-              type: string
-              required: true
-              description: "IMO number of the ship"
-          call: registry.get-ship
-          with:
-            imo_number: shipyard-tools.imo
-          outputParameters:
+                  imo:
+                    type: string
+                    mapping: "$.imo_number"
+                  name:
+                    type: string
+                    mapping: "$.vessel_name"
+                  type:
+                    type: string
+                    mapping: "$.vessel_type"
+                  flag:
+                    type: string
+                    mapping: "$.flag_code"
+                  status:
+                    type: string
+                    mapping: "$.operational_status"
+      ship-by-imo:
+        path: "/ships/{imo}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo:
+                in: path
+                type: string
+                description: "IMO number of the ship"
+            call: registry.get-ship
+            with:
+              imo_number: "{{imo}}"
+            outputParameters:
             - type: object
               properties:
                 imo:
@@ -103,83 +408,154 @@ capability:
                     length:
                       type: number
                       mapping: "$.dimensions.length_overall"
-        - name: list-legacy-vessels
-          description: "List vessels from the legacy Dockyard, optionally filtered by status"
-          inputParameters:
-            - name: status
-              type: string
-              required: false
-              description: "Filter by operational status (active, laid_up, scrapped)"
-          call: legacy.list-vessels
-          with:
-            status: shipyard-tools.status
-          outputParameters:
+      ship-crew:
+        path: "/ships/{imo}/crew"
+        operations:
+          get-ship-with-crew:
+            method: GET
+            inputParameters:
+              imo:
+                in: path
+                type: string
+                description: "IMO number of the ship"
+            steps:
+              get-ship:
+                type: call
+                call: registry.get-ship
+                with:
+                  imo_number: "{{imo}}"
+              list-crew:
+                type: call
+                call: registry.list-crew
+              resolve-crew:
+                type: lookup
+                index: list-crew
+                match: crewId
+                lookupValue: "$.get-ship.assignedCrew"
+                outputParameters:
+                - "fullName"
+                - "role"
+            mappings:
+            - targetName: imo
+              value: "$.get-ship.imo_number"
+            - targetName: name
+              value: "$.get-ship.vessel_name"
+            - targetName: type
+              value: "$.get-ship.vessel_type"
+            - targetName: flag
+              value: "$.get-ship.flag_code"
+            - targetName: status
+              value: "$.get-ship.operational_status"
+            - targetName: yearBuilt
+              value: "$.get-ship.year_built"
+            - targetName: tonnage
+              value: "$.get-ship.gross_tonnage"
+            - targetName: length
+              value: "$.get-ship.dimensions.length_overall"
+            - targetName: crew
+              value: "$.resolve-crew"
+            outputParameters:
+              - name: imo
+                type: string
+              - name: name
+                type: string
+              - name: type
+                type: string
+              - name: flag
+                type: string
+              - name: status
+                type: string
+              - name: yearBuilt
+                type: number
+              - name: tonnage
+                type: number
+              - name: length
+                type: number
+              - name: crew
+                type: array
+                items:
+                - name: fullName
+                  type: string
+                - name: role
+                  type: string
+      legacy-vessels:
+        path: "/legacy/vessels"
+        operations:
+          list-legacy-vessels:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+                type: string
+                description: "Filter by operational status"
+            call: legacy.list-vessels
+            with:
+              status: shipyard-api.status
+            outputParameters:
             - type: array
-              mapping: "$.vessel"
+              mapping: "$."
               items:
                 type: object
                 properties:
-                    vesselCode:
-                      type: string
-                      mapping: "$.vesselCode"
-                    name:
-                      type: string
-                      mapping: "$.vesselName"
-                    type:
-                      type: string
-                      mapping: "$.category"
-                    flag:
-                      type: string
-                      mapping: "$.flagState"
-                    status:
-                      type: string
-                      mapping: "$.operationalStatus"
-        - name: create-voyage
-          description: "Plan a new voyage with ship, crew, route, and dates"
-          inputParameters:
-            - name: shipImo
-              type: string
-              required: true
-              description: "IMO number of the ship"
-            - name: departurePort
-              type: string
-              required: true
-              description: "Port of departure"
-            - name: arrivalPort
-              type: string
-              required: true
-              description: "Port of arrival"
-            - name: departureDate
-              type: string
-              required: true
-              description: "Departure date (ISO-8601)"
-            - name: arrivalDate
-              type: string
-              required: true
-              description: "Arrival date (ISO-8601)"
-            - name: crewIds
-              type: array
-              required: true
-              description: "List of crew member IDs"
-            - name: cargoIds
-              type: array
-              required: false
-              description: "List of cargo item IDs (optional)"
-          call: registry.create-voyage
-          hints:
-            readOnly: false
-            destructive: false
-            idempotent: false
-            openWorld: true
-          with:
-            shipImo: shipyard-tools.shipImo
-            departurePort: shipyard-tools.departurePort
-            arrivalPort: shipyard-tools.arrivalPort
-            departureDate: shipyard-tools.departureDate
-            arrivalDate: shipyard-tools.arrivalDate
-            crewIds: shipyard-tools.crewIds
-            cargoIds: shipyard-tools.cargoIds
-          outputParameters:
+                  vesselCode:
+                    type: string
+                    mapping: "$.vesselCode"
+                  name:
+                    type: string
+                    mapping: "$.vesselName"
+                  type:
+                    type: string
+                    mapping: "$.category"
+                  flag:
+                    type: string
+                    mapping: "$.flagState"
+                  status:
+                    type: string
+                    mapping: "$.operationalStatus"
+      voyages:
+        path: "/voyages"
+        operations:
+          create-voyage:
+            method: POST
+            inputParameters:
+              shipImo:
+                in: body
+                type: string
+                description: "IMO number of the ship"
+              departurePort:
+                in: body
+                type: string
+                description: "Port of departure"
+              arrivalPort:
+                in: body
+                type: string
+                description: "Port of arrival"
+              departureDate:
+                in: body
+                type: string
+                description: "Departure date (ISO-8601)"
+              arrivalDate:
+                in: body
+                type: string
+                description: "Arrival date (ISO-8601)"
+              crewIds:
+                in: body
+                type: array
+                description: "List of crew member IDs"
+              cargoIds:
+                in: body
+                type: array
+                description: "List of cargo item IDs (optional)"
+            call: registry.create-voyage
+            with:
+              shipImo: shipyard-api.shipImo
+              departurePort: shipyard-api.departurePort
+              arrivalPort: shipyard-api.arrivalPort
+              departureDate: shipyard-api.departureDate
+              arrivalDate: shipyard-api.arrivalDate
+              crewIds: shipyard-api.crewIds
+              cargoIds: shipyard-api.cargoIds
+            outputParameters:
             - type: object
               properties:
                 voyageId:
@@ -221,381 +597,5 @@ capability:
                 status:
                   type: string
                   mapping: "$.status"
-        - name: get-ship-with-crew
-          description: "Get ship details with resolved crew names"
-          inputParameters:
-            - name: imo
-              type: string
-              required: true
-              description: "IMO number of the ship"
-          steps:
-            - name: get-ship
-              type: call
-              call: registry.get-ship
-              with:
-                imo_number: "{{imo}}"
-            - name: list-crew
-              type: call
-              call: registry.list-crew
-            - name: resolve-crew
-              type: lookup
-              index: list-crew
-              match: crewId
-              lookupValue: "$.get-ship.assignedCrew"
-              outputParameters:
-                - "fullName"
-                - "role"
-          mappings:
-            - targetName: imo
-              value: "$.get-ship.imo_number"
-            - targetName: name
-              value: "$.get-ship.vessel_name"
-            - targetName: type
-              value: "$.get-ship.vessel_type"
-            - targetName: flag
-              value: "$.get-ship.flag_code"
-            - targetName: status
-              value: "$.get-ship.operational_status"
-            - targetName: yearBuilt
-              value: "$.get-ship.year_built"
-            - targetName: tonnage
-              value: "$.get-ship.gross_tonnage"
-            - targetName: length
-              value: "$.get-ship.dimensions.length_overall"
-            - targetName: crew
-              value: "$.resolve-crew"
-          outputParameters:
-            - name: imo
-              type: string
-            - name: name
-              type: string
-            - name: type
-              type: string
-            - name: flag
-              type: string
-            - name: status
-              type: string
-            - name: yearBuilt
-              type: number
-            - name: tonnage
-              type: number
-            - name: length
-              type: number
-            - name: crew
-              type: array
-              items:
-                - name: fullName
-                  type: string
-                - name: role
-                  type: string
 
-    - type: skill
-      address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
-      port: 3003
-      namespace: shipyard-skills
-      description: "Shipyard skill groups for structured agent discovery"
-      skills:
-        - name: fleet-ops
-          description: "Fleet management — list, search, and inspect ships across all registries"
-          tools:
-            - name: list-ships
-              description: "List ships in the shipyard, optionally filtered by status"
-              from:
-                sourceNamespace: shipyard-tools
-                action: list-ships
-            - name: get-ship
-              description: "Retrieve a ship's details by IMO number"
-              from:
-                sourceNamespace: shipyard-tools
-                action: get-ship
-            - name: list-legacy-vessels
-              description: "List vessels from the legacy Dockyard"
-              from:
-                sourceNamespace: shipyard-tools
-                action: list-legacy-vessels
-            - name: get-ship-with-crew
-              description: "Get ship details with resolved crew names"
-              from:
-                sourceNamespace: shipyard-tools
-                action: get-ship-with-crew
-        - name: voyage-ops
-          description: "Voyage planning — create and manage voyages"
-          tools:
-            - name: create-voyage
-              description: "Plan a new voyage with ship, crew, route, and dates"
-              from:
-                sourceNamespace: shipyard-tools
-                action: create-voyage
-
-    - type: rest
-      address: "0.0.0.0" # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
-      port: 3002
-      namespace: shipyard-api
-      resources:
-        - name: ships
-          path: "/ships"
-          operations:
-            - name: list-ships
-              method: GET
-              inputParameters:
-                - name: status
-                  in: query
-                  type: string
-                  description: "Filter by operational status"
-              call: registry.list-ships
-              with:
-                status: shipyard-api.status
-              outputParameters:
-                - type: array
-                  mapping: "$."
-                  items:
-                    type: object
-                    properties:
-                        imo:
-                          type: string
-                          mapping: "$.imo_number"
-                        name:
-                          type: string
-                          mapping: "$.vessel_name"
-                        type:
-                          type: string
-                          mapping: "$.vessel_type"
-                        flag:
-                          type: string
-                          mapping: "$.flag_code"
-                        status:
-                          type: string
-                          mapping: "$.operational_status"
-        - name: ship-by-imo
-          path: "/ships/{imo}"
-          operations:
-            - name: get-ship
-              method: GET
-              inputParameters:
-                - name: imo
-                  in: path
-                  type: string
-                  description: "IMO number of the ship"
-              call: registry.get-ship
-              with:
-                imo_number: "{{imo}}"
-              outputParameters:
-                - type: object
-                  properties:
-                    imo:
-                      type: string
-                      mapping: "$.imo_number"
-                    name:
-                      type: string
-                      mapping: "$.vessel_name"
-                    type:
-                      type: string
-                      mapping: "$.vessel_type"
-                    flag:
-                      type: string
-                      mapping: "$.flag_code"
-                    status:
-                      type: string
-                      mapping: "$.operational_status"
-                    specs:
-                      type: object
-                      properties:
-                        yearBuilt:
-                          type: number
-                          mapping: "$.year_built"
-                        tonnage:
-                          type: number
-                          mapping: "$.gross_tonnage"
-                        length:
-                          type: number
-                          mapping: "$.dimensions.length_overall"
-        - name: ship-crew
-          path: "/ships/{imo}/crew"
-          operations:
-            - name: get-ship-with-crew
-              method: GET
-              inputParameters:
-                - name: imo
-                  in: path
-                  type: string
-                  description: "IMO number of the ship"
-              steps:
-                - name: get-ship
-                  type: call
-                  call: registry.get-ship
-                  with:
-                    imo_number: "{{imo}}"
-                - name: list-crew
-                  type: call
-                  call: registry.list-crew
-                - name: resolve-crew
-                  type: lookup
-                  index: list-crew
-                  match: crewId
-                  lookupValue: "$.get-ship.assignedCrew"
-                  outputParameters:
-                    - "fullName"
-                    - "role"
-              mappings:
-                - targetName: imo
-                  value: "$.get-ship.imo_number"
-                - targetName: name
-                  value: "$.get-ship.vessel_name"
-                - targetName: type
-                  value: "$.get-ship.vessel_type"
-                - targetName: flag
-                  value: "$.get-ship.flag_code"
-                - targetName: status
-                  value: "$.get-ship.operational_status"
-                - targetName: yearBuilt
-                  value: "$.get-ship.year_built"
-                - targetName: tonnage
-                  value: "$.get-ship.gross_tonnage"
-                - targetName: length
-                  value: "$.get-ship.dimensions.length_overall"
-                - targetName: crew
-                  value: "$.resolve-crew"
-              outputParameters:
-                - name: imo
-                  type: string
-                - name: name
-                  type: string
-                - name: type
-                  type: string
-                - name: flag
-                  type: string
-                - name: status
-                  type: string
-                - name: yearBuilt
-                  type: number
-                - name: tonnage
-                  type: number
-                - name: length
-                  type: number
-                - name: crew
-                  type: array
-                  items:
-                    - name: fullName
-                      type: string
-                    - name: role
-                      type: string
-        - name: legacy-vessels
-          path: "/legacy/vessels"
-          operations:
-            - name: list-legacy-vessels
-              method: GET
-              inputParameters:
-                - name: status
-                  in: query
-                  type: string
-                  description: "Filter by operational status"
-              call: legacy.list-vessels
-              with:
-                status: shipyard-api.status
-              outputParameters:
-                - type: array
-                  mapping: "$."
-                  items:
-                    type: object
-                    properties:
-                        vesselCode:
-                          type: string
-                          mapping: "$.vesselCode"
-                        name:
-                          type: string
-                          mapping: "$.vesselName"
-                        type:
-                          type: string
-                          mapping: "$.category"
-                        flag:
-                          type: string
-                          mapping: "$.flagState"
-                        status:
-                          type: string
-                          mapping: "$.operationalStatus"
-        - name: voyages
-          path: "/voyages"
-          operations:
-            - name: create-voyage
-              method: POST
-              inputParameters:
-                - name: shipImo
-                  in: body
-                  type: string
-                  description: "IMO number of the ship"
-                - name: departurePort
-                  in: body
-                  type: string
-                  description: "Port of departure"
-                - name: arrivalPort
-                  in: body
-                  type: string
-                  description: "Port of arrival"
-                - name: departureDate
-                  in: body
-                  type: string
-                  description: "Departure date (ISO-8601)"
-                - name: arrivalDate
-                  in: body
-                  type: string
-                  description: "Arrival date (ISO-8601)"
-                - name: crewIds
-                  in: body
-                  type: array
-                  description: "List of crew member IDs"
-                - name: cargoIds
-                  in: body
-                  type: array
-                  description: "List of cargo item IDs (optional)"
-              call: registry.create-voyage
-              with:
-                shipImo: shipyard-api.shipImo
-                departurePort: shipyard-api.departurePort
-                arrivalPort: shipyard-api.arrivalPort
-                departureDate: shipyard-api.departureDate
-                arrivalDate: shipyard-api.arrivalDate
-                crewIds: shipyard-api.crewIds
-                cargoIds: shipyard-api.cargoIds
-              outputParameters:
-                - type: object
-                  properties:
-                    voyageId:
-                      type: string
-                      mapping: "$.voyageId"
-                    shipImo:
-                      type: string
-                      mapping: "$.shipImo"
-                    route:
-                      type: object
-                      properties:
-                        from:
-                          type: string
-                          mapping: "$.departurePort"
-                        to:
-                          type: string
-                          mapping: "$.arrivalPort"
-                    dates:
-                      type: object
-                      properties:
-                        departure:
-                          type: string
-                          mapping: "$.departureDate"
-                        arrival:
-                          type: string
-                          mapping: "$.arrivalDate"
-                    crewIds:
-                      type: array
-                      mapping: "$.crewIds"
-                      items:
-                        type: string
-                        mapping: "$."
-                    cargoIds:
-                      type: array
-                      mapping: "$.cargoIds"
-                      items:
-                        type: string
-                        mapping: "$."
-                    status:
-                      type: string
-                      mapping: "$.status"
 
