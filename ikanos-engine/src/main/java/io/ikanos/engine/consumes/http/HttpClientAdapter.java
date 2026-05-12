@@ -57,8 +57,8 @@ public class HttpClientAdapter extends ClientAdapter {
      * @return The HttpOperationSpec if found, or null if not found
      */
     public HttpClientOperationSpec getOperationSpec(String operationName) {
-        for (HttpClientResourceSpec res : getHttpClientSpec().getResources()) {
-            for (HttpClientOperationSpec op : res.getOperations()) {
+        for (HttpClientResourceSpec res : getHttpClientSpec().getResources().values()) {
+            for (HttpClientOperationSpec op : res.getOperations().values()) {
                 if (op.getName().equals(operationName)) {
                     return op;
                 }

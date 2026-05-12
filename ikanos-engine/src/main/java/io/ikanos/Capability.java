@@ -115,7 +115,7 @@ public class Capability {
         List<Aggregate> aggregateList = new CopyOnWriteArrayList<>();
         if (!spec.getCapability().getAggregates().isEmpty()) {
             OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);
-            for (AggregateSpec aggSpec : spec.getCapability().getAggregates()) {
+            for (AggregateSpec aggSpec : spec.getCapability().getAggregates().values()) {
                 aggregateList.add(new Aggregate(aggSpec, sharedExecutor));
             }
         }

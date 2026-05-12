@@ -40,7 +40,7 @@ public class CatalogResource extends SkillServerResource {
     public Representation getCatalog() {
         ArrayNode skillList = getMapper().createArrayNode();
 
-        for (ExposedSkillSpec skill : getSkillServerSpec().getSkills()) {
+        for (ExposedSkillSpec skill : getSkillServerSpec().getSkills().values()) {
             ObjectNode entry = getMapper().createObjectNode();
             entry.put("name", skill.getName());
             entry.put("description", skill.getDescription());
@@ -48,7 +48,7 @@ public class CatalogResource extends SkillServerResource {
                 entry.put("license", skill.getLicense());
             }
             ArrayNode toolNames = getMapper().createArrayNode();
-            for (SkillToolSpec tool : skill.getTools()) {
+            for (SkillToolSpec tool : skill.getTools().values()) {
                 toolNames.add(tool.getName());
             }
             entry.set("tools", toolNames);

@@ -58,10 +58,10 @@ public class AvroIntegrationTest {
         var http = (HttpClientSpec) consumes.get(0);
         var resources = http.getResources();
         assertEquals(1, resources.size());
-        var operations = resources.get(0).getOperations();
+        var operations = resources.get("records").getOperations();
         assertEquals(1, operations.size());
 
-        var operation = operations.get(0);
+        var operation = operations.get("get-records");
         assertEquals("avro", operation.getOutputRawFormat());
     }
 }

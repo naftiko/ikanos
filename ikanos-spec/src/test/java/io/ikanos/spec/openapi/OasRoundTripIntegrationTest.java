@@ -15,7 +15,7 @@ package io.ikanos.spec.openapi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.ikanos.spec.CapabilitySpec;
@@ -62,20 +62,21 @@ public class OasRoundTripIntegrationTest {
         queryParam.setIn("query");
         queryParam.setType("number");
         queryParam.setRequired(false);
-        getOp.getInputParameters().add(queryParam);
+        getOp.setInputParameters(Map.of("page", queryParam));
 
         OutputParameterSpec outParam = new OutputParameterSpec();
         outParam.setName("id");
         outParam.setType("number");
-        getOp.getOutputParameters().add(outParam);
 
         OutputParameterSpec nameOut = new OutputParameterSpec();
         nameOut.setName("name");
         nameOut.setType("string");
+
+        getOp.getOutputParameters().add(outParam);
         getOp.getOutputParameters().add(nameOut);
 
-        resource.setOperations(List.of(getOp));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of(getOp.getName(), getOp));
+        rest.getResources().put(resource.getName(), resource);
         capability.getExposes().add(rest);
         spec.setCapability(capability);
 
@@ -98,8 +99,8 @@ public class OasRoundTripIntegrationTest {
 
         // Find the items resource
         boolean foundListItems = false;
-        for (var res : httpClient.getResources()) {
-            for (HttpClientOperationSpec op : res.getOperations()) {
+        for (var res : httpClient.getResources().values()) {
+            for (HttpClientOperationSpec op : res.getOperations().values()) {
                 if ("list-items".equals(op.getName())) {
                     foundListItems = true;
                     assertEquals("GET", op.getMethod());
@@ -136,7 +137,7 @@ public class OasRoundTripIntegrationTest {
         RestServerOperationSpec listPets = new RestServerOperationSpec();
         listPets.setMethod("GET");
         listPets.setName("list-pets");
-        pets.setOperations(List.of(listPets));
+        pets.setOperations(Map.of(listPets.getName(), listPets));
 
         RestServerResourceSpec stores = new RestServerResourceSpec();
         stores.setPath("/stores");
@@ -144,10 +145,10 @@ public class OasRoundTripIntegrationTest {
         RestServerOperationSpec listStores = new RestServerOperationSpec();
         listStores.setMethod("GET");
         listStores.setName("list-stores");
-        stores.setOperations(List.of(listStores));
+        stores.setOperations(Map.of(listStores.getName(), listStores));
 
-        rest.getResources().add(pets);
-        rest.getResources().add(stores);
+        rest.getResources().put(pets.getName(), pets);
+        rest.getResources().put(stores.getName(), stores);
         capability.getExposes().add(rest);
         spec.setCapability(capability);
 
@@ -164,3 +165,6 @@ public class OasRoundTripIntegrationTest {
     }
 
 }
+
+
+

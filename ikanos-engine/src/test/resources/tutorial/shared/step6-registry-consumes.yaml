@@ -1,45 +1,38 @@
-# shared/registry-consumes.yaml (updated — added voyages resource)
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 consumes:
-  - namespace: registry
-    type: http
-    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
-    authentication:
-      type: bearer
-      token: "{{REGISTRY_TOKEN}}"
-    inputParameters:
-    - name: Registry-Version
+- namespace: registry
+  type: http
+  baseUri: https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2
+  authentication:
+    type: bearer
+    token: '{{REGISTRY_TOKEN}}'
+  inputParameters:
+    Registry-Version:
       in: header
-      value: "{{REGISTRY_VERSION}}"
-    resources:
-      - name: ships
-        path: "/ships"
-        operations:
-          - name: list-ships
-            method: GET
-            inputParameters:
-              - name: status
-                in: query
-      - name: ship
-        path: "/ships/{{imo_number}}"
-        operations:
-          - name: get-ship
-            method: GET
-            inputParameters:
-              - name: imo_number
-                in: path
-      - name: voyages
-        path: "/voyages"
-        operations:
-          - name: create-voyage
-            method: POST
-            body: |
-              {
-                "shipImo": "{{shipImo}}",
-                "departurePort": "{{departurePort}}",
-                "arrivalPort": "{{arrivalPort}}",
-                "departureDate": "{{departureDate}}",
-                "arrivalDate": "{{arrivalDate}}",
-                "crewIds": {{crewIds}},
-                "cargoIds": {{cargoIds}}
-              }
+      value: '{{REGISTRY_VERSION}}'
+  resources:
+    ships:
+      path: /ships
+      operations:
+        list-ships:
+          method: GET
+          inputParameters:
+            status:
+              in: query
+    ship:
+      path: /ships/{{imo_number}}
+      operations:
+        get-ship:
+          method: GET
+          inputParameters:
+            imo_number:
+              in: path
+    voyages:
+      path: /voyages
+      operations:
+        create-voyage:
+          method: POST
+          body: "{\n  \"shipImo\": \"{{shipImo}}\",\n  \"departurePort\": \"{{departurePort}}\"\
+            ,\n  \"arrivalPort\": \"{{arrivalPort}}\",\n  \"departureDate\": \"{{departureDate}}\"\
+            ,\n  \"arrivalDate\": \"{{arrivalDate}}\",\n  \"crewIds\": {{crewIds}},\n\
+            \  \"cargoIds\": {{cargoIds}}\n}\n"

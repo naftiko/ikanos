@@ -135,8 +135,8 @@ public class OperationStepExecutorIntegrationTest {
 
             RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
                     .getSpec();
-            RestServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
-            RestServerOperationSpec operationSpec = resourceSpec.getOperations().get(0);
+            RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
+            RestServerOperationSpec operationSpec = resourceSpec.getOperations().values().iterator().next();
             OperationStepExecutor executor = new OperationStepExecutor(capability);
 
             OperationStepExecutor.StepExecutionResult result = executor.executeSteps(
@@ -337,7 +337,7 @@ public class OperationStepExecutorIntegrationTest {
         lookup.setLookupValue("u-1");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> executor.executeSteps(List.of(lookup), Map.of()));
+                () -> executor.executeSteps(Map.of(lookup.getName(), lookup), Map.of()));
 
         assertEquals("Lookup step references non-existent step: does-not-exist",
                 error.getMessage());
@@ -377,4 +377,5 @@ public class OperationStepExecutorIntegrationTest {
       }
     }
   }
+
 

@@ -2,17 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ikanos.io/schemas/v1.0.0-alpha3/ikanos.json",
   "name": "Ikanos Specification",
-  "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata). A valid document must declare `ikanos` + either `capability` (adapter document) or `consumes` (shared consumer file). All adapter logic lives under `capability`; shared consumer definitions live at root `consumes`.",
+  "description": "Ikanos Capability Specification — describes a capability document (adapter + metadata). A valid document must declare `ikanos` + either `capability` (adapter document) or `consumes` (shared consumer file). All adapter logic lives under `capability`; shared consumer definitions live at root `consumes`.",
   "type": "object",
   "properties": {
     "ikanos": {
       "type": "string",
-      "description": "Ikanos specification version. Must be `1.0.0-alpha2`. Signals schema compatibility \u2014 always the first key in a capability file.",
+      "description": "Ikanos specification version. Must be `1.0.0-alpha3`. Signals schema compatibility — always the first key in a capability file.",
       "const": "1.0.0-alpha3"
     },
     "info": {
       "$ref": "#/$defs/Info",
-      "description": "Human-readable metadata: label, description, tags, dates, stakeholders.\n\n**When to use** \u2014 Required on every capability document. The richer the `description`, the better agents can discover and reason about this capability.\n**Format** \u2014 `created` / `modified` must be `YYYY-MM-DD`. `stakeholders[].role` is free-form (`owner`, `editor`, `reviewer`, etc.)."
+      "description": "Human-readable metadata: label, description, tags, dates, stakeholders.\n\n**When to use** — Required on every capability document. The richer the `description`, the better agents can discover and reason about this capability.\n**Format** — `created` / `modified` must be `YYYY-MM-DD`. `stakeholders[].role` is free-form (`owner`, `editor`, `reviewer`, etc.)."
     },
     "consumes": {
       "type": "array",
@@ -27,7 +27,7 @@
         ]
       },
       "minItems": 1,
-      "description": "External HTTP API adapters declared at file scope. Each entry is either an inline `ConsumesHttp` (with `type: http`) or an `ImportedConsumesHttp` (with `location` URI).\n\n**When to use** \u2014 Required when calling external APIs. Can appear at root level to share adapter definitions across capabilities, or under `capability.consumes` to scope them to one capability.\n**See also** \u2014 `capability.consumes[]` references namespaces declared here."
+      "description": "External HTTP API adapters declared at file scope. Each entry is either an inline `ConsumesHttp` (with `type: http`) or an `ImportedConsumesHttp` (with `location` URI).\n\n**When to use** — Required when calling external APIs. Can appear at root level to share adapter definitions across capabilities, or under `capability.consumes` to scope them to one capability.\n**See also** — `capability.consumes[]` references namespaces declared here."
     },
     "binds": {
       "type": "array",
@@ -35,11 +35,11 @@
         "$ref": "#/$defs/Binding"
       },
       "minItems": 1,
-      "description": "External variable bindings available file-wide. Each entry binds to a secret store or config source (Vault, k8s secrets, GitHub secrets, local file). Variables are injected via Mustache expressions `{{MY_VAR}}`.\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** \u2014 `capability.binds` for bindings scoped to a single capability."
+      "description": "External variable bindings available file-wide. Each entry binds to a secret store or config source (Vault, k8s secrets, GitHub secrets, local file). Variables are injected via Mustache expressions `{{MY_VAR}}`.\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** — `capability.binds` for bindings scoped to a single capability."
     },
     "capability": {
       "$ref": "#/$defs/Capability",
-      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** \u2014 `info` for metadata, `binds` for secrets."
+      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** — `info` for metadata, `binds` for secrets."
     }
   },
   "oneOf": [
@@ -60,7 +60,7 @@
   "$defs": {
     "ImportedConsumesHttp": {
       "type": "object",
-      "description": "References a `ConsumesHttp` adapter defined in an external capability file. Used in `consumes[]` to reuse adapter definitions across capability files without duplication.\n\n**When to use** \u2014 When multiple capabilities share the same upstream API adapter. The referenced file must declare a `ConsumesHttp` with a matching `namespace`.\n**Format** \u2014 `location` is a URI to the source `.yml` file; `import` is the namespace in that file; `as` is an optional local alias.\n**Example**:\n```yaml\nconsumes:\n  - location: file:///shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
+      "description": "References a `ConsumesHttp` adapter defined in an external capability file. Used in `consumes[]` to reuse adapter definitions across capability files without duplication.\n\n**When to use** — When multiple capabilities share the same upstream API adapter. The referenced file must declare a `ConsumesHttp` with a matching `namespace`.\n**Format** — `location` is a URI to the source `.yml` file; `import` is the namespace in that file; `as` is an optional local alias.\n**Example**:\n```yaml\nconsumes:\n  - location: file:///shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
       "properties": {
         "location": {
           "type": "string",
@@ -146,10 +146,6 @@
       "type": "object",
       "description": "Describes a single function parameter. A unique parameter is defined by a combination of a name and location.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the parameter"
-        },
         "in": {
           "type": "string",
           "description": "Location of the parameter",
@@ -168,7 +164,6 @@
         }
       },
       "required": [
-        "name",
         "in"
       ],
       "additionalProperties": false
@@ -177,10 +172,6 @@
       "type": "object",
       "description": "Declares an input parameter for an exposed resource or operation. Type and description are mandatory since the framework cannot infer them.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the parameter."
-        },
         "in": {
           "type": "string",
           "description": "Location of the parameter.",
@@ -218,7 +209,6 @@
         }
       },
       "required": [
-        "name",
         "in",
         "type",
         "description"
@@ -227,7 +217,7 @@
     },
     "ConsumedOutputParameter": {
       "type": "object",
-      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** \u2014 Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** \u2014 Extracted values are referenced by `name` in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** \u2014 For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
+      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** — Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** — Extracted values are referenced by `name` in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** — For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
       "properties": {
         "name": {
           "$ref": "#/$defs/IdentifierExtended",
@@ -275,7 +265,7 @@
           "description": "JsonPath expression to extract the value. E.g. $.properties.Name.title[0].text.content"
         },
         "const": {
-          "description": "Schema-level constant for validation and linting. Not used at runtime for value injection \u2014 use 'value' instead.",
+          "description": "Schema-level constant for validation and linting. Not used at runtime for value injection — use 'value' instead.",
           "oneOf": [
             {
               "type": "string"
@@ -747,12 +737,15 @@
           "minItems": 1
         },
         "aggregates": {
-          "type": "array",
-          "description": "Domain aggregates defining reusable functions that adapters can reference via ref.",
-          "items": {
+          "type": "object",
+          "description": "Domain aggregates defining reusable functions that adapters can reference via ref, keyed by aggregate namespace.",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/Aggregate"
           },
-          "minItems": 1
+          "minProperties": 1
         }
       },
       "anyOf": [
@@ -785,20 +778,22 @@
         },
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Machine-readable qualifier for this aggregate. Used as the first segment in ref values."
+          "description": "Machine-readable qualifier for this aggregate. Used as the first segment in ref values. Must match the map key."
         },
         "functions": {
-          "type": "array",
-          "description": "Reusable invocable units within this aggregate.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/AggregateFunction"
           },
-          "minItems": 1
+          "description": "Reusable invocable units within this aggregate, keyed by function name.",
+          "minProperties": 1
         }
       },
       "required": [
         "label",
-        "namespace",
         "functions"
       ],
       "additionalProperties": false
@@ -807,10 +802,6 @@
       "type": "object",
       "description": "A reusable invocable unit within an aggregate. Adapter units reference it via ref: aggregate-namespace.function-name.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Function name. Combined with aggregate namespace to form the ref target."
-        },
         "description": {
           "type": "string",
           "description": "A meaningful description of the function."
@@ -819,10 +810,14 @@
           "$ref": "#/$defs/Semantics"
         },
         "inputParameters": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpToolInputParameter"
-          }
+          },
+          "description": "Function input parameters, keyed by parameter name."
         },
         "call": {
           "type": "string",
@@ -833,11 +828,15 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/OperationStep"
           },
-          "minItems": 1
+          "description": "Orchestration steps, keyed by step name.",
+          "minProperties": 1
         },
         "mappings": {
           "type": "array",
@@ -851,7 +850,6 @@
         }
       },
       "required": [
-        "name",
         "description"
       ],
       "anyOf": [
@@ -946,12 +944,15 @@
           "description": "Authentication required on incoming requests to this REST adapter. Protects all resources and operations under this adapter. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` (JWT/introspection)."
         },
         "resources": {
-          "type": "array",
-          "description": "List of exposed resources",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ExposedResource"
           },
-          "minItems": 1
+          "description": "Exposed REST resources, keyed by resource name.",
+          "minProperties": 1
         }
       },
       "required": [
@@ -999,28 +1000,37 @@
           "description": "Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Use `oauth2` for standards-compliant MCP authorization servers."
         },
         "tools": {
-          "type": "array",
-          "description": "List of MCP tools exposed by this server",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpTool"
           },
-          "minItems": 1
+          "description": "MCP tools exposed by this server, keyed by tool name.",
+          "minProperties": 1
         },
         "resources": {
-          "type": "array",
-          "description": "List of MCP resources exposed by this server. Resources provide data that agents can read.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpResource"
           },
-          "minItems": 1
+          "description": "MCP resources exposed by this server, keyed by resource name.",
+          "minProperties": 1
         },
         "prompts": {
-          "type": "array",
-          "description": "List of MCP prompt templates exposed by this server. Prompts are reusable templates with typed arguments.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpPrompt"
           },
-          "minItems": 1
+          "description": "MCP prompt templates exposed by this server, keyed by prompt name.",
+          "minProperties": 1
         }
       },
       "required": [
@@ -1061,10 +1071,6 @@
       "type": "object",
       "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the tool. Used as the MCP tool name."
-        },
         "label": {
           "type": "string",
           "description": "Human-readable display name of the tool. Mapped to MCP 'title' in tools/list responses."
@@ -1074,11 +1080,14 @@
           "description": "A meaningful description of the tool. Used for agent discovery. Remember, in a world of agents, context is king."
         },
         "inputParameters": {
-          "type": "array",
-          "description": "Tool input parameters. These become the MCP tool's input schema (JSON Schema).",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpToolInputParameter"
-          }
+          },
+          "description": "Tool input parameters, keyed by parameter name."
         },
         "ref": {
           "type": "string",
@@ -1094,11 +1103,15 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/OperationStep"
           },
-          "minItems": 1
+          "description": "Orchestration steps, keyed by step name.",
+          "minProperties": 1
         },
         "mappings": {
           "type": "array",
@@ -1118,7 +1131,6 @@
       "anyOf": [
         {
           "required": [
-            "name",
             "description",
             "call"
           ],
@@ -1134,7 +1146,6 @@
         },
         {
           "required": [
-            "name",
             "description",
             "steps"
           ],
@@ -1156,7 +1167,6 @@
         },
         {
           "required": [
-            "name",
             "description",
             "outputParameters"
           ],
@@ -1201,10 +1211,6 @@
       "type": "object",
       "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the parameter. Becomes a property name in the tool's input schema."
-        },
         "type": {
           "type": "string",
           "description": "The expected data type of the parameter.",
@@ -1228,7 +1234,6 @@
         }
       },
       "required": [
-        "name",
         "type",
         "description"
       ],
@@ -1238,10 +1243,6 @@
       "type": "object",
       "description": "An MCP resource definition. Exposes data that agents can read. Either dynamic (backed by consumed HTTP operations via call/steps) or static (served from local files via location).",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Technical name for the resource. Used as identifier in MCP resource listings."
-        },
         "label": {
           "type": "string",
           "description": "Human-readable display name of the resource. Mapped to MCP 'title' in protocol responses."
@@ -1268,11 +1269,15 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/OperationStep"
           },
-          "minItems": 1
+          "description": "Orchestration steps, keyed by step name.",
+          "minProperties": 1
         },
         "mappings": {
           "type": "array",
@@ -1292,7 +1297,6 @@
         }
       },
       "required": [
-        "name",
         "label",
         "uri",
         "description"
@@ -1363,10 +1367,6 @@
       "type": "object",
       "description": "An MCP prompt template definition. Prompts are reusable templates with typed arguments that agents can discover and render.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Technical name for the prompt. Used as identifier in MCP prompt listings."
-        },
         "label": {
           "type": "string",
           "description": "Human-readable display name of the prompt. Mapped to MCP 'title' in protocol responses."
@@ -1376,12 +1376,14 @@
           "description": "A meaningful description of the prompt and when to use it. Used for agent discovery."
         },
         "arguments": {
-          "type": "array",
-          "description": "Typed arguments for this prompt template. Arguments are substituted into the template via {{arg}} placeholders.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/McpPromptArgument"
           },
-          "minItems": 1
+          "description": "Prompt arguments, keyed by argument name."
         },
         "template": {
           "type": "array",
@@ -1399,7 +1401,6 @@
         }
       },
       "required": [
-        "name",
         "label",
         "description"
       ],
@@ -1431,10 +1432,6 @@
       "type": "object",
       "description": "An argument for an MCP prompt template. Arguments are always strings per MCP spec.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Argument name. Becomes a {{name}} placeholder in the template."
-        },
         "label": {
           "type": "string",
           "description": "The display name of the argument. Used for agent discovery."
@@ -1450,7 +1447,6 @@
         }
       },
       "required": [
-        "name",
         "description"
       ],
       "additionalProperties": false
@@ -1494,22 +1490,26 @@
           "type": "string",
           "description": "Path of the resource (supports {{param}} placeholders)"
         },
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the resource. It will likely be used for reference"
-        },
         "inputParameters": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ExposedInputParameter"
-          }
+          },
+          "description": "Resource-level input parameters (e.g. path params), keyed by parameter name."
         },
         "operations": {
-          "type": "array",
-          "description": "Operations available on this resource",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ExposedOperation"
-          }
+          },
+          "description": "Operations on this resource, keyed by operation name.",
+          "minProperties": 1
         },
         "forward": {
           "$ref": "#/$defs/ForwardConfig"
@@ -1536,10 +1536,6 @@
       "type": "object",
       "description": "An operation exposed on a resource.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the operation. Used for reference."
-        },
         "label": {
           "type": "string",
           "description": "Display name for the operation. Used in UIs."
@@ -1560,10 +1556,14 @@
           "default": "GET"
         },
         "inputParameters": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ExposedInputParameter"
-          }
+          },
+          "description": "Operation input parameters, keyed by parameter name."
         },
         "ref": {
           "type": "string",
@@ -1582,11 +1582,15 @@
           "type": "array"
         },
         "steps": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/OperationStep"
           },
-          "minItems": 1
+          "description": "Orchestration steps, keyed by step name.",
+          "minProperties": 1
         },
         "mappings": {
           "type": "array",
@@ -1611,8 +1615,7 @@
         },
         {
           "required": [
-            "steps",
-            "name"
+            "steps"
           ],
           "properties": {
             "mappings": true,
@@ -1647,7 +1650,7 @@
     },
     "ConsumesHttp": {
       "type": "object",
-      "description": "Inline HTTP API adapter. Declares the base URI, shared input parameters, authentication, and resources for an upstream HTTP service.\n\n**When to use** \u2014 Define one `ConsumesHttp` per upstream API (e.g. one for Notion, one for GitHub). Declare it at root-level `consumes[]` to share across capabilities, or under `capability.consumes[]` to scope it locally.\n**Execution model** \u2014 The framework uses `namespace` as the call target. Operations are resolved by matching `ConsumedHttpResource.name` + `ConsumedHttpOperation.name`.\n**See also** \u2014 `ImportedConsumesHttp` (cross-file reuse), `ForwardConfig` (header forwarding), `Authentication` (security).",
+      "description": "Inline HTTP API adapter. Declares the base URI, shared input parameters, authentication, and resources for an upstream HTTP service.\n\n**When to use** — Define one `ConsumesHttp` per upstream API (e.g. one for Notion, one for GitHub). Declare it at root-level `consumes[]` to share across capabilities, or under `capability.consumes[]` to scope it locally.\n**Execution model** — The framework uses `namespace` as the call target. Operations are resolved by matching `ConsumedHttpResource.name` + `ConsumedHttpOperation.name`.\n**See also** — `ImportedConsumesHttp` (cross-file reuse), `ForwardConfig` (header forwarding), `Authentication` (security).",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -1663,27 +1666,33 @@
         },
         "baseUri": {
           "type": "string",
-          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here \u2014 use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
+          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here — use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
           "pattern": "^https?://[^/]+(/[^{]*)?$"
         },
         "inputParameters": {
-          "type": "array",
-          "description": "Parameters injected into every request of this adapter (e.g. a shared `Notion-Version` header). Each entry is a `ConsumedInputParameter`. Operation-level `inputParameters` override adapter-level ones with the same `name`+`in` combination.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedInputParameter"
-          }
+          },
+          "description": "Adapter-level parameters injected into every request, keyed by parameter name."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
           "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2`."
         },
         "resources": {
-          "type": "array",
-          "description": "Ordered list of HTTP resources exposed by this upstream API. Each resource groups operations sharing the same base path.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedHttpResource"
           },
-          "minItems": 1
+          "description": "HTTP resources of the upstream API, keyed by resource name.",
+          "minProperties": 1
         }
       },
       "required": [
@@ -1695,42 +1704,43 @@
     },
     "ConsumedHttpResource": {
       "type": "object",
-      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** \u2014 Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** \u2014 `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** \u2014 `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
+      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** — Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** — `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** — `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical identifier for this resource (kebab-case). Used in call references: `call: adapter.resource-name.operation`."
-        },
         "label": {
           "type": "string",
           "description": "Human-readable label for editors and documentation. Does not affect runtime behavior."
         },
         "description": {
           "type": "string",
-          "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object \u2014 a structured collection of pages'). Used for agent discovery."
+          "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object — a structured collection of pages'). Used for agent discovery."
         },
         "path": {
           "type": "string",
           "description": "Path segment appended to `ConsumesHttp.baseUri`. May include path parameters in curly-brace notation (e.g. `/databases/{databaseId}`). Path parameters must be declared in `inputParameters` with `in: path`."
         },
         "inputParameters": {
-          "type": "array",
-          "description": "Parameters shared by all operations on this resource (e.g. a `{databaseId}` path param). Merged with adapter-level `inputParameters`; operation-level entries take precedence on conflict.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedInputParameter"
-          }
+          },
+          "description": "Resource-level parameters shared by all operations, keyed by parameter name."
         },
         "operations": {
-          "type": "array",
-          "description": "HTTP operations available on this resource (GET, POST, PUT, PATCH, DELETE). At least one required.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedHttpOperation"
           },
-          "minItems": 1
+          "description": "HTTP operations on this resource, keyed by operation name.",
+          "minProperties": 1
         }
       },
       "required": [
-        "name",
         "path",
         "operations"
       ],
@@ -1740,10 +1750,6 @@
       "type": "object",
       "description": "An operation on a consumed HTTP resource",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the operation. Used for reference."
-        },
         "label": {
           "type": "string"
         },
@@ -1764,10 +1770,14 @@
           "description": "HTTP method for this operation. Defaults to `GET`."
         },
         "inputParameters": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_*]+$"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedInputParameter"
-          }
+          },
+          "description": "Operation input parameters, keyed by parameter name."
         },
         "outputRawFormat": {
           "type": "string",
@@ -1788,7 +1798,7 @@
         },
         "outputSchema": {
           "type": "string",
-          "description": "Format-specific schema or selector:\n- **avro / protobuf** \u2014 path to the schema file (required for these formats).\n- **html** \u2014 CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** \u2014 Heading prefix to filter sections (e.g. `## Results`).\n- Other formats \u2014 unused."
+          "description": "Format-specific schema or selector:\n- **avro / protobuf** — path to the schema file (required for these formats).\n- **html** — CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** — Heading prefix to filter sections (e.g. `## Results`).\n- Other formats — unused."
         },
         "outputParameters": {
           "type": "array",
@@ -1802,7 +1812,6 @@
         }
       },
       "required": [
-        "name",
         "method"
       ],
       "additionalProperties": false
@@ -1817,15 +1826,10 @@
             "lookup",
             "script"
           ]
-        },
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Technical name for the step. Used as namespace for referencing step outputs in mappings and expressions."
         }
       },
       "required": [
-        "type",
-        "name"
+        "type"
       ]
     },
     "OperationStepCall": {
@@ -1838,7 +1842,6 @@
             "type": {
               "const": "call"
             },
-            "name": true,
             "call": {
               "type": "string",
               "description": "Reference to the consumed operation. Format: {namespace}.{operationId}.",
@@ -1865,7 +1868,6 @@
             "type": {
               "const": "lookup"
             },
-            "name": true,
             "index": {
               "$ref": "#/$defs/IdentifierKebab",
               "description": "Name of a previous call step whose output serves as the lookup table."
@@ -1907,7 +1909,6 @@
             "type": {
               "const": "script"
             },
-            "name": true,
             "language": {
               "type": "string",
               "enum": [
@@ -1915,13 +1916,13 @@
                 "python",
                 "groovy"
               ],
-              "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port \u2014 the engine falls back to the default."
+              "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port — the engine falls back to the default."
             },
             "location": {
               "type": "string",
               "format": "uri",
               "pattern": "^file:///",
-              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location \u2014 a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port \u2014 the engine falls back to the default."
+              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port — the engine falls back to the default."
             },
             "file": {
               "type": "string",
@@ -1983,7 +1984,7 @@
     },
     "RequestBodyJson": {
       "type": "object",
-      "description": "JSON request body. Sends `data` serialized as `application/json`. `data` can be a static string, object, or array \u2014 or a Mustache template string resolved from the execution context.",
+      "description": "JSON request body. Sends `data` serialized as `application/json`. `data` can be a static string, object, or array — or a Mustache template string resolved from the execution context.",
       "properties": {
         "type": {
           "type": "string",
@@ -2016,7 +2017,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Content-type variant: `text` \u2192 `text/plain`, `xml` \u2192 `application/xml`, `sparql` \u2192 `application/sparql-query`.",
+          "description": "Content-type variant: `text` → `text/plain`, `xml` → `application/xml`, `sparql` → `application/sparql-query`.",
           "enum": [
             "text",
             "xml",
@@ -2043,7 +2044,7 @@
           "const": "formUrlEncoded"
         },
         "data": {
-          "description": "Form fields. Provide either a pre-encoded string or a key\u2192value object whose values are URL-encoded by the framework.",
+          "description": "Form fields. Provide either a pre-encoded string or a key→value object whose values are URL-encoded by the framework.",
           "oneOf": [
             {
               "type": "string",
@@ -2051,7 +2052,7 @@
             },
             {
               "type": "object",
-              "description": "Key\u2013value map of form fields. Values must be strings; the framework handles encoding.",
+              "description": "Key–value map of form fields. Values must be strings; the framework handles encoding.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2119,7 +2120,7 @@
       "description": "Raw body string sent as-is. Use a YAML block scalar (`|`) for multi-line payloads. The framework treats the string as JSON by default; pair with a `Content-Type` input parameter to override."
     },
     "RequestBody": {
-      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` \u2192 `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` \u2192 plain text / XML / SPARQL query\n- `formUrlEncoded` \u2192 `application/x-www-form-urlencoded`\n- `multipartForm` \u2192 `multipart/form-data` (file uploads)\n- raw string \u2192 sent as-is (override content-type via an `inputParameter` with `in: header`)",
+      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` → `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` → plain text / XML / SPARQL query\n- `formUrlEncoded` → `application/x-www-form-urlencoded`\n- `multipartForm` → `multipart/form-data` (file uploads)\n- raw string → sent as-is (override content-type via an `inputParameter` with `in: header`)",
       "oneOf": [
         {
           "$ref": "#/$defs/RequestBodyJson"
@@ -2140,7 +2141,7 @@
     },
     "ForwardConfig": {
       "type": "object",
-      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
+      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** — Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** — Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** — `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
       "properties": {
         "targetNamespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -2161,7 +2162,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` — HTTP Basic (username + password)\n- `apikey` — API key in header or query string\n- `bearer` — Static Bearer token\n- `digest` — HTTP Digest (username + password)\n- `oauth2` — OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -2182,7 +2183,7 @@
     },
     "AuthBasic": {
       "type": "object",
-      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime \u2014 do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
+      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime — do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
       "properties": {
         "type": {
           "type": "string",
@@ -2204,7 +2205,7 @@
     },
     "AuthApiKey": {
       "type": "object",
-      "description": "API Key authentication. Injects a named key\u2013value pair into every request, either as a request header or a query parameter. Common for services like Notion (`Authorization: Bearer`), OpenWeather (`appid=...`), etc.",
+      "description": "API Key authentication. Injects a named key–value pair into every request, either as a request header or a query parameter. Common for services like Notion (`Authorization: Bearer`), OpenWeather (`appid=...`), etc.",
       "properties": {
         "type": {
           "type": "string",
@@ -2252,7 +2253,7 @@
     },
     "AuthDigest": {
       "type": "object",
-      "description": "HTTP Digest authentication (RFC 7616). The framework performs the full challenge\u2013response handshake automatically. Used by older APIs that require digest over basic.",
+      "description": "HTTP Digest authentication (RFC 7616). The framework performs the full challenge–response handshake automatically. Used by older APIs that require digest over basic.",
       "properties": {
         "type": {
           "type": "string",
@@ -2325,7 +2326,7 @@
     },
     "ExposesSkill": {
       "type": "object",
-      "description": "Skill server adapter \u2014 metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
+      "description": "Skill server adapter — metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
       "properties": {
         "type": {
           "type": "string",
@@ -2352,12 +2353,15 @@
           "description": "Authentication required on incoming requests to this skill server. Protects the skills catalog and tool invocation endpoints."
         },
         "skills": {
-          "type": "array",
-          "description": "Array of skill definitions. Each skill declares tools from sibling adapters or local file instructions, or stands alone as purely descriptive.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/ExposedSkill"
           },
-          "minItems": 1
+          "description": "Skill definitions, keyed by skill name.",
+          "minProperties": 1
         }
       },
       "required": [
@@ -2372,10 +2376,6 @@
       "type": "object",
       "description": "A skill definition with full Agent Skills Spec frontmatter. Declares tools derived from sibling api or mcp adapters or defined as local file instructions, or stands alone as purely descriptive (no tools).",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Skill identifier (kebab-case, 1-64 chars)"
-        },
         "description": {
           "type": "string",
           "maxLength": 1024,
@@ -2423,16 +2423,18 @@
           "description": "file:/// URI to a directory containing SKILL.md and supporting files. Required when any tool uses 'instruction'."
         },
         "tools": {
-          "type": "array",
-          "description": "Tools declared by this skill. Each tool is derived from a sibling adapter or is a local file instruction.",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
             "$ref": "#/$defs/SkillTool"
           },
-          "minItems": 1
+          "description": "Tools declared by this skill, keyed by tool name.",
+          "minProperties": 1
         }
       },
       "required": [
-        "name",
         "description"
       ],
       "additionalProperties": false
@@ -2441,10 +2443,6 @@
       "type": "object",
       "description": "A tool declared within a skill. Exactly one of 'from' (derived from a sibling api or mcp adapter) or 'instruction' (local file path relative to the skill's location) must be specified.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Tool identifier (kebab-case)"
-        },
         "description": {
           "type": "string",
           "description": "What the tool does. Used for agent discovery."
@@ -2474,7 +2472,6 @@
         }
       },
       "required": [
-        "name",
         "description"
       ],
       "oneOf": [
@@ -2493,7 +2490,7 @@
     },
     "ExposesControl": {
       "type": "object",
-      "description": "Control adapter \u2014 management plane for health, metrics, traces, and runtime diagnostics. Endpoints are engine-provided, not user-defined.",
+      "description": "Control adapter — management plane for health, metrics, traces, and runtime diagnostics. Endpoints are engine-provided, not user-defined.",
       "properties": {
         "type": {
           "type": "string",
@@ -2529,7 +2526,7 @@
     },
     "ControlManagementSpec": {
       "type": "object",
-      "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) \u2014 those are configured under observability.",
+      "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) — those are configured under observability.",
       "properties": {
         "health": {
           "type": "boolean",
@@ -2647,7 +2644,7 @@
     },
     "ObservabilitySpec": {
       "type": "object",
-      "description": "Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. All fields are optional \u2014 defaults to OTel env vars when not specified.",
+      "description": "Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. All fields are optional — defaults to OTel env vars when not specified.",
       "properties": {
         "enabled": {
           "type": "boolean",

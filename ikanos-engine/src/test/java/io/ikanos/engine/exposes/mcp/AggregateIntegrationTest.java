@@ -51,7 +51,7 @@ public class AggregateIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
-        McpServerToolSpec tool = serverSpec.getTools().get(0);
+        McpServerToolSpec tool = serverSpec.getTools().get("get-forecast");
         assertEquals("get-forecast", tool.getName());
         // call is no longer copied to the tool spec — it is resolved at runtime
         assertNull(tool.getCall(), "call should not be on tool spec — delegated to aggregate");
@@ -68,7 +68,7 @@ public class AggregateIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
-        McpServerToolSpec tool = serverSpec.getTools().get(0);
+        McpServerToolSpec tool = serverSpec.getTools().get("get-forecast");
         // inputParameters are no longer copied to the tool spec
         assertTrue(tool.getInputParameters().isEmpty(),
                 "inputParameters should not be on tool spec — delegated to aggregate");
@@ -86,7 +86,7 @@ public class AggregateIntegrationTest {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
         // Second tool omits description — should inherit from function
-        McpServerToolSpec tool = serverSpec.getTools().get(1);
+        McpServerToolSpec tool = serverSpec.getTools().get("get-forecast-inherited");
         assertEquals("get-forecast-inherited", tool.getName());
         assertEquals("Fetch current weather forecast for a location.", tool.getDescription());
     }
@@ -101,9 +101,9 @@ public class AggregateIntegrationTest {
         io.ikanos.spec.exposes.rest.RestServerSpec restSpec =
                 (io.ikanos.spec.exposes.rest.RestServerSpec) restAdapter.getSpec();
 
-        // Second operation (POST) omits name/description — inherited from function
+        // POST operation uses key "get-forecast" — name inherited from aggregate function key
         io.ikanos.spec.exposes.rest.RestServerOperationSpec op =
-                restSpec.getResources().get(0).getOperations().get(1);
+                restSpec.getResources().get("forecast").getOperations().get("get-forecast");
         assertEquals("POST", op.getMethod());
         assertEquals("get-forecast", op.getName());
         assertEquals("Fetch current weather forecast for a location.", op.getDescription());
@@ -119,7 +119,7 @@ public class AggregateIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
-        McpServerToolSpec tool = serverSpec.getTools().get(0);
+        McpServerToolSpec tool = serverSpec.getTools().get("get-forecast");
         assertNotNull(tool.getHints(), "Hints should be derived from semantics");
         assertEquals(true, tool.getHints().getReadOnly());
         assertEquals(false, tool.getHints().getDestructive());
@@ -136,7 +136,7 @@ public class AggregateIntegrationTest {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
         // read-items: safe=true, idempotent=true → readOnly=true, destructive=false, idempotent=true
-        McpServerToolSpec readTool = serverSpec.getTools().get(0);
+        McpServerToolSpec readTool = serverSpec.getTools().get("read-items");
         assertEquals("read-items", readTool.getName());
         assertEquals(true, readTool.getHints().getReadOnly());
         assertEquals(false, readTool.getHints().getDestructive());
@@ -152,7 +152,7 @@ public class AggregateIntegrationTest {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
         // read-items-open: same derivation + openWorld=true from tool
-        McpServerToolSpec openTool = serverSpec.getTools().get(1);
+        McpServerToolSpec openTool = serverSpec.getTools().get("read-items-open");
         assertEquals("read-items-open", openTool.getName());
         assertEquals(true, openTool.getHints().getReadOnly());
         assertEquals(false, openTool.getHints().getDestructive());
@@ -168,7 +168,7 @@ public class AggregateIntegrationTest {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
         // delete-item: safe=false → readOnly=false; explicit override: destructive=true, openWorld=false
-        McpServerToolSpec deleteTool = serverSpec.getTools().get(2);
+        McpServerToolSpec deleteTool = serverSpec.getTools().get("delete-item");
         assertEquals("delete-item", deleteTool.getName());
         assertEquals(false, deleteTool.getHints().getReadOnly());
         assertEquals(true, deleteTool.getHints().getDestructive());
@@ -183,7 +183,7 @@ public class AggregateIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
 
-        McpServerToolSpec plainTool = serverSpec.getTools().get(3);
+        McpServerToolSpec plainTool = serverSpec.getTools().get("plain-tool");
         assertEquals("plain-tool", plainTool.getName());
         assertNull(plainTool.getHints());
     }

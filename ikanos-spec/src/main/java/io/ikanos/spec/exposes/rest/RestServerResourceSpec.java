@@ -13,12 +13,13 @@
  */
 package io.ikanos.spec.exposes.rest;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.ResourceSpec;
 
@@ -26,15 +27,16 @@ import io.ikanos.spec.ResourceSpec;
  * API Resource Specification Element.
  *
  * <h2>Thread safety</h2>
- * The {@code operations} list and {@code forward} reference are held in
- * {@link AtomicReference}s so that they can be replaced atomically. The {@code operations}
- * list is stored as a {@link CopyOnWriteArrayList} snapshot to keep element-level
- * thread-safety. This satisfies SonarQube rule {@code java:S3077}.
+ * The {@code operations} map and {@code forward} reference are held in
+ * {@link AtomicReference}s. Operations are stored as a synchronized {@link LinkedHashMap}
+ * to preserve YAML insertion order. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class RestServerResourceSpec extends ResourceSpec {
 
-    private final AtomicReference<List<RestServerOperationSpec>> operations =
-            new AtomicReference<>(new CopyOnWriteArrayList<>());
+    @JsonDeserialize(using = RestServerOperationMapDeserializer.class)
+    private final Map<String, RestServerOperationSpec> operations =
+            Collections.synchronizedMap(new LinkedHashMap<>());
+
     private final AtomicReference<RestServerForwardSpec> forward = new AtomicReference<>();
 
     public RestServerResourceSpec() {
@@ -51,36 +53,21 @@ public class RestServerResourceSpec extends ResourceSpec {
     }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public List<RestServerOperationSpec> getOperations() {
-        return operations.get();
+    public Map<String, RestServerOperationSpec> getOperations() {
+        return operations;
     }
 
-    /**
-     * Sets operations and establishes parent resource reference for each operation.
-     * This ensures that each {@link RestServerOperationSpec} knows its parent
-     * {@link RestServerResourceSpec}.
-     *
-     * <p>{@code @JsonSetter} ensures this method is called by Jackson during deserialization.</p>
-     */
-    @JsonSetter
-    public void setOperations(List<RestServerOperationSpec> operations) {
-        if (operations == null) {
-            this.operations.set(new CopyOnWriteArrayList<>());
-            return;
+    public void setOperations(Map<String, RestServerOperationSpec> operations) {
+        if (operations == null) return;
+        synchronized (this.operations) {
+            this.operations.clear();
+            operations.forEach((name, op) -> {
+                op.setParentResource(this);
+                this.operations.put(name, op);
+            });
         }
-        CopyOnWriteArrayList<RestServerOperationSpec> snapshot = new CopyOnWriteArrayList<>(operations);
-        for (RestServerOperationSpec operation : snapshot) {
-            operation.setParentResource(this);
-        }
-        this.operations.set(snapshot);
     }
 
-    public RestServerForwardSpec getForward() {
-        return forward.get();
-    }
-
-    public void setForward(RestServerForwardSpec forward) {
-        this.forward.set(forward);
-    }
-
+    public RestServerForwardSpec getForward() { return forward.get(); }
+    public void setForward(RestServerForwardSpec forward) { this.forward.set(forward); }
 }

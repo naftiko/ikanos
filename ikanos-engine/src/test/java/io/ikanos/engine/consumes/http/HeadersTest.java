@@ -34,7 +34,7 @@ public class HeadersTest {
         notionVersion.setName("Notion-Version");
         notionVersion.setIn("header");
         notionVersion.setValue("2025-09-03");
-        spec.getInputParameters().add(notionVersion);
+        spec.setInputParameters(Map.of("Notion-Version", notionVersion));
 
         HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
         Request request = new Request(Method.GET, "https://api.example.com/v1/pages");

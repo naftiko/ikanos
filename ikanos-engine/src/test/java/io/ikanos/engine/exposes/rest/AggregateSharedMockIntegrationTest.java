@@ -62,7 +62,7 @@ public class AggregateSharedMockIntegrationTest {
 
         RestServerAdapter restAdapter = (RestServerAdapter) capability.getServerAdapters().get(1);
         RestServerSpec restSpec = (RestServerSpec) restAdapter.getSpec();
-        RestServerOperationSpec restOperation = restSpec.getResources().get(0).getOperations().get(0);
+        RestServerOperationSpec restOperation = restSpec.getResources().values().iterator().next().getOperations().values().iterator().next();
 
         // Output parameters are no longer copied — they live on the aggregate function
         AggregateFunction fn = capability.lookupFunction(restOperation.getRef());
@@ -72,7 +72,7 @@ public class AggregateSharedMockIntegrationTest {
 
         // Exercise REST path through the normal flow (delegating to aggregate function)
         ResourceRestlet restlet = new ResourceRestlet(capability, restSpec,
-                restSpec.getResources().get(0));
+                restSpec.getResources().values().iterator().next());
         Request request = new Request(Method.GET, new Reference("http://localhost/hello?name=Nina"));
         Response response = new Response(request);
         restlet.handle(request, response);

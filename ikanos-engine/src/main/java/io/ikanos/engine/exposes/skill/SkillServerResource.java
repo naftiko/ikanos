@@ -95,12 +95,7 @@ abstract class SkillServerResource extends ServerResource {
         if (name == null) {
             return null;
         }
-        for (ExposedSkillSpec skill : getSkillServerSpec().getSkills()) {
-            if (name.equals(skill.getName())) {
-                return skill;
-            }
-        }
-        return null;
+        return getSkillServerSpec().getSkills().get(name);
     }
 
     /**

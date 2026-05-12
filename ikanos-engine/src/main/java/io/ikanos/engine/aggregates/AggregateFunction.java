@@ -64,7 +64,8 @@ public class AggregateFunction {
     }
 
     public List<InputParameterSpec> getInputParameters() {
-        return spec.getInputParameters();
+        Map<String, InputParameterSpec> params = spec.getInputParameters();
+        return params != null ? List.copyOf(params.values()) : List.of();
     }
 
     public List<OutputParameterSpec> getOutputParameters() {
@@ -79,7 +80,7 @@ public class AggregateFunction {
         return spec.getWith();
     }
 
-    public List<OperationStepSpec> getSteps() {
+    public Map<String, OperationStepSpec> getSteps() {
         return spec.getSteps();
     }
 

@@ -13,9 +13,12 @@
  */
 package io.ikanos.spec.aggregates;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Aggregate Specification Element.
@@ -25,18 +28,18 @@ import java.util.concurrent.atomic.AtomicReference;
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.
- * The {@code functions} collection is a {@link CopyOnWriteArrayList} which provides the same
- * guarantee at the element level. This satisfies SonarQube rule {@code java:S3077}.
+ * The {@code functions} map is stored as a synchronized {@link LinkedHashMap} to preserve
+ * YAML insertion order (critical for step orchestration semantics). This satisfies SonarQube
+ * rule {@code java:S3077}.
  */
 public class AggregateSpec {
 
     private final AtomicReference<String> label = new AtomicReference<>();
     private final AtomicReference<String> namespace = new AtomicReference<>();
-    private final List<AggregateFunctionSpec> functions;
 
-    public AggregateSpec() {
-        this.functions = new CopyOnWriteArrayList<>();
-    }
+    @JsonDeserialize(using = AggregateFunctionMapDeserializer.class)
+    private final Map<String, AggregateFunctionSpec> functions =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public String getLabel() {
         return label.get();
@@ -54,8 +57,15 @@ public class AggregateSpec {
         this.namespace.set(namespace);
     }
 
-    public List<AggregateFunctionSpec> getFunctions() {
+    public Map<String, AggregateFunctionSpec> getFunctions() {
         return functions;
     }
 
+    public void setFunctions(Map<String, AggregateFunctionSpec> functions) {
+        if (functions == null) return;
+        synchronized (this.functions) {
+            this.functions.clear();
+            this.functions.putAll(functions);
+        }
+    }
 }

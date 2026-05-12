@@ -45,12 +45,12 @@ public class PromptHandler {
 
     private final Map<String, McpServerPromptSpec> promptSpecs;
 
-    public PromptHandler(List<McpServerPromptSpec> prompts) {
+    public PromptHandler(Map<String, McpServerPromptSpec> prompts) {
         this.promptSpecs = new ConcurrentHashMap<>();
         if (prompts == null) {
             return;
         }
-        for (McpServerPromptSpec prompt : prompts) {
+        for (McpServerPromptSpec prompt : prompts.values()) {
             if (prompt != null && prompt.getName() != null && !prompt.getName().isBlank()) {
                 promptSpecs.put(prompt.getName(), prompt);
             }

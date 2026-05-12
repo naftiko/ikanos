@@ -13,9 +13,12 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * MCP Prompt Specification Element.
@@ -39,63 +42,43 @@ public class McpServerPromptSpec {
     private volatile String description;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<McpPromptArgumentSpec> arguments;
+    @JsonDeserialize(using = McpPromptArgumentMapDeserializer.class)
+    private final Map<String, McpPromptArgumentSpec> arguments =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<McpPromptMessageSpec> template;
+    private final java.util.List<McpPromptMessageSpec> template;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String location;
 
     public McpServerPromptSpec() {
-        this.arguments = new CopyOnWriteArrayList<>();
-        this.template = new CopyOnWriteArrayList<>();
+        this.template = new java.util.concurrent.CopyOnWriteArrayList<>();
     }
 
-    public String getName() {
-        return name;
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getLabel() { return label; }
+    public void setLabel(String label) { this.label = label; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public Map<String, McpPromptArgumentSpec> getArguments() { return arguments; }
+
+    public void setArguments(Map<String, McpPromptArgumentSpec> arguments) {
+        if (arguments == null) return;
+        synchronized (this.arguments) {
+            this.arguments.clear();
+            this.arguments.putAll(arguments);
+        }
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public java.util.List<McpPromptMessageSpec> getTemplate() { return template; }
 
-    public String getLabel() {
-        return label;
-    }
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
 
-    public void setLabel(String label) {
-        this.label = label;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public List<McpPromptArgumentSpec> getArguments() {
-        return arguments;
-    }
-
-    public List<McpPromptMessageSpec> getTemplate() {
-        return template;
-    }
-
-    public String getLocation() {
-        return location;
-    }
-
-    public void setLocation(String location) {
-        this.location = location;
-    }
-
-    /**
-     * Returns {@code true} when this prompt is rendered from a local file.
-     */
-    public boolean isFileBased() {
-        return location != null;
-    }
+    public boolean isFileBased() { return location != null; }
 }

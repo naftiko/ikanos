@@ -67,7 +67,7 @@ public class AggregateStepNamespaceIntegrationTest {
     void aggregateFunctionExecuteShouldResolveNamespaceQualifiedWithInSteps() {
         CapturingStepExecutor executor = new CapturingStepExecutor(capability);
 
-        AggregateSpec aggregateSpec = spec.getCapability().getAggregates().get(0);
+        AggregateSpec aggregateSpec = spec.getCapability().getAggregates().get("shipyard");
         Aggregate aggregate = new Aggregate(aggregateSpec, executor);
         AggregateFunction fn = aggregate.findFunction("get-voyage-manifest");
         assertNotNull(fn, "Aggregate function should be found");
