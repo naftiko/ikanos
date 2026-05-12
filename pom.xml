@@ -84,7 +84,7 @@
           in Phase C. Do not lower these values.
 
           Current per-module baseline (mvn verify, tutorial integration tests
-          excluded — they require Microcks):
+          excluded - they require Microcks):
             ikanos-spec    line 0.68  branch 0.62
             ikanos-engine  line 0.77  branch 0.67
             ikanos-cli     line 0.76  branch 0.66
