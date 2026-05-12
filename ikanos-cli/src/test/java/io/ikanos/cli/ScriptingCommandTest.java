@@ -259,7 +259,7 @@ public class ScriptingCommandTest {
     }
 
     @Test
-    void scriptingShouldReturnOneWhenServerError() {
+    void scriptingSetShouldReturnOneWhenServerError() {
         server.createContext("/scripting", exchange -> {
             byte[] body = "Internal Server Error".getBytes();
             exchange.sendResponseHeaders(500, body.length);
@@ -269,7 +269,8 @@ public class ScriptingCommandTest {
         server.start();
 
         CommandLine cmd = new CommandLine(new Cli());
-        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port));
+        int exitCode = cmd.execute("scripting", "--port", String.valueOf(port),
+                "--set", "enabled=true");
 
         assertEquals(1, exitCode);
         String errOutput = errCapture.toString();

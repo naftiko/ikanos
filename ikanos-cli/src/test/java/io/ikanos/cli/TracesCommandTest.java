@@ -254,7 +254,8 @@ public class TracesCommandTest {
         assertTrue(output.contains("level1-a"));
         assertTrue(output.contains("level1-b"));
         assertTrue(output.contains("level2-a"));
-        assertTrue(output.contains("├──") || output.contains("└──"));
+        // Check for tree connectors using Unicode escapes
+        assertTrue(output.contains("\u251c\u2500\u2500") || output.contains("\u2514\u2500\u2500"));
     }
 
     @Test

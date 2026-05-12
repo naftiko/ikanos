@@ -187,6 +187,7 @@ public class ExportOpenApiCommandTest {
                 """);
 
         String originalDir = System.getProperty("user.dir");
+        Path actualOutput = null;
         try {
             System.setProperty("user.dir", tempDir.toString());
 
@@ -194,11 +195,14 @@ public class ExportOpenApiCommandTest {
             int exitCode = cmd.execute("export", "openapi", capFile.toString());
 
             assertEquals(0, exitCode);
-            Path expectedOutput = Path.of("./openapi.yaml");
-            assertTrue(Files.exists(expectedOutput));
+            // Capture the actual output path immediately after command execution
+            actualOutput = tempDir.resolve("openapi.yaml");
+            assertTrue(Files.exists(actualOutput));
         } finally {
             System.setProperty("user.dir", originalDir);
-            Files.deleteIfExists(Path.of("./openapi.yaml"));
+            if (actualOutput != null) {
+                Files.deleteIfExists(actualOutput);
+            }
         }
     }
 
@@ -223,6 +227,7 @@ public class ExportOpenApiCommandTest {
                 """);
 
         String originalDir = System.getProperty("user.dir");
+        Path actualOutput = null;
         try {
             System.setProperty("user.dir", tempDir.toString());
 
@@ -230,11 +235,14 @@ public class ExportOpenApiCommandTest {
             int exitCode = cmd.execute("export", "openapi", capFile.toString(), "-f", "json");
 
             assertEquals(0, exitCode);
-            Path expectedOutput = Path.of("./openapi.json");
-            assertTrue(Files.exists(expectedOutput));
+            // Capture the actual output path immediately after command execution
+            actualOutput = tempDir.resolve("openapi.json");
+            assertTrue(Files.exists(actualOutput));
         } finally {
             System.setProperty("user.dir", originalDir);
-            Files.deleteIfExists(Path.of("./openapi.json"));
+            if (actualOutput != null) {
+                Files.deleteIfExists(actualOutput);
+            }
         }
     }
 }

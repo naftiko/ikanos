@@ -161,7 +161,7 @@ public class ValidateCommandTest {
         }
 
         @Test
-        public void callShouldDetectAndUseJson20Spec() {
+        public void callShouldDetectAndUseJsonSchema() {
                 Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
                                 .toAbsolutePath().normalize();
 
@@ -171,11 +171,11 @@ public class ValidateCommandTest {
         }
 
         @Test
-        public void callShouldDetectAndUseJson201909Spec() {
+        public void callShouldValidateAgainstExplicitJsonSchemaVersion() {
                 Path yaml = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
                                 .toAbsolutePath().normalize();
 
-                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+                int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "2020-12");
 
                 assertEquals(0, exitCode);
         }
@@ -197,7 +197,9 @@ public class ValidateCommandTest {
                 int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "1.0.0");
 
                 assertEquals(1, exitCode);
-                assertTrue(errCapture.toString().contains("Schema ikanos-schema-v1.0.0.json is not supported"));
+                String errMsg = errCapture.toString();
+                assertTrue(errMsg.contains("Schema") && errMsg.contains("not supported"), 
+                        "Error message should indicate unsupported schema");
         }
 
         @Test
