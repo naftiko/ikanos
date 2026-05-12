@@ -29,10 +29,12 @@ import java.util.concurrent.Callable;
 )
 public class CreateCapabilityCommand implements Callable<Integer> {
 
+    // package-private for testing — allows injection of custom input/output streams
     InputStream input = System.in;
     PrintStream out = System.out;
     PrintStream err = System.err;
 
+    // package-private for testing — allows overriding file generation logic
     void generateCapabilityFile(String capabilityName, String baseUri, String port)
             throws IOException {
         FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML, baseUri, port);
