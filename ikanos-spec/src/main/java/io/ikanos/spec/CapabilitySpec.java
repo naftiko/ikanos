@@ -13,9 +13,14 @@
  */
 package io.ikanos.spec;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import io.ikanos.spec.aggregates.AggregateMapDeserializer;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.exposes.ServerSpec;
@@ -32,13 +37,14 @@ public class CapabilitySpec {
     private final List<ClientSpec> consumes;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<AggregateSpec> aggregates;
+    @JsonDeserialize(using = AggregateMapDeserializer.class)
+    private final Map<String, AggregateSpec> aggregates =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public CapabilitySpec() {
         this.binds = new CopyOnWriteArrayList<>();
         this.exposes = new CopyOnWriteArrayList<>();
         this.consumes = new CopyOnWriteArrayList<>();
-        this.aggregates = new CopyOnWriteArrayList<>();
     }
 
     public List<BindingSpec> getBinds() {
@@ -53,8 +59,16 @@ public class CapabilitySpec {
         return consumes;
     }
 
-    public List<AggregateSpec> getAggregates() {
+    public Map<String, AggregateSpec> getAggregates() {
         return aggregates;
+    }
+
+    public void setAggregates(Map<String, AggregateSpec> aggregates) {
+        if (aggregates == null) return;
+        synchronized (this.aggregates) {
+            this.aggregates.clear();
+            this.aggregates.putAll(aggregates);
+        }
     }
 
 }

@@ -15,7 +15,7 @@ package io.ikanos.spec.exposes.skill;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.File;
-import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -84,13 +84,14 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testSkillCount() {
-        List<ExposedSkillSpec> skills = skillSpec.getSkills();
+        Map<String, ExposedSkillSpec> skills = skillSpec.getSkills();
         assertEquals(2, skills.size(), "Should have two skills");
     }
 
     @Test
     public void testFirstSkillFields() {
-        ExposedSkillSpec skill = skillSpec.getSkills().get(0);
+        ExposedSkillSpec skill = skillSpec.getSkills().get("order-management");
+        assertNotNull(skill, "order-management skill should exist");
         assertEquals("order-management", skill.getName());
         assertEquals("Tools for managing orders", skill.getDescription());
         assertEquals("file:///tmp/ikanos-test-skills/order-management", skill.getLocation());
@@ -98,7 +99,8 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testFirstSkillHyphenatedFields() {
-        ExposedSkillSpec skill = skillSpec.getSkills().get(0);
+        ExposedSkillSpec skill = skillSpec.getSkills().get("order-management");
+        assertNotNull(skill, "order-management skill should exist");
         assertEquals("list-orders", skill.getAllowedTools(),
                 "allowed-tools should be deserialized despite hyphen");
         assertEquals("Use for order operations", skill.getArgumentHint(),
@@ -107,13 +109,15 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testFirstSkillToolCount() {
-        ExposedSkillSpec skill = skillSpec.getSkills().get(0);
+        ExposedSkillSpec skill = skillSpec.getSkills().get("order-management");
+        assertNotNull(skill, "order-management skill should exist");
         assertEquals(2, skill.getTools().size(), "Should have two tools");
     }
 
     @Test
     public void testDerivedToolFromSpec() {
-        SkillToolSpec tool = skillSpec.getSkills().get(0).getTools().get(0);
+        SkillToolSpec tool = skillSpec.getSkills().get("order-management").getTools().get("list-orders");
+        assertNotNull(tool, "list-orders tool should exist");
         assertEquals("list-orders", tool.getName());
         assertEquals("List all orders in the system", tool.getDescription());
         assertNotNull(tool.getFrom(), "from should be present");
@@ -124,7 +128,8 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testInstructionToolSpec() {
-        SkillToolSpec tool = skillSpec.getSkills().get(0).getTools().get(1);
+        SkillToolSpec tool = skillSpec.getSkills().get("order-management").getTools().get("order-guide");
+        assertNotNull(tool, "order-guide tool should exist");
         assertEquals("order-guide", tool.getName());
         assertNull(tool.getFrom(), "from should be null for instruction tool");
         assertNotNull(tool.getInstruction(), "instruction should be present");
@@ -133,7 +138,8 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testSecondSkillNoTools() {
-        ExposedSkillSpec skill = skillSpec.getSkills().get(1);
+        ExposedSkillSpec skill = skillSpec.getSkills().get("onboarding-guide");
+        assertNotNull(skill, "onboarding-guide skill should exist");
         assertEquals("onboarding-guide", skill.getName());
         assertTrue(skill.getTools().isEmpty(), "Descriptive skill should have no tools");
     }
@@ -156,10 +162,12 @@ public class SkillServerSpecRoundTripTest {
         assertEquals(skillSpec.getSkills().size(), restoredSpec.getSkills().size());
 
         // Verify first skill round-trips correctly
-        ExposedSkillSpec restoredSkill = restoredSpec.getSkills().get(0);
+        ExposedSkillSpec restoredSkill = restoredSpec.getSkills().get("order-management");
+        assertNotNull(restoredSkill, "order-management should survive round-trip");
         assertEquals("order-management", restoredSkill.getName());
         assertEquals("list-orders", restoredSkill.getAllowedTools());
         assertEquals("order-guide.md",
-                restoredSkill.getTools().get(1).getInstruction());
+                restoredSkill.getTools().get("order-guide").getInstruction());
     }
 }
+

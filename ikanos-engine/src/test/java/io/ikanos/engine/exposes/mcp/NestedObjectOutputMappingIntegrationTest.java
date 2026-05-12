@@ -61,7 +61,7 @@ public class NestedObjectOutputMappingIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec mcpSpec = adapter.getMcpServerSpec();
 
-        toolSpec = mcpSpec.getTools().get(0);
+        toolSpec = mcpSpec.getTools().get("get-ship");
         stepExecutor = new OperationStepExecutor(null);
     }
 

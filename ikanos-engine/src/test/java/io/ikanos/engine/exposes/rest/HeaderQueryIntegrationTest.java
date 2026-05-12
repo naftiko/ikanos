@@ -54,12 +54,12 @@ public class HeaderQueryIntegrationTest {
 
         RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(0);
         serverSpec = (RestServerSpec) adapter.getSpec();
-        resourceSpec = serverSpec.getResources().get(0);
+        resourceSpec = serverSpec.getResources().values().iterator().next();
     }
 
     @Test
     public void testHeadersAndQueryPopulation() throws Exception {
-        RestServerOperationSpec serverOp = resourceSpec.getOperations().get(0);
+        RestServerOperationSpec serverOp = resourceSpec.getOperations().values().iterator().next();
 
         String incomingJson = "{\"user\":{\"id\":\"999\"}}";
         Request req = new Request(Method.POST, "/search");

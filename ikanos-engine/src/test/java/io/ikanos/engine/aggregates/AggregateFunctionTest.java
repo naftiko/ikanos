@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import io.ikanos.spec.aggregates.AggregateFunctionSpec;
@@ -51,7 +52,7 @@ public class AggregateFunctionTest {
         outParam.setName("voyage-id");
         outParam.setType("string");
         outParam.setValue("{{voyage-id}}");
-        spec.getOutputParameters().add(outParam);
+        spec.setOutputParameters(List.of(outParam));
 
         // No call, no steps -> mock mode
         AggregateFunction fn = new AggregateFunction(spec, null, "shipyard");

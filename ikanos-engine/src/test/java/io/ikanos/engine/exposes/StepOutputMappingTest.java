@@ -70,7 +70,7 @@ public class StepOutputMappingTest {
         IkanosSpec spec = loadTutorialStep7();
 
         McpServerSpec mcpSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
-        McpServerToolSpec getShipWithCrew = mcpSpec.getTools().stream()
+        McpServerToolSpec getShipWithCrew = mcpSpec.getTools().values().stream()
                 .filter(t -> "get-ship-with-crew".equals(t.getName()))
                 .findFirst().orElseThrow();
 

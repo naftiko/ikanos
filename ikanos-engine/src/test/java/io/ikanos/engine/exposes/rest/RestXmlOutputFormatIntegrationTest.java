@@ -106,7 +106,7 @@ public class RestXmlOutputFormatIntegrationTest {
             RestServerSpec serverSpec =
                     (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
             ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                    serverSpec.getResources().get(0));
+                    serverSpec.getResources().values().iterator().next());
 
             Request request = new Request(Method.GET, "http://localhost/legacy/vessels");
             Response response = new Response(request);

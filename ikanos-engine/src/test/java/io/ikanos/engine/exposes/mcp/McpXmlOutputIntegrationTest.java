@@ -66,10 +66,10 @@ public class McpXmlOutputIntegrationTest {
                           type: http
                           baseUri: "http://localhost:%d"
                           resources:
-                            - name: vessels
+                            vessels:
                               path: "/vessels"
                               operations:
-                                - name: list-vessels
+                                list-vessels:
                                   method: GET
                                   outputRawFormat: xml
                       exposes:
@@ -77,7 +77,7 @@ public class McpXmlOutputIntegrationTest {
                           port: 0
                           namespace: shipyard-tools
                           tools:
-                            - name: list-legacy-vessels
+                            list-legacy-vessels:
                               description: "List vessels from legacy XML API"
                               call: legacy.list-vessels
                               outputParameters:

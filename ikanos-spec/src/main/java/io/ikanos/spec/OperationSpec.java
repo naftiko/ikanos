@@ -13,20 +13,24 @@
  */
 package io.ikanos.spec;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Operation Specification Element.
  *
  * <h2>Thread safety</h2>
- * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
- * Control-port runtime edits can replace values atomically while engine threads read them.
- * The {@code inputParameters} and {@code outputParameters} lists are {@link CopyOnWriteArrayList}s.
+ * Each scalar field is held in an {@link AtomicReference}. The {@code inputParameters}
+ * map is a synchronized {@link LinkedHashMap} wrapped in an {@link AtomicReference}.
+ * The {@code outputParameters} list is a {@link CopyOnWriteArrayList}.
  * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class OperationSpec {
@@ -43,14 +47,16 @@ public class OperationSpec {
     private final AtomicReference<String> description = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<InputParameterSpec> inputParameters;
+    @JsonDeserialize(using = InputParameterMapDeserializer.class)
+    private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
+            new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     private final AtomicReference<String> outputRawFormat = new AtomicReference<>();
 
     private final AtomicReference<String> outputSchema = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<OutputParameterSpec> outputParameters;
+    private final List<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
 
     public OperationSpec() {
         this(null, null, null, null, null, null, null);
@@ -72,20 +78,12 @@ public class OperationSpec {
         this.description.set(description);
         this.outputRawFormat.set(outputRawFormat);
         this.outputSchema.set(outputSchema);
-        this.inputParameters = new CopyOnWriteArrayList<>();
-        this.outputParameters = new CopyOnWriteArrayList<>();
     }
 
     public ResourceSpec getParentResource() {
         return parentResource.get();
     }
 
-    /**
-     * Sets the parent resource for this operation.
-     * This is called during deserialization to establish the parent-child relationship.
-     *
-     * @param parentResource the parent ResourceSpec
-     */
     public void setParentResource(ResourceSpec parentResource) {
         this.parentResource.set(parentResource);
     }
@@ -124,7 +122,13 @@ public class OperationSpec {
     }
 
     public List<InputParameterSpec> getInputParameters() {
-        return inputParameters;
+        return List.copyOf(inputParameters.get().values());
+    }
+
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        Map<String, InputParameterSpec> snapshot = Collections.synchronizedMap(
+                new LinkedHashMap<>(params != null ? params : Map.of()));
+        inputParameters.set(snapshot);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -148,5 +152,4 @@ public class OperationSpec {
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
     }
-
 }

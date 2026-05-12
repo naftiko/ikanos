@@ -182,8 +182,8 @@ class OperationStepExecutorBranchTest {
                 """.formatted(schemaVersion));
 
         RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
-        RestServerResourceSpec resourceSpec = serverSpec.getResources().get(0);
-        RestServerOperationSpec operationSpec = resourceSpec.getOperations().get(0);
+        RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
+        RestServerOperationSpec operationSpec = resourceSpec.getOperations().values().iterator().next();
         OperationStepExecutor executor = new OperationStepExecutor(capability);
 
         Request request = new Request(Method.GET, "http://localhost/items?q=ice");
@@ -246,7 +246,8 @@ class OperationStepExecutorBranchTest {
         unnamed.setType("string");
         unnamed.setMapping("$.name");
 
-        operation.getOutputParameters().addAll(List.of(named, unnamed));
+        operation.getOutputParameters().add(named);
+        operation.getOutputParameters().add(unnamed);
         ctx.clientOperation = operation;
 
         JsonNode projected = executor.resolveStepOutput(ctx, raw);
@@ -277,7 +278,7 @@ class OperationStepExecutorBranchTest {
         unsupported.setName("noop");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-          () -> executor.executeSteps(List.of(unsupported), Map.of("a", "b")));
+          () -> executor.executeSteps(Map.of(unsupported.getName(), unsupported), Map.of("a", "b")));
         assertEquals("Invalid call format: null", error.getMessage());
     }
 
@@ -348,7 +349,7 @@ class OperationStepExecutorBranchTest {
 
         // The HTTP call will fail (no server), but parameters are captured before the call
         try {
-            executor.executeSteps(List.of(step), Map.of("voyageId", "VOY-2026-042"));
+            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"));
         } catch (RuntimeException expected) {
             // HTTP connection failure expected
         }
@@ -491,4 +492,5 @@ class OperationStepExecutorBranchTest {
         return new Capability(spec);
     }
 }
+
 

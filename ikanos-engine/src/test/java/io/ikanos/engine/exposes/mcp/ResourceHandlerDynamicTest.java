@@ -64,20 +64,21 @@ class ResourceHandlerDynamicTest {
                           port: 0
                           namespace: "dummy"
                           resources:
-                            - path: "/dummy"
+                            dummy:
+                              path: "/dummy"
                               operations:
-                                - method: "GET"
-                                  name: "dummy"
+                                dummy:
+                                  method: "GET"
                       consumes:
                         - type: "http"
                           namespace: "mock-api"
                           baseUri: "http://localhost:%d/v1"
                           resources:
-                            - path: "/users/{{userId}}"
-                              name: "users"
+                            users:
+                              path: "/users/{{userId}}"
                               operations:
-                                - method: "GET"
-                                  name: "get-user"
+                                get-user:
+                                  method: "GET"
                     """.formatted(schemaVersion, port));
 
             OutputParameterSpec mapped = new OutputParameterSpec();
@@ -88,7 +89,7 @@ class ResourceHandlerDynamicTest {
             mappedSpec.setName("user-name");
             mappedSpec.setUri("data://users/{userId}/name");
             mappedSpec.setCall(new ServerCallSpec("mock-api.get-user"));
-            mappedSpec.getOutputParameters().add(mapped);
+            mappedSpec.setOutputParameters(List.of(mapped));
 
             OutputParameterSpec missing = new OutputParameterSpec();
             missing.setType("string");
@@ -98,10 +99,12 @@ class ResourceHandlerDynamicTest {
             rawFallbackSpec.setName("user-raw");
             rawFallbackSpec.setUri("data://users/{userId}/raw");
             rawFallbackSpec.setCall(new ServerCallSpec("mock-api.get-user"));
-            rawFallbackSpec.getOutputParameters().add(missing);
+            rawFallbackSpec.setOutputParameters(List.of(missing));
 
-            ResourceHandler handler =
-                    new ResourceHandler(capability, List.of(mappedSpec, rawFallbackSpec), null);
+            java.util.LinkedHashMap<String, McpServerResourceSpec> specMap2 = new java.util.LinkedHashMap<>();
+            specMap2.put(mappedSpec.getName(), mappedSpec);
+            specMap2.put(rawFallbackSpec.getName(), rawFallbackSpec);
+            ResourceHandler handler = new ResourceHandler(capability, specMap2, null);
 
             List<ResourceHandler.ResourceContent> mappedContent =
                     handler.read("data://users/u-1/name");
