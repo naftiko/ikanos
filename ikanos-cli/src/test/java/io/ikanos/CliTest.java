@@ -56,6 +56,20 @@ public class CliTest {
     }
 
     @Test
+    void versionShouldNotBeEmpty() throws Exception {
+        String[] version = new Cli.VersionProvider().getVersion();
+
+        assertTrue(version[0] != null && !version[0].isEmpty(), "Version should not be empty");
+    }
+
+    @Test
+    void versionShouldStartWithValidVersionPattern() throws Exception {
+        String[] version = new Cli.VersionProvider().getVersion();
+
+        assertTrue(version[0].matches("\\d+\\.\\d+\\.\\d+.*"), "Version should follow semantic versioning pattern");
+    }
+
+    @Test
     void commandLineShouldExitWithUsageErrorWhenCommandIsUnknown() {
         int exitCode = new CommandLine(new Cli()).execute("does-not-exist");
 
