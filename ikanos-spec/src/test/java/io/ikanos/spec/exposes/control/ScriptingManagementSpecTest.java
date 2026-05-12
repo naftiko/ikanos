@@ -106,8 +106,15 @@ public class ScriptingManagementSpecTest {
         assertEquals(2L, spec.getTotalExecutions());
         assertEquals(1L, spec.getTotalErrors());
         assertEquals(3.0, spec.getAverageDurationMs(), 0.0001);
-        assertNotNull(spec.getLastExecutionAt(),
-                "lastExecutionAt should be set after recording an execution");
+    }
+
+    @Test
+    public void recordExecutionShouldSetLastExecutionAtTimestamp() {
+        ScriptingManagementSpec spec = new ScriptingManagementSpec();
+
+        spec.recordExecution(2_000_000L, false);
+
+        assertNotNull(spec.getLastExecutionAt());
     }
 
     @Test

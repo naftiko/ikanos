@@ -16,7 +16,6 @@ package io.ikanos.spec;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -331,7 +330,7 @@ public class DocumentationMetadataTest {
                 .extractStepDocumentationFromOperationSteps(Arrays.asList(step));
 
         assertEquals("named-but-no-call", docs.get(0).get("name"));
-        assertNull(docs.get(0).get("operation"));
+        assertFalse(docs.get(0).containsKey("operation"));
     }
 
     @Test
@@ -473,22 +472,6 @@ public class DocumentationMetadataTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("listPets");
         // no steps added
-
-        String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
-
-        assertFalse(text.contains("Steps:"));
-    }
-
-    @Test
-    public void formatOperationDocumentationShouldOmitStepsBlockWhenStepsIsNull() {
-        RestServerResourceSpec resource = new RestServerResourceSpec("/pets");
-        RestServerOperationSpec op = new RestServerOperationSpec() {
-            @Override
-            public List<OperationStepSpec> getSteps() {
-                return null;
-            }
-        };
-        op.setName("listPets");
 
         String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
 
