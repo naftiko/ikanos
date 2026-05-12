@@ -36,10 +36,10 @@ public class ResourceHandlerSafetyTest {
         Path docs = tempDir.resolve("docs");
         Files.createDirectories(docs);
         Files.writeString(docs.resolve("readme.md"), "hello\n");
-                Files.writeString(tempDir.resolve("secrets.txt"), "do-not-read\n");
+        Files.writeString(tempDir.resolve("secrets.txt"), "do-not-read\n");
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)), null);
+                Map.of("docs", staticResource("docs", "data://docs", docs)), null);
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> handler.read("data://docs/../secrets.txt"));
@@ -53,7 +53,7 @@ public class ResourceHandlerSafetyTest {
         Files.createDirectories(docs);
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)), null);
+                Map.of("docs", staticResource("docs", "data://docs", docs)), null);
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> handler.read("data://docs"));
@@ -68,7 +68,7 @@ public class ResourceHandlerSafetyTest {
         Files.writeString(docs.resolve("guide.md"), "# guide\n");
 
         ResourceHandler handler = new ResourceHandler(null,
-                List.of(staticResource("docs", "data://docs", docs)), null);
+                Map.of("docs", staticResource("docs", "data://docs", docs)), null);
 
         List<ResourceHandler.ResourceContent> content = handler.read("data://docs/guide.md");
 
@@ -88,51 +88,54 @@ public class ResourceHandlerSafetyTest {
         @Test
         public void listAllShouldExpandStaticFilesAndListTemplatesShouldReturnOnlyTemplates()
                         throws Exception {
-                Path docs = tempDir.resolve("docs");
-                Files.createDirectories(docs);
-                Files.writeString(docs.resolve("guide.md"), "# guide\n");
-                Files.writeString(docs.resolve("data.json"), "{}\n");
+            Path docs = tempDir.resolve("docs");
+            Files.createDirectories(docs);
+            Files.writeString(docs.resolve("guide.md"), "# guide\n");
+            Files.writeString(docs.resolve("data.json"), "{}\n");
 
-                McpServerResourceSpec staticSpec = staticResource("docs", "data://docs", docs);
+            McpServerResourceSpec staticSpec = staticResource("docs", "data://docs", docs);
 
-                McpServerResourceSpec templateSpec = new McpServerResourceSpec();
-                templateSpec.setName("user-profile");
-                templateSpec.setUri("data://users/{userId}/profile");
+            McpServerResourceSpec templateSpec = new McpServerResourceSpec();
+            templateSpec.setName("user-profile");
+            templateSpec.setUri("data://users/{userId}/profile");
 
-                ResourceHandler handler = new ResourceHandler(null, List.of(staticSpec, templateSpec), null);
+            java.util.LinkedHashMap<String, McpServerResourceSpec> specMap = new java.util.LinkedHashMap<>();
+            specMap.put(staticSpec.getName(), staticSpec);
+            specMap.put(templateSpec.getName(), templateSpec);
+            ResourceHandler handler = new ResourceHandler(null, specMap, null);
 
-                List<Map<String, String>> listed = handler.listAll();
-                assertEquals(2, listed.size());
-                assertTrue(listed.stream().anyMatch(e -> "data://docs/guide.md".equals(e.get("uri"))));
-                assertTrue(listed.stream().anyMatch(e -> "data://docs/data.json".equals(e.get("uri"))));
+            List<Map<String, String>> listed = handler.listAll();
+            assertEquals(2, listed.size());
+            assertTrue(listed.stream().anyMatch(e -> "data://docs/guide.md".equals(e.get("uri"))));
+            assertTrue(listed.stream().anyMatch(e -> "data://docs/data.json".equals(e.get("uri"))));
 
-                List<McpServerResourceSpec> templates = handler.listTemplates();
-                assertEquals(1, templates.size());
-                assertEquals("user-profile", templates.get(0).getName());
+            List<McpServerResourceSpec> templates = handler.listTemplates();
+            assertEquals(1, templates.size());
+            assertEquals("user-profile", templates.get(0).getName());
         }
 
         @Test
         public void readShouldThrowForUnknownResourceUri() {
-                ResourceHandler handler = new ResourceHandler(null, List.of(), null);
+            ResourceHandler handler = new ResourceHandler(null, Map.of(), null);
 
-                IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                                () -> handler.read("data://unknown"));
-                assertEquals("Unknown resource URI: data://unknown", error.getMessage());
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> handler.read("data://unknown"));
+            assertEquals("Unknown resource URI: data://unknown", error.getMessage());
         }
 
         @Test
         public void matchTemplateShouldHandleNullsAndExactNonTemplateUris() {
-                assertEquals(null, ResourceHandler.matchTemplate(null, "data://x"));
-                assertEquals(null, ResourceHandler.matchTemplate("data://x", null));
+            assertEquals(null, ResourceHandler.matchTemplate(null, "data://x"));
+            assertEquals(null, ResourceHandler.matchTemplate("data://x", null));
 
-                Map<String, String> exact = ResourceHandler.matchTemplate("data://fixed", "data://fixed");
-                assertNotNull(exact);
-                assertTrue(exact.isEmpty());
+            Map<String, String> exact = ResourceHandler.matchTemplate("data://fixed", "data://fixed");
+            assertNotNull(exact);
+            assertTrue(exact.isEmpty());
 
-                Map<String, String> mismatch = ResourceHandler.matchTemplate("data://fixed",
-                                "data://other");
-                assertEquals(null, mismatch);
-                assertFalse(mismatch != null);
+            Map<String, String> mismatch = ResourceHandler.matchTemplate("data://fixed",
+                    "data://other");
+            assertEquals(null, mismatch);
+            assertFalse(mismatch != null);
         }
 
     private static McpServerResourceSpec staticResource(String name, String uri, Path dir) {

@@ -167,7 +167,7 @@ public class OperationStepExecutor {
      * @return the final HandlingContext from the last executed step, or null if no steps executed
      * @throws IllegalArgumentException if step execution fails
      */
-    public StepExecutionResult executeSteps(List<OperationStepSpec> steps,
+    public StepExecutionResult executeSteps(Map<String, OperationStepSpec> steps,
             Map<String, Object> baseParameters) {
         HandlingContext lastContext = null;
         StepExecutionContext stepContext = new StepExecutionContext();
@@ -184,9 +184,8 @@ public class OperationStepExecutor {
         StepHandlerRegistry registry = capability != null
             ? capability.getStepHandlerRegistry() : null;
 
-        for (int stepIndex = 0; stepIndex < steps.size(); stepIndex++) {
-            OperationStepSpec step = steps.get(stepIndex);
-
+        int stepIndex = 0;
+        for (OperationStepSpec step : steps.values()) {
             // Check step handler registry before normal dispatch
             if (registry != null && step.getName() != null && registry.has(step.getName())) {
                 TelemetryBootstrap telemetry = TelemetryBootstrap.get();
@@ -384,8 +383,8 @@ public class OperationStepExecutor {
                     // Ignore unsupported step types
                 }
             }
+            stepIndex++;
         }
-
         return new StepExecutionResult(lastContext, stepContext);
     }
 
@@ -685,7 +684,7 @@ public class OperationStepExecutor {
      *         defined
      * @throws Exception when the underlying HTTP request fails
      */
-    public HandlingContext execute(ServerCallSpec call, List<OperationStepSpec> steps,
+    public HandlingContext execute(ServerCallSpec call, Map<String, OperationStepSpec> steps,
             Map<String, Object> parameters, String entityLabel) throws Exception {
         if (call != null) {
             HandlingContext found = findClientRequestFor(call, parameters);

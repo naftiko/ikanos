@@ -1,64 +1,61 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 info:
-  label: "Nested Object Output Capability"
-  description: "Test fixture for verifying that output mappings correctly resolve nested object
-    properties without a top-level mapping key (regression for resolver nested object bug)."
-
+  label: Nested Object Output Capability
+  description: Test fixture for verifying that output mappings correctly resolve nested
+    object properties without a top-level mapping key (regression for resolver nested
+    object bug).
 capability:
   consumes:
-    - namespace: registry
-      type: http
-      baseUri: "http://localhost:9999"
-      resources:
-        - name: ship
-          path: "/ships/{{imo_number}}"
-          operations:
-            - name: get-ship
-              method: GET
-              inputParameters:
-                - name: imo_number
-                  in: path
-
+  - namespace: registry
+    type: http
+    baseUri: http://localhost:9999
+    resources:
+      ship:
+        path: /ships/{{imo_number}}
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
   exposes:
-    - type: mcp
-      address: "localhost"
-      port: 9099
-      namespace: test-tools
-      description: "Test MCP for nested object output mapping"
-      tools:
-        - name: get-ship
-          description: "Get ship details"
-          inputParameters:
-            - name: imo
+  - type: mcp
+    address: localhost
+    port: 9099
+    namespace: test-tools
+    description: Test MCP for nested object output mapping
+    tools:
+      get-ship:
+        description: Get ship details
+        inputParameters:
+          imo:
+            type: string
+            description: IMO number of the ship
+            required: true
+        call: registry.get-ship
+        with:
+          imo_number: '{{imo}}'
+        outputParameters:
+        - type: object
+          properties:
+            imo:
               type: string
-              description: "IMO number of the ship"
-              required: true
-          call: registry.get-ship
-          with:
-            imo_number: "{{imo}}"
-          outputParameters:
-            - type: object
+              mapping: $.imo_number
+            name:
+              type: string
+              mapping: $.vessel_name
+            status:
+              type: string
+              mapping: $.operational_status
+            specs:
+              type: object
               properties:
-                imo:
-                  type: string
-                  mapping: "$.imo_number"
-                name:
-                  type: string
-                  mapping: "$.vessel_name"
-                status:
-                  type: string
-                  mapping: "$.operational_status"
-                specs:
-                  type: object
-                  properties:
-                    yearBuilt:
-                      type: number
-                      mapping: "$.year_built"
-                    tonnage:
-                      type: number
-                      mapping: "$.gross_tonnage"
-                    length:
-                      type: number
-                      mapping: "$.dimensions.length_overall"
+                yearBuilt:
+                  type: number
+                  mapping: $.year_built
+                tonnage:
+                  type: number
+                  mapping: $.gross_tonnage
+                length:
+                  type: number
+                  mapping: $.dimensions.length_overall

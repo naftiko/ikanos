@@ -55,16 +55,16 @@ public class OasImportIntegrationTest {
         assertFalse(httpClient.getResources().isEmpty());
 
         // Should have a /pets resource
-        HttpClientResourceSpec petsResource = httpClient.getResources().stream()
+        HttpClientResourceSpec petsResource = httpClient.getResources().values().stream()
                 .filter(r -> "/pets".equals(r.getPath()))
                 .findFirst().orElse(null);
         assertNotNull(petsResource, "Expected a '/pets' resource");
 
         // /pets should have listPets and createPet
-        assertEquals(2, petsResource.getOperations().size());
+        assertEquals(2, petsResource.getOperations().values().size());
 
         // listPets should have a 'limit' query parameter
-        HttpClientOperationSpec listPets = petsResource.getOperations().stream()
+        HttpClientOperationSpec listPets = petsResource.getOperations().values().stream()
                 .filter(o -> "list-pets".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(listPets);
@@ -76,7 +76,7 @@ public class OasImportIntegrationTest {
         assertFalse(listPets.getOutputParameters().isEmpty());
 
         // createPet should have body parameters
-        HttpClientOperationSpec createPet = petsResource.getOperations().stream()
+        HttpClientOperationSpec createPet = petsResource.getOperations().values().stream()
                 .filter(o -> "create-pet".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(createPet);
@@ -135,8 +135,8 @@ public class OasImportIntegrationTest {
         assertFalse(httpClient.getResources().isEmpty());
 
         // All operations should have names even without operationId
-        for (HttpClientResourceSpec resource : httpClient.getResources()) {
-            for (HttpClientOperationSpec op : resource.getOperations()) {
+        for (HttpClientResourceSpec resource : httpClient.getResources().values()) {
+            for (HttpClientOperationSpec op : resource.getOperations().values()) {
                 assertNotNull(op.getName(), "Operation should have a synthesized name");
                 assertFalse(op.getName().isEmpty());
             }
@@ -161,16 +161,16 @@ public class OasImportIntegrationTest {
         assertInstanceOf(BearerAuthenticationSpec.class, httpClient.getAuthentication());
 
         // Should have /pets resource
-        HttpClientResourceSpec petsResource = httpClient.getResources().stream()
+        HttpClientResourceSpec petsResource = httpClient.getResources().values().stream()
                 .filter(r -> "/pets".equals(r.getPath()))
                 .findFirst().orElse(null);
         assertNotNull(petsResource, "Expected a '/pets' resource");
 
         // /pets should have listPets and createPet
-        assertEquals(2, petsResource.getOperations().size());
+        assertEquals(2, petsResource.getOperations().values().size());
 
         // listPets should have a nullable status query parameter resolved to string type
-        HttpClientOperationSpec listPets = petsResource.getOperations().stream()
+        HttpClientOperationSpec listPets = petsResource.getOperations().values().stream()
                 .filter(o -> "list-pets".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(listPets);
@@ -195,8 +195,8 @@ public class OasImportIntegrationTest {
         OasImportResult result = converter.convert(openApi);
 
         // showPetById should have output with nested owner object
-        HttpClientOperationSpec showPet = result.getHttpClient().getResources().stream()
-                .flatMap(r -> r.getOperations().stream())
+        HttpClientOperationSpec showPet = result.getHttpClient().getResources().values().stream()
+                .flatMap(r -> r.getOperations().values().stream())
                 .filter(o -> "show-pet-by-id".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(showPet);
@@ -219,8 +219,8 @@ public class OasImportIntegrationTest {
         OasImportResult result = converter.convert(openApi);
 
         // createPet body should have tag property resolved to string
-        HttpClientOperationSpec createPet = result.getHttpClient().getResources().stream()
-                .flatMap(r -> r.getOperations().stream())
+        HttpClientOperationSpec createPet = result.getHttpClient().getResources().values().stream()
+                .flatMap(r -> r.getOperations().values().stream())
                 .filter(o -> "create-pet".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(createPet);
@@ -256,8 +256,8 @@ public class OasImportIntegrationTest {
         assertFalse(httpClient.getResources().isEmpty(),
                 "Should have at least one resource");
 
-        HttpClientOperationSpec listPets = httpClient.getResources().stream()
-                .flatMap(r -> r.getOperations().stream())
+        HttpClientOperationSpec listPets = httpClient.getResources().values().stream()
+                .flatMap(r -> r.getOperations().values().stream())
                 .filter(o -> "list-pets".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(listPets, "listPets operation should be converted from Swagger 2.0");
@@ -289,8 +289,8 @@ public class OasImportIntegrationTest {
 
         OasImportResult result = converter.convert(parseResult.getOpenAPI());
 
-        HttpClientOperationSpec showPet = result.getHttpClient().getResources().stream()
-                .flatMap(r -> r.getOperations().stream())
+        HttpClientOperationSpec showPet = result.getHttpClient().getResources().values().stream()
+                .flatMap(r -> r.getOperations().values().stream())
                 .filter(o -> "show-pet-by-id".equals(o.getName()))
                 .findFirst().orElse(null);
         assertNotNull(showPet, "showPetById should be converted from Swagger 2.0");
@@ -310,3 +310,6 @@ public class OasImportIntegrationTest {
     }
 
 }
+
+
+

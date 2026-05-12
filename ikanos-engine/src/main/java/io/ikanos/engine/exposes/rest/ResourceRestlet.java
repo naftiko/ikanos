@@ -114,7 +114,7 @@ public class ResourceRestlet extends Restlet {
     private boolean handleFromOperationSpec(Request request, Response response) {
         OperationStepExecutor.HandlingContext found = null;
 
-        for (RestServerOperationSpec serverOp : getResourceSpec().getOperations()) {
+        for (RestServerOperationSpec serverOp : getResourceSpec().getOperations().values()) {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
 
