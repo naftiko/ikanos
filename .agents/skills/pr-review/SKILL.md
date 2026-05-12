@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: "1.3.0"
+version: "1.3.1"
 description: >
   On-demand skill for reviewing GitHub Pull Requests and posting inline
   comments via the GitHub API. Activate when the user asks to: review a PR,
@@ -128,13 +128,20 @@ reject the comment silently.
 
 ## Step 5 — Present findings, then branch on user response
 
-Present all findings to the user in a table:
+Present all findings to the user in a **working table** (conversation only — do not paste this table into GitHub):
 
-| # | File | Line | Severity | Comment (raw) |
+| N | File | Line | Severity | Comment (raw) |
 |---|------|------|----------|---------------|
 | 1 | `path/to/File.java` | L42 | 🔴 HIGH | Comment text ready to paste |
 
 Severity scale: 🔴 HIGH (blocking) · 🟡 MEDIUM · 🔵 LOW (nit).
+
+> **Numbering rules for GitHub-bound text**
+> - When the user selects a subset of findings to post, **renumber them sequentially
+>   from 1** in the review `body` and inline comments — never carry over the
+>   working-list numbers, which would create confusing gaps (e.g. "findings 2 and 5").
+> - Plain integers (1, 2, 3 …) are fine in GitHub text to cross-reference findings.
+> - **Never use `#N`** — GitHub renders `#N` as a hyperlink to issue or PR number N.
 
 **All comments must be written in English**, regardless of the language used in the conversation with the user — see AGENTS.md.
 
@@ -156,7 +163,7 @@ user confirmation — this is an irreversible action on a shared system.
 # 1. Write the review payload to a temp file (edit paths, lines, and bodies as needed)
 $review = @{
     event    = "REQUEST_CHANGES"   # or COMMENT, APPROVE
-    body     = "Overall summary — see inline comments."
+    body     = "Overall summary — see inline comments. (1) blocking issue must be fixed before merge."
     comments = @(
         @{ path = "ikanos-engine/src/main/java/io/ikanos/Foo.java"; line = 42;   body = "Comment text." }
         @{ path = "src/.../Bar.java";                  line = 17;   body = "Another comment." }
@@ -175,7 +182,7 @@ Set-Content -Path "$env:TEMP\review-<number>.json" -Encoding utf8 -Value $review
 cat > /tmp/review-<number>.json <<'EOF'
 {
   "event": "REQUEST_CHANGES",
-  "body": "Overall summary — see inline comments.",
+  "body": "Overall summary — see inline comments. (1) blocking issue must be fixed before merge.",
   "comments": [
     { "path": "ikanos-engine/src/main/java/io/ikanos/Foo.java", "line": 42, "body": "Comment text." },
     { "path": "src/.../Bar.java", "line": 17, "body": "Another comment." }
