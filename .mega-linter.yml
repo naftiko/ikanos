@@ -5,9 +5,15 @@ ENABLE_LINTERS:
 
 POST_COMMANDS:
   - name: Spectral Validation
-    command: "spectral lint -r .spectral.yaml 'src/main/resources/schemas/examples/*.yml' 'src/main/resources/tutorial/**/*.yml' 'src/test/resources/*.yaml'"
+    command: >
+      spectral lint -r .spectral.yaml
+      'ikanos-docs/tutorial/**/*.{yaml,yml}'
+      'ikanos-engine/src/test/resources/**/*.{yaml,yml}'
+      'ikanos-spec/src/main/resources/schemas/**/*.{yaml,yml}'
+      'ikanos-spec/src/test/resources/**/*.{yaml,yml}'
     continue_on_error: false
 
-YAML_V8R_FILTER_REGEX_INCLUDE: "src/(main/resources/(schemas/examples|tutorial)|test/resources)/.*\\.(yaml|yml)$"
-YAML_V8R_ARGUMENTS: "--schema src/main/resources/schemas/ikanos-schema.json"
-YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|src/test/resources/openapi/)"
+YAML_V8R_FILTER_REGEX_INCLUDE: "(ikanos-spec/(src/main/resources/schemas|src/test/resources)/.*\\.(yaml|yml)$|ikanos-docs/tutorial/.*\\.(yaml|yml)$|ikanos-engine/src/test/resources/.*\\.(yaml|yml)$)"
+YAML_V8R_ARGUMENTS: "--schema ikanos-spec/src/main/resources/schemas/ikanos-schema.json"
+
+YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|ikanos-spec/src/test/resources/openapi/.*)"

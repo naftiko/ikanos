@@ -3,8 +3,7 @@ name: Validate JSON Structure Schema
 on:
   push:
     paths:
-      - 'src/main/resources/schemas/**'
-      - '!src/main/resources/schemas/examples/**'
+      - 'ikanos-spec/src/main/resources/schemas/**'
   workflow_dispatch:
 jobs:
   validate-schema:
@@ -16,4 +15,4 @@ jobs:
         run: |
           curl -fL  https://github.com/json-structure/sdk/releases/download/jstruct-v0.5.5/jstruct_0.5.5_amd64.deb -o /tmp/jstruct.deb
           sudo dpkg -i /tmp/jstruct.deb
-          jstruct check src/main/resources/schemas/ikanos-schema.json
+          jstruct check ikanos-spec/src/main/resources/schemas/ikanos-schema.json
