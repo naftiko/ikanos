@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v5
       
       - name: Prepare shared path
-        run: ln -s src/main/resources/tutorial/shared shared
+        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
 
       - uses: actions/setup-java@v4
         with:
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Prepare shared path
-        run: ln -s src/main/resources/tutorial/shared shared
+        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
 
       - uses: actions/setup-java@v4
         with:
@@ -55,19 +55,19 @@ jobs:
           cache: 'maven'
 
       - name: Configure Maven Central
-        run: ./src/main/resources/scripts/builder.sh config_maven_central
+        run: ./scripts/builder.sh config_maven_central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
 
       - name: Configure GPG
-        run: ./src/main/resources/scripts/builder.sh config_gpg
+        run: ./scripts/builder.sh config_gpg
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Publish to Maven Central
-        run: ./src/main/resources/scripts/builder.sh central
+        run: ./scripts/builder.sh central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Prepare shared path
-        run: ln -s src/main/resources/tutorial/shared shared
+        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
         
       - uses: actions/setup-java@v4
         with:

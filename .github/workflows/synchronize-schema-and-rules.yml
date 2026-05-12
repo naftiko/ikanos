@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'src/main/resources/schemas/ikanos-schema.json'
-      - 'src/main/resources/rules/ikanos-rules.yml'
-      - 'src/main/resources/rules/functions/**'
+      - 'ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
+      - 'ikanos-spec/src/main/resources/rules/ikanos-rules.yml'
+      - 'ikanos-spec/src/main/resources/rules/functions/**'
   workflow_dispatch:
 
 jobs:
@@ -29,11 +29,11 @@ jobs:
 
       - name: Copy schema and rules
         run: |
-          cp framework/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              vscode/extensions/naftiko-vscode/src/resources/schemas/ikanos-schema.json
 
           rm -rf vscode/extensions/naftiko-vscode/src/resources/rules/*
-          cp -R framework/src/main/resources/rules/* \
+          cp -R ikanos-spec/src/main/resources/rules/* \
                vscode/extensions/naftiko-vscode/src/resources/rules/
 
       - name: Create pull request
@@ -71,7 +71,7 @@ jobs:
 
       - name: Copy schema
         run: |
-          cp framework/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              schema-viewer/src/schemas/ikanos-schema.json
 
       - name: Create pull request

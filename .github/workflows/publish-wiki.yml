@@ -27,7 +27,7 @@ jobs:
     - name: Update wiki data
       env:
         GH_WIKI_PUBLISH_TOKEN: ${{ secrets.GH_WIKI_PUBLISH_TOKEN }}
-        WIKI_DIR: src/main/resources/wiki
+        WIKI_DIR: ikanos-docs/wiki
       run: |
         WIKI_COMMIT_MESSAGE='Automatically publish wiki'
         GIT_REPOSITORY_URL="https://${GH_WIKI_PUBLISH_TOKEN}@${GITHUB_SERVER_URL#https://}/$GITHUB_REPOSITORY.wiki.git"
