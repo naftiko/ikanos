@@ -15,19 +15,19 @@ jobs:
         include:
           # Linux AMD64
           - os: ubuntu-latest
-            artifact_name: naftiko-cli-linux-amd64
+            artifact_name: ikanos-cli-linux-amd64
             
           # Linux ARM64
           - os: ubuntu-24.04-arm
-            artifact_name: naftiko-cli-linux-arm64
+            artifact_name: ikanos-cli-linux-arm64
             
           # macOS Apple Silicon (ARM64)
           - os: macos-latest  # macos-14+ uses Mx runners
-            artifact_name: naftiko-cli-macos-arm64
+            artifact_name: ikanos-cli-macos-arm64
             
           # Windows AMD64
           - os: windows-latest
-            artifact_name: naftiko-cli-windows-amd64.exe
+            artifact_name: ikanos-cli-windows-amd64.exe
     
     permissions:
       contents: write
@@ -44,29 +44,39 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: 'true'
       
-      - name: Build with Maven
-        run: mvn -B clean package -Pnative -Dtest="io.naftiko.cli.**"
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build with Maven (Unix)
+        if: runner.os != 'Windows'
+        run: mvn -B clean package -Pnative -Dtest="io.ikanos.cli.**" -Dsurefire.failIfNoSpecifiedTests=false
+      
+      - name: Build with Maven (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: mvn -B clean package -Pnative "-Dtest=io.ikanos.cli.**" "-Dsurefire.failIfNoSpecifiedTests=false"
       
       - name: Rename artifact (Unix)
         if: runner.os != 'Windows'
-        run: mv target/naftiko-cli target/${{ matrix.artifact_name }}
+        run: mv ikanos-cli/target/ikanos-cli ikanos-cli/target/${{ matrix.artifact_name }}
       
       - name: Rename artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Move-Item target\naftiko-cli.exe target\${{ matrix.artifact_name }}
+        run: Move-Item ikanos-cli\target\ikanos-cli.exe ikanos-cli\target\${{ matrix.artifact_name }}
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: target/${{ matrix.artifact_name }}
+          path: ikanos-cli/target/${{ matrix.artifact_name }}
       
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')  # Only create release when a new tag is pushed (not when action is manually triggered).
         uses: softprops/action-gh-release@v1
         with:
-          files: target/${{ matrix.artifact_name }}
+          files: ikanos-cli/target/${{ matrix.artifact_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -78,13 +88,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: naftiko-cli-linux-amd64
+            artifact_name: ikanos-cli-linux-amd64
           - os: ubuntu-24.04-arm
-            artifact_name: naftiko-cli-linux-arm64
+            artifact_name: ikanos-cli-linux-arm64
           - os: macos-latest
-            artifact_name: naftiko-cli-macos-arm64
+            artifact_name: ikanos-cli-macos-arm64
           - os: windows-latest
-            artifact_name: naftiko-cli-windows-amd64.exe
+            artifact_name: ikanos-cli-windows-amd64.exe
 
     steps:
       - name: Download binary
@@ -101,11 +111,11 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           printf "test\nhttps://api.com\n8080\n" | ./bin/${{ matrix.artifact_name }} create capability
-          ./bin/${{ matrix.artifact_name }} v test.naftiko.yaml
+          ./bin/${{ matrix.artifact_name }} v test.ikanos.yaml
 
       - name: Test create + validate (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           "test`nhttps://api.com`n8080`n" | & ./bin/${{ matrix.artifact_name }} create capability
-          & ./bin/${{ matrix.artifact_name }} v test.naftiko.yaml
+          & ./bin/${{ matrix.artifact_name }} v test.ikanos.yaml
