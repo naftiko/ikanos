@@ -54,12 +54,6 @@
             <artifactId>org.restlet.ext.slf4j</artifactId>
         </dependency>
 
-        <!-- REST client (for ControlPortClient) -->
-        <dependency>
-            <groupId>org.restlet</groupId>
-            <artifactId>org.restlet</artifactId>
-        </dependency>
-
         <!-- Runtime host dependencies: optional in ikanos-engine, but required in ikanos.jar -->
         <dependency>
             <groupId>org.slf4j</groupId>
