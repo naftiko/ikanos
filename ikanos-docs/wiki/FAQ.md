@@ -46,7 +46,7 @@ You don't need to write Java or other code unless you want to extend the framewo
 
   If your capability is mounted at `/app/ikanos.yaml`, you can rely on the image default command and omit `serve` entirely.
 
-2. **CLI tool** (for configuration, validation, and local execution)  
+2. **CLI tool** (for configuration, validation, and local execution)
   Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-windows-amd64.exe)
 
 See the [Installation guide](https://github.com/naftiko/ikanos/wiki/Installation) for detailed setup instructions.
