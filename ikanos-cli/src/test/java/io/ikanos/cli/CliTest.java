@@ -13,6 +13,7 @@
  */
 package io.ikanos.cli;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
@@ -22,6 +23,11 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 public class CliTest {
+
+    @Test
+    public void runtimeClasspathShouldIncludeOpenTelemetrySdk() {
+        assertDoesNotThrow(() -> Class.forName("io.opentelemetry.sdk.trace.SpanProcessor"));
+    }
 
     @Test
     public void executeShouldRouteServeSubcommand() {
