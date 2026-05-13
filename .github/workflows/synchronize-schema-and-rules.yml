@@ -15,10 +15,10 @@ jobs:
   sync-to-vscode:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout framework
+      - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
-          path: framework
+          path: ikanos
 
       - name: Checkout vscode
         uses: actions/checkout@v4
@@ -29,11 +29,11 @@ jobs:
 
       - name: Copy schema and rules
         run: |
-          cp ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              vscode/extensions/naftiko-vscode/src/resources/schemas/ikanos-schema.json
 
           rm -rf vscode/extensions/naftiko-vscode/src/resources/rules/*
-          cp -R ikanos-spec/src/main/resources/rules/* \
+          cp -R ikanos/ikanos-spec/src/main/resources/rules/* \
                vscode/extensions/naftiko-vscode/src/resources/rules/
 
       - name: Create pull request
@@ -43,10 +43,10 @@ jobs:
           path: vscode
           base: main
           branch: chore/schema-and-rules
-          commit-message: "chore: update schema and rules from framework"
-          title: "chore: update schema and rules from framework"
+          commit-message: "chore: update schema and rules from ikanos"
+          title: "chore: update schema and rules from ikanos"
           body: |
-            Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
             - `ikanos-schema.json`
@@ -57,10 +57,10 @@ jobs:
   sync-to-schema-viewer:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout framework
+      - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
-          path: framework
+          path: ikanos
 
       - name: Checkout schema-viewer
         uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
 
       - name: Copy schema
         run: |
-          cp ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              schema-viewer/src/schemas/ikanos-schema.json
 
       - name: Create pull request
@@ -81,10 +81,10 @@ jobs:
           path: schema-viewer
           base: main
           branch: chore/schema
-          commit-message: "chore: update schema from framework"
-          title: "chore: update schema from framework"
+          commit-message: "chore: update schema from ikanos"
+          title: "chore: update schema from ikanos"
           body: |
-            Automated sync from [framework@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
             - `ikanos-schema.json`
