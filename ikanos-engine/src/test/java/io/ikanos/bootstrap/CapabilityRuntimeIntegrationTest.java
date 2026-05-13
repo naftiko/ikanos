@@ -29,8 +29,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 
 public class CapabilityRuntimeIntegrationTest {
 
@@ -127,5 +129,10 @@ public class CapabilityRuntimeIntegrationTest {
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    @AfterEach
+    void tearDown() {
+        TelemetryBootstrap.reset();
     }
 }
