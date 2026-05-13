@@ -108,7 +108,7 @@ public class CapabilityRuntimeIntegrationTest {
             } catch (ConnectException e) {
                 return;
             } catch (IOException e) {
-                return;
+                throw new AssertionError("Unexpected I/O error while polling for shutdown", e);
             }
             Thread.sleep(100);
         }
