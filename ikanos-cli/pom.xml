@@ -58,6 +58,7 @@
         <dependency>
             <groupId>org.restlet</groupId>
             <artifactId>org.restlet</artifactId>
+        </dependency>
 
         <!-- Runtime host dependencies: optional in ikanos-engine, but required in ikanos.jar -->
         <dependency>
