@@ -31,7 +31,6 @@ public class ExportOpenApiCommandTest {
 
     @Test
     void exportShouldSucceedWithValidCapabilityFile() throws Exception {
-        // Create a minimal Ikanos capability
         Path capFile = tempDir.resolve("capability.yml");
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
@@ -186,19 +185,15 @@ public class ExportOpenApiCommandTest {
                               name: list-items
                 """);
 
-        String originalDir = System.getProperty("user.dir");
+        Path expectedOutput = Path.of("openapi.yaml").toAbsolutePath().normalize();
         try {
-            System.setProperty("user.dir", tempDir.toString());
-
             CommandLine cmd = new CommandLine(new Cli());
             int exitCode = cmd.execute("export", "openapi", capFile.toString());
 
             assertEquals(0, exitCode);
-            Path expectedOutput = Path.of("./openapi.yaml");
             assertTrue(Files.exists(expectedOutput));
         } finally {
-            System.setProperty("user.dir", originalDir);
-            Files.deleteIfExists(Path.of("./openapi.yaml"));
+            Files.deleteIfExists(expectedOutput);
         }
     }
 
@@ -222,19 +217,15 @@ public class ExportOpenApiCommandTest {
                               name: list-items
                 """);
 
-        String originalDir = System.getProperty("user.dir");
+        Path expectedOutput = Path.of("openapi.json").toAbsolutePath().normalize();
         try {
-            System.setProperty("user.dir", tempDir.toString());
-
             CommandLine cmd = new CommandLine(new Cli());
             int exitCode = cmd.execute("export", "openapi", capFile.toString(), "-f", "json");
 
             assertEquals(0, exitCode);
-            Path expectedOutput = Path.of("./openapi.json");
             assertTrue(Files.exists(expectedOutput));
         } finally {
-            System.setProperty("user.dir", originalDir);
-            Files.deleteIfExists(Path.of("./openapi.json"));
+            Files.deleteIfExists(expectedOutput);
         }
     }
 }
