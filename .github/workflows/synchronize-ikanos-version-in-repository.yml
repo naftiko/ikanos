@@ -5,7 +5,7 @@ on:
 
 jobs:
   # This job is only executed when the action is manually launched on a branch other than 'main'.
-  sync-framework-version:
+  sync-ikanos-version:
     runs-on: ubuntu-latest
     if: github.ref_name != 'main'
 
