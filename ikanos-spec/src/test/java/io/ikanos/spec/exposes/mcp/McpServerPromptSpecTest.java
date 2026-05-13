@@ -78,7 +78,7 @@ public class McpServerPromptSpecTest {
                 name: greet
                 description: Greets the user
                 arguments:
-                  - name: user
+                  user:
                     description: User name
                 template:
                   - role: user
@@ -91,7 +91,7 @@ public class McpServerPromptSpecTest {
         assertEquals("greet", spec.getName());
         assertEquals("Greets the user", spec.getDescription());
         assertEquals(1, spec.getArguments().size());
-        assertEquals("user", spec.getArguments().get(0).getName());
+        assertEquals("user", spec.getArguments().get("user").getName());
         assertEquals(1, spec.getTemplate().size());
         assertEquals("user", spec.getTemplate().get(0).getRole());
         assertEquals("Hello {{user}}", spec.getTemplate().get(0).getContent());

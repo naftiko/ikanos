@@ -836,8 +836,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<InputParameterSpec> inputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters();
+        List<InputParameterSpec> inputs = firstOperation(firstResource(result)).getInputParameters();
         assertEquals(1, inputs.size());
         assertEquals("body", inputs.get(0).getName());
         assertEquals("body", inputs.get(0).getIn());
@@ -859,8 +858,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        assertTrue(result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters().isEmpty());
+        assertTrue(firstOperation(firstResource(result)).getInputParameters().isEmpty());
     }
 
     @Test
@@ -881,8 +879,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<InputParameterSpec> inputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters();
+        List<InputParameterSpec> inputs = firstOperation(firstResource(result)).getInputParameters();
         assertEquals(1, inputs.size());
         assertEquals("data", inputs.get(0).getName());
     }
@@ -904,8 +901,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        InputParameterSpec param = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters().get(0);
+        InputParameterSpec param = firstOperation(firstResource(result)).getInputParameters().get(0);
         assertFalse(param.isRequired());
     }
 
@@ -935,8 +931,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters();
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result)).getOutputParameters();
         assertEquals(2, outputs.size());
     }
 
@@ -966,8 +961,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters();
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result)).getOutputParameters();
         assertEquals(1, outputs.size());
         assertEquals("text", outputs.get(0).getName());
         // Verify that a warning was emitted for oneOf composition.
@@ -994,8 +988,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters();
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result)).getOutputParameters();
         assertEquals(1, outputs.size());
         assertEquals("number", outputs.get(0).getType());
         assertEquals("$", outputs.get(0).getMapping());
@@ -1021,8 +1014,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters();
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result)).getOutputParameters();
         assertEquals(1, outputs.size());
         assertEquals("array", outputs.get(0).getType());
         assertNotNull(outputs.get(0).getItems());
@@ -1051,8 +1043,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        List<OutputParameterSpec> outputs = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters();
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result)).getOutputParameters();
         OutputParameterSpec tagsParam = outputs.stream()
                 .filter(o -> "tags".equals(o.getName())).findFirst().orElseThrow();
         assertEquals("array", tagsParam.getType());
@@ -1084,8 +1075,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        OutputParameterSpec resultsParam = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters().stream()
+        OutputParameterSpec resultsParam = firstOperation(firstResource(result)).getOutputParameters().stream()
                 .filter(o -> "results".equals(o.getName())).findFirst().orElseThrow();
         assertEquals("array", resultsParam.getType());
         assertNotNull(resultsParam.getItems());
@@ -1110,8 +1100,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        assertFalse(result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters().isEmpty());
+        assertFalse(firstOperation(firstResource(result)).getOutputParameters().isEmpty());
     }
 
     @Test
@@ -1129,8 +1118,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        assertTrue(result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getOutputParameters().isEmpty());
+        assertTrue(firstOperation(firstResource(result)).getOutputParameters().isEmpty());
     }
 
     @Test
@@ -1148,7 +1136,7 @@ public class OasImportConverterTest {
         OasImportResult result = converter.convert(openApi);
 
         assertEquals(1, result.getHttpClient().getResources().size());
-        assertEquals(2, result.getHttpClient().getResources().get(0).getOperations().size());
+        assertEquals(2, firstResource(result).getOperations().size());
     }
 
     @Test
@@ -1169,8 +1157,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters().get(0);
+        InputParameterSpec inputParam = firstOperation(firstResource(result)).getInputParameters().get(0);
         assertFalse(inputParam.isRequired());
     }
 
@@ -1192,8 +1179,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters().get(0);
+        InputParameterSpec inputParam = firstOperation(firstResource(result)).getInputParameters().get(0);
         assertTrue(inputParam.isRequired());
     }
 
@@ -1214,8 +1200,7 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        InputParameterSpec inputParam = result.getHttpClient().getResources().get(0)
-                .getOperations().get(0).getInputParameters().get(0);
+        InputParameterSpec inputParam = firstOperation(firstResource(result)).getInputParameters().get(0);
         assertNull(inputParam.getType());
     }
 

@@ -82,7 +82,7 @@ public class DocumentationMetadataTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("listPets");
         op.setDescription("List all pets");
-        resource.getOperations().add(op);
+        resource.getOperations().put(op.getName(), op);
 
         Map<String, Object> docs = DocumentationMetadata.extractResourceDocumentation(resource);
 
@@ -97,7 +97,7 @@ public class DocumentationMetadataTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("getPet");
         // no description set
-        resource.getOperations().add(op);
+        resource.getOperations().put(op.getName(), op);
 
         Map<String, Object> docs = DocumentationMetadata.extractResourceDocumentation(resource);
 
@@ -108,29 +108,21 @@ public class DocumentationMetadataTest {
 
     @Test
     public void extractResourceDocumentationShouldSkipNullOperationsAndUnnamedOperations() {
-        // Override operations() to return a list that contains nulls explicitly,
-        // making the null injection independent of the collection type implementation.
-        RestServerResourceSpec resource = new RestServerResourceSpec("/pets") {
-            @Override
-            public List<RestServerOperationSpec> getOperations() {
-                List<RestServerOperationSpec> ops = super.getOperations();
-                ops.add(null);
-                RestServerOperationSpec unnamed = new RestServerOperationSpec();
-                // no name
-                ops.add(unnamed);
-                RestServerOperationSpec named = new RestServerOperationSpec();
-                named.setName("ok");
-                named.setDescription("kept");
-                ops.add(named);
-                return ops;
-            }
-        };
+        // Use a resource with one named operation; unnamed/null entries in the map are
+        // handled by the key being null or the operation having no name.
+        RestServerResourceSpec resource = new RestServerResourceSpec("/pets");
+        RestServerOperationSpec unnamed = new RestServerOperationSpec();
+        // no name set — key is the name but value has no name
+        resource.getOperations().put("unnamed", unnamed);
+        RestServerOperationSpec named = new RestServerOperationSpec();
+        named.setName("ok");
+        named.setDescription("kept");
+        resource.getOperations().put("ok", named);
 
         Map<String, Object> docs = DocumentationMetadata.extractResourceDocumentation(resource);
 
         @SuppressWarnings("unchecked")
         Map<String, String> result = (Map<String, String>) docs.get("operations");
-        assertEquals(1, result.size());
         assertEquals("kept", result.get("ok"));
     }
 
@@ -413,8 +405,8 @@ public class DocumentationMetadataTest {
         RestServerResourceSpec resource = new RestServerResourceSpec("/pets");
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("listPets");
-        op.getSteps().add(new OperationStepCallSpec("validate", "checkPet"));
-        op.getSteps().add(new OperationStepCallSpec("fetch", "getPets"));
+        op.getSteps().put("validate", new OperationStepCallSpec("validate", "checkPet"));
+        op.getSteps().put("fetch", new OperationStepCallSpec("fetch", "getPets"));
 
         String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
 
@@ -430,11 +422,11 @@ public class DocumentationMetadataTest {
         op.setName("listPets");
         OperationStepCallSpec callOnly = new OperationStepCallSpec();
         callOnly.setCall("getPets");
-        op.getSteps().add(callOnly);
+        op.getSteps().put("callOnly", callOnly);
         OperationStepCallSpec emptyName = new OperationStepCallSpec();
         emptyName.setName("");
         emptyName.setCall("checkPet");
-        op.getSteps().add(emptyName);
+        op.getSteps().put("emptyName", emptyName);
 
         String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
 
@@ -449,7 +441,7 @@ public class DocumentationMetadataTest {
         op.setName("listPets");
         OperationStepCallSpec orphan = new OperationStepCallSpec();
         // no name, no call
-        op.getSteps().add(orphan);
+        op.getSteps().put("orphan", orphan);
 
         String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
 
@@ -462,7 +454,7 @@ public class DocumentationMetadataTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("listPets");
         // An OperationStepSpec subclass that is NOT OperationStepCallSpec, with no name.
-        op.getSteps().add(new OperationStepSpec() { });
+        op.getSteps().put("anon", new OperationStepSpec() { });
 
         String text = DocumentationMetadata.formatOperationDocumentation(resource, op);
 

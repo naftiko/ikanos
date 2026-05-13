@@ -142,7 +142,7 @@ public class OasExportBuilderTest {
         param.setIn("query");
         param.setType("number");
         param.setRequired(false);
-        firstOp(resource).setInputParameters(Map.of("limit", param));
+        firstOp(resource).setInputParameters(Map.of(param.getName(), param));
         addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
@@ -165,7 +165,7 @@ public class OasExportBuilderTest {
         nameParam.setIn("body");
         nameParam.setType("string");
         nameParam.setRequired(true);
-        firstOp(resource).setInputParameters(Map.of("name", nameParam));
+        firstOp(resource).setInputParameters(Map.of(nameParam.getName(), nameParam));
         addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
@@ -543,7 +543,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = new IkanosSpec();
         CapabilitySpec cap = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("localhost", 8080, null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
         cap.getExposes().add(rest);
         spec.setCapability(cap);
 
@@ -559,7 +559,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
         rest.setAddress(null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -572,7 +572,7 @@ public class OasExportBuilderTest {
         spec.setInfo(new InfoSpec("Test", null, null, null));
         CapabilitySpec cap = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("myhost", 0, null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
         cap.getExposes().add(rest);
         spec.setCapability(cap);
 
@@ -591,8 +591,8 @@ public class OasExportBuilderTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setMethod("GET");
         op.setName("list");
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -603,7 +603,7 @@ public class OasExportBuilderTest {
     void buildShouldConvertMustachePathSegmentsToOpenApi() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/users/{{userId}}", "users",
+        addResource(rest, resourceWithOperation("/users/{{userId}}", "users",
                 "GET", "get-user", null));
 
         OasExportResult result = builder.build(spec, null);
@@ -633,8 +633,8 @@ public class OasExportBuilderTest {
         head.setMethod("HEAD"); head.setName("head");
         RestServerOperationSpec options = new RestServerOperationSpec();
         options.setMethod("OPTIONS"); options.setName("options");
-        resource.setOperations(List.of(get, post, put, delete, patch, head, options));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of("get", get, "post", post, "put", put, "delete", delete, "patch", patch, "head", head, "options", options));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -656,7 +656,7 @@ public class OasExportBuilderTest {
         digest.setUsername("user");
         digest.setPassword("pass".toCharArray());
         rest.setAuthentication(digest);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -673,7 +673,7 @@ public class OasExportBuilderTest {
         RestServerSpec rest = getRestServer(spec);
         // Use a concrete auth type that isn't explicitly handled
         rest.setAuthentication(new AuthenticationSpec() {});
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -689,7 +689,7 @@ public class OasExportBuilderTest {
         apiKey.setKey("X-Token");
         apiKey.setPlacement(null);
         rest.setAuthentication(apiKey);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -715,8 +715,8 @@ public class OasExportBuilderTest {
         arrayParam.setType("array");
         arrayParam.setItems(null);
         op.getOutputParameters().add(arrayParam);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -736,8 +736,8 @@ public class OasExportBuilderTest {
         op.setMethod("GET");
         op.setName(null);
         op.setDescription(null);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of("unnamed", op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -762,9 +762,9 @@ public class OasExportBuilderTest {
         bodyParam.setIn("body");
         bodyParam.setType("string");
         bodyParam.setRequired(true);
-        op.getInputParameters().add(bodyParam);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        op.setInputParameters(Map.of("title", bodyParam));
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -791,9 +791,9 @@ public class OasExportBuilderTest {
         param.setName("filter");
         param.setIn(null);
         param.setType("string");
-        op.getInputParameters().add(param);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        op.setInputParameters(Map.of("filter", param));
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -820,16 +820,6 @@ public class OasExportBuilderTest {
         return (RestServerSpec) spec.getCapability().getExposes().get(0);
     }
 
-    /** Add a resource to a RestServerSpec using the new Map API. */
-    private static void addResource(RestServerSpec rest, RestServerResourceSpec resource) {
-        rest.getResources().put(resource.getName(), resource);
-    }
-
-    /** Return the first (and typically only) operation of a resource. */
-    private static RestServerOperationSpec firstOp(RestServerResourceSpec resource) {
-        return resource.getOperations().values().iterator().next();
-    }
-
     private RestServerResourceSpec resourceWithOperation(String path, String name,
             String method, String opName, String description) {
         RestServerResourceSpec resource = new RestServerResourceSpec();
@@ -840,11 +830,19 @@ public class OasExportBuilderTest {
         op.setMethod(method);
         op.setName(opName);
         op.setDescription(description);
-        resource.setOperations(Map.of(opName, op));
+        resource.setOperations(Map.of(op.getName(), op));
 
         return resource;
     }
 
+    /** Add a resource to a RestServerSpec using the Map API. */
+    private static void addResource(RestServerSpec rest, RestServerResourceSpec resource) {
+        rest.getResources().put(resource.getName(), resource);
+    }
+
+    /** Return the first (and typically only) operation of a resource. */
+    private static RestServerOperationSpec firstOp(RestServerResourceSpec resource) {
+        return resource.getOperations().values().iterator().next();
+    }
+
 }
-
-
