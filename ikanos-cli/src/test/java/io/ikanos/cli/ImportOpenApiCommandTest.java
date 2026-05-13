@@ -310,8 +310,6 @@ public class ImportOpenApiCommandTest {
               version: "1.0.0"
             paths: {}
             """);
-
-        // Capture the output by subclassing and overriding the derivation
         java.util.concurrent.atomic.AtomicReference<String> derivedPath =
                 new java.util.concurrent.atomic.AtomicReference<>();
         ImportOpenApiCommand command = new ImportOpenApiCommand() {
@@ -324,7 +322,6 @@ public class ImportOpenApiCommandTest {
             return tempDir.resolve(namespace + "-consumes." + ext).toString();
           }
         };
-
         // Use reflection to set the private fields (simulating CommandLine's behavior)
         java.lang.reflect.Field sourceField = ImportOpenApiCommand.class.getDeclaredField("source");
         sourceField.setAccessible(true);
@@ -394,19 +391,15 @@ public class ImportOpenApiCommandTest {
                 paths: {}
                 """);
 
-        String originalDir = System.getProperty("user.dir");
+        Path expectedOutput = Path.of("json-extension-api-consumes.json").toAbsolutePath().normalize();
         try {
-            System.setProperty("user.dir", tempDir.toString());
-
             CommandLine cmd = new CommandLine(new Cli());
             int exitCode = cmd.execute("import", "openapi", oasFile.toString(), "-f", "json");
 
             assertEquals(0, exitCode);
-            Path expectedOutput = Paths.get("./json-extension-api-consumes.json");
             assertTrue(Files.exists(expectedOutput));
         } finally {
-            System.setProperty("user.dir", originalDir);
-            Files.deleteIfExists(Path.of("./json-extension-api-consumes.json"));
+            Files.deleteIfExists(expectedOutput);
         }
     }
 
@@ -431,4 +424,5 @@ public class ImportOpenApiCommandTest {
         String content = Files.readString(output);
         assertTrue(content.contains("my-override-namespace"));
     }
+
 }
