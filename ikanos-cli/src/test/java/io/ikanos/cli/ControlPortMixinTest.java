@@ -129,23 +129,8 @@ public class ControlPortMixinTest {
     }
 
     @Test
-    void resolvePortShouldUseEnvironmentVariableWhenFlagNotSet() {
-        ControlPortMixin mixin = new ControlPortMixin();
-        String originalPort = System.getenv("IKANOS_CONTROL_PORT");
-        try {
-            System.setProperty("IKANOS_CONTROL_PORT", "8888");
-            // Note: setProperty on System.getenv replacement is not possible directly
-            // This test verifies the fallback path logic via YAML discovery
-            assertEquals(ControlPortMixin.DEFAULT_PORT, mixin.resolvePort());
-        } finally {
-            if (originalPort != null) {
-                System.setProperty("IKANOS_CONTROL_PORT", originalPort);
-            }
-        }
-    }
-
-    @Test
-    void resolvePortShouldHandleInvalidEnvironmentVariableValue() throws Exception {
+    void resolvePortShouldUseYamlDiscoveryWhenFlagAndEnvironmentVariableAreUnavailable()
+            throws Exception {
         ControlPortMixin mixin = new ControlPortMixin();
         
         // Create a YAML with control port to fall back to
@@ -163,9 +148,8 @@ public class ControlPortMixinTest {
         String originalDir = System.getProperty("user.dir");
         try {
             System.setProperty("user.dir", tempDir.toString());
-            // When env var is not set, should fall back to YAML discovery
             int resolved = mixin.resolvePort();
-            assertTrue(resolved > 0, "Port should be resolved");
+            assertEquals(9200, resolved);
         } finally {
             System.setProperty("user.dir", originalDir);
         }
