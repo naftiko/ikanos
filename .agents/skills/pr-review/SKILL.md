@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: "2.0.1"
+version: "2.0.2"
 description: >
   On-demand skill for reviewing GitHub Pull Requests and posting inline
   comments via the GitHub API. Activate when the user asks to: review a PR,
@@ -193,6 +193,12 @@ Build the review JSON with the confirmed line numbers and save it with `create_f
 to `$env:TEMP\review-<number>.json` (Windows) or `/tmp/review-<number>.json`
 (Linux/macOS):
 
+> **Always use `create_file` to write the review JSON — never `insert_edit_into_file`
+> on a pre-existing file.** If `$env:TEMP\review-<number>.json` already exists from a
+> previous session, delete it first with `Remove-Item` before calling `create_file`.
+> Editing a stale file risks carrying over findings from a past review and posting a
+> duplicate or incorrect payload.
+
 ```json
 {
   "event": "REQUEST_CHANGES",
@@ -234,3 +240,17 @@ by GitHub (which happens when a line number falls outside the diff).
 Use `event=COMMENT` for a non-blocking review.
 Use `event=REQUEST_CHANGES` when at least one finding is 🔴 HIGH.
 Use `event=APPROVE` only when explicitly asked.
+
+### Cleanup after submission
+
+Once the submit script confirms all comments landed, delete the temp files so they
+cannot pollute a future session:
+
+**Windows:**
+```powershell
+Remove-Item -Force "$env:TEMP\review-<number>.json", "$env:TEMP\findings-<number>.json" -ErrorAction SilentlyContinue
+```
+**Linux / macOS:**
+```bash
+rm -f /tmp/review-<number>.json /tmp/findings-<number>.json
+```
