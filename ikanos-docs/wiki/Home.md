@@ -1,3 +1,5 @@
+<img src="https://naftiko.github.io/docs/images/logos/logo_ikanos_horizontal.png" width="300">
+
 Welcome to Ikanos, the first Open Source project for [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec%E2%80%90Driven-Integration) reinventing API integration for the AI era with governed and versatile capabilities that streamline API sprawl from massive SaaS and microservices growth.
 
 <img src="https://Ikanos.github.io/docs/images/technology/architecture_capability.png" width="600">
