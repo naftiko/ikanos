@@ -22,6 +22,7 @@ import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -31,7 +32,6 @@ import java.util.Collection;
  * Unit tests for {@link PullMetricReader} — verifies pull-based metric collection for
  * the Prometheus scrape endpoint.
  */
-@SuppressWarnings("null")
 class PullMetricReaderTest {
 
     @Test
@@ -56,9 +56,7 @@ class PullMetricReaderTest {
     @Test
     void collectAllMetricsShouldReturnDataAfterRegistration() throws IOException {
         try (PullMetricReader reader = new PullMetricReader()) {
-            SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                    .registerMetricReader(reader)
-                    .build();
+            SdkMeterProvider meterProvider = meterProvider(reader);
             OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                     .setMeterProvider(meterProvider)
                     .build();
@@ -70,6 +68,19 @@ class PullMetricReaderTest {
             assertFalse(data.isEmpty(), "Should return metric data after recording");
             assertTrue(data.stream().anyMatch(m -> m.getName().equals("test.counter")));
         }
+    }
+
+    @Nonnull
+    private SdkMeterProvider meterProvider(PullMetricReader reader) {
+        return java.util.Objects.requireNonNull(SdkMeterProvider.builder()
+                .registerMetricReader(metricReader(reader))
+                .build());
+    }
+
+    @Nonnull
+    private io.opentelemetry.sdk.metrics.export.MetricReader metricReader(
+            PullMetricReader reader) {
+        return java.util.Objects.requireNonNull(reader);
     }
 
     @Test

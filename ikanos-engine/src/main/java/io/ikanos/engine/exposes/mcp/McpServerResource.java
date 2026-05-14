@@ -16,7 +16,9 @@ package io.ikanos.engine.exposes.mcp;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
+import javax.annotation.Nonnull;
 import org.restlet.data.MediaType;
+import org.restlet.Request;
 import org.restlet.data.Status;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
@@ -28,6 +30,7 @@ import io.ikanos.engine.observability.RestletHeaderGetter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +54,6 @@ public class McpServerResource extends ServerResource {
     private static final String HEADER_MCP_SESSION_ID = "Mcp-Session-Id";
 
     @Post("json")
-    @SuppressWarnings("null") // OTel SDK interop
     public Representation handlePost(Representation entity) {
         ProtocolDispatcher dispatcher = getDispatcher();
         ObjectMapper mapper = dispatcher.getMapper();
@@ -62,8 +64,8 @@ public class McpServerResource extends ServerResource {
         io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
                 telemetry.getOpenTelemetry()
                         .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                                RestletHeaderGetter.INSTANCE));
+                .extract(currentTelemetryContext(), getRequest(),
+                    restletHeaderGetter()));
 
         try (Scope ignored = extractedContext.makeCurrent()) {
             return dispatchWithTraceContext(dispatcher, mapper, entity, extractedContext);
@@ -179,6 +181,16 @@ public class McpServerResource extends ServerResource {
 
     private ProtocolDispatcher getDispatcher() {
         return (ProtocolDispatcher) getContext().getAttributes().get("dispatcher");
+    }
+
+    @Nonnull
+    private io.opentelemetry.context.Context currentTelemetryContext() {
+        return java.util.Objects.requireNonNull(io.opentelemetry.context.Context.current());
+    }
+
+    @Nonnull
+    private TextMapGetter<Request> restletHeaderGetter() {
+        return java.util.Objects.requireNonNull(RestletHeaderGetter.INSTANCE);
     }
 
     @SuppressWarnings("unchecked")

@@ -17,9 +17,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -31,6 +34,7 @@ import io.ikanos.spec.util.VersionHelper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +49,6 @@ import java.util.List;
  * Integration tests verifying that REST adapter requests produce the expected OTel span hierarchy,
  * including W3C traceparent extraction.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ObservabilityRestIntegrationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -54,11 +57,8 @@ public class ObservabilityRestIntegrationTest {
     @BeforeEach
     void setUp() {
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder()
-                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                        .build())
-                .setPropagators(ContextPropagators.create(
-                        W3CTraceContextPropagator.getInstance()))
+                .setTracerProvider(tracerProvider())
+                .setPropagators(contextPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
         schemaVersion = VersionHelper.getSchemaVersion();
@@ -117,10 +117,10 @@ public class ObservabilityRestIntegrationTest {
         assertEquals("rest.request", serverSpan.getName());
         assertEquals(SpanKind.SERVER, serverSpan.getKind());
         assertEquals("rest",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("GET",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
-        assertNotNull(serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_OPERATION_ID));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
+        assertNotNull(stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_OPERATION_ID));
     }
 
     @Test
@@ -167,6 +167,37 @@ public class ObservabilityRestIntegrationTest {
         assertEquals("00f067aa0ba902b7", serverSpan.getParentSpanId(),
                 "Server span parent should be the inbound span");
     }
+
+        @Nonnull
+        private SdkTracerProvider tracerProvider() {
+                return java.util.Objects.requireNonNull(SdkTracerProvider.builder()
+                                .addSpanProcessor(spanProcessor())
+                                .build());
+        }
+
+        @Nonnull
+        private io.opentelemetry.sdk.trace.SpanProcessor spanProcessor() {
+                return java.util.Objects.requireNonNull(SimpleSpanProcessor.create(spanExporter()));
+        }
+
+        @Nonnull
+        private io.opentelemetry.sdk.trace.export.SpanExporter spanExporter() {
+                return java.util.Objects.requireNonNull(exporter);
+        }
+
+        @Nonnull
+        private ContextPropagators contextPropagators() {
+                return java.util.Objects.requireNonNull(ContextPropagators.create(textMapPropagator()));
+        }
+
+        @Nonnull
+        private TextMapPropagator textMapPropagator() {
+                return java.util.Objects.requireNonNull(W3CTraceContextPropagator.getInstance());
+        }
+
+        private static String stringAttribute(Attributes attributes, AttributeKey<String> key) {
+                return attributes.get(java.util.Objects.requireNonNull(key));
+        }
 
     @Test
     void restHandleShouldReturnNotFoundAndStillProduceSpan() throws Exception {

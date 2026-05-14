@@ -14,6 +14,7 @@
 package io.ikanos.engine.observability;
 
 import static org.junit.jupiter.api.Assertions.*;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
@@ -23,6 +24,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,6 @@ import java.util.Collection;
  * Unit tests for {@link PrometheusTextSerializer} — verifies correct Prometheus exposition
  * format output for counters, gauges, and histograms.
  */
-@SuppressWarnings("null")
 class PrometheusTextSerializerTest {
 
     private InMemoryMetricReader metricReader;
@@ -42,9 +43,7 @@ class PrometheusTextSerializerTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                .registerMetricReader(metricReader)
-                .build();
+        SdkMeterProvider meterProvider = meterProvider();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -61,8 +60,7 @@ class PrometheusTextSerializerTest {
         LongCounter counter = meter.counterBuilder("ikanos.request.total")
                 .setDescription("Total requests")
                 .build();
-        counter.add(5, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("adapter"), "rest"));
+        counter.add(5, attributes(stringKey("adapter"), "rest"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -80,9 +78,7 @@ class PrometheusTextSerializerTest {
         LongUpDownCounter gauge = meter.upDownCounterBuilder("ikanos.capability.active")
                 .setDescription("Active capabilities")
                 .build();
-        gauge.add(1, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("capability.name"),
-                "weather"));
+        gauge.add(1, attributes(stringKey("capability.name"), "weather"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -99,8 +95,7 @@ class PrometheusTextSerializerTest {
                 .setDescription("Request duration in seconds")
                 .setUnit("s")
                 .build();
-        histogram.record(0.342, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("adapter"), "rest"));
+        histogram.record(0.342, attributes(stringKey("adapter"), "rest"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -141,9 +136,7 @@ class PrometheusTextSerializerTest {
     void shouldEscapeLabelValues() {
         LongCounter counter = meter.counterBuilder("test.metric")
                 .build();
-        counter.add(1, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("path"),
-                "/api \"quoted\" path"));
+        counter.add(1, attributes(stringKey("path"), "/api \"quoted\" path"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -151,4 +144,37 @@ class PrometheusTextSerializerTest {
         assertTrue(text.contains("\\\"quoted\\\""),
                 "Should escape double quotes in label values");
     }
+
+        @Nonnull
+        private SdkMeterProvider meterProvider() {
+                return java.util.Objects.requireNonNull(SdkMeterProvider.builder()
+                                .registerMetricReader(metricReader())
+                                .build());
+        }
+
+        @Nonnull
+        private io.opentelemetry.sdk.metrics.export.MetricReader metricReader() {
+                return java.util.Objects.requireNonNull(metricReader);
+        }
+
+        @Nonnull
+        private static Attributes attributes(AttributeKey<String> key, String value) {
+                return java.util.Objects.requireNonNull(
+                                Attributes.of(nonNullStringKey(key), nonNullString(value)));
+        }
+
+        @Nonnull
+        private static AttributeKey<String> stringKey(@Nonnull String name) {
+                return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
+        }
+
+        @Nonnull
+        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
+                return java.util.Objects.requireNonNull(key);
+        }
+
+        @Nonnull
+        private static String nonNullString(String value) {
+                return java.util.Objects.requireNonNull(value);
+        }
 }

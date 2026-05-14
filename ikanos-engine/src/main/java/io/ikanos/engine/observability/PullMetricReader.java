@@ -29,7 +29,6 @@ import java.util.Collections;
  *
  * <p>Uses {@link AggregationTemporality#CUMULATIVE} to match Prometheus expectations.</p>
  */
-@SuppressWarnings("null")
 class PullMetricReader implements MetricReader {
 
     private volatile CollectionRegistration registration = CollectionRegistration.noop();

@@ -34,7 +34,6 @@ class DelegatingSpanProcessor implements SpanProcessor {
     private volatile SpanProcessor delegate;
 
     @Override
-    @SuppressWarnings("null")
     public void onStart(Context parentContext, ReadWriteSpan span) {
         SpanProcessor d = delegate;
         if (d != null) {
@@ -49,7 +48,6 @@ class DelegatingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    @SuppressWarnings("null")
     public void onEnd(ReadableSpan span) {
         SpanProcessor d = delegate;
         if (d != null) {

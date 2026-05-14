@@ -20,6 +20,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -63,7 +64,7 @@ class DelegatingSpanProcessorTest {
     @Test
     void onEndShouldForwardToDelegateWhenSet() {
         try (DelegatingSpanProcessor processor = new DelegatingSpanProcessor()) {
-            processor.setDelegate(SimpleSpanProcessor.create(Objects.requireNonNull(exporter)));
+            processor.setDelegate(spanProcessor());
 
             SdkTracerProvider tracerProvider = Objects.requireNonNull(
                     SdkTracerProvider.builder()
@@ -99,7 +100,7 @@ class DelegatingSpanProcessorTest {
             assertTrue(exporter.getFinishedSpanItems().isEmpty());
 
             // Now set the delegate
-            processor.setDelegate(SimpleSpanProcessor.create(Objects.requireNonNull(exporter)));
+            processor.setDelegate(spanProcessor());
 
             // Emit a span after delegate is set — it should be captured
             Span lateSpan = sdk.getTracer("test").spanBuilder("late-span").startSpan();
@@ -109,6 +110,16 @@ class DelegatingSpanProcessorTest {
             assertEquals(1, spans.size());
             assertEquals("late-span", spans.get(0).getName());
         }
+    }
+
+    @Nonnull
+    private io.opentelemetry.sdk.trace.SpanProcessor spanProcessor() {
+        return Objects.requireNonNull(SimpleSpanProcessor.create(spanExporter()));
+    }
+
+    @Nonnull
+    private io.opentelemetry.sdk.trace.export.SpanExporter spanExporter() {
+        return Objects.requireNonNull(exporter);
     }
 
     @Test

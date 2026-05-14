@@ -38,8 +38,8 @@ A single specification can give rise to multiple integration variants, each opti
 
 SDI as a methodology is tool-agnostic, but it requires concrete artifacts to be effective: a specification format expressive enough to capture integration intent, and a runtime capable of executing that specification without translation.
 
-**The Capability as a Container for Business Context**  
-In SDI, a *capability* is more than an integration artifact — it is a container for business context. Each capability encapsulates four dimensions that together define a complete, self-contained unit of organizational worth:
+**The Capability as a Standard Container of Business Value**  
+In SDI, a *capability* is more than an integration artifact — it is a standard container of business value. Each capability encapsulates four dimensions that together define a complete, self-contained unit of organizational worth:
 
 - **Skills** — the accumulated knowledge and expertise encoded in the capability: domain rules, data interpretation patterns, transformation heuristics, and the understanding of how upstream systems actually behave beyond their documented APIs. Skills answer *how the integration reasons* — the intelligence that turns raw data into meaningful, well-shaped output.
 - **Functions** — the concrete operations the capability performs: consuming upstream APIs, transforming and composing data, and exposing well-shaped contracts to downstream consumers. Functions answer *what the integration does* — the inputs it accepts, the outputs it produces, and the logic that connects them.
@@ -48,7 +48,7 @@ In SDI, a *capability* is more than an integration artifact — it is a containe
 
 A capability specification is the declarative document that captures all four dimensions in a single place. It is self-contained and human-readable, without requiring knowledge of the underlying implementation. In practice, this means a structured YAML document that describes skills, functions, events and terms — along with the authentication, protocol mappings, and transformation logic that connect them. The spec *is* the integration — not a description of it.
 
-This framing matters because it aligns integration boundaries with business boundaries. When a capability maps to a recognizable unit of business context — not just an API endpoint or a data pipeline — it becomes something the organization can reason about, prioritize, and govern at the right level of abstraction. Capabilities also deliver *context* as a first-class output: when exposed via the Model Context Protocol (MCP), each capability provides AI agents with structured, well-scoped context — turning integration surfaces into context surfaces. The same capability can be projected through Agent-to-Agent (A2A) for multi-agent collaboration, through REST for traditional consumers, or through classic query protocols like SQL and GraphQL — one specification, many surfaces.
+This framing matters because it aligns integration boundaries with business boundaries. When a capability maps to a recognizable unit of business value — not just an API endpoint or a data pipeline — it becomes something the organization can reason about, prioritize, govern, and standardize at the right level of abstraction. Capabilities still deliver *context* as a first-class output: when exposed via the Model Context Protocol (MCP), each capability provides AI agents with structured, well-scoped context — turning integration surfaces into context surfaces. The same capability can be projected through Agent-to-Agent (A2A) for multi-agent collaboration, through REST for traditional consumers, or through classic query protocols like SQL and GraphQL — one specification, many surfaces.
 
 **The Capability Engine**  
 For specifications to be executable, a runtime must interpret them directly. Rather than generating code from a spec (which reintroduces drift), the engine reads the specification at runtime and handles all integration concerns: HTTP consumption, data transformation, format conversion, and exposure via REST, MCP, A2A, or classic query interfaces such as SQL and GraphQL.
@@ -65,7 +65,7 @@ This standardized container format is what makes co-location practical: capabili
 **The Capability Fleet**  
 Ships, in turn, are organized into a **f**ederated **l**ayer for **e**nterprise **e**nforcement and **t**raceability — a *fleet* — that manages capabilities across teams, regions, and compliance boundaries. The Fleet coordinates placement, routing, and policy rollout across ships, providing global visibility through a manifest that tracks what is deployed, where it runs, and whether it conforms to organizational policy. Governance is structural: identity-based access controls, automated compliance gates, and immutable audit trails are applied uniformly across the fleet rather than configured per ship or capability.
 
-This matters for SDI because scaling specifications without scaling governance reintroduces the drift and fragility that specifications were designed to eliminate. The Fleet ensures that as the number of capabilities and ships grows, operational consistency grows with it — turning a collection of individual integrations into a managed supply chain of business context.
+This matters for SDI because scaling specifications without scaling governance reintroduces the drift and fragility that specifications were designed to eliminate. The Fleet ensures that as the number of capabilities and ships grows, operational consistency grows with it — turning a collection of individual integrations into a managed supply chain of business value.
 
 **The SDI Workflow**  
 Together, these layers define a concrete SDI workflow:

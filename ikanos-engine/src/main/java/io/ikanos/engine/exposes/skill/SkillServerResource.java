@@ -27,6 +27,8 @@ import io.ikanos.spec.exposes.skill.ExposedSkillSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import javax.annotation.Nonnull;
 
 /**
  * Abstract base for all skill server handler resources.
@@ -47,14 +49,13 @@ abstract class SkillServerResource extends ServerResource {
     }
 
     @Override
-    @SuppressWarnings("null") // OTel SDK interop
     public Representation handle() {
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
         io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
                 telemetry.getOpenTelemetry()
                         .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                                RestletHeaderGetter.INSTANCE));
+                .extract(currentTelemetryContext(), getRequest(),
+                    restletHeaderGetter()));
 
         String operationId = getRequest().getResourceRef() != null
                 ? getRequest().getResourceRef().getPath() : "unknown";
@@ -80,6 +81,16 @@ abstract class SkillServerResource extends ServerResource {
             telemetry.getMetrics().recordRequest("skill", operationId, status, durationSec);
             TelemetryBootstrap.endSpan(span);
         }
+    }
+
+    @Nonnull
+    private io.opentelemetry.context.Context currentTelemetryContext() {
+        return java.util.Objects.requireNonNull(io.opentelemetry.context.Context.current());
+    }
+
+    @Nonnull
+    private TextMapGetter<org.restlet.Request> restletHeaderGetter() {
+        return java.util.Objects.requireNonNull(RestletHeaderGetter.INSTANCE);
     }
 
     protected SkillServerSpec getSkillServerSpec() {
