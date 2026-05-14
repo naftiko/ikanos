@@ -1,4 +1,4 @@
-# Ikanos
+<img src="https://naftiko.github.io/docs/images/logos/logo_ikanos_horizontal.png" width="300">
 
 [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-coverage.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 [![Bugs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-bugs.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
