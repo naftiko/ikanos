@@ -22,11 +22,14 @@ import io.ikanos.spec.observability.ObservabilityOtlpExporterSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +40,6 @@ import java.util.Map;
  * Unit tests for {@link TelemetryBootstrap} — SDK initialization, no-op fallback,
  * span factory methods, and error recording.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class TelemetryBootstrapTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -50,9 +52,7 @@ public class TelemetryBootstrapTest {
 
     private TelemetryBootstrap initWithInMemoryExporter() {
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder()
-                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                        .build())
+            .setTracerProvider(tracerProvider())
                 .build();
         return TelemetryBootstrap.init(sdk);
     }
@@ -117,11 +117,11 @@ public class TelemetryBootstrapTest {
         SpanData data = spans.get(0);
         assertEquals("rest.request", data.getName());
         assertEquals(SpanKind.SERVER, data.getKind());
-        assertEquals("rest", data.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+        assertEquals("rest", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("GET /orders",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_OPERATION_ID));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_OPERATION_ID));
         assertEquals("my-capability",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_CAPABILITY));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_CAPABILITY));
     }
 
     @Test
@@ -132,8 +132,8 @@ public class TelemetryBootstrapTest {
         span.end();
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertEquals("unknown", data.getAttributes().get(TelemetryBootstrap.ATTR_OPERATION_ID));
-        assertNull(data.getAttributes().get(TelemetryBootstrap.ATTR_CAPABILITY));
+        assertEquals("unknown", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_OPERATION_ID));
+        assertNull(stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_CAPABILITY));
     }
 
     // ── Step call span factory ──
@@ -149,11 +149,11 @@ public class TelemetryBootstrapTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertEquals("step.call", data.getName());
         assertEquals(SpanKind.INTERNAL, data.getKind());
-        assertEquals(0L, data.getAttributes().get(TelemetryBootstrap.ATTR_STEP_INDEX));
+        assertEquals(0L, longAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_STEP_INDEX));
         assertEquals("weather-api.get-forecast",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_STEP_CALL));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_STEP_CALL));
         assertEquals("weather-ns",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_NAMESPACE));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_NAMESPACE));
     }
 
     // ── Step lookup span factory ──
@@ -168,8 +168,8 @@ public class TelemetryBootstrapTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertEquals("step.lookup", data.getName());
         assertEquals(SpanKind.INTERNAL, data.getKind());
-        assertEquals(1L, data.getAttributes().get(TelemetryBootstrap.ATTR_STEP_INDEX));
-        assertEquals("vessel-name", data.getAttributes().get(TelemetryBootstrap.ATTR_STEP_MATCH));
+        assertEquals(1L, longAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_STEP_INDEX));
+        assertEquals("vessel-name", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_STEP_MATCH));
     }
 
     // ── Aggregate function span factory ──
@@ -185,7 +185,7 @@ public class TelemetryBootstrapTest {
         assertEquals("aggregate.function", data.getName());
         assertEquals(SpanKind.INTERNAL, data.getKind());
         assertEquals("forecast.get-forecast",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_AGGREGATE_REF));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGGREGATE_REF));
     }
 
     @Test
@@ -197,7 +197,7 @@ public class TelemetryBootstrapTest {
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertEquals("unknown",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_AGGREGATE_REF));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGGREGATE_REF));
     }
 
     // ── Client span factory ──
@@ -213,11 +213,11 @@ public class TelemetryBootstrapTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertEquals("http.client.GET", data.getName());
         assertEquals(SpanKind.CLIENT, data.getKind());
-        assertEquals("GET", data.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
+        assertEquals("GET", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
         assertEquals("http://api.example.com/forecast",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_URL));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_HTTP_URL));
         assertEquals("weather-api",
-                data.getAttributes().get(TelemetryBootstrap.ATTR_NAMESPACE));
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_NAMESPACE));
     }
 
     @Test
@@ -229,9 +229,9 @@ public class TelemetryBootstrapTest {
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertEquals("http.client.UNKNOWN", data.getName());
-        assertEquals("UNKNOWN", data.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
-        assertEquals("unknown", data.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_URL));
-        assertNull(data.getAttributes().get(TelemetryBootstrap.ATTR_NAMESPACE));
+        assertEquals("UNKNOWN", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
+        assertEquals("unknown", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_HTTP_URL));
+        assertNull(stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_NAMESPACE));
     }
 
     // ── Error recording ──
@@ -508,7 +508,7 @@ public class TelemetryBootstrapTest {
 
         InMemorySpanExporter lateExporter = InMemorySpanExporter.create();
         bootstrap.registerSpanProcessor(
-                io.opentelemetry.sdk.trace.export.SimpleSpanProcessor.create(lateExporter));
+            io.opentelemetry.sdk.trace.export.SimpleSpanProcessor.create(spanExporter(lateExporter)));
 
         // Create a span — it should be captured by the late-registered processor
         Span span = bootstrap.startServerSpan("rest", "test-op");
@@ -517,5 +517,42 @@ public class TelemetryBootstrapTest {
         assertFalse(lateExporter.getFinishedSpanItems().isEmpty(),
                 "Late-registered processor should receive spans");
         assertEquals("rest.request", lateExporter.getFinishedSpanItems().get(0).getName());
+    }
+
+    @Nonnull
+    private SdkTracerProvider tracerProvider() {
+        return java.util.Objects.requireNonNull(SdkTracerProvider.builder()
+                .addSpanProcessor(spanProcessor(exporter))
+                .build());
+    }
+
+    @Nonnull
+    private io.opentelemetry.sdk.trace.SpanProcessor spanProcessor(
+            InMemorySpanExporter spanExporter) {
+        return java.util.Objects.requireNonNull(SimpleSpanProcessor.create(spanExporter(spanExporter)));
+    }
+
+    @Nonnull
+    private io.opentelemetry.sdk.trace.export.SpanExporter spanExporter(
+            InMemorySpanExporter spanExporter) {
+        return java.util.Objects.requireNonNull(spanExporter);
+    }
+
+    private static String stringAttribute(Attributes attributes, AttributeKey<String> key) {
+        return attributes.get(nonNullStringKey(key));
+    }
+
+    private static Long longAttribute(Attributes attributes, AttributeKey<Long> key) {
+        return attributes.get(nonNullLongKey(key));
+    }
+
+    @Nonnull
+    private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
+        return java.util.Objects.requireNonNull(key);
+    }
+
+    @Nonnull
+    private static AttributeKey<Long> nonNullLongKey(AttributeKey<Long> key) {
+        return java.util.Objects.requireNonNull(key);
     }
 }

@@ -17,9 +17,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -29,6 +32,7 @@ import io.ikanos.spec.IkanosSpec;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -44,7 +48,6 @@ import java.util.List;
  * Integration tests verifying that Skill adapter requests produce the expected OTel server spans,
  * including W3C traceparent extraction.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ObservabilitySkillIntegrationTest {
 
     private static final int SKILL_PORT = 9098;
@@ -56,13 +59,10 @@ public class ObservabilitySkillIntegrationTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        tracerProvider = SdkTracerProvider.builder()
-                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                .build();
+        tracerProvider = buildTracerProvider();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(tracerProvider)
-                .setPropagators(ContextPropagators.create(
-                        W3CTraceContextPropagator.getInstance()))
+                .setTracerProvider(currentTracerProvider())
+                .setPropagators(contextPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
 
@@ -112,7 +112,7 @@ public class ObservabilitySkillIntegrationTest {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());
 
-        tracerProvider.forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);
+        currentTracerProvider().forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);
 
         List<SpanData> spans = exporter.getFinishedSpanItems();
         assertFalse(spans.isEmpty(), "Should produce at least one span");
@@ -124,9 +124,9 @@ public class ObservabilitySkillIntegrationTest {
 
         assertEquals(SpanKind.SERVER, serverSpan.getKind());
         assertEquals("skill",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("GET",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
     }
 
     @Test
@@ -146,7 +146,7 @@ public class ObservabilitySkillIntegrationTest {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());
 
-        tracerProvider.forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);
+        currentTracerProvider().forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);
 
         List<SpanData> spans = exporter.getFinishedSpanItems();
         SpanData serverSpan = spans.stream()
@@ -159,4 +159,45 @@ public class ObservabilitySkillIntegrationTest {
         assertEquals("1234567890abcdef", serverSpan.getParentSpanId(),
                 "Server span parent should be the inbound span");
     }
+
+        @Nonnull
+        private static SdkTracerProvider buildTracerProvider() {
+                return java.util.Objects.requireNonNull(SdkTracerProvider.builder()
+                                .addSpanProcessor(spanProcessor())
+                                .build());
+        }
+
+        @Nonnull
+        private static SdkTracerProvider currentTracerProvider() {
+                return java.util.Objects.requireNonNull(tracerProvider);
+        }
+
+        @Nonnull
+        private static io.opentelemetry.sdk.trace.SpanProcessor spanProcessor() {
+                return java.util.Objects.requireNonNull(SimpleSpanProcessor.create(spanExporter()));
+        }
+
+        @Nonnull
+        private static io.opentelemetry.sdk.trace.export.SpanExporter spanExporter() {
+                return java.util.Objects.requireNonNull(exporter);
+        }
+
+        @Nonnull
+        private static ContextPropagators contextPropagators() {
+                return java.util.Objects.requireNonNull(ContextPropagators.create(textMapPropagator()));
+        }
+
+        @Nonnull
+        private static TextMapPropagator textMapPropagator() {
+                return java.util.Objects.requireNonNull(W3CTraceContextPropagator.getInstance());
+        }
+
+        private static String stringAttribute(Attributes attributes, AttributeKey<String> key) {
+                return attributes.get(nonNullStringKey(key));
+        }
+
+        @Nonnull
+        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
+                return java.util.Objects.requireNonNull(key);
+        }
 }

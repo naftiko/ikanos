@@ -36,12 +36,14 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nonnull;
 
 /**
  * Restlet that handles calls to an API resource
@@ -62,15 +64,13 @@ public class ResourceRestlet extends Restlet {
     }
 
     @Override
-    @SuppressWarnings("null") // OTel SDK interop
     public void handle(Request request, Response response) {
         // Extract W3C traceparent from inbound headers
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
         io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
                 telemetry.getOpenTelemetry()
                         .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), request,
-                                RestletHeaderGetter.INSTANCE));
+                .extract(currentTelemetryContext(), request, restletHeaderGetter()));
 
         String operationId = resourceSpec.getPath() + " " + request.getMethod().getName();
         String capabilityName = capability.getSpec().getInfo() != null
@@ -107,6 +107,16 @@ public class ResourceRestlet extends Restlet {
             telemetry.getMetrics().recordRequest("rest", operationId, status, durationSec);
             TelemetryBootstrap.endSpan(span);
         }
+    }
+
+    @Nonnull
+    private io.opentelemetry.context.Context currentTelemetryContext() {
+        return java.util.Objects.requireNonNull(io.opentelemetry.context.Context.current());
+    }
+
+    @Nonnull
+    private TextMapGetter<Request> restletHeaderGetter() {
+        return java.util.Objects.requireNonNull(RestletHeaderGetter.INSTANCE);
     }
 
     /**

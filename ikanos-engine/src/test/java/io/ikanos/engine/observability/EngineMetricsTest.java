@@ -14,10 +14,13 @@
 package io.ikanos.engine.observability;
 
 import static org.junit.jupiter.api.Assertions.*;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
+import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +32,6 @@ import java.util.Collection;
  * request counters, duration histograms, step metrics, HTTP client metrics, and capability
  * active gauge.
  */
-@SuppressWarnings("null")
 class EngineMetricsTest {
 
     private InMemoryMetricReader metricReader;
@@ -38,9 +40,7 @@ class EngineMetricsTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                .registerMetricReader(metricReader)
-                .build();
+        SdkMeterProvider meterProvider = meterProvider();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -121,8 +121,8 @@ class EngineMetricsTest {
         assertNotNull(requestTotal, "Should find ikanos.request.total metric");
 
         boolean hasAdapterLabel = requestTotal.getLongSumData().getPoints().stream()
-                .anyMatch(p -> "rest".equals(
-                        p.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE)));
+                .anyMatch(p -> "rest".equals(stringAttribute(
+                        p.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE)));
         assertTrue(hasAdapterLabel, "Counter should have adapter=rest attribute");
     }
 
@@ -136,7 +136,7 @@ class EngineMetricsTest {
 
         boolean hasStatusCode = total.getLongSumData().getPoints().stream()
                 .anyMatch(p -> Long.valueOf(500).equals(
-                        p.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE)));
+                        longAttribute(p.getAttributes(), TelemetryBootstrap.ATTR_HTTP_STATUS_CODE)));
         assertTrue(hasStatusCode, "Counter should have http.response.status_code=500 attribute");
     }
 
@@ -149,14 +149,14 @@ class EngineMetricsTest {
         assertNotNull(total, "Should find ikanos.http.client.total metric");
 
         boolean hasErrorType = total.getLongSumData().getPoints().stream()
-                .anyMatch(p -> "transport".equals(p.getAttributes()
-                        .get(io.opentelemetry.api.common.AttributeKey.stringKey("error.type"))));
+                .anyMatch(p -> "transport".equals(stringAttribute(p.getAttributes(),
+                        stringKey("error.type"))));
         assertTrue(hasErrorType,
                 "Counter should have error.type=transport attribute for status code 0");
 
         boolean hasStatusCode = total.getLongSumData().getPoints().stream()
-                .anyMatch(p -> p.getAttributes()
-                        .get(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE) != null);
+                .anyMatch(p -> longAttribute(p.getAttributes(),
+                        TelemetryBootstrap.ATTR_HTTP_STATUS_CODE) != null);
         assertFalse(hasStatusCode,
                 "Counter should NOT have http.response.status_code attribute for transport failure");
     }
@@ -184,4 +184,39 @@ class EngineMetricsTest {
     private MetricData findMetric(Collection<MetricData> data, String name) {
         return data.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
     }
+
+        @Nonnull
+        private SdkMeterProvider meterProvider() {
+                return java.util.Objects.requireNonNull(SdkMeterProvider.builder()
+                                .registerMetricReader(metricReader())
+                                .build());
+        }
+
+        @Nonnull
+        private io.opentelemetry.sdk.metrics.export.MetricReader metricReader() {
+                return java.util.Objects.requireNonNull(metricReader);
+        }
+
+        private static String stringAttribute(Attributes attributes, AttributeKey<String> key) {
+                return attributes.get(nonNullStringKey(key));
+        }
+
+        private static Long longAttribute(Attributes attributes, AttributeKey<Long> key) {
+                return attributes.get(nonNullLongKey(key));
+        }
+
+        @Nonnull
+        private static AttributeKey<String> stringKey(@Nonnull String name) {
+                return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
+        }
+
+        @Nonnull
+        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
+                return java.util.Objects.requireNonNull(key);
+        }
+
+        @Nonnull
+        private static AttributeKey<Long> nonNullLongKey(AttributeKey<Long> key) {
+                return java.util.Objects.requireNonNull(key);
+        }
 }
