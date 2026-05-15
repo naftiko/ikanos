@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,7 +80,7 @@ public class StepWithNamespaceIntegrationTest {
         step.setWith(Map.of("voyageId", "shipyard-tools.voyageId"));
 
         try {
-            executor.executeSteps(List.of(step), Map.of("voyageId", "VOY-2026-042"));
+            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"));
         } catch (RuntimeException expected) {
             // HTTP connection failure expected — no server running on port 19999
         }
@@ -111,3 +110,4 @@ public class StepWithNamespaceIntegrationTest {
         }
     }
 }
+

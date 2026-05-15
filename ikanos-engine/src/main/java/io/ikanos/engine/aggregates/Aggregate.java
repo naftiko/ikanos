@@ -33,7 +33,7 @@ public class Aggregate {
     public Aggregate(AggregateSpec spec, OperationStepExecutor stepExecutor) {
         this.namespace = spec.getNamespace();
         this.functions = new CopyOnWriteArrayList<>();
-        for (AggregateFunctionSpec fnSpec : spec.getFunctions()) {
+        for (AggregateFunctionSpec fnSpec : spec.getFunctions().values()) {
             this.functions.add(new AggregateFunction(fnSpec, stepExecutor, this.namespace));
         }
     }

@@ -64,10 +64,10 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     RestServerOperationSpec operation = new RestServerOperationSpec();
-    operation.getOutputParameters().add(stringOutput("status", "ready"));
+    OutputParameterSpec statusOut = stringOutput("status", "ready");
 
     OutputParameterSpec payload = new OutputParameterSpec();
     payload.setName("payload");
@@ -82,6 +82,8 @@ public class ResourceRestletTest {
     tagItem.setValue("active");
     tags.setItems(tagItem);
     payload.getProperties().add(tags);
+
+    operation.getOutputParameters().add(statusOut);
     operation.getOutputParameters().add(payload);
 
     Request request = new Request(Method.GET, "http://localhost/preview");
@@ -104,7 +106,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec =
         (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     RestServerOperationSpec operation = new RestServerOperationSpec();
     OutputParameterSpec mappedBody = new OutputParameterSpec();
@@ -146,7 +148,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     Request request = new Request(Method.POST, "http://localhost/test");
     Response response = new Response(request);
@@ -163,10 +165,10 @@ public class ResourceRestletTest {
     Capability capability = capabilityFromYaml(minimalCapabilityYaml());
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
-    serverSpec.getResources().get(0).getOperations().get(0)
+    serverSpec.getResources().values().iterator().next().getOperations().values().iterator().next()
         .setCall(new ServerCallSpec("invalidCallFormat"));
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     Request request = new Request(Method.GET, "http://localhost/test");
     Response response = new Response(request);
@@ -183,7 +185,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     RestServerOperationSpec operation = new RestServerOperationSpec();
     OutputParameterSpec body = new OutputParameterSpec();
@@ -207,7 +209,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     RestServerOperationSpec noOutput = new RestServerOperationSpec();
     assertFalse(restlet.canBuildMockResponse(noOutput));
@@ -264,7 +266,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     Request from = new Request(Method.GET, "http://localhost/source");
     from.getHeaders().add("X-Trace", "abc");
@@ -285,7 +287,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     OperationStepExecutor.HandlingContext handlingContext =
         new OperationStepExecutor.HandlingContext();
@@ -330,7 +332,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     OutputParameterSpec explicit = new OutputParameterSpec();
     explicit.setIn("header");
@@ -372,15 +374,15 @@ public class ResourceRestletTest {
 
       RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
           .getSpec();
-      serverSpec.getResources().get(0).getOperations().clear();
+      serverSpec.getResources().values().iterator().next().getOperations().clear();
 
       RestServerForwardSpec forward = new RestServerForwardSpec();
       forward.setTargetNamespace("upstream");
       forward.getTrustedHeaders().add("X-Trace");
-      serverSpec.getResources().get(0).setForward(forward);
+      serverSpec.getResources().values().iterator().next().setForward(forward);
 
       ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-          serverSpec.getResources().get(0));
+          serverSpec.getResources().values().iterator().next());
 
       Request request = new Request(Method.GET, "http://localhost/proxy");
       request.getAttributes().put("path", "echo");
@@ -468,7 +470,7 @@ public class ResourceRestletTest {
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
         .getSpec();
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-        serverSpec.getResources().get(0));
+        serverSpec.getResources().values().iterator().next());
 
     // Server operation does NOT declare outputRawFormat (it lives on the consumed side)
     RestServerOperationSpec operation = new RestServerOperationSpec();

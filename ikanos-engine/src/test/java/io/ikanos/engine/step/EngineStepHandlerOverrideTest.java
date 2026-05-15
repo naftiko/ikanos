@@ -15,7 +15,6 @@ package io.ikanos.engine.step;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -52,7 +51,7 @@ class EngineStepHandlerOverrideTest {
         params.put("name", "World");
 
         OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(List.of(step), params);
+                executor.executeSteps(Map.of(step.getName(), step), params);
 
         JsonNode output = result.stepContext.getStepOutput("do-greet");
         assertNotNull(output);
@@ -76,7 +75,7 @@ class EngineStepHandlerOverrideTest {
         Map<String, Object> params = new HashMap<>();
 
         OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(List.of(step), params);
+                executor.executeSteps(Map.of(step.getName(), step), params);
 
         // The handler registered for "do-greet" must NOT have been invoked
         JsonNode output = result.stepContext.getStepOutput("other-step");
@@ -98,7 +97,7 @@ class EngineStepHandlerOverrideTest {
         Map<String, Object> params = new HashMap<>();
 
         OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(List.of(step), params);
+                executor.executeSteps(Map.of(step.getName(), step), params);
 
         assertNull(result.stepContext.getStepOutput("do-greet"));
     }
@@ -122,8 +121,11 @@ class EngineStepHandlerOverrideTest {
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
 
         Map<String, Object> params = new HashMap<>();
+        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps1 = new java.util.LinkedHashMap<>();
+        steps1.put(step1.getName(), step1);
+        steps1.put(step2.getName(), step2);
         OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(List.of(step1, step2), params);
+                executor.executeSteps(steps1, params);
 
         assertEquals("greeted", result.stepContext.getStepOutput("do-greet").asText());
         assertEquals(42, result.stepContext.getStepOutput("add").get("result").asInt());
@@ -154,10 +156,14 @@ class EngineStepHandlerOverrideTest {
         OperationStepCallSpec step1 = new OperationStepCallSpec("do-greet", "placeholder.greet");
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
 
+        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps2 = new java.util.LinkedHashMap<>();
+        steps2.put(step1.getName(), step1);
+        steps2.put(step2.getName(), step2);
         OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(List.of(step1, step2), new HashMap<>());
+                executor.executeSteps(steps2, new HashMap<>());
 
         assertEquals("Hello World",
                 result.stepContext.getStepOutput("add").get("combined").asText());
     }
 }
+

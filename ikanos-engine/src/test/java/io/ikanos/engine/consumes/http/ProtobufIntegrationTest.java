@@ -111,10 +111,10 @@ public class ProtobufIntegrationTest {
                 var resources = httpSpec.getResources();
                 assertFalse(resources.isEmpty(), "Resource should exist");
 
-                var operations = resources.get(0).getOperations();
+                var operations = resources.get("records").getOperations();
                 assertFalse(operations.isEmpty(), "Resource should have operations");
 
-                var operation = operations.get(0);
+                var operation = operations.get("get-records");
                 assertEquals("protobuf", operation.getOutputRawFormat(),
                                 "Operation should specify Protobuf format");
         }
@@ -164,7 +164,7 @@ public class ProtobufIntegrationTest {
 
                 var resources = restServer.getResources();
                 assertEquals(1, resources.size(), "Should have one resource");
-                assertEquals("/proto/records", resources.get(0).getPath(),
+                assertEquals("/proto/records", resources.get("records").getPath(),
                                 "Resource path should be /proto/records");
 
                 var consumes = spec.getCapability().getConsumes();

@@ -56,7 +56,7 @@ public class McpToolHintsIntegrationTest {
     @Test
     void hintsSpecShouldDeserializeFromYaml() {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
-        McpServerToolSpec readTool = serverSpec.getTools().get(0);
+        McpServerToolSpec readTool = serverSpec.getTools().get("read-data");
 
         McpToolHintsSpec hints = readTool.getHints();
         assertNotNull(hints, "Hints should be deserialized for read-data tool");
@@ -69,7 +69,7 @@ public class McpToolHintsIntegrationTest {
     @Test
     void allHintsShouldDeserializeWhenFullySpecified() {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
-        McpServerToolSpec deleteTool = serverSpec.getTools().get(1);
+        McpServerToolSpec deleteTool = serverSpec.getTools().get("delete-record");
 
         McpToolHintsSpec hints = deleteTool.getHints();
         assertNotNull(hints);
@@ -82,7 +82,7 @@ public class McpToolHintsIntegrationTest {
     @Test
     void toolWithoutHintsShouldHaveNullHintsSpec() {
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
-        McpServerToolSpec noHintsTool = serverSpec.getTools().get(2);
+        McpServerToolSpec noHintsTool = serverSpec.getTools().get("no-hints-tool");
 
         assertNull(noHintsTool.getHints(), "Tool without hints should have null hints");
     }

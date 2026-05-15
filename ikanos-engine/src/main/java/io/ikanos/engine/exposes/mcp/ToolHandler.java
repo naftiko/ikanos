@@ -46,11 +46,11 @@ public class ToolHandler {
     private final OperationStepExecutor stepExecutor;
     private final String exposeNamespace;
 
-    public ToolHandler(Capability capability, List<McpServerToolSpec> tools) {
+    public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools) {
         this(capability, tools, null);
     }
 
-    public ToolHandler(Capability capability, List<McpServerToolSpec> tools,
+    public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
             String exposeNamespace) {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
@@ -58,7 +58,7 @@ public class ToolHandler {
         this.exposeNamespace = exposeNamespace;
 
         if (tools != null) {
-            for (McpServerToolSpec tool : tools) {
+            for (McpServerToolSpec tool : tools.values()) {
                 if (tool == null || tool.getName() == null || tool.getName().isBlank()) {
                     Context.getCurrentLogger().warning(
                             "Skipping malformed MCP tool entry: tool or name is missing");

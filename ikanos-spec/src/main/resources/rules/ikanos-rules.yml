@@ -249,21 +249,10 @@ rules:
       field: "description"
       function: truthy
 
-  ikanos-steps-name-pattern:
-    message: "Orchestration step `name` should follow the pattern ^[A-Za-z0-9_-]+$."
-    description: >
-      Analogous to arazzo-step-stepId. Step names are used as references
-      within Mustache templates (e.g. {{step-name.output}}). Using a
-      consistent naming pattern prevents reference errors.
-    severity: warn
-    recommended: true
-    given:
-      - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].steps[*].name"
-      - "$.capability.exposes[?(@.type == 'mcp')].tools[*].steps[*].name"
-    then:
-      function: pattern
-      functionOptions:
-        match: "^[A-Za-z0-9_-]+$"
+  # ikanos-steps-name-pattern was removed: step names are now map keys in the
+  # named-object format (alpha3+). The pattern ^[A-Za-z0-9_-]+$ is enforced
+  # by the JSON Schema propertyNames/IdentifierKebab constraint on every steps
+  # map, making this Polychro rule redundant.
 
   # ────────────────────────────────────────────────────────────────
   # 3. SECURITY

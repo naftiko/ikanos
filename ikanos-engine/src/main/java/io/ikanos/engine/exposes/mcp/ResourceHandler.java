@@ -51,10 +51,10 @@ public class ResourceHandler {
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
 
-    public ResourceHandler(Capability capability, List<McpServerResourceSpec> resources,
+    public ResourceHandler(Capability capability, Map<String, McpServerResourceSpec> resources,
             String namespace) {
         this.capability = capability;
-        this.resourceSpecs = resources != null ? new ArrayList<>(resources) : new ArrayList<>();
+        this.resourceSpecs = resources != null ? new ArrayList<>(resources.values()) : new ArrayList<>();
         this.stepExecutor = new OperationStepExecutor(capability, namespace);
         this.namespace = namespace;
     }

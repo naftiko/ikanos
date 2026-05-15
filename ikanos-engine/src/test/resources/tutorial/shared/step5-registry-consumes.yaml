@@ -1,29 +1,29 @@
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 consumes:
-  - namespace: registry
-    type: http
-    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
-    authentication:
-      type: bearer
-      token: "{{REGISTRY_TOKEN}}"
-    inputParameters:
-    - name: Registry-Version
+- namespace: registry
+  type: http
+  baseUri: https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2
+  authentication:
+    type: bearer
+    token: '{{REGISTRY_TOKEN}}'
+  inputParameters:
+    Registry-Version:
       in: header
-      value: "{{REGISTRY_VERSION}}"
-    resources:
-      - name: ships
-        path: "/ships"
-        operations:
-          - name: list-ships
-            method: GET
-            inputParameters:
-              - name: status
-                in: query
-      - name: ship
-        path: "/ships/{{imo_number}}"
-        operations:
-          - name: get-ship
-            method: GET
-            inputParameters:
-              - name: imo_number
-                in: path
+      value: '{{REGISTRY_VERSION}}'
+  resources:
+    ships:
+      path: /ships
+      operations:
+        list-ships:
+          method: GET
+          inputParameters:
+            status:
+              in: query
+    ship:
+      path: /ships/{{imo_number}}
+      operations:
+        get-ship:
+          method: GET
+          inputParameters:
+            imo_number:
+              in: path

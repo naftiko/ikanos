@@ -102,7 +102,7 @@ public class ObservabilityRestIntegrationTest {
         RestServerSpec serverSpec =
                 (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
         ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                serverSpec.getResources().get(0));
+                serverSpec.getResources().values().iterator().next());
 
         Request request = new Request(Method.GET, "http://localhost/orders");
         Response response = new Response(request);
@@ -148,7 +148,7 @@ public class ObservabilityRestIntegrationTest {
         RestServerSpec serverSpec =
                 (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
         ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                serverSpec.getResources().get(0));
+                serverSpec.getResources().values().iterator().next());
 
         Request request = new Request(Method.GET, "http://localhost/orders");
         // Inject W3C traceparent header on the inbound request
@@ -189,7 +189,7 @@ public class ObservabilityRestIntegrationTest {
         RestServerSpec serverSpec =
                 (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
         ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
-                serverSpec.getResources().get(0));
+                serverSpec.getResources().values().iterator().next());
 
         // GET doesn't match any operation (only POST is defined)
         Request request = new Request(Method.GET, "http://localhost/orders");

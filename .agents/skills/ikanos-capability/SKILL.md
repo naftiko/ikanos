@@ -1,9 +1,9 @@
 ---
 name: ikanos-capability
-version: "1.0.0-alpha1"
+version: "1.0.0-alpha3"
 description: >
   Skill for authoring, validating, and debugging Ikanos Capability YAML files
-  (spec v1.0.0-alpha1). Activate when the user wants to: write a new capability
+  (spec v1.0.0-alpha3). Activate when the user wants to: write a new capability
   document, add or change authentication on a consumed API, configure orchestration
   steps or parameter mappings, set up a forward proxy, expose an MCP server or Skill
   server, configure external references for secrets, add a control port for health
@@ -21,7 +21,7 @@ allowed-tools:
 
 Ikanos lets you declare **capabilities** — functional units that
 **consume** external APIs and **expose** adapters (REST, MCP, Skill). A capability
-is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-alpha1).
+is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-alpha3).
 
 Key spec objects you will work with:
 
@@ -40,6 +40,69 @@ Canonical sources (read these, never duplicate them):
 - Specification: `ikanos-docs/wiki/Specification.md`
 - JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
 - Polychro Ruleset: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`
+
+## Named-Entity Format (alpha3)
+
+Since v1.0.0-alpha3, most named collections use **keyed maps** instead of
+arrays. The entity's `name` becomes the YAML map key; the `name` property is
+removed from the object body.
+
+**Keyed maps** (key = name, no `name` property inside):
+`tools`, `resources`, `operations`, `inputParameters` (all contexts),
+`steps`, `functions`, `aggregates`, `skills`, `prompts`
+
+**Arrays** (keep `- item` syntax):
+`outputParameters`, `binds`, `exposes`, `consumes`, `stakeholders`, `mappings`
+
+Example — MCP tool (keyed map for tool + keyed map for inputParameters + array for outputParameters):
+
+```yaml
+tools:
+  list-ships:                          # ← key IS the name
+    description: "List ships"
+    inputParameters:                   # ← keyed map (name is the key)
+      status:
+        type: string
+        description: "Filter by status"
+    call: registry.list-ships
+    outputParameters:                  # ← always array
+      - type: array
+        mapping: "$."
+```
+
+Example — REST resource + operation (keyed maps for both + keyed map for inputParameters):
+
+```yaml
+resources:
+  ships:                               # ← key IS the name
+    path: "/ships"
+    operations:
+      list-ships:                      # ← key IS the name
+        method: GET
+        inputParameters:
+          status:                      # ← key IS the name (REST/consumes)
+            in: query
+            type: string
+        outputParameters:              # ← always array
+          - type: array
+            mapping: "$."
+```
+
+Example — aggregates + functions (keyed maps):
+
+```yaml
+aggregates:
+  forecast:                            # ← key IS the aggregate namespace
+    description: "Weather forecast domain"
+    functions:
+      get-forecast:                    # ← key IS the function name
+        description: "Retrieve forecast for a location"
+        inputParameters:
+          location:                    # ← key IS the name
+            type: string
+            required: true
+        call: weather-api.get-forecast
+```
 
 ## Decision Framework
 
@@ -73,8 +136,8 @@ Specification directly.
 1. **Analyze and propose.** Infer the story from context (user prompt, open
    files, existing capabilities). Read that story file, then present a
    capability outline for the user to validate. Only ask what you cannot infer.
-2. **Scaffold.** Copy `assets/capability-template.yml`. The document must
-   begin with `ikanos: "1.0.0-alpha1"`.
+2. **Scaffold.** Copy `assets/capability-example.yml`. The document must
+   begin with `ikanos: "1.0.0-alpha3"`.
 3. **Fill exposes.** Choose the adapter type (REST, MCP, or Skill) and
    follow the pattern from the story. For REST operations, use `call` +
    `with` (simple) or `steps` + `mappings` (orchestrated) — never both.
@@ -197,3 +260,5 @@ before writing any mock output parameters.
 32. `allowedLanguages` restricts which languages script steps may use.
     If omitted, all three languages (`javascript`, `python`, `groovy`) are
     allowed.
+
+---

@@ -13,12 +13,22 @@
  */
 package io.ikanos.spec;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Resource Specification Element
+ *
+ * <h2>Thread safety</h2>
+ * {@code inputParameters} is stored as a synchronized {@link LinkedHashMap} wrapped in an
+ * {@link AtomicReference} to allow atomic replacement during deserialization while preserving
+ * declaration order. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class ResourceSpec {
 
@@ -30,9 +40,11 @@ public class ResourceSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String description;
-    
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<InputParameterSpec> inputParameters;
+    @JsonDeserialize(using = InputParameterMapDeserializer.class)
+    private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
+            new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     public ResourceSpec() {
         this(null, null, null, null);
@@ -43,7 +55,6 @@ public class ResourceSpec {
         this.name = name;
         this.label = label;
         this.description = description;
-        this.inputParameters = new CopyOnWriteArrayList<>();
     }
 
     public String getPath() {
@@ -78,8 +89,19 @@ public class ResourceSpec {
         this.description = description;
     }
 
+    /**
+     * Returns input parameters in declaration order. Consumers (engine) are unchanged
+     * because they iterate the returned collection.
+     */
     public List<InputParameterSpec> getInputParameters() {
-        return inputParameters;
+        return List.copyOf(inputParameters.get().values());
     }
 
+    /**
+     * Called by Jackson during deserialization (via {@link InputParameterMapDeserializer}).
+     */
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        Map<String, InputParameterSpec> snapshot = Collections.synchronizedMap(new LinkedHashMap<>(params != null ? params : Map.of()));
+        inputParameters.set(snapshot);
+    }
 }

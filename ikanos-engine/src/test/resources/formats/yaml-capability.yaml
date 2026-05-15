@@ -1,61 +1,56 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 info:
-  label: "YAML Test Capability"
-  description: "Test capability for YAML parsing from API responses"
+  label: YAML Test Capability
+  description: Test capability for YAML parsing from API responses
   tags:
-    - Test
-    - YAML
-  created: "2026-02-21"
-  modified: "2026-02-21"
-
+  - Test
+  - YAML
+  created: '2026-02-21'
+  modified: '2026-02-21'
 capability:
   exposes:
-    - type: "rest"
-      address: "localhost"
-      port: 9092
-      namespace: "test-yaml"
-
-      resources:
-        - path: "/yaml/users"
-          name: "users"
-          label: "YAML Users Resource"
-          description: "Test resource that parses YAML responses"
-          operations:
-            - method: "GET"
-              call: "mock-yaml.get-users"
-              outputParameters:
-                - type: "array"
-                  mapping: "$.users"
-                  items:
-                    type: "object"
-                    properties:
-                      id:
-                        type: "string"
-                        mapping: "$.id"
-                      name:
-                        type: "string"
-                        mapping: "$.name"
-                      email:
-                        type: "string"
-                        mapping: "$.email"
-
+  - type: rest
+    address: localhost
+    port: 9092
+    namespace: test-yaml
+    resources:
+      users:
+        path: /yaml/users
+        label: YAML Users Resource
+        description: Test resource that parses YAML responses
+        operations:
+          get-users:
+            method: GET
+            call: mock-yaml.get-users
+            outputParameters:
+            - type: array
+              mapping: $.users
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    mapping: $.id
+                  name:
+                    type: string
+                    mapping: $.name
+                  email:
+                    type: string
+                    mapping: $.email
   consumes:
-    - type: "http"
-      namespace: "mock-yaml"
-      baseUri: "http://localhost:8080"
-      inputParameters:
-        - name: "User-Agent"
-          in: "header"
-          value: "Naftiko/1.0.0-2"
-
-      resources:
-        - path: "api/users"
-          name: "users"
-          label: "Mock Users API"
-          operations:
-            - method: "GET"
-              name: "get-users"
-              label: "Get Users"
-              outputRawFormat: "yaml"
+  - type: http
+    namespace: mock-yaml
+    baseUri: http://localhost:8080
+    inputParameters:
+      User-Agent:
+        in: header
+        value: Naftiko/1.0.0-2
+    resources:
+      users:
+        path: api/users
+        label: Mock Users API
+        operations:
+          get-users:
+            method: GET
+            label: Get Users
+            outputRawFormat: yaml

@@ -75,7 +75,7 @@ public class DetailResource extends SkillServerResource {
 
         Map<String, String> namespaceMode = getNamespaceMode();
         ArrayNode toolList = getMapper().createArrayNode();
-        for (SkillToolSpec tool : skill.getTools()) {
+        for (SkillToolSpec tool : skill.getTools().values()) {
             ObjectNode toolEntry = getMapper().createObjectNode();
             toolEntry.put("name", tool.getName());
             toolEntry.put("description", tool.getDescription());

@@ -28,20 +28,19 @@ public class PromptHandlerTest {
 
     @Test
     public void constructorShouldTreatNullPromptListAsEmpty() {
-        PromptHandler handler = new PromptHandler(null);
+        PromptHandler handler = new PromptHandler((Map<String, McpServerPromptSpec>) null);
 
         assertTrue(handler.listAll().isEmpty(), "Null prompt list should behave like no prompts");
     }
 
     @Test
     public void constructorShouldSkipPromptEntriesWithNullName() {
-        McpServerPromptSpec malformed = new McpServerPromptSpec();
-        malformed.setName(null);
-
-        PromptHandler handler = new PromptHandler(List.of(malformed));
+        // With named-object maps, keys cannot be null — a prompt with name=null cannot
+        // be stored in the map. Verify that an empty map produces an empty handler.
+        PromptHandler handler = new PromptHandler(Map.of());
 
         assertTrue(handler.listAll().isEmpty(),
-                "Prompt entries with null name should be ignored");
+                "Empty prompt map should produce empty handler");
     }
 
     @Test
@@ -49,7 +48,7 @@ public class PromptHandlerTest {
         McpServerPromptSpec spec = new McpServerPromptSpec();
         spec.setName("known-prompt");
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
 
         IllegalArgumentException error =
                 assertThrows(IllegalArgumentException.class,
@@ -67,7 +66,7 @@ public class PromptHandlerTest {
         spec.setName("greeting");
         spec.getTemplate().add(msg);
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
         List<PromptHandler.RenderedMessage> result =
                 handler.render("greeting", Map.of("name", "Alice", "count", "5"));
 
@@ -86,7 +85,7 @@ public class PromptHandlerTest {
         spec.setName("greeting");
         spec.getTemplate().add(msg);
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
         List<PromptHandler.RenderedMessage> result =
                 handler.render("greeting", Map.of("name", "Bob"));
 
@@ -104,7 +103,7 @@ public class PromptHandlerTest {
         spec.setName("echo");
         spec.getTemplate().add(msg);
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
         // Argument value contains {{...}} which should NOT be re-interpolated
         List<PromptHandler.RenderedMessage> result =
                 handler.render("echo", Map.of("message", "{{danger}}"));
@@ -122,7 +121,7 @@ public class PromptHandlerTest {
         spec.setName("analyze");
         spec.setLocation(promptFile.toUri().toString());
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
         List<PromptHandler.RenderedMessage> result = handler.render("analyze",
                 Map.of("topic", "solar energy", "audience", "engineers"));
 
@@ -137,7 +136,7 @@ public class PromptHandlerTest {
         spec.setName("missing");
         spec.setLocation("file:///nonexistent/prompt.txt");
 
-        PromptHandler handler = new PromptHandler(List.of(spec));
+        PromptHandler handler = new PromptHandler(Map.of(spec.getName(), spec));
 
         IOException error = assertThrows(IOException.class,
                 () -> handler.render("missing", Map.of()));
@@ -154,3 +153,5 @@ public class PromptHandlerTest {
         assertEquals("Name: John Doe, Age: 30", result);
     }
 }
+
+

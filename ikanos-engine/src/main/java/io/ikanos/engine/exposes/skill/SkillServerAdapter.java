@@ -113,8 +113,8 @@ public class SkillServerAdapter extends ServerAdapter {
      */
     private static void validateSkills(SkillServerSpec serverSpec,
             Map<String, String> namespaceMode) {
-        for (ExposedSkillSpec skill : serverSpec.getSkills()) {
-            for (SkillToolSpec tool : skill.getTools()) {
+        for (ExposedSkillSpec skill : serverSpec.getSkills().values()) {
+            for (SkillToolSpec tool : skill.getTools().values()) {
                 boolean hasFrom = tool.getFrom() != null;
                 boolean hasInstruction = tool.getInstruction() != null;
                 if (!hasFrom && !hasInstruction) {

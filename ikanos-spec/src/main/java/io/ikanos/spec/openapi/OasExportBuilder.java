@@ -166,7 +166,7 @@ public class OasExportBuilder {
     Paths buildPaths(RestServerSpec restServer, List<String> warnings) {
         Paths paths = new Paths();
 
-        for (RestServerResourceSpec resource : restServer.getResources()) {
+        for (RestServerResourceSpec resource : restServer.getResources().values()) {
             String basePath = resource.getPath();
             if (basePath == null) {
             basePath = "/" + resource.getName();
@@ -174,7 +174,7 @@ public class OasExportBuilder {
             // Convert Mustache segments {{var}} to OpenAPI format {var}
             basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
 
-            for (RestServerOperationSpec opSpec : resource.getOperations()) {
+            for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
                 String pathKey = basePath;
 

@@ -16,6 +16,7 @@ package io.ikanos.spec.openapi;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.Operation;
@@ -102,9 +103,9 @@ public class OasExportBuilderTest {
     void buildShouldCreatePathsFromResources() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", "List all pets"));
-        rest.getResources().add(resourceWithOperation("/stores", "stores",
+        addResource(rest, resourceWithOperation("/stores", "stores",
                 "GET", "list-stores", "List stores"));
 
         OasExportResult result = builder.build(spec, null);
@@ -117,7 +118,7 @@ public class OasExportBuilderTest {
     void buildShouldMapOperationIdAndTags() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", "List all pets"));
 
         OasExportResult result = builder.build(spec, null);
@@ -141,8 +142,8 @@ public class OasExportBuilderTest {
         param.setIn("query");
         param.setType("number");
         param.setRequired(false);
-        resource.getOperations().get(0).getInputParameters().add(param);
-        rest.getResources().add(resource);
+        firstOp(resource).setInputParameters(Map.of(param.getName(), param));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -164,8 +165,8 @@ public class OasExportBuilderTest {
         nameParam.setIn("body");
         nameParam.setType("string");
         nameParam.setRequired(true);
-        resource.getOperations().get(0).getInputParameters().add(nameParam);
-        rest.getResources().add(resource);
+        firstOp(resource).setInputParameters(Map.of(nameParam.getName(), nameParam));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -186,8 +187,8 @@ public class OasExportBuilderTest {
         OutputParameterSpec outParam = new OutputParameterSpec();
         outParam.setName("id");
         outParam.setType("number");
-        resource.getOperations().get(0).getOutputParameters().add(outParam);
-        rest.getResources().add(resource);
+        firstOp(resource).getOutputParameters().add(outParam);
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -200,7 +201,7 @@ public class OasExportBuilderTest {
     void buildShouldMap204ResponseWhenNoOutputParameters() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets/{petId}", "pets",
+        addResource(rest, resourceWithOperation("/pets/{petId}", "pets",
                 "DELETE", "delete-pet", null));
 
         OasExportResult result = builder.build(spec, null);
@@ -224,8 +225,8 @@ public class OasExportBuilderTest {
         street.setType("string");
         address.getProperties().add(street);
 
-        resource.getOperations().get(0).getOutputParameters().add(address);
-        rest.getResources().add(resource);
+        firstOp(resource).getOutputParameters().add(address);
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -239,7 +240,7 @@ public class OasExportBuilderTest {
     void buildShouldMapBearerAuthentication() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         BearerAuthenticationSpec bearer = new BearerAuthenticationSpec();
         bearer.setToken("{{TOKEN}}");
@@ -258,7 +259,7 @@ public class OasExportBuilderTest {
     void buildShouldMapBasicAuthentication() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         BasicAuthenticationSpec basic = new BasicAuthenticationSpec();
         basic.setUsername("user");
@@ -276,7 +277,7 @@ public class OasExportBuilderTest {
     void buildShouldMapApiKeyAuthentication() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
         apiKey.setKey("X-API-Key");
@@ -295,7 +296,7 @@ public class OasExportBuilderTest {
     void buildShouldMapOauth2AuthenticationWithClientCredentialsFlow() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setAuthorizationServerUri("https://auth.example.com");
@@ -322,7 +323,7 @@ public class OasExportBuilderTest {
     void buildShouldFallbackToAuthorizationServerUriWhenTokenEndpointMissing() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setAuthorizationServerUri("https://auth.example.com");
@@ -343,7 +344,7 @@ public class OasExportBuilderTest {
     void buildShouldNotSetScopesOnFlowWhenNull() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setTokenEndpoint("https://auth.example.com/oauth/token");
@@ -362,7 +363,7 @@ public class OasExportBuilderTest {
     void buildShouldSetDocumentLevelSecurityForOauth2() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setTokenEndpoint("https://auth.example.com/oauth/token");
@@ -379,7 +380,7 @@ public class OasExportBuilderTest {
     void buildShouldIncludeScopesInSecurityRequirementForOauth2() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setTokenEndpoint("https://auth.example.com/oauth/token");
@@ -402,7 +403,7 @@ public class OasExportBuilderTest {
     void buildShouldWarnAndSkipOauth2WhenBothTokenUrlAndIssuerAreNull() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         rest.setAuthentication(oauth2);
@@ -421,7 +422,7 @@ public class OasExportBuilderTest {
     void buildShouldWarnAndSkipOauth2WhenBothTokenUrlAndIssuerAreBlank() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
         OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
         oauth2.setTokenEndpoint("   ");
@@ -452,7 +453,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
         rest.setNamespace("my-api");
-        rest.getResources().add(resourceWithOperation("/data", "data",
+        addResource(rest, resourceWithOperation("/data", "data",
                 "GET", "get-data", null));
 
         OasExportResult result = builder.build(spec, "my-api");
@@ -466,7 +467,7 @@ public class OasExportBuilderTest {
     void buildShouldSetOpenapi30VersionByDefault() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
 
         OasExportResult result = builder.build(spec, null);
@@ -478,7 +479,7 @@ public class OasExportBuilderTest {
     void buildShouldSetOpenapi31VersionWhenRequested() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/pets", "pets",
+        addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
 
         OasExportResult result = builder.build(spec, null, SpecVersion.V31);
@@ -491,7 +492,7 @@ public class OasExportBuilderTest {
     void buildWithV31ShouldProduceReparsableSpec() {
         IkanosSpec spec = minimalSpec("Test 31", "OAS 3.1 test");
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/items", "items",
+        addResource(rest, resourceWithOperation("/items", "items",
                 "GET", "list-items", "List all items"));
 
         OasExportResult result = builder.build(spec, null, SpecVersion.V31);
@@ -542,7 +543,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = new IkanosSpec();
         CapabilitySpec cap = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("localhost", 8080, null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
         cap.getExposes().add(rest);
         spec.setCapability(cap);
 
@@ -558,7 +559,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
         rest.setAddress(null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -571,7 +572,7 @@ public class OasExportBuilderTest {
         spec.setInfo(new InfoSpec("Test", null, null, null));
         CapabilitySpec cap = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("myhost", 0, null);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
         cap.getExposes().add(rest);
         spec.setCapability(cap);
 
@@ -590,8 +591,8 @@ public class OasExportBuilderTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setMethod("GET");
         op.setName("list");
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -602,7 +603,7 @@ public class OasExportBuilderTest {
     void buildShouldConvertMustachePathSegmentsToOpenApi() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
-        rest.getResources().add(resourceWithOperation("/users/{{userId}}", "users",
+        addResource(rest, resourceWithOperation("/users/{{userId}}", "users",
                 "GET", "get-user", null));
 
         OasExportResult result = builder.build(spec, null);
@@ -632,8 +633,8 @@ public class OasExportBuilderTest {
         head.setMethod("HEAD"); head.setName("head");
         RestServerOperationSpec options = new RestServerOperationSpec();
         options.setMethod("OPTIONS"); options.setName("options");
-        resource.setOperations(List.of(get, post, put, delete, patch, head, options));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of("get", get, "post", post, "put", put, "delete", delete, "patch", patch, "head", head, "options", options));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -655,7 +656,7 @@ public class OasExportBuilderTest {
         digest.setUsername("user");
         digest.setPassword("pass".toCharArray());
         rest.setAuthentication(digest);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -672,7 +673,7 @@ public class OasExportBuilderTest {
         RestServerSpec rest = getRestServer(spec);
         // Use a concrete auth type that isn't explicitly handled
         rest.setAuthentication(new AuthenticationSpec() {});
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -688,7 +689,7 @@ public class OasExportBuilderTest {
         apiKey.setKey("X-Token");
         apiKey.setPlacement(null);
         rest.setAuthentication(apiKey);
-        rest.getResources().add(resourceWithOperation("/data", "data", "GET", "get", null));
+        addResource(rest, resourceWithOperation("/data", "data", "GET", "get", null));
 
         OasExportResult result = builder.build(spec, null);
 
@@ -714,8 +715,8 @@ public class OasExportBuilderTest {
         arrayParam.setType("array");
         arrayParam.setItems(null);
         op.getOutputParameters().add(arrayParam);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -735,8 +736,8 @@ public class OasExportBuilderTest {
         op.setMethod("GET");
         op.setName(null);
         op.setDescription(null);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        resource.setOperations(Map.of("unnamed", op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -761,9 +762,9 @@ public class OasExportBuilderTest {
         bodyParam.setIn("body");
         bodyParam.setType("string");
         bodyParam.setRequired(true);
-        op.getInputParameters().add(bodyParam);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        op.setInputParameters(Map.of("title", bodyParam));
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -790,9 +791,9 @@ public class OasExportBuilderTest {
         param.setName("filter");
         param.setIn(null);
         param.setType("string");
-        op.getInputParameters().add(param);
-        resource.setOperations(List.of(op));
-        rest.getResources().add(resource);
+        op.setInputParameters(Map.of("filter", param));
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
 
         OasExportResult result = builder.build(spec, null);
 
@@ -829,9 +830,19 @@ public class OasExportBuilderTest {
         op.setMethod(method);
         op.setName(opName);
         op.setDescription(description);
-        resource.setOperations(List.of(op));
+        resource.setOperations(Map.of(op.getName(), op));
 
         return resource;
+    }
+
+    /** Add a resource to a RestServerSpec using the Map API. */
+    private static void addResource(RestServerSpec rest, RestServerResourceSpec resource) {
+        rest.getResources().put(resource.getName(), resource);
+    }
+
+    /** Return the first (and typically only) operation of a resource. */
+    private static RestServerOperationSpec firstOp(RestServerResourceSpec resource) {
+        return resource.getOperations().values().iterator().next();
     }
 
 }

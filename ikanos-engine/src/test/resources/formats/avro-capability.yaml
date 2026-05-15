@@ -1,61 +1,56 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
-ikanos: "1.0.0-alpha3"
+ikanos: 1.0.0-alpha3
 info:
-  label: "Avro Test Capability"
-  description: "Test capability for Avro message decoding from API responses"
+  label: Avro Test Capability
+  description: Test capability for Avro message decoding from API responses
   tags:
-    - Test
-    - Avro
-  created: "2026-02-21"
-  modified: "2026-02-21"
-
+  - Test
+  - Avro
+  created: '2026-02-21'
+  modified: '2026-02-21'
 capability:
   exposes:
-    - type: "rest"
-      address: "localhost"
-      port: 9093
-      namespace: "test-avro"
-
-      resources:
-        - path: "/avro/records"
-          name: "records"
-          label: "Avro Records Resource"
-          description: "Test resource that parses Avro messages"
-          operations:
-            - method: "GET"
-              call: "mock-avro.get-records"
-              outputParameters:
-                - type: "array"
-                  mapping: "$.records"
-                  items:
-                    type: "object"
-                    properties:
-                      id:
-                        type: "string"
-                        mapping: "$.id"
-                      title:
-                        type: "string"
-                        mapping: "$.title"
-                      description:
-                        type: "string"
-                        mapping: "$.description"
-
+  - type: rest
+    address: localhost
+    port: 9093
+    namespace: test-avro
+    resources:
+      records:
+        path: /avro/records
+        label: Avro Records Resource
+        description: Test resource that parses Avro messages
+        operations:
+          get-records:
+            method: GET
+            call: mock-avro.get-records
+            outputParameters:
+            - type: array
+              mapping: $.records
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    mapping: $.id
+                  title:
+                    type: string
+                    mapping: $.title
+                  description:
+                    type: string
+                    mapping: $.description
   consumes:
-    - type: "http"
-      namespace: "mock-avro"
-      baseUri: "http://localhost:8080"
-      inputParameters:
-        - name: "Accept"
-          in: "header"
-          value: "application/avro"
-
-      resources:
-        - path: "api/records"
-          name: "records"
-          label: "Mock Records API"
-          operations:
-            - method: "GET"
-              name: "get-records"
-              label: "Get Records"
-              outputRawFormat: "avro"
+  - type: http
+    namespace: mock-avro
+    baseUri: http://localhost:8080
+    inputParameters:
+      Accept:
+        in: header
+        value: application/avro
+    resources:
+      records:
+        path: api/records
+        label: Mock Records API
+        operations:
+          get-records:
+            method: GET
+            label: Get Records
+            outputRawFormat: avro

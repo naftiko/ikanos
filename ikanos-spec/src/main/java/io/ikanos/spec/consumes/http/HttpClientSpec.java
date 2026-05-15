@@ -13,8 +13,9 @@
  */
 package io.ikanos.spec.consumes.http;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -29,7 +30,8 @@ import io.ikanos.spec.consumes.ClientSpec;
  *
  * <h2>Thread safety</h2>
  * The {@code baseUri} and {@code authentication} fields are held in {@link AtomicReference}s.
- * The {@code inputParameters} and {@code resources} lists are {@link CopyOnWriteArrayList}s.
+ * The {@code inputParameters} list is a {@link java.util.concurrent.CopyOnWriteArrayList}.
+ * The {@code resources} map is a synchronized {@link LinkedHashMap} preserving YAML order.
  * This satisfies SonarQube rule {@code java:S3077}.
  */
 @JsonDeserialize(using = JsonDeserializer.None.class)
@@ -39,18 +41,20 @@ public class HttpClientSpec extends ClientSpec {
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<InputParameterSpec> inputParameters;
+    @JsonDeserialize(using = io.ikanos.spec.InputParameterMapDeserializer.class)
+    private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
+            new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<HttpClientResourceSpec> resources;
+    @JsonDeserialize(using = HttpClientResourceMapDeserializer.class)
+    private final Map<String, HttpClientResourceSpec> resources =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public HttpClientSpec(String namespace, String baseUri, AuthenticationSpec authentication) {
         super("http", namespace);
         validateBaseUri(baseUri);
         this.baseUri.set(baseUri);
-        this.inputParameters = new CopyOnWriteArrayList<>();
         this.authentication.set(authentication);
-        this.resources = new CopyOnWriteArrayList<>();
     }
 
     public HttpClientSpec(String baseUri) {
@@ -61,18 +65,13 @@ public class HttpClientSpec extends ClientSpec {
         this(null);
     }
 
-    public String getBaseUri() {
-        return baseUri.get();
-    }
+    public String getBaseUri() { return baseUri.get(); }
 
     public void setBaseUri(String baseUri) {
         validateBaseUri(baseUri);
         this.baseUri.set(baseUri);
     }
 
-    /**
-     * Validates that {@code baseUri} does not have a trailing slash, per Ikanos specification.
-     */
     private static void validateBaseUri(String baseUri) {
         if (baseUri != null && baseUri.endsWith("/")) {
             throw new IllegalArgumentException(
@@ -80,21 +79,27 @@ public class HttpClientSpec extends ClientSpec {
         }
     }
 
-    public List<InputParameterSpec> getInputParameters() {
-        return inputParameters;
+    public java.util.List<InputParameterSpec> getInputParameters() {
+        return java.util.List.copyOf(inputParameters.get().values());
+    }
+
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        Map<String, InputParameterSpec> snapshot = Collections.synchronizedMap(
+                new LinkedHashMap<>(params != null ? params : Map.of()));
+        inputParameters.set(snapshot);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public AuthenticationSpec getAuthentication() {
-        return authentication.get();
-    }
+    public AuthenticationSpec getAuthentication() { return authentication.get(); }
+    public void setAuthentication(AuthenticationSpec authentication) { this.authentication.set(authentication); }
 
-    public void setAuthentication(AuthenticationSpec authentication) {
-        this.authentication.set(authentication);
-    }
+    public Map<String, HttpClientResourceSpec> getResources() { return resources; }
 
-    public List<HttpClientResourceSpec> getResources() {
-        return resources;
+    public void setResources(Map<String, HttpClientResourceSpec> resources) {
+        if (resources == null) return;
+        synchronized (this.resources) {
+            this.resources.clear();
+            this.resources.putAll(resources);
+        }
     }
-
 }

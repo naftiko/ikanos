@@ -13,30 +13,15 @@
  */
 package io.ikanos.spec.exposes.skill;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.exposes.ServerSpec;
 
-/**
- * Skill Server Specification Element.
- *
- * <p>Defines a skill catalog server that exposes agent skill metadata and supporting files over
- * predefined GET-only endpoints. Skills declare tools derived from sibling {@code api} or
- * {@code mcp} adapters, or defined as local file instructions. The skill server does not execute
- * tools — AI clients invoke sibling adapters directly.</p>
- *
- * <p>Predefined endpoints:</p>
- * <ul>
- *   <li>{@code GET /skills} — list all skills</li>
- *   <li>{@code GET /skills/{name}} — skill metadata + tool catalog with invocation refs</li>
- *   <li>{@code GET /skills/{name}/download} — ZIP archive from the skill's {@code location}</li>
- *   <li>{@code GET /skills/{name}/contents} — file listing from the skill's {@code location}</li>
- *   <li>{@code GET /skills/{name}/contents/{file}} — individual file from the skill's {@code location}</li>
- * </ul>
- */
+/** Skill Server Specification Element. */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class SkillServerSpec extends ServerSpec {
 
@@ -47,35 +32,27 @@ public class SkillServerSpec extends ServerSpec {
     private volatile String description;
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private final List<ExposedSkillSpec> skills;
+    @JsonDeserialize(using = ExposedSkillMapDeserializer.class)
+    private final Map<String, ExposedSkillSpec> skills =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
-    public SkillServerSpec() {
-        this(null, 0, null);
-    }
+    public SkillServerSpec() { this(null, 0, null); }
 
     public SkillServerSpec(String address, int port, String namespace) {
         super("skill", address, port);
         this.namespace = namespace;
-        this.skills = new CopyOnWriteArrayList<>();
     }
 
-    public String getNamespace() {
-        return namespace;
-    }
+    public String getNamespace() { return namespace; }
+    public void setNamespace(String namespace) { this.namespace = namespace; }
 
-    public void setNamespace(String namespace) {
-        this.namespace = namespace;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public String getDescription() {
-        return description;
-    }
+    public Map<String, ExposedSkillSpec> getSkills() { return skills; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public List<ExposedSkillSpec> getSkills() {
-        return skills;
+    public void setSkills(Map<String, ExposedSkillSpec> skills) {
+        if (skills == null) return;
+        synchronized (this.skills) { this.skills.clear(); this.skills.putAll(skills); }
     }
 }

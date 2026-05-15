@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=../../main/resources/schemas/ikanos-schema.json
----
 ikanos: "1.0.0-alpha3"
 info:
   label: "register"
@@ -10,25 +8,27 @@ capability:
     namespace: "documentation"
     port: 8081
     resources:
-    - path: "/notion/{{path}}"
-      label: "Notion API Pass-thru Proxy"
-      description: "A proxy to forward requests to the Notion API while the capability is being configured"
-      forward:
-        targetNamespace: "notion"
-        trustedHeaders:
-        - "Notion-Version"
+      notion:
+        path: "/notion/{{path}}"
+        label: "Notion API Pass-thru Proxy"
+        description: "A proxy to forward requests to the Notion API while the capability is being configured"
+        forward:
+          targetNamespace: "notion"
+          trustedHeaders:
+          - "Notion-Version"
   consumes:
   - type: "http"
     namespace: "notion"
     description: "Notion base API"
     baseUri: "http://host.docker.internal:8080/rest/Notion+API/1.0.0"
     authentication:
-        type: "basic"
-        username: "scott"
-        password: "tiger"
+      type: "basic"
+      username: "scott"
+      password: "tiger"
     resources:
-    - name: "users"
-      path:  "users/me"
-      operations:
-      - name: get-my-user
-        method: GET
+      "users":
+        path: "users/me"
+        operations:
+          get-my-user:
+            method: GET
+

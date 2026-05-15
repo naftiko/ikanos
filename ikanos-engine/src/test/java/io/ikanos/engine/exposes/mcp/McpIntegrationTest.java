@@ -92,7 +92,7 @@ public class McpIntegrationTest {
 
         assertEquals(1, spec.getTools().size(), "Should have exactly one tool");
 
-        McpServerToolSpec tool = spec.getTools().get(0);
+        McpServerToolSpec tool = spec.getTools().get("query-database");
         assertEquals("query-database", tool.getName(), "Tool name should be 'query-database'");
         assertTrue(tool.getDescription().contains("Query the test database"),
                 "Tool description should contain expected text");

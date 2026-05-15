@@ -144,7 +144,7 @@ class McpServerResourceSpecTest {
     @Test
     void getStepsShouldBeMutable() {
         OperationStepCallSpec step = new OperationStepCallSpec();
-        spec.getSteps().add(step);
+        spec.getSteps().put("step1", step);
         assertEquals(1, spec.getSteps().size());
     }
 

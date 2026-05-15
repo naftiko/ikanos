@@ -31,7 +31,6 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,7 +80,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testResourceSpecsDeserialized() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        List<McpServerResourceSpec> resources = spec.getResources();
+        var resources = spec.getResources();
 
         assertEquals(2, resources.size(), "Should have exactly 2 resource specs");
     }
@@ -89,7 +88,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testStaticLikeResourceSpecFields() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        McpServerResourceSpec dbSchema = spec.getResources().stream()
+        McpServerResourceSpec dbSchema = spec.getResources().values().stream()
                 .filter(r -> "database-schema".equals(r.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("database-schema resource not found"));
@@ -108,7 +107,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testTemplateResourceSpecFields() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        McpServerResourceSpec userProfile = spec.getResources().stream()
+        McpServerResourceSpec userProfile = spec.getResources().values().stream()
                 .filter(r -> "user-profile".equals(r.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("user-profile resource not found"));
@@ -122,7 +121,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testPromptSpecsDeserialized() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        List<McpServerPromptSpec> prompts = spec.getPrompts();
+        var prompts = spec.getPrompts();
 
         assertEquals(2, prompts.size(), "Should have exactly 2 prompt specs");
     }
@@ -130,7 +129,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testParticipantOutreachPromptFields() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        McpServerPromptSpec outreach = spec.getPrompts().stream()
+        McpServerPromptSpec outreach = spec.getPrompts().values().stream()
                 .filter(p -> "participant-outreach".equals(p.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("participant-outreach prompt not found"));
@@ -141,7 +140,7 @@ public class ResourcesPromptsIntegrationTest {
         assertEquals(2, outreach.getArguments().size(), "Should have 2 arguments");
         assertEquals(1, outreach.getTemplate().size(), "Should have 1 template message");
 
-        var participantArg = outreach.getArguments().stream()
+        var participantArg = outreach.getArguments().values().stream()
                 .filter(a -> "participant_name".equals(a.getName()))
                 .findFirst()
                 .orElseThrow();
@@ -151,7 +150,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testSummaryPromptMultiTurnTemplate() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        McpServerPromptSpec summary = spec.getPrompts().stream()
+        McpServerPromptSpec summary = spec.getPrompts().values().stream()
                 .filter(p -> "summary-prompt".equals(p.getName()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("summary-prompt not found"));
@@ -164,7 +163,7 @@ public class ResourcesPromptsIntegrationTest {
         assertEquals("user", summary.getTemplate().get(2).getRole());
 
         // format argument is optional
-        var formatArg = summary.getArguments().stream()
+        var formatArg = summary.getArguments().values().stream()
                 .filter(a -> "format".equals(a.getName()))
                 .findFirst()
                 .orElseThrow();
@@ -174,7 +173,7 @@ public class ResourcesPromptsIntegrationTest {
     @Test
     public void testToolLabelDeserialized() {
         McpServerSpec spec = adapter.getMcpServerSpec();
-        McpServerToolSpec tool = spec.getTools().get(0);
+        McpServerToolSpec tool = spec.getTools().values().iterator().next();
 
         assertEquals("Query Database", tool.getLabel(), "Tool label should be deserialized");
     }
@@ -198,7 +197,7 @@ public class ResourcesPromptsIntegrationTest {
         tool.setDescription("Minimal tool");
 
         McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
-        serverSpec.getTools().add(tool);
+        serverSpec.getTools().put(tool.getName(), tool);
 
         CapabilitySpec capabilitySpec = new CapabilitySpec();
         capabilitySpec.getExposes().add(serverSpec);
@@ -237,10 +236,10 @@ public class ResourcesPromptsIntegrationTest {
         blankNameTool.setDescription("Malformed tool with blank name");
 
         McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
-        serverSpec.getTools().add(validTool);
-        serverSpec.getTools().add(null);
-        serverSpec.getTools().add(nullNameTool);
-        serverSpec.getTools().add(blankNameTool);
+        serverSpec.getTools().put(validTool.getName(), validTool);
+        // null entries are skipped: serverSpec.getTools().put(null, null);
+        serverSpec.getTools().put("_null-name_", nullNameTool);
+        serverSpec.getTools().put(blankNameTool.getName(), blankNameTool);
 
         CapabilitySpec capabilitySpec = new CapabilitySpec();
         capabilitySpec.getExposes().add(serverSpec);
@@ -651,3 +650,4 @@ public class ResourcesPromptsIntegrationTest {
     }
 
 }
+

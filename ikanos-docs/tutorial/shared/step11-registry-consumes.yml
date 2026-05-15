@@ -1,67 +1,67 @@
 # shared/registry-consumes.yaml (final — added get-voyage + cargo resource)
 ikanos: "1.0.0-alpha3"
 consumes:
-  - namespace: registry
-    type: http
-    baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
-    authentication:
-      type: bearer
-      token: "REGISTRY_TOKEN"
-    inputParameters:
-    - name: Registry-Version
+- namespace: registry
+  type: http
+  baseUri: "https://mocks.naftiko.net/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+  authentication:
+    type: bearer
+    token: "REGISTRY_TOKEN"
+  inputParameters:
+    Registry-Version:
       in: header
       value: "REGISTRY_VERSION"
-    resources:
-      - name: ships
-        path: "/ships"
-        operations:
-          - name: list-ships
-            method: GET
-            inputParameters:
-              - name: status
-                in: query
-            outputParameters:
-              - name: imo-number
-                type: string
-                value: "$.imo_number"
-      - name: ship
-        path: "/ships/{{imo_number}}"
-        operations:
-          - name: get-ship
-            method: GET
-            inputParameters:
-              - name: imo_number
-                in: path
-      - name: voyages
-        path: "/voyages"
-        operations:
-          - name: create-voyage
-            method: POST
-            body: |
-              {
-                "shipImo": "{{shipImo}}",
-                "departurePort": "{{departurePort}}",
-                "arrivalPort": "{{arrivalPort}}",
-                "departureDate": "{{departureDate}}",
-                "arrivalDate": "{{arrivalDate}}",
-                "crewIds": {{crewIds}},
-                "cargoIds": {{cargoIds}}
-              }
-      - name: voyage
-        path: "/voyages/{{voyageId}}"
-        operations:
-          - name: get-voyage
-            method: GET
-            inputParameters:
-              - name: voyageId
-                in: path
-      - name: crew
-        path: "/crew"
-        operations:
-          - name: list-crew
-            method: GET
-      - name: cargo
-        path: "/cargo"
-        operations:
-          - name: list-cargo
-            method: GET
+  resources:
+    ships:
+      path: "/ships"
+      operations:
+        list-ships:
+          method: GET
+          inputParameters:
+            status:
+              in: query
+          outputParameters:
+            - name: imo-number
+              type: string
+              value: "$.imo_number"
+    ship:
+      path: "/ships/{{imo_number}}"
+      operations:
+        get-ship:
+          method: GET
+          inputParameters:
+            imo_number:
+              in: path
+    voyages:
+      path: "/voyages"
+      operations:
+        create-voyage:
+          method: POST
+          body: |
+            {
+              "shipImo": "{{shipImo}}",
+              "departurePort": "{{departurePort}}",
+              "arrivalPort": "{{arrivalPort}}",
+              "departureDate": "{{departureDate}}",
+              "arrivalDate": "{{arrivalDate}}",
+              "crewIds": {{crewIds}},
+              "cargoIds": {{cargoIds}}
+            }
+    voyage:
+      path: "/voyages/{{voyageId}}"
+      operations:
+        get-voyage:
+          method: GET
+          inputParameters:
+            voyageId:
+              in: path
+    crew:
+      path: "/crew"
+      operations:
+        list-crew:
+          method: GET
+    cargo:
+      path: "/cargo"
+      operations:
+        list-cargo:
+          method: GET

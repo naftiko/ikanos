@@ -105,11 +105,11 @@ public class SkillIntegrationTest {
     @Test
     public void testFirstSkillSpec() {
         SkillServerSpec spec = skillAdapter.getSkillServerSpec();
-        var skill = spec.getSkills().get(0);
+        var skill = spec.getSkills().get("order-management");
         assertEquals("order-management", skill.getName());
         assertEquals(2, skill.getTools().size());
-        assertEquals("orders-rest", skill.getTools().get(0).getFrom().getSourceNamespace());
-        assertEquals("order-guide.md", skill.getTools().get(1).getInstruction());
+        assertEquals("orders-rest", skill.getTools().get("list-orders").getFrom().getSourceNamespace());
+        assertEquals("order-guide.md", skill.getTools().get("order-guide").getInstruction());
     }
 
     // --- HTTP endpoint tests ---

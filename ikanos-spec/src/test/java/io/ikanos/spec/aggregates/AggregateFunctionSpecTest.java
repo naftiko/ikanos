@@ -119,21 +119,23 @@ class AggregateFunctionSpecTest {
 
     @Test
     void inputParametersShouldBeMutable() {
-        spec.getInputParameters().add(new InputParameterSpec());
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("p1");
+        spec.setInputParameters(Map.of("p1", param));
         assertEquals(1, spec.getInputParameters().size());
     }
 
     // ── Steps ──
 
     @Test
-    void getStepsShouldReturnEmptyListByDefault() {
+    void getStepsShouldReturnEmptyMapByDefault() {
         assertNotNull(spec.getSteps());
         assertTrue(spec.getSteps().isEmpty());
     }
 
     @Test
     void stepsShouldBeMutable() {
-        spec.getSteps().add(new OperationStepCallSpec());
+        spec.getSteps().put("step1", new OperationStepCallSpec());
         assertEquals(1, spec.getSteps().size());
     }
 
