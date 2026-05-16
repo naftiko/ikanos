@@ -13,9 +13,10 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.attributes;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringKey;
 import static org.junit.jupiter.api.Assertions.*;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
+
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongUpDownCounter;
@@ -24,7 +25,6 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
-import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ class PrometheusTextSerializerTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = meterProvider();
+        SdkMeterProvider meterProvider = OtelTestFixtures.meterProvider(metricReader);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -144,37 +144,4 @@ class PrometheusTextSerializerTest {
         assertTrue(text.contains("\\\"quoted\\\""),
                 "Should escape double quotes in label values");
     }
-
-        @Nonnull
-        private SdkMeterProvider meterProvider() {
-                return java.util.Objects.requireNonNull(SdkMeterProvider.builder()
-                                .registerMetricReader(metricReader())
-                                .build());
-        }
-
-        @Nonnull
-        private io.opentelemetry.sdk.metrics.export.MetricReader metricReader() {
-                return java.util.Objects.requireNonNull(metricReader);
-        }
-
-        @Nonnull
-        private static Attributes attributes(AttributeKey<String> key, String value) {
-                return java.util.Objects.requireNonNull(
-                                Attributes.of(nonNullStringKey(key), nonNullString(value)));
-        }
-
-        @Nonnull
-        private static AttributeKey<String> stringKey(@Nonnull String name) {
-                return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
-        }
-
-        @Nonnull
-        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
-                return java.util.Objects.requireNonNull(key);
-        }
-
-        @Nonnull
-        private static String nonNullString(String value) {
-                return java.util.Objects.requireNonNull(value);
-        }
 }

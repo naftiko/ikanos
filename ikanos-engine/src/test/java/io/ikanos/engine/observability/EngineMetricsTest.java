@@ -13,14 +13,15 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.longAttribute;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringKey;
 import static org.junit.jupiter.api.Assertions.*;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
+
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
-import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class EngineMetricsTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = meterProvider();
+        SdkMeterProvider meterProvider = OtelTestFixtures.meterProvider(metricReader);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -184,39 +185,4 @@ class EngineMetricsTest {
     private MetricData findMetric(Collection<MetricData> data, String name) {
         return data.stream().filter(m -> m.getName().equals(name)).findFirst().orElse(null);
     }
-
-        @Nonnull
-        private SdkMeterProvider meterProvider() {
-                return java.util.Objects.requireNonNull(SdkMeterProvider.builder()
-                                .registerMetricReader(metricReader())
-                                .build());
-        }
-
-        @Nonnull
-        private io.opentelemetry.sdk.metrics.export.MetricReader metricReader() {
-                return java.util.Objects.requireNonNull(metricReader);
-        }
-
-        private static String stringAttribute(Attributes attributes, AttributeKey<String> key) {
-                return attributes.get(nonNullStringKey(key));
-        }
-
-        private static Long longAttribute(Attributes attributes, AttributeKey<Long> key) {
-                return attributes.get(nonNullLongKey(key));
-        }
-
-        @Nonnull
-        private static AttributeKey<String> stringKey(@Nonnull String name) {
-                return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
-        }
-
-        @Nonnull
-        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
-                return java.util.Objects.requireNonNull(key);
-        }
-
-        @Nonnull
-        private static AttributeKey<Long> nonNullLongKey(AttributeKey<Long> key) {
-                return java.util.Objects.requireNonNull(key);
-        }
 }

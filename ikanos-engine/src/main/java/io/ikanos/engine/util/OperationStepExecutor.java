@@ -33,7 +33,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
-import io.ikanos.engine.observability.RestletHeaderSetter;
+import io.ikanos.engine.observability.OtelNullSafety;
+import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.scripting.ScriptStepExecutor;
 import io.ikanos.engine.step.StepHandlerRegistry;
@@ -51,8 +52,6 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-import io.opentelemetry.context.propagation.TextMapSetter;
-import javax.annotation.Nonnull;
 
 /**
  * Executor for orchestrated operation steps.
@@ -879,15 +878,15 @@ public class OperationStepExecutor {
             try (Scope scope = span.makeCurrent()) {
                 // Inject W3C trace context after the client span is current
                 // so downstream services see this span as the parent
-                telemetry.getOpenTelemetry().getPropagators().getTextMapPropagator()
-                    .inject(currentTelemetryContext(), clientRequest,
-                        restletHeaderSetter());
+                OtelRestletBridge.injectContext(clientRequest);
 
                 clientAdapter.getHttpClient().handle(clientRequest, clientResponse);
 
                 if (clientResponse != null && clientResponse.getStatus() != null) {
                     int statusCode = clientResponse.getStatus().getCode();
-                    setHttpStatusCode(span, statusCode);
+                    span.setAttribute(
+                            OtelNullSafety.nonNullLongKey(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE),
+                            statusCode);
                     if (statusCode >= 500) {
                         span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR,
                                 "HTTP " + statusCode);
@@ -907,27 +906,6 @@ public class OperationStepExecutor {
                         code, clientDurationSec);
                 TelemetryBootstrap.endSpan(span);
             }
-        }
-
-        @Nonnull
-        private io.opentelemetry.context.Context currentTelemetryContext() {
-            return java.util.Objects.requireNonNull(io.opentelemetry.context.Context.current());
-        }
-
-        @Nonnull
-        private TextMapSetter<Request> restletHeaderSetter() {
-            return java.util.Objects.requireNonNull(RestletHeaderSetter.INSTANCE);
-        }
-
-        private void setHttpStatusCode(Span span, long statusCode) {
-            span.setAttribute(nonNullLongKey(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE),
-                    statusCode);
-        }
-
-        @Nonnull
-        private io.opentelemetry.api.common.AttributeKey<Long> nonNullLongKey(
-                io.opentelemetry.api.common.AttributeKey<Long> key) {
-            return java.util.Objects.requireNonNull(key);
         }
     }
 

@@ -13,13 +13,16 @@
  */
 package io.ikanos.engine.observability;
 
-import io.opentelemetry.api.common.AttributeKey;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullLongKey;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullStringKey;
+import static io.ikanos.engine.observability.OtelNullSafety.stringKey;
+
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
-import javax.annotation.Nonnull;
 
 /**
  * Centralized registry for OTel metrics recorded by the Naftiko engine.
@@ -27,6 +30,9 @@ import javax.annotation.Nonnull;
  * <p>Instruments are created once during {@link TelemetryBootstrap} initialization and shared
  * across the engine. When the OTel SDK is absent (noop mode), all recording calls are zero-cost
  * no-ops.</p>
+ *
+ * <p>Null-safety with the OTel SDK is delegated to {@link OtelNullSafety} — see that class for
+ * the rationale.</p>
  */
 public class EngineMetrics {
 
@@ -78,10 +84,10 @@ public class EngineMetrics {
      */
     public void recordRequest(String adapter, String operation, String status, double durationSec) {
         if (!enabled) return;
-        Attributes attrs = nonNullAttributes(Attributes.of(
-                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNullString(adapter),
-                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNullString(operation),
-                stringKey("status"), nonNullString(status)));
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNull(adapter),
+                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNull(operation),
+                stringKey("status"), nonNull(status)));
         requestTotal.add(1, attrs);
         requestDuration.record(durationSec, attrs);
     }
@@ -91,10 +97,10 @@ public class EngineMetrics {
      */
     public void recordRequestError(String adapter, String operation, String errorType) {
         if (!enabled) return;
-        Attributes attrs = nonNullAttributes(Attributes.of(
-                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNullString(adapter),
-                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNullString(operation),
-                stringKey("error.type"), nonNullString(errorType)));
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNull(adapter),
+                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNull(operation),
+                stringKey("error.type"), nonNull(errorType)));
         requestErrors.add(1, attrs);
     }
 
@@ -103,10 +109,10 @@ public class EngineMetrics {
      */
     public void recordStep(String stepType, String namespace, double durationSec) {
         if (!enabled) return;
-        Attributes attrs = nonNullAttributes(Attributes.of(
-                stringKey("step.type"), nonNullString(stepType),
+        Attributes attrs = nonNull(Attributes.of(
+                stringKey("step.type"), nonNull(stepType),
                 nonNullStringKey(TelemetryBootstrap.ATTR_NAMESPACE),
-                nonNullString(namespace != null ? namespace : "unknown")));
+                nonNull(namespace != null ? namespace : "unknown")));
         stepDuration.record(durationSec, attrs);
     }
 
@@ -121,16 +127,16 @@ public class EngineMetrics {
     public void recordHttpClient(String method, String host, int statusCode,
             double durationSec) {
         if (!enabled) return;
-                var builder = Attributes.builder()
-                                .put(nonNullStringKey(TelemetryBootstrap.ATTR_HTTP_METHOD), nonNullString(method))
-                                .put(stringKey("server.address"), nonNullString(host));
+        var builder = Attributes.builder()
+                .put(nonNullStringKey(TelemetryBootstrap.ATTR_HTTP_METHOD), nonNull(method))
+                .put(stringKey("server.address"), nonNull(host));
         if (statusCode > 0) {
-                        builder.put(nonNullLongKey(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE),
-                                        (long) statusCode);
+            builder.put(nonNullLongKey(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE),
+                    (long) statusCode);
         } else {
-                        builder.put(stringKey("error.type"), nonNullString("transport"));
+            builder.put(stringKey("error.type"), nonNull("transport"));
         }
-                Attributes attrs = nonNullAttributes(builder.build());
+        Attributes attrs = nonNull(builder.build());
         httpClientTotal.add(1, attrs);
         httpClientDuration.record(durationSec, attrs);
     }
@@ -140,9 +146,9 @@ public class EngineMetrics {
      */
     public void capabilityStarted(String capabilityName) {
         if (!enabled) return;
-        Attributes attrs = nonNullAttributes(Attributes.of(
+        Attributes attrs = nonNull(Attributes.of(
                 nonNullStringKey(TelemetryBootstrap.ATTR_CAPABILITY),
-                nonNullString(capabilityName)));
+                nonNull(capabilityName)));
         capabilityActive.add(1, attrs);
     }
 
@@ -151,34 +157,9 @@ public class EngineMetrics {
      */
     public void capabilityStopped(String capabilityName) {
         if (!enabled) return;
-                Attributes attrs = nonNullAttributes(Attributes.of(
-                                nonNullStringKey(TelemetryBootstrap.ATTR_CAPABILITY),
-                                nonNullString(capabilityName)));
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_CAPABILITY),
+                nonNull(capabilityName)));
         capabilityActive.add(-1, attrs);
     }
-
-        @Nonnull
-        private static AttributeKey<String> stringKey(@Nonnull String name) {
-                return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
-        }
-
-        @Nonnull
-        private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
-                return java.util.Objects.requireNonNull(key);
-        }
-
-        @Nonnull
-        private static AttributeKey<Long> nonNullLongKey(AttributeKey<Long> key) {
-                return java.util.Objects.requireNonNull(key);
-        }
-
-        @Nonnull
-        private static String nonNullString(String value) {
-                return java.util.Objects.requireNonNull(value);
-        }
-
-        @Nonnull
-        private static Attributes nonNullAttributes(Attributes attributes) {
-                return java.util.Objects.requireNonNull(attributes);
-        }
 }
