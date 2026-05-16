@@ -29,7 +29,7 @@ To use Ikanos, you need to install Ikanos and then run a capability YAML file ei
 ### Configure your own capability
 The Ikanos Engine runs capabilities. For that, it uses a capability configuration file. You first have to create this file locally.\
   
-* The simpler to start is to download the following capability file example on your local machine: [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml).
+* The simpler to start is to download the following capability file example on your local machine: [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha3/src/main/resources/tutorial/step-1-shipyard-first-capability.yml).
 
 * Advanced usage\
 You can use more complex capability files from [Tutorial - Part 1](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-1) and [Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-2), and then move to the comprehensive [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules). This file must be a YAML file (yaml and yml extensions are supported).
@@ -47,7 +47,7 @@ You can use more complex capability files from [Tutorial - Part 1](https://githu
       ```
 
 ### Run Ikanos Engine as a Docker container
-Let's assume you downloaded [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha1/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) in your downloads folder. Then you should run:
+Let's assume you downloaded [step-1-shipyard-first-capability.yml](https://raw.githubusercontent.com/Ikanos/ikanos/refs/tags/v1.0.0-alpha3/src/main/resources/tutorial/step-1-shipyard-first-capability.yml) in your downloads folder. Then you should run:
 ```bash
 # For Linux and Mac
 docker run -p 8081:3001 -v ~/Downloads/step-1-shipyard-first-capability.yml:/app/test.capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} serve /app/test.capability.yaml

@@ -9,14 +9,14 @@ COPY ikanos-cli ./ikanos-cli
 COPY ikanos-docs ./ikanos-docs
 # Build the jar
 RUN mvn clean package -DskipTests
+
+# Stage 2: Create the runtime image
+FROM eclipse-temurin:21-jre-alpine
 LABEL org.opencontainers.image.title="Ikanos" \
       org.opencontainers.image.description="Ikanos capability engine." \
       org.opencontainers.image.url="https://github.com/naftiko/ikanos" \
       org.opencontainers.image.source="https://github.com/naftiko/ikanos" \
       org.opencontainers.image.licenses="Apache-2.0"
-
-# Stage 2: Create the runtime image
-FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Copy the built jar from the build stage
