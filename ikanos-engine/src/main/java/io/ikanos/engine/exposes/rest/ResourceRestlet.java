@@ -24,7 +24,7 @@ import io.ikanos.engine.aggregates.AggregateFunction;
 import io.ikanos.engine.aggregates.FunctionResult;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
-import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Converter;
@@ -36,14 +36,12 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-import io.opentelemetry.context.propagation.TextMapGetter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.annotation.Nonnull;
 
 /**
  * Restlet that handles calls to an API resource
@@ -67,10 +65,8 @@ public class ResourceRestlet extends Restlet {
     public void handle(Request request, Response response) {
         // Extract W3C traceparent from inbound headers
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
-                telemetry.getOpenTelemetry()
-                        .getPropagators().getTextMapPropagator()
-                .extract(currentTelemetryContext(), request, restletHeaderGetter()));
+        io.opentelemetry.context.Context extractedContext =
+                OtelRestletBridge.extractContext(request);
 
         String operationId = resourceSpec.getPath() + " " + request.getMethod().getName();
         String capabilityName = capability.getSpec().getInfo() != null
@@ -107,16 +103,6 @@ public class ResourceRestlet extends Restlet {
             telemetry.getMetrics().recordRequest("rest", operationId, status, durationSec);
             TelemetryBootstrap.endSpan(span);
         }
-    }
-
-    @Nonnull
-    private io.opentelemetry.context.Context currentTelemetryContext() {
-        return java.util.Objects.requireNonNull(io.opentelemetry.context.Context.current());
-    }
-
-    @Nonnull
-    private TextMapGetter<Request> restletHeaderGetter() {
-        return java.util.Objects.requireNonNull(RestletHeaderGetter.INSTANCE);
     }
 
     /**

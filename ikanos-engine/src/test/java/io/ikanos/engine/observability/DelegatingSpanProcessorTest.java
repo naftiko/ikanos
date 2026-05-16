@@ -13,26 +13,26 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
 import static org.junit.jupiter.api.Assertions.*;
+
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
-import javax.annotation.Nonnull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Unit tests for {@link DelegatingSpanProcessor}.
  */
 class DelegatingSpanProcessorTest {
 
-    private final InMemorySpanExporter exporter = Objects.requireNonNull(InMemorySpanExporter.create());
+    private final InMemorySpanExporter exporter = nonNull(InMemorySpanExporter.create());
 
     @AfterEach
     void tearDown() {
@@ -45,10 +45,9 @@ class DelegatingSpanProcessorTest {
             assertNull(processor.getDelegate());
 
             // Build an SDK with this processor and emit a span
-            SdkTracerProvider tracerProvider = Objects.requireNonNull(
-                    SdkTracerProvider.builder()
-                            .addSpanProcessor(processor)
-                            .build());
+            SdkTracerProvider tracerProvider = nonNull(SdkTracerProvider.builder()
+                    .addSpanProcessor(processor)
+                    .build());
             OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                     .setTracerProvider(tracerProvider)
                     .build();
@@ -64,12 +63,11 @@ class DelegatingSpanProcessorTest {
     @Test
     void onEndShouldForwardToDelegateWhenSet() {
         try (DelegatingSpanProcessor processor = new DelegatingSpanProcessor()) {
-            processor.setDelegate(spanProcessor());
+            processor.setDelegate(SimpleSpanProcessor.create(exporter));
 
-            SdkTracerProvider tracerProvider = Objects.requireNonNull(
-                    SdkTracerProvider.builder()
-                            .addSpanProcessor(processor)
-                            .build());
+            SdkTracerProvider tracerProvider = nonNull(SdkTracerProvider.builder()
+                    .addSpanProcessor(processor)
+                    .build());
             OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                     .setTracerProvider(tracerProvider)
                     .build();
@@ -86,10 +84,9 @@ class DelegatingSpanProcessorTest {
     @Test
     void setDelegateShouldWireLateProcessor() {
         try (DelegatingSpanProcessor processor = new DelegatingSpanProcessor()) {
-            SdkTracerProvider tracerProvider = Objects.requireNonNull(
-                    SdkTracerProvider.builder()
-                            .addSpanProcessor(processor)
-                            .build());
+            SdkTracerProvider tracerProvider = nonNull(SdkTracerProvider.builder()
+                    .addSpanProcessor(processor)
+                    .build());
             OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                     .setTracerProvider(tracerProvider)
                     .build();
@@ -100,7 +97,7 @@ class DelegatingSpanProcessorTest {
             assertTrue(exporter.getFinishedSpanItems().isEmpty());
 
             // Now set the delegate
-            processor.setDelegate(spanProcessor());
+            processor.setDelegate(SimpleSpanProcessor.create(exporter));
 
             // Emit a span after delegate is set — it should be captured
             Span lateSpan = sdk.getTracer("test").spanBuilder("late-span").startSpan();
@@ -110,16 +107,6 @@ class DelegatingSpanProcessorTest {
             assertEquals(1, spans.size());
             assertEquals("late-span", spans.get(0).getName());
         }
-    }
-
-    @Nonnull
-    private io.opentelemetry.sdk.trace.SpanProcessor spanProcessor() {
-        return Objects.requireNonNull(SimpleSpanProcessor.create(spanExporter()));
-    }
-
-    @Nonnull
-    private io.opentelemetry.sdk.trace.export.SpanExporter spanExporter() {
-        return Objects.requireNonNull(exporter);
     }
 
     @Test
