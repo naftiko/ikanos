@@ -24,7 +24,7 @@ import org.restlet.resource.Delete;
 import org.restlet.resource.Get;
 import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
-import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
@@ -51,19 +51,14 @@ public class McpServerResource extends ServerResource {
     private static final String HEADER_MCP_SESSION_ID = "Mcp-Session-Id";
 
     @Post("json")
-    @SuppressWarnings("null") // OTel SDK interop
     public Representation handlePost(Representation entity) {
         ProtocolDispatcher dispatcher = getDispatcher();
         ObjectMapper mapper = dispatcher.getMapper();
 
         // Extract W3C trace context from incoming HTTP headers so downstream
         // spans (tools/call) are linked to the caller's trace.
-        TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
-                telemetry.getOpenTelemetry()
-                        .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                                RestletHeaderGetter.INSTANCE));
+        io.opentelemetry.context.Context extractedContext =
+                OtelRestletBridge.extractContext(getRequest());
 
         try (Scope ignored = extractedContext.makeCurrent()) {
             return dispatchWithTraceContext(dispatcher, mapper, entity, extractedContext);

@@ -20,13 +20,14 @@ import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;
 import org.restlet.resource.ServerResource;
 import org.restlet.service.MetadataService;
-import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.SafePathResolver;
 import io.ikanos.spec.exposes.skill.ExposedSkillSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import javax.annotation.Nonnull;
 
 /**
  * Abstract base for all skill server handler resources.
@@ -47,14 +48,10 @@ abstract class SkillServerResource extends ServerResource {
     }
 
     @Override
-    @SuppressWarnings("null") // OTel SDK interop
     public Representation handle() {
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
-                telemetry.getOpenTelemetry()
-                        .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), getRequest(),
-                                RestletHeaderGetter.INSTANCE));
+        io.opentelemetry.context.Context extractedContext =
+                OtelRestletBridge.extractContext(getRequest());
 
         String operationId = getRequest().getResourceRef() != null
                 ? getRequest().getResourceRef().getPath() : "unknown";

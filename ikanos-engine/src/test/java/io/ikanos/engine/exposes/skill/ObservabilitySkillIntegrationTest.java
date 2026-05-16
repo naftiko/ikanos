@@ -13,18 +13,17 @@
  */
 package io.ikanos.engine.exposes.skill;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.Capability;
+import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
-import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.ikanos.spec.IkanosSpec;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,7 +43,6 @@ import java.util.List;
  * Integration tests verifying that Skill adapter requests produce the expected OTel server spans,
  * including W3C traceparent extraction.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ObservabilitySkillIntegrationTest {
 
     private static final int SKILL_PORT = 9098;
@@ -56,13 +54,10 @@ public class ObservabilitySkillIntegrationTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        tracerProvider = SdkTracerProvider.builder()
-                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                .build();
+        tracerProvider = OtelTestFixtures.tracerProvider(exporter);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
-                .setPropagators(ContextPropagators.create(
-                        W3CTraceContextPropagator.getInstance()))
+                .setPropagators(OtelTestFixtures.w3cPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
 
@@ -124,9 +119,9 @@ public class ObservabilitySkillIntegrationTest {
 
         assertEquals(SpanKind.SERVER, serverSpan.getKind());
         assertEquals("skill",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("GET",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
     }
 
     @Test

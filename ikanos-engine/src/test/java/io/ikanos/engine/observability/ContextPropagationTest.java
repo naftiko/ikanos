@@ -13,17 +13,15 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
 import static org.junit.jupiter.api.Assertions.*;
+
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +32,6 @@ import org.restlet.data.Method;
  * Integration tests for W3C trace context propagation round-trip:
  * extract from inbound headers → create child span → inject into outbound headers.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ContextPropagationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -43,11 +40,8 @@ public class ContextPropagationTest {
     @BeforeEach
     void setUp() {
         sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder()
-                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                        .build())
-                .setPropagators(ContextPropagators.create(
-                        W3CTraceContextPropagator.getInstance()))
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
+                .setPropagators(OtelTestFixtures.w3cPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
     }
@@ -65,12 +59,13 @@ public class ContextPropagationTest {
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
 
         Context extracted = sdk.getPropagators().getTextMapPropagator()
-                .extract(Context.current(), inboundRequest, RestletHeaderGetter.INSTANCE);
+                .extract(OtelRestletBridge.currentContext(), inboundRequest,
+                        OtelRestletBridge.headerGetter());
 
         Span serverSpan = sdk.getTracer("test")
                 .spanBuilder("test.request")
                 .setSpanKind(SpanKind.SERVER)
-                .setParent(extracted)
+                .setParent(nonNull(extracted))
                 .startSpan();
         serverSpan.end();
 
@@ -90,7 +85,8 @@ public class ContextPropagationTest {
 
         try (var scope = serverSpan.makeCurrent()) {
             sdk.getPropagators().getTextMapPropagator()
-                    .inject(Context.current(), outboundRequest, RestletHeaderSetter.INSTANCE);
+                    .inject(OtelRestletBridge.currentContext(), outboundRequest,
+                            OtelRestletBridge.headerSetter());
         }
         serverSpan.end();
 
@@ -116,20 +112,22 @@ public class ContextPropagationTest {
                 "00-abcdef0123456789abcdef0123456789-fedcba9876543210-01");
 
         Context extracted = sdk.getPropagators().getTextMapPropagator()
-                .extract(Context.current(), inboundRequest, RestletHeaderGetter.INSTANCE);
+                .extract(OtelRestletBridge.currentContext(), inboundRequest,
+                        OtelRestletBridge.headerGetter());
 
         // 2. Create a server span parented to the extracted context
         Span serverSpan = sdk.getTracer("test")
                 .spanBuilder("server.request")
                 .setSpanKind(SpanKind.SERVER)
-                .setParent(extracted)
+                .setParent(nonNull(extracted))
                 .startSpan();
 
         // 3. Inside the server span scope, inject context into an outbound request
         Request outboundRequest = new Request(Method.POST, "http://api.example.com/action");
         try (var scope = serverSpan.makeCurrent()) {
             sdk.getPropagators().getTextMapPropagator()
-                    .inject(Context.current(), outboundRequest, RestletHeaderSetter.INSTANCE);
+                    .inject(OtelRestletBridge.currentContext(), outboundRequest,
+                            OtelRestletBridge.headerSetter());
         }
         serverSpan.end();
 

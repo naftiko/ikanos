@@ -13,17 +13,17 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
+import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -41,7 +41,6 @@ import java.util.Map;
  * Integration tests verifying that MCP tool calls produce the expected OTel span hierarchy.
  * Uses an aggregate-based mock capability so no real HTTP calls are needed.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ObservabilityMcpIntegrationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -50,9 +49,7 @@ public class ObservabilityMcpIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder()
-                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                        .build())
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
                 .build();
         TelemetryBootstrap.init(sdk);
 
@@ -93,9 +90,9 @@ public class ObservabilityMcpIntegrationTest {
 
         assertEquals(SpanKind.INTERNAL, toolSpan.getKind());
         assertEquals("mcp",
-                toolSpan.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+                stringAttribute(toolSpan.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("get-forecast",
-                toolSpan.getAttributes().get(TelemetryBootstrap.ATTR_OPERATION_ID));
+                stringAttribute(toolSpan.getAttributes(), TelemetryBootstrap.ATTR_OPERATION_ID));
     }
 
     @Test
@@ -118,7 +115,7 @@ public class ObservabilityMcpIntegrationTest {
 
         assertEquals(SpanKind.INTERNAL, aggregateSpan.getKind());
         assertEquals("forecast.get-forecast",
-                aggregateSpan.getAttributes().get(TelemetryBootstrap.ATTR_AGGREGATE_REF));
+                stringAttribute(aggregateSpan.getAttributes(), TelemetryBootstrap.ATTR_AGGREGATE_REF));
 
         // Aggregate span should be a child of the tool handler span
         SpanData toolSpan = spans.stream()

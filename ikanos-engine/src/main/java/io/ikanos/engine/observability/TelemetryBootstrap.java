@@ -13,6 +13,11 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullLongKey;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullStringKey;
+import static io.ikanos.engine.observability.OtelNullSafety.stringKey;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
@@ -37,7 +42,6 @@ import java.util.logging.Logger;
  *
  * <p>Provides a singleton {@link Tracer} for span creation across the engine.</p>
  */
-@SuppressWarnings("null") // OTel SDK AttributeKey constants lack @Nonnull — safe at this boundary
 public class TelemetryBootstrap {
 
     static final String INSTRUMENTATION_NAME = "io.ikanos.engine";
@@ -153,7 +157,8 @@ public class TelemetryBootstrap {
         OpenTelemetry otel = builder
                 .addResourceCustomizer((resource, config) ->
                         resource.merge(io.opentelemetry.sdk.resources.Resource.create(
-                                Attributes.of(AttributeKey.stringKey("service.name"), serviceName))))
+                                nonNull(Attributes.of(stringKey("service.name"),
+                                        nonNull(serviceName))))))
                 .addMeterProviderCustomizer((meterProviderBuilder, config) ->
                         meterProviderBuilder.registerMetricReader(pullReader))
                 .addTracerProviderCustomizer((tracerProviderBuilder, config) ->
@@ -269,7 +274,6 @@ public class TelemetryBootstrap {
     }
 
     /**
-    /**
      * Register a {@link io.opentelemetry.sdk.trace.SpanProcessor} to receive completed spans.
      *
      * <p>Used by the control adapter to wire the {@code TraceCapturingSpanProcessor} after
@@ -287,11 +291,12 @@ public class TelemetryBootstrap {
      */
     public Span startServerSpan(String adapterType, String operationId) {
         if (!enabled) return Span.getInvalid();
-        return tracer.spanBuilder(adapterType + ".request")
-                .setSpanKind(SpanKind.SERVER)
-                .setAttribute(ATTR_ADAPTER_TYPE, adapterType)
-                .setAttribute(ATTR_OPERATION_ID, operationId != null ? operationId : "unknown")
-                .startSpan();
+        SpanBuilder builder = tracer.spanBuilder(adapterType + ".request")
+            .setSpanKind(SpanKind.SERVER);
+        setStringAttribute(builder, ATTR_ADAPTER_TYPE, adapterType);
+        setStringAttribute(builder, ATTR_OPERATION_ID,
+            operationId != null ? operationId : "unknown");
+        return builder.startSpan();
     }
 
     /**
@@ -311,17 +316,18 @@ public class TelemetryBootstrap {
                 && Span.fromContext(parentContext).getSpanContext().isRemote();
         SpanKind kind = hasRemoteParent ? SpanKind.INTERNAL : SpanKind.SERVER;
         SpanBuilder builder = tracer.spanBuilder(adapterType + ".request")
-                .setSpanKind(kind)
-                .setAttribute(ATTR_ADAPTER_TYPE, adapterType)
-                .setAttribute(ATTR_OPERATION_ID, operationId != null ? operationId : "unknown");
+                .setSpanKind(kind);
+        setStringAttribute(builder, ATTR_ADAPTER_TYPE, adapterType);
+        setStringAttribute(builder, ATTR_OPERATION_ID,
+                operationId != null ? operationId : "unknown");
         if (parentContext != null) {
             builder.setParent(parentContext);
         }
         if (httpMethod != null) {
-            builder.setAttribute(ATTR_HTTP_METHOD, httpMethod);
+            setStringAttribute(builder, ATTR_HTTP_METHOD, httpMethod);
         }
         if (capabilityName != null) {
-            builder.setAttribute(ATTR_CAPABILITY, capabilityName);
+            setStringAttribute(builder, ATTR_CAPABILITY, capabilityName);
         }
         return builder.startSpan();
     }
@@ -332,11 +338,11 @@ public class TelemetryBootstrap {
     public Span startStepCallSpan(int stepIndex, String call, String namespace) {
         if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("step.call")
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(ATTR_STEP_INDEX, stepIndex)
-                .setAttribute(ATTR_STEP_CALL, call != null ? call : "unknown");
+                .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_CALL, call != null ? call : "unknown");
         if (namespace != null) {
-            builder.setAttribute(ATTR_NAMESPACE, namespace);
+            setStringAttribute(builder, ATTR_NAMESPACE, namespace);
         }
         return builder.startSpan();
     }
@@ -346,11 +352,11 @@ public class TelemetryBootstrap {
      */
     public Span startStepLookupSpan(int stepIndex, String match) {
         if (!enabled) return Span.getInvalid();
-        return tracer.spanBuilder("step.lookup")
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(ATTR_STEP_INDEX, stepIndex)
-                .setAttribute(ATTR_STEP_MATCH, match != null ? match : "unknown")
-                .startSpan();
+        SpanBuilder builder = tracer.spanBuilder("step.lookup")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_MATCH, match != null ? match : "unknown");
+        return builder.startSpan();
     }
 
     /**
@@ -358,12 +364,13 @@ public class TelemetryBootstrap {
      */
     public Span startStepScriptSpan(int stepIndex, String file, String language) {
         if (!enabled) return Span.getInvalid();
-        return tracer.spanBuilder("step.script")
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(ATTR_STEP_INDEX, stepIndex)
-                .setAttribute(ATTR_STEP_SCRIPT_FILE, file != null ? file : "unknown")
-                .setAttribute(ATTR_STEP_SCRIPT_LANGUAGE, language != null ? language : "unknown")
-                .startSpan();
+        SpanBuilder builder = tracer.spanBuilder("step.script")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_SCRIPT_FILE, file != null ? file : "unknown");
+        setStringAttribute(builder, ATTR_STEP_SCRIPT_LANGUAGE,
+            language != null ? language : "unknown");
+        return builder.startSpan();
     }
 
     /**
@@ -371,10 +378,10 @@ public class TelemetryBootstrap {
      */
     public Span startAggregateFunctionSpan(String ref) {
         if (!enabled) return Span.getInvalid();
-        return tracer.spanBuilder("aggregate.function")
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(ATTR_AGGREGATE_REF, ref != null ? ref : "unknown")
-                .startSpan();
+        SpanBuilder builder = tracer.spanBuilder("aggregate.function")
+            .setSpanKind(SpanKind.INTERNAL);
+        setStringAttribute(builder, ATTR_AGGREGATE_REF, ref != null ? ref : "unknown");
+        return builder.startSpan();
     }
 
     /**
@@ -385,11 +392,11 @@ public class TelemetryBootstrap {
      */
     public Span startToolHandlerSpan(String toolName) {
         if (!enabled) return Span.getInvalid();
-        return tracer.spanBuilder("mcp.tool")
-                .setSpanKind(SpanKind.INTERNAL)
-                .setAttribute(ATTR_ADAPTER_TYPE, "mcp")
-                .setAttribute(ATTR_OPERATION_ID, toolName != null ? toolName : "unknown")
-                .startSpan();
+        SpanBuilder builder = tracer.spanBuilder("mcp.tool")
+            .setSpanKind(SpanKind.INTERNAL);
+        setStringAttribute(builder, ATTR_ADAPTER_TYPE, "mcp");
+        setStringAttribute(builder, ATTR_OPERATION_ID, toolName != null ? toolName : "unknown");
+        return builder.startSpan();
     }
 
     /**
@@ -398,13 +405,22 @@ public class TelemetryBootstrap {
     public Span startClientSpan(String method, String url, String namespace) {
         if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("http.client." + (method != null ? method : "UNKNOWN"))
-                .setSpanKind(SpanKind.CLIENT)
-                .setAttribute(ATTR_HTTP_METHOD, method != null ? method : "UNKNOWN")
-                .setAttribute(ATTR_HTTP_URL, url != null ? url : "unknown");
+                .setSpanKind(SpanKind.CLIENT);
+        setStringAttribute(builder, ATTR_HTTP_METHOD, method != null ? method : "UNKNOWN");
+        setStringAttribute(builder, ATTR_HTTP_URL, url != null ? url : "unknown");
         if (namespace != null) {
-            builder.setAttribute(ATTR_NAMESPACE, namespace);
+            setStringAttribute(builder, ATTR_NAMESPACE, namespace);
         }
         return builder.startSpan();
+    }
+
+    private static void setStringAttribute(SpanBuilder builder, AttributeKey<String> key,
+            String value) {
+        builder.setAttribute(nonNullStringKey(key), nonNull(value));
+    }
+
+    private static void setLongAttribute(SpanBuilder builder, AttributeKey<Long> key, long value) {
+        builder.setAttribute(nonNullLongKey(key), value);
     }
 
     /**
@@ -413,7 +429,9 @@ public class TelemetryBootstrap {
     public static void recordError(Span span, Throwable error) {
         if (span != null && error != null) {
             span.recordException(error);
-            span.setStatus(StatusCode.ERROR, error.getMessage());
+            String message = error.getMessage();
+            span.setStatus(StatusCode.ERROR,
+                    nonNull(message != null ? message : error.getClass().getName()));
         }
     }
 

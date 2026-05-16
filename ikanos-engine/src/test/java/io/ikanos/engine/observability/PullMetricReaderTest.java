@@ -31,7 +31,6 @@ import java.util.Collection;
  * Unit tests for {@link PullMetricReader} — verifies pull-based metric collection for
  * the Prometheus scrape endpoint.
  */
-@SuppressWarnings("null")
 class PullMetricReaderTest {
 
     @Test
@@ -56,9 +55,7 @@ class PullMetricReaderTest {
     @Test
     void collectAllMetricsShouldReturnDataAfterRegistration() throws IOException {
         try (PullMetricReader reader = new PullMetricReader()) {
-            SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                    .registerMetricReader(reader)
-                    .build();
+            SdkMeterProvider meterProvider = OtelTestFixtures.meterProvider(reader);
             OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                     .setMeterProvider(meterProvider)
                     .build();

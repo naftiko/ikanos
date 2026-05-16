@@ -48,7 +48,6 @@ public class TraceCapturingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    @SuppressWarnings("null")
     public void onStart(Context parentContext, ReadWriteSpan span) {
         // No action on start
     }
@@ -59,7 +58,6 @@ public class TraceCapturingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    @SuppressWarnings("null")
     public void onEnd(ReadableSpan span) {
         SpanData data = span.toSpanData();
         String traceId = data.getTraceId();

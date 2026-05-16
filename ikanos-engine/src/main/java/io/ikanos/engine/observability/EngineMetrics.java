@@ -13,6 +13,11 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullLongKey;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullStringKey;
+import static io.ikanos.engine.observability.OtelNullSafety.stringKey;
+
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
@@ -25,8 +30,10 @@ import io.opentelemetry.api.metrics.Meter;
  * <p>Instruments are created once during {@link TelemetryBootstrap} initialization and shared
  * across the engine. When the OTel SDK is absent (noop mode), all recording calls are zero-cost
  * no-ops.</p>
+ *
+ * <p>Null-safety with the OTel SDK is delegated to {@link OtelNullSafety} — see that class for
+ * the rationale.</p>
  */
-@SuppressWarnings("null")
 public class EngineMetrics {
 
     private final boolean enabled;
@@ -77,10 +84,10 @@ public class EngineMetrics {
      */
     public void recordRequest(String adapter, String operation, String status, double durationSec) {
         if (!enabled) return;
-        Attributes attrs = Attributes.of(
-                TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
-                TelemetryBootstrap.ATTR_OPERATION_ID, operation,
-                io.opentelemetry.api.common.AttributeKey.stringKey("status"), status);
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNull(adapter),
+                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNull(operation),
+                stringKey("status"), nonNull(status)));
         requestTotal.add(1, attrs);
         requestDuration.record(durationSec, attrs);
     }
@@ -90,10 +97,10 @@ public class EngineMetrics {
      */
     public void recordRequestError(String adapter, String operation, String errorType) {
         if (!enabled) return;
-        Attributes attrs = Attributes.of(
-                TelemetryBootstrap.ATTR_ADAPTER_TYPE, adapter,
-                TelemetryBootstrap.ATTR_OPERATION_ID, operation,
-                io.opentelemetry.api.common.AttributeKey.stringKey("error.type"), errorType);
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNull(adapter),
+                nonNullStringKey(TelemetryBootstrap.ATTR_OPERATION_ID), nonNull(operation),
+                stringKey("error.type"), nonNull(errorType)));
         requestErrors.add(1, attrs);
     }
 
@@ -102,9 +109,10 @@ public class EngineMetrics {
      */
     public void recordStep(String stepType, String namespace, double durationSec) {
         if (!enabled) return;
-        Attributes attrs = Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("step.type"), stepType,
-                TelemetryBootstrap.ATTR_NAMESPACE, namespace != null ? namespace : "unknown");
+        Attributes attrs = nonNull(Attributes.of(
+                stringKey("step.type"), nonNull(stepType),
+                nonNullStringKey(TelemetryBootstrap.ATTR_NAMESPACE),
+                nonNull(namespace != null ? namespace : "unknown")));
         stepDuration.record(durationSec, attrs);
     }
 
@@ -120,15 +128,15 @@ public class EngineMetrics {
             double durationSec) {
         if (!enabled) return;
         var builder = Attributes.builder()
-                .put(TelemetryBootstrap.ATTR_HTTP_METHOD, method)
-                .put(io.opentelemetry.api.common.AttributeKey.stringKey("server.address"), host);
+                .put(nonNullStringKey(TelemetryBootstrap.ATTR_HTTP_METHOD), nonNull(method))
+                .put(stringKey("server.address"), nonNull(host));
         if (statusCode > 0) {
-            builder.put(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE, (long) statusCode);
+            builder.put(nonNullLongKey(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE),
+                    (long) statusCode);
         } else {
-            builder.put(io.opentelemetry.api.common.AttributeKey.stringKey("error.type"),
-                    "transport");
+            builder.put(stringKey("error.type"), nonNull("transport"));
         }
-        Attributes attrs = builder.build();
+        Attributes attrs = nonNull(builder.build());
         httpClientTotal.add(1, attrs);
         httpClientDuration.record(durationSec, attrs);
     }
@@ -138,8 +146,9 @@ public class EngineMetrics {
      */
     public void capabilityStarted(String capabilityName) {
         if (!enabled) return;
-        Attributes attrs = Attributes.of(
-                TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_CAPABILITY),
+                nonNull(capabilityName)));
         capabilityActive.add(1, attrs);
     }
 
@@ -148,8 +157,9 @@ public class EngineMetrics {
      */
     public void capabilityStopped(String capabilityName) {
         if (!enabled) return;
-        Attributes attrs = Attributes.of(
-                TelemetryBootstrap.ATTR_CAPABILITY, capabilityName);
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_CAPABILITY),
+                nonNull(capabilityName)));
         capabilityActive.add(-1, attrs);
     }
 }

@@ -13,18 +13,16 @@
  */
 package io.ikanos.engine.exposes.rest;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.Capability;
+import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
-import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -45,7 +43,6 @@ import java.util.List;
  * Integration tests verifying that REST adapter requests produce the expected OTel span hierarchy,
  * including W3C traceparent extraction.
  */
-@SuppressWarnings("null") // OTel SDK types lack @Nonnull annotations
 public class ObservabilityRestIntegrationTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
@@ -54,11 +51,8 @@ public class ObservabilityRestIntegrationTest {
     @BeforeEach
     void setUp() {
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder()
-                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-                        .build())
-                .setPropagators(ContextPropagators.create(
-                        W3CTraceContextPropagator.getInstance()))
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
+                .setPropagators(OtelTestFixtures.w3cPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
         schemaVersion = VersionHelper.getSchemaVersion();
@@ -117,10 +111,10 @@ public class ObservabilityRestIntegrationTest {
         assertEquals("rest.request", serverSpan.getName());
         assertEquals(SpanKind.SERVER, serverSpan.getKind());
         assertEquals("rest",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE));
         assertEquals("GET",
-                serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_METHOD));
-        assertNotNull(serverSpan.getAttributes().get(TelemetryBootstrap.ATTR_OPERATION_ID));
+                stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_HTTP_METHOD));
+        assertNotNull(stringAttribute(serverSpan.getAttributes(), TelemetryBootstrap.ATTR_OPERATION_ID));
     }
 
     @Test

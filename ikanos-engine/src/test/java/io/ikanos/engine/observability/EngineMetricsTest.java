@@ -13,7 +13,11 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.longAttribute;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringKey;
 import static org.junit.jupiter.api.Assertions.*;
+
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -29,7 +33,6 @@ import java.util.Collection;
  * request counters, duration histograms, step metrics, HTTP client metrics, and capability
  * active gauge.
  */
-@SuppressWarnings("null")
 class EngineMetricsTest {
 
     private InMemoryMetricReader metricReader;
@@ -38,9 +41,7 @@ class EngineMetricsTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                .registerMetricReader(metricReader)
-                .build();
+        SdkMeterProvider meterProvider = OtelTestFixtures.meterProvider(metricReader);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -121,8 +122,8 @@ class EngineMetricsTest {
         assertNotNull(requestTotal, "Should find ikanos.request.total metric");
 
         boolean hasAdapterLabel = requestTotal.getLongSumData().getPoints().stream()
-                .anyMatch(p -> "rest".equals(
-                        p.getAttributes().get(TelemetryBootstrap.ATTR_ADAPTER_TYPE)));
+                .anyMatch(p -> "rest".equals(stringAttribute(
+                        p.getAttributes(), TelemetryBootstrap.ATTR_ADAPTER_TYPE)));
         assertTrue(hasAdapterLabel, "Counter should have adapter=rest attribute");
     }
 
@@ -136,7 +137,7 @@ class EngineMetricsTest {
 
         boolean hasStatusCode = total.getLongSumData().getPoints().stream()
                 .anyMatch(p -> Long.valueOf(500).equals(
-                        p.getAttributes().get(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE)));
+                        longAttribute(p.getAttributes(), TelemetryBootstrap.ATTR_HTTP_STATUS_CODE)));
         assertTrue(hasStatusCode, "Counter should have http.response.status_code=500 attribute");
     }
 
@@ -149,14 +150,14 @@ class EngineMetricsTest {
         assertNotNull(total, "Should find ikanos.http.client.total metric");
 
         boolean hasErrorType = total.getLongSumData().getPoints().stream()
-                .anyMatch(p -> "transport".equals(p.getAttributes()
-                        .get(io.opentelemetry.api.common.AttributeKey.stringKey("error.type"))));
+                .anyMatch(p -> "transport".equals(stringAttribute(p.getAttributes(),
+                        stringKey("error.type"))));
         assertTrue(hasErrorType,
                 "Counter should have error.type=transport attribute for status code 0");
 
         boolean hasStatusCode = total.getLongSumData().getPoints().stream()
-                .anyMatch(p -> p.getAttributes()
-                        .get(TelemetryBootstrap.ATTR_HTTP_STATUS_CODE) != null);
+                .anyMatch(p -> longAttribute(p.getAttributes(),
+                        TelemetryBootstrap.ATTR_HTTP_STATUS_CODE) != null);
         assertFalse(hasStatusCode,
                 "Counter should NOT have http.response.status_code attribute for transport failure");
     }

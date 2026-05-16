@@ -13,8 +13,10 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelTestFixtures.attributes;
+import static io.ikanos.engine.observability.OtelTestFixtures.stringKey;
 import static org.junit.jupiter.api.Assertions.*;
-import io.opentelemetry.api.common.Attributes;
+
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongUpDownCounter;
@@ -33,7 +35,6 @@ import java.util.Collection;
  * Unit tests for {@link PrometheusTextSerializer} — verifies correct Prometheus exposition
  * format output for counters, gauges, and histograms.
  */
-@SuppressWarnings("null")
 class PrometheusTextSerializerTest {
 
     private InMemoryMetricReader metricReader;
@@ -42,9 +43,7 @@ class PrometheusTextSerializerTest {
     @BeforeEach
     void setUp() {
         metricReader = InMemoryMetricReader.create();
-        SdkMeterProvider meterProvider = SdkMeterProvider.builder()
-                .registerMetricReader(metricReader)
-                .build();
+        SdkMeterProvider meterProvider = OtelTestFixtures.meterProvider(metricReader);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setMeterProvider(meterProvider)
                 .build();
@@ -61,8 +60,7 @@ class PrometheusTextSerializerTest {
         LongCounter counter = meter.counterBuilder("ikanos.request.total")
                 .setDescription("Total requests")
                 .build();
-        counter.add(5, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("adapter"), "rest"));
+        counter.add(5, attributes(stringKey("adapter"), "rest"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -80,9 +78,7 @@ class PrometheusTextSerializerTest {
         LongUpDownCounter gauge = meter.upDownCounterBuilder("ikanos.capability.active")
                 .setDescription("Active capabilities")
                 .build();
-        gauge.add(1, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("capability.name"),
-                "weather"));
+        gauge.add(1, attributes(stringKey("capability.name"), "weather"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -99,8 +95,7 @@ class PrometheusTextSerializerTest {
                 .setDescription("Request duration in seconds")
                 .setUnit("s")
                 .build();
-        histogram.record(0.342, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("adapter"), "rest"));
+        histogram.record(0.342, attributes(stringKey("adapter"), "rest"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);
@@ -141,9 +136,7 @@ class PrometheusTextSerializerTest {
     void shouldEscapeLabelValues() {
         LongCounter counter = meter.counterBuilder("test.metric")
                 .build();
-        counter.add(1, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("path"),
-                "/api \"quoted\" path"));
+        counter.add(1, attributes(stringKey("path"), "/api \"quoted\" path"));
 
         Collection<MetricData> data = metricReader.collectAllMetrics();
         String text = PrometheusTextSerializer.serialize(data);

@@ -24,7 +24,7 @@ import io.ikanos.engine.aggregates.AggregateFunction;
 import io.ikanos.engine.aggregates.FunctionResult;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
-import io.ikanos.engine.observability.RestletHeaderGetter;
+import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Converter;
@@ -62,15 +62,11 @@ public class ResourceRestlet extends Restlet {
     }
 
     @Override
-    @SuppressWarnings("null") // OTel SDK interop
     public void handle(Request request, Response response) {
         // Extract W3C traceparent from inbound headers
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-        io.opentelemetry.context.Context extractedContext = java.util.Objects.requireNonNull(
-                telemetry.getOpenTelemetry()
-                        .getPropagators().getTextMapPropagator()
-                        .extract(io.opentelemetry.context.Context.current(), request,
-                                RestletHeaderGetter.INSTANCE));
+        io.opentelemetry.context.Context extractedContext =
+                OtelRestletBridge.extractContext(request);
 
         String operationId = resourceSpec.getPath() + " " + request.getMethod().getName();
         String capabilityName = capability.getSpec().getInfo() != null
