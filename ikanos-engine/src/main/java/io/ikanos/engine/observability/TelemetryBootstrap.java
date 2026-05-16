@@ -13,6 +13,11 @@
  */
 package io.ikanos.engine.observability;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullLongKey;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNullStringKey;
+import static io.ikanos.engine.observability.OtelNullSafety.stringKey;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
@@ -27,7 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
-import javax.annotation.Nonnull;
 
 /**
  * Bootstraps the OpenTelemetry SDK for the Naftiko engine.
@@ -153,7 +157,8 @@ public class TelemetryBootstrap {
         OpenTelemetry otel = builder
                 .addResourceCustomizer((resource, config) ->
                         resource.merge(io.opentelemetry.sdk.resources.Resource.create(
-                singleStringAttribute("service.name", nonNullString(serviceName)))))
+                                nonNull(Attributes.of(stringKey("service.name"),
+                                        nonNull(serviceName))))))
                 .addMeterProviderCustomizer((meterProviderBuilder, config) ->
                         meterProviderBuilder.registerMetricReader(pullReader))
                 .addTracerProviderCustomizer((tracerProviderBuilder, config) ->
@@ -268,7 +273,6 @@ public class TelemetryBootstrap {
         return PrometheusTextSerializer.serialize(reader.collectAllMetrics());
     }
 
-    /**
     /**
      * Register a {@link io.opentelemetry.sdk.trace.SpanProcessor} to receive completed spans.
      *
@@ -410,39 +414,13 @@ public class TelemetryBootstrap {
         return builder.startSpan();
     }
 
-    @Nonnull
-    private static Attributes singleStringAttribute(@Nonnull String keyName, @Nonnull String value) {
-        return java.util.Objects.requireNonNull(
-                Attributes.of(stringKey(keyName), nonNullString(value)));
-    }
-
     private static void setStringAttribute(SpanBuilder builder, AttributeKey<String> key,
             String value) {
-        builder.setAttribute(nonNullStringKey(key), nonNullString(value));
+        builder.setAttribute(nonNullStringKey(key), nonNull(value));
     }
 
     private static void setLongAttribute(SpanBuilder builder, AttributeKey<Long> key, long value) {
         builder.setAttribute(nonNullLongKey(key), value);
-    }
-
-    @Nonnull
-    private static AttributeKey<String> stringKey(@Nonnull String name) {
-        return java.util.Objects.requireNonNull(AttributeKey.stringKey(name));
-    }
-
-    @Nonnull
-    private static AttributeKey<String> nonNullStringKey(AttributeKey<String> key) {
-        return java.util.Objects.requireNonNull(key);
-    }
-
-    @Nonnull
-    private static AttributeKey<Long> nonNullLongKey(AttributeKey<Long> key) {
-        return java.util.Objects.requireNonNull(key);
-    }
-
-    @Nonnull
-    private static String nonNullString(String value) {
-        return java.util.Objects.requireNonNull(value);
     }
 
     /**
@@ -451,15 +429,10 @@ public class TelemetryBootstrap {
     public static void recordError(Span span, Throwable error) {
         if (span != null && error != null) {
             span.recordException(error);
-            span.setStatus(StatusCode.ERROR, errorStatusMessage(error));
+            String message = error.getMessage();
+            span.setStatus(StatusCode.ERROR,
+                    nonNull(message != null ? message : error.getClass().getName()));
         }
-    }
-
-    @Nonnull
-    private static String errorStatusMessage(Throwable error) {
-        String message = error.getMessage();
-        return java.util.Objects.requireNonNull(
-                message != null ? message : error.getClass().getName());
     }
 
     /**
