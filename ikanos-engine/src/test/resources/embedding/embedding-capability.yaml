@@ -29,10 +29,10 @@ capability:
             with:
               name: '{{name}}'
         outputParameters:
-        - name: message
-          type: string
+          message:
+            type: string
         mappings:
-        - targetName: message
+        - target: message
           value: $.do-greet.message
       compute:
         description: Compute two numbers
@@ -53,10 +53,10 @@ capability:
               a: '{{a}}'
               b: '{{b}}'
         outputParameters:
-        - name: result
-          type: number
+          result:
+            type: number
         mappings:
-        - targetName: result
+        - target: result
           value: $.add.result
   consumes:
   - type: http

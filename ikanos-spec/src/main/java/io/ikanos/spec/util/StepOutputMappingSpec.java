@@ -21,22 +21,22 @@ package io.ikanos.spec.util;
  */
 public class StepOutputMappingSpec {
 
-    private volatile String targetName;
+    private volatile String target;
     private volatile String value;
 
     public StepOutputMappingSpec() {}
 
-    public StepOutputMappingSpec(String targetName, String value) {
-        this.targetName = targetName;
+    public StepOutputMappingSpec(String target, String value) {
+        this.target = target;
         this.value = value;
     }
 
-    public String getTargetName() {
-        return targetName;
+    public String getTarget() {
+        return target;
     }
 
-    public void setTargetName(String targetName) {
-        this.targetName = targetName;
+    public void setTarget(String target) {
+        this.target = target;
     }
 
     public String getValue() {

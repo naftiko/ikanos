@@ -56,6 +56,7 @@ public class OperationSpec {
     private final AtomicReference<String> outputSchema = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonDeserialize(using = OutputParameterListOrMapDeserializer.class)
     private final List<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
 
     public OperationSpec() {
@@ -151,5 +152,11 @@ public class OperationSpec {
 
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
+    }
+
+    @JsonDeserialize(using = OutputParameterListOrMapDeserializer.class)
+    public void setOutputParameters(List<OutputParameterSpec> params) {
+        outputParameters.clear();
+        if (params != null) outputParameters.addAll(params);
     }
 }

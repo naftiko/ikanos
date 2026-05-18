@@ -417,11 +417,11 @@ The agent *could* call `list-crew`, cross-reference in its head, and answer. But
         - "fullName"
         - "role"
   mappings:
-    - targetName: imo
+    - target: imo
       value: "$.get-ship.imo_number"
-    - targetName: name
+    - target: name
       value: "$.get-ship.vessel_name"
-    - targetName: crew
+    - target: crew
       value: "$.resolve-crew"
 ~~~
 

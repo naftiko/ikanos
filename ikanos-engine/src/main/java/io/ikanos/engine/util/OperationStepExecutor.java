@@ -707,7 +707,7 @@ public class OperationStepExecutor {
      *
      * <p>Each mapping references a step output via a {@code $.<step-name>.<field-path>}
      * expression. The resolved values are assembled into a single JSON object keyed by
-     * {@code targetName}.</p>
+     * {@code target}.</p>
      *
      * @param mappings    the list of step output mappings to apply
      * @param stepContext the execution context containing step outputs
@@ -724,7 +724,7 @@ public class OperationStepExecutor {
         for (StepOutputMappingSpec mapping : mappings) {
             JsonNode resolved = resolveJsonPathFromStepContext(mapping.getValue(), stepContext);
             if (resolved != null) {
-                setNestedField(result, mapping.getTargetName(), resolved);
+                setNestedField(result, mapping.getTarget(), resolved);
             }
         }
 
