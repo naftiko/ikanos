@@ -10,7 +10,7 @@ on:
 
 jobs:
   # This job is only executed when triggered (automatically or manually) from the 'main' branch.
-  sync-backstage-version:
+  sync-warden-version:
     runs-on: ubuntu-latest
     if: github.ref_name == 'main'
 
@@ -25,24 +25,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Checkout backstage
+      - name: Checkout warden
         uses: actions/checkout@v4
         with:
-          repository: naftiko/backstage
-          token: ${{ secrets.BACKSTAGE_CONTENTS_WRITE_PR_WRITE }}
-          path: backstage
+          repository: naftiko/warden
+          token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
+          path: warden
 
-      - name: Sync Ikanos version to backstage
+      - name: Sync Ikanos version to warden
         id: sync
         run: |
-          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-backstage.py \
+          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-warden.py \
             --pom ikanos/pom.xml \
-            --target backstage/templates/skeletons/capabilities)
+            --target warden/templates/skeletons/capabilities)
           echo "value=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Check for changes
         id: git-check
-        working-directory: backstage
+        working-directory: warden
         run: |
           if git diff --quiet; then
             echo "changes=false" >> $GITHUB_OUTPUT
@@ -54,8 +54,8 @@ jobs:
         if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.BACKSTAGE_CONTENTS_WRITE_PR_WRITE }}
-          path: backstage
+          token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
+          path: warden
           base: main
           branch: "chore/sync-ikanos-version"
           commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
@@ -64,14 +64,14 @@ jobs:
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `templates/skeletons/capabilities/*.naftiko.yml`
+            - `templates/skeletons/capabilities/*.ikanos.yml`
           delete-branch: true
 
   # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-vscode-version:
     runs-on: ubuntu-latest
     if: github.ref_name == 'main'
-    needs: sync-backstage-version
+    needs: sync-warden-version
 
     steps:
       - name: Checkout ikanos
