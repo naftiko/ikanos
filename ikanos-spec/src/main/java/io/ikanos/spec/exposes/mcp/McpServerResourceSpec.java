@@ -93,6 +93,7 @@ public class McpServerResourceSpec {
         return outputParameters;
     }
 
+    @JsonDeserialize(using = io.ikanos.spec.OutputParameterListOrMapDeserializer.class)
     public void setOutputParameters(List<OutputParameterSpec> params) {
         outputParameters.clear();
         if (params != null) outputParameters.addAll(params);

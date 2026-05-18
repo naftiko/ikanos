@@ -21,7 +21,7 @@ consumes:
             status:
               in: query
           outputParameters:
-            - name: imo-number
+            imo-number:
               type: string
               value: "$.imo_number"
     ship:

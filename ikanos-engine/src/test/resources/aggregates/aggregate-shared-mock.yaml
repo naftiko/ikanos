@@ -20,12 +20,12 @@ capability:
               type: string
               description: Name to greet
           outputParameters:
-          - name: message
-            type: string
-            value: Hello, {{name}}!
-          - name: source
-            type: string
-            value: aggregate-mock
+            message:
+              type: string
+              value: Hello, {{name}}!
+            source:
+              type: string
+              value: aggregate-mock
   exposes:
   - type: mcp
     address: localhost

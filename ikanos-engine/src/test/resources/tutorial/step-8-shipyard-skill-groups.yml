@@ -245,48 +245,48 @@ capability:
             - "fullName"
             - "role"
         mappings:
-        - targetName: imo
+        - target: imo
           value: "$.get-ship.imo_number"
-        - targetName: name
+        - target: name
           value: "$.get-ship.vessel_name"
-        - targetName: type
+        - target: type
           value: "$.get-ship.vessel_type"
-        - targetName: flag
+        - target: flag
           value: "$.get-ship.flag_code"
-        - targetName: status
+        - target: status
           value: "$.get-ship.operational_status"
-        - targetName: yearBuilt
+        - target: yearBuilt
           value: "$.get-ship.year_built"
-        - targetName: tonnage
+        - target: tonnage
           value: "$.get-ship.gross_tonnage"
-        - targetName: length
+        - target: length
           value: "$.get-ship.dimensions.length_overall"
-        - targetName: crew
+        - target: crew
           value: "$.resolve-crew"
         outputParameters:
-          - name: imo
+          imo:
             type: string
-          - name: name
+          name:
             type: string
-          - name: type
+          type:
             type: string
-          - name: flag
+          flag:
             type: string
-          - name: status
+          status:
             type: string
-          - name: yearBuilt
+          yearBuilt:
             type: number
-          - name: tonnage
+          tonnage:
             type: number
-          - name: length
+          length:
             type: number
-          - name: crew
+          crew:
             type: array
             items:
-            - name: fullName
-              type: string
-            - name: role
-              type: string
+              fullName:
+                type: string
+              role:
+                type: string
 
   - type: skill
     address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.

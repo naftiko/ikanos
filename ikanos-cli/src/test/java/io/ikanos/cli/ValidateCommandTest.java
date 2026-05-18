@@ -34,13 +34,15 @@ public class ValidateCommandTest {
     @TempDir
     Path tempDir;
 
-    private final PrintStream originalOut = System.out;
-    private final PrintStream originalErr = System.err;
+    private PrintStream originalOut;
+    private PrintStream originalErr;
     private ByteArrayOutputStream outCapture;
     private ByteArrayOutputStream errCapture;
 
     @BeforeEach
     void setUp() {
+        originalOut = System.out;
+        originalErr = System.err;
         outCapture = new ByteArrayOutputStream();
         errCapture = new ByteArrayOutputStream();
         System.setOut(new PrintStream(outCapture, true, StandardCharsets.UTF_8));

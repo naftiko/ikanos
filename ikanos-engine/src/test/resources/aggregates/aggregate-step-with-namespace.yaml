@@ -27,11 +27,11 @@ capability:
               with:
                 voyage-id: shipyard.voyage-id
           mappings:
-          - targetName: voyage-id
+          - target: voyage-id
             value: $.fetch-voyage.voyageId
           outputParameters:
-          - name: voyage-id
-            type: string
+            voyage-id:
+              type: string
   exposes:
   - type: mcp
     address: localhost

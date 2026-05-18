@@ -217,12 +217,8 @@
     },
     "ConsumedOutputParameter": {
       "type": "object",
-      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** — Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** — Extracted values are referenced by `name` in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** — For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
+      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** — Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** — Extracted values are referenced by their key in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** — For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the extracted value. Referenced by `name` in step mapping definitions (e.g. `$this.namespace.resource.operation.param-name`)."
-        },
         "type": {
           "type": "string",
           "description": "Expected type of the extracted value. Used for type-checking in step mappings.",
@@ -240,7 +236,6 @@
         }
       },
       "required": [
-        "name",
         "type",
         "value"
       ],
@@ -459,10 +454,6 @@
       "type": "object",
       "description": "Base for a named output parameter whose value is populated by step mappings during orchestration.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the output parameter. It will be used as a reference in the mapping definitions of the steps to indicate where to map values to."
-        },
         "type": {
           "type": "string",
           "enum": [
@@ -475,7 +466,6 @@
         }
       },
       "required": [
-        "name",
         "type"
       ]
     },
@@ -492,8 +482,7 @@
                 "number",
                 "boolean"
               ]
-            },
-            "name": true
+            }
           },
           "unevaluatedProperties": false
         }
@@ -509,13 +498,12 @@
             "type": {
               "const": "array"
             },
-            "name": true,
             "items": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               },
-              "minItems": 1
+              "minProperties": 1
             }
           },
           "required": [
@@ -535,7 +523,6 @@
             "type": {
               "const": "object"
             },
-            "name": true,
             "properties": {
               "type": "object",
               "additionalProperties": {
@@ -568,10 +555,6 @@
       "type": "object",
       "description": "Named output parameter with a static or template value for mock mode (no call or steps). The value field supports Mustache templates resolved against input parameters at runtime.",
       "properties": {
-        "name": {
-          "$ref": "#/$defs/IdentifierExtended",
-          "description": "Name of the output field in the returned payload."
-        },
         "type": {
           "type": "string",
           "enum": [
@@ -586,11 +569,10 @@
         }
       },
       "required": [
-        "name",
         "type",
         "value"
       ],
-      "additionalProperties": false
+      "unevaluatedProperties": false
     },
     "Hostname": {
       "type": "string",
@@ -845,9 +827,7 @@
             "$ref": "#/$defs/StepOutputMapping"
           }
         },
-        "outputParameters": {
-          "type": "array"
-        }
+        "outputParameters": true
       },
       "required": [
         "description"
@@ -875,8 +855,8 @@
           "properties": {
             "mappings": true,
             "outputParameters": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
@@ -889,11 +869,11 @@
           "type": "object",
           "properties": {
             "outputParameters": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/MockOutputParameter"
               },
-              "minItems": 1
+              "minProperties": 1
             }
           }
         }
@@ -1123,9 +1103,7 @@
         "hints": {
           "$ref": "#/$defs/McpToolHints"
         },
-        "outputParameters": {
-          "type": "array"
-        }
+        "outputParameters": true
       },
       "required": [],
       "anyOf": [
@@ -1153,8 +1131,8 @@
           "properties": {
             "mappings": true,
             "outputParameters": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
@@ -1173,11 +1151,11 @@
           "type": "object",
           "properties": {
             "outputParameters": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/MockOutputParameter"
               },
-              "minItems": 1
+              "minProperties": 1
             }
           }
         }
@@ -1287,7 +1265,10 @@
           }
         },
         "outputParameters": {
-          "type": "array"
+          "type": [
+            "array",
+            "object"
+          ]
         },
         "location": {
           "type": "string",
@@ -1329,8 +1310,8 @@
           "properties": {
             "mappings": true,
             "outputParameters": {
-              "type": "array",
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
@@ -1578,9 +1559,7 @@
         "with": {
           "$ref": "#/$defs/WithInjector"
         },
-        "outputParameters": {
-          "type": "array"
-        },
+        "outputParameters": true,
         "steps": {
           "type": "object",
           "propertyNames": {
@@ -1620,7 +1599,8 @@
           "properties": {
             "mappings": true,
             "outputParameters": {
-              "items": {
+              "type": "object",
+              "additionalProperties": {
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
@@ -1801,8 +1781,8 @@
           "description": "Format-specific schema or selector:\n- **avro / protobuf** — path to the schema file (required for these formats).\n- **html** — CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** — Heading prefix to filter sections (e.g. `## Results`).\n- Other formats — unused."
         },
         "outputParameters": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "additionalProperties": {
             "$ref": "#/$defs/ConsumedOutputParameter"
           }
         },
@@ -1966,7 +1946,7 @@
       "type": "object",
       "description": "Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation",
       "properties": {
-        "targetName": {
+        "target": {
           "type": "string",
           "pattern": "^[a-zA-Z0-9-_.]+$",
           "description": "The name of the parameter to map to. Supports dot-notation for nested objects (e.g. route.from). It can be an input parameter of a next step or an output parameter of the exposed operation"
@@ -1977,7 +1957,7 @@
         }
       },
       "required": [
-        "targetName",
+        "target",
         "value"
       ],
       "additionalProperties": false
