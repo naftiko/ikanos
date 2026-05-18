@@ -113,17 +113,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-
-          REPORTS_DIR="target/surefire-reports"
-
-          if [ ! -d "$REPORTS_DIR" ]; then
+          REPORTS=$(find . -path "*/target/surefire-reports/TEST-*.xml")
+          if [ -z "$REPORTS" ]; then
             echo "> No Surefire reports found." >> $GITHUB_STEP_SUMMARY
             exit 0
           fi
 
           TOTAL=0; FAILURES=0; ERRORS=0; SKIPPED=0
-
-          for f in "$REPORTS_DIR"/TEST-*.xml; do
+          while IFS= read -r f; do
             [ -f "$f" ] || continue
             read T FA ER SK < <(
               python3 -c "
@@ -139,10 +136,12 @@ jobs:
           )
           " "$f" 2>/dev/null
             )
-            TOTAL=$((TOTAL + T)); FAILURES=$((FAILURES + FA))
-            ERRORS=$((ERRORS + ER)); SKIPPED=$((SKIPPED + SK))
-          done
 
+            TOTAL=$((TOTAL + T))
+            FAILURES=$((FAILURES + FA))
+            ERRORS=$((ERRORS + ER))
+            SKIPPED=$((SKIPPED + SK))
+          done <<< "$REPORTS"
           PASSED=$((TOTAL - FAILURES - ERRORS - SKIPPED))
 
           echo "| Passed | Failed | Errors | Skipped | Total |"  >> $GITHUB_STEP_SUMMARY
@@ -162,7 +161,7 @@ jobs:
           import xml.etree.ElementTree as ET
           import os, glob
 
-          reports = glob.glob("target/surefire-reports/TEST-*.xml")
+          reports = glob.glob("**/target/surefire-reports/TEST-*.xml", recursive=True)
           found = 0
 
           for path in sorted(reports):
@@ -209,7 +208,7 @@ jobs:
       - name: Publish JaCoCo summary
         if: always()
         run: |
-          CSV="target/site/jacoco/jacoco.csv"
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           {
             echo ""
             echo "## JaCoCo Coverage"
@@ -237,7 +236,7 @@ jobs:
         if: always()
         with:
           name: jacoco-report
-          path: target/site/jacoco/
+          path: "ikanos-coverage/target/site/jacoco-aggregate/"
           retention-days: 14
 
       - name: Start SonarQube
@@ -273,9 +272,9 @@ jobs:
             -v "${{ github.workspace }}:/usr/src" \
             sonarsource/sonar-scanner-cli \
             -Dsonar.projectKey=io.naftiko:ikanos \
-            -Dsonar.sources=ikanos-engine/src/main/java \
-            -Dsonar.java.binaries=ikanos-engine/target/classes \
-            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-engine/target/site/jacoco/jacoco.xml \
+            -Dsonar.sources=ikanos-spec/src/main/java,ikanos-engine/src/main/java,ikanos-cli/src/main/java \
+            -Dsonar.java.binaries=ikanos-spec/target/classes,ikanos-engine/target/classes,ikanos-cli/target/classes \
+            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-coverage/target/site/jacoco-aggregate/jacoco.xml \
             -Dsonar.host.url=http://localhost:9000
 
       - name: Export + Publish SonarQube summary
@@ -466,7 +465,7 @@ jobs:
           source /tmp/trivy_metrics.env 2>/dev/null || true
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
 
-          CSV="target/site/jacoco/jacoco.csv"
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
 
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
@@ -500,7 +499,7 @@ jobs:
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
 
           # Load JaCoCo coverage
-          CSV="target/site/jacoco/jacoco.csv"
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
             COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
