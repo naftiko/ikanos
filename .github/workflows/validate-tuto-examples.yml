@@ -3,7 +3,13 @@ name: Validate Shipyard tutorial examples
 on:
   push:
     paths:
-      - 'src/main/**'
+      - 'ikanos-*/src/main/**'
+      - 'ikanos-*/pom.xml'
+      - 'pom.xml'
+  pull_request:
+    paths:
+      - 'ikanos-*/src/main/**'
+      - 'ikanos-*/pom.xml'
       - 'pom.xml'
   workflow_dispatch:
 
