@@ -20,8 +20,8 @@ capability:
             idempotent: true
           call: mock-api.get-items
           outputParameters:
-          - type: string
-            mapping: $.items
+            - type: string
+              mapping: $.items
         delete-item:
           description: Delete an item from the data store.
           semantics:

@@ -16,6 +16,7 @@ package io.ikanos.spec;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -225,6 +226,64 @@ public class OutputParameterDeserializationTest {
     assertEquals("userid", spec.getName());
     assertEquals("$.id", spec.getMapping(),
         "Consumed output parameter value should be routed to mapping");
+  }
+
+  @Test
+  public void testConsumedOutputParameterInKeyedMapForm() throws Exception {
+    String yamlSnippet = """
+        type: object
+        properties:
+          name:
+            type: string
+            value: "Hello, {{name}}!"
+        """;
+
+    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
+
+    assertEquals("object", spec.getType(), "Root type should be object");
+    OutputParameterSpec nameProp = spec.getProperties().stream()
+        .filter(p -> "name".equals(p.getName())).findFirst().orElse(null);
+    assertNotNull(nameProp, "Property 'name' should be present");
+    assertEquals("string", nameProp.getType(), "Type should be parsed");
+    assertEquals("Hello, {{name}}!", nameProp.getValue(),
+        "Named mock output should preserve static/template value");
+    assertNull(nameProp.getMapping(), "Named mock output should not be re-routed to mapping");
+  }
+
+  /**
+   * Regression: consumed output parameter in keyed-map form (name = map key, no 'name:' in node)
+   * must route value→mapping exactly like the array form with explicit 'name:'.
+   *
+   * This guards against the bug where OutputParameterDeserializer checked node.has("name") before
+   * routing value→mapping — which was false in keyed-map form, causing the JsonPath to stay in
+   * setValue() instead of setMapping(), breaking lookup resolution at runtime.
+   */
+  @Test
+  public void deserializeShouldRouteValueToMappingForConsumedOutputParameterInKeyedMapForm()
+      throws Exception {
+    String yamlSnippet = """
+        imo-number:
+          type: string
+          value: "$.imo_number"
+        """;
+
+    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    OutputParameterListOrMapDeserializer deserializer = new OutputParameterListOrMapDeserializer();
+    com.fasterxml.jackson.core.JsonParser p =
+        mapper.getFactory().createParser("{\n  \"imo-number\": {\"type\": \"string\", \"value\": \"$.imo_number\"}\n}");
+    p.nextToken();
+    List<OutputParameterSpec> params =
+        deserializer.deserialize(p, mapper.getDeserializationContext());
+
+    assertEquals(1, params.size());
+    OutputParameterSpec spec = params.get(0);
+    assertEquals("imo-number", spec.getName(),
+        "Name must be injected from map key");
+    assertEquals("$.imo_number", spec.getMapping(),
+        "value starting with '$' must be routed to mapping, not setValue()");
+    assertNull(spec.getValue(),
+        "setValue() must remain null for a ConsumedOutputParameter in keyed-map form");
   }
 
 }

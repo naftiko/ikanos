@@ -15,18 +15,18 @@ capability:
             required: true
             description: "IMO number of the ship"
         outputParameters:
-          - name: imo
+          imo:
             type: string
             value: "{{imo_number}}"
-          - name: name
+          name:
             type: string
             value: "Northern Star"
-          - name: type
+          type:
             type: string
             value: "cargo"
-          - name: flag
+          flag:
             type: string
             value: "NO"
-          - name: status
+          status:
             type: string
             value: "active"

@@ -29,7 +29,7 @@ public class StepOutputMappingSpecTest {
     @Test
     public void noArgConstructorShouldLeaveAllFieldsNull() {
         StepOutputMappingSpec spec = new StepOutputMappingSpec();
-        assertNull(spec.getTargetName());
+        assertNull(spec.getTarget());
         assertNull(spec.getValue());
     }
 
@@ -37,31 +37,31 @@ public class StepOutputMappingSpecTest {
     public void allArgsConstructorShouldAssignFields() {
         StepOutputMappingSpec spec = new StepOutputMappingSpec("petName", "{{step1.name}}");
 
-        assertEquals("petName", spec.getTargetName());
+        assertEquals("petName", spec.getTarget());
         assertEquals("{{step1.name}}", spec.getValue());
     }
 
     @Test
     public void settersShouldRoundTripValues() {
         StepOutputMappingSpec spec = new StepOutputMappingSpec();
-        spec.setTargetName("statusCode");
+        spec.setTarget("statusCode");
         spec.setValue("{{step1.status}}");
 
-        assertEquals("statusCode", spec.getTargetName());
+        assertEquals("statusCode", spec.getTarget());
         assertEquals("{{step1.status}}", spec.getValue());
     }
 
     @Test
     public void shouldDeserializeFromYaml() throws Exception {
         String yaml = """
-                targetName: statusCode
+                target: statusCode
                 value: "{{step1.status}}"
                 """;
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         StepOutputMappingSpec spec = mapper.readValue(yaml, StepOutputMappingSpec.class);
 
-        assertEquals("statusCode", spec.getTargetName());
+        assertEquals("statusCode", spec.getTarget());
         assertEquals("{{step1.status}}", spec.getValue());
     }
 }

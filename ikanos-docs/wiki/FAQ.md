@@ -141,7 +141,7 @@ operations:
         with:
           username: $step1.result  # Use output from step1
     mappings:
-      - targetName: output_field
+      - target: output_field
         value: $.step2.userId
 ```
 
@@ -308,15 +308,15 @@ steps:
     call: notion.query-database
 
 mappings:
-  - targetName: database_name      # Exposed output parameter
+  - target: database_name      # Exposed output parameter
     value: $.fetch-db.dbName       # From first step's output
-  - targetName: row_count
+  - target: row_count
     value: $.query-db.resultCount  # From second step
 
 outputParameters:
-  - name: database_name
+  database_name:
     type: string
-  - name: row_count
+  row_count:
     type: number
 ```
 
