@@ -69,7 +69,7 @@ public class OperationStepExecutor {
 
     private final Capability capability;
     private final ObjectMapper mapper;
-    private final ScriptStepExecutor scriptExecutor;
+    private ScriptStepExecutor scriptExecutor;
     private volatile String exposeNamespace;
 
     public OperationStepExecutor(Capability capability) {
@@ -79,9 +79,9 @@ public class OperationStepExecutor {
     public OperationStepExecutor(Capability capability, String exposeNamespace) {
         this.capability = capability;
         this.mapper = new ObjectMapper();
-        this.scriptExecutor = new ScriptStepExecutor();
         this.exposeNamespace = exposeNamespace;
         if (capability != null && capability.getScriptingSpec() != null) {
+            this.scriptExecutor = new ScriptStepExecutor();
             this.scriptExecutor.setScriptingSpec(capability.getScriptingSpec());
         }
     }
@@ -343,11 +343,13 @@ public class OperationStepExecutor {
                 }
                 case OperationStepScriptSpec scriptStep -> {
                     ScriptStepExecutor.requireScriptingPermitted(
-                            scriptStep.getName(), scriptExecutor.getScriptingSpec());
+                            scriptStep.getName(),
+                            scriptExecutor != null ? scriptExecutor.getScriptingSpec() : null);
                     TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
                     String effectiveScriptLanguage = scriptStep.getLanguage();
                     if ((effectiveScriptLanguage == null
                             || effectiveScriptLanguage.isBlank())
+                            && scriptExecutor != null
                             && scriptExecutor.getScriptingSpec() != null) {
                         effectiveScriptLanguage =
                                 scriptExecutor.getScriptingSpec().getDefaultLanguage();
