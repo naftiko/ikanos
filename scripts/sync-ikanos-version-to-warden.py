@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to synchronize the Ikanos version from pom.xml into Backstage skeleton templates.
+Script to synchronize the Ikanos version from pom.xml into Warden backstage skeleton templates.
 """
 
 import argparse
@@ -12,7 +12,7 @@ from ikanos_version import extract_version_from_pom, update_yaml_version
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync Ikanos version to Backstage skeletons")
+    parser = argparse.ArgumentParser(description="Sync Ikanos version to Warden backstage skeletons")
     parser.add_argument("--pom", required=True, help="Path to ikanos pom.xml")
     parser.add_argument("--target", required=True, help="Path to skeleton capabilities directory")
     args = parser.parse_args()
@@ -20,10 +20,10 @@ def main():
     version = extract_version_from_pom(args.pom)
 
     target = Path(args.target)
-    files = list(target.glob("*.naftiko.yml"))
+    files = list(target.glob("*.ikanos.yml"))
 
     if not files:
-        print(f"⚠ No .naftiko.yml files found in {target}", file=sys.stderr)
+        print(f"⚠ No .ikanos.yml files found in {target}", file=sys.stderr)
     else:
         for file in files:
             if update_yaml_version(file, version):
