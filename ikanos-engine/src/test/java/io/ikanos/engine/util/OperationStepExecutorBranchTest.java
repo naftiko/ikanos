@@ -427,9 +427,9 @@ class OperationStepExecutorBranchTest {
 
     /**
      * Regression test for #329 — Bug 2: resolveStepMappings must support dot-notation
-     * in targetName to create nested objects.
+     * in target to create nested objects.
      *
-     * When a mapping uses "route.from" as targetName, the result must contain a nested
+     * When a mapping uses "route.from" as target, the result must contain a nested
      * "route" object with a "from" field, rather than a flat "route.from" key.
      */
     @Test

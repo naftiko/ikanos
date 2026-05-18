@@ -255,48 +255,48 @@ capability:
             - "fullName"
             - "role"
         mappings:
-        - targetName: imo
+        - target: imo
           value: "$.get-ship.imo_number"
-        - targetName: name
+        - target: name
           value: "$.get-ship.vessel_name"
-        - targetName: type
+        - target: type
           value: "$.get-ship.vessel_type"
-        - targetName: flag
+        - target: flag
           value: "$.get-ship.flag_code"
-        - targetName: status
+        - target: status
           value: "$.get-ship.operational_status"
-        - targetName: yearBuilt
+        - target: yearBuilt
           value: "$.get-ship.year_built"
-        - targetName: tonnage
+        - target: tonnage
           value: "$.get-ship.gross_tonnage"
-        - targetName: length
+        - target: length
           value: "$.get-ship.dimensions.length_overall"
-        - targetName: crew
+        - target: crew
           value: "$.resolve-crew"
         outputParameters:
-          - name: imo
+          imo:
             type: string
-          - name: name
+          name:
             type: string
-          - name: type
+          type:
             type: string
-          - name: flag
+          flag:
             type: string
-          - name: status
+          status:
             type: string
-          - name: yearBuilt
+          yearBuilt:
             type: number
-          - name: tonnage
+          tonnage:
             type: number
-          - name: length
+          length:
             type: number
-          - name: crew
+          crew:
             type: array
             items:
-            - name: fullName
-              type: string
-            - name: role
-              type: string
+              fullName:
+                type: string
+              role:
+                type: string
       get-voyage-manifest:
         description: "Assemble a complete voyage manifest with ship, crew, and cargo"
         inputParameters:
@@ -347,68 +347,63 @@ capability:
             - "weight"
             - "hazardous"
         mappings:
-        - targetName: voyageId
+        - target: voyageId
           value: "$.get-voyage.voyageId"
-        - targetName: status
+        - target: status
           value: "$.get-voyage.status"
-        - targetName: route.from
+        - target: route.from
           value: "$.get-voyage.departurePort"
-        - targetName: route.to
+        - target: route.to
           value: "$.get-voyage.arrivalPort"
-        - targetName: ship.name
+        - target: ship.name
           value: "$.resolve-ship.vessel_name"
-        - targetName: ship.type
+        - target: ship.type
           value: "$.resolve-ship.vessel_type"
-        - targetName: ship.flag
+        - target: ship.flag
           value: "$.resolve-ship.flag_code"
-        - targetName: crew
+        - target: crew
           value: "$.resolve-crew"
-        - targetName: cargo
+        - target: cargo
           value: "$.resolve-cargo"
         outputParameters:
-          - name: voyageId
+          voyageId:
             type: string
-          - name: status
+          status:
             type: string
-          - name: route
+          route:
             type: object
             properties:
               from:
-                name: from
                 type: string
               to:
-                name: to
                 type: string
-          - name: ship
+          ship:
             type: object
             properties:
               name:
-                name: name
                 type: string
               type:
-                name: type
                 type: string
               flag:
-                name: flag
                 type: string
-          - name: crew
+          crew:
             type: array
             items:
-            - name: fullName
-              type: string
-            - name: role
-              type: string
-          - name: cargo
+              fullName:
+                type: string
+              role:
+                type: string
+          cargo:
             type: array
             items:
-            - name: type
-              type: string
-            - name: description
-              type: string
-            - name: weight
-              type: number
-            - name: hazardous
-              type: boolean
+              type:
+                type: string
+              description:
+                type: string
+              weight:
+                type: number
+              hazardous:
+                type: boolean
 
   - type: skill
     address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
@@ -563,48 +558,48 @@ capability:
                 - "fullName"
                 - "role"
             mappings:
-            - targetName: imo
+            - target: imo
               value: "$.get-ship.imo_number"
-            - targetName: name
+            - target: name
               value: "$.get-ship.vessel_name"
-            - targetName: type
+            - target: type
               value: "$.get-ship.vessel_type"
-            - targetName: flag
+            - target: flag
               value: "$.get-ship.flag_code"
-            - targetName: status
+            - target: status
               value: "$.get-ship.operational_status"
-            - targetName: yearBuilt
+            - target: yearBuilt
               value: "$.get-ship.year_built"
-            - targetName: tonnage
+            - target: tonnage
               value: "$.get-ship.gross_tonnage"
-            - targetName: length
+            - target: length
               value: "$.get-ship.dimensions.length_overall"
-            - targetName: crew
+            - target: crew
               value: "$.resolve-crew"
             outputParameters:
-              - name: imo
+              imo:
                 type: string
-              - name: name
+              name:
                 type: string
-              - name: type
+              type:
                 type: string
-              - name: flag
+              flag:
                 type: string
-              - name: status
+              status:
                 type: string
-              - name: yearBuilt
+              yearBuilt:
                 type: number
-              - name: tonnage
+              tonnage:
                 type: number
-              - name: length
+              length:
                 type: number
-              - name: crew
+              crew:
                 type: array
                 items:
-                - name: fullName
-                  type: string
-                - name: role
-                  type: string
+                  fullName:
+                    type: string
+                  role:
+                    type: string
       legacy-vessels:
         path: "/legacy/vessels"
         operations:
@@ -777,56 +772,56 @@ capability:
                 - "weight"
                 - "hazardous"
             mappings:
-            - targetName: voyageId
+            - target: voyageId
               value: "$.get-voyage.voyageId"
-            - targetName: status
+            - target: status
               value: "$.get-voyage.status"
-            - targetName: departurePort
+            - target: departurePort
               value: "$.get-voyage.departurePort"
-            - targetName: arrivalPort
+            - target: arrivalPort
               value: "$.get-voyage.arrivalPort"
-            - targetName: shipName
+            - target: shipName
               value: "$.resolve-ship.vessel_name"
-            - targetName: shipType
+            - target: shipType
               value: "$.resolve-ship.vessel_type"
-            - targetName: shipFlag
+            - target: shipFlag
               value: "$.resolve-ship.flag_code"
-            - targetName: crew
+            - target: crew
               value: "$.resolve-crew"
-            - targetName: cargo
+            - target: cargo
               value: "$.resolve-cargo"
             outputParameters:
-              - name: voyageId
+              voyageId:
                 type: string
-              - name: status
+              status:
                 type: string
-              - name: departurePort
+              departurePort:
                 type: string
-              - name: arrivalPort
+              arrivalPort:
                 type: string
-              - name: shipName
+              shipName:
                 type: string
-              - name: shipType
+              shipType:
                 type: string
-              - name: shipFlag
+              shipFlag:
                 type: string
-              - name: crew
+              crew:
                 type: array
                 items:
-                - name: fullName
-                  type: string
-                - name: role
-                  type: string
-              - name: cargo
+                  fullName:
+                    type: string
+                  role:
+                    type: string
+              cargo:
                 type: array
                 items:
-                - name: type
-                  type: string
-                - name: description
-                  type: string
-                - name: weight
-                  type: number
-                - name: hazardous
-                  type: boolean
+                  type:
+                    type: string
+                  description:
+                    type: string
+                  weight:
+                    type: number
+                  hazardous:
+                    type: boolean
 
 

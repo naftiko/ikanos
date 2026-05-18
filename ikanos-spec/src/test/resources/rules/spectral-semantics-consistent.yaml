@@ -33,9 +33,9 @@ capability:
               city:
                 in: query
             outputParameters:
-            - name: forecast
-              type: object
-              value: $.forecast
+              forecast:
+                type: object
+                value: $.forecast
   exposes:
   - type: mcp
     port: 9091

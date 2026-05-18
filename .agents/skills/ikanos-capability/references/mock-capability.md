@@ -33,52 +33,54 @@ parameter shape works for both adapter types.
 ## Minimal MCP mock example
 
 ```yaml
-ikanos: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha3"
 
 capability:
   exposes:
-    - type: mcp
-      port: 3001
-      namespace: mock-tools
-      description: Mock MCP server for prototyping
-      tools:
-        - name: say-hello
-          description: Returns a greeting using the provided name
-          inputParameters:
-            - name: name
-              type: string
-              required: true
-              description: Name to greet
-          outputParameters:
-            - name: message
-              type: string
-              value: "Hello, {{name}}! Welcome aboard."
+  - type: mcp
+    port: 3001
+    namespace: mock-tools
+    description: Mock MCP server for prototyping
+    tools:
+      say-hello:
+        description: Returns a greeting using the provided name
+        inputParameters:
+          name:
+            type: string
+            required: true
+            description: Name to greet
+        outputParameters:
+          message:
+            type: string
+            value: "Hello, {{name}}! Welcome aboard."
 ```
 
 ## Minimal REST mock example
 
 ```yaml
-ikanos: "1.0.0-alpha1"
+ikanos: "1.0.0-alpha3"
 
 capability:
   exposes:
-    - type: rest
-      address: localhost
-      port: 8080
-      namespace: mock-api
-      resources:
-        - path: /greet
-          operations:
-            - method: GET
-              inputParameters:
-                - name: name
-                  in: query
-                  type: string
-                  required: true
-              outputParameters:
-                - name: message
-                  type: string
-                  value: "Hello, {{name}}!"
+  - type: rest
+    address: localhost
+    port: 8080
+    namespace: mock-api
+    resources:
+      greet:
+        path: /greet
+        operations:
+          get-greeting:
+            method: GET
+            inputParameters:
+              name:
+                in: query
+                type: string
+                required: true
+            outputParameters:
+              message:
+                type: string
+                value: "Hello, {{name}}!"
 ```
 
 ## Nested object mock
@@ -88,18 +90,18 @@ itself has no `value` — only scalar leaves do.
 
 ```yaml
 outputParameters:
-  - name: user
+  user:
     type: object
     properties:
-      - id:
-          type: string
-          value: "usr-001"
-      - displayName:
-          type: string
-          value: "{{name}}"
-      - role:
-          type: string
-          value: "viewer"
+      id:
+        type: string
+        value: "usr-001"
+      displayName:
+        type: string
+        value: "{{name}}"
+      role:
+        type: string
+        value: "viewer"
 ```
 
 ## Array mock
@@ -109,17 +111,17 @@ one representative item.
 
 ```yaml
 outputParameters:
-  - name: results
+  results:
     type: array
     items:
       type: object
       properties:
-        - id:
-            type: string
-            value: "item-001"
-        - label:
-            type: string
-            value: "Sample item for {{query}}"
+        id:
+          type: string
+          value: "item-001"
+        label:
+          type: string
+          value: "Sample item for {{query}}"
 ```
 
 ## Migrating from mock to real

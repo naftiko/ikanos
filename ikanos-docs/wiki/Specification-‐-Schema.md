@@ -1420,12 +1420,12 @@ steps:
     with:
       database_id: "sample.database_id"
 mappings:
-  - targetName: db_name
+  - target: db_name
     value: "$.dbName"
 outputParameters:
-  - name: db_name
+  db_name:
     type: string
-  - name: Api-Version
+  Api-Version:
     type: string
 ```
 
@@ -1984,19 +1984,19 @@ Describes how to map the output of an operation step to the input of another ste
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **targetName** | `string` | **REQUIRED**. The name of the parameter to map to. It can be an input parameter of a next step or an output parameter of the exposed operation. |
+| **target** | `string` | **REQUIRED**. The name of the parameter to map to. It can be an input parameter of a next step or an output parameter of the exposed operation. |
 | **value** | `string` | **REQUIRED**. A JSONPath reference to the value to map from. E.g. `$.get-database.database_id`. |
 
 #### 3.14.2 Rules
 
-- Both `targetName` and `value` are mandatory.
+- Both `target` and `value` are mandatory.
 - No additional properties are allowed.
 
 #### 3.14.3 How mappings wire steps to exposed outputs
 
 A StepOutputMapping connects the **output parameters of a consumed operation** (called by the step) to the **output parameters of the exposed operation** (or to input parameters of subsequent steps).
 
-- **`targetName`** — refers to the `name` of an output parameter declared on the exposed operation, or the `name` of an input parameter of a subsequent step. The target parameter receives its value from the mapping.
+- **`target`** — refers to the key of an output parameter declared on the exposed operation, or the key of an input parameter of a subsequent step. The target parameter receives its value from the mapping.
 - **`value`** — a JSONPath expression where **`$`** is the root of the consumed operation's output parameters. The syntax `$.{outputParameterName}` references a named output parameter of the consumed operation called in this step.
 
 #### 3.14.4 End-to-end example
@@ -2044,7 +2044,7 @@ exposes:
                 with:
                   database_id: "sample.database_id"
             mappings:
-              - targetName: "db_name"
+              - target: "db_name"
                 value: "{{$.dbName}}"
 ```
 
@@ -2052,7 +2052,7 @@ Here is what happens at orchestration time:
 
 1. The step `fetch-db` calls `notion.get-database`, which extracts `dbName` and `dbId` from the raw response via its own output parameters.
 2. The `with` injector passes `database_id` from the exposed input parameter (`sample.database_id`) to the consumed operation.
-3. The mapping `targetName: "db_name"` refers to the exposed operation's output parameter `db_name`.
+3. The mapping `target: "db_name"` refers to the exposed operation's output parameter `db_name`.
 4. The mapping `value: "$.dbName"` resolves to the value of the consumed operation's output parameter named `dbName`.
 5. As a result, the exposed output `db_name` is populated with the value extracted by `$.dbName` (i.e. `title[0].text.content` from the raw Notion API response).
 
@@ -2060,7 +2060,7 @@ Here is what happens at orchestration time:
 
 ```yaml
 mappings:
-  - targetName: "db_name"
+  - target: "db_name"
     value: "{{$.dbName}}"
 ```
 
@@ -2591,14 +2591,14 @@ capability:
                   with:
                     database_id: "inspector.database_id"
               mappings:
-                - targetName: "db_name"
+                - target: "db_name"
                   value: "{{$.fetch-db.dbName}}"
-                - targetName: "row_count"
+                - target: "row_count"
                   value: "{{$.query-db.resultCount}}"
               outputParameters:
-                - name: "db_name"
+                db_name:
                   type: "string"
-                - name: "row_count"
+                row_count:
                   type: "number"
 
   consumes:
@@ -2702,18 +2702,18 @@ capability:
                     - "department"
                     - "role"
               mappings:
-                - targetName: "name"
+                - target: "name"
                   value: "$.find-member.fullName"
-                - targetName: "department"
+                - target: "department"
                   value: "$.find-member.department"
-                - targetName: "role"
+                - target: "role"
                   value: "$.find-member.role"
               outputParameters:
-                - name: "name"
+                name:
                   type: "string"
-                - name: "department"
+                department:
                   type: "string"
-                - name: "role"
+                role:
                   type: "string"
 
   consumes:
@@ -2854,7 +2854,7 @@ capability:
                     - "avatar_url"
                     - "html_url"
               mappings:
-                - targetName: "contributors"
+                - target: "contributors"
                   value: "$.match-contributors"
               outputParameters:
                 - name: "contributors"
