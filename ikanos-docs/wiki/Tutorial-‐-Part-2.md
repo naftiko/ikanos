@@ -1,4 +1,4 @@
-﻿# The Shipyard — Tutorial — Part 2
+# The Shipyard — Tutorial — Part 2
 
 At the end of Part 1, your capability could list, inspect, plan, and enrich. Five tools, two APIs, one contract that survived the journey from mock to production. Good for an MCP client sitting next to the capability. But the Shipyard doesn't live alone: partner agents want a *catalog* they can discover, some logic keeps getting copy-pasted between tools, the operations dashboard speaks REST not MCP, and ops walks in one morning asking for *"one document that has everything."*
 

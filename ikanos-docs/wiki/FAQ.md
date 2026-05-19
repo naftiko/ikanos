@@ -1,4 +1,4 @@
-﻿Welcome to the Ikanos FAQ! This guide answers common questions from developers who are learning, using, and contributing to Ikanos. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules).
+Welcome to the Ikanos FAQ! This guide answers common questions from developers who are learning, using, and contributing to Ikanos. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules).
 
 ---
 
