@@ -70,7 +70,7 @@ public class ResourceRestlet extends Restlet {
 
         String operationId = resourceSpec.getPath() + " " + request.getMethod().getName();
         String capabilityName = capability.getSpec().getInfo() != null
-                ? capability.getSpec().getInfo().getLabel() : null;
+                ? capability.getSpec().getInfo().getDisplay() : null;
         Span span = telemetry.startServerSpan("rest", operationId, extractedContext,
                 request.getMethod().getName(), capabilityName);
 

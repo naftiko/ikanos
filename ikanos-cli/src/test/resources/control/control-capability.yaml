@@ -2,7 +2,7 @@
 ---
 ikanos: "1.0.0-alpha3"
 info:
-  label: "CLI Control Port Test Capability"
+  display: "CLI Control Port Test Capability"
   description: "Test capability for CLI runtime startup"
   tags:
     - Test

@@ -1,6 +1,6 @@
 ikanos: "1.0.0-alpha3"
 info:
-  label: "Observability Test Capability"
+  display: "Observability Test Capability"
   description: "Test capability for observability spec deserialization"
   tags:
   - Test

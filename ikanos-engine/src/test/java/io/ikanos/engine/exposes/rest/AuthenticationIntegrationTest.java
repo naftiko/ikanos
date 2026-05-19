@@ -46,7 +46,7 @@ public class AuthenticationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  label: "Auth test"
+                  display: "Auth test"
                   description: "Auth test"
                 capability:
                   exposes:
@@ -96,7 +96,7 @@ public class AuthenticationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  label: "Auth test"
+                  display: "Auth test"
                   description: "Auth test"
                 capability:
                   exposes:

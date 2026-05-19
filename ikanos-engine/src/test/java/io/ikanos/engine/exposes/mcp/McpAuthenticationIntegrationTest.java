@@ -262,7 +262,7 @@ class McpAuthenticationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  label: "MCP Auth Test"
+                  display: "MCP Auth Test"
                   description: "Bearer auth integration test"
                 capability:
                   exposes:
@@ -291,7 +291,7 @@ class McpAuthenticationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  label: "MCP Auth Test"
+                  display: "MCP Auth Test"
                   description: "API key auth integration test"
                 capability:
                   exposes:
@@ -322,7 +322,7 @@ class McpAuthenticationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  label: "MCP Auth Test"
+                  display: "MCP Auth Test"
                   description: "No auth integration test"
                 capability:
                   exposes:

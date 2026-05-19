@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Aggregate Basic Test
+  display: Aggregate Basic Test
   description: Test capability for aggregate function ref resolution
   tags:
   - Test
@@ -10,7 +10,7 @@ info:
 capability:
   aggregates:
     forecast:
-      label: Forecast
+      display: Forecast
       namespace: forecast
       functions:
         get-forecast:

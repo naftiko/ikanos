@@ -46,7 +46,7 @@ import io.ikanos.spec.util.StepOutputMappingSpec;
 public class McpServerToolSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
-    private final AtomicReference<String> label = new AtomicReference<>();
+    private final AtomicReference<String> display = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
     private final AtomicReference<String> ref = new AtomicReference<>();
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
@@ -71,9 +71,9 @@ public class McpServerToolSpec {
 
     public McpServerToolSpec() { this(null, null, null); }
 
-    public McpServerToolSpec(String name, String label, String description) {
+    public McpServerToolSpec(String name, String display, String description) {
         this.name.set(name);
-        this.label.set(label);
+        this.display.set(display);
         this.description.set(description);
     }
 
@@ -81,8 +81,8 @@ public class McpServerToolSpec {
     public void setName(String name) { this.name.set(name); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getLabel() { return label.get(); }
-    public void setLabel(String label) { this.label.set(label); }
+    public String getDisplay() { return display.get(); }
+    public void setDisplay(String display) { this.display.set(display); }
 
     public String getDescription() { return description.get(); }
     public void setDescription(String description) { this.description.set(description); }

@@ -42,7 +42,7 @@ public class OperationSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
 
-    private final AtomicReference<String> label = new AtomicReference<>();
+    private final AtomicReference<String> display = new AtomicReference<>();
 
     private final AtomicReference<String> description = new AtomicReference<>();
 
@@ -63,19 +63,19 @@ public class OperationSpec {
         this(null, null, null, null, null, null, null);
     }
 
-    public OperationSpec(ResourceSpec parentResource, String method, String name, String label) {
-        this(parentResource, method, name, label, null, null, null);
+    public OperationSpec(ResourceSpec parentResource, String method, String name, String display) {
+        this(parentResource, method, name, display, null, null, null);
     }
 
-    public OperationSpec(ResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat) {
-        this(parentResource, method, name, label, description, outputRawFormat, null);
+    public OperationSpec(ResourceSpec parentResource, String method, String name, String display, String description, String outputRawFormat) {
+        this(parentResource, method, name, display, description, outputRawFormat, null);
     }
 
-    public OperationSpec(ResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema) {
+    public OperationSpec(ResourceSpec parentResource, String method, String name, String display, String description, String outputRawFormat, String outputSchema) {
         this.parentResource.set(parentResource);
         this.method.set(method);
         this.name.set(name);
-        this.label.set(label);
+        this.display.set(display);
         this.description.set(description);
         this.outputRawFormat.set(outputRawFormat);
         this.outputSchema.set(outputSchema);
@@ -105,12 +105,12 @@ public class OperationSpec {
         this.name.set(name);
     }
 
-    public String getLabel() {
-        return label.get();
+    public String getDisplay() {
+        return display.get();
     }
 
-    public void setLabel(String label) {
-        this.label.set(label);
+    public void setDisplay(String display) {
+        this.display.set(display);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

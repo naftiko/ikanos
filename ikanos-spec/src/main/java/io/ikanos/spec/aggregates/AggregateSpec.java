@@ -34,19 +34,19 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  */
 public class AggregateSpec {
 
-    private final AtomicReference<String> label = new AtomicReference<>();
+    private final AtomicReference<String> display = new AtomicReference<>();
     private final AtomicReference<String> namespace = new AtomicReference<>();
 
     @JsonDeserialize(using = AggregateFunctionMapDeserializer.class)
     private final Map<String, AggregateFunctionSpec> functions =
             Collections.synchronizedMap(new LinkedHashMap<>());
 
-    public String getLabel() {
-        return label.get();
+    public String getDisplay() {
+        return display.get();
     }
 
-    public void setLabel(String label) {
-        this.label.set(label);
+    public void setDisplay(String display) {
+        this.display.set(display);
     }
 
     public String getNamespace() {

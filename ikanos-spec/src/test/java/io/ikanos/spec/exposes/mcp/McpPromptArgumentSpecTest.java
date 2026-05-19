@@ -33,7 +33,7 @@ public class McpPromptArgumentSpecTest {
         McpPromptArgumentSpec spec = new McpPromptArgumentSpec();
 
         assertNull(spec.getName());
-        assertNull(spec.getLabel());
+        assertNull(spec.getDisplay());
         assertNull(spec.getDescription());
         assertNull(spec.getRequired());
     }
@@ -62,12 +62,12 @@ public class McpPromptArgumentSpecTest {
     public void settersShouldRoundTripValues() {
         McpPromptArgumentSpec spec = new McpPromptArgumentSpec();
         spec.setName("user");
-        spec.setLabel("User name");
+        spec.setDisplay("User name");
         spec.setDescription("The end-user name to greet");
         spec.setRequired(Boolean.TRUE);
 
         assertEquals("user", spec.getName());
-        assertEquals("User name", spec.getLabel());
+        assertEquals("User name", spec.getDisplay());
         assertEquals("The end-user name to greet", spec.getDescription());
         assertEquals(Boolean.TRUE, spec.getRequired());
     }
@@ -76,7 +76,7 @@ public class McpPromptArgumentSpecTest {
     public void shouldDeserializeFromYaml() throws Exception {
         String yaml = """
                 name: user
-                label: User name
+                display: User name
                 description: The user name
                 required: false
                 """;
@@ -85,7 +85,7 @@ public class McpPromptArgumentSpecTest {
         McpPromptArgumentSpec spec = mapper.readValue(yaml, McpPromptArgumentSpec.class);
 
         assertEquals("user", spec.getName());
-        assertEquals("User name", spec.getLabel());
+        assertEquals("User name", spec.getDisplay());
         assertEquals("The user name", spec.getDescription());
         assertFalse(spec.isRequired());
     }

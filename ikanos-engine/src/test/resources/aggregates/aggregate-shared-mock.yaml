@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Aggregate Shared Mock Test
+  display: Aggregate Shared Mock Test
   description: Shared aggregate mock function consumed by MCP and REST refs
   tags:
   - Test
@@ -10,7 +10,7 @@ info:
 capability:
   aggregates:
     greeting:
-      label: Greeting
+      display: Greeting
       namespace: greeting
       functions:
         hello:

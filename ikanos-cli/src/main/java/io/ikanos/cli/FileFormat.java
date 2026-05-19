@@ -17,17 +17,17 @@ public enum FileFormat {
     YAML("Yaml","yaml"),
     UNKNOWN("Unknown","unknown");
 
-    public final String label;
+    public final String display;
     public final String pathName;
 
-    private FileFormat(String label, String pathName) {
-        this.label = label;
+    private FileFormat(String display, String pathName) {
+        this.display = display;
         this.pathName = pathName;
     }
 
-    public static FileFormat valueOfLabel(String label) {
+    public static FileFormat valueOfLabel(String display) {
         for (FileFormat fileFormat : values()) {
-            if (java.util.Objects.equals(fileFormat.label, label)) {
+            if (java.util.Objects.equals(fileFormat.display, display)) {
                 return fileFormat;
             }
         }

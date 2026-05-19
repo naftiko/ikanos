@@ -39,12 +39,12 @@ public class HttpClientResourceSpec extends ResourceSpec {
         this(null, null, null, null);
     }
 
-    public HttpClientResourceSpec(String path, String name, String label) {
-        this(path, name, label, null);
+    public HttpClientResourceSpec(String path, String name, String display) {
+        this(path, name, display, null);
     }
 
-    public HttpClientResourceSpec(String path, String name, String label, String description) {
-        super(path, name, label, description);
+    public HttpClientResourceSpec(String path, String name, String display, String description) {
+        super(path, name, display, description);
     }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)

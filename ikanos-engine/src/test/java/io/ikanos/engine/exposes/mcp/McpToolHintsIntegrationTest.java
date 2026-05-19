@@ -103,7 +103,7 @@ public class McpToolHintsIntegrationTest {
     }
 
     @Test
-    void buildToolAnnotationsShouldReturnNullWhenNoHintsAndNoLabel() {
+    void buildToolAnnotationsShouldReturnNullWhenNoHintsAndNoDisplay() {
         McpServerToolSpec toolSpec = new McpServerToolSpec("test", null, "desc");
 
         McpSchema.ToolAnnotations annotations = adapter.buildToolAnnotations(toolSpec);

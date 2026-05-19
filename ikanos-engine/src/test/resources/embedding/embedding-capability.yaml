@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Embedding Test
+  display: Embedding Test
   description: Test capability for step handler registry integration
   tags:
   - Test
