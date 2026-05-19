@@ -19,7 +19,7 @@ To use Ikanos, you need to install Ikanos and then run a capability YAML file ei
   docker pull ghcr.io/naftiko/ikanos:latest
   ```
   Then, you should see the image 'ghcr.io/naftiko/ikanos' in your Docker Desktop.\
-  <img src="https://Ikanos.github.io/docs/images/technology/framework/docker-install-step-1.png" width="600">
+  <img src="https://naftiko.github.io/docs/images/technology/framework/docker-install-step-1.png" width="600">
 
   You can also display local images in your terminal with this command:
   ```bash
@@ -85,27 +85,27 @@ For the moment, CLI is only provided for Apple Silicon (with M chip).
 **Apple Silicon (M1/M2/M3/M4):**
 ```bash
 # Download the binary
-curl -L https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-macos-arm64 -o Ikanos
+curl -L https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-macos-arm64 -o ikanos
 
 # Set binary as executable
-chmod +x Ikanos
+chmod +x ikanos
 
 # Delete the macOS quarantine (temporary step, because the binary is not signed yet)
-xattr -d com.apple.quarantine Ikanos
+xattr -d com.apple.quarantine ikanos
 
 # Install
-sudo mv Ikanos /usr/local/bin/
+sudo mv ikanos /usr/local/bin/
 ```
 ### Linux
 ```bash
 # Download the binary
-curl -L https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-linux-amd64 -o Ikanos
+curl -L https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-linux-amd64 -o ikanos
 
 # Set binary as executable
-chmod +x Ikanos
+chmod +x ikanos
 
 # Install
-sudo mv Ikanos /usr/local/bin/
+sudo mv ikanos /usr/local/bin/
 ```
 ### Windows
 PowerShell installation is recommended.
@@ -116,7 +116,7 @@ PowerShell installation is recommended.
 New-Item -ItemType Directory -Force -Path "C:\Program Files\Ikanos"
 
 # Download the binary
-Invoke-WebRequest -Uri "https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-windows-amd64.exe" -OutFile "C:\Program Files\Ikanos\Ikanos.exe"
+Invoke-WebRequest -Uri "https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-windows-amd64.exe" -OutFile "C:\Program Files\Ikanos\ikanos.exe"
 
 # Add to the system PATH
 $oldPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
@@ -145,8 +145,8 @@ This runs the same runtime contract as the Docker image, but directly from the C
 ```bash
 ikanos create capability
 # You can also use aliases like:
-Ikanos cr cap
-Ikanos c cap
+ikanos cr cap
+ikanos c cap
 ```
 The terminal will then ask you several questions. Finally, the file will be generated in your current directory.
 ### Validate a capability configuration file
@@ -155,7 +155,7 @@ The validation command allows you to check your file.
 ```bash
 ikanos validate path_to_your_capability_file
 # You can also use aliases like:
-Ikanos val path_to_your_capability_file
+ikanos val path_to_your_capability_file
 ikanos v path_to_your_capability_file
 ```
 By default, validation is performed on the latest schema version. If you want to test validation on a previous schema version, you can specify it as the second argument.
@@ -174,8 +174,8 @@ Bootstrap a Ikanos `consumes` adapter from an existing OpenAPI 3.0 or 3.1 docume
 ```bash
 ikanos import openapi path_to_openapi_file
 # You can also use aliases like:
-Ikanos im oas path_to_openapi_file
-Ikanos i oas path_to_openapi_file
+ikanos im oas path_to_openapi_file
+ikanos i oas path_to_openapi_file
 ```
 By default, the generated capability is written to `./<namespace>-consumes.yml`. Use `-o` to choose a different output path:
 ```bash
@@ -189,8 +189,8 @@ Generate an OpenAPI document from an existing Ikanos capability's REST adapter:
 ```bash
 ikanos export openapi path_to_capability_file
 # You can also use aliases like:
-Ikanos ex oas path_to_capability_file
-Ikanos e oas path_to_capability_file
+ikanos ex oas path_to_capability_file
+ikanos e oas path_to_capability_file
 ```
 By default, the OpenAPI document is written to `./openapi.yaml` in OAS 3.0 format. Use `--spec-version` to produce OAS 3.1, `-o` for a custom output path, and `-f` for JSON output:
 ```bash
