@@ -1,11 +1,12 @@
 ---
 name: pr-review
-version: "2.0.2"
+version: "2.1.0"
 description: >
-  On-demand skill for reviewing GitHub Pull Requests and posting inline
-  comments via the GitHub API. Activate when the user asks to: review a PR,
-  review a pull request, do a code review, post inline comments on a PR,
-  comment on a pull request, review PR #<number>.
+  On-demand skill for reviewing GitHub Pull Requests. Supports two delivery
+  modes: posting inline comments via the GitHub API (Mode A), or handing off
+  findings to a local agent for direct fixes (Mode B). Activate when the user
+  asks to: review a PR, review a pull request, do a code review, post inline
+  comments on a PR, comment on a pull request, review PR #<number>.
 allowed-tools:
   - Read
   - Bash
@@ -18,11 +19,13 @@ This skill guides the agent through a structured PR review workflow:
 ```
 Step 1 — pr-context (1 click)
 Step 2 — Read diff → identify issues → present list WITHOUT line numbers
-Step 3 — User picks which findings to post
+Step 3 — User picks which findings to act on + chooses Mode A or Mode B
 Step 4 — Resolve line numbers for picked findings only
           Short diff (<500 lines): compute from context, 0 clicks
           Long diff  (≥500 lines): pr-find-lines-batch on picked items, 1 click
-Step 5 — pr-submit (1 click)
+Step 5 — Deliver findings
+          Mode A: post review on GitHub (1 click)
+          Mode B: write to /memories/repo/ for local agent fix (0 clicks)
 ```
 
 **Minimum 2 clicks (short diff). Maximum 3 clicks (long diff), regardless of the
@@ -39,7 +42,7 @@ point verifying a line number for a finding the user will not post.
 | `pr-context.sh <N>` | Linux / macOS | Same |
 | `pr-find-lines-batch.ps1 -Pr <N> [-InputFile <path>]` | Windows | **Once**, Step 4, long diff only |
 | `pr-find-lines-batch.sh <N> [input-file]` | Linux / macOS | Same |
-| `pr-submit-review.ps1 -Pr <N> -InputFile <path>` | Windows | **Once**, Step 5 |
+| `pr-submit-review.ps1 -Pr <N> -InputFile <path>` | Windows | **Once**, Step 5 Mode A only |
 | `pr-submit-review.sh <N> <input-json>` | Linux / macOS | Same |
 
 ---
@@ -130,7 +133,12 @@ Present findings in a working table (conversation only — never paste into GitH
 
 **All comments must be written in English** — see AGENTS.md.
 
-Wait for the user to confirm which findings to post before proceeding.
+After presenting findings, ask the user which mode to use:
+
+> **Mode A — Post review on GitHub** (default)
+> **Mode B — Hand off to a local agent for fixes**
+
+Wait for the user to confirm which findings to act on **and** which mode to use before proceeding.
 
 ---
 
@@ -187,7 +195,9 @@ numbers in the review payload.
 
 ---
 
-## Step 5 — Post the review
+## Step 5 — Deliver findings
+
+### Mode A — Post review on GitHub
 
 Build the review JSON with the confirmed line numbers and save it with `create_file`
 to `$env:TEMP\review-<number>.json` (Windows) or `/tmp/review-<number>.json`
@@ -241,7 +251,7 @@ Use `event=COMMENT` for a non-blocking review.
 Use `event=REQUEST_CHANGES` when at least one finding is 🔴 HIGH.
 Use `event=APPROVE` only when explicitly asked.
 
-### Cleanup after submission
+#### Cleanup after submission
 
 Once the submit script confirms all comments landed, delete the temp files so they
 cannot pollute a future session:
@@ -254,3 +264,18 @@ Remove-Item -Force "$env:TEMP\review-<number>.json", "$env:TEMP\findings-<number
 ```bash
 rm -f /tmp/review-<number>.json /tmp/findings-<number>.json
 ```
+
+### Mode B — Hand off to a local agent
+
+Write the selected findings to `/memories/repo/pr-review-<N>.md` so the agent
+working on the branch can read them and apply fixes directly — no GitHub
+round-trip.
+
+The handoff file must include:
+- PR number and branch name
+- List of changed files
+- The findings table (N, file, severity, comment)
+- A clear statement that the receiving agent should fix these findings
+
+Once written, inform the user that the handoff file is ready and which agent
+should read it (see *Inter-agent communication* in `AGENTS.md`).
