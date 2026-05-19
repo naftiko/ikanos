@@ -69,7 +69,7 @@ git fetch origin main
 git worktree add ../framework-issue-<N> -b feat/issue-<N>-short-description origin/main
 
 # Open the worktree as an additional root in VS Code (required — agents only see open workspace folders)
-code --add C:\work\repos\framework-issue-<N>
+code --add /path/to/framework-issue-<N>
 
 # Remove when the branch is merged
 git worktree remove ../framework-issue-<N>
@@ -87,6 +87,16 @@ git worktree remove ../framework-issue-<N>
 > One worktree = one issue = one branch = one agent.
 
 The primary clone (`framework/`) owns `main` and handles fetch/push. Agents never check out `main` directly.
+
+### Inter-agent communication
+
+Session memory (`/memories/session/`) is scoped to one conversation and is invisible to other agents. To pass information between agents working in parallel (e.g. review findings, task handoff), write to `/memories/repo/` — it is readable by any agent that has the repository open in its workspace.
+
+**Pattern:**
+1. Agent A (reviewer) writes findings to `/memories/repo/<topic>.md`
+2. Agent B (fixer) reads it with `memory view /memories/repo/<topic>.md` and applies the changes
+
+Example: a PR-review agent writes findings to `/memories/repo/pr-review-<N>.md`; the agent working on the branch reads it and commits the fixes directly, without GitHub round-trip.
 
 ## Code Style
 
@@ -202,7 +212,7 @@ git fetch origin main
 git checkout -b fix/<short-description> origin/main
 ```
 
-Never run `git checkout main` — if you are working in a worktree, `main` is checked out in the primary clone and the command will fail. Always branch directly from `origin/main` after a fetch.
+Never run `git checkout main` — if you are working in a worktree, `main` is checked out in the primary clone and the command will fail. Always branch directly from `origin/main` after a fetch (see *Parallel Agent Workflows* above).
 Never start a fix branch from a feature branch or a stale local `main`.
 When the fix is merged, remind the user to switch back to their original branch and restore the stash if needed.
 
