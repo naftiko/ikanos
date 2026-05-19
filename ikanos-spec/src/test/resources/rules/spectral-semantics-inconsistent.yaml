@@ -1,10 +1,10 @@
-ikanos: 1.0.0-alpha3
+﻿ikanos: 1.0.0-alpha3
 capability:
   aggregates:
     weather:
       display: Weather Service
       namespace: weather
-      functions:
+      flows:
         get-forecast:
           description: Get weather forecast (safe, read-only)
           semantics:

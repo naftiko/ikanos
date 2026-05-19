@@ -18,7 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.Map;
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.IkanosSpec;
@@ -41,22 +41,22 @@ public class AggregateRefResolverTest {
         resolver = new AggregateRefResolver();
     }
 
-    // ── buildFunctionMap ──
+    // ── buildFlowMap ──
 
     @Test
-    void buildFunctionMapShouldIndexByNamespaceAndName() {
+    void buildFlowMapShouldIndexByNamespaceAndName() {
         CapabilitySpec cap = new CapabilitySpec();
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("forecast");
         agg.setDisplay("Forecast");
 
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-forecast");
         fn.setDescription("Get forecast");
-        agg.getFunctions().put(fn.getName(), fn);
+        agg.getFlows().put(fn.getName(), fn);
         cap.getAggregates().put(agg.getNamespace(), agg);
 
-        Map<String, AggregateFunctionSpec> map = resolver.buildFunctionMap(cap);
+        Map<String, AggregateFlowSpec> map = resolver.buildFlowMap(cap);
 
         assertEquals(1, map.size());
         assertTrue(map.containsKey("forecast.get-forecast"));
@@ -64,42 +64,42 @@ public class AggregateRefResolverTest {
     }
 
     @Test
-    void buildFunctionMapShouldFailOnDuplicateRef() {
+    void buildFlowMapShouldFailOnDuplicateRef() {
         // With named-object maps, two aggregates cannot share the same namespace key
         // (the second put overwrites the first). Duplicate detection now applies to
         // functions within different aggregates that share the same namespace.functionName
         // ref, which is architecturally impossible via the POJO model but can be simulated
         // by placing two functions with the same name in the same aggregate's function map.
-        // The duplicate-ref guard in buildFunctionMap protects against future injection;
+        // The duplicate-ref guard in buildFlowMap protects against future injection;
         // we verify it never fires when refs are distinct.
         CapabilitySpec cap = new CapabilitySpec();
 
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
         agg.setDisplay("Data");
-        AggregateFunctionSpec fn1 = new AggregateFunctionSpec();
+        AggregateFlowSpec fn1 = new AggregateFlowSpec();
         fn1.setName("read");
         fn1.setDescription("Read1");
-        agg.getFunctions().put(fn1.getName(), fn1);
+        agg.getFlows().put(fn1.getName(), fn1);
 
         cap.getAggregates().put(agg.getNamespace(), agg);
 
         // Single function → no duplicate → should not throw
-        Map<String, AggregateFunctionSpec> map = resolver.buildFunctionMap(cap);
+        Map<String, AggregateFlowSpec> map = resolver.buildFlowMap(cap);
         assertTrue(map.containsKey("data.read"));
     }
 
-    // ── lookupFunction ──
+    // ── lookupFlow ──
 
     @Test
-    void lookupFunctionShouldFailOnUnknownRef() {
-        Map<String, AggregateFunctionSpec> map = new HashMap<>();
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+    void lookupFlowShouldFailOnUnknownRef() {
+        Map<String, AggregateFlowSpec> map = new HashMap<>();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("read");
         map.put("data.read", fn);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> resolver.lookupFunction("unknown.nonexistent", map));
+                () -> resolver.lookupFlow("unknown.nonexistent", map));
         assertTrue(ex.getMessage().contains("unknown.nonexistent"));
     }
 
@@ -107,11 +107,11 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveMcpToolRefShouldInheritNameFromFunction() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec(null, null, null);
         tool.setRef("data.get-data");
@@ -123,11 +123,11 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveMcpToolRefShouldNotOverrideExplicitName() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec("custom-name", null, null);
         tool.setRef("data.get-data");
@@ -139,24 +139,24 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveMcpToolRefShouldNotCopyCallFromFunction() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
         fn.setCall(new ServerCallSpec("mock-api.get-data"));
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
         tool.setRef("data.get-data");
 
         resolver.resolveMcpToolRef(tool, map);
 
-        assertNull(tool.getCall(), "call should not be copied — resolved at runtime via AggregateFunction");
+        assertNull(tool.getCall(), "call should not be copied — resolved at runtime via aggregate flow");
     }
 
     @Test
     void resolveMcpToolRefShouldNotCopyInputParametersFromFunction() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
         io.ikanos.spec.InputParameterSpec param = new io.ikanos.spec.InputParameterSpec();
@@ -164,7 +164,7 @@ public class AggregateRefResolverTest {
         param.setType("string");
         fn.setInputParameters(Map.of("location", param));
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
         tool.setRef("data.get-data");
@@ -172,16 +172,16 @@ public class AggregateRefResolverTest {
         resolver.resolveMcpToolRef(tool, map);
 
         assertTrue(tool.getInputParameters().isEmpty(),
-                "inputParameters should not be copied — resolved at runtime via AggregateFunction");
+                "inputParameters should not be copied — resolved at runtime via aggregate flow");
     }
 
     @Test
     void resolveMcpToolRefShouldInheritDescription() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Function description");
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec("get-data", null, null);
         tool.setRef("data.get-data");
@@ -193,11 +193,11 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveMcpToolRefShouldNotOverrideExplicitDescription() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Function description");
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Tool description");
         tool.setRef("data.get-data");
@@ -211,11 +211,11 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveRestOperationRefShouldInheritNameFromFunction() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setRef("data.get-data");
@@ -227,19 +227,19 @@ public class AggregateRefResolverTest {
 
     @Test
     void resolveRestOperationRefShouldNotCopyCallFromFunction() {
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-data");
         fn.setDescription("Get data");
         fn.setCall(new ServerCallSpec("mock-api.get-data"));
 
-        Map<String, AggregateFunctionSpec> map = Map.of("data.get-data", fn);
+        Map<String, AggregateFlowSpec> map = Map.of("data.get-data", fn);
 
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setRef("data.get-data");
 
         resolver.resolveRestOperationRef(op, map);
 
-        assertNull(op.getCall(), "call should not be copied — resolved at runtime via AggregateFunction");
+        assertNull(op.getCall(), "call should not be copied — resolved at runtime via aggregate flow");
     }
 
     // ── deriveHints ──
@@ -401,12 +401,12 @@ public class AggregateRefResolverTest {
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
         agg.setDisplay("Data");
-        AggregateFunctionSpec fn = new AggregateFunctionSpec();
+        AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("read");
         fn.setDescription("Read data");
         fn.setSemantics(semantics);
         fn.setCall(new ServerCallSpec("mock.read"));
-        agg.getFunctions().put(fn.getName(), fn);
+        agg.getFlows().put(fn.getName(), fn);
         cap.getAggregates().put(agg.getNamespace(), agg);
 
         McpServerSpec mcpSpec = new McpServerSpec();

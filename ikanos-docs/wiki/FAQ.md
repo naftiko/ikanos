@@ -1,4 +1,4 @@
-Welcome to the Ikanos FAQ! This guide answers common questions from developers who are learning, using, and contributing to Ikanos. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules).
+﻿Welcome to the Ikanos FAQ! This guide answers common questions from developers who are learning, using, and contributing to Ikanos. For comprehensive technical details, see the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) and [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-Rules).
 
 ---
 
@@ -186,7 +186,7 @@ capability:
   aggregates:
     - label: Weather Forecast
       namespace: forecast
-      functions:
+      flows:
         - name: get-forecast
           description: Retrieve weather forecast for a city
           semantics:
@@ -202,8 +202,8 @@ capability:
               mapping: $.forecast
 ```
 
-### Q: How does `ref` work to reference an aggregate function?
-**A:** MCP tools and REST operations can reference an aggregate function using `ref: {namespace}.{function-name}`. The engine merges inherited fields from the function — you only specify what's different at the adapter level.
+### Q: How does `ref` work to reference an aggregate flow?
+**A:** MCP tools and REST operations can reference an aggregate flow using `ref: {namespace}.{function-name}`. The engine merges inherited fields from the function — you only specify what's different at the adapter level.
 
 ```yaml
 exposes:
@@ -227,7 +227,7 @@ exposes:
 - `name` and `description` are optional when using `ref` — they default to the function's values.
 
 ### Q: How do semantics map to MCP tool hints?
-**A:** Aggregate functions can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
+**A:** aggregate flows can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
 
 | Semantics | MCP Hint | Rule |
 |-----------|----------|------|

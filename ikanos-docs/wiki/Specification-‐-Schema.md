@@ -1,4 +1,4 @@
-# Ikanos Specification - Schema
+﻿# Ikanos Specification - Schema
 
 **Version:** {{RELEASE_TAG}}
 
@@ -320,7 +320,7 @@ Transport-neutral behavioral metadata for an invocable unit. These properties de
 
 #### 3.4.5.3 Semantics-to-Hints Derivation
 
-When an MCP tool references an aggregate function via `ref`, the function's `semantics` are automatically derived into MCP `hints` (`McpToolHints`). Explicit `hints` on the MCP tool override derived values field by field.
+When an MCP tool references an aggregate flow via `ref`, the function's `semantics` are automatically derived into MCP `hints` (`McpToolHints`). Explicit `hints` on the MCP tool override derived values field by field.
 
 **Mapping table:**
 
@@ -341,7 +341,7 @@ capability:
   aggregates:
     - display: "Forecast"
       namespace: "forecast"
-      functions:
+      flows:
         - name: "get-forecast"
           description: "Fetch current weather forecast for a location."
           semantics:
@@ -503,7 +503,7 @@ Capability groups not declared in the configuration are omitted from the `initia
 
 An MCP tool definition. Each tool maps to one or more consumed HTTP operations, similar to ExposedOperation but adapted for the MCP protocol (no HTTP method, tool-oriented input schema).
 
-> The McpTool supports the same two modes as ExposedOperation: **simple** (direct `call` + `with`) and **orchestrated** (multi-step with `steps` + `mappings`). Additionally, a tool can use **`ref`** to reference an aggregate function, inheriting its fields.
+> The McpTool supports the same two modes as ExposedOperation: **simple** (direct `call` + `with`) and **orchestrated** (multi-step with `steps` + `mappings`). Additionally, a tool can use **`ref`** to reference an aggregate flow, inheriting its fields.
 > 
 
 **Fixed Fields:**
@@ -514,7 +514,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 | **display** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
 | **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **description** | `string` | A meaningful description of the tool. Essential for agent discovery. **REQUIRED** unless `ref` is used (inherited from function). |
-| **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
+| **ref** | `string` | Reference to an aggregate flow. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 | **hints** | `McpToolHints` | Optional behavioral hints for MCP clients. Mapped to `ToolAnnotations` in the MCP protocol. When `ref` is used, hints are automatically derived from the function's `semantics`; explicit values override derived ones. See [3.5.5.1 McpToolHints Object](#3551-mctoolhints-object). |
 | **inputParameters** | `McpToolInputParameter[]` | Tool input parameters. These become the MCP tool's input schema (JSON Schema). |
 | **call** | `string` | **Simple mode only**. Reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
@@ -540,7 +540,7 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 - `outputParameters` are `OrchestratedOutputParameter[]`
 - `call` and `with` MUST NOT be present
 
-**Ref mode** — reference to an aggregate function:
+**Ref mode** — reference to an aggregate flow:
 
 - `ref` is **REQUIRED**
 - All other fields are optional — inherited from the referenced function
@@ -1334,7 +1334,7 @@ Describes an operation exposed on an exposed resource.
 
 > Update (schema v0.5): ExposesObject now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
 >
-> Update (schema v1.0.0-alpha1): A third **ref mode** allows referencing an aggregate function, inheriting its fields. See [3.4.5 Aggregate Object](#345-aggregate-object).
+> Update (schema v1.0.0-alpha1): A third **ref mode** allows referencing an aggregate flow, inheriting its fields. See [3.4.5 Aggregate Object](#345-aggregate-object).
 > 
 
 #### 3.9.1 Fixed Fields
@@ -1347,7 +1347,7 @@ All fields available on ExposesObject:
 | **name** | `string` | Technical name for the operation (pattern `^[a-zA-Z0-9-]+$`). **REQUIRED in orchestrated mode.** Optional when `ref` is used (inherited from function). |
 | **display** | `string` | Display name for the operation (likely used in UIs). |
 | **description** | `string` | A longer description of the operation. Useful for agent discovery and documentation. Optional when `ref` is used (inherited from function). |
-| **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
+| **ref** | `string` | Reference to an aggregate flow. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the operation. |
 | **call** | `string` | **Simple mode only**. Direct reference to a consumed operation. Format: `{namespace}.{operationId}`. MUST match pattern `^[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`. |
 | **with** | `WithInjector` | **Simple mode only**. Parameter injection for the called operation. |
@@ -1374,7 +1374,7 @@ All fields available on ExposesObject:
 - `outputParameters` are `OrchestratedOutputParameter[]` (name + type)
 - `call` and `with` MUST NOT be present
 
-**Ref mode** — reference to an aggregate function:
+**Ref mode** — reference to an aggregate flow:
 
 - `ref` is **REQUIRED**
 - `method` is still **REQUIRED** (transport-specific)
@@ -1387,7 +1387,7 @@ All fields available on ExposesObject:
 - Exactly one of the three modes MUST be used (simple, orchestrated, or ref).
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry. Each step references a consumed operation using `{namespace}.{operationName}`.
-- In ref mode, `ref` MUST resolve to an existing aggregate function at capability load time.
+- In ref mode, `ref` MUST resolve to an existing aggregate flow at capability load time.
 - The `method` field is always required regardless of mode.
 
 #### 3.9.4 ExposesObject Examples

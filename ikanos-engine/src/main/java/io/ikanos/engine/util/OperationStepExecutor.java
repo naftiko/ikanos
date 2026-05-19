@@ -93,9 +93,9 @@ public class OperationStepExecutor {
     /**
      * Override the expose namespace after construction.
      *
-     * <p>This setter exists for {@link io.ikanos.engine.aggregates.AggregateFunction}, which
-     * shares a single {@code OperationStepExecutor} across multiple aggregate functions that may
-     * belong to different namespaces. The function sets its own namespace before each execution.
+     * <p>This setter exists for {@link io.ikanos.engine.aggregates.AggregateFlow}, which
+     * shares a single {@code OperationStepExecutor} across multiple aggregate flows that may
+     * belong to different namespaces. The flow sets its own namespace before each execution.
      * Handlers whose namespace is known at construction time should use
      * {@link #OperationStepExecutor(Capability, String)} instead.</p>
      */

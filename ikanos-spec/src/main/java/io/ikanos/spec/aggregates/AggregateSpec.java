@@ -23,12 +23,12 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 /**
  * Aggregate Specification Element.
  *
- * <p>A domain aggregate grouping reusable functions. Adapters reference these functions via ref.</p>
+ * <p>A domain aggregate grouping reusable flows. Adapters reference these flows via ref.</p>
  *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.
- * The {@code functions} map is stored as a synchronized {@link LinkedHashMap} to preserve
+ * The {@code flows} map is stored as a synchronized {@link LinkedHashMap} to preserve
  * YAML insertion order (critical for step orchestration semantics). This satisfies SonarQube
  * rule {@code java:S3077}.
  */
@@ -37,8 +37,8 @@ public class AggregateSpec {
     private final AtomicReference<String> display = new AtomicReference<>();
     private final AtomicReference<String> namespace = new AtomicReference<>();
 
-    @JsonDeserialize(using = AggregateFunctionMapDeserializer.class)
-    private final Map<String, AggregateFunctionSpec> functions =
+    @JsonDeserialize(using = AggregateFlowMapDeserializer.class)
+    private final Map<String, AggregateFlowSpec> flows =
             Collections.synchronizedMap(new LinkedHashMap<>());
 
     public String getDisplay() {
@@ -57,15 +57,15 @@ public class AggregateSpec {
         this.namespace.set(namespace);
     }
 
-    public Map<String, AggregateFunctionSpec> getFunctions() {
-        return functions;
+    public Map<String, AggregateFlowSpec> getFlows() {
+        return flows;
     }
 
-    public void setFunctions(Map<String, AggregateFunctionSpec> functions) {
-        if (functions == null) return;
-        synchronized (this.functions) {
-            this.functions.clear();
-            this.functions.putAll(functions);
+    public void setFlows(Map<String, AggregateFlowSpec> flows) {
+        if (flows == null) return;
+        synchronized (this.flows) {
+            this.flows.clear();
+            this.flows.putAll(flows);
         }
     }
 }
