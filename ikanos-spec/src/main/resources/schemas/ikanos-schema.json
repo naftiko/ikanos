@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ikanos.io/schemas/v1.0.0-alpha3/ikanos.json",
   "name": "Ikanos Specification",
@@ -788,6 +788,13 @@
           "type": "string",
           "description": "A meaningful description of the function."
         },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
+        },
         "semantics": {
           "$ref": "#/$defs/Semantics"
         },
@@ -1054,6 +1061,13 @@
         "display": {
           "type": "string",
           "description": "Human-readable display name of the tool. Mapped to MCP 'title' in tools/list responses."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
         },
         "description": {
           "type": "string",
@@ -1463,6 +1477,13 @@
           "type": "string",
           "description": "Display name for the resource. It will likely be used in UIs."
         },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
+        },
         "description": {
           "type": "string",
           "description": "Used to provide *meaningful* information about the resource. Remember, in a world of agents, context is king."
@@ -1520,6 +1541,13 @@
         "display": {
           "type": "string",
           "description": "Display name for the operation. Used in UIs."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
         },
         "description": {
           "type": "string",
@@ -1690,6 +1718,13 @@
           "type": "string",
           "description": "Human-readable label for editors and documentation. Does not affect runtime behavior."
         },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
+        },
         "description": {
           "type": "string",
           "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object — a structured collection of pages'). Used for agent discovery."
@@ -1732,6 +1767,13 @@
       "properties": {
         "display": {
           "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Arbitrary string tags for filtering and discovery.",
+          "items": {
+            "type": "string"
+          }
         },
         "description": {
           "type": "string",
