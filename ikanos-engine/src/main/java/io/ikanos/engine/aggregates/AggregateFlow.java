@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.aggregates.SemanticsSpec;
@@ -32,19 +32,19 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
 
 /**
- * Runtime-executable wrapper around an {@link AggregateFunctionSpec}.
+ * Runtime-executable wrapper around an {@link AggregateFlowSpec}.
  *
  * <p>Holds the spec data (from YAML) plus the {@link OperationStepExecutor} needed to actually
- * run the function. Adapters (MCP tools, REST operations) that reference an aggregate function
- * delegate execution here instead of duplicating the function's fields.</p>
+ * run the flow. Adapters (MCP tools, REST operations) that reference an aggregate flow
+ * delegate execution here instead of duplicating the flow's fields.</p>
  */
-public class AggregateFunction {
+public class AggregateFlow {
 
-    private final AggregateFunctionSpec spec;
+    private final AggregateFlowSpec spec;
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
 
-    AggregateFunction(AggregateFunctionSpec spec, OperationStepExecutor stepExecutor,
+    AggregateFlow(AggregateFlowSpec spec, OperationStepExecutor stepExecutor,
             String namespace) {
         this.spec = spec;
         this.stepExecutor = stepExecutor;
@@ -89,7 +89,7 @@ public class AggregateFunction {
     }
 
     /**
-     * Execute this aggregate function with the given parameters.
+     * Execute this aggregate flow with the given parameters.
      *
      * <p>Supports three modes:
      * <ol>
@@ -99,11 +99,11 @@ public class AggregateFunction {
      * </ol>
      *
      * @param parameters resolved input parameters (merged with adapter-level 'with')
-     * @return a transport-neutral {@link FunctionResult}
+     * @return a transport-neutral {@link FlowResult}
      */
-    public FunctionResult execute(Map<String, Object> parameters) throws Exception {
+    public FlowResult execute(Map<String, Object> parameters) throws Exception {
         String ref = namespace + "." + spec.getName();
-        Span span = TelemetryBootstrap.get().startAggregateFunctionSpan(ref);
+        Span span = TelemetryBootstrap.get().startAggregateFlowSpan(ref);
         try (Scope scope = span.makeCurrent()) {
             return doExecute(parameters);
         } catch (Exception e) {
@@ -114,13 +114,13 @@ public class AggregateFunction {
         }
     }
 
-    FunctionResult doExecute(Map<String, Object> parameters) throws Exception {
+    FlowResult doExecute(Map<String, Object> parameters) throws Exception {
         Map<String, Object> merged = new HashMap<>();
         if (parameters != null) {
             merged.putAll(parameters);
         }
 
-        // Merge function-level 'with' parameters
+        // Merge flow-level 'with' parameters
         OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, namespace);
 
         boolean hasCall = spec.getCall() != null;
@@ -130,7 +130,7 @@ public class AggregateFunction {
         if (!hasCall && !isOrchestrated) {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode mockRoot = Resolver.buildMockData(spec.getOutputParameters(), mapper, merged);
-            return new FunctionResult(null, null, mockRoot);
+            return new FlowResult(null, null, mockRoot);
         }
 
         // Covers both orchestrated and simple-call paths
@@ -145,19 +145,19 @@ public class AggregateFunction {
                 String mapped = stepExecutor.resolveStepMappings(
                         spec.getMappings(), stepResult.stepContext);
                 if (mapped != null) {
-                    return new FunctionResult(stepResult.lastContext, mapped, null);
+                    return new FlowResult(stepResult.lastContext, mapped, null);
                 }
             }
 
-            return new FunctionResult(stepResult.lastContext, null, null);
+            return new FlowResult(stepResult.lastContext, null, null);
         }
 
         // Simple call mode
         OperationStepExecutor.HandlingContext found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), merged,
-                        "Function '" + spec.getName() + "'");
+                        "Flow '" + spec.getName() + "'");
 
-        // Apply output parameter mappings if defined on the function
+        // Apply output parameter mappings if defined on the flow
         if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()
                 && found != null && found.clientResponse != null
                 && found.clientResponse.getEntity() != null) {
@@ -169,11 +169,11 @@ public class AggregateFunction {
             String mapped = stepExecutor.applyOutputMappings(responseText,
                     spec.getOutputParameters(), outputRawFormat, outputSchema);
             if (mapped != null) {
-                return new FunctionResult(found, mapped, null);
+                return new FlowResult(found, mapped, null);
             }
         }
 
-        return new FunctionResult(found, null, null);
+        return new FlowResult(found, null, null);
     }
 
 }

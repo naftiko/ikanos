@@ -20,14 +20,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import java.io.File;
 
 /**
- * Integration tests for aggregate function ref resolution and semantics-to-hints derivation
+ * Integration tests for aggregate flow ref resolution and semantics-to-hints derivation
  * through the full capability loading pipeline.
  */
 public class AggregateIntegrationTest {
@@ -46,7 +46,7 @@ public class AggregateIntegrationTest {
     // ── Basic ref resolution ──
 
     @Test
-    void refShouldResolveCallFromAggregateFunction() throws Exception {
+    void refShouldResolveCallFromAggregateFlow() throws Exception {
         Capability capability = loadCapability("src/test/resources/aggregates/aggregate-basic.yaml");
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         McpServerSpec serverSpec = adapter.getMcpServerSpec();
@@ -56,9 +56,9 @@ public class AggregateIntegrationTest {
         // call is no longer copied to the tool spec — it is resolved at runtime
         assertNull(tool.getCall(), "call should not be on tool spec — delegated to aggregate");
 
-        // Verify call is available via the runtime aggregate function
-        AggregateFunction fn = capability.lookupFunction(tool.getRef());
-        assertNotNull(fn.getCall(), "call should be available on the aggregate function");
+        // Verify call is available via the runtime aggregate flow
+        AggregateFlow fn = capability.lookupFlow(tool.getRef());
+        assertNotNull(fn.getCall(), "call should be available on the aggregate flow");
         assertEquals("weather-api.get-forecast", fn.getCall().getOperation());
     }
 
@@ -73,8 +73,8 @@ public class AggregateIntegrationTest {
         assertTrue(tool.getInputParameters().isEmpty(),
                 "inputParameters should not be on tool spec — delegated to aggregate");
 
-        // Verify inputParameters are available via the runtime aggregate function
-        AggregateFunction fn = capability.lookupFunction(tool.getRef());
+        // Verify inputParameters are available via the runtime aggregate flow
+        AggregateFlow fn = capability.lookupFlow(tool.getRef());
         assertEquals(1, fn.getInputParameters().size());
         assertEquals("location", fn.getInputParameters().get(0).getName());
     }
@@ -101,7 +101,7 @@ public class AggregateIntegrationTest {
         io.ikanos.spec.exposes.rest.RestServerSpec restSpec =
                 (io.ikanos.spec.exposes.rest.RestServerSpec) restAdapter.getSpec();
 
-        // POST operation uses key "get-forecast" — name inherited from aggregate function key
+        // POST operation uses key "get-forecast" — name inherited from aggregate flow key
         io.ikanos.spec.exposes.rest.RestServerOperationSpec op =
                 restSpec.getResources().get("forecast").getOperations().get("get-forecast");
         assertEquals("POST", op.getMethod());

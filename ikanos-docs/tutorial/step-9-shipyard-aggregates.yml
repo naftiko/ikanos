@@ -1,4 +1,4 @@
-ikanos: "1.0.0-alpha3"
+﻿ikanos: "1.0.0-alpha3"
 
 binds:
 - namespace: "registry-env"
@@ -25,7 +25,7 @@ capability:
     crew-resolver:
       display: "Crew Resolver"
       namespace: crew-resolver
-      functions:
+      flows:
         resolve-crew-for-ship:
           description: "Resolve crew member names and roles for a given ship"
           semantics:

@@ -1,4 +1,4 @@
-# The Shipyard — Tutorial — Part 2
+﻿# The Shipyard — Tutorial — Part 2
 
 At the end of Part 1, your capability could list, inspect, plan, and enrich. Five tools, two APIs, one contract that survived the journey from mock to production. Good for an MCP client sitting next to the capability. But the Shipyard doesn't live alone: partner agents want a *catalog* they can discover, some logic keeps getting copy-pasted between tools, the operations dashboard speaks REST not MCP, and ops walks in one morning asking for *"one document that has everything."*
 
@@ -73,7 +73,7 @@ Something's starting to smell. Step 7 defined a three-step chain inside `get-shi
 ~~~yaml
 aggregates:
   - namespace: crew-resolver
-    functions:
+    flows:
       - name: resolve-crew-for-ship
         semantics:
           safe: true
@@ -133,7 +133,7 @@ The tool output is byte-for-byte identical to Step 7. The *spec* got dramaticall
 
 Not every consumer is an AI agent. The operations dashboard is a plain React app. The partner logistics company speaks OpenAPI. The mobile team doesn't care what MCP is — they want `GET /ships/{imo}` and they want it *now*.
 
-Same capability, different front door. `type: rest` exposes HTTP endpoints that map to the same consumed operations — or, better, the same aggregate functions we defined in Step 9. Write logic once, expose it three times.
+Same capability, different front door. `type: rest` exposes HTTP endpoints that map to the same consumed operations — or, better, the same aggregate flows we defined in Step 9. Write logic once, expose it three times.
 
 ~~~yaml
 - type: rest
@@ -192,12 +192,12 @@ Two things to notice. First, REST operations declare HTTP-level parameter placem
 
 The voyage is planned. The crew is confirmed. Oslo to Singapore, Northern Star, Captain Erik, Aiko in the galley. And now operations walks in with the final ask: *"I need one document. Voyage, ship, crew, cargo — all of it, resolved, in one payload. Before the ship leaves."*
 
-Three separate calls and client-side stitching would work. But we already have the pattern (Step 7) and the abstraction (Step 9). This is the same lookup mechanic, scaled up: **four `call` steps and three `lookup` steps**, defined once as an aggregate function, referenced from MCP, Skills, and REST simultaneously.
+Three separate calls and client-side stitching would work. But we already have the pattern (Step 7) and the abstraction (Step 9). This is the same lookup mechanic, scaled up: **four `call` steps and three `lookup` steps**, defined once as an aggregate flow, referenced from MCP, Skills, and REST simultaneously.
 
 ~~~yaml
 aggregates:
   - namespace: manifest
-    functions:
+    flows:
       - name: build-voyage-manifest
         semantics:
           safe: true

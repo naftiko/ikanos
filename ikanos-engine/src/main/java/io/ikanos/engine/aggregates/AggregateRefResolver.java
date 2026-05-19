@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import org.restlet.Context;
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.IkanosSpec;
@@ -31,26 +31,26 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 
 /**
- * Validates aggregate function references ({@code ref}) in adapter units (MCP tools, REST
+ * Validates aggregate flow references ({@code ref}) in adapter units (MCP tools, REST
  * operations) and derives MCP-specific metadata. Runs at capability load time, before server
  * startup.
  *
  * <p>
- * Validation ensures all refs point to known aggregate functions. For MCP tools, semantics are
+ * Validation ensures all refs point to known aggregate flows. For MCP tools, semantics are
  * automatically derived into hints (with field-level override). Adapter-specific metadata
  * (name, description) is inherited when not explicitly set on the adapter unit.
  *
  * <p>
  * Execution fields ({@code call}, {@code steps}, {@code with}, {@code inputParameters},
  * {@code outputParameters}, {@code mappings}) are <b>not</b> copied — at runtime, adapters
- * delegate to {@link AggregateFunction} instances held by the {@link io.ikanos.Capability}.
+ * delegate to {@link AggregateFlow} instances held by the {@link io.ikanos.Capability}.
  */
 public class AggregateRefResolver {
 
     /**
      * Validate all {@code ref} fields across adapter units in the given spec and derive
      * adapter-specific metadata.
-     * 
+     *
      * @param spec The root Naftiko spec to resolve
      * @throws IllegalArgumentException if a ref target is unknown
      */
@@ -60,22 +60,22 @@ public class AggregateRefResolver {
             return;
         }
 
-        // Build lookup map: "namespace.functionName" → AggregateFunctionSpec
-        Map<String, AggregateFunctionSpec> functionMap = buildFunctionMap(capability);
+        // Build lookup map: "namespace.flowName" → AggregateFlowSpec
+        Map<String, AggregateFlowSpec> flowMap = buildFlowMap(capability);
 
         // Validate refs and derive metadata in all adapter units
         for (ServerSpec serverSpec : capability.getExposes()) {
             if (serverSpec instanceof McpServerSpec mcpSpec) {
                 for (McpServerToolSpec tool : mcpSpec.getTools().values()) {
                     if (tool.getRef() != null) {
-                        resolveMcpToolRef(tool, functionMap);
+                        resolveMcpToolRef(tool, flowMap);
                     }
                 }
             } else if (serverSpec instanceof RestServerSpec restSpec) {
                 for (RestServerResourceSpec resource : restSpec.getResources().values()) {
                     for (RestServerOperationSpec op : resource.getOperations().values()) {
                         if (op.getRef() != null) {
-                            resolveRestOperationRef(op, functionMap);
+                            resolveRestOperationRef(op, flowMap);
                         }
                     }
                 }
@@ -84,49 +84,49 @@ public class AggregateRefResolver {
     }
 
     /**
-     * Build the lookup map of aggregate functions keyed by "namespace.functionName".
+     * Build the lookup map of aggregate flows keyed by "namespace.flowName".
      */
-    Map<String, AggregateFunctionSpec> buildFunctionMap(CapabilitySpec capability) {
-        Map<String, AggregateFunctionSpec> map = new HashMap<>();
+    Map<String, AggregateFlowSpec> buildFlowMap(CapabilitySpec capability) {
+        Map<String, AggregateFlowSpec> map = new HashMap<>();
 
         for (AggregateSpec aggregate : capability.getAggregates().values()) {
-            for (AggregateFunctionSpec function : aggregate.getFunctions().values()) {
-                String key = aggregate.getNamespace() + "." + function.getName();
+            for (AggregateFlowSpec flow : aggregate.getFlows().values()) {
+                String key = aggregate.getNamespace() + "." + flow.getName();
                 if (map.containsKey(key)) {
                     throw new IllegalArgumentException(
-                            "Duplicate aggregate function ref: '" + key + "'");
+                            "Duplicate aggregate flow ref: '" + key + "'");
                 }
-                map.put(key, function);
+                map.put(key, flow);
             }
         }
 
         Context.getCurrentLogger().log(Level.INFO,
-                "Built aggregate function map with {0} entries", map.size());
+                "Built aggregate flow map with {0} entries", map.size());
         return map;
     }
 
     /**
      * Validate a ref on an MCP tool, inherit adapter-specific metadata, and derive MCP hints
      * from semantics. Execution fields are not copied — they are resolved at runtime via
-     * {@link AggregateFunction}.
+     * {@link AggregateFlow}.
      */
     void resolveMcpToolRef(McpServerToolSpec tool,
-            Map<String, AggregateFunctionSpec> functionMap) {
-        AggregateFunctionSpec function = lookupFunction(tool.getRef(), functionMap);
+            Map<String, AggregateFlowSpec> flowMap) {
+        AggregateFlowSpec flow = lookupFlow(tool.getRef(), flowMap);
 
         // Inherit name (adapter-specific metadata)
         if (tool.getName() == null || tool.getName().isEmpty()) {
-            tool.setName(function.getName());
+            tool.setName(flow.getName());
         }
 
         // Inherit description (adapter-specific metadata)
         if (tool.getDescription() == null || tool.getDescription().isEmpty()) {
-            tool.setDescription(function.getDescription());
+            tool.setDescription(flow.getDescription());
         }
 
-        // Derive MCP hints from function semantics, with tool-level override
-        if (function.getSemantics() != null) {
-            McpToolHintsSpec derived = deriveHints(function.getSemantics());
+        // Derive MCP hints from flow semantics, with tool-level override
+        if (flow.getSemantics() != null) {
+            McpToolHintsSpec derived = deriveHints(flow.getSemantics());
             tool.setHints(mergeHints(derived, tool.getHints()));
         }
     }
@@ -134,35 +134,35 @@ public class AggregateRefResolver {
     /**
      * Validate a ref on a REST operation and inherit adapter-specific metadata.
      * Execution fields are not copied — they are resolved at runtime via
-     * {@link AggregateFunction}.
+     * {@link AggregateFlow}.
      */
     void resolveRestOperationRef(RestServerOperationSpec op,
-            Map<String, AggregateFunctionSpec> functionMap) {
-        AggregateFunctionSpec function = lookupFunction(op.getRef(), functionMap);
+            Map<String, AggregateFlowSpec> flowMap) {
+        AggregateFlowSpec flow = lookupFlow(op.getRef(), flowMap);
 
         // Inherit name
         if (op.getName() == null || op.getName().isEmpty()) {
-            op.setName(function.getName());
+            op.setName(flow.getName());
         }
 
         // Inherit description
         if (op.getDescription() == null || op.getDescription().isEmpty()) {
-            op.setDescription(function.getDescription());
+            op.setDescription(flow.getDescription());
         }
     }
 
     /**
-     * Look up a function by ref key. Fails fast on unknown refs.
+     * Look up a flow by ref key. Fails fast on unknown refs.
      */
-    AggregateFunctionSpec lookupFunction(String ref,
-            Map<String, AggregateFunctionSpec> functionMap) {
-        AggregateFunctionSpec function = functionMap.get(ref);
-        if (function == null) {
+    AggregateFlowSpec lookupFlow(String ref,
+            Map<String, AggregateFlowSpec> flowMap) {
+        AggregateFlowSpec flow = flowMap.get(ref);
+        if (flow == null) {
             throw new IllegalArgumentException(
-                    "Unknown aggregate function ref: '" + ref
-                            + "'. Available refs: " + functionMap.keySet());
+                    "Unknown aggregate flow ref: '" + ref
+                            + "'. Available refs: " + flowMap.keySet());
         }
-        return function;
+        return flow;
     }
 
     /**

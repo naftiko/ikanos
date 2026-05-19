@@ -16,25 +16,25 @@ package io.ikanos.engine.aggregates;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import io.ikanos.engine.util.OperationStepExecutor;
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 
 /**
  * Runtime representation of a domain aggregate.
  *
  * <p>Wraps an {@link AggregateSpec} (YAML data) and owns executable
- * {@link AggregateFunction} instances for each function defined in the spec.</p>
+ * {@link AggregateFlow} instances for each flow defined in the spec.</p>
  */
 public class Aggregate {
 
     private final String namespace;
-    private final List<AggregateFunction> functions;
+    private final List<AggregateFlow> flows;
 
     public Aggregate(AggregateSpec spec, OperationStepExecutor stepExecutor) {
         this.namespace = spec.getNamespace();
-        this.functions = new CopyOnWriteArrayList<>();
-        for (AggregateFunctionSpec fnSpec : spec.getFunctions().values()) {
-            this.functions.add(new AggregateFunction(fnSpec, stepExecutor, this.namespace));
+        this.flows = new CopyOnWriteArrayList<>();
+        for (AggregateFlowSpec flowSpec : spec.getFlows().values()) {
+            this.flows.add(new AggregateFlow(flowSpec, stepExecutor, this.namespace));
         }
     }
 
@@ -42,20 +42,20 @@ public class Aggregate {
         return namespace;
     }
 
-    public List<AggregateFunction> getFunctions() {
-        return functions;
+    public List<AggregateFlow> getFlows() {
+        return flows;
     }
 
     /**
-     * Find a function by name within this aggregate.
+     * Find a flow by name within this aggregate.
      *
-     * @param name the function name
-     * @return the function, or {@code null} if not found
+     * @param name the flow name
+     * @return the flow, or {@code null} if not found
      */
-    public AggregateFunction findFunction(String name) {
-        for (AggregateFunction fn : functions) {
-            if (fn.getName().equals(name)) {
-                return fn;
+    public AggregateFlow findFlow(String name) {
+        for (AggregateFlow flow : flows) {
+            if (flow.getName().equals(name)) {
+                return flow;
             }
         }
         return null;

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
@@ -78,7 +78,7 @@ class SpecFieldThreadSafetyTest {
         return Stream.of(
                 IkanosSpec.class,
                 OperationSpec.class,
-                AggregateFunctionSpec.class,
+                AggregateFlowSpec.class,
                 AggregateSpec.class,
                 HttpClientSpec.class,
                 HttpClientResourceSpec.class,
@@ -138,3 +138,4 @@ class SpecFieldThreadSafetyTest {
                 () -> "Default constructor of " + specClass.getSimpleName() + " did not return an instance");
     }
 }
+

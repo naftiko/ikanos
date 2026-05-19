@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+﻿ikanos: 1.0.0-alpha3
 info:
   display: Aggregate Hints Override Test
   description: Test capability for semantics-to-hints derivation with override
@@ -12,7 +12,7 @@ capability:
     data:
       display: Data
       namespace: data
-      functions:
+      flows:
         read-items:
           description: Read items from the data store.
           semantics:
