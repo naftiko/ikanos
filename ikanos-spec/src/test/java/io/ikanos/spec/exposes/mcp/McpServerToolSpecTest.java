@@ -33,7 +33,7 @@ class McpServerToolSpecTest {
     void defaultConstructorShouldInitializeWithNullScalars() {
         McpServerToolSpec spec = new McpServerToolSpec();
         assertNull(spec.getName());
-        assertNull(spec.getLabel());
+        assertNull(spec.getDisplay());
         assertNull(spec.getDescription());
     }
 
@@ -56,7 +56,7 @@ class McpServerToolSpecTest {
     void parameterisedConstructorShouldSetNameLabelDescription() {
         McpServerToolSpec spec = new McpServerToolSpec("lookup", "Lookup", "Look up a value");
         assertEquals("lookup", spec.getName());
-        assertEquals("Lookup", spec.getLabel());
+        assertEquals("Lookup", spec.getDisplay());
         assertEquals("Look up a value", spec.getDescription());
     }
 
@@ -74,8 +74,8 @@ class McpServerToolSpecTest {
     @Test
     void setLabelShouldStoreValue() {
         McpServerToolSpec spec = new McpServerToolSpec();
-        spec.setLabel("My Tool");
-        assertEquals("My Tool", spec.getLabel());
+        spec.setDisplay("My Tool");
+        assertEquals("My Tool", spec.getDisplay());
     }
 
     // ── Description ──

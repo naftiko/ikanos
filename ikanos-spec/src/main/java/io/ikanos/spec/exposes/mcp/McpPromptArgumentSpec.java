@@ -26,7 +26,7 @@ public class McpPromptArgumentSpec {
     private volatile String name;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String label;
+    private volatile String display;
 
     private volatile String description;
 
@@ -44,12 +44,12 @@ public class McpPromptArgumentSpec {
         this.name = name;
     }
 
-    public String getLabel() {
-        return label;
+    public String getDisplay() {
+        return display;
     }
 
-    public void setLabel(String label) {
-        this.label = label;
+    public void setDisplay(String display) {
+        this.display = display;
     }
 
     public String getDescription() {

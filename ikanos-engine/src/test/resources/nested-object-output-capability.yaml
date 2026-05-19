@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Nested Object Output Capability
+  display: Nested Object Output Capability
   description: Test fixture for verifying that output mappings correctly resolve nested
     object properties without a top-level mapping key (regression for resolver nested
     object bug).

@@ -83,7 +83,7 @@ public class ImportIntegrationTest {
         String capabilityYaml = """
             ikanos: "%s"
             info:
-              label: "Test Capability"
+              display: "Test Capability"
               description: "Tests imported adapters"
             capability:
               consumes:
@@ -131,7 +131,7 @@ public class ImportIntegrationTest {
         String capabilityYaml = """
             ikanos: "%s"
             info:
-              label: "Mixed Capability"
+              display: "Mixed Capability"
               description: "Tests both inline and imported consumes"
             capability:
               consumes:
@@ -187,7 +187,7 @@ public class ImportIntegrationTest {
         String capabilityYaml = """
             ikanos: "%s"
             info:
-              label: "Aliased Capability"
+              display: "Aliased Capability"
               description: "Tests import with alias"
             capability:
               consumes:
@@ -224,7 +224,7 @@ public class ImportIntegrationTest {
         String capabilityYaml = """
             ikanos: "%s"
             info:
-              label: "Bad Capability"
+              display: "Bad Capability"
               description: "Bad import path"
             capability:
               consumes:

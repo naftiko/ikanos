@@ -245,7 +245,7 @@ public class ProtocolDispatcher {
             ObjectNode node = mapper.createObjectNode();
             node.put("uri", entry.get("uri"));
             node.put("name", entry.get("name"));
-            String title = entry.get("label");
+            String title = entry.get("display");
             if (title != null) {
                 node.put("title", title);
             }
@@ -314,8 +314,8 @@ public class ProtocolDispatcher {
             ObjectNode node = mapper.createObjectNode();
             node.put("uriTemplate", spec.getUri());
             node.put("name", spec.getName());
-            if (spec.getLabel() != null) {
-                node.put("title", spec.getLabel());
+            if (spec.getDisplay() != null) {
+                node.put("title", spec.getDisplay());
             }
             if (spec.getDescription() != null) {
                 node.put("description", spec.getDescription());
@@ -339,8 +339,8 @@ public class ProtocolDispatcher {
         for (McpServerPromptSpec spec : adapter.getPromptHandler().listAll()) {
             ObjectNode promptNode = mapper.createObjectNode();
             promptNode.put("name", spec.getName());
-            if (spec.getLabel() != null) {
-                promptNode.put("title", spec.getLabel());
+            if (spec.getDisplay() != null) {
+                promptNode.put("title", spec.getDisplay());
             }
             if (spec.getDescription() != null) {
                 promptNode.put("description", spec.getDescription());
@@ -350,8 +350,8 @@ public class ProtocolDispatcher {
                 for (McpPromptArgumentSpec arg : spec.getArguments().values()) {
                     ObjectNode argNode = mapper.createObjectNode();
                     argNode.put("name", arg.getName());
-                    if (arg.getLabel() != null) {
-                        argNode.put("title", arg.getLabel());
+                    if (arg.getDisplay() != null) {
+                        argNode.put("title", arg.getDisplay());
                     }
                     if (arg.getDescription() != null) {
                         argNode.put("description", arg.getDescription());

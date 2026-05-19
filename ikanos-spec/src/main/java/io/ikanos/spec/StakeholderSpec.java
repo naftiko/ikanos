@@ -46,8 +46,8 @@ public class StakeholderSpec {
         return fullName;
     }
 
-    public void setFullName(String label) {
-        this.fullName = label;
+    public void setFullName(String display) {
+        this.fullName = display;
     }
 
     public String getEmail() {

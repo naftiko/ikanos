@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Skill Test Capability
+  display: Skill Test Capability
   description: Test capability for Skill Server Adapter deserialization and wiring
   tags:
   - Test
@@ -16,12 +16,12 @@ capability:
     resources:
       orders:
         path: /orders
-        label: Orders
+        display: Orders
         description: Order management endpoint
         operations:
           list-orders:
             method: GET
-            label: List Orders
+            display: List Orders
             call: mock-orders.list
   - type: skill
     address: localhost
@@ -55,4 +55,4 @@ capability:
         operations:
           list:
             method: GET
-            label: List Orders
+            display: List Orders

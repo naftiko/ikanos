@@ -47,8 +47,8 @@ public class RestServerResourceSpec extends ResourceSpec {
         this(path, null, null, null, null);
     }
 
-    public RestServerResourceSpec(String path, String name, String label, String description, RestServerForwardSpec forward) {
-        super(path, name, label, description);
+    public RestServerResourceSpec(String path, String name, String display, String description, RestServerForwardSpec forward) {
+        super(path, name, display, description);
         this.forward.set(forward);
     }
 

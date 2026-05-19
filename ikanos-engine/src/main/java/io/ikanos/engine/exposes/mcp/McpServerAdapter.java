@@ -79,8 +79,8 @@ public class McpServerAdapter extends ServerAdapter {
             }
 
             this.tools.add(buildMcpTool(toolSpec));
-            if (toolSpec.getLabel() != null) {
-                this.toolLabels.put(toolSpec.getName(), toolSpec.getLabel());
+            if (toolSpec.getDisplay() != null) {
+                this.toolLabels.put(toolSpec.getName(), toolSpec.getDisplay());
             }
         }
 
@@ -113,9 +113,9 @@ public class McpServerAdapter extends ServerAdapter {
         context.getAttributes().put("dispatcher", dispatcher);
         context.getAttributes().put("activeSessions", activeSessions);
         if (getCapability().getSpec().getInfo() != null
-                && getCapability().getSpec().getInfo().getLabel() != null) {
+                && getCapability().getSpec().getInfo().getDisplay() != null) {
             context.getAttributes().put("capabilityName",
-                    getCapability().getSpec().getInfo().getLabel());
+                    getCapability().getSpec().getInfo().getDisplay());
         }
 
         Router router = new Router(context);
@@ -194,13 +194,13 @@ public class McpServerAdapter extends ServerAdapter {
      */
     McpSchema.ToolAnnotations buildToolAnnotations(McpServerToolSpec toolSpec) {
         McpToolHintsSpec hints = toolSpec.getHints();
-        String label = toolSpec.getLabel();
+        String display = toolSpec.getDisplay();
 
-        if (hints == null && label == null) {
+        if (hints == null && display == null) {
             return null;
         }
 
-        return new McpSchema.ToolAnnotations(label,
+        return new McpSchema.ToolAnnotations(display,
                 hints != null ? hints.getReadOnly() : null,
                 hints != null ? hints.getDestructive() : null,
                 hints != null ? hints.getIdempotent() : null,

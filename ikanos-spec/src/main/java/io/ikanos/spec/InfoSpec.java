@@ -21,7 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class InfoSpec {
 
-    private volatile String label;
+    private volatile String display;
 
     private volatile String description;
 
@@ -33,8 +33,8 @@ public class InfoSpec {
 
     private final List<StakeholderSpec> stakeholders;
 
-    public InfoSpec(String label, String description, String created, String modified) {
-        this.label = label;
+    public InfoSpec(String display, String description, String created, String modified) {
+        this.display = display;
         this.description = description;
         this.tags = new CopyOnWriteArrayList<>();
         this.created = created;
@@ -46,12 +46,12 @@ public class InfoSpec {
         this(null, null, null, null);
     }
 
-    public String getLabel() {
-        return label;
+    public String getDisplay() {
+        return display;
     }
 
-    public void setLabel(String label) {
-        this.label = label;
+    public void setDisplay(String display) {
+        this.display = display;
     }
 
     public String getDescription() {

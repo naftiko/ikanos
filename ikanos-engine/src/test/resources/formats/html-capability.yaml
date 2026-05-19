@@ -1,6 +1,6 @@
 ikanos: "1.0.0-alpha3"
 info:
-  label: "HTML Test Capability"
+  display: "HTML Test Capability"
   description: "Test capability for HTML table parsing"
   tags:
   - Test

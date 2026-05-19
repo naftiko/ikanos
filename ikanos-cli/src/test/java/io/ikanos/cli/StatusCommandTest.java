@@ -54,7 +54,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldDisplayCapabilityInfo() {
         String json = """
-                {"capability":{"label":"Weather Service","specVersion":"1.0.0-alpha2"},
+                {"capability":{"display":"Weather Service","specVersion":"1.0.0-alpha2"},
                  "engine":{"version":"1.0.0-alpha2","java":"21.0.3","native":false},
                  "uptime":"PT2H34M12S",
                  "otel":{"status":"inactive"},
@@ -88,7 +88,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldShowDegradedWhenAdapterStopped() {
         String json = """
-                {"capability":{"label":"Test"},
+                {"capability":{"display":"Test"},
                  "engine":{"version":"1.0.0","java":"21","native":false},
                  "uptime":"PT5S",
                  "otel":{"status":"inactive"},
@@ -143,7 +143,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldDisplayActiveOtelExporterWhenPresent() {
         String json = """
-                {"capability":{"label":"Weather Service"},
+                {"capability":{"display":"Weather Service"},
                  "engine":{"version":"1.0.0","java":"21","native":false},
                  "uptime":"PT15S",
                  "otel":{"status":"active","exporter":"otlp","endpoint":"http://otel:4317"},
@@ -187,7 +187,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldDisplayNativeEngineIndicator() {
         String json = """
-                {"capability":{"label":"Native App"},
+                {"capability":{"display":"Native App"},
                  "engine":{"version":"1.0.0","java":"21","native":true},
                  "uptime":"PT1S",
                  "otel":{"status":"inactive"},
@@ -211,7 +211,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldHandleOtelInactiveWithoutExporter() {
         String json = """
-                {"capability":{"label":"Test"},
+                {"capability":{"display":"Test"},
                  "engine":{"version":"1.0.0","java":"21","native":false},
                  "uptime":"PT10S",
                  "otel":{"status":"inactive"},
@@ -235,7 +235,7 @@ public class StatusCommandTest {
     @Test
     void statusShouldDisplayMultipleAdapters() {
         String json = """
-                {"capability":{"label":"Multi-adapter"},
+                {"capability":{"display":"Multi-adapter"},
                  "engine":{"version":"1.0.0","java":"21","native":false},
                  "uptime":"PT20S",
                  "otel":{"status":"inactive"},

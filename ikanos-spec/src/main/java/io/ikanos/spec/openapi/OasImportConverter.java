@@ -236,7 +236,7 @@ public class OasImportConverter {
         opSpec.setName(name);
 
         if (operation.getSummary() != null) {
-            opSpec.setLabel(operation.getSummary());
+            opSpec.setDisplay(operation.getSummary());
         }
         if (operation.getDescription() != null) {
             opSpec.setDescription(operation.getDescription());

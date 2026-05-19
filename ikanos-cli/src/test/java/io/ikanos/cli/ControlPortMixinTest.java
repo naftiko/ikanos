@@ -86,7 +86,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test
+                  display: Test
                 capability:
                   exposes:
                     - type: control
@@ -138,7 +138,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test
+                  display: Test
                 capability:
                   exposes:
                     - type: control
@@ -170,7 +170,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test
+                  display: Test
                 capability:
                   exposes:
                     - type: rest
@@ -194,7 +194,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml1, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test A
+                  display: Test A
                 capability:
                   exposes:
                     - type: rest
@@ -205,7 +205,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml2, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test B
+                  display: Test B
                 capability:
                   exposes:
                     - type: control
@@ -230,7 +230,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "1.0.0-alpha2"
                 info:
-                  label: Test
+                  display: Test
                 capability: {}
                 """);
 
