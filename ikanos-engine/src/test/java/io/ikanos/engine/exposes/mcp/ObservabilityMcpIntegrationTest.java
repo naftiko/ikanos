@@ -107,11 +107,11 @@ public class ObservabilityMcpIntegrationTest {
 
         List<SpanData> spans = exporter.getFinishedSpanItems();
 
-        // Find aggregate.function span
+        // Find aggregate.flow span
         SpanData aggregateSpan = spans.stream()
-                .filter(s -> s.getName().equals("aggregate.function"))
+                .filter(s -> s.getName().equals("aggregate.flow"))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Missing aggregate.function span"));
+                .orElseThrow(() -> new AssertionError("Missing aggregate.flow span"));
 
         assertEquals(SpanKind.INTERNAL, aggregateSpan.getKind());
         assertEquals("forecast.get-forecast",
@@ -123,7 +123,7 @@ public class ObservabilityMcpIntegrationTest {
                 .findFirst().orElseThrow();
 
         assertEquals(toolSpan.getSpanId(), aggregateSpan.getParentSpanId(),
-                "aggregate.function should be a child of mcp.tool");
+                "aggregate.flow should be a child of mcp.tool");
         assertEquals(toolSpan.getTraceId(), aggregateSpan.getTraceId(),
                 "Both spans should share the same trace");
     }
