@@ -122,6 +122,7 @@ When writing or generating tests, follow these rules:
 - When a method is not accessible from a test, make it package-private in the production code (remove `private`) rather than using reflection — this is the correct fix
 - Write one focused assertion per test, or group only closely related assertions in a single test
 - Name tests in the form `methodShouldDoSomethingWhenCondition`
+- After renaming any string constant that tests assert against (OTel span names, error messages, log markers), run a codebase-wide grep for the old string across **all** test sources — not just the test class that was directly updated. Compilation failures in unrelated tests do not exempt this search from being exhaustive
 
 **Don't:**
 - Mix unit test patterns (local mock servers, in-process stubs, hardcoded XML/JSON payloads) into integration test classes — each test class must be one type, not both
