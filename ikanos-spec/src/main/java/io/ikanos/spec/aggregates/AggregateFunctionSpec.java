@@ -47,6 +47,8 @@ public class AggregateFunctionSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
     private final AtomicReference<SemanticsSpec> semantics = new AtomicReference<>();
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
@@ -73,6 +75,9 @@ public class AggregateFunctionSpec {
 
     public String getDescription() { return description.get(); }
     public void setDescription(String description) { this.description.set(description); }
+
+    public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags.clear(); if (tags != null) this.tags.addAll(tags); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public SemanticsSpec getSemantics() { return semantics.get(); }
