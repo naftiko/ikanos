@@ -1,4 +1,4 @@
-# Ikanos Specification - Schema
+﻿# Ikanos Specification - Schema
 
 **Version:** {{RELEASE_TAG}}
 
@@ -114,7 +114,7 @@ Provides metadata about the capability.
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **label** | `string` | **REQUIRED**. The display name of the capability. |
+| **display** | `string` | **REQUIRED**. The display name of the capability. |
 | **description** | `string` | *Recommended*. A description of the capability. The more meaningful it is, the easier for agent discovery. |
 | **tags** | `string[]` | List of tags to help categorize the capability for discovery and filtering. |
 | **created** | `string` | Date the capability was created (format: `YYYY-MM-DD`). |
@@ -123,14 +123,14 @@ Provides metadata about the capability.
 
 #### 3.2.2 Rules
 
-- The `label` field is mandatory. The `description` field is recommended to improve agent discovery.
+- The `display` field is mandatory. The `description` field is recommended to improve agent discovery.
 - No additional properties are allowed.
 
 #### 3.2.3 Info Object Example
 
 ```yaml
 info:
-  label: Notion Page Creator
+  display: Notion Page Creator
   description: Creates and manages Notion pages with rich content formatting
   tags:
     - notion
@@ -218,7 +218,7 @@ capability:
           description: "Endpoint to create tasks via the external API"
           operations:
             - method: POST
-              label: Create Task
+              display: Create Task
               call: api.create-task
               outputParameters:
                 - type: string
@@ -229,11 +229,11 @@ capability:
       baseUri: https://api.example.com
       resources:
         - name: tasks
-          label: Tasks API
+          display: Tasks API
           path: /tasks
           operations:
             - name: create-task
-              label: Create Task
+              display: Create Task
               method: POST
               inputParameters:
                 - name: task_id
@@ -248,7 +248,7 @@ capability:
 
 ### 3.4.5 Aggregate Object
 
-A domain aggregate in the sense of [Domain-Driven Design (DDD)](https://en.wikipedia.org/wiki/Domain-driven_design#Building_blocks). Each aggregate groups reusable **functions** — transport-neutral invocable units that adapters reference via `ref`. This factorizes domain behavior so it is defined once and reused across REST, MCP, Skill, and future adapters without duplication.
+A domain aggregate in the sense of [Domain-Driven Design (DDD)](https://en.wikipedia.org/wiki/Domain-driven-design#Building_blocks). Each aggregate groups reusable **functions** — transport-neutral invocable units that adapters reference via `ref`. This factorizes domain behavior so it is defined once and reused across REST, MCP, Skill, and future adapters without duplication.
 
 > New in schema v1.0.0-alpha1.
 
@@ -256,7 +256,7 @@ A domain aggregate in the sense of [Domain-Driven Design (DDD)](https://en.wikip
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **label** | `string` | **REQUIRED**. Human-readable name for this aggregate (e.g. `"Forecast"`). |
+| **display** | `string` | **REQUIRED**. Human-readable name for this aggregate (e.g. `"Forecast"`). |
 | **namespace** | `string` | **REQUIRED**. Machine-readable qualifier (`IdentifierKebab`). Used as the first segment in `ref` values (`{aggregate-namespace}.{function-name}`). |
 | **functions** | `AggregateFunction[]` | **REQUIRED**. Reusable invocable units within this aggregate (minimum 1). |
 
@@ -276,6 +276,7 @@ A reusable invocable unit within an aggregate. Adapter units (MCP tools, REST op
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Function name (`IdentifierKebab`). Combined with aggregate namespace to form the ref target. |
 | **description** | `string` | **REQUIRED**. A meaningful description of the function. Inherited by adapter units that omit their own. |
+| **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **semantics** | `Semantics` | Transport-neutral behavioral metadata. Automatically derived into adapter-specific metadata (e.g. MCP hints). See [3.4.5.2 Semantics Object](#3452-semantics-object). |
 | **inputParameters** | `McpToolInputParameter[]` | Input parameters for this function. |
 | **call** | `string` | **Simple mode**. Reference to consumed operation (`{namespace}.{operationId}`). |
@@ -338,7 +339,7 @@ When an MCP tool references an aggregate function via `ref`, the function's `sem
 ```yaml
 capability:
   aggregates:
-    - label: "Forecast"
+    - display: "Forecast"
       namespace: "forecast"
       functions:
         - name: "get-forecast"
@@ -441,7 +442,8 @@ An exposed resource with **operations** and/or **forward** configuration.
 | **path** | `string` | **REQUIRED**. Path of the resource (supports `param` placeholders). |
 | **description** | `string` | *Recommended*. Used to provide *meaningful* information about the resource. In a world of agents, context is king. |
 | **name** | `string` | Technical name for the resource (used for references, pattern `^[a-zA-Z0-9-]+$`). |
-| **label** | `string` | Display name for the resource (likely used in UIs). |
+| **display** | `string` | Display name for the resource (likely used in UIs). |
+| **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the resource. |
 | **operations** | `ExposedOperation[]` | Operations available on this resource. |
 | **forward** | `ForwardConfig` | Forwarding configuration to a consumed namespace. |
@@ -509,7 +511,8 @@ An MCP tool definition. Each tool maps to one or more consumed HTTP operations, 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | Technical name for the tool. Used as the MCP tool name. MUST match pattern `^[a-zA-Z0-9-]+$`. **REQUIRED** unless `ref` is used (inherited from function). |
-| **label** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
+| **display** | `string` | Human-readable display name for the tool. Mapped to MCP `title` in protocol responses. |
+| **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **description** | `string` | A meaningful description of the tool. Essential for agent discovery. **REQUIRED** unless `ref` is used (inherited from function). |
 | **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 | **hints** | `McpToolHints` | Optional behavioral hints for MCP clients. Mapped to `ToolAnnotations` in the MCP protocol. When `ref` is used, hints are automatically derived from the function's `semantics`; explicit values override derived ones. See [3.5.5.1 McpToolHints Object](#3551-mctoolhints-object). |
@@ -632,7 +635,7 @@ An MCP resource definition. Resources expose data that agents can **read** (but 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the resource. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **label** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
+| **display** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
 | **uri** | `string` | **REQUIRED**. The URI that identifies this resource in MCP. Can use any scheme (e.g. `config://app/current`, `docs://api/reference`). For resource templates, use `{param}` placeholders. |
 | **description** | `string` | *Recommended*. A meaningful description of the resource. In a world of agents, context is king. |
 | **mimeType** | `string` | MIME type of the resource content per RFC 6838 (e.g. `application/json`, `text/markdown`). Optional parameters are supported (e.g. `charset=utf-8`). |
@@ -673,7 +676,7 @@ An MCP resource definition. Resources expose data that agents can **read** (but 
 # Dynamic resource (simple mode)
 resources:
   - name: current-config
-    label: Current Configuration
+    display: Current Configuration
     uri: config://app/current
     description: "Current application configuration"
     mimeType: application/json
@@ -682,7 +685,7 @@ resources:
 # Dynamic resource (orchestrated mode)
 resources:
   - name: user-summary
-    label: User Summary
+    display: User Summary
     uri: data://users/summary
     description: "Aggregated user summary from multiple API calls"
     mimeType: application/json
@@ -702,7 +705,7 @@ resources:
 # Static resource (local files)
 resources:
   - name: api-docs
-    label: API Documentation
+    display: API Documentation
     uri: docs://api/reference
     description: "API reference documentation served from local markdown files"
     mimeType: text/markdown
@@ -723,7 +726,7 @@ An MCP prompt template definition. Prompts provide reusable, parameterized messa
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the prompt. Used as the MCP prompt name. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **label** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
+| **display** | `string` | Human-readable display name. Mapped to MCP `title` in protocol responses. |
 | **description** | `string` | *Recommended*. A meaningful description of the prompt's purpose. Essential for agent discovery. |
 | **arguments** | `McpPromptArgument[]` | List of arguments accepted by this prompt template. These become the prompt's input schema. |
 | **messages** | `McpPromptMessage[]` | **REQUIRED**. List of messages that form the prompt template (minimum 1). Each message defines a role and its content. |
@@ -780,7 +783,7 @@ Defines a single message in the prompt template. Messages can be static (inline 
 ```yaml
 prompts:
   - name: code-review
-    label: Code Review Request
+    display: Code Review Request
     description: "Generates a structured code review prompt for a given pull request"
     arguments:
       - name: pr_title
@@ -831,7 +834,7 @@ A named skill that groups one or more MCP tools.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the skill. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **label** | `string` | Human-readable display name for the skill. |
+| **display** | `string` | Human-readable display name for the skill. |
 | **description** | `string` | *Recommended*. A meaningful description of the skill's purpose. Essential for agent discovery. |
 | **tools** | `SkillTool[]` | **REQUIRED**. List of MCP tools included in this skill (minimum 1). |
 
@@ -882,7 +885,7 @@ namespace: my-skills
 description: "Skill-based interface grouping Notion tools by domain"
 skills:
   - name: database-ops
-    label: Database Operations
+    display: Database Operations
     description: "Skills for reading and querying Notion databases"
     tools:
       - name: get-database
@@ -890,7 +893,7 @@ skills:
         from:
           namespace: notion-tools
   - name: page-ops
-    label: Page Operations
+    display: Page Operations
     description: "Skills for creating and retrieving Notion pages"
     tools:
       - name: create-page
@@ -1200,11 +1203,11 @@ inputParameters:
     value: "application/vnd.github.v3+json"
 resources:
   - name: users
-    label: Users API
+    display: Users API
     path: /users/{username}
     operations:
       - name: get-user
-        label: Get User
+        display: Get User
         method: GET
         inputParameters:
           - name: username
@@ -1214,11 +1217,11 @@ resources:
             type: string
             value: $.id
   - name: repos
-    label: Repositories API
+    display: Repositories API
     path: /users/{username}/repos
     operations:
       - name: list-repos
-        label: List Repositories
+        display: List Repositories
         method: GET
         inputParameters:
           - name: username
@@ -1240,7 +1243,8 @@ Describes an API resource that can be consumed from an external API.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the resource. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **label** | `string` | Display name of the resource. |
+| **display** | `string` | Display name of the resource. |
+| **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **description** | `string` | Description of the resource. |
 | **path** | `string` | **REQUIRED**. Path of the resource, relative to the consumes `baseUri`. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters for this resource. |
@@ -1258,14 +1262,14 @@ Describes an API resource that can be consumed from an external API.
 
 ```yaml
 name: users
-label: Users API
+display: Users API
 path: /users/{username}
 inputParameters:
   - name: username
     in: path
 operations:
   - name: get-user
-    label: Get User
+    display: Get User
     method: GET
     outputParameters:
       - name: userId
@@ -1284,7 +1288,8 @@ Describes an operation that can be performed on a consumed resource.
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **name** | `string` | **REQUIRED**. Technical name for the operation. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **label** | `string` | Display name of the operation. |
+| **display** | `string` | Display name of the operation. |
+| **tags** | `string[]` | Arbitrary string tags for filtering and discovery. |
 | **description** | `string` | A longer description of the operation for documentation purposes. |
 | **method** | `string` | **REQUIRED**. HTTP method. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. Default: `GET`. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters for the operation. |
@@ -1304,7 +1309,7 @@ Describes an operation that can be performed on a consumed resource.
 
 ```yaml
 name: get-user
-label: Get User Profile
+display: Get User Profile
 method: GET
 inputParameters:
   - name: username
@@ -1340,7 +1345,7 @@ All fields available on ExposesObject:
 | --- | --- | --- |
 | **method** | `string` | **REQUIRED**. HTTP method. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. |
 | **name** | `string` | Technical name for the operation (pattern `^[a-zA-Z0-9-]+$`). **REQUIRED in orchestrated mode.** Optional when `ref` is used (inherited from function). |
-| **label** | `string` | Display name for the operation (likely used in UIs). |
+| **display** | `string` | Display name for the operation (likely used in UIs). |
 | **description** | `string` | A longer description of the operation. Useful for agent discovery and documentation. Optional when `ref` is used (inherited from function). |
 | **ref** | `string` | Reference to an aggregate function. Format: `{aggregate-namespace}.{function-name}`. Inherited fields are merged; explicit fields override. See [3.4.5 Aggregate Object](#345-aggregate-object). |
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the operation. |
@@ -1391,7 +1396,7 @@ All fields available on ExposesObject:
 
 ```yaml
 method: GET
-label: Get User Profile
+display: Get User Profile
 call: github.get-user
 with:
   username: sample.username
@@ -1407,7 +1412,7 @@ outputParameters:
 ```yaml
 name: get-db
 method: GET
-label: Get Database
+display: Get Database
 inputParameters:
   - name: database_id
     in: path
@@ -2023,7 +2028,7 @@ exposes:
     resources:
       - path: "/databases/{database_id}"
         name: "db"
-        label: "Database resource"
+        display: "Database resource"
         description: "Retrieve information about a Notion database"
         inputParameters:
           - name: "database_id"
@@ -2033,7 +2038,7 @@ exposes:
         operations:
           - name: "get-db"
             method: "GET"
-            label: "Get Database"
+            display: "Get Database"
             outputParameters:
               - name: "db_name"
                 type: "string"
@@ -2427,7 +2432,7 @@ The simplest capability: forward incoming requests to a consumed API without any
 ---
 ikanos: "0.5"
 info:
-  label: "Notion Proxy"
+  display: "Notion Proxy"
   description: "Pass-through proxy to the Notion API for development and debugging"
   tags:
     - proxy
@@ -2474,7 +2479,7 @@ binds:
     keys:
       GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
-  label: "GitHub User Lookup"
+  display: "GitHub User Lookup"
   description: "Exposes a simplified endpoint to retrieve GitHub user profiles"
   tags:
     - github
@@ -2498,7 +2503,7 @@ capability:
               description: "The GitHub username to look up"
           operations:
             - method: "GET"
-              label: "Get User"
+              display: "Get User"
               call: "github.get-user"
               with:
                 username: "app.username"
@@ -2521,10 +2526,10 @@ capability:
       resources:
         - name: "users"
           path: "/users/{username}"
-          label: "Users"
+          display: "Users"
           operations:
             - name: "get-user"
-              label: "Get User"
+              display: "Get User"
               method: "GET"
               inputParameters:
                 - name: "username"
@@ -2553,7 +2558,7 @@ binds:
     keys:
       NOTION_TOKEN: "NOTION_TOKEN"
 info:
-  label: "Database Inspector"
+  display: "Database Inspector"
   description: "Retrieves a Notion database then queries its contents in a single exposed operation"
   tags:
     - notion
@@ -2578,7 +2583,7 @@ capability:
           operations:
             - name: "get-summary"
               method: "GET"
-              label: "Get Database Summary"
+              display: "Get Database Summary"
               steps:
                 - type: "call"
                   name: "fetch-db"
@@ -2616,10 +2621,10 @@ capability:
       resources:
         - name: "databases"
           path: "/databases/{{database_id}}"
-          label: "Databases"
+          display: "Databases"
           operations:
             - name: "get-database"
-              label: "Get Database"
+              display: "Get Database"
               method: "GET"
               inputParameters:
                 - name: "database_id"
@@ -2633,10 +2638,10 @@ capability:
                   value: "{{$.id}}"
         - name: "queries"
           path: "/databases/{{database_id}}/query"
-          label: "Database queries"
+          display: "Database queries"
           operations:
             - name: "query-database"
-              label: "Query Database"
+              display: "Query Database"
               method: "POST"
               inputParameters:
                 - name: "database_id"
@@ -2662,7 +2667,7 @@ binds:
     keys:
       HR_API_KEY: "HR_API_KEY"
 info:
-  label: "Team Member Resolver"
+  display: "Team Member Resolver"
   description: "Resolves team member details by matching email addresses from a project tracker"
   tags:
     - hr
@@ -2687,7 +2692,7 @@ capability:
           operations:
             - name: "resolve-member"
               method: "GET"
-              label: "Resolve Team Member"
+              display: "Resolve Team Member"
               steps:
                 - type: "call"
                   name: "list-members"
@@ -2729,10 +2734,10 @@ capability:
       resources:
         - name: "employees"
           path: "/employees"
-          label: "Employees"
+          display: "Employees"
           operations:
             - name: "list-employees"
-              label: "List All Employees"
+              display: "List All Employees"
               method: "GET"
               outputParameters:
                 - name: "email"
@@ -2762,7 +2767,7 @@ binds:
       NOTION_TOKEN: "NOTION_TOKEN"
       GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
-  label: "Project Dashboard"
+  display: "Project Dashboard"
   description: "Aggregates project data from Notion and GitHub into a unified API, with a pass-through proxy for direct access"
   tags:
     - dashboard
@@ -2807,7 +2812,7 @@ capability:
               description: "Repository name"
           operations:
             - method: "GET"
-              label: "Get Repository"
+              display: "Get Repository"
               call: "github.get-repo"
               with:
                 owner: "dashboard.owner"
@@ -2832,7 +2837,7 @@ capability:
           operations:
             - name: "list-contributors"
               method: "GET"
-              label: "List Project Contributors"
+              display: "List Project Contributors"
               steps:
                 - type: "call"
                   name: "query-tasks"
@@ -2884,10 +2889,10 @@ capability:
       resources:
         - name: "db-query"
           path: "/databases/{database_id}/query"
-          label: "Database Query"
+          display: "Database Query"
           operations:
             - name: "query-database"
-              label: "Query Database"
+              display: "Query Database"
               method: "POST"
               inputParameters:
                 - name: "database_id"
@@ -2910,10 +2915,10 @@ capability:
       resources:
         - name: "repos"
           path: "/repos/{owner}/{repo}"
-          label: "Repositories"
+          display: "Repositories"
           operations:
             - name: "get-repo"
-              label: "Get Repository"
+              display: "Get Repository"
               method: "GET"
               inputParameters:
                 - name: "owner"
@@ -2932,10 +2937,10 @@ capability:
                   value: "$.language"
         - name: "org-members"
           path: "/orgs/{org}/members"
-          label: "Organization Members"
+          display: "Organization Members"
           operations:
             - name: "list-org-members"
-              label: "List Organization Members"
+              display: "List Organization Members"
               method: "GET"
               inputParameters:
                 - name: "org"
@@ -2966,7 +2971,7 @@ binds:
     keys:
       NOTION_TOKEN: "NOTION_TOKEN"
 info:
-  label: "Notion MCP Tools"
+  display: "Notion MCP Tools"
   description: "Exposes Notion database retrieval as an MCP tool"
 
 capability:

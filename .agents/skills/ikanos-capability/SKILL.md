@@ -25,7 +25,7 @@ is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-alpha3).
 
 Key spec objects you will work with:
 
-- **Info** — metadata: label, description, tags, stakeholders
+- **Info** — metadata: display, description, tags, stakeholders
 - **Capability** — root technical config; contains `exposes`, `consumes`, and `aggregates`
 - **Consumes** — HTTP client adapter: baseUri, namespace, resources, operations
 - **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), Skill (`type: skill`), or Control (`type: control`)
