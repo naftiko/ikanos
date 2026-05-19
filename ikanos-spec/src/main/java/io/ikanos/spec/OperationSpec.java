@@ -47,6 +47,9 @@ public class OperationSpec {
     private final AtomicReference<String> description = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
     private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
             new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
@@ -121,6 +124,9 @@ public class OperationSpec {
     public void setDescription(String description) {
         this.description.set(description);
     }
+
+    public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags.clear(); if (tags != null) this.tags.addAll(tags); }
 
     public List<InputParameterSpec> getInputParameters() {
         return List.copyOf(inputParameters.get().values());
