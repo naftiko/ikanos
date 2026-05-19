@@ -227,7 +227,7 @@ exposes:
 - `name` and `description` are optional when using `ref` — they default to the function's values.
 
 ### Q: How do semantics map to MCP tool hints?
-**A:** aggregate flows can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
+**A:** Aggregate flows can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
 
 | Semantics | MCP Hint | Rule |
 |-----------|----------|------|
