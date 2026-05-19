@@ -381,7 +381,7 @@ public class TelemetryBootstrap {
      */
     public Span startAggregateFlowSpan(String ref) {
         if (!enabled) return Span.getInvalid();
-        SpanBuilder builder = tracer.spanBuilder("aggregate.function")
+        SpanBuilder builder = tracer.spanBuilder("aggregate.flow")
             .setSpanKind(SpanKind.INTERNAL);
         setStringAttribute(builder, ATTR_AGGREGATE_REF, ref != null ? ref : "unknown");
         return builder.startSpan();

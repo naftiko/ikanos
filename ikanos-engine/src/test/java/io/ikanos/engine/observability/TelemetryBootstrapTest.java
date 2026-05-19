@@ -180,7 +180,7 @@ public class TelemetryBootstrapTest {
         span.end();
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertEquals("aggregate.function", data.getName());
+        assertEquals("aggregate.flow", data.getName());
         assertEquals(SpanKind.INTERNAL, data.getKind());
         assertEquals("forecast.get-forecast",
             stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGGREGATE_REF));
