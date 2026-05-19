@@ -1,4 +1,4 @@
-﻿# Guide - Use Cases
+# Guide - Use Cases
 
 Here is an overview of typical use cases where Ikanos can help developers and supporting features available. Additional features are being added as described in the [roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap).
 
