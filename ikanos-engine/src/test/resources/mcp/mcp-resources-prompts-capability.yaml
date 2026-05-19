@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: MCP Resources & Prompts Test Capability
+  display: MCP Resources & Prompts Test Capability
   description: Test capability for MCP Server Adapter resources and prompts support
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     description: Test MCP server for validating resources and prompts support.
     tools:
       query-database:
-        label: Query Database
+        display: Query Database
         description: Query the test database to retrieve committed participants.
         call: mock-api.query-db
         with:
@@ -32,7 +32,7 @@ capability:
                 mapping: $.id
     resources:
       database-schema:
-        label: Database Schema
+        display: Database Schema
         uri: data://databases/pre-release/schema
         description: Schema of the pre-release participants database
         mimeType: application/json
@@ -40,7 +40,7 @@ capability:
         with:
           datasource_id: test-db-id-123
       user-profile:
-        label: User Profile
+        display: User Profile
         uri: data://users/{userId}/profile
         description: User profile by ID
         mimeType: application/json
@@ -49,7 +49,7 @@ capability:
           datasource_id: '{{userId}}'
     prompts:
       participant-outreach:
-        label: Participant Outreach
+        display: Participant Outreach
         description: Draft outreach message to pre-release participants
         arguments:
           participant_name:
@@ -63,7 +63,7 @@ capability:
           content: Draft a personalized outreach email to {{participant_name}} about
             the upcoming {{product_name}} pre-release. Be professional but friendly.
       summary-prompt:
-        label: Summary Prompt
+        display: Summary Prompt
         description: Summarize data in a given format
         arguments:
           data:
@@ -93,10 +93,10 @@ capability:
     resources:
       query:
         path: databases/{{datasource_id}}/query
-        label: Query database resource
+        display: Query database resource
         operations:
           query-db:
             method: POST
-            label: Query Database
+            display: Query Database
             body: "{\n  \"filter\": {\n    \"property\": \"Status\",\n    \"select\"\
               : {\n      \"equals\": \"Committed\"\n    }\n  }\n}\n"

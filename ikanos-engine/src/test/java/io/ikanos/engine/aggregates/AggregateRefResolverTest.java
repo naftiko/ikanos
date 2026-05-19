@@ -48,7 +48,7 @@ public class AggregateRefResolverTest {
         CapabilitySpec cap = new CapabilitySpec();
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("forecast");
-        agg.setLabel("Forecast");
+        agg.setDisplay("Forecast");
 
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("get-forecast");
@@ -76,7 +76,7 @@ public class AggregateRefResolverTest {
 
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
-        agg.setLabel("Data");
+        agg.setDisplay("Data");
         AggregateFunctionSpec fn1 = new AggregateFunctionSpec();
         fn1.setName("read");
         fn1.setDescription("Read1");
@@ -400,7 +400,7 @@ public class AggregateRefResolverTest {
 
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
-        agg.setLabel("Data");
+        agg.setDisplay("Data");
         AggregateFunctionSpec fn = new AggregateFunctionSpec();
         fn.setName("read");
         fn.setDescription("Read data");

@@ -94,7 +94,7 @@ public class ResourcesPromptsIntegrationTest {
                 .orElseThrow(() -> new AssertionError("database-schema resource not found"));
 
         assertEquals("database-schema", dbSchema.getName());
-        assertEquals("Database Schema", dbSchema.getLabel());
+        assertEquals("Database Schema", dbSchema.getDisplay());
         assertEquals("data://databases/pre-release/schema", dbSchema.getUri());
         assertTrue(dbSchema.getDescription().contains("pre-release participants database"));
         assertEquals("application/json", dbSchema.getMimeType());
@@ -112,7 +112,7 @@ public class ResourcesPromptsIntegrationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("user-profile resource not found"));
 
-        assertEquals("User Profile", userProfile.getLabel());
+        assertEquals("User Profile", userProfile.getDisplay());
         assertEquals("data://users/{userId}/profile", userProfile.getUri());
         assertTrue(userProfile.isTemplate(), "URI with {param} should be a template");
         assertFalse(userProfile.isStatic(), "Dynamic resource should not be static");
@@ -134,7 +134,7 @@ public class ResourcesPromptsIntegrationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("participant-outreach prompt not found"));
 
-        assertEquals("Participant Outreach", outreach.getLabel());
+        assertEquals("Participant Outreach", outreach.getDisplay());
         assertTrue(outreach.getDescription().contains("pre-release participants"));
         assertFalse(outreach.isFileBased(), "Inline prompt should not be file-based");
         assertEquals(2, outreach.getArguments().size(), "Should have 2 arguments");
@@ -175,7 +175,7 @@ public class ResourcesPromptsIntegrationTest {
         McpServerSpec spec = adapter.getMcpServerSpec();
         McpServerToolSpec tool = spec.getTools().values().iterator().next();
 
-        assertEquals("Query Database", tool.getLabel(), "Tool label should be deserialized");
+        assertEquals("Query Database", tool.getDisplay(), "Tool label should be deserialized");
     }
 
     // ── Handler wiring ────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Aggregate Step Namespace Test
+  display: Aggregate Step Namespace Test
   description: Test capability for namespace-qualified references in aggregate function
     steps
   tags:
@@ -11,7 +11,7 @@ info:
 capability:
   aggregates:
     shipyard:
-      label: Shipyard
+      display: Shipyard
       namespace: shipyard
       functions:
         get-voyage-manifest:

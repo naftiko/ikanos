@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: MCP Stdio Test Capability
+  display: MCP Stdio Test Capability
   description: Test capability for MCP Server Adapter with stdio transport
   tags:
   - Test
@@ -43,10 +43,10 @@ capability:
     resources:
       query:
         path: databases/{{datasource_id}}/query
-        label: Query database resource
+        display: Query database resource
         operations:
           query-db:
             method: POST
-            label: Query Database
+            display: Query Database
             body: "{\n  \"filter\": {\n    \"property\": \"Status\",\n    \"select\"\
               : {\n      \"equals\": \"Committed\"\n    }\n  }\n}\n"

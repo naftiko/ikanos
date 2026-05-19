@@ -36,7 +36,7 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        label: List Users
+                        display: List Users
                 """;
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
@@ -71,13 +71,13 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        label: List Users
+                        display: List Users
                       create-user:
                         method: POST
-                        label: Create User
+                        display: Create User
                       delete-user:
                         method: DELETE
-                        label: Delete User
+                        display: Delete User
                 """;
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
@@ -106,13 +106,13 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        label: List Users
+                        display: List Users
                   products:
                     path: /products
                     operations:
                       list-products:
                         method: GET
-                        label: List Products
+                        display: List Products
                 """;
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());

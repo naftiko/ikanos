@@ -42,8 +42,8 @@ public class FileFormatEnumTest {
 
     @Test
     public void enumValuesShouldHaveCorrectLabels() {
-        assertEquals("Yaml", FileFormat.YAML.label);
-        assertEquals("Unknown", FileFormat.UNKNOWN.label);
+        assertEquals("Yaml", FileFormat.YAML.display);
+        assertEquals("Unknown", FileFormat.UNKNOWN.display);
     }
 
     @Test

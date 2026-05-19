@@ -31,7 +31,7 @@ public class RestServerAuthenticationDeserializationTest {
         String yaml = """
                 ikanos: 0.4
                 info:
-                  label: Test
+                  display: Test
                   description: Test
                 capability:
                   exposes:
@@ -66,7 +66,7 @@ public class RestServerAuthenticationDeserializationTest {
         String yaml = """
                 ikanos: 0.4
                 info:
-                  label: Test
+                  display: Test
                   description: Test
                 capability:
                   exposes:

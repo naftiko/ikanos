@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: CSV Test Capability
+  display: CSV Test Capability
   description: Test capability for CSV parsing from API responses
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     resources:
       users:
         path: /csv/users
-        label: CSV Users Resource
+        display: CSV Users Resource
         description: Test resource that parses CSV responses
         operations:
           get-users:
@@ -48,9 +48,9 @@ capability:
     resources:
       users:
         path: api/users
-        label: Mock Users API
+        display: Mock Users API
         operations:
           get-users:
             method: GET
-            label: Get Users
+            display: Get Users
             outputRawFormat: csv

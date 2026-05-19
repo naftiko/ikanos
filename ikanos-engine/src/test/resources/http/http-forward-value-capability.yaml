@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: HTTP Forward with Value Field Test
+  display: HTTP Forward with Value Field Test
   description: Test capability for forward spec with value field supporting Mustache
     templates
   created: '2026-03-03'

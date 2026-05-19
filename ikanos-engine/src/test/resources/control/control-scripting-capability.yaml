@@ -1,6 +1,6 @@
 ikanos: "1.0.0-alpha3"
 info:
-  label: "Control Port Scripting Test"
+  display: "Control Port Scripting Test"
   description: "Test capability for scripting governance on the Control Port"
   tags:
   - Test

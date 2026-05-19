@@ -33,10 +33,10 @@ public enum ConversionFormat {
     PROTOBUF("protobuf"),
     AVRO("avro");
 
-    public final String label;
+    public final String display;
 
-    ConversionFormat(String label) {
-        this.label = label;
+    ConversionFormat(String display) {
+        this.display = display;
     }
 
     /**
@@ -50,7 +50,7 @@ public enum ConversionFormat {
             return null;
         }
         for (ConversionFormat f : values()) {
-            if (f.label.equalsIgnoreCase(format)) {
+            if (f.display.equalsIgnoreCase(format)) {
                 return f;
             }
         }

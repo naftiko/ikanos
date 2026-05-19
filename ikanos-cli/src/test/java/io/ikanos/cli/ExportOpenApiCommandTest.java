@@ -35,7 +35,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "Test API"
+                  display: "Test API"
                   description: "A test capability"
                 capability:
                   exposes:
@@ -73,7 +73,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "JSON Test"
+                  display: "JSON Test"
                 capability:
                   exposes:
                     - type: rest
@@ -114,7 +114,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "Spec Version Test"
+                  display: "Spec Version Test"
                 capability:
                   exposes:
                     - type: rest
@@ -141,7 +141,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "OpenAPI 3.1 Test"
+                  display: "OpenAPI 3.1 Test"
                 capability:
                   exposes:
                     - type: rest
@@ -171,7 +171,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "Default Output Test"
+                  display: "Default Output Test"
                 capability:
                   exposes:
                     - type: rest
@@ -203,7 +203,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "1.0.0-alpha1"
                 info:
-                  label: "JSON Default Output Test"
+                  display: "JSON Default Output Test"
                 capability:
                   exposes:
                     - type: rest

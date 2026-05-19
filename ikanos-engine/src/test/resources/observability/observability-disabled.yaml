@@ -1,6 +1,6 @@
 ikanos: "1.0.0-alpha3"
 info:
-  label: "Observability Disabled Capability"
+  display: "Observability Disabled Capability"
   description: "Test capability with observability disabled"
   tags:
   - Test

@@ -607,7 +607,7 @@
       "type": "object",
       "description": "Information about the capability",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "The display name of the capability"
         },
@@ -641,7 +641,7 @@
         }
       },
       "required": [
-        "label",
+        "display",
         "description"
       ],
       "additionalProperties": false
@@ -754,7 +754,7 @@
       "type": "object",
       "description": "A domain aggregate grouping reusable functions. Adapters reference these functions via ref.",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Human-readable name for this aggregate (e.g. 'Forecast')."
         },
@@ -775,7 +775,7 @@
         }
       },
       "required": [
-        "label",
+        "display",
         "functions"
       ],
       "additionalProperties": false
@@ -1051,7 +1051,7 @@
       "type": "object",
       "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations.",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Human-readable display name of the tool. Mapped to MCP 'title' in tools/list responses."
         },
@@ -1221,7 +1221,7 @@
       "type": "object",
       "description": "An MCP resource definition. Exposes data that agents can read. Either dynamic (backed by consumed HTTP operations via call/steps) or static (served from local files via location).",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Human-readable display name of the resource. Mapped to MCP 'title' in protocol responses."
         },
@@ -1278,7 +1278,7 @@
         }
       },
       "required": [
-        "label",
+        "display",
         "uri",
         "description"
       ],
@@ -1348,7 +1348,7 @@
       "type": "object",
       "description": "An MCP prompt template definition. Prompts are reusable templates with typed arguments that agents can discover and render.",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Human-readable display name of the prompt. Mapped to MCP 'title' in protocol responses."
         },
@@ -1382,7 +1382,7 @@
         }
       },
       "required": [
-        "label",
+        "display",
         "description"
       ],
       "oneOf": [
@@ -1413,7 +1413,7 @@
       "type": "object",
       "description": "An argument for an MCP prompt template. Arguments are always strings per MCP spec.",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "The display name of the argument. Used for agent discovery."
         },
@@ -1459,7 +1459,7 @@
       "type": "object",
       "description": "An exposed resource",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Display name for the resource. It will likely be used in UIs."
         },
@@ -1517,7 +1517,7 @@
       "type": "object",
       "description": "An operation exposed on a resource.",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Display name for the operation. Used in UIs."
         },
@@ -1686,7 +1686,7 @@
       "type": "object",
       "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** — Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** — `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** — `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
-        "label": {
+        "display": {
           "type": "string",
           "description": "Human-readable label for editors and documentation. Does not affect runtime behavior."
         },
@@ -1730,7 +1730,7 @@
       "type": "object",
       "description": "An operation on a consumed HTTP resource",
       "properties": {
-        "label": {
+        "display": {
           "type": "string"
         },
         "description": {
