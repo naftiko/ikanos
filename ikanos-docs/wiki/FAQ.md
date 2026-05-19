@@ -40,14 +40,14 @@ You don't need to write Java or other code unless you want to extend the framewo
 
 1. **Docker (recommended)**  
    ```bash
-  docker pull ghcr.io/naftiko/ikanos:v1.0.0-alpha3
-  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/ikanos:v1.0.0-alpha3 serve /app/capability.yaml
+  docker pull ghcr.io/naftiko/ikanos:{{RELEASE_TAG}}
+  docker run -p 8081:8081 -v /path/to/capability.yaml:/app/capability.yaml ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} serve /app/capability.yaml
    ```
 
   If your capability is mounted at `/app/ikanos.yaml`, you can rely on the image default command and omit `serve` entirely.
 
 2. **CLI tool** (for configuration, validation, and local execution)
-  Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/v1.0.0-alpha3/ikanos-cli-windows-amd64.exe)
+  Download the binary for [macOS](https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-macos-arm64), [Linux](https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-linux-amd64), or [Windows](https://github.com/naftiko/ikanos/releases/download/{{RELEASE_TAG}}/ikanos-cli-windows-amd64.exe)
 
 See the [Installation guide](https://github.com/naftiko/ikanos/wiki/Installation) for detailed setup instructions.
 
@@ -66,17 +66,17 @@ This starts the same runtime path as the Docker image, but directly on your mach
 **A:** Use the CLI validation command:
 ```bash
 ikanos validate path/to/capability.yaml
-ikanos validate path/to/capability.yaml 1.0.0-alpha3  # Specify schema version
+ikanos validate path/to/capability.yaml {{RELEASE_TAG}}  # Specify schema version
 ```
 
 This checks your YAML against the Ikanos schema and reports any errors.
 
 ### Q: Which version of the schema should I use?
-**A:** Use the current framework schema version: **1.0.0-alpha3**.
+**A:** Use the current framework schema version: **{{RELEASE_TAG}}**.
 
 Set it in your YAML:
 ```yaml
-ikanos: "1.0.0-alpha3"
+ikanos: "{{RELEASE_TAG}}"
 ```
 
 ---
@@ -685,7 +685,7 @@ A sample Grafana dashboard is provided in `demo/shared/observability/grafana-ika
 
 2. **Check the Docker logs:**
    ```bash
-  docker run ... ghcr.io/naftiko/ikanos:v1.0.0-alpha3 serve /app/capability.yaml
+  docker run ... ghcr.io/naftiko/ikanos:{{RELEASE_TAG}} serve /app/capability.yaml
    # Look for error messages in the output
    ```
 
@@ -924,7 +924,7 @@ For production workloads:
        spec:
          containers:
          - name: ikanos
-           image: ghcr.io/naftiko/ikanos:v1.0.0-alpha3
+           image: ghcr.io/naftiko/ikanos:{{RELEASE_TAG}}
            volumeMounts:
            - name: capability
              mountPath: /app/capability.yaml
@@ -967,7 +967,7 @@ server {
 See the [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec-Driven-Integration) overview and the [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-Schema) for the formal model.
 
 ### Q: Is the Ikanos Specification stable?
-**A:** The current public version is **1.0.0-alpha3**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
+**A:** The current public version is **{{RELEASE_TAG}}**. Because this is an alpha release, minor schema adjustments can still happen before stable 1.0.0. The specification follows semantic versioning:
 - **Major versions** (1.x.x) - breaking changes
 - **Minor versions** (x.1.0) - new features, backward-compatible
 - **Patch versions** (x.x.1) - bug fixes
