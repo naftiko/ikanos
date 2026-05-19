@@ -1,4 +1,4 @@
-# Guide - Linting
+﻿# Guide - Linting
 
 ## Table of Contents
 
@@ -280,7 +280,7 @@ rules:
 
 ### Adding Custom Functions
 
-For advanced validation logic (like the built-in `unique-namespaces` function), you can write custom JavaScript functions:
+For advanced validation logic (like the built-in `unique-namespaces` function), you can write custom JavaScript flows:
 
 1. Create a `functions/` directory next to your `.spectral.yaml`:
 
@@ -321,7 +321,7 @@ extends:
 
 functionsDir: ./functions
 
-functions:
+flows:
   - check-binds-location-scheme
 
 rules:
@@ -346,7 +346,7 @@ extends:
 
 functionsDir: ./functions
 
-functions:
+flows:
   - check-binds-location-scheme
 
 rules:

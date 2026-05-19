@@ -31,10 +31,10 @@ import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 
 /**
- * Aggregate Function Specification Element.
+ * Aggregate Flow Specification Element.
  * 
- * <p>A reusable invocable unit within an aggregate. Adapter units reference it via
- * {@code ref: aggregate-namespace.function-name}.</p>
+ * <p>A reusable callable flow within an aggregate. Adapter units reference it via
+ * {@code ref: aggregate-namespace.flow-name}.</p>
  *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
@@ -43,7 +43,7 @@ import io.ikanos.spec.util.StepOutputMappingSpec;
  * is a synchronized {@link LinkedHashMap} in an {@link AtomicReference}. This satisfies
  * SonarQube rule {@code java:S3077}.
  */
-public class AggregateFunctionSpec {
+public class AggregateFlowSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
@@ -68,7 +68,7 @@ public class AggregateFunctionSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
 
-    public AggregateFunctionSpec() {}
+    public AggregateFlowSpec() {}
 
     public String getName() { return name.get(); }
     public void setName(String name) { this.name.set(name); }

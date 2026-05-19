@@ -25,7 +25,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.engine.aggregates.Aggregate;
-import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
 import io.ikanos.engine.step.StepHandler;
 import io.ikanos.engine.step.StepHandlerRegistry;
@@ -206,32 +206,32 @@ public class Capability {
     }
 
     /**
-     * Look up an aggregate function by ref key ({@code "namespace.functionName"}).
+     * Look up an aggregate flow by ref key ({@code "namespace.flowName"}).
      *
      * @param ref the ref key, e.g. {@code "forecast.get-forecast"}
-     * @return the matching {@link AggregateFunction}
+     * @return the matching {@link AggregateFlow}
      * @throws IllegalArgumentException if the ref cannot be resolved
      */
-    public AggregateFunction lookupFunction(String ref) {
+    public AggregateFlow lookupFlow(String ref) {
         int dot = ref.indexOf('.');
         if (dot <= 0 || dot == ref.length() - 1) {
             throw new IllegalArgumentException(
-                    "Invalid aggregate function ref format: '" + ref
-                            + "'. Expected 'namespace.functionName'");
+                    "Invalid aggregate flow ref format: '" + ref
+                            + "'. Expected 'namespace.flowName'");
         }
         String namespace = ref.substring(0, dot);
-        String functionName = ref.substring(dot + 1);
+        String flowName = ref.substring(dot + 1);
 
         for (Aggregate agg : aggregates.get()) {
             if (agg.getNamespace().equals(namespace)) {
-                AggregateFunction fn = agg.findFunction(functionName);
-                if (fn != null) {
-                    return fn;
+                AggregateFlow flow = agg.findFlow(flowName);
+                if (flow != null) {
+                    return flow;
                 }
             }
         }
         throw new IllegalArgumentException(
-                "Unknown aggregate function ref: '" + ref + "'");
+                "Unknown aggregate flow ref: '" + ref + "'");
     }
 
     /**

@@ -170,13 +170,13 @@ public class TelemetryBootstrapTest {
         assertEquals("vessel-name", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_STEP_MATCH));
     }
 
-    // ── Aggregate function span factory ──
+    // ── aggregate flow span factory ──
 
     @Test
-    void startAggregateFunctionSpanShouldCreateInternalSpanWithRef() {
+    void startAggregateFlowSpanShouldCreateInternalSpanWithRef() {
         initWithInMemoryExporter();
 
-        Span span = TelemetryBootstrap.get().startAggregateFunctionSpan("forecast.get-forecast");
+        Span span = TelemetryBootstrap.get().startAggregateFlowSpan("forecast.get-forecast");
         span.end();
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
@@ -187,10 +187,10 @@ public class TelemetryBootstrapTest {
     }
 
     @Test
-    void startAggregateFunctionSpanShouldDefaultRefWhenNull() {
+    void startAggregateFlowSpanShouldDefaultRefWhenNull() {
         initWithInMemoryExporter();
 
-        Span span = TelemetryBootstrap.get().startAggregateFunctionSpan(null);
+        Span span = TelemetryBootstrap.get().startAggregateFlowSpan(null);
         span.end();
 
         SpanData data = exporter.getFinishedSpanItems().get(0);

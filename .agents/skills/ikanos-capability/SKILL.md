@@ -29,7 +29,7 @@ Key spec objects you will work with:
 - **Capability** — root technical config; contains `exposes`, `consumes`, and `aggregates`
 - **Consumes** — HTTP client adapter: baseUri, namespace, resources, operations
 - **Exposes** — server adapter: REST (`type: rest`), MCP (`type: mcp`), Skill (`type: skill`), or Control (`type: control`)
-- **Aggregates** — DDD-inspired domain building blocks; each aggregate groups reusable functions under a namespace. Tools and operations reference functions via `ref`
+- **Aggregates** — DDD-inspired domain building blocks; each aggregate groups reusable flows under a namespace. Tools and operations reference flows via `ref`
 - **Observability** — optional OTel configuration on the control adapter: trace sampling, propagation format, OTLP exporter endpoint
 - **Script Steps** — embed JavaScript, Python, or Groovy transformations between API calls using sandboxed GraalVM engines. Scripts read step results via bound variables and produce output through a `result` variable
 - **Binds** — variable injection from file (dev) or runtime (prod)
@@ -49,7 +49,7 @@ removed from the object body.
 
 **Keyed maps** (key = name, no `name` property inside):
 `tools`, `resources`, `operations`, `inputParameters` (all contexts),
-`steps`, `functions`, `aggregates`, `skills`, `prompts`
+`steps`, `flows`, `aggregates`, `skills`, `prompts`
 
 **Arrays** (keep `- item` syntax):
 `outputParameters`, `binds`, `exposes`, `consumes`, `stakeholders`, `mappings`
@@ -88,14 +88,14 @@ resources:
             mapping: "$."
 ```
 
-Example — aggregates + functions (keyed maps):
+Example — aggregates + flows (keyed maps):
 
 ```yaml
 aggregates:
   forecast:                            # ← key IS the aggregate namespace
     description: "Weather forecast domain"
-    functions:
-      get-forecast:                    # ← key IS the function name
+    flows:
+      get-forecast:                    # ← key IS the flow name
         description: "Retrieve forecast for a location"
         inputParameters:
           location:                    # ← key IS the name
@@ -117,7 +117,7 @@ for *how*.
 | "I want to proxy an API today and encapsulate it incrementally" | Read `references/proxy-then-customize.md` |
 | "I want to chain multiple HTTP calls to consumed APIs and expose the result into a single REST operation" | Read `references/chain-api-calls.md` |
 | "I need to go from local test credentials to production secrets" | Read `references/dev-to-production.md` |
-| "I want to define a domain function once and expose it via both REST and MCP" | Use `aggregates` with `ref` — read `references/design-guidelines.md` (Aggregate Design Guidelines) |
+| "I want to define a domain flow once and expose it via both REST and MCP" | Use `aggregates` with `ref` — read `references/design-guidelines.md` (Aggregate Design Guidelines) |
 | "I want to add health checks, Prometheus metrics, or trace inspection" | Read `references/control-port-observability.md` |
 | "I want to enable OpenTelemetry distributed tracing and RED metrics" | Read `references/control-port-observability.md` |
 | "I want to transform data between API calls using JavaScript, Python, or Groovy" | Read `references/inline-script-step.md` |
@@ -195,13 +195,13 @@ before writing any mock output parameters.
    exposed contract does not change.
    and `trustedHeaders` (at least one entry).
 10. MCP tools must have `name` and `description` (unless using `ref`, in which
-    case they are inherited from the referenced aggregate function). MCP tool input
+    case they are inherited from the referenced aggregate flow). MCP tool input
     parameters must have `name`, `type`, and `description`. Tools may declare optional
     `hints` (readOnly, destructive, idempotent, openWorld) — these map to
     MCP `ToolAnnotations` on the wire.
 11. ExposedOperation supports three modes (oneOf): simple (`call` +
     optional `with`), orchestrated (`steps` + optional `mappings`), or
-    ref (`ref` to an aggregate function). Never mix fields from
+    ref (`ref` to an aggregate flow). Never mix fields from
     incompatible modes.
 12. Do not modify `scripts/lint-capability.sh` unless explicitly asked —
     it wraps Spectral with the correct ruleset and flags.
@@ -217,14 +217,14 @@ before writing any mock output parameters.
     resource name — variables are already scoped to their context.
     Redundant prefixes reduce readability without adding disambiguation.
 17. When using `ref` on MCP tools or REST operations, the `ref` value must
-    follow the format `{aggregate-namespace}.{function-name}` and resolve
-    to an existing function in the capability's `aggregates` array.
+    follow the format `{aggregate-namespace}.{flow-name}` and resolve
+    to an existing flow in the capability's `aggregates` section.
 18. Do not chain `ref` through multiple levels of aggregates — `ref`
-    resolves to a function in a single aggregate, not transitively.
-19. Aggregate functions can declare `semantics` (safe, idempotent, cacheable).
+    resolves to a flow in a single aggregate, not transitively.
+19. Aggregate flows can declare `semantics` (safe, idempotent, cacheable).
     When exposed via MCP, the engine auto-derives `hints` from semantics.
     Explicit `hints` on the MCP tool override derived values.
-20. Do not duplicate a full function definition inline on both MCP tools
+20. Do not duplicate a full flow definition inline on both MCP tools
     and REST operations — use `aggregates` + `ref` instead.
 21. In mock mode, use `value` on output parameters — never `const`.
     `const` is a JSON Schema keyword retained for validation and linting

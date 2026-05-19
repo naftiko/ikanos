@@ -1,4 +1,4 @@
-ikanos: "1.0.0-alpha3"
+﻿ikanos: "1.0.0-alpha3"
 info:
   display: "Aggregate Invalid Ref Test"
   description: "Test capability with an unknown aggregate ref"
@@ -13,7 +13,7 @@ capability:
     "data":
       display: "Data"
       namespace: "data"
-      functions:
+      flows:
         "read-items":
           description: "Read items."
           call: "mock-api.get-items"

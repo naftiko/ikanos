@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ikanos.io/schemas/v1.0.0-alpha3/ikanos.json",
   "name": "Ikanos Specification",
@@ -762,27 +762,27 @@
           "$ref": "#/$defs/IdentifierKebab",
           "description": "Machine-readable qualifier for this aggregate. Used as the first segment in ref values. Must match the map key."
         },
-        "functions": {
+        "flows": {
           "type": "object",
           "propertyNames": {
             "$ref": "#/$defs/IdentifierKebab"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/AggregateFunction"
+            "$ref": "#/$defs/AggregateFlow"
           },
-          "description": "Reusable invocable units within this aggregate, keyed by function name.",
+          "description": "Reusable callable flows within this aggregate, keyed by flow name.",
           "minProperties": 1
         }
       },
       "required": [
         "display",
-        "functions"
+        "flows"
       ],
       "additionalProperties": false
     },
-    "AggregateFunction": {
+    "AggregateFlow": {
       "type": "object",
-      "description": "A reusable invocable unit within an aggregate. Adapter units reference it via ref: aggregate-namespace.function-name.",
+      "description": "A reusable callable flow within an aggregate. Adapter units reference it via ref: aggregate-namespace.flow-name.",
       "properties": {
         "description": {
           "type": "string",
@@ -1085,7 +1085,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate function. Format: {aggregate-namespace}.{function-name}. Inherited fields are merged; explicit fields override.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. Inherited fields are merged; explicit fields override.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {
@@ -1576,7 +1576,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate function. Format: {aggregate-namespace}.{function-name}. Inherited fields are merged; explicit fields override.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. Inherited fields are merged; explicit fields override.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {

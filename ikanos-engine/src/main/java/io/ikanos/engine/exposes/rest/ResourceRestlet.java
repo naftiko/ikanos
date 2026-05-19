@@ -20,8 +20,8 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFunction;
-import io.ikanos.engine.aggregates.FunctionResult;
+import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.observability.OtelRestletBridge;
@@ -230,13 +230,13 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Execute an operation by delegating to its referenced aggregate function.
+     * Execute an operation by delegating to its referenced aggregate flow.
      */
     private boolean executeViaAggregate(RestServerOperationSpec serverOp, Request request,
             Response response, Map<String, Object> inputParameters) {
         try {
-            AggregateFunction fn = capability.lookupFunction(serverOp.getRef());
-            FunctionResult result = fn.execute(inputParameters);
+            AggregateFlow fn = capability.lookupFlow(serverOp.getRef());
+            FlowResult result = fn.execute(inputParameters);
 
             if (result.isMock()) {
                 ObjectMapper mapper = new ObjectMapper();

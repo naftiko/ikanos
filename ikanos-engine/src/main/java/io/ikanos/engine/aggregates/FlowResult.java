@@ -17,11 +17,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.ikanos.engine.util.OperationStepExecutor;
 
 /**
- * Transport-neutral result of executing an aggregate function.
+ * Transport-neutral result of executing an aggregate flow.
  *
  * <p>Adapters (MCP, REST) convert this into their protocol-specific response format.</p>
  */
-public class FunctionResult {
+public class FlowResult {
 
     /** The last HTTP handling context (simple call or last orchestrated step). May be null in mock mode. */
     public final OperationStepExecutor.HandlingContext lastContext;
@@ -32,7 +32,7 @@ public class FunctionResult {
     /** Mock output built from outputParameter value fields. May be null. */
     public final JsonNode mockOutput;
 
-    FunctionResult(OperationStepExecutor.HandlingContext lastContext, String mappedOutput,
+    FlowResult(OperationStepExecutor.HandlingContext lastContext, String mappedOutput,
             JsonNode mockOutput) {
         this.lastContext = lastContext;
         this.mappedOutput = mappedOutput;

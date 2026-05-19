@@ -29,9 +29,9 @@ import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.IkanosSpec;
 
 /**
- * Integration test for issue #290: namespace-qualified references in aggregate function steps.
+ * Integration test for issue #290: namespace-qualified references in aggregate flow steps.
  *
- * Loads a capability YAML where an aggregate function has a step with
+ * Loads a capability YAML where an aggregate flow has a step with
  * {@code with: {voyage-id: shipyard.voyage-id}} and verifies that executing the function
  * resolves the namespace-qualified reference before building the HTTP request URL.
  *
@@ -59,18 +59,18 @@ public class AggregateStepNamespaceIntegrationTest {
     }
 
     /**
-     * Execute the aggregate function and verify the step-level namespace-qualified reference
+     * Execute the aggregate flow and verify the step-level namespace-qualified reference
      * resolves correctly. A CapturingStepExecutor captures the resolved parameters before the
      * HTTP call, so the assertion does not depend on error message contents.
      */
     @Test
-    void aggregateFunctionExecuteShouldResolveNamespaceQualifiedWithInSteps() {
+    void aggregateFlowExecuteShouldResolveNamespaceQualifiedWithInSteps() {
         CapturingStepExecutor executor = new CapturingStepExecutor(capability);
 
         AggregateSpec aggregateSpec = spec.getCapability().getAggregates().get("shipyard");
         Aggregate aggregate = new Aggregate(aggregateSpec, executor);
-        AggregateFunction fn = aggregate.findFunction("get-voyage-manifest");
-        assertNotNull(fn, "Aggregate function should be found");
+        AggregateFlow fn = aggregate.findFlow("get-voyage-manifest");
+        assertNotNull(fn, "aggregate flow should be found");
 
         Map<String, Object> params = new HashMap<>();
         params.put("voyage-id", "VOY-2026-042");

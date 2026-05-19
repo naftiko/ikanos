@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
@@ -36,7 +36,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 
 /**
- * Integration test proving that a single aggregate function mock can be reused unchanged by
+ * Integration test proving that a single aggregate flow mock can be reused unchanged by
  * both MCP and REST adapters.
  */
 public class AggregateSharedMockIntegrationTest {
@@ -64,13 +64,13 @@ public class AggregateSharedMockIntegrationTest {
         RestServerSpec restSpec = (RestServerSpec) restAdapter.getSpec();
         RestServerOperationSpec restOperation = restSpec.getResources().values().iterator().next().getOperations().values().iterator().next();
 
-        // Output parameters are no longer copied — they live on the aggregate function
-        AggregateFunction fn = capability.lookupFunction(restOperation.getRef());
-        assertNotNull(fn, "Aggregate function should be resolvable from ref");
+        // Output parameters are no longer copied — they live on the aggregate flow
+        AggregateFlow fn = capability.lookupFlow(restOperation.getRef());
+        assertNotNull(fn, "aggregate flow should be resolvable from ref");
         assertEquals(2, fn.getOutputParameters().size(),
-                "Aggregate function should have two output parameters");
+                "aggregate flow should have two output parameters");
 
-        // Exercise REST path through the normal flow (delegating to aggregate function)
+        // Exercise REST path through the normal flow (delegating to aggregate flow)
         ResourceRestlet restlet = new ResourceRestlet(capability, restSpec,
                 restSpec.getResources().values().iterator().next());
         Request request = new Request(Method.GET, new Reference("http://localhost/hello?name=Nina"));

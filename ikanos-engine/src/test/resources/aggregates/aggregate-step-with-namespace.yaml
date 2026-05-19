@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+﻿ikanos: 1.0.0-alpha3
 info:
   display: Aggregate Step Namespace Test
   description: Test capability for namespace-qualified references in aggregate function
@@ -13,7 +13,7 @@ capability:
     shipyard:
       display: Shipyard
       namespace: shipyard
-      functions:
+      flows:
         get-voyage-manifest:
           description: Assemble a voyage manifest using an orchestrated step.
           inputParameters:
