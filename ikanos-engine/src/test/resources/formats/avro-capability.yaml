@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: Avro Test Capability
+  display: Avro Test Capability
   description: Test capability for Avro message decoding from API responses
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     resources:
       records:
         path: /avro/records
-        label: Avro Records Resource
+        display: Avro Records Resource
         description: Test resource that parses Avro messages
         operations:
           get-records:
@@ -48,9 +48,9 @@ capability:
     resources:
       records:
         path: api/records
-        label: Mock Records API
+        display: Mock Records API
         operations:
           get-records:
             method: GET
-            label: Get Records
+            display: Get Records
             outputRawFormat: avro

@@ -1,6 +1,6 @@
 ikanos: "1.0.0-alpha3"
 info:
-  label: "Aggregate Invalid Ref Test"
+  display: "Aggregate Invalid Ref Test"
   description: "Test capability with an unknown aggregate ref"
   tags:
   - Test
@@ -11,7 +11,7 @@ info:
 capability:
   aggregates:
     "data":
-      label: "Data"
+      display: "Data"
       namespace: "data"
       functions:
         "read-items":

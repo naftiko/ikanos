@@ -151,7 +151,7 @@ public class Converter {
             case PSV -> Converter.convertDelimitedToJson(new StringReader(text), '|');
             case HTML -> Converter.convertHtmlToJson(new StringReader(text), schema);
             case MARKDOWN -> Converter.convertMarkdownToJson(new StringReader(text), schema);
-            case PROTOBUF, AVRO -> throw new IOException(fmt.label
+            case PROTOBUF, AVRO -> throw new IOException(fmt.display
                     + " format cannot be converted from a text string; "
                     + "use the Representation-based overload instead");
             case JSON -> new ObjectMapper().readTree(text);

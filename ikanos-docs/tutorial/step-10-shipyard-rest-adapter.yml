@@ -23,7 +23,7 @@ capability:
 
   aggregates:
     crew-resolver:
-      label: "Crew Resolver"
+      display: "Crew Resolver"
       namespace: crew-resolver
       functions:
         resolve-crew-for-ship:

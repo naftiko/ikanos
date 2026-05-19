@@ -55,20 +55,20 @@ public class RestServerOperationSpec extends OperationSpec {
         this(null, null, null, null, null, null, null, null, null);
     }
 
-    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label) {
-        this(parentResource, method, name, label, null, null, null, null, null);
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String display) {
+        this(parentResource, method, name, display, null, null, null, null, null);
     }
 
-    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, ServerCallSpec call) {
-        this(parentResource, method, name, label, description, outputRawFormat, null, call, null);
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String display, String description, String outputRawFormat, ServerCallSpec call) {
+        this(parentResource, method, name, display, description, outputRawFormat, null, call, null);
     }
 
-    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call) {
-        this(parentResource, method, name, label, description, outputRawFormat, outputSchema, call, null);
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String display, String description, String outputRawFormat, String outputSchema, ServerCallSpec call) {
+        this(parentResource, method, name, display, description, outputRawFormat, outputSchema, call, null);
     }
 
-    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String label, String description, String outputRawFormat, String outputSchema, ServerCallSpec call, Map<String, Object> with) {
-        super(parentResource, method, name, label, description, outputRawFormat, outputSchema);
+    public RestServerOperationSpec(RestServerResourceSpec parentResource, String method, String name, String display, String description, String outputRawFormat, String outputSchema, ServerCallSpec call, Map<String, Object> with) {
+        super(parentResource, method, name, display, description, outputRawFormat, outputSchema);
         this.call.set(call);
         this.with.set(with != null ? Map.copyOf(with) : null);
     }

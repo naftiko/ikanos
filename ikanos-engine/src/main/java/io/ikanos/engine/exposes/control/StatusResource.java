@@ -48,7 +48,7 @@ public class StatusResource extends ServerResource {
         // Capability info
         ObjectNode capNode = MAPPER.createObjectNode();
         if (capability.getSpec().getInfo() != null) {
-            capNode.put("label", capability.getSpec().getInfo().getLabel());
+            capNode.put("display", capability.getSpec().getInfo().getDisplay());
         }
         capNode.put("specVersion", capability.getSpec().getIkanos());
         root.set("capability", capNode);

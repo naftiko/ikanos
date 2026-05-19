@@ -50,13 +50,13 @@ class McpServerResourceSpecTest {
 
     @Test
     void getLabelShouldReturnNullByDefault() {
-        assertNull(spec.getLabel());
+        assertNull(spec.getDisplay());
     }
 
     @Test
     void setLabelShouldStoreValue() {
-        spec.setLabel("My Resource");
-        assertEquals("My Resource", spec.getLabel());
+        spec.setDisplay("My Resource");
+        assertEquals("My Resource", spec.getDisplay());
     }
 
     // ── URI ──

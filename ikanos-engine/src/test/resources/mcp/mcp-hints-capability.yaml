@@ -1,6 +1,6 @@
 ikanos: 1.0.0-alpha3
 info:
-  label: MCP Hints Test Capability
+  display: MCP Hints Test Capability
   description: Test capability for MCP tool hints (ToolAnnotations) support
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     description: Test MCP server for validating tool hints mapped to ToolAnnotations.
     tools:
       read-data:
-        label: Read Data
+        display: Read Data
         description: Read-only data retrieval tool.
         hints:
           readOnly: true

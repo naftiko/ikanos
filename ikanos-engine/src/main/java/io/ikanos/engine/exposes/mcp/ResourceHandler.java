@@ -124,7 +124,7 @@ public class ResourceHandler {
                 Map<String, String> entry = new HashMap<>();
                 entry.put("uri", spec.getUri());
                 entry.put("name", spec.getName());
-                entry.put("label", spec.getLabel() != null ? spec.getLabel() : spec.getName());
+                entry.put("display", spec.getDisplay() != null ? spec.getDisplay() : spec.getName());
                 entry.put("description", spec.getDescription());
                 if (spec.getMimeType() != null) {
                     entry.put("mimeType", spec.getMimeType());
@@ -212,7 +212,7 @@ public class ResourceHandler {
                         Map<String, String> entry = new HashMap<>();
                         entry.put("uri", fileUri);
                         entry.put("name", spec.getName());
-                        entry.put("label", spec.getLabel() != null ? spec.getLabel() : spec.getName());
+                        entry.put("display", spec.getDisplay() != null ? spec.getDisplay() : spec.getName());
                         entry.put("description", spec.getDescription());
                         if (mimeType != null) {
                             entry.put("mimeType", mimeType);

@@ -60,13 +60,13 @@ public class OasExportBuilderTest {
     }
 
     @Test
-    void buildShouldUseDefaultTitleWhenNoLabel() {
+    void buildShouldUseDefaultTitleWhenNoDisplay() {
         IkanosSpec spec = minimalSpec(null, null);
         OasExportResult result = builder.build(spec, null);
 
         assertEquals("ikanos Capability", result.getOpenApi().getInfo().getTitle());
         assertTrue(result.getWarnings().stream()
-                .anyMatch(w -> w.contains("No info.label")));
+                .anyMatch(w -> w.contains("No info.display")));
     }
 
     // ── Server mapping ──
@@ -551,7 +551,7 @@ public class OasExportBuilderTest {
 
         assertEquals("ikanos Capability", result.getOpenApi().getInfo().getTitle());
         assertTrue(result.getWarnings().stream()
-                .anyMatch(w -> w.contains("No info.label")));
+                .anyMatch(w -> w.contains("No info.display")));
     }
 
     @Test
@@ -803,11 +803,11 @@ public class OasExportBuilderTest {
 
     // ── Utility methods ──
 
-    private IkanosSpec minimalSpec(String label, String description) {
+    private IkanosSpec minimalSpec(String display, String description) {
         IkanosSpec spec = new IkanosSpec();
         spec.setIkanos("1.0.0-alpha1");
-        if (label != null || description != null) {
-            spec.setInfo(new InfoSpec(label, description, null, null));
+        if (display != null || description != null) {
+            spec.setInfo(new InfoSpec(display, description, null, null));
         }
         CapabilitySpec capability = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("localhost", 8080, null);

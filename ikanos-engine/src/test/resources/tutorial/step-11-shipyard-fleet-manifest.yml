@@ -1,7 +1,7 @@
 ikanos: "1.0.0-alpha3"
 
 info:
-  label: "Shipyard Fleet Management"
+  display: "Shipyard Fleet Management"
   description: "Maritime fleet management capability — exposes MCP tools, skills, and REST APIs for ship registry, legacy dockyard, and voyage planning."
   tags:
   - Maritime
