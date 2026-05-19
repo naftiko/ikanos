@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+﻿ikanos: 1.0.0-alpha3
 info:
   display: Aggregate Shared Mock Test
   description: Shared aggregate mock function consumed by MCP and REST refs
@@ -12,7 +12,7 @@ capability:
     greeting:
       display: Greeting
       namespace: greeting
-      functions:
+      flows:
         hello:
           description: Builds a greeting payload from input parameters.
           inputParameters:

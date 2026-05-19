@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+﻿ikanos: 1.0.0-alpha3
 info:
   display: Aggregate Basic Test
   description: Test capability for aggregate function ref resolution
@@ -12,7 +12,7 @@ capability:
     forecast:
       display: Forecast
       namespace: forecast
-      functions:
+      flows:
         get-forecast:
           description: Fetch current weather forecast for a location.
           semantics:

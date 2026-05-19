@@ -1,4 +1,4 @@
-# Guide - Use Cases
+﻿# Guide - Use Cases
 
 Here is an overview of typical use cases where Ikanos can help developers and supporting features available. Additional features are being added as described in the [roadmap](https://github.com/naftiko/ikanos/wiki/Roadmap).
 
@@ -56,7 +56,7 @@ Wrap a current API as a capability to make it easier to discover, reuse, and con
 How Ikanos achieves this technically:
 - Model the legacy/existing API once in `consumes.resources.operations` with explicit methods, paths, parameters, and body formats.
 - Add a stable capability namespace and expose curated resource paths/tools that are easier to consume than vendor-native endpoints.
-- Reshape not just data but also operation semantics: declare `semantics` (safe, idempotent, cacheable) on aggregate functions so the engine derives correct HTTP methods for REST adapters and `hints` for MCP tools automatically.
+- Reshape not just data but also operation semantics: declare `semantics` (safe, idempotent, cacheable) on aggregate flows so the engine derives correct HTTP methods for REST adapters and `hints` for MCP tools automatically.
 - Enforce schema-based validation (`capability-schema.json`) so the elevated contract remains consistent and machine-checkable.
 
 ![Elevate existing APIs](https://Ikanos.github.io/docs/images/technology/use_case_api_reusability_elevate_existing_apis.png)

@@ -379,7 +379,7 @@ public class TelemetryBootstrap {
     /**
      * Start an INTERNAL span for an aggregate function execution.
      */
-    public Span startAggregateFunctionSpan(String ref) {
+    public Span startAggregateFlowSpan(String ref) {
         if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("aggregate.function")
             .setSpanKind(SpanKind.INTERNAL);

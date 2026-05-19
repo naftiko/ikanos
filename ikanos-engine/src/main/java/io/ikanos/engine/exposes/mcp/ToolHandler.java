@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFunction;
-import io.ikanos.engine.aggregates.FunctionResult;
+import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
@@ -185,13 +185,13 @@ public class ToolHandler {
     }
 
     /**
-     * Execute a tool call by delegating to its referenced aggregate function.
+     * Execute a tool call by delegating to its referenced aggregate flow.
      */
     private McpSchema.CallToolResult executeViaAggregate(McpServerToolSpec toolSpec,
             String toolName, Map<String, Object> parameters) throws Exception {
         try {
-            AggregateFunction fn = capability.lookupFunction(toolSpec.getRef());
-            FunctionResult result = fn.execute(parameters);
+            AggregateFlow fn = capability.lookupFlow(toolSpec.getRef());
+            FlowResult result = fn.execute(parameters);
 
             if (result.isMock()) {
                 ObjectMapper mapper = new ObjectMapper();

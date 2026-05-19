@@ -16,13 +16,13 @@ package io.ikanos.spec.aggregates;
 import io.ikanos.spec.util.NamedMapDeserializer;
 
 /**
- * Jackson deserializer for {@code Aggregate.functions} named-object map.
- * Reads {@code { "fn-name": { ... }, ... }} and injects the key as
- * {@link AggregateFunctionSpec#setName(String)}.
+ * Jackson deserializer for {@code Aggregate.flows} named-object map.
+ * Reads {@code { "flow-name": { ... }, ... }} and injects the key as
+ * {@link AggregateFlowSpec#setName(String)}.
  */
-public class AggregateFunctionMapDeserializer extends NamedMapDeserializer<AggregateFunctionSpec> {
+public class AggregateFlowMapDeserializer extends NamedMapDeserializer<AggregateFlowSpec> {
 
-    public AggregateFunctionMapDeserializer() {
-        super(AggregateFunctionSpec.class, AggregateFunctionSpec::setName);
+    public AggregateFlowMapDeserializer() {
+        super(AggregateFlowSpec.class, AggregateFlowSpec::setName);
     }
 }

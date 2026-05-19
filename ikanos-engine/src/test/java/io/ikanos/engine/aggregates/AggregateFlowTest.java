@@ -21,17 +21,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import io.ikanos.spec.aggregates.AggregateFunctionSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.OutputParameterSpec;
 
 /**
- * Unit tests for {@link AggregateFunction} — namespace-qualified reference resolution
- * in function-level {@code with} blocks.
+ * Unit tests for {@link AggregateFlow} — namespace-qualified reference resolution
+ * in flow-level {@code with} blocks.
  */
-public class AggregateFunctionTest {
+public class AggregateFlowTest {
 
     /**
-     * When a mock-mode function has {@code with: {voyage-id: "shipyard.voyage-id"}} and the
+     * When a mock-mode flow has {@code with: {voyage-id: "shipyard.voyage-id"}} and the
      * aggregate namespace is "shipyard", calling execute should resolve the qualified reference
      * to the caller's argument and use it for mock data output.
      *
@@ -39,8 +39,8 @@ public class AggregateFunctionTest {
      * "shipyard.voyage-id" overwrote the caller's "VOY-2026-042" and appeared in the mock output.
      */
     @Test
-    void executeShouldResolveNamespaceQualifiedReferencesInFunctionWith() throws Exception {
-        AggregateFunctionSpec spec = new AggregateFunctionSpec();
+    void executeShouldResolveNamespaceQualifiedReferencesInFlowWith() throws Exception {
+        AggregateFlowSpec spec = new AggregateFlowSpec();
         spec.setName("get-voyage");
         spec.setDescription("Get a voyage manifest.");
         Map<String, Object> withBlock = new HashMap<>();
@@ -55,11 +55,11 @@ public class AggregateFunctionTest {
         spec.setOutputParameters(List.of(outParam));
 
         // No call, no steps -> mock mode
-        AggregateFunction fn = new AggregateFunction(spec, null, "shipyard");
+        AggregateFlow fn = new AggregateFlow(spec, null, "shipyard");
 
         Map<String, Object> callerParams = new HashMap<>();
         callerParams.put("voyage-id", "VOY-2026-042");
-        FunctionResult result = fn.execute(callerParams);
+        FlowResult result = fn.execute(callerParams);
 
         assertTrue(result.isMock(), "Should be mock mode");
         assertNotNull(result.mockOutput, "Mock output should not be null");

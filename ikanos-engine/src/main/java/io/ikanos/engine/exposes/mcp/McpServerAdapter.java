@@ -26,7 +26,7 @@ import org.restlet.Restlet;
 import org.restlet.routing.Router;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFunction;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
@@ -149,10 +149,10 @@ public class McpServerAdapter extends ServerAdapter {
         Map<String, Object> schemaProperties = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
 
-        // Resolve inputParameters: prefer tool-level, fall back to aggregate function
+        // Resolve inputParameters: prefer tool-level, fall back to aggregate flow
         List<InputParameterSpec> inputParams = toolSpec.getInputParameters();
         if ((inputParams == null || inputParams.isEmpty()) && toolSpec.getRef() != null) {
-            AggregateFunction fn = getCapability().lookupFunction(toolSpec.getRef());
+            AggregateFlow fn = getCapability().lookupFlow(toolSpec.getRef());
             inputParams = fn.getInputParameters();
         }
 
