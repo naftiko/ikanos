@@ -68,7 +68,7 @@ jobs:
           delete-branch: true
 
   # This job is only executed when triggered (automatically or manually) from the 'main' branch.
-  sync-vscode-version:
+  sync-crafter-version:
     runs-on: ubuntu-latest
     if: github.ref_name == 'main'
     needs: sync-warden-version
@@ -84,24 +84,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Checkout vscode
+      - name: Checkout crafter
         uses: actions/checkout@v4
         with:
-          repository: naftiko/vscode
-          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
-          path: vscode
+          repository: naftiko/crafter
+          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          path: crafter
 
-      - name: Sync Ikanos version to vscode
+      - name: Sync Ikanos version to crafter
         id: sync
         run: |
-          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-vscode.py \
+          VERSION=$(python3 ikanos/scripts/sync-ikanos-version-to-crafter.py \
             --pom ikanos/pom.xml \
-            --target vscode/extensions/naftiko-vscode/package.json)
+            --target crafter/extensions/naftiko-crafter/package.json)
           echo "value=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Check for changes
         id: git-check
-        working-directory: vscode
+        working-directory: crafter
         run: |
           if git diff --quiet; then
             echo "changes=false" >> $GITHUB_OUTPUT
@@ -113,8 +113,8 @@ jobs:
         if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
-          path: vscode
+          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          path: crafter
           base: main
           branch: "chore/sync-ikanos-version"
           commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
@@ -123,5 +123,5 @@ jobs:
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `extensions/naftiko-vscode/package.json`
+            - `extensions/naftiko-crafter/package.json`
           delete-branch: true

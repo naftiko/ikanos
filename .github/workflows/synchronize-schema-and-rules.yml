@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Synchronize schema and rules to vscode repository.
-  sync-to-vscode:
+  # Synchronize schema and rules to crafter repository.
+  sync-to-crafter:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ikanos
@@ -20,27 +20,27 @@ jobs:
         with:
           path: ikanos
 
-      - name: Checkout vscode
+      - name: Checkout crafter
         uses: actions/checkout@v4
         with:
-          repository: naftiko/vscode
-          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
-          path: vscode
+          repository: naftiko/crafter
+          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          path: crafter
 
       - name: Copy schema and rules
         run: |
           cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
-             vscode/extensions/naftiko-vscode/src/resources/schemas/ikanos-schema.json
+             crafter/extensions/naftiko-crafter/src/resources/schemas/ikanos-schema.json
 
-          rm -rf vscode/extensions/naftiko-vscode/src/resources/rules/*
+          rm -rf crafter/extensions/naftiko-crafter/src/resources/rules/*
           cp -R ikanos/ikanos-spec/src/main/resources/rules/* \
-               vscode/extensions/naftiko-vscode/src/resources/rules/
+               crafter/extensions/naftiko-crafter/src/resources/rules/
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.VSCODE_CONTENTS_WRITE_PR_WRITE }}
-          path: vscode
+          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          path: crafter
           base: main
           branch: chore/schema-and-rules
           commit-message: "chore: update schema and rules from ikanos"
@@ -49,8 +49,8 @@ jobs:
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `ikanos-schema.json`
-            - `rules/*`
+            - `resources/schemas/ikanos-schema.json`
+            - `resources/rules/*`
           delete-branch: true
 
   # Synchronize schema to schema-viewer repository.
