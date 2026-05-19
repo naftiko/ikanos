@@ -69,6 +69,9 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
+
     public McpServerToolSpec() { this(null, null, null); }
 
     public McpServerToolSpec(String name, String display, String description) {
@@ -86,6 +89,8 @@ public class McpServerToolSpec {
 
     public String getDescription() { return description.get(); }
     public void setDescription(String description) { this.description.set(description); }
+
+    public List<String> getTags() { return tags; }
 
     public List<InputParameterSpec> getInputParameters() {
         return List.copyOf(inputParameters.get().values());

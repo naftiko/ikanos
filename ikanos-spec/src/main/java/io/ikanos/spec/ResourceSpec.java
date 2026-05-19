@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -40,6 +41,9 @@ public class ResourceSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String description;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
@@ -88,6 +92,9 @@ public class ResourceSpec {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags.clear(); if (tags != null) this.tags.addAll(tags); }
 
     /**
      * Returns input parameters in declaration order. Consumers (engine) are unchanged
