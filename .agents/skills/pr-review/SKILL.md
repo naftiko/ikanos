@@ -267,15 +267,20 @@ rm -f /tmp/review-<number>.json /tmp/findings-<number>.json
 
 ### Mode B — Hand off to a local agent
 
-Write the selected findings to `/memories/repo/pr-review-<N>.md` so the agent
-working on the branch can read them and apply fixes directly — no GitHub
-round-trip.
+Write the selected findings to `/memories/repo/pr-review-<PR>.md` (where `<PR>`
+is the pull request number) using the `create_file` tool (not via a terminal
+command) so the agent working on the branch can read them and apply fixes
+directly — no GitHub round-trip. If the file already exists from a previous
+review pass, delete it first, then recreate it with updated findings.
 
 The handoff file must include:
 - PR number and branch name
 - List of changed files
 - The findings table (N, file, severity, comment)
 - A clear statement that the receiving agent should fix these findings
+
+The receiving agent lists `/memories/repo/` to discover pending handoffs,
+applies the fixes, commits, pushes, and deletes the handoff file.
 
 Once written, inform the user that the handoff file is ready and which agent
 should read it (see *Inter-agent communication* in `AGENTS.md`).

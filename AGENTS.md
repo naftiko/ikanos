@@ -95,8 +95,11 @@ Session memory (`/memories/session/`) is scoped to one conversation and is invis
 **Pattern:**
 1. Agent A (reviewer) writes findings to `/memories/repo/<topic>.md`
 2. Agent B (fixer) reads it with `memory view /memories/repo/<topic>.md` and applies the changes
+3. Agent B deletes the file after committing the fixes
 
-Example: a PR-review agent writes findings to `/memories/repo/pr-review-<N>.md`; the agent working on the branch reads it and commits the fixes directly, without GitHub round-trip.
+**Naming convention:** use predictable paths so the receiving agent can find them without being told the exact filename. For PR reviews: `/memories/repo/pr-review-<PR>.md` where `<PR>` is the pull request number. The receiving agent lists `/memories/repo/` to discover pending handoffs.
+
+Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`; the agent working on the branch reads it and commits the fixes directly, without GitHub round-trip.
 
 ## Code Style
 
