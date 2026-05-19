@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Set;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -260,5 +261,114 @@ public class ServerAuthenticationRestletTest {
         secured.handle(request, response);
 
         assertEquals(Status.SUCCESS_OK, response.getStatus());
+    }
+
+    @Test
+    public void bearerShouldResolveTokenFromBindingsMap() {
+        BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
+        auth.setToken("{{MCP_SERVER_TOKEN}}");
+
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+                response.setEntity("ok", MediaType.TEXT_PLAIN);
+            }
+        };
+
+        // Simulate file-based binding resolution: bindings map has the resolved value
+        Map<String, Object> bindings = Map.of("MCP_SERVER_TOKEN", "sk-mcp-YYYYYYYYYYYY");
+        ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
+                auth, next, Set.of("MCP_SERVER_TOKEN"), bindings);
+
+        Request request = new Request(Method.GET, "http://localhost/test");
+        request.getHeaders().set("Authorization", "Bearer sk-mcp-YYYYYYYYYYYY");
+        Response response = new Response(request);
+
+        secured.handle(request, response);
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus(),
+                "Bearer token from bindings map should be accepted");
+    }
+
+    @Test
+    public void bearerShouldRejectWrongTokenWhenUsingBindingsMap() {
+        BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
+        auth.setToken("{{MCP_SERVER_TOKEN}}");
+
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+
+        Map<String, Object> bindings = Map.of("MCP_SERVER_TOKEN", "sk-mcp-YYYYYYYYYYYY");
+        ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
+                auth, next, Set.of("MCP_SERVER_TOKEN"), bindings);
+
+        Request request = new Request(Method.GET, "http://localhost/test");
+        request.getHeaders().set("Authorization", "Bearer wrong-token");
+        Response response = new Response(request);
+
+        secured.handle(request, response);
+
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response.getStatus(),
+                "Wrong token should be rejected even when using bindings map");
+    }
+
+    @Test
+    public void bearerBindingsShouldTakePriorityOverUndeclaredEnvVar() {
+        BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
+        auth.setToken("{{MY_TOKEN}}");
+
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+
+        // Bindings have one value; env might have a different one
+        Map<String, Object> bindings = Map.of("MY_TOKEN", "token-from-bindings");
+        ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
+                auth, next, Set.of("MY_TOKEN"), bindings);
+
+        Request request = new Request(Method.GET, "http://localhost/test");
+        request.getHeaders().set("Authorization", "Bearer token-from-bindings");
+        Response response = new Response(request);
+
+        secured.handle(request, response);
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus(),
+                "Bindings-resolved token should authorize correctly");
+    }
+
+    @Test
+    public void apiKeyShouldResolveValueFromBindingsMap() {
+        ApiKeyAuthenticationSpec auth = new ApiKeyAuthenticationSpec();
+        auth.setKey("X-API-Key");
+        auth.setValue("{{API_KEY_VAR}}");
+        auth.setPlacement("header");
+
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+
+        Map<String, Object> bindings = Map.of("API_KEY_VAR", "secret-api-key-from-file");
+        ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
+                auth, next, Set.of("API_KEY_VAR"), bindings);
+
+        Request request = new Request(Method.GET, "http://localhost/test");
+        request.getHeaders().set("X-API-Key", "secret-api-key-from-file");
+        Response response = new Response(request);
+
+        secured.handle(request, response);
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus(),
+                "API key from bindings map should be accepted");
     }
 }

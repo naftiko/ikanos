@@ -41,16 +41,23 @@ public class ServerAuthenticationRestlet extends Restlet {
     private final AuthenticationSpec authentication;
     private final Restlet next;
     private final Set<String> allowedVariables;
+    private final Map<String, Object> bindings;
 
     public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next) {
-        this(authentication, next, null);
+        this(authentication, next, null, null);
     }
 
     public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
             Set<String> allowedVariables) {
+        this(authentication, next, allowedVariables, null);
+    }
+
+    public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
+            Set<String> allowedVariables, Map<String, Object> bindings) {
         this.authentication = authentication;
         this.next = next;
         this.allowedVariables = allowedVariables != null ? allowedVariables : Set.of();
+        this.bindings = bindings != null ? bindings : Map.of();
     }
 
     @Override
@@ -153,12 +160,21 @@ public class ServerAuthenticationRestlet extends Restlet {
 
         while (matcher.find()) {
             String variableName = matcher.group(1);
-            
+
             // Only resolve variables that are explicitly declared in binds
             if (!allowedVariables.isEmpty() && !allowedVariables.contains(variableName)) {
                 continue;
             }
-            
+
+            // Prefer resolved bindings (file-based or injected) over env vars
+            if (bindings.containsKey(variableName)) {
+                Object bindingValue = bindings.get(variableName);
+                if (bindingValue != null) {
+                    variables.put(variableName, bindingValue);
+                    continue;
+                }
+            }
+
             String envValue = System.getenv(variableName);
 
             if (envValue != null) {

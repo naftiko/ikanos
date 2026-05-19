@@ -18,7 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,7 +73,6 @@ public class Step3ShipyardMcpClientIntegrationTest
     public void startServer() throws Exception {
         IkanosSpec spec = loadSpec(CAPABILITY_FILE);
         useMcpServerToken(SECRETS_FILE);
-
 
         startServerFromSpec(spec);
     }
@@ -194,6 +196,70 @@ public class Step3ShipyardMcpClientIntegrationTest
         assertTrue(ship.has("status"), "Must have 'status'");
         assertEquals("IMO-9321483", ship.path("imo").asText(),
                 "Returned imo must match the requested IMO number");
+    }
+
+    // ── authentication pipeline — validates fix for issue #482 ───────────────
+
+    /**
+     * Regression test for GitHub issue #482: bearer auth must work when the token is
+     * resolved from a file-based binding ({{MCP_SERVER_TOKEN}} → secrets.yaml).
+     *
+     * <p>Starts the server with authentication ENABLED and verifies that requests
+     * carrying the correct token (loaded from the secrets file) are accepted, while
+     * requests with wrong or missing tokens are rejected with HTTP 401.</p>
+     */
+    @Test
+    public void bearerAuthFromFileBindingShouldAcceptCorrectTokenAndRejectWrong() throws Exception {
+        // Start a fresh server with auth ENABLED (not disabled)
+        if (adapter != null) {
+            adapter.stop();
+        }
+        IkanosSpec spec = loadSpec(CAPABILITY_FILE);
+        useMcpServerToken(SECRETS_FILE);
+        startServerFromSpecWithAuth(spec);
+
+        HttpClient http = HttpClient.newHttpClient();
+        String initBody = """
+                {"jsonrpc":"2.0","id":1,"method":"initialize",
+                 "params":{"protocolVersion":"2025-11-25",
+                           "clientInfo":{"name":"test-client","version":"1.0"},
+                           "capabilities":{}}}
+                """;
+
+        // Correct token from secrets.yaml should be accepted (issue #482 fix)
+        HttpResponse<String> accepted = http.send(
+                HttpRequest.newBuilder(URI.create(serverUrl))
+                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer " + mcpServerToken)
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, accepted.statusCode(),
+                "Correct token resolved from file binding must be accepted (issue #482)");
+
+        // Wrong token must be rejected
+        HttpResponse<String> rejected = http.send(
+                HttpRequest.newBuilder(URI.create(serverUrl))
+                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer wrong-token")
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(401, rejected.statusCode(),
+                "Wrong token must be rejected");
+
+        // Missing token must be rejected
+        HttpResponse<String> noToken = http.send(
+                HttpRequest.newBuilder(URI.create(serverUrl))
+                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
+                        .header("Content-Type", "application/json")
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(401, noToken.statusCode(),
+                "Request without token must be rejected");
     }
 
 }

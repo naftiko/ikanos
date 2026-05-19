@@ -21,6 +21,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -210,6 +212,51 @@ class McpAuthenticationIntegrationTest {
         }
     }
 
+    @Test
+    void bearerAuthFromFileBindingsShouldAcceptTokenFromSecretsFile() throws Exception {
+        // Write a temporary secrets file simulating file:///./shared/secrets.yaml
+        Path secretsFile = Files.createTempFile("ikanos-secrets-", ".yaml");
+        Files.writeString(secretsFile, "mcp-server-token: \"sk-mcp-from-file\"\n");
+        try {
+            McpServerAdapter adapter = startBearerProtectedServerWithBinding(
+                    secretsFile.toUri().toString());
+            HttpClient client = HttpClient.newHttpClient();
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                // Correct token from the file should be accepted
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
+                                .header("Content-Type", "application/json")
+                                .header("Authorization", "Bearer sk-mcp-from-file")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(200, response.statusCode(),
+                        "Token resolved from file binding should be accepted");
+
+                // Wrong token should still be rejected
+                HttpResponse<String> rejectedResponse = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
+                                .header("Content-Type", "application/json")
+                                .header("Authorization", "Bearer wrong-token")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(401, rejectedResponse.statusCode(),
+                        "Wrong token should still be rejected when using file binding");
+            } finally {
+                adapter.stop();
+            }
+        } finally {
+            Files.deleteIfExists(secretsFile);
+        }
+    }
+
     private McpServerAdapter startBearerProtectedServer() throws Exception {
         String schemaVersion = VersionHelper.getSchemaVersion();
         String yaml = """
@@ -313,5 +360,41 @@ class McpAuthenticationIntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    private McpServerAdapter startBearerProtectedServerWithBinding(String secretsFileUri)
+            throws Exception {
+        String schemaVersion = VersionHelper.getSchemaVersion();
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  label: "MCP Auth Binding Test"
+                  description: "Bearer auth from file bindings integration test"
+                binds:
+                  - namespace: "mcp-secrets"
+                    description: "MCP server credentials"
+                    location: "%s"
+                    keys:
+                      MCP_SERVER_TOKEN: "mcp-server-token"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "auth-test-mcp"
+                      description: "Test MCP server with bearer auth from bindings"
+                      authentication:
+                        type: "bearer"
+                        token: "{{MCP_SERVER_TOKEN}}"
+                      tools:
+                        - name: "test-tool"
+                          description: "A test tool"
+                          outputParameters:
+                            - type: "string"
+                              value: "ok"
+                  consumes: []
+                """.formatted(schemaVersion, secretsFileUri, findFreePort());
+
+        return startAdapter(yaml);
     }
 }

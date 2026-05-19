@@ -117,6 +117,23 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         serverUrl = "http://localhost:" + port + "/";
     }
 
+    /**
+     * Like {@link #startServerFromSpec(IkanosSpec)} but keeps MCP authentication enabled.
+     * Use this when the test explicitly exercises the authentication pipeline.
+     */
+    protected void startServerFromSpecWithAuth(IkanosSpec spec) throws Exception {
+        int port = findFreePort();
+        ServerSpec exposesSpec = spec.getCapability().getExposes().get(0);
+        exposesSpec.setAddress("localhost");
+        exposesSpec.setPort(port);
+
+        Capability capability = new Capability(spec);
+        adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
+        adapter.start();
+
+        serverUrl = "http://localhost:" + port + "/";
+    }
+
     protected void disableMcpAuthentication(IkanosSpec spec) {
         spec.getCapability().getExposes().stream()
                 .filter(McpServerSpec.class::isInstance)
