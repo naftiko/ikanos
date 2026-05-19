@@ -1,4 +1,4 @@
-﻿# Guide - Linting
+# Guide - Linting
 
 ## Table of Contents
 
