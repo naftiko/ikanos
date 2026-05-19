@@ -66,9 +66,9 @@ public class AggregateSharedMockIntegrationTest {
 
         // Output parameters are no longer copied — they live on the aggregate flow
         AggregateFlow fn = capability.lookupFlow(restOperation.getRef());
-        assertNotNull(fn, "aggregate flow should be resolvable from ref");
+        assertNotNull(fn, "Aggregate flow should be resolvable from ref");
         assertEquals(2, fn.getOutputParameters().size(),
-                "aggregate flow should have two output parameters");
+                "Aggregate flow should have two output parameters");
 
         // Exercise REST path through the normal flow (delegating to aggregate flow)
         ResourceRestlet restlet = new ResourceRestlet(capability, restSpec,

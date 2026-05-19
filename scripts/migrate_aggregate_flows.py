@@ -14,6 +14,17 @@ This script targets the breaking rename introduced in story #463:
 
 It uses a regex-based approach rather than a full YAML parser so that
 comments and formatting are preserved verbatim.
+
+WARNING — Known false positive: Spectral configuration files (`.spectral.yaml`,
+`.spectral.yml`) use `functions:` as a built-in keyword to register custom
+JavaScript validation plugins. This pattern is NOT related to Ikanos aggregates
+and must NOT be migrated. Exclude Spectral configuration files when running this
+script, or review each match manually before accepting it. Example Spectral usage
+that must be preserved:
+
+    # .spectral.yaml
+    functions:
+      - check-binds-location-scheme
 """
 
 import re
