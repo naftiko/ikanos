@@ -70,7 +70,7 @@ public class AggregateStepNamespaceIntegrationTest {
         AggregateSpec aggregateSpec = spec.getCapability().getAggregates().get("shipyard");
         Aggregate aggregate = new Aggregate(aggregateSpec, executor);
         AggregateFlow fn = aggregate.findFlow("get-voyage-manifest");
-        assertNotNull(fn, "aggregate flow should be found");
+        assertNotNull(fn, "Aggregate flow should be found");
 
         Map<String, Object> params = new HashMap<>();
         params.put("voyage-id", "VOY-2026-042");

@@ -280,7 +280,7 @@ rules:
 
 ### Adding Custom Functions
 
-For advanced validation logic (like the built-in `unique-namespaces` function), you can write custom JavaScript flows:
+For advanced validation logic (like the built-in `unique-namespaces` function), you can write custom JavaScript functions:
 
 1. Create a `functions/` directory next to your `.spectral.yaml`:
 
@@ -321,18 +321,8 @@ extends:
 
 functionsDir: ./functions
 
-flows:
+functions:
   - check-binds-location-scheme
-
-rules:
-  my-org-binds-location-scheme:
-    message: "Bind locations must use an approved URI scheme."
-    severity: error
-    given:
-      - "$.binds[*].location"
-      - "$.capability.binds[*].location"
-    then:
-      function: check-binds-location-scheme
 ```
 
 ### Full Example
@@ -346,7 +336,7 @@ extends:
 
 functionsDir: ./functions
 
-flows:
+functions:
   - check-binds-location-scheme
 
 rules:
