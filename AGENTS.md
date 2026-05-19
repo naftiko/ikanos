@@ -66,18 +66,18 @@ When multiple agents work on the same repository simultaneously, each agent must
 ```bash
 # Create an isolated worktree for each issue, branching from origin/main
 git fetch origin main
-git worktree add ../framework-issue-<N> -b feat/issue-<N>-short-description origin/main
+git worktree add ../ikanos-issue-<N> -b feat/issue-<N>-short-description origin/main
 
 # Open the worktree as an additional root in VS Code (required — agents only see open workspace folders)
-code --add /path/to/framework-issue-<N>
+code --add /path/to/ikanos-issue-<N>
 
 # Remove when the branch is merged
-git worktree remove ../framework-issue-<N>
+git worktree remove ../ikanos-issue-<N>
 ```
 
 ### For agents working in a worktree
 
-- **Your working directory is the worktree root** (e.g. `../framework-issue-<N>/`) — treat it as the repository root for all commands
+- **Your working directory is the worktree root** (e.g. `../ikanos-issue-<N>/`) — treat it as the repository root for all commands
 - **Never run `git checkout main`** inside a worktree — `main` is already checked out in the primary clone and Git will refuse. To create a new branch from up-to-date `main`, use: `git fetch origin main && git checkout -b fix/<name> origin/main`
 - **Never stash, reset, or switch branches** in a worktree that belongs to another agent — each worktree is exclusively owned by one agent for the duration of the issue
 - **`mvn clean test`** runs normally from the worktree root — the shared `~/.m2` cache is read-only-safe for parallel builds
@@ -86,7 +86,7 @@ git worktree remove ../framework-issue-<N>
 
 > One worktree = one issue = one branch = one agent.
 
-The primary clone (`framework/`) owns `main` and handles fetch/push. Agents never check out `main` directly.
+The primary clone (`ikanos/`) owns `main` and handles fetch/push. Agents never check out `main` directly.
 
 ### Inter-agent communication
 
