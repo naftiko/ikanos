@@ -140,7 +140,8 @@ public abstract class ServerAdapter extends Adapter {
         }
 
         Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
-        return new ServerAuthenticationRestlet(authentication, next, allowedVariables);
+        return new ServerAuthenticationRestlet(authentication, next, allowedVariables,
+                getCapability().getBindings());
     }
 
     /**
@@ -157,6 +158,7 @@ public abstract class ServerAdapter extends Adapter {
                 : ChallengeScheme.HTTP_BASIC;
 
         Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
+        Map<String, Object> bindings = getCapability().getBindings();
         ChallengeAuthenticator authenticator =
                 new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos");
         authenticator.setVerifier(new SecretVerifier() {
@@ -167,11 +169,11 @@ public abstract class ServerAdapter extends Adapter {
                 char[] expectedPassword = null;
 
                 if (authentication instanceof BasicAuthenticationSpec basic) {
-                    expectedUsername = resolveTemplate(basic.getUsername(), allowedVariables);
-                    expectedPassword = resolveTemplateChars(basic.getPassword(), allowedVariables);
+                    expectedUsername = resolveTemplate(basic.getUsername(), allowedVariables, bindings);
+                    expectedPassword = resolveTemplateChars(basic.getPassword(), allowedVariables, bindings);
                 } else if (authentication instanceof DigestAuthenticationSpec digest) {
-                    expectedUsername = resolveTemplate(digest.getUsername(), allowedVariables);
-                    expectedPassword = resolveTemplateChars(digest.getPassword(), allowedVariables);
+                    expectedUsername = resolveTemplate(digest.getUsername(), allowedVariables, bindings);
+                    expectedPassword = resolveTemplateChars(digest.getPassword(), allowedVariables, bindings);
                 }
 
                 if (expectedUsername == null || expectedPassword == null || identifier == null
@@ -190,13 +192,22 @@ public abstract class ServerAdapter extends Adapter {
         return authenticator;
     }
 
-    private static String resolveTemplate(String value, Set<String> allowedVariables) {
+    private static String resolveTemplate(String value, Set<String> allowedVariables,
+            Map<String, Object> bindings) {
         if (value == null) {
             return null;
         }
         Map<String, Object> env = new HashMap<>();
         if (value.contains("{{") && value.contains("}}")) {
             for (String varName : allowedVariables) {
+                // Prefer resolved bindings (file-based or injected) over env vars
+                if (bindings != null && bindings.containsKey(varName)) {
+                    Object bindingValue = bindings.get(varName);
+                    if (bindingValue != null) {
+                        env.put(varName, bindingValue);
+                        continue;
+                    }
+                }
                 String varValue = System.getenv(varName);
                 if (varValue != null) {
                     env.put(varName, varValue);
@@ -206,11 +217,12 @@ public abstract class ServerAdapter extends Adapter {
         return Resolver.resolveMustacheTemplate(value, env);
     }
 
-    private static char[] resolveTemplateChars(char[] value, Set<String> allowedVariables) {
+    private static char[] resolveTemplateChars(char[] value, Set<String> allowedVariables,
+            Map<String, Object> bindings) {
         if (value == null) {
             return null;
         }
-        String resolved = resolveTemplate(new String(value), allowedVariables);
+        String resolved = resolveTemplate(new String(value), allowedVariables, bindings);
         return resolved == null ? null : resolved.toCharArray();
     }
 
