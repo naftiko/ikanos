@@ -1,4 +1,4 @@
-﻿# Ikanos Specification - Schema
+# Ikanos Specification - Schema
 
 **Version:** {{RELEASE_TAG}}
 

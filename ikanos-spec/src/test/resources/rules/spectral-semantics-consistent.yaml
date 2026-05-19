@@ -2,7 +2,7 @@ ikanos: 1.0.0-alpha3
 capability:
   aggregates:
     weather:
-      label: Weather Service
+      display: Weather Service
       namespace: weather
       functions:
         get-forecast:
