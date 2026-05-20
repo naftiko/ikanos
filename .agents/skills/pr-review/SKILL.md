@@ -218,9 +218,7 @@ numbers in the review payload.
 
 ---
 
-## Part A — Step 5 — Deliver findings
-
-### Mode A — Post review on GitHub
+## Part A — Step 5 — Post the review
 
 Build the review JSON with the confirmed line numbers and save it with `create_file`
 to `$env:TEMP\review-<number>.json` (Windows) or `/tmp/review-<number>.json`
