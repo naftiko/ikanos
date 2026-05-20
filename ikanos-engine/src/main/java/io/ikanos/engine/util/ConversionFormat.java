@@ -17,7 +17,7 @@ package io.ikanos.engine.util;
  * Centralized enum for the output raw formats declared in the Ikanos specification
  * ({@code outputRawFormat} in {@code ikanos-schema.json}).
  *
- * <p>Labels are lowercase to match the JSON schema enum values. Use {@link #fromLabel(String)}
+ * <p>Labels are lowercase to match the JSON schema enum values. Use {@link #fromDisplay(String)}
  * for case-insensitive lookup from user-supplied strings.</p>
  */
 public enum ConversionFormat {
@@ -45,7 +45,7 @@ public enum ConversionFormat {
      * @param format the raw format string (may be {@code null})
      * @return the matching constant, or {@code null} if {@code format} is {@code null} or unknown
      */
-    public static ConversionFormat fromLabel(String format) {
+    public static ConversionFormat fromDisplay(String format) {
         if (format == null) {
             return null;
         }

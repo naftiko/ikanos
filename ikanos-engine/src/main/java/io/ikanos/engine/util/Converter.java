@@ -80,7 +80,7 @@ public class Converter {
     /** Convert various formats to JSON */
     public static JsonNode convertToJson(String format, String schema, Representation entity)
             throws IOException {
-        ConversionFormat fmt = ConversionFormat.fromLabel(format);
+        ConversionFormat fmt = ConversionFormat.fromDisplay(format);
 
         if (fmt == null && format != null) {
             throw new IOException("Unsupported \"" + format + "\" format specified");
@@ -132,7 +132,7 @@ public class Converter {
      */
     public static JsonNode convertToJson(String format, String schema, String text)
             throws IOException {
-        ConversionFormat fmt = ConversionFormat.fromLabel(format);
+        ConversionFormat fmt = ConversionFormat.fromDisplay(format);
 
         if (fmt == null && format != null) {
             throw new IOException("Unsupported \"" + format + "\" format specified");

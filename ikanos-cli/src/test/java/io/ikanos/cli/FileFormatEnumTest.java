@@ -19,23 +19,23 @@ import org.junit.jupiter.api.Test;
 public class FileFormatEnumTest {
 
     @Test
-    public void valueOfLabelShouldReturnYamlForYamlLabel() {
-        FileFormat result = FileFormat.valueOfLabel("Yaml");
+    public void valueOfDisplayShouldReturnYamlForYamlLabel() {
+        FileFormat result = FileFormat.valueOfDisplay("Yaml");
 
         assertEquals(FileFormat.YAML, result);
         assertEquals("yaml", result.pathName);
     }
 
     @Test
-    public void valueOfLabelShouldReturnUnknownForUnrecognizedLabel() {
-        FileFormat result = FileFormat.valueOfLabel("Unknown");
+    public void valueOfDisplayShouldReturnUnknownForUnrecognizedLabel() {
+        FileFormat result = FileFormat.valueOfDisplay("Unknown");
 
         assertEquals(FileFormat.UNKNOWN, result);
     }
 
     @Test
-    public void valueOfLabelShouldReturnUnknownForNull() {
-        FileFormat result = FileFormat.valueOfLabel(null);
+    public void valueOfDisplayShouldReturnUnknownForNull() {
+        FileFormat result = FileFormat.valueOfDisplay(null);
 
         assertEquals(FileFormat.UNKNOWN, result);
     }
