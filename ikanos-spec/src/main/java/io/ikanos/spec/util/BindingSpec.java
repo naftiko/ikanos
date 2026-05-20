@@ -15,16 +15,24 @@ package io.ikanos.spec.util;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 /**
  * Binding Specification Element.
  *
  * <p>Declares that the capability binds to an external source of variables.
  * Variables declared via {@code keys} are injected using mustache-style expressions.</p>
  *
+ * <p>Deserialization is discriminated by {@link BindingSpecDeserializer}: entries with a
+ * {@code from} field become {@link ImportedBindingSpec}, all other entries become
+ * {@link InlineBindingSpec} (which is a no-op subclass of this type). The {@code from} import
+ * keyword does <em>not</em> conflict with {@link #getLocation()} (the runtime variable source).</p>
+ *
  * <h2>Thread safety</h2>
  * Each field is held in an {@link AtomicReference}. This satisfies SonarQube rule
  * {@code java:S3077}.
  */
+@JsonDeserialize(using = BindingSpecDeserializer.class)
 public class BindingSpec {
 
     private final AtomicReference<String> namespace = new AtomicReference<>();

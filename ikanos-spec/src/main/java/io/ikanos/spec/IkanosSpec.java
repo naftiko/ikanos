@@ -19,16 +19,27 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.BindingSpec;
 
 /**
  * Ikanos Specification Root, including version and capabilities.
  *
+ * <p>Also serves as the document model for the five document shapes accepted by the schema:</p>
+ * <ul>
+ *   <li>Capability document — {@code ikanos} + {@code capability}</li>
+ *   <li>Standalone consumes — {@code ikanos} + {@code consumes}</li>
+ *   <li>Standalone exposes — {@code ikanos} + {@code exposes}</li>
+ *   <li>Standalone aggregates — {@code ikanos} + {@code aggregates}</li>
+ *   <li>Standalone binds — {@code ikanos} + {@code binds}</li>
+ * </ul>
+ *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.
- * The {@code binds} and {@code consumes} collections are {@link CopyOnWriteArrayList}s.
+ * The list fields are {@link CopyOnWriteArrayList}s.
  * This satisfies SonarQube rule {@code java:S3077}.
  */
 public class IkanosSpec {
@@ -43,12 +54,20 @@ public class IkanosSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<ClientSpec> consumes;
 
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<ServerSpec> exposes;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<AggregateSpec> aggregates;
+
     public IkanosSpec(String ikanos, InfoSpec info, CapabilitySpec capability) {
         this.ikanos.set(ikanos);
         this.info.set(info);
         this.binds = new CopyOnWriteArrayList<>();
         this.capability.set(capability);
         this.consumes = new CopyOnWriteArrayList<>();
+        this.exposes = new CopyOnWriteArrayList<>();
+        this.aggregates = new CopyOnWriteArrayList<>();
     }
 
     public IkanosSpec() {
@@ -85,6 +104,14 @@ public class IkanosSpec {
 
     public List<ClientSpec> getConsumes() {
         return consumes;
+    }
+
+    public List<ServerSpec> getExposes() {
+        return exposes;
+    }
+
+    public List<AggregateSpec> getAggregates() {
+        return aggregates;
     }
 
 }

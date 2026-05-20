@@ -22,12 +22,18 @@ import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
 
 /**
- * Custom deserializer that discriminates between Import and regular HttpClientSpec
- * based on presence of 'location' field.
- * 
- * Design:
- * - If 'location' field is present -> ImportedConsumesHttpSpec
- * - Otherwise -> HttpClientSpec
+ * Custom deserializer that discriminates between an imported {@link ImportedConsumesHttpSpec}
+ * and a regular {@link HttpClientSpec} based on the presence of the {@code from} field.
+ *
+ * <p>Design:</p>
+ * <ul>
+ *   <li>{@code from} present  → {@link ImportedConsumesHttpSpec}</li>
+ *   <li>{@code from} absent   → {@link HttpClientSpec}</li>
+ * </ul>
+ *
+ * <p>The legacy {@code location} keyword is rejected with a migration-guidance error.
+ * This is part of Phase 1 of the unified import mechanism — see
+ * {@code blueprints/unified-import-mechanism.md}.</p>
  */
 public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
 
@@ -35,8 +41,19 @@ public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
     public ClientSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
         JsonNode node = ctxt.readTree(p);
 
-        // If 'location' field is present -> ImportedConsumesHttpSpec
-        if (node.has("location")) {
+        // Reject the legacy 'location' keyword on import entries with a clear migration message.
+        // Heuristic: an import entry is one that has 'import' (the namespace to import) and no
+        // 'baseUri' (which is mandatory on an inline HttpClientSpec). We avoid rejecting valid
+        // inline adapter specs that happen to use 'location' as a parameter name elsewhere.
+        if (node.has("location") && node.has("import") && !node.has("baseUri")) {
+            throw new IOException(
+                "Import keyword 'location' is no longer supported on 'consumes' entries; "
+                    + "use 'from' instead. See blueprints/unified-import-mechanism.md."
+            );
+        }
+
+        // If 'from' field is present -> ImportedConsumesHttpSpec
+        if (node.has("from")) {
             return ctxt.readTreeAsValue(node, ImportedConsumesHttpSpec.class);
         }
 
