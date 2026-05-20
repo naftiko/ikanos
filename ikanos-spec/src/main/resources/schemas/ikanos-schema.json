@@ -66,7 +66,7 @@
         ]
       },
       "minItems": 1,
-      "description": "Domain aggregates defining reusable flows that adapters can reference via ref. Each entry is either an inline `Aggregate` or an `ImportEntry` (with a `from` URI). Standalone aggregates files use this section at root."
+      "description": "Domain aggregates declared at file scope. Each entry is either an inline `Aggregate` or an `ImportEntry` (with a `from` URI). Standalone aggregates files use this section at root."
     },
     "binds": {
       "type": "array",
@@ -99,56 +99,32 @@
       "required": [
         "ikanos",
         "consumes"
-      ],
-      "not": { "anyOf": [
-        { "required": ["capability"] },
-        { "required": ["exposes"] },
-        { "required": ["aggregates"] },
-        { "required": ["binds"] }
-      ]}
+      ]
     },
     {
       "required": [
         "ikanos",
         "exposes"
-      ],
-      "not": { "anyOf": [
-        { "required": ["capability"] },
-        { "required": ["consumes"] },
-        { "required": ["aggregates"] },
-        { "required": ["binds"] }
-      ]}
+      ]
     },
     {
       "required": [
         "ikanos",
         "aggregates"
-      ],
-      "not": { "anyOf": [
-        { "required": ["capability"] },
-        { "required": ["consumes"] },
-        { "required": ["exposes"] },
-        { "required": ["binds"] }
-      ]}
+      ]
     },
     {
       "required": [
         "ikanos",
         "binds"
-      ],
-      "not": { "anyOf": [
-        { "required": ["capability"] },
-        { "required": ["consumes"] },
-        { "required": ["exposes"] },
-        { "required": ["aggregates"] }
-      ]}
+      ]
     }
   ],
   "additionalProperties": false,
   "$defs": {
     "ImportEntry": {
       "type": "object",
-      "description": "References a `ConsumesHttp` adapter defined in an external capability file. Used in `consumes[]` to reuse adapter definitions across capability files without duplication.\n\n**When to use** — When multiple capabilities share the same upstream API adapter. The referenced file must declare a `ConsumesHttp` with a matching `namespace`.\n**Format** — `location` is a URI to the source `.yml` file; `import` is the namespace in that file; `as` is an optional local alias.\n**Example**:\n```yaml\nconsumes:\n  - location: file:///shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
+      "description": "Unified import directive shared by `consumes`, `exposes`, `aggregates`, and `binds`. Imports a single namespaced entry from another file by its `namespace`, optionally aliasing it locally via `as`. The `from` path is resolved relative to the importing file. Transitive imports are not supported \u2014 each source file must be a self-contained leaf.\n\n**Example**:\n```yaml\nconsumes:\n  - from: ./shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
       "properties": {
         "from": {
           "type": "string",

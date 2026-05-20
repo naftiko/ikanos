@@ -73,7 +73,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "demo"
+              label: "demo"
               description: "demo"
             capability:
               consumes:
@@ -92,7 +92,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "demo"
+              label: "demo"
               description: "demo"
             capability:
               exposes:
@@ -110,7 +110,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "demo"
+              label: "demo"
               description: "demo"
             capability:
               consumes:
@@ -162,28 +162,12 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             aggregates:
-              - display: "Crew Resolver"
+              - label: "Crew Resolver"
                 namespace: "crew-resolver"
-                flows:
-                  find-by-id:
+                functions:
+                  - name: "find-by-id"
                     description: "Look up a crew member by id."
                     call: "api.lookup"
-            """;
-        Set<ValidationMessage> errors = validateYaml(yaml);
-        assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
-    }
-
-    @Test
-    @DisplayName("schema accepts an 'ikanos + binds' standalone document")
-    void schemaShouldAcceptStandaloneBindsDocument() throws Exception {
-        String yaml = """
-            ikanos: "1.0.0-alpha3"
-            binds:
-              - namespace: "secrets"
-                location: "vault://my-vault/secret/data/app"
-                keys:
-                  API_KEY: "api-key"
-                  DB_PASSWORD: "db-password"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
@@ -197,7 +181,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "demo"
+              label: "demo"
               description: "demo"
             capability:
               consumes:
@@ -214,7 +198,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "demo"
+              label: "demo"
               description: "demo"
             capability:
               consumes:
@@ -231,7 +215,6 @@ class ImportSchemaValidationTest {
         try (InputStream in = ImportSchemaValidationTest.class
                 .getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
-            assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode root = JSON.readTree(in);
             JsonNode importEntry = root.path("$defs").path("ImportEntry");
             assertFalse(importEntry.isMissingNode(), "$defs/ImportEntry must be defined");

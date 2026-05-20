@@ -49,14 +49,14 @@ public class ImportedConsumesHttpSpec extends ClientSpec {
     }
 
     public ImportedConsumesHttpSpec(String from, String importNamespace, String alias) {
-        super(null, null);
+        super("http", null);
         this.from = from;
         this.importNamespace = importNamespace;
         this.alias = alias;
     }
 
     public ImportedConsumesHttpSpec(String from, String importNamespace, String alias, String description) {
-        super(null, null);
+        super("http", null);
         this.from = from;
         this.importNamespace = importNamespace;
         this.alias = alias;

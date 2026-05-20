@@ -16,10 +16,10 @@ binds:
 
 capability:
   consumes:
-  - import: registry
-    from: ./shared/step7-registry-consumes.yml
-  - import: legacy
-    from: ./shared/legacy-consumes.yaml
+    - import: registry
+      from: ./shared/step7-registry-consumes.yml
+    - import: legacy
+      from: ./shared/legacy-consumes.yaml
 
   exposes:
   - type: mcp
