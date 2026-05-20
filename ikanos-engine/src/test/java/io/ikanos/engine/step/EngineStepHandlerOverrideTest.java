@@ -15,6 +15,7 @@ package io.ikanos.engine.step;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +25,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepSpec;
 
 /**
  * Integration test that verifies step handlers override normal step execution in the engine.
@@ -120,8 +122,7 @@ class EngineStepHandlerOverrideTest {
         OperationStepCallSpec step1 = new OperationStepCallSpec("do-greet", "placeholder.greet");
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
 
-        Map<String, Object> params = new HashMap<>();
-        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps1 = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, OperationStepSpec> steps1 = new LinkedHashMap<>();
         steps1.put(step1.getName(), step1);
         steps1.put(step2.getName(), step2);
         OperationStepExecutor.StepExecutionResult result =
@@ -156,7 +157,7 @@ class EngineStepHandlerOverrideTest {
         OperationStepCallSpec step1 = new OperationStepCallSpec("do-greet", "placeholder.greet");
         OperationStepCallSpec step2 = new OperationStepCallSpec("add", "placeholder.add");
 
-        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps2 = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, OperationStepSpec> steps2 = new LinkedHashMap<>();
         steps2.put(step1.getName(), step1);
         steps2.put(step2.getName(), step2);
         OperationStepExecutor.StepExecutionResult result =
