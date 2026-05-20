@@ -2,13 +2,11 @@ ikanos: "1.0.0-alpha3"
 binds:
   - namespace: "weather-secrets"
     description: "Weather API credentials"
-    location: "./secrets.env"
+    location: "file://./secrets.env"
     keys:
-      required:
-        - WEATHER_API_KEY
+      WEATHER_API_KEY: "weather-api-key"
   - namespace: "geo-secrets"
     description: "Geo API credentials"
-    location: "./geo-secrets.env"
+    location: "file://./geo-secrets.env"
     keys:
-      required:
-        - GEO_API_KEY
+      GEO_API_KEY: "geo-api-key"

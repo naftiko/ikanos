@@ -3,8 +3,20 @@ consumes:
   - type: "http"
     namespace: "weather-api"
     baseUri: "https://api.weather.example.com"
-    resources: []
+    resources:
+      - name: "forecasts"
+        path: "/forecasts"
+        operations:
+          - name: "get-forecast"
+            method: "GET"
+            description: "Retrieve a weather forecast"
   - type: "http"
     namespace: "geo-api"
     baseUri: "https://geo.example.com"
-    resources: []
+    resources:
+      - name: "geocode"
+        path: "/geocode"
+        operations:
+          - name: "reverse-geocode"
+            method: "GET"
+            description: "Converts coordinates to address"
