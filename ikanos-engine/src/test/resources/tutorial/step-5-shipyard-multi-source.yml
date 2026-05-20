@@ -17,9 +17,9 @@ binds:
 capability:
   consumes:
   - import: registry
-    location: "./shared/step5-registry-consumes.yaml"
+    from: "./shared/step5-registry-consumes.yaml"
   - import: legacy
-    location: "./shared/legacy-consumes.yaml"
+    from: "./shared/legacy-consumes.yaml"
 
   exposes:
   - type: mcp

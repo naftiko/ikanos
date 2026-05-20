@@ -25,6 +25,10 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  *
  * <p>A domain aggregate grouping reusable flows. Adapters reference these flows via ref.</p>
  *
+ * <p>Deserialization is discriminated by {@link AggregateSpecDeserializer}: entries with a
+ * {@code from} field become {@link ImportedAggregateSpec}, all other entries become
+ * {@link InlineAggregateSpec} (which is a no-op subclass of this type).</p>
+ *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.
@@ -32,6 +36,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  * YAML insertion order (critical for step orchestration semantics). This satisfies SonarQube
  * rule {@code java:S3077}.
  */
+@JsonDeserialize(using = AggregateSpecDeserializer.class)
 public class AggregateSpec {
 
     private final AtomicReference<String> display = new AtomicReference<>();

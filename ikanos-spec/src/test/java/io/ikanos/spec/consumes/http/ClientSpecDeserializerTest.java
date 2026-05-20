@@ -41,7 +41,7 @@ public class ClientSpecDeserializerTest {
     public void testDeserializeImportedConsumes() throws Exception {
         String yaml = """
             type: "http"
-            location: "./api.yml"
+            from: "./api.yml"
             import: "myapi"
             as: "myapi-v1"
             """;
@@ -50,7 +50,7 @@ public class ClientSpecDeserializerTest {
 
         assertTrue(result instanceof ImportedConsumesHttpSpec);
         ImportedConsumesHttpSpec imported = (ImportedConsumesHttpSpec) result;
-        assertEquals("./api.yml", imported.getLocation());
+        assertEquals("./api.yml", imported.getFrom());
         assertEquals("myapi", imported.getImportNamespace());
         assertEquals("myapi-v1", imported.getAlias());
     }
@@ -76,7 +76,7 @@ public class ClientSpecDeserializerTest {
     public void testDeserializeImportWithoutAlias() throws Exception {
         String yaml = """
             type: "http"
-            location: "./shared.yml"
+            from: "./shared.yml"
             import: "shared-api"
             """;
 
@@ -91,7 +91,7 @@ public class ClientSpecDeserializerTest {
     public void testDeserializeImportWithEmptyAlias() throws Exception {
         String yaml = """
             type: "http"
-            location: "./shared.yml"
+            from: "./shared.yml"
             import: "shared-api"
             as: ""
             """;
@@ -107,7 +107,7 @@ public class ClientSpecDeserializerTest {
     public void testDeserializeImportedConsumesWithDescriptionShouldPopulateDescriptionField() throws Exception {
         String yaml = """
             type: "http"
-            location: "./api.yml"
+            from: "./api.yml"
             import: "myapi"
             description: "Manages project tasks and issues."
             """;
@@ -123,7 +123,7 @@ public class ClientSpecDeserializerTest {
     public void testDeserializeImportedConsumesWithoutDescriptionShouldLeaveDescriptionNull() throws Exception {
         String yaml = """
             type: "http"
-            location: "./api.yml"
+            from: "./api.yml"
             import: "myapi"
             """;
 
@@ -132,5 +132,24 @@ public class ClientSpecDeserializerTest {
         assertTrue(result instanceof ImportedConsumesHttpSpec);
         ImportedConsumesHttpSpec imported = (ImportedConsumesHttpSpec) result;
         assertNull(imported.getDescription());
+    }
+
+    @Test
+    public void testDeserializeLegacyLocationKeywordShouldThrowWithMigrationMessage() {
+        String yaml = """
+            type: "http"
+            location: "./api.yml"
+            import: "myapi"
+            """;
+
+        com.fasterxml.jackson.databind.JsonMappingException ex = assertThrows(
+            com.fasterxml.jackson.databind.JsonMappingException.class,
+            () -> mapper.readValue(yaml, ClientSpec.class)
+        );
+        String message = ex.getMessage();
+        assertTrue(
+            message.contains("'location'") && message.contains("'from'"),
+            "Expected migration guidance in error message but was: " + message
+        );
     }
 }

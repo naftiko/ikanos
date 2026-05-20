@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ikanos.io/schemas/v1.0.0-alpha3/ikanos.json",
   "name": "Ikanos Specification",
-  "description": "Ikanos Capability Specification — describes a capability document (adapter + metadata). A valid document must declare `ikanos` + either `capability` (adapter document) or `consumes` (shared consumer file). All adapter logic lives under `capability`; shared consumer definitions live at root `consumes`.",
+  "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata) or a standalone shared file (consumes / exposes / aggregates / binds). A valid document must declare `ikanos` + exactly one of `capability`, `consumes`, `exposes`, `aggregates`, or `binds`. All adapter logic lives under `capability`; shared section definitions live at root.",
   "type": "object",
   "properties": {
     "ikanos": {
       "type": "string",
-      "description": "Ikanos specification version. Must be `1.0.0-alpha3`. Signals schema compatibility — always the first key in a capability file.",
+      "description": "Ikanos specification version. Must be `1.0.0-alpha3`. Signals schema compatibility \u2014 always the first key in a capability file.",
       "const": "1.0.0-alpha3"
     },
     "info": {
@@ -22,20 +22,66 @@
             "$ref": "#/$defs/ConsumesHttp"
           },
           {
-            "$ref": "#/$defs/ImportedConsumesHttp"
+            "$ref": "#/$defs/ImportEntry"
           }
         ]
       },
       "minItems": 1,
-      "description": "External HTTP API adapters declared at file scope. Each entry is either an inline `ConsumesHttp` (with `type: http`) or an `ImportedConsumesHttp` (with `location` URI).\n\n**When to use** — Required when calling external APIs. Can appear at root level to share adapter definitions across capabilities, or under `capability.consumes` to scope them to one capability.\n**See also** — `capability.consumes[]` references namespaces declared here."
+      "description": "External HTTP API adapters declared at file scope. Each entry is either an inline `ConsumesHttp` (with `type: http`) or an `ImportEntry` (with a `from` URI). Standalone consumes files use this section at root."
+    },
+    "exposes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ExposesRest"
+          },
+          {
+            "$ref": "#/$defs/ExposesMcp"
+          },
+          {
+            "$ref": "#/$defs/ExposesSkill"
+          },
+          {
+            "$ref": "#/$defs/ExposesControl"
+          },
+          {
+            "$ref": "#/$defs/ImportEntry"
+          }
+        ]
+      },
+      "minItems": 1,
+      "description": "Exposed server adapters declared at file scope. Each entry is either an inline adapter (rest/mcp/skill/control) or an `ImportEntry` (with a `from` URI). Standalone exposes files use this section at root."
+    },
+    "aggregates": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Aggregate"
+          },
+          {
+            "$ref": "#/$defs/ImportEntry"
+          }
+        ]
+      },
+      "minItems": 1,
+      "description": "Domain aggregates defining reusable flows that adapters can reference via ref. Each entry is either an inline `Aggregate` or an `ImportEntry` (with a `from` URI). Standalone aggregates files use this section at root."
     },
     "binds": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/Binding"
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Binding"
+          },
+          {
+            "$ref": "#/$defs/ImportEntry"
+          }
+        ]
       },
       "minItems": 1,
-      "description": "External variable bindings available file-wide. Each entry binds to a secret store or config source (Vault, k8s secrets, GitHub secrets, local file). Variables are injected via Mustache expressions `{{MY_VAR}}`.\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** — `capability.binds` for bindings scoped to a single capability."
+      "description": "External variable bindings available file-wide. Each entry is either an inline `Binding` (with a runtime `location` URI such as `vault://`, `file://`, ...) or an `ImportEntry` (with a parse-time `from` URI to a shared binds file).\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** \u2014 `capability.binds` for bindings scoped to a single capability."
     },
     "capability": {
       "$ref": "#/$defs/Capability",
@@ -54,33 +100,51 @@
         "ikanos",
         "consumes"
       ]
+    },
+    {
+      "required": [
+        "ikanos",
+        "exposes"
+      ]
+    },
+    {
+      "required": [
+        "ikanos",
+        "aggregates"
+      ]
+    },
+    {
+      "required": [
+        "ikanos",
+        "binds"
+      ]
     }
   ],
   "additionalProperties": false,
   "$defs": {
-    "ImportedConsumesHttp": {
+    "ImportEntry": {
       "type": "object",
       "description": "References a `ConsumesHttp` adapter defined in an external capability file. Used in `consumes[]` to reuse adapter definitions across capability files without duplication.\n\n**When to use** — When multiple capabilities share the same upstream API adapter. The referenced file must declare a `ConsumesHttp` with a matching `namespace`.\n**Format** — `location` is a URI to the source `.yml` file; `import` is the namespace in that file; `as` is an optional local alias.\n**Example**:\n```yaml\nconsumes:\n  - location: file:///shared/notion-api.yml\n    import: notion\n    as: notion-shared\n```",
       "properties": {
-        "location": {
+        "from": {
           "type": "string",
-          "description": "URI to the capability file that contains the `ConsumesHttp` adapter to import (e.g. `file:///shared/notion.yml`)."
+          "description": "Path or URI to the file that contains the entry to import (e.g. `./shared/notion.yml` or `file:///shared/notion.yml`). Relative paths resolve against the directory of the importing file."
         },
         "import": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Namespace of the `ConsumesHttp` adapter to import from the referenced file."
+          "description": "Namespace of the entry to import from the referenced file."
         },
         "as": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Optional local alias. When set, the imported adapter is referenced as `as` instead of `import` in `call`, `with`, and `ForwardConfig.targetNamespace`."
+          "description": "Optional local alias. When set, the imported entry's namespace becomes `as` in the importing document; this enables disambiguation when two sources expose the same name."
         },
         "description": {
           "type": "string",
-          "description": "Human- and agent-readable description of this upstream API. Explain what the API does, its domain (e.g. project management, code hosting), and any important constraints. Agents use this to decide which adapter to call."
+          "description": "Human- and agent-readable description of this import. Helps agents reason about the imported entry."
         }
       },
       "required": [
-        "location",
+        "from",
         "import"
       ],
       "additionalProperties": false
@@ -677,14 +741,21 @@
         "binds": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Binding"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Binding"
+              },
+              {
+                "$ref": "#/$defs/ImportEntry"
+              }
+            ]
           },
           "minItems": 1,
-          "description": "External sources the capability binds to for variable injection."
+          "description": "External sources the capability binds to for variable injection. Inline `Binding` entries or `ImportEntry` references to a shared binds file."
         },
         "exposes": {
           "type": "array",
-          "description": "List of exposed server adapters",
+          "description": "List of exposed server adapters. Inline adapters (rest/mcp/skill/control) or `ImportEntry` references to a shared exposes file.",
           "items": {
             "oneOf": [
               {
@@ -698,6 +769,9 @@
               },
               {
                 "$ref": "#/$defs/ExposesControl"
+              },
+              {
+                "$ref": "#/$defs/ImportEntry"
               }
             ]
           },
@@ -705,27 +779,31 @@
         },
         "consumes": {
           "type": "array",
-          "description": "Consumed client adapters",
+          "description": "Consumed client adapters. Inline `ConsumesHttp` entries or `ImportEntry` references to a shared consumes file.",
           "items": {
             "oneOf": [
               {
                 "$ref": "#/$defs/ConsumesHttp"
               },
               {
-                "$ref": "#/$defs/ImportedConsumesHttp"
+                "$ref": "#/$defs/ImportEntry"
               }
             ]
           },
           "minItems": 1
         },
         "aggregates": {
-          "type": "object",
-          "description": "Domain aggregates defining reusable flows that adapters can reference via ref, keyed by aggregate namespace.",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/Aggregate"
+          "type": "array",
+          "description": "Domain aggregates defining reusable functions that adapters can reference via ref. Inline `Aggregate` entries or `ImportEntry` references to a shared aggregates file.",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Aggregate"
+              },
+              {
+                "$ref": "#/$defs/ImportEntry"
+              }
+            ]
           },
           "minProperties": 1
         }
