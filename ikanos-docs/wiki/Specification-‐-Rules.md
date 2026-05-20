@@ -18,6 +18,8 @@ Last updated: {{CURRENT_DATE}}
   - [2. Quality & Discoverability](#2-quality--discoverability)
   - [3. Security](#3-security)
   - [4. Control Port](#4-control-port)
+  - [5. Scripting](#5-scripting)
+  - [6. Imports](#6-imports)
 - [Rule Lineage Table](#rule-lineage-table)
 
 ---
@@ -31,10 +33,11 @@ It is intentionally **complementary** to the JSON Schema, not a duplicate of it:
 - JSON Schema enforces structural validity and required fields.
 - Spectral enforces cross-object consistency, style hygiene, and security hygiene.
 
-The current ruleset supports both document shapes allowed by Ikanos {{RELEASE_TAG}}:
+The current ruleset supports all document shapes allowed by Ikanos {{RELEASE_TAG}}:
 
-1. Full capability documents (`Ikanos` + `capability`, optionally root `consumes`)
-2. Shared consumes documents (`Ikanos` + root `consumes`, without `capability`)
+1. Full capability documents (`ikanos` + `capability`, optionally root `consumes`, `binds`)
+2. Shared section documents (`ikanos` + root `consumes`, `exposes`, `aggregates`, or `binds`, without `capability`)
+3. Import directives within capability documents (`from`/`import`/`as`)
 
 ---
 
@@ -231,6 +234,60 @@ These rules validate inline script step configuration for completeness.
 
 ---
 
+### 6. Imports
+
+These rules validate the unified import directive (`from`/`import`/`as`) introduced in the [unified import mechanism blueprint](https://github.com/naftiko/blueprints/blob/main/unified-import-mechanism.md). Cross-file reference integrity (§11.2) is enforced by the engine resolver at runtime, not by Spectral.
+
+#### `ikanos-import-from-required`
+
+- Severity: `error`
+- Scope: capability `consumes`, `exposes`, `aggregates`, `binds` entries with `from`
+- Purpose: every import entry must have both `from` (source file) and `import` (namespace) fields. An entry with only one is invalid.
+
+#### `ikanos-import-import-required`
+
+- Severity: `error`
+- Scope: capability `consumes`, `exposes`, `aggregates`, `binds` entries with `import` but no `type`
+- Purpose: complement of `ikanos-import-from-required` — catches entries with `import` but missing `from`.
+
+#### `ikanos-import-unique-alias`
+
+- Severity: `error`
+- Scope: all import entries across the four sections of a capability
+- Purpose: the effective namespace of each imported entry (`as` alias, or `import` when no `as`) must be unique within its section. Duplicates would cause ambiguous resolution.
+
+#### `ikanos-import-from-not-self`
+
+- Severity: `warn`
+- Scope: `from` fields of import entries
+- Purpose: a bare `.` as the `from` path is always an authoring error.
+
+#### `ikanos-standalone-no-imports`
+
+- Severity: `error`
+- Scope: standalone section documents (no `capability` key)
+- Purpose: standalone files are leaves in the import DAG — they must not contain import entries (entries with `from`). Only capability documents may import. Also enforced by JSON Schema `oneOf`.
+
+#### `ikanos-exposes-namespace-required`
+
+- Severity: `error`
+- Scope: root-level `exposes` entries in source files
+- Purpose: without a `namespace`, the import directive cannot reference the adapter.
+
+#### `ikanos-aggregates-namespace-required`
+
+- Severity: `error`
+- Scope: root-level `aggregates` entries in source files
+- Purpose: without a `namespace`, the import directive cannot reference the aggregate.
+
+#### `ikanos-aggregates-unique-function-name`
+
+- Severity: `error`
+- Scope: `functions` arrays in aggregates (both standalone and capability)
+- Purpose: duplicate function names within a single aggregate would cause ambiguous `call` and `ref` resolution.
+
+---
+
 ## Rule Lineage Table
 
 | Ikanos rule | Severity | Inspired By |
@@ -239,19 +296,27 @@ These rules validate inline script step configuration for completeness.
 | `ikanos-consumes-baseuri-no-trailing-slash` | warn | `oas2-host-trailing-slash`, `oas3-server-trailing-slash` |
 | `ikanos-consumed-resource-no-query-in-path` | warn | `path-not-include-query` |
 | `ikanos-rest-resource-path-no-trailing-slash` | warn | `path-keys-no-trailing-slash` |
-| `Ikanos-rest-resource-path-no-query` | warn | `path-not-include-query` |
-| `Ikanos-address-not-example` | warn | `oas3-server-not-example.com` |
-| `Ikanos-info-tags` | info | `openapi-tags` |
+| `ikanos-rest-resource-path-no-query` | warn | `path-not-include-query` |
+| `ikanos-address-not-example` | warn | `oas3-server-not-example.com` |
+| `ikanos-info-tags` | info | `openapi-tags` |
 | `ikanos-consumes-description` | warn | `info-description` |
-| `Ikanos-rest-resource-description` | warn | `tag-description` |
-| `Ikanos-rest-operation-description` | info | `operation-description` |
-| `Ikanos-steps-name-pattern` | warn | `arazzo-step-stepId` |
+| `ikanos-rest-resource-description` | warn | `tag-description` |
+| `ikanos-rest-operation-description` | info | `operation-description` |
+| `ikanos-steps-name-pattern` | warn | `arazzo-step-stepId` |
 | `ikanos-no-script-tags-in-markdown` | error | `no-script-tags-in-markdown`, `arazzo-no-script-tags-in-markdown` |
-| `Ikanos-no-eval-in-markdown` | error | `no-eval-in-markdown` |
+| `ikanos-no-eval-in-markdown` | error | `no-eval-in-markdown` |
 | `ikanos-baseuri-not-example` | warn | `oas2-host-not-example`, `oas3-server-not-example.com` |
 | `ikanos-control-port-singleton-and-unique` | error | — (Ikanos-specific) |
 | `ikanos-control-address-localhost-warning` | warn | — (Ikanos-specific) |
 | `ikanos-script-defaults-required` | error | — (Ikanos-specific) |
+| `ikanos-import-from-required` | error | ES module `import … from` pattern |
+| `ikanos-import-import-required` | error | ES module `import … from` pattern |
+| `ikanos-import-unique-alias` | error | — (Ikanos-specific) |
+| `ikanos-import-from-not-self` | warn | — (Ikanos-specific) |
+| `ikanos-standalone-no-imports` | error | — (Ikanos-specific, §11.3 leaf enforcement) |
+| `ikanos-exposes-namespace-required` | error | — (Ikanos-specific) |
+| `ikanos-aggregates-namespace-required` | error | — (Ikanos-specific) |
+| `ikanos-aggregates-unique-function-name` | error | — (Ikanos-specific) |
 
 ---
 
@@ -259,3 +324,4 @@ These rules validate inline script step configuration for completeness.
 
 - This page documents the current lean ruleset and intentionally does not list schema-duplicated checks.
 - For mandatory structure/required fields, rely on `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`.
+- For the import guide (how imports work across all four sections), see the [Importing Guide](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Importing).

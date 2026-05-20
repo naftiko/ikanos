@@ -241,6 +241,39 @@ Explicit hints on the MCP tool **override** derived values, so you can fine-tune
 
 ---
 
+## 📦 Importing & Modularization
+
+### Q: Why was `location` renamed to `from` in consumes imports?
+**A:** The `binds` section already uses `location` to mean "runtime variable source" — where to fetch secrets at runtime (e.g., `./secrets.env`, `vault://app/prod`). Reusing `location` as an import keyword on any section would create semantic ambiguity: does `location` mean "where to get this entry's definition" or "where to fetch this entry's runtime data"?
+
+`from` is unambiguous, short, and idiomatic (inspired by ES module syntax: `import x from './foo'`). It reads naturally in YAML: "this entry comes **from** another file." The rename was a hard break (no alias) because the project is in alpha.
+
+### Q: Can I import bindings from another file?
+**A:** Yes. The `binds` section supports the same `from`/`import`/`as` directive as `consumes`, `exposes`, and `aggregates`:
+
+```yaml
+binds:
+  - from: "./shared/secrets.binds.yml"
+    import: api-secrets
+
+  - from: "./shared/secrets.binds.yml"
+    import: db-secrets
+    as: database-secrets
+```
+
+The imported binding keeps its own `location` (runtime variable source) — `from` is consumed by the resolver at parse time and does not appear in the materialized entry.
+
+### Q: Why are standalone files leaves — can I import consumes from inside an aggregates file?
+**A:** Not in 1.0. Every standalone file (`.consumes.yml`, `.exposes.yml`, `.aggregates.yml`, `.binds.yml`) is a **leaf** in the import graph. Only capability documents may import. This is the strictest possible design, chosen for three reasons:
+
+1. **Symmetry.** Letting only aggregates import consumes would re-introduce context-dependent rules the unified mechanism was built to remove.
+2. **No evidence yet.** A capability that uses a shared aggregates file simply writes two import directives — one for aggregates, one for consumes. That's explicit and trivial.
+3. **Strictly additive to add later.** Transitive imports need cycle detection, layer enforcement, and namespace merging. Carrying that in 1.0 before there is demand is YAGNI. If needed, the change is purely additive.
+
+See the [Importing Guide](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Importing) for the full design rationale.
+
+---
+
 ## 🔩 Configuration & Parameters
 
 ### Q: How do I inject input parameters into a consumed operation?

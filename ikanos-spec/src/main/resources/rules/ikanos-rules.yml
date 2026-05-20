@@ -1,22 +1,25 @@
 # yaml-language-server: $schema=ruleset-schema.json
-# Ikanos Polychro Ruleset v0.5
+# Ikanos Polychro Ruleset v0.6
 #
-# A Spectral ruleset adapted to the Ikanos Specification v0.5.
+# A Spectral ruleset adapted to the Ikanos Specification v0.6.
 #
 # IMPORTANT:
 # - This ruleset intentionally avoids duplicating constraints already enforced
 #   by src/main/resources/schemas/ikanos-schema.json.
 # - It focuses on cross-object consistency, style hygiene, and security checks.
-# - It supports both full capabilities and shared consumes documents
-#   (root-level `consumes` without `capability`).
+# - It supports full capabilities, shared section documents (root-level
+#   `consumes`, `exposes`, `aggregates`, `binds`), and import directives.
 #
 # Usage:
 #   npx @stoplight/spectral-cli lint my-capability.yml --ruleset ikanos-rules.yml
 #
-# Rules are organized into three categories:
+# Rules are organized into six categories:
 #   1. Structure & consistency      — validate cross-object constraints not covered by schema
 #   2. Quality & discoverability    — promote good description hygiene for agent discovery
 #   3. Security                     — guard against injection and unsafe content
+#   4. Control port                 — control adapter constraints
+#   5. Script steps                 — script step defaults
+#   6. Imports                      — unified import directive validation (§11 of blueprint)
 
 extends: []
 
@@ -27,6 +30,8 @@ functions:
   - aggregate-semantics-consistency
   - control-port-validation
   - script-defaults-required
+  - standalone-no-imports
+  - import-alias-unique
 
 rules:
 
@@ -367,3 +372,133 @@ rules:
     given: "$"
     then:
       function: script-defaults-required
+
+  # ────────────────────────────────────────────────────────────────
+  # 6. IMPORTS — Unified import directive validation
+  # ────────────────────────────────────────────────────────────────
+  # See blueprints/unified-import-mechanism.md §11 for the full rule catalog.
+  # Cross-file reference integrity (§11.2) is enforced by the engine resolver,
+  # not by Spectral, because it requires file-system access.
+
+  # §11.1 — Import directive structure
+
+  ikanos-import-from-required:
+    message: "Import entry must have both 'from' and 'import' fields."
+    description: >
+      Every import entry in a capability's consumes, exposes, aggregates, or binds
+      section must specify 'from' (the source file path) and 'import' (the namespace
+      to take from that source). An entry with only one of the two is invalid.
+    severity: error
+    recommended: true
+    given:
+      - "$.capability.consumes[?(@.from)]"
+      - "$.capability.exposes[?(@.from)]"
+      - "$.capability.aggregates[?(@.from)]"
+      - "$.capability.binds[?(@.from)]"
+    then:
+      field: "import"
+      function: truthy
+
+  ikanos-import-import-required:
+    message: "Import entry must have both 'from' and 'import' fields."
+    description: >
+      Complement of ikanos-import-from-required: catches entries that have 'import'
+      but are missing 'from'.
+    severity: error
+    recommended: true
+    given:
+      - "$.capability.consumes[?(@.import && !@.type)]"
+      - "$.capability.exposes[?(@.import && !@.type)]"
+      - "$.capability.aggregates[?(@.import && !@.type)]"
+      - "$.capability.binds[?(@.import && !@.type)]"
+    then:
+      field: "from"
+      function: truthy
+
+  ikanos-import-unique-alias:
+    message: "Import alias uniqueness validation failed."
+    description: >
+      Within each section of a capability, the effective namespace of imported entries
+      (the 'as' alias, or 'import' when no 'as') must be unique. Duplicate effective
+      namespaces would cause ambiguous resolution after imports are materialized.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: import-alias-unique
+
+  ikanos-import-from-not-self:
+    message: "Import 'from' should not be empty or point to the current directory."
+    description: >
+      An import 'from' field that resolves to the importing file itself is always
+      an authoring error. A bare dot ('.') or empty string is a common typo.
+      The engine resolver catches the actual self-reference at runtime.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.consumes[?(@.from)].from"
+      - "$.capability.exposes[?(@.from)].from"
+      - "$.capability.aggregates[?(@.from)].from"
+      - "$.capability.binds[?(@.from)].from"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "^\\.$"
+
+  # §11.3 — Layer enforcement (standalone files must not contain imports)
+
+  ikanos-standalone-no-imports:
+    message: "{{error}}"
+    description: >
+      Standalone section files (documents without a 'capability' key) are leaves
+      in the import DAG. They must not contain import entries (entries with a 'from'
+      field). Only capability documents may import from other files.
+      This is also enforced structurally by the JSON Schema root-level oneOf.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: standalone-no-imports
+
+  # §11.4 — Section-specific: namespace required in source files
+
+  ikanos-exposes-namespace-required:
+    message: "Each exposed adapter in a source file must have a 'namespace'."
+    description: >
+      Without a namespace, the import directive cannot reference the adapter.
+      Applies to both standalone and capability-wrapped exposes entries.
+    severity: error
+    recommended: true
+    given:
+      - "$.exposes[*]"
+    then:
+      field: "namespace"
+      function: truthy
+
+  ikanos-aggregates-namespace-required:
+    message: "Each aggregate in a source file must have a 'namespace'."
+    description: >
+      Without a namespace, the import directive cannot reference the aggregate.
+      Applies to both standalone and capability-wrapped aggregates entries.
+    severity: error
+    recommended: true
+    given:
+      - "$.aggregates[*]"
+    then:
+      field: "namespace"
+      function: truthy
+
+  ikanos-aggregates-unique-function-name:
+    message: "Aggregate function names must be unique within the same aggregate."
+    description: >
+      Duplicate function names within a single aggregate would cause ambiguous
+      'call' and 'ref' resolution. Applies to both standalone and capability documents.
+    severity: error
+    recommended: true
+    given:
+      - "$.aggregates[*].functions"
+      - "$.capability.aggregates[*].functions"
+    then:
+      function: length
+      functionOptions:
+        min: 0
