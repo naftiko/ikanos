@@ -99,25 +99,29 @@
       "required": [
         "ikanos",
         "consumes"
-      ]
+      ],
+      "not": { "required": ["capability"] }
     },
     {
       "required": [
         "ikanos",
         "exposes"
-      ]
+      ],
+      "not": { "required": ["capability"] }
     },
     {
       "required": [
         "ikanos",
         "aggregates"
-      ]
+      ],
+      "not": { "required": ["capability"] }
     },
     {
       "required": [
         "ikanos",
         "binds"
-      ]
+      ],
+      "not": { "required": ["capability"] }
     }
   ],
   "additionalProperties": false,
