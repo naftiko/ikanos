@@ -86,7 +86,13 @@ public abstract class ServerSpec {
 
     /**
      * Sets the namespace of this adapter. Overridden by concrete subclasses that carry a
-     * {@code namespace} field. The default implementation is a no-op.
+     * {@code namespace} field. The default implementation is a <strong>no-op</strong>.
+     *
+     * <p><strong>Warning:</strong> callers that need to apply an alias or rename a namespace
+     * should use type-discriminating logic (e.g. {@code instanceof RestServerSpec}) and call
+     * the subclass setter directly. Calling this base-class method on an adapter type that does
+     * not support namespaces (e.g. {@code ControlServerSpec}) will silently discard the value.
+     * The import resolver's {@code ExposesImportStrategy} handles this correctly.</p>
      */
     public void setNamespace(String namespace) {
         // no-op — subclasses that support namespace override this

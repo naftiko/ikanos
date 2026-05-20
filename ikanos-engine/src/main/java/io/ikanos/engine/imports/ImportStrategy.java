@@ -83,11 +83,12 @@ public interface ImportStrategy<T> {
      * Deep-copy an inline entry so that mutations in one capability do not affect another
      * capability that imported the same source entry.
      *
-     * <p>Implementation: Jackson round-trip (serialize → deserialize).</p>
+     * <p>Implementation: Jackson round-trip via the shared {@link SourceFileLoader} mapper.</p>
      *
      * @param inline the resolved inline entry to copy
+     * @param loader the shared source file loader (provides the YAML ObjectMapper)
      * @return an independent deep copy
      * @throws IOException if serialization fails
      */
-    T deepCopy(T inline) throws IOException;
+    T deepCopy(T inline, SourceFileLoader loader) throws IOException;
 }

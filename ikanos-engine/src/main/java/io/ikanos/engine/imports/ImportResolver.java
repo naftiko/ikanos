@@ -110,7 +110,7 @@ public final class ImportResolver<T> {
 
         T copy;
         try {
-            copy = strategy.deepCopy(match);
+            copy = strategy.deepCopy(match, loader);
         } catch (IOException e) {
             throw new ImportException(strategy.sectionName(),
                     "Failed to deep-copy resolved entry: " + d.importNamespace(), e);
@@ -146,14 +146,29 @@ public final class ImportResolver<T> {
 
     /**
      * After resolution, assert that no two entries in the section share the same namespace.
+     *
+     * <p>Entries with a {@code null} namespace are exempt — they represent adapter types
+     * that do not use namespaces (e.g. {@code ControlServerSpec} in the {@code exposes}
+     * section). Only non-null namespaces must be unique.</p>
      */
     private void assertNoNamespaceCollisions(List<T> entries) throws ImportException {
         Set<String> seen = new HashSet<>();
-        for (T entry : entries) {
-            String ns = strategy.getNamespace(entry);
+        for (int i = 0; i < entries.size(); i++) {
+            String ns = strategy.getNamespace(entries.get(i));
             if (ns != null && !seen.add(ns)) {
+                // Find the first entry that had this namespace
+                int first = -1;
+                for (int j = 0; j < i; j++) {
+                    if (ns.equals(strategy.getNamespace(entries.get(j)))) {
+                        first = j;
+                        break;
+                    }
+                }
                 throw new ImportException(strategy.sectionName(),
-                        "Duplicate namespace '" + ns + "' after import resolution");
+                        String.format(
+                                "Duplicate namespace '%s' after import resolution "
+                                        + "(entries[%d] and entries[%d] both resolve to this namespace)",
+                                ns, first, i));
             }
         }
     }
