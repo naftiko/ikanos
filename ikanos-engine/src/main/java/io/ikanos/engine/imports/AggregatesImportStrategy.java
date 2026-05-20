@@ -17,10 +17,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.aggregates.ImportedAggregateSpec;
@@ -29,13 +25,6 @@ import io.ikanos.spec.aggregates.ImportedAggregateSpec;
  * Import strategy for the {@code aggregates} section.
  */
 public class AggregatesImportStrategy implements ImportStrategy<AggregateSpec> {
-
-    private final ObjectMapper mapper;
-
-    public AggregatesImportStrategy() {
-        this.mapper = new ObjectMapper(new YAMLFactory());
-        this.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
 
     @Override
     public String sectionName() {
@@ -80,8 +69,7 @@ public class AggregatesImportStrategy implements ImportStrategy<AggregateSpec> {
     }
 
     @Override
-    public AggregateSpec deepCopy(AggregateSpec inline) throws IOException {
-        byte[] bytes = mapper.writeValueAsBytes(inline);
-        return mapper.readValue(bytes, AggregateSpec.class);
+    public AggregateSpec deepCopy(AggregateSpec inline, SourceFileLoader loader) throws IOException {
+        return loader.deepCopy(inline, AggregateSpec.class);
     }
 }
