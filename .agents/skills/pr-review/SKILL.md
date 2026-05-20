@@ -334,7 +334,8 @@ Step 1 — pr-comments (1 click) — fetch ALL inline comments via REST API
 Step 2 — Triage — group by file, classify, plan fixes
 Step 3 — Implement — apply fixes file-by-file
 Step 4 — Verify — compile and run tests
-Step 5 — Summary — report what was fixed
+Step 5 — Reply & resolve — post reply on each thread, resolve via GraphQL
+Step 6 — Summary — report what was fixed
 ```
 
 ---
@@ -431,7 +432,64 @@ After all fixes are applied:
 
 ---
 
-## Part B — Step 5 — Summary
+## Part B — Step 5 — Reply & resolve threads
+
+After fixes are verified, close the loop on each addressed comment.
+
+### 5a — Reply to each comment
+
+For each fixed comment, post a reply via the REST API referencing the fix commit:
+
+**Windows / Linux / macOS:**
+```bash
+gh api "repos/<owner>/<repo>/pulls/<N>/comments/<comment_id>/replies" \
+  -f body="Fixed in <sha> — <one-line description of what was changed>."
+```
+
+Reply guidelines:
+- **Reference the commit SHA** (short form) so the reviewer can click through
+- **Be specific** about what was changed, not just "fixed"
+- **One reply per root comment** — do not reply to replies
+- If a comment was intentionally skipped, reply explaining why
+
+### 5b — Resolve the threads
+
+The VS Code `resolveReviewThread` tool requires the thread to be on the
+*active* pull request. In multi-repo workspaces this can fail if the
+active PR belongs to a different repository. Use the GraphQL API directly
+as a reliable fallback.
+
+**Fetch thread IDs:**
+```bash
+gh api graphql -f query='query {
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <N>) {
+      reviewThreads(first: 50) {
+        nodes { id isResolved comments(first: 1) { nodes { path body } } }
+      }
+    }
+  }
+}' -q '.data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved == false)
+        | {id, path: .comments.nodes[0].path}'
+```
+
+**Resolve each unresolved thread:**
+```bash
+gh api graphql -f query='mutation {
+  resolveReviewThread(input: {threadId: "<PRRT_...>"}) {
+    thread { id isResolved }
+  }
+}'
+```
+
+> **Do not resolve threads you did not address.** Only resolve threads whose
+> comments have a corresponding code fix or a deliberate "no change needed"
+> reply.
+
+---
+
+## Part B — Step 6 — Summary
 
 Provide a concise table:
 
