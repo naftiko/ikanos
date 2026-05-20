@@ -91,6 +91,7 @@ public class McpServerToolSpec {
     public void setDescription(String description) { this.description.set(description); }
 
     public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags.clear(); if (tags != null) this.tags.addAll(tags); }
 
     public List<InputParameterSpec> getInputParameters() {
         return List.copyOf(inputParameters.get().values());

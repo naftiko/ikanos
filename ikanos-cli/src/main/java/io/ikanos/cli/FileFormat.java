@@ -25,7 +25,7 @@ public enum FileFormat {
         this.pathName = pathName;
     }
 
-    public static FileFormat valueOfLabel(String display) {
+    public static FileFormat valueOfDisplay(String display) {
         for (FileFormat fileFormat : values()) {
             if (java.util.Objects.equals(fileFormat.display, display)) {
                 return fileFormat;

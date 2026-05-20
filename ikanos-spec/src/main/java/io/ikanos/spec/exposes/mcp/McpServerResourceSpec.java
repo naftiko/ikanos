@@ -61,6 +61,7 @@ public class McpServerResourceSpec {
     public String getName() { return name.get(); }
     public void setName(String name) { this.name.set(name); }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getDisplay() { return display.get(); }
     public void setDisplay(String display) { this.display.set(display); }
 
