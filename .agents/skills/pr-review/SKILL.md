@@ -2,11 +2,13 @@
 name: pr-review
 version: "2.1.0"
 description: >
-  On-demand skill for reviewing GitHub Pull Requests. Supports two delivery
-  modes: posting inline comments via the GitHub API (Mode A), or handing off
-  findings to a local agent for direct fixes (Mode B). Activate when the user
-  asks to: review a PR, review a pull request, do a code review, post inline
-  comments on a PR, comment on a pull request, review PR #<number>.
+  On-demand skill for (A) reviewing GitHub Pull Requests and posting inline
+  comments or handing off findings to a local agent, and (B) fixing / addressing
+  review comments left by Copilot, bots, or human reviewers. Activate when the
+  user asks to: review a PR, review a pull request, do a code review, post
+  inline comments on a PR, comment on a pull request, review PR #<number>,
+  fix PR comments, address PR feedback, fix PR #<number>, address review
+  comments, fix Copilot comments, fix review, resolve PR threads.
 allowed-tools:
   - Read
   - Bash
@@ -14,7 +16,16 @@ allowed-tools:
 
 ## Overview
 
-This skill guides the agent through a structured PR review workflow:
+This skill has two parts:
+
+| Part | Purpose | Typical trigger |
+|------|---------|-----------------|
+| **A — Review** | Read the diff, identify issues, post a review | "review PR #N" |
+| **B — Fix** | Detect all review comments (incl. Copilot / bots), apply fixes, verify | "fix PR #N", "address PR comments" |
+
+---
+
+# Part A — Post a PR Review
 
 ```
 Step 1 — pr-context (1 click)
@@ -38,16 +49,18 @@ point verifying a line number for a finding the user will not post.
 
 | Script | Platform | When to use |
 |--------|----------|-------------|
-| `pr-context.ps1 -Pr <N>` | Windows | **Once**, Step 1 |
+| `pr-context.ps1 -Pr <N>` | Windows | **Once**, Part A Step 1 |
 | `pr-context.sh <N>` | Linux / macOS | Same |
-| `pr-find-lines-batch.ps1 -Pr <N> [-InputFile <path>]` | Windows | **Once**, Step 4, long diff only |
+| `pr-comments.ps1 -Pr <N> [-Author <user>] [-ExcludeOutdated]` | Windows | **Once**, Part B Step 1 |
+| `pr-comments.sh <N> [author] [--no-outdated]` | Linux / macOS | Same |
+| `pr-find-lines-batch.ps1 -Pr <N> [-InputFile <path>]` | Windows | **Once**, Part A Step 4, long diff only |
 | `pr-find-lines-batch.sh <N> [input-file]` | Linux / macOS | Same |
-| `pr-submit-review.ps1 -Pr <N> -InputFile <path>` | Windows | **Once**, Step 5 Mode A only |
+| `pr-submit-review.ps1 -Pr <N> -InputFile <path>` | Windows | **Once**, Part A Step 5 Mode A only |
 | `pr-submit-review.sh <N> <input-json>` | Linux / macOS | Same |
 
 ---
 
-## Step 1 — Check for existing review activity
+## Part A — Step 1 — Check for existing review activity
 
 **Windows:**
 ```powershell
@@ -90,7 +103,7 @@ Ignore all prior review data. Proceed to Step 2 as if the PR had no prior activi
 
 ---
 
-## Step 2 — Read the diff and identify issues
+## Part A — Step 2 — Read the diff and identify issues
 
 Read the diff with `read_file` (use multiple calls for large diffs — `read_file`
 requires no user confirmation). For each potential issue, note:
@@ -126,7 +139,7 @@ Do **not** compute line numbers yet.
 
 ---
 
-## Step 3 — Present findings and wait for the user's pick
+## Part A — Step 3 — Present findings and wait for the user's pick
 
 Present findings in a working table (conversation only — never paste into GitHub):
 
@@ -152,7 +165,7 @@ Wait for the user to confirm which findings to act on **and** which mode to use 
 
 ---
 
-## Step 4 — Resolve line numbers for picked findings only
+## Part A — Step 4 — Resolve line numbers for picked findings only
 
 ### Short diff (< 500 lines) — 0 clicks
 
@@ -205,7 +218,7 @@ numbers in the review payload.
 
 ---
 
-## Step 5 — Deliver findings
+## Part A — Step 5 — Deliver findings
 
 ### Mode A — Post review on GitHub
 
@@ -306,3 +319,127 @@ Step 6 is mandatory — the agent must not consider the workflow complete until 
 
 Once written, inform the user that the handoff file is ready and which agent
 should read it (see *Inter-agent communication* in `AGENTS.md`).
+
+---
+
+# Part B — Fix PR Comments
+
+Systematic detection and remediation of review comments from any source —
+human reviewers, Copilot, bots. Uses the GitHub REST API directly because
+the VS Code `currentActivePullRequest` tool can miss comments from automated
+reviewers.
+
+```
+Step 1 — pr-comments (1 click) — fetch ALL inline comments via REST API
+Step 2 — Triage — group by file, classify, plan fixes
+Step 3 — Implement — apply fixes file-by-file
+Step 4 — Verify — compile and run tests
+Step 5 — Summary — report what was fixed
+```
+
+---
+
+## Part B — Step 1 — Fetch review comments
+
+> **Why not `currentActivePullRequest`?** The VS Code built-in tool uses
+> GraphQL `reviewThreads` which can return an empty list for comments from
+> automated reviewers (Copilot, GitHub Actions bots). The REST endpoint
+> `GET /repos/{owner}/{repo}/pulls/{N}/comments` is authoritative and always
+> returns every inline comment.
+
+**Windows:**
+```powershell
+.\.agents\skills\pr-review\pr-comments.ps1 -Pr <number>
+```
+**Linux / macOS:**
+```bash
+bash .agents/skills/pr-review/pr-comments.sh <number>
+```
+
+The script:
+1. Fetches all reviews and inline comments via `gh api`
+2. Maps each comment to its parent review state (`CHANGES_REQUESTED`, `COMMENTED`, etc.)
+3. Groups comments by file
+4. Saves structured JSON to `$env:TEMP\pr<N>-comments.json` (Windows) or
+   `/tmp/pr<N>-comments.json` (Linux/macOS)
+
+**Filtering options:**
+- `-Author Copilot` — show only Copilot comments
+- `-ExcludeOutdated` — hide comments on lines no longer in the diff
+
+If no comments are found, stop — nothing to fix.
+
+---
+
+## Part B — Step 2 — Triage comments
+
+Read the structured JSON (`$env:TEMP\pr<N>-comments.json`) and for each comment:
+
+1. **Skip** if `outdated: true` — the code has already changed, the comment
+   may no longer apply. Note it in the summary as "outdated, skipped".
+2. **Skip** if `in_reply_to` is not null — it is a reply in a thread, not
+   a top-level finding. Process only the root comment of each thread.
+3. **Read the target file** at the indicated line. Verify the comment still
+   applies to the current code. If the code already matches what the comment
+   requests, note it as "already addressed".
+4. **Classify** each remaining comment:
+   - **Actionable** — a concrete code change is requested (e.g. "remove
+     `type: http`", "use `assertInstanceOf`", "add null guard")
+   - **Discussion** — an open question or suggestion without a clear fix.
+     Note it for the summary; do not make speculative changes.
+
+Group actionable comments by file path — this minimizes `read_file` calls
+and lets you apply all fixes to a file in a single edit.
+
+Present the triage plan before implementing:
+
+| # | File | Line | Author | Classification | Planned action |
+|---|------|------|--------|----------------|----------------|
+| 1 | `path/to/Foo.java` | 46 | Copilot | Actionable | Remove `type` from YAML fixture |
+| 2 | `path/to/Bar.java` | 187 | Copilot | Actionable | Replace `assertTrue(instanceof)` with `assertInstanceOf` |
+| 3 | `path/to/Baz.java` | 219 | jlouv | Discussion | No code change — note in summary |
+
+Wait for the user to confirm before proceeding.
+
+---
+
+## Part B — Step 3 — Implement fixes
+
+Work through the confirmed plan file by file:
+
+1. **Read** the file (or the relevant section around the target line)
+2. **Apply** the fix with `insert_edit_into_file`
+3. Do **not** refactor or modify code outside the scope of each comment
+4. If a comment is ambiguous, prefer the minimal safe interpretation
+
+> **Pattern recognition** — look for systematic issues. If one comment says
+> "remove `type: http` from import fixtures" and the file has 6 similar
+> fixtures, fix all of them — not just the one the comment points to. This
+> is the key benefit of structured detection: comments on one instance often
+> imply the same fix across all instances in the file.
+
+---
+
+## Part B — Step 4 — Verify
+
+After all fixes are applied:
+
+1. **Compile** — run `mvn compile -pl <module> -q` to catch syntax errors
+2. **Run affected tests** — `mvn test -pl <module> -Dtest="<TestClass1>,<TestClass2>" -DfailIfNoTests=false`
+3. If tests fail, read the failure output and fix. Do not loop more than
+   3 times on the same file — ask the user instead.
+
+---
+
+## Part B — Step 5 — Summary
+
+Provide a concise table:
+
+| # | File | Author | Comment summary | Action taken |
+|---|------|--------|-----------------|--------------|
+| 1 | `path/Foo.java` | Copilot | Remove `type` from import fixture | ✅ Removed from 6 fixtures |
+| 2 | `path/Bar.java` | Copilot | `assertTrue(instanceof)` is always true | ✅ Changed to `assertInstanceOf` |
+| 3 | `path/Baz.java` | Copilot | Add null guard on stream | ✅ Added `assertNotNull` |
+| 4 | `path/Old.java` | reviewer | Rename variable | ⏭️ Outdated — line no longer in diff |
+
+Report test results: `N tests, 0 failures, BUILD SUCCESS ✅`
