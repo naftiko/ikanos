@@ -92,28 +92,28 @@ public class AggregateRefResolverTest {
     @Test
     void buildFunctionMapShouldThrowOnDuplicateRefViaDirectInjection() {
         // Simulate a cross-aggregate collision by injecting two aggregates
-        // that produce the same "namespace.functionName" key.
-        // This exercises the duplicate-ref guard in buildFunctionMap directly.
+        // that produce the same "namespace.flowName" key.
+        // This exercises the duplicate-ref guard in buildFlowMap directly.
         CapabilitySpec cap = new CapabilitySpec();
 
         AggregateSpec agg1 = new AggregateSpec();
         agg1.setNamespace("shared");
-        AggregateFunctionSpec fn1 = new AggregateFunctionSpec();
+        AggregateFlowSpec fn1 = new AggregateFlowSpec();
         fn1.setName("action");
-        agg1.getFunctions().put(fn1.getName(), fn1);
+        agg1.getFlows().put(fn1.getName(), fn1);
 
         AggregateSpec agg2 = new AggregateSpec();
         agg2.setNamespace("shared");
-        AggregateFunctionSpec fn2 = new AggregateFunctionSpec();
+        AggregateFlowSpec fn2 = new AggregateFlowSpec();
         fn2.setName("action");
-        agg2.getFunctions().put(fn2.getName(), fn2);
+        agg2.getFlows().put(fn2.getName(), fn2);
 
         // Use raw map to bypass the single-key-per-namespace constraint of the POJO model
         cap.getAggregates().put("shared-1", agg1);
         cap.getAggregates().put("shared-2", agg2);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> resolver.buildFunctionMap(cap));
+                () -> resolver.buildFlowMap(cap));
         assertTrue(ex.getMessage().contains("shared.action"));
     }
 
