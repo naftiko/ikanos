@@ -10,7 +10,7 @@ exposes:
           - name: "get-weather"
             method: "GET"
             description: "Get weather data"
-            call: "weather-api.forecasts.get-forecast"
+            call: "weather-api.get-forecast"
   - type: "mcp"
     namespace: "weather-mcp"
     address: "localhost"
@@ -18,4 +18,4 @@ exposes:
     tools:
       - name: "get-weather"
         description: "Get weather data via MCP"
-        call: "weather-api.forecasts.get-forecast"
+        call: "weather-api.get-forecast"
