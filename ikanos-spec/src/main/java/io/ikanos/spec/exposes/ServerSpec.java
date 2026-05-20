@@ -75,6 +75,7 @@ public abstract class ServerSpec {
      * <p>Defined here so the generic import resolver can read the namespace without
      * downcasting to a specific subclass.</p>
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getNamespace() {
         return null;
     }
