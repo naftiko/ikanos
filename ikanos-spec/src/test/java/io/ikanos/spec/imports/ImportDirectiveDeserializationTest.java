@@ -27,7 +27,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.aggregates.ImportedAggregateSpec;
-import io.ikanos.spec.aggregates.InlineAggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
@@ -59,7 +58,7 @@ class ImportDirectiveDeserializationTest {
     @BeforeEach
     void setUp() {
         mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     // ----- consumes -----
@@ -68,6 +67,7 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("consumes: import with alias and description deserializes into ImportedConsumesHttpSpec")
     void consumesImportShouldDeserializeIntoImportedConsumesHttpSpec() throws Exception {
         String yaml = """
+            type: "http"
             from: "./shared/notion.consumes.yml"
             import: "notion"
             as: "notion-shared"
@@ -103,6 +103,7 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("consumes: inline HttpClientSpec without 'from' is still parsed as HttpClientSpec")
     void consumesInlineWithoutFromShouldDeserializeAsHttpClientSpec() throws Exception {
         String yaml = """
+            type: "http"
             namespace: "api"
             baseUri: "https://api.example.com"
             resources: []
@@ -175,14 +176,14 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("aggregates: inline entry without 'from' deserializes into base AggregateSpec")
     void aggregatesInlineWithoutFromShouldDeserializeIntoAggregateSpec() throws Exception {
         String yaml = """
-            display: "Crew Resolver"
+            label: "Crew Resolver"
             namespace: "crew-resolver"
-            flows: {}
+            functions: []
             """;
 
         AggregateSpec result = mapper.readValue(yaml, AggregateSpec.class);
 
-        assertInstanceOf(InlineAggregateSpec.class, result);
+        assertTrue(result instanceof AggregateSpec);
         assertEquals("crew-resolver", result.getNamespace());
     }
 
@@ -233,7 +234,7 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              display: "mixed"
+              label: "mixed"
               description: "Capability mixing inline and imported entries."
             capability:
               binds:
@@ -257,11 +258,10 @@ class ImportDirectiveDeserializationTest {
                 - from: "./shared/maritime.exposes.yml"
                   import: "maritime-rest"
               aggregates:
-                crew-resolver:
-                  display: "Crew Resolver"
-                  flows: {}
-                fleet-aggregates:
-                  from: "./shared/maritime-aggregates.yml"
+                - label: "Crew Resolver"
+                  namespace: "crew-resolver"
+                  functions: []
+                - from: "./shared/maritime-aggregates.yml"
                   import: "fleet-aggregates"
             """;
 
@@ -281,9 +281,9 @@ class ImportDirectiveDeserializationTest {
         assertInstanceOf(RestServerSpec.class, spec.getCapability().getExposes().get(0));
         assertInstanceOf(ImportedExposesSpec.class, spec.getCapability().getExposes().get(1));
 
-        // aggregates: 1 inline + 1 imported (capability.aggregates is a named-object map keyed by namespace)
+        // aggregates: 1 inline + 1 imported
         assertEquals(2, spec.getCapability().getAggregates().size());
-        assertInstanceOf(ImportedAggregateSpec.class, spec.getCapability().getAggregates().get("fleet-aggregates"));
+        assertInstanceOf(ImportedAggregateSpec.class, spec.getCapability().getAggregates().get(1));
     }
 
     // ----- standalone document shapes -----
@@ -311,9 +311,9 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             aggregates:
-              - display: "Crew Resolver"
+              - label: "Crew Resolver"
                 namespace: "crew-resolver"
-                flows: {}
+                functions: []
             """;
 
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);

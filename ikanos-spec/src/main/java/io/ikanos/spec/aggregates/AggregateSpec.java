@@ -29,6 +29,10 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  * {@code from} field become {@link ImportedAggregateSpec}, all other entries become
  * {@link InlineAggregateSpec} (which is a no-op subclass of this type).</p>
  *
+ * <p>Deserialization is discriminated by {@link AggregateSpecDeserializer}: entries with a
+ * {@code from} field become {@link ImportedAggregateSpec}, all other entries become
+ * {@link InlineAggregateSpec} (which is a no-op subclass of this type).</p>
+ *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.
