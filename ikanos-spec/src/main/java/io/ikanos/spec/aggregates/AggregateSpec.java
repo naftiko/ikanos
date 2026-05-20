@@ -17,10 +17,16 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
 /**
  * Aggregate Specification Element.
  *
  * <p>A domain aggregate grouping reusable functions. Adapters reference these functions via ref.</p>
+ *
+ * <p>Deserialization is discriminated by {@link AggregateSpecDeserializer}: entries with a
+ * {@code from} field become {@link ImportedAggregateSpec}, all other entries become
+ * {@link InlineAggregateSpec} (which is a no-op subclass of this type).</p>
  *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
@@ -28,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * The {@code functions} collection is a {@link CopyOnWriteArrayList} which provides the same
  * guarantee at the element level. This satisfies SonarQube rule {@code java:S3077}.
  */
+@JsonDeserialize(using = AggregateSpecDeserializer.class)
 public class AggregateSpec {
 
     private final AtomicReference<String> label = new AtomicReference<>();

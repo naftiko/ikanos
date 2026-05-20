@@ -87,7 +87,7 @@ public class ImportIntegrationTest {
               description: "Tests imported adapters"
             capability:
               consumes:
-                - location: "./json-api.consumes.yml"
+                - from: "./json-api.consumes.yml"
                   import: "json-api"
               exposes:
                 - type: "rest"
@@ -139,7 +139,7 @@ public class ImportIntegrationTest {
                   namespace: "local-api"
                   baseUri: "https://local.example.com"
                   resources: []
-                - location: "./external.consumes.yml"
+                - from: "./external.consumes.yml"
                   import: "external-api"
               exposes:
                 - type: "rest"
@@ -191,7 +191,7 @@ public class ImportIntegrationTest {
               description: "Tests import with alias"
             capability:
               consumes:
-                - location: "./api.consumes.yml"
+                - from: "./api.consumes.yml"
                   import: "api"
                   as: "my-api"
               exposes:
@@ -228,7 +228,7 @@ public class ImportIntegrationTest {
               description: "Bad import path"
             capability:
               consumes:
-                - location: "./nonexistent.consumes.yml"
+                - from: "./nonexistent.consumes.yml"
                   import: "api"
               exposes:
                 - type: "rest"

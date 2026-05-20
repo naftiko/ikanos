@@ -87,19 +87,19 @@ public class ConsumesImportResolver {
      */
     private HttpClientSpec resolveImport(ImportedConsumesHttpSpec importSpec, String capabilityDir)
             throws IOException {
-        String location = importSpec.getLocation();
+        String from = importSpec.getFrom();
         String importNamespace = importSpec.getImportNamespace();
         String alias = importSpec.getAlias();
 
-        if (location == null || location.isEmpty()) {
-            throw new IOException("Import 'location' is required");
+        if (from == null || from.isEmpty()) {
+            throw new IOException("Import 'from' is required");
         }
         if (importNamespace == null || importNamespace.isEmpty()) {
             throw new IOException("Import 'import' (namespace) is required");
         }
 
         // Resolve path: relative to capability directory
-        Path sourcePath = resolvePath(location, capabilityDir);
+        Path sourcePath = resolvePath(from, capabilityDir);
         if (!Files.exists(sourcePath)) {
             throw new IOException("Import source file not found: " + sourcePath);
         }
@@ -133,17 +133,17 @@ public class ConsumesImportResolver {
      * Examples:
      * - "./shared-adapters.consumes.yml" → /path/to/parent/shared-adapters.consumes.yml
      * - "../shared/notion.yml" → /path/to/shared/notion.yml
-     * 
-     * @param location The location string from the import
+     *
+     * @param from The {@code from} path string from the import directive
      * @param capabilityDir The directory of the importing capability (null = use current dir)
      * @return Absolute path to the import source file
      */
-    private Path resolvePath(String location, String capabilityDir) {
+    private Path resolvePath(String from, String capabilityDir) {
         Path basePath = (capabilityDir != null && !capabilityDir.isEmpty())
             ? Paths.get(capabilityDir)
             : Paths.get(".");
 
-        return basePath.resolve(location).normalize().toAbsolutePath();
+        return basePath.resolve(from).normalize().toAbsolutePath();
     }
 
     /**

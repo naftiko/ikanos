@@ -24,14 +24,26 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 
 /**
- * Custom deserializer that dispatches to the correct {@link ServerSpec} subclass based on the
- * {@code type} field value: {@code rest}, {@code mcp}, {@code skill}, or {@code control}.
+ * Custom deserializer that dispatches to the correct {@link ServerSpec} subclass.
+ *
+ * <p>Discriminant rules (checked in order):</p>
+ * <ol>
+ *   <li>If the entry has a {@code from} field, it is an {@link ImportedExposesSpec} import.</li>
+ *   <li>Otherwise, dispatch on the {@code type} field ({@code rest}, {@code mcp}, {@code skill},
+ *       {@code control}) to the matching inline subclass.</li>
+ * </ol>
  */
 public class ServerSpecDeserializer extends JsonDeserializer<ServerSpec> {
 
     @Override
     public ServerSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
         JsonNode node = ctxt.readTree(p);
+
+        // Import discriminant: presence of 'from' on a list entry.
+        if (node.has("from")) {
+            return ctxt.readTreeAsValue(node, ImportedExposesSpec.class);
+        }
+
         String type = node.path("type").asText(null);
 
         return switch (type) {

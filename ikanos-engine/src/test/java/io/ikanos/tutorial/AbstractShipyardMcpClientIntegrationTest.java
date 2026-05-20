@@ -265,9 +265,9 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
                 continue;
             }
 
-            String location = importSpec.getLocation();
-            if (location != null && location.startsWith(SHARED_RELATIVE_PREFIX)) {
-                importSpec.setLocation(resolveSharedPath(location.substring(SHARED_RELATIVE_PREFIX.length())).toString());
+            String from = importSpec.getFrom();
+            if (from != null && from.startsWith(SHARED_RELATIVE_PREFIX)) {
+                importSpec.setFrom(resolveSharedPath(from.substring(SHARED_RELATIVE_PREFIX.length())).toString());
             }
         }
     }
