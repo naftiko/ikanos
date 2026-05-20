@@ -244,7 +244,7 @@ Explicit hints on the MCP tool **override** derived values, so you can fine-tune
 ## 📦 Importing & Modularization
 
 ### Q: Why was `location` renamed to `from` in consumes imports?
-**A:** The `binds` section already uses `location` to mean "runtime variable source" — where to fetch secrets at runtime (e.g., `./secrets.env`, `vault://app/prod`). Reusing `location` as an import keyword on any section would create semantic ambiguity: does `location` mean "where to get this entry's definition" or "where to fetch this entry's runtime data"?
+**A:** The `binds` section already uses `location` to mean "runtime variable source" — where to fetch secrets at runtime (e.g., `file://./secrets.env`, `vault://app/prod`). Reusing `location` as an import keyword on any section would create semantic ambiguity: does `location` mean "where to get this entry's definition" or "where to fetch this entry's runtime data"?
 
 `from` is unambiguous, short, and idiomatic (inspired by ES module syntax: `import x from './foo'`). It reads naturally in YAML: "this entry comes **from** another file." The rename was a hard break (no alias) because the project is in alpha.
 
