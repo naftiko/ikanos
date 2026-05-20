@@ -4,10 +4,18 @@ exposes:
     namespace: "weather-rest"
     address: "localhost"
     port: 8080
-    resources: []
+    resources:
+      - path: "/weather"
+        operations:
+          - name: "get-weather"
+            method: "GET"
+            description: "Get weather data"
+            call: "weather-api.forecasts.get-forecast"
   - type: "mcp"
     namespace: "weather-mcp"
     address: "localhost"
     port: 3000
-    tools: []
-    resources: []
+    tools:
+      - name: "get-weather"
+        description: "Get weather data via MCP"
+        call: "weather-api.forecasts.get-forecast"
