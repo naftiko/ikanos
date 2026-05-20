@@ -69,10 +69,11 @@ git fetch origin main
 git worktree add ../ikanos-issue-<N> -b feat/issue-<N>-short-description origin/main
 
 # Open the worktree as an additional root in VS Code (required — agents only see open workspace folders)
-code --add /path/to/ikanos-issue-<N>
+code --add ../ikanos-issue-<N>
 
 # Remove when the branch is merged
 git worktree remove ../ikanos-issue-<N>
+# If the worktree has local modifications, use: git worktree remove --force ../ikanos-issue-<N>
 ```
 
 ### For agents working in a worktree
@@ -100,6 +101,9 @@ Session memory (`/memories/session/`) is scoped to one conversation and is invis
 **Naming convention:** use predictable paths so the receiving agent can find them without being told the exact filename. For PR reviews: `/memories/repo/pr-review-<PR>.md` where `<PR>` is the pull request number. The receiving agent lists `/memories/repo/` to discover pending handoffs.
 
 Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`; the agent working on the branch reads it and commits the fixes directly, without GitHub round-trip.
+
+> This pattern is called **Mode B** in the `pr-review` skill (`.agents/skills/pr-review/SKILL.md`).
+> Mode A posts findings as inline comments directly on GitHub instead.
 
 ## Code Style
 
