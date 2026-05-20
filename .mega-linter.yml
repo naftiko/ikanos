@@ -16,4 +16,4 @@ POST_COMMANDS:
 YAML_V8R_FILTER_REGEX_INCLUDE: "(ikanos-spec/(src/main/resources/schemas|src/test/resources)/.*\\.(yaml|yml)$|ikanos-docs/tutorial/.*\\.(yaml|yml)$|ikanos-engine/src/test/resources/.*\\.(yaml|yml)$)"
 YAML_V8R_ARGUMENTS: "--schema ikanos-spec/src/main/resources/schemas/ikanos-schema.json"
 
-YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|ikanos-spec/src/test/resources/openapi/.*|ikanos-spec/src/test/resources/capabilities/capability-spurious-name\\.yml|ikanos-engine/src/test/resources/imports/invalid/.*|ikanos-engine/src/test/resources/imports/.*/shared.*\\.yml)"
+YAML_V8R_FILTER_REGEX_EXCLUDE: "(secrets|sample-users|package-lock|ikanos-spec/src/test/resources/openapi/.*|ikanos-engine/src/test/resources/imports/invalid/.*)"
