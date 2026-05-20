@@ -273,8 +273,8 @@ Two new skills to learn here. First, **`outputRawFormat: xml`**: the framework r
 ~~~yaml
 capability:
   consumes:
-    - namespace: registry
-      import: ./shared/step5-registry-consumes.yaml
+    - from: "./shared/step5-registry-consumes.yaml"
+      import: registry
     - namespace: legacy
       type: http
       baseUri: "https://legacy.dockyard.dev/api"
@@ -292,6 +292,8 @@ capability:
               inputParameters:
                 - { name: status, in: query }
 ~~~
+
+The `from`/`import` directive tells the engine: "load `./shared/step5-registry-consumes.yaml`, find the entry with `namespace: registry`, and inject it here." The imported entry is resolved at load time — the rest of the engine sees a normal inline `consumes` block.
 
 What the legacy Dockyard sends back:
 
@@ -321,7 +323,7 @@ Two tools now, one per source: `list-ships` (registry) and `list-legacy-vessels`
 
 > 🔮 **Coming in beta.** Parallel step execution will let a future `list-fleet` tool fan out across multiple sources and unify results server-side. For now: two tools, one skill.
 
-> 🧭 **What you learned:** multiple `consumes`, `import` + `location`, different auth types (bearer vs apikey), **`outputRawFormat: xml`**, API normalization at the mapping layer.
+> 🧭 **What you learned:** multiple `consumes`, `from`/`import` (consumes import), different auth types (bearer vs apikey), **`outputRawFormat: xml`**, API normalization at the mapping layer. For the full import guide, see [Importing](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Importing).
 
 ---
 

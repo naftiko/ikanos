@@ -236,14 +236,71 @@ capability:
 
 ---
 
-### 3.5 Exposes Object
+### 3.5 Importing Entries
+
+Entries in the `consumes`, `exposes`, `aggregates`, and `binds` sections can be **imported** from external source files using a unified import directive. This enables modularization, reuse, and separation of concerns.
+
+#### 3.5.1 Import Directive
+
+Every imported entry uses the same three fields:
+
+| Field Name | Type | Description |
+|---|---|---|
+| **from** | `string` | **REQUIRED**. File path to a source file. Relative paths resolve against the directory of the importing file. |
+| **import** | `string` | **REQUIRED**. The `namespace` of the entry to take from the source file. |
+| **as** | `string` | If provided, the imported entry's `namespace` is replaced with this value in the importing capability. |
+| **description** | `string` | Optional free-form documentation for the import. |
+
+##### Discriminant Rule
+
+The presence of the `from` field on a list entry determines whether it is an import or an inline definition. This rule applies identically across all four sections.
+
+##### Import Directive Example
+
+```yaml
+capability:
+  consumes:
+    - from: "./shared/registry.consumes.yml"
+      import: registry
+    - from: "./shared/legacy.consumes.yml"
+      import: legacy
+      as: legacy-dockyard
+      description: "Legacy Dockyard adapter, imported with alias"
+```
+
+#### 3.5.2 Standalone Source Files
+
+Each section can live in its own YAML file with a root-level `ikanos` version and the section array at the root level (not nested under `capability`):
+
+- `*.consumes.yml` — standalone consumes
+- `*.exposes.yml` — standalone exposes
+- `*.aggregates.yml` — standalone aggregates
+- `*.binds.yml` — standalone binds
+
+The root-level `oneOf` in the JSON Schema discriminates between capability documents and standalone section documents.
+
+#### 3.5.3 Rules
+
+- Import entries MUST have both `from` and `import` fields.
+- The `import` value MUST match an existing `namespace` in the source file.
+- Standalone source files MUST NOT contain import entries — they are leaves in the import graph.
+- After resolution, namespaces MUST be unique within each section.
+- The `binds` section's `location` field is a **runtime** concept (variable source) and is NOT related to the import directive's `from` field.
+
+#### 3.5.4 Resolution
+
+Imports are resolved eagerly at capability load time, before adapter initialization. After resolution, the engine sees only fully-materialized inline entries. See the [Importing Guide](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Importing) for details.
+
+---
+
+### 3.6 Exposes Object
 
 Describes a server adapter that exposes functionality.
 
 > Update (schema v0.4): the exposition adapter is **API** with `type: "api"` (and a required `namespace`). Legacy `httpProxy` / `rest` exposition types are not part of the JSON Schema anymore.
 > 
 
-#### 3.5.1 API Expose
+#### 3.6.1 API Expose
 
 API exposition configuration.
 
@@ -258,7 +315,7 @@ API exposition configuration.
 | **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed API. |
 | **resources** | `ExposedResource[]` | **REQUIRED**. List of exposed resources. |
 
-#### 3.5.2 ExposedResource Object
+#### 3.6.2 ExposedResource Object
 
 An exposed resource with **operations** and/or **forward** configuration.
 
@@ -274,20 +331,20 @@ An exposed resource with **operations** and/or **forward** configuration.
 | **operations** | `ExposedOperation[]` | Operations available on this resource. |
 | **forward** | `ForwardConfig` | Forwarding configuration to a consumed namespace. |
 
-#### 3.5.3 Rules
+#### 3.6.3 Rules
 
 - Both `description` and `path` are mandatory.
 - At least one of `operations` or `forward` MUST be present. Both can coexist on the same resource.
 - if both `operations` or `forward` are present, in case of conflict, `operations` takes precendence on `forward`.
 - No additional properties are allowed.
 
-#### 3.5.4 Address Validation Patterns
+#### 3.6.4 Address Validation Patterns
 
 - **Hostname**: `^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
 - **IPv4**: `^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$`
 - **IPv6**: `^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$`
 
-#### 3.5.5 Exposes Object Examples
+#### 3.6.5 Exposes Object Examples
 
 **API Expose with operations:**
 
@@ -344,14 +401,14 @@ resources:
 
 ---
 
-### 3.6 Consumes Object
+### 3.7 Consumes Object
 
 Describes a client adapter for consuming external APIs.
 
 > Update (schema v0.4): `targetUri` is now `baseUri`. The `headers` field has been removed — use `inputParameters` with `in: "header"` instead.
 > 
 
-#### 3.6.1 Fixed Fields
+#### 3.7.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
@@ -363,7 +420,7 @@ Describes a client adapter for consuming external APIs.
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters applied to all operations in this consumed API. |
 | **resources** | [ConsumedHttpResource Object] | **REQUIRED**. List of API resources. |
 
-#### 3.6.2 Rules
+#### 3.7.2 Rules
 
 - The `type` field MUST be `"http"`.
 - The `baseUri` field is required.
@@ -372,13 +429,13 @@ Describes a client adapter for consuming external APIs.
 - The `description` field is required.
 - The `resources` array is required and MUST contain at least one entry.
 
-#### 3.6.3 Base URI Format
+#### 3.7.3 Base URI Format
 
 The `baseUri` field MUST be a valid `http://` or `https://` URL, and may optionally include a base path.
 
 Example: `https://api.github.com` or `https://api.github.com/v3`
 
-#### 3.6.4 Consumes Object Example
+#### 3.7.4 Consumes Object Example
 
 ```yaml
 type: http
@@ -424,11 +481,11 @@ resources:
 
 ---
 
-### 3.7 ConsumedHttpResource Object
+### 3.8 ConsumedHttpResource Object
 
 Describes an API resource that can be consumed from an external API.
 
-#### 3.7.1 Fixed Fields
+#### 3.8.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
@@ -439,7 +496,7 @@ Describes an API resource that can be consumed from an external API.
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters for this resource. |
 | **operations** | `ConsumedHttpOperation[]` | **REQUIRED**. List of operations for this resource. |
 
-#### 3.7.2 Rules
+#### 3.8.2 Rules
 
 - The `name` field MUST be unique within the parent consumes object's resources array.
 - The `name` field MUST match the pattern `^[a-zA-Z0-9-]+$` (alphanumeric and hyphens only).
@@ -447,7 +504,7 @@ Describes an API resource that can be consumed from an external API.
 - The `operations` array MUST contain at least one entry.
 - No additional properties are allowed.
 
-#### 3.7.3 ConsumedHttpResource Object Example
+#### 3.8.3 ConsumedHttpResource Object Example
 
 ```yaml
 name: users
@@ -468,11 +525,11 @@ operations:
 
 ---
 
-### 3.8 ConsumedHttpOperation Object
+### 3.9 ConsumedHttpOperation Object
 
 Describes an operation that can be performed on a consumed resource.
 
-#### 3.8.1 Fixed Fields
+#### 3.9.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
@@ -486,14 +543,14 @@ Describes an operation that can be performed on a consumed resource.
 | **outputParameters** | `ConsumedOutputParameter[]` | Output parameters extracted from the response via JsonPath. |
 | **body** | `RequestBody` | Request body configuration. |
 
-#### 3.8.2 Rules
+#### 3.9.2 Rules
 
 - The `name` field MUST be unique within the parent resource's operations array.
 - The `name` field MUST match the pattern `^[a-zA-Z0-9-]+$` (alphanumeric and hyphens only).
 - Both `name` and `method` are mandatory.
 - No additional properties are allowed.
 
-#### 3.8.3 ConsumedHttpOperation Object Example
+#### 3.9.3 ConsumedHttpOperation Object Example
 
 ```yaml
 name: get-user
@@ -516,14 +573,14 @@ outputParameters:
 
 ---
 
-### 3.9 ExposedOperation Object
+### 3.10 ExposedOperation Object
 
 Describes an operation exposed on an exposed resource.
 
 > Update (schema v0.4): ExposedOperation now supports two modes via `oneOf` — **simple** (direct call with mapped output) and **orchestrated** (multi-step with named operation). The `call` and `with` fields are new. The `name` and `steps` fields are only required in orchestrated mode.
 > 
 
-#### 3.9.1 Fixed Fields
+#### 3.10.1 Fixed Fields
 
 All fields available on ExposedOperation:
 
@@ -541,7 +598,7 @@ All fields available on ExposedOperation:
 | **outputParameters** (orchestrated) | `OrchestratedOutputParameter[]` | **Orchestrated mode**. Output parameters with name and type. |
 | **mappings** | `StepOutputMapping[]` | **Orchestrated mode only**. Maps step outputs to the operation's output parameters at the operation level. |
 
-#### 3.9.2 Modes (oneOf)
+#### 3.10.2 Modes (oneOf)
 
 **Simple mode** — A direct call to a single consumed operation:
 
@@ -559,14 +616,14 @@ All fields available on ExposedOperation:
 - `outputParameters` are `OrchestratedOutputParameter[]` (name + type)
 - `call` and `with` MUST NOT be present
 
-#### 3.9.3 Rules
+#### 3.10.3 Rules
 
 - Exactly one of the two modes MUST be used (simple or orchestrated).
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry. Each step references a consumed operation using `{namespace}.{operationName}`.
 - The `method` field is always required regardless of mode.
 
-#### 3.9.4 ExposedOperation Object Examples
+#### 3.10.4 ExposedOperation Object Examples
 
 **Simple mode (direct call):**
 
@@ -612,11 +669,11 @@ outputParameters:
 
 ---
 
-### 3.10 RequestBody Object
+### 3.11 RequestBody Object
 
 Describes request body configuration for consumed operations. `RequestBody` is a `oneOf` — exactly one of five subtypes must be used.
 
-#### 3.10.1 Subtypes
+#### 3.11.1 Subtypes
 
 **RequestBodyJson** — JSON body
 
@@ -650,13 +707,13 @@ Describes request body configuration for consumed operations. `RequestBody` is a
 
 `RequestBody` can also be a plain `string`. When used with a YAML block scalar (`|`), the string is sent as-is. Interpreted as JSON by default.
 
-#### 3.10.2 Rules
+#### 3.11.2 Rules
 
 - Exactly one of the five subtypes must be used.
 - For structured subtypes, both `type` and `data` are mandatory.
 - No additional properties are allowed on any subtype.
 
-#### 3.10.3 RequestBody Examples
+#### 3.11.3 RequestBody Examples
 
 **JSON body (object):**
 
@@ -721,12 +778,12 @@ body: |
 
 ---
 
-### 3.11 InputParameter Objects
+### 3.12 InputParameter Objects
 
 > Update (schema v0.4): The single `InputParameter` object has been split into two distinct types: **ConsumedInputParameter** (used in consumes) and **ExposedInputParameter** (used in exposes, with additional `type` and `description` fields required).
 > 
 
-#### 3.11.1 ConsumedInputParameter Object
+#### 3.12.1 ConsumedInputParameter Object
 
 Used in consumed resources and operations.
 
@@ -758,7 +815,7 @@ Used in consumed resources and operations.
   value: "Bearer token"
 ```
 
-#### 3.11.2 ExposedInputParameter Object
+#### 3.12.2 ExposedInputParameter Object
 
 Used in exposed resources and operations. Extends the consumed variant with `type` and `description` (both required) for agent discoverability, plus an optional `pattern` for validation.
 
@@ -797,12 +854,12 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
 
 ---
 
-### 3.12 OutputParameter Objects
+### 3.13 OutputParameter Objects
 
 > Update (schema v0.4): The single `OutputParameter` object has been split into three distinct types: **ConsumedOutputParameter** (used in consumed operations), **MappedOutputParameter** (used in simple-mode exposed operations), and **OrchestratedOutputParameter** (used in orchestrated-mode exposed operations).
 > 
 
-#### 3.12.1 ConsumedOutputParameter Object
+#### 3.13.1 ConsumedOutputParameter Object
 
 Used in consumed operations to extract values from the raw API response.
 
@@ -833,7 +890,7 @@ outputParameters:
     value: $.id
 ```
 
-#### 3.12.2 MappedOutputParameter Object
+#### 3.13.2 MappedOutputParameter Object
 
 Used in **simple mode** exposed operations. Maps a value from the consumed response using `type` and `mapping`.
 
@@ -890,7 +947,7 @@ outputParameters:
               mapping: $.name
 ```
 
-#### 3.12.3 OrchestratedOutputParameter Object
+#### 3.13.3 OrchestratedOutputParameter Object
 
 Used in **orchestrated mode** exposed operations. Declares an output by `name` and `type` (the value is populated via step mappings).
 
@@ -931,7 +988,7 @@ outputParameters:
           type: string
 ```
 
-#### 3.12.4 JsonPath roots (extensions)
+#### 3.13.4 JsonPath roots (extensions)
 
 In a consumed resource, **`$`** refers to the *raw response payload* of the consumed operation (after decoding based on `outputRawFormat`). The root `$` gives direct access to the JSON response body.
 
@@ -955,7 +1012,7 @@ Example, if you consider the following JSON response :
 - `$.id` is `154548`
 - `$.titles[0].text.content` is `This is title[0].text.content`
 
-#### 3.12.5 Common patterns
+#### 3.13.5 Common patterns
 
 - `$.fieldName` — accesses a top-level field
 - `$.data.user.id` — accesses nested fields
@@ -964,14 +1021,14 @@ Example, if you consider the following JSON response :
 
 ---
 
-### 3.13 OperationStep Object
+### 3.14 OperationStep Object
 
 Describes a single step in an orchestrated operation. `OperationStep` is a `oneOf` between two subtypes: **OperationStepCall** and **OperationStepLookup**, both sharing a common **OperationStepBase**.
 
 > Update (schema v0.4): OperationStep is now a discriminated union (`oneOf`) with a required `type` field (`"call"` or `"lookup"`) and a required `name` field. `OperationStepCall` uses `with` (WithInjector) instead of `inputParameters`. `OperationStepLookup` is entirely new.
 > 
 
-#### 3.13.1 OperationStepBase (shared fields)
+#### 3.14.1 OperationStepBase (shared fields)
 
 All operation steps share these base fields:
 
@@ -980,7 +1037,7 @@ All operation steps share these base fields:
 | **type** | `string` | **REQUIRED**. Step type discriminator. One of: `"call"`, `"lookup"`. |
 | **name** | `string` | **REQUIRED**. Technical name for the step (pattern `^[a-zA-Z0-9-]+$`). Used as namespace for referencing step outputs in mappings and expressions. |
 
-#### 3.13.2 OperationStepCall
+#### 3.14.2 OperationStepCall
 
 Calls a consumed operation.
 
@@ -1002,7 +1059,7 @@ Calls a consumed operation.
 - `with` uses the same `WithInjector` object as simple-mode ExposedOperation (see §3.18).
 - No additional properties are allowed.
 
-#### 3.13.3 OperationStepLookup
+#### 3.14.3 OperationStepLookup
 
 Performs a lookup against the output of a previous call step, matching values and extracting fields.
 
@@ -1024,7 +1081,7 @@ Performs a lookup against the output of a previous call step, matching values an
 - The `index` value MUST reference the `name` of a previous `call` step in the same orchestration.
 - No additional properties are allowed.
 
-#### 3.13.4 Call Reference Resolution
+#### 3.14.4 Call Reference Resolution
 
 The `call` value on an `OperationStepCall` is resolved as follows:
 
@@ -1033,7 +1090,7 @@ The `call` value on an `OperationStepCall` is resolved as follows:
 3. Within that consumes entry's resources, find the operation with matching `name` field
 4. Execute that operation as part of the orchestration sequence
 
-#### 3.13.5 OperationStep Object Examples
+#### 3.14.5 OperationStep Object Examples
 
 **Call step with parameter injection:**
 
@@ -1083,96 +1140,6 @@ steps:
     call: slack.post-message
     with:
       text: $this.sample.title
-```
-
----
-
-### 3.14 StepOutputMapping Object
-
-Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation.
-
-#### 3.14.1 Fixed Fields
-
-| Field Name | Type | Description |
-| --- | --- | --- |
-| **targetName** | `string` | **REQUIRED**. The name of the parameter to map to. It can be an input parameter of a next step or an output parameter of the exposed operation. |
-| **value** | `string` | **REQUIRED**. A JsonPath reference to the value to map from. E.g. `$.get-database.database_id`. |
-
-#### 3.14.2 Rules
-
-- Both `targetName` and `value` are mandatory.
-- No additional properties are allowed.
-
-#### 3.14.3 How mappings wire steps to exposed outputs
-
-A StepOutputMapping connects the **output parameters of a consumed operation** (called by the step) to the **output parameters of the exposed operation** (or to input parameters of subsequent steps).
-
-- **`targetName`** — refers to the `name` of an output parameter declared on the exposed operation, or the `name` of an input parameter of a subsequent step. The target parameter receives its value from the mapping.
-- **`value`** — a JsonPath expression where **`$`** is the root of the consumed operation's output parameters. The syntax `$.{outputParameterName}` references a named output parameter of the consumed operation called in this step.
-
-#### 3.14.4 End-to-end example
-
-Consider a consumed operation `notion.get-database` that declares:
-
-```yaml
-# In consumes → resources → operations
-name: "get-database"
-outputParameters:
-  - name: "dbName"
-    value: "$.title[0].text.content"
-```
-
-And the exposed side of the capability:
-
-```yaml
-# In exposes
-exposes:
-  - type: "api"
-    address: "localhost"
-    port: 9090
-    namespace: "sample"
-    resources:
-      - path: "/databases/{database_id}"
-        name: "db"
-        label: "Database resource"
-        description: "Retrieve information about a Notion database"
-        inputParameters:
-          - name: "database_id"
-            in: "path"
-            type: "string"
-            description: "The unique identifier of the Notion database"
-        operations:
-          - name: "get-db"
-            method: "GET"
-            label: "Get Database"
-            outputParameters:
-              - name: "db_name"
-                type: "string"
-            steps:
-              - type: "call"
-                name: "fetch-db"
-                call: "notion.get-database"
-                with:
-                  database_id: "$this.sample.database_id"
-            mappings:
-              - targetName: "db_name"
-                value: "$.dbName"
-```
-
-Here is what happens at orchestration time:
-
-1. The step `fetch-db` calls `notion.get-database`, which extracts `dbName` and `dbId` from the raw response via its own output parameters.
-2. The `with` injector passes `database_id` from the exposed input parameter (`$this.sample.database_id`) to the consumed operation.
-3. The mapping `targetName: "db_name"` refers to the exposed operation's output parameter `db_name`.
-4. The mapping `value: "$.dbName"` resolves to the value of the consumed operation's output parameter named `dbName`.
-5. As a result, the exposed output `db_name` is populated with the value extracted by `$.dbName` (i.e. `title[0].text.content` from the raw Notion API response).
-
-#### 3.14.5 StepOutputMapping Object Example
-
-```yaml
-mappings:
-  - targetName: "db_name"
-    value: "$.dbName"
 ```
 
 ---
@@ -1809,7 +1776,7 @@ capability:
                   name: "find-member"
                   index: "list-members"
                   match: "email"
-                  lookupValue: "$this.team.email"
+                  lookupValue: "$.query-tasks.assignee"
                   outputParameters:
                     - "fullName"
                     - "department"
