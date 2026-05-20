@@ -1,0 +1,16 @@
+ikanos: "1.0.0-alpha3"
+aggregates:
+  - namespace: "forecast"
+    label: "Forecast Domain"
+    functions:
+      - name: "get-forecast"
+        label: "Get Forecast"
+        description: "Retrieves weather forecast"
+        call: "weather-api.get-forecast"
+  - namespace: "geo"
+    label: "Geo Domain"
+    functions:
+      - name: "reverse-geocode"
+        label: "Reverse Geocode"
+        description: "Converts coordinates to address"
+        call: "geo-api.reverse-geocode"

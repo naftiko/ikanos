@@ -1,0 +1,10 @@
+ikanos: "1.0.0-alpha3"
+consumes:
+  - type: "http"
+    namespace: "weather-api"
+    baseUri: "https://api.weather.example.com"
+    resources: []
+  - type: "http"
+    namespace: "geo-api"
+    baseUri: "https://geo.example.com"
+    resources: []
