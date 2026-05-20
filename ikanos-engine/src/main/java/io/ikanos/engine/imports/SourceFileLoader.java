@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -41,7 +40,6 @@ public class SourceFileLoader {
 
     public SourceFileLoader() {
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
-        this.yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.cache = new ConcurrentHashMap<>();
     }
 
@@ -69,6 +67,23 @@ public class SourceFileLoader {
                     "Failed to load source file: " + key + " - " + e.getCause().getMessage(),
                     e.getCause());
         }
+    }
+
+    /**
+     * Deep-copy an object via Jackson round-trip (serialize → deserialize).
+     *
+     * <p>Used by the import resolver to create independent copies of resolved entries so that
+     * mutations in one capability do not affect another capability importing the same source.</p>
+     *
+     * @param <R>  the result type
+     * @param src  the object to deep-copy
+     * @param type the target type for deserialization
+     * @return an independent deep copy
+     * @throws IOException if serialization or deserialization fails
+     */
+    <R> R deepCopy(Object src, Class<R> type) throws IOException {
+        byte[] bytes = yamlMapper.writeValueAsBytes(src);
+        return yamlMapper.readValue(bytes, type);
     }
 
     /** Returns the number of cached entries (useful for testing). */

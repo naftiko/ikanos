@@ -17,10 +17,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -30,13 +26,6 @@ import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
  * Import strategy for the {@code consumes} section.
  */
 public class ConsumesImportStrategy implements ImportStrategy<ClientSpec> {
-
-    private final ObjectMapper mapper;
-
-    public ConsumesImportStrategy() {
-        this.mapper = new ObjectMapper(new YAMLFactory());
-        this.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
 
     @Override
     public String sectionName() {
@@ -81,8 +70,7 @@ public class ConsumesImportStrategy implements ImportStrategy<ClientSpec> {
     }
 
     @Override
-    public ClientSpec deepCopy(ClientSpec inline) throws IOException {
-        byte[] bytes = mapper.writeValueAsBytes(inline);
-        return mapper.readValue(bytes, HttpClientSpec.class);
+    public ClientSpec deepCopy(ClientSpec inline, SourceFileLoader loader) throws IOException {
+        return loader.deepCopy(inline, HttpClientSpec.class);
     }
 }

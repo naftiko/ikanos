@@ -324,6 +324,32 @@ class ImportResolverParameterizedTest {
         resolver.resolveAll(null, tempDir);
     }
 
+    // ─── Null-namespace tolerance ──────────────────────────────────────
+
+    @Test
+    void twoEntriesWithNullNamespaceShouldNotCollide() throws Exception {
+        SourceFileLoader loader = new SourceFileLoader();
+        ImportResolver<BindingSpec> resolver = new ImportResolver<>(
+                new BindsImportStrategy(), loader);
+
+        List<BindingSpec> entries = new ArrayList<>();
+        // Two inline entries without namespace — should not trigger collision
+        BindingSpec b1 = new BindingSpec();
+        b1.setDescription("binding-one");
+        b1.setLocation("./a.env");
+        entries.add(b1);
+        BindingSpec b2 = new BindingSpec();
+        b2.setDescription("binding-two");
+        b2.setLocation("./b.env");
+        entries.add(b2);
+
+        // Should not throw — null namespaces are exempt from collision detection
+        resolver.resolveAll(entries, tempDir);
+        assertEquals(2, entries.size());
+        assertNull(entries.get(0).getNamespace());
+        assertNull(entries.get(1).getNamespace());
+    }
+
     // ─── Helpers ───────────────────────────────────────────────────────
 
     /**
