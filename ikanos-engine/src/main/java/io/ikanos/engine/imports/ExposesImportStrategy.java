@@ -17,25 +17,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ImportedExposesSpec;
 import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.skill.SkillServerSpec;
 
 /**
  * Import strategy for the {@code exposes} section.
  */
 public class ExposesImportStrategy implements ImportStrategy<ServerSpec> {
-
-    private final ObjectMapper mapper;
-
-    public ExposesImportStrategy() {
-        this.mapper = new ObjectMapper(new YAMLFactory());
-        this.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
 
     @Override
     public String sectionName() {
@@ -76,12 +68,16 @@ public class ExposesImportStrategy implements ImportStrategy<ServerSpec> {
 
     @Override
     public void setNamespace(ServerSpec entry, String namespace) {
-        entry.setNamespace(namespace);
+        if (entry instanceof RestServerSpec rest) { rest.setNamespace(namespace); return; }
+        if (entry instanceof McpServerSpec mcp)   { mcp.setNamespace(namespace);  return; }
+        if (entry instanceof SkillServerSpec sk)  { sk.setNamespace(namespace);   return; }
+        throw new UnsupportedOperationException(
+                "Cannot apply alias to adapter type " + entry.getClass().getSimpleName()
+                + " — type does not support namespace");
     }
 
     @Override
-    public ServerSpec deepCopy(ServerSpec inline) throws IOException {
-        byte[] bytes = mapper.writeValueAsBytes(inline);
-        return mapper.readValue(bytes, ServerSpec.class);
+    public ServerSpec deepCopy(ServerSpec inline, SourceFileLoader loader) throws IOException {
+        return loader.deepCopy(inline, ServerSpec.class);
     }
 }

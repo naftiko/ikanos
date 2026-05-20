@@ -17,10 +17,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.BindingSpec;
 import io.ikanos.spec.util.ImportedBindingSpec;
@@ -29,13 +25,6 @@ import io.ikanos.spec.util.ImportedBindingSpec;
  * Import strategy for the {@code binds} section.
  */
 public class BindsImportStrategy implements ImportStrategy<BindingSpec> {
-
-    private final ObjectMapper mapper;
-
-    public BindsImportStrategy() {
-        this.mapper = new ObjectMapper(new YAMLFactory());
-        this.mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
 
     @Override
     public String sectionName() {
@@ -82,8 +71,7 @@ public class BindsImportStrategy implements ImportStrategy<BindingSpec> {
     }
 
     @Override
-    public BindingSpec deepCopy(BindingSpec inline) throws IOException {
-        byte[] bytes = mapper.writeValueAsBytes(inline);
-        return mapper.readValue(bytes, BindingSpec.class);
+    public BindingSpec deepCopy(BindingSpec inline, SourceFileLoader loader) throws IOException {
+        return loader.deepCopy(inline, BindingSpec.class);
     }
 }
