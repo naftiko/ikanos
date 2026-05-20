@@ -28,7 +28,7 @@ Step 5 — Deliver findings
           Mode B: write to /memories/repo/ for local agent fix (0 clicks)
 ```
 
-**Minimum 2 clicks (short diff). Maximum 3 clicks (long diff), regardless of the
+**Minimum 1 click (Mode B, short diff). Maximum 3 clicks (Mode A, long diff), regardless of the
 number of findings.**
 
 Line numbers are resolved **after** the user picks — never before. There is no
@@ -111,6 +111,16 @@ requires no user confirmation). For each potential issue, note:
 >
 > If the natural target line contains Unicode or metacharacters, pick a
 > neighbouring plain-ASCII keyword or identifier from the same line instead.
+>
+> **Note:** on Windows, `pr-context.ps1` saves the diff in UTF-8. Earlier versions
+> used the system default (CP1252), which corrupted non-ASCII characters (e.g. U+2500
+> `─` became `ÔöÇ`). If you see garbled characters in the diff, regenerate it with
+> the current script — do not flag the source code as incorrect.
+>
+> **The diff is a derived artefact — the source file is always the source of truth.**
+> If a character or string looks suspicious in the diff (garbled, truncated, or
+> inconsistent with the surrounding code), use `read_file` on the actual file before
+> drawing any conclusion. Never raise a finding based solely on what the diff shows.
 
 Do **not** compute line numbers yet.
 
@@ -271,7 +281,10 @@ Write the selected findings to `/memories/repo/pr-review-<PR>.md` (where `<PR>`
 is the pull request number) using the `create_file` tool (not via a terminal
 command) so the agent working on the branch can read them and apply fixes
 directly — no GitHub round-trip. If the file already exists from a previous
-review pass, delete it first, then recreate it with updated findings.
+review pass, use `memory delete /memories/repo/pr-review-<PR>.md` (the memory
+tool) to delete the stale file before calling `create_file` — do not use
+`Remove-Item` in the terminal, which costs an extra click and is unreliable on
+Windows.
 
 The handoff file must include:
 - PR number and branch name
