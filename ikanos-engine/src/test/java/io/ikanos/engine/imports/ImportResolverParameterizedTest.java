@@ -42,13 +42,13 @@ import io.ikanos.spec.util.ImportedBindingSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
- * Parametrized test suite for the unified {@link ImportResolver}, exercising all four
+ * Parameterized test suite for the unified {@link ImportResolver}, exercising all four
  * sections ({@code consumes}, {@code exposes}, {@code aggregates}, {@code binds}) through
  * the same set of scenarios.
  *
  * <p>Covers §12.3 of {@code blueprints/unified-import-mechanism.md}.</p>
  */
-class ImportResolverParametrizedTest {
+class ImportResolverParameterizedTest {
 
     private Path tempDir;
     private String schemaVersion;
@@ -425,7 +425,7 @@ class ImportResolverParametrizedTest {
 
     // ─── Section test harnesses ────────────────────────────────────────
 
-    /** Type-erased interface for parametrized test interaction. */
+    /** Type-erased interface for parameterized test interaction. */
     interface SectionTestHarness<T> {
         void addImport(String from, String importNs, String alias);
         void resolve(Path capabilityDir) throws ImportException;

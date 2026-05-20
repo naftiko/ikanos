@@ -48,7 +48,7 @@ public class BindsImportStrategy implements ImportStrategy<BindingSpec> {
         if (source.getBinds() != null && !source.getBinds().isEmpty()) {
             return source.getBinds();
         }
-        // Capability-wrapped form: capability binds
+        // Capability-wrapped form: capability.binds
         // Note: binds is at the IkanosSpec root level, not under capability, but some
         // documents may wrap it. Check capability.binds as fallback.
         if (source.getCapability() != null
