@@ -7,6 +7,7 @@ COPY ikanos-spec ./ikanos-spec
 COPY ikanos-engine ./ikanos-engine
 COPY ikanos-cli ./ikanos-cli
 COPY ikanos-docs ./ikanos-docs
+COPY ikanos-coverage ./ikanos-coverage
 # Build the jar
 RUN mvn clean package -DskipTests
 
