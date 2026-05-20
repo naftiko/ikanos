@@ -161,8 +161,8 @@ public class OperationStepExecutor {
 
     /**
      * Execute a sequence of orchestrated operation steps.
-     * 
-     * @param steps the list of operation steps to execute
+     *
+     * @param steps the named map of operation steps to execute (insertion order is preserved)
      * @param baseParameters the base parameters for template resolution
      * @return the final HandlingContext from the last executed step, or null if no steps executed
      * @throws IllegalArgumentException if step execution fails
