@@ -38,8 +38,8 @@ public class SkillValidationTest {
         spec.getSkills().put(skill2.getName(), skill2);
 
         assertEquals(2, spec.getSkills().size());
-        assertEquals("skill1", "skill1");
-        assertEquals("skill2", "skill2");
+        assertEquals("skill1", spec.getSkills().get("skill1").getName());
+        assertEquals("skill2", spec.getSkills().get("skill2").getName());
     }
 
     @Test
@@ -88,8 +88,8 @@ public class SkillValidationTest {
         skill.getTools().put(tool2.getName(), tool2);
 
         assertEquals(2, skill.getTools().size());
-        assertEquals("tool1", "tool1");
-        assertEquals("tool2", "tool2");
+        assertEquals("tool1", skill.getTools().get("tool1").getName());
+        assertEquals("tool2", skill.getTools().get("tool2").getName());
     }
 
     @Test

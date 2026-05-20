@@ -50,7 +50,7 @@ capability:
             required: true
             description: Name to greet
         outputParameters:
-          message:
+          - name: message
             type: string
             value: "Hello, {{name}}! Welcome aboard."
 ```
@@ -78,7 +78,7 @@ capability:
                 type: string
                 required: true
             outputParameters:
-              message:
+              - name: message
                 type: string
                 value: "Hello, {{name}}!"
 ```
@@ -90,7 +90,7 @@ itself has no `value` — only scalar leaves do.
 
 ```yaml
 outputParameters:
-  user:
+  - name: user
     type: object
     properties:
       id:
@@ -111,7 +111,7 @@ one representative item.
 
 ```yaml
 outputParameters:
-  results:
+  - name: results
     type: array
     items:
       type: object
