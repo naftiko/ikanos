@@ -40,7 +40,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeImportedConsumes() throws Exception {
         String yaml = """
-            type: "http"
             from: "./api.yml"
             import: "myapi"
             as: "myapi-v1"
@@ -75,7 +74,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeImportWithoutAlias() throws Exception {
         String yaml = """
-            type: "http"
             from: "./shared.yml"
             import: "shared-api"
             """;
@@ -90,7 +88,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeImportWithEmptyAlias() throws Exception {
         String yaml = """
-            type: "http"
             from: "./shared.yml"
             import: "shared-api"
             as: ""
@@ -106,7 +103,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeImportedConsumesWithDescriptionShouldPopulateDescriptionField() throws Exception {
         String yaml = """
-            type: "http"
             from: "./api.yml"
             import: "myapi"
             description: "Manages project tasks and issues."
@@ -122,7 +118,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeImportedConsumesWithoutDescriptionShouldLeaveDescriptionNull() throws Exception {
         String yaml = """
-            type: "http"
             from: "./api.yml"
             import: "myapi"
             """;
@@ -137,7 +132,6 @@ public class ClientSpecDeserializerTest {
     @Test
     public void testDeserializeLegacyLocationKeywordShouldThrowWithMigrationMessage() {
         String yaml = """
-            type: "http"
             location: "./api.yml"
             import: "myapi"
             """;
