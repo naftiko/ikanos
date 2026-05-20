@@ -428,10 +428,10 @@ rules:
       function: import-alias-unique
 
   ikanos-import-from-not-self:
-    message: "Import 'from' should not be empty or point to the current directory."
+    message: "Import 'from' should not point to the current directory."
     description: >
-      An import 'from' field that resolves to the importing file itself is always
-      an authoring error. A bare dot ('.') or empty string is a common typo.
+      An import 'from' field that is a bare dot ('.') is always an authoring error
+      because it resolves to the importing file's own directory.
       The engine resolver catches the actual self-reference at runtime.
     severity: warn
     recommended: true
@@ -453,7 +453,6 @@ rules:
       Standalone section files (documents without a 'capability' key) are leaves
       in the import DAG. They must not contain import entries (entries with a 'from'
       field). Only capability documents may import from other files.
-      This is also enforced structurally by the JSON Schema root-level oneOf.
     severity: error
     recommended: true
     given: "$"
@@ -466,7 +465,7 @@ rules:
     message: "Each exposed adapter in a source file must have a 'namespace'."
     description: >
       Without a namespace, the import directive cannot reference the adapter.
-      Applies to both standalone and capability-wrapped exposes entries.
+      Applies to standalone exposes entries (root-level 'exposes' array).
     severity: error
     recommended: true
     given:
@@ -479,7 +478,7 @@ rules:
     message: "Each aggregate in a source file must have a 'namespace'."
     description: >
       Without a namespace, the import directive cannot reference the aggregate.
-      Applies to both standalone and capability-wrapped aggregates entries.
+      Applies to standalone aggregates entries (root-level 'aggregates' array).
     severity: error
     recommended: true
     given:
@@ -499,6 +498,4 @@ rules:
       - "$.aggregates[*].functions"
       - "$.capability.aggregates[*].functions"
     then:
-      function: length
-      functionOptions:
-        min: 0
+      function: aggregate-function-unique

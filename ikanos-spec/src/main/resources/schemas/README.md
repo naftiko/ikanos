@@ -1056,7 +1056,7 @@ Calls a consumed operation.
 - The `call` field MUST follow the format `{namespace}.{operationName}`.
 - The `namespace` portion MUST correspond to a namespace defined in one of the capability's consumes entries.
 - The `operationName` portion MUST correspond to an operation `name` defined in the consumes entry identified by the namespace.
-- `with` uses the same `WithInjector` object as simple-mode ExposedOperation (see §3.18).
+- `with` uses the same `WithInjector` object as simple-mode ExposedOperation (see §3.19).
 - No additional properties are allowed.
 
 #### 3.14.3 OperationStepLookup
@@ -1144,14 +1144,104 @@ steps:
 
 ---
 
-### 3.15 `$this` Context Reference
+### 3.15 StepOutputMapping Object
+
+Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation.
+
+#### 3.15.1 Fixed Fields
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **targetName** | `string` | **REQUIRED**. The name of the parameter to map to. It can be an input parameter of a next step or an output parameter of the exposed operation. |
+| **value** | `string` | **REQUIRED**. A JsonPath reference to the value to map from. E.g. `$.get-database.database_id`. |
+
+#### 3.15.2 Rules
+
+- Both `targetName` and `value` are mandatory.
+- No additional properties are allowed.
+
+#### 3.15.3 How mappings wire steps to exposed outputs
+
+A StepOutputMapping connects the **output parameters of a consumed operation** (called by the step) to the **output parameters of the exposed operation** (or to input parameters of subsequent steps).
+
+- **`targetName`** — refers to the `name` of an output parameter declared on the exposed operation, or the `name` of an input parameter of a subsequent step. The target parameter receives its value from the mapping.
+- **`value`** — a JsonPath expression where **`$`** is the root of the consumed operation's output parameters. The syntax `$.{outputParameterName}` references a named output parameter of the consumed operation called in this step.
+
+#### 3.15.4 End-to-end example
+
+Consider a consumed operation `notion.get-database` that declares:
+
+```yaml
+# In consumes → resources → operations
+name: "get-database"
+outputParameters:
+  - name: "dbName"
+    value: "$.title[0].text.content"
+```
+
+And the exposed side of the capability:
+
+```yaml
+# In exposes
+exposes:
+  - type: "api"
+    address: "localhost"
+    port: 9090
+    namespace: "sample"
+    resources:
+      - path: "/databases/{database_id}"
+        name: "db"
+        label: "Database resource"
+        description: "Retrieve information about a Notion database"
+        inputParameters:
+          - name: "database_id"
+            in: "path"
+            type: "string"
+            description: "The unique identifier of the Notion database"
+        operations:
+          - name: "get-db"
+            method: "GET"
+            label: "Get Database"
+            outputParameters:
+              - name: "db_name"
+                type: "string"
+            steps:
+              - type: "call"
+                name: "fetch-db"
+                call: "notion.get-database"
+                with:
+                  database_id: "$this.sample.database_id"
+            mappings:
+              - targetName: "db_name"
+                value: "$.dbName"
+```
+
+Here is what happens at orchestration time:
+
+1. The step `fetch-db` calls `notion.get-database`, which extracts `dbName` and `dbId` from the raw response via its own output parameters.
+2. The `with` injector passes `database_id` from the exposed input parameter (`$this.sample.database_id`) to the consumed operation.
+3. The mapping `targetName: "db_name"` refers to the exposed operation's output parameter `db_name`.
+4. The mapping `value: "$.dbName"` resolves to the value of the consumed operation's output parameter named `dbName`.
+5. As a result, the exposed output `db_name` is populated with the value extracted by `$.dbName` (i.e. `title[0].text.content` from the raw Notion API response).
+
+#### 3.15.5 StepOutputMapping Object Example
+
+```yaml
+mappings:
+  - targetName: "db_name"
+    value: "$.dbName"
+```
+
+---
+
+### 3.16 `$this` Context Reference
 
 Describes how `$this` references work in `with` (WithInjector) and other expression contexts.
 
-> Update (schema v0.4): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.18). This section now documents the `$this` expression root, which is used within `WithInjector` values.
+> Update (schema v0.4): The former `OperationStepParameter` object (with `name` and `value` fields) has been replaced by `WithInjector` (see §3.19). This section now documents the `$this` expression root, which is used within `WithInjector` values.
 > 
 
-#### 3.15.1 The `$this` root
+#### 3.16.1 The `$this` root
 
 In a `with` (WithInjector) value — whether on an ExposedOperation (simple mode) or an OperationStepCall — the **`$this`** root references the *current capability execution context*, i.e. values already resolved during orchestration.
 
@@ -1161,7 +1251,7 @@ In a `with` (WithInjector) value — whether on an ExposedOperation (simple mode
 - The `{exposeNamespace}` corresponds to the `namespace` of the exposed API.
 - The `{paramName}` corresponds to the `name` of an input parameter declared on the exposed resource or operation.
 
-#### 3.15.2 Example
+#### 3.16.2 Example
 
 If the exposed API has namespace `sample` and an input parameter `database_id` declared on its resource, then:
 
@@ -1177,11 +1267,11 @@ with:
 
 ---
 
-### 3.16 Authentication Object
+### 3.17 Authentication Object
 
 Defines authentication configuration. Four types are supported: basic, apikey, bearer, and digest.
 
-#### 3.16.1 Basic Authentication
+#### 3.17.1 Basic Authentication
 
 HTTP Basic Authentication.
 
@@ -1202,7 +1292,7 @@ authentication:
   password: "secret_password"
 ```
 
-#### 3.16.2 API Key Authentication
+#### 3.17.2 API Key Authentication
 
 API Key authentication via header or query parameter.
 
@@ -1225,7 +1315,7 @@ authentication:
   placement: header
 ```
 
-#### 3.16.3 Bearer Token Authentication
+#### 3.17.3 Bearer Token Authentication
 
 Bearer token authentication.
 
@@ -1244,7 +1334,7 @@ authentication:
   token: "bearer_token"
 ```
 
-#### 3.16.4 Digest Authentication
+#### 3.17.4 Digest Authentication
 
 HTTP Digest Authentication.
 
@@ -1265,7 +1355,7 @@ authentication:
   password: "secret_password"
 ```
 
-#### 3.16.5 Rules
+#### 3.17.5 Rules
 
 - Only one authentication type can be used per authentication object.
 - The `type` field determines which additional fields are required or allowed.
@@ -1273,21 +1363,21 @@ authentication:
 
 ---
 
-### 3.17 ForwardConfig Object
+### 3.18 ForwardConfig Object
 
 Defines forwarding configuration for an exposed resource to pass requests through to a consumed namespace.
 
 > Update (schema v0.4): Renamed from `ForwardHeaders` to `ForwardConfig`. The `targetNamespaces` array has been replaced by a single `targetNamespace` string.
 > 
 
-#### 3.17.1 Fixed Fields
+#### 3.18.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **targetNamespace** | `string` | **REQUIRED**. The consumer namespace to forward requests to. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **trustedHeaders** | [`string`] | **REQUIRED**. List of headers allowed to be forwarded (minimum 1 entry). No wildcards supported. |
 
-#### 3.17.2 Rules
+#### 3.18.2 Rules
 
 - The `targetNamespace` field is mandatory and MUST reference a valid namespace from one of the capability's consumes entries.
 - The `trustedHeaders` array is mandatory and MUST contain at least one entry.
@@ -1295,7 +1385,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
 - No additional properties are allowed.
 
-#### 3.17.3 ForwardConfig Object Example
+#### 3.18.3 ForwardConfig Object Example
 
 ```yaml
 forward:
@@ -1307,28 +1397,28 @@ forward:
 
 ---
 
-### 3.18 WithInjector Object
+### 3.19 WithInjector Object
 
 Defines parameter injection for simple-mode exposed operations. Used with the `with` field on an ExposedOperation to inject values into the called consumed operation.
 
 > New in schema v0.4.
 > 
 
-#### 3.18.1 Shape
+#### 3.19.1 Shape
 
 `WithInjector` is an object whose keys are parameter names and whose values are static values or `$this` references.
 
 - Each key corresponds to a parameter `name` in the consumed operation's `inputParameters`.
 - Each value is a `string` or a `number`: either a static value or a `$this.{namespace}.{paramName}` reference.
 
-#### 3.18.2 Rules
+#### 3.19.2 Rules
 
 - The keys MUST correspond to valid parameter names in the consumed operation being called.
 - Values can be strings or numbers.
 - String values can use the `$this` root to reference exposed input parameters (same as in OperationStepParameter).
 - No additional constraints.
 
-#### 3.18.3 WithInjector Object Example
+#### 3.19.3 WithInjector Object Example
 
 ```yaml
 call: github.get-user
@@ -1340,7 +1430,7 @@ with:
 
 ---
 
-### 3.19 Bind Object
+### 3.20 Bind Object
 
 > **Updated**: `Bind` replaces the former `ExternalRef` discriminated union. The `type` and `resolution` fields have been removed. A single optional `location` URI field determines the provider. Variable names (left side of `keys`) use SCREAMING_SNAKE_CASE for visual distinction from declared parameters.
 > 
@@ -1370,7 +1460,7 @@ Typical production providers include:
 - **GitHub Actions Secrets** (`github-secrets://`)
 - **CI/CD pipeline variables** — runtime injection (location omitted)
 
-#### 3.19.1 BindingKeys Object
+#### 3.20.1 BindingKeys Object
 
 A map of key-value pairs that define the variables to be injected from the binding.
 
@@ -1389,7 +1479,7 @@ Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTI
 }
 ```
 
-#### 3.19.2 Rules
+#### 3.20.2 Rules
 
 - Each `namespace` value MUST be unique across all `binds` entries.
 - The `namespace` value MUST NOT collide with any `consumes` or `exposes` namespace to avoid ambiguity in expression resolution.
@@ -1405,7 +1495,7 @@ Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTI
 
 </aside>
 
-#### 3.19.3 Bind Object Examples
+#### 3.20.3 Bind Object Examples
 
 **File-based binding (development):**
 
@@ -1441,17 +1531,17 @@ binds:
 
 ---
 
-### 3.20 Expression Syntax
+### 3.21 Expression Syntax
 
 Variables declared in `binds` via the `keys` map are injected into the capability document using mustache-style `\{\{variable\}\}` expressions.
 
-#### 3.20.1 Format
+#### 3.21.1 Format
 
 The expression format is `\{\{KEY\}\}`, where `KEY` is a variable name (SCREAMING_SNAKE_CASE) declared in the `keys` map of a `binds` entry.
 
 Expressions can appear in any `string` value within the document, including authentication tokens, header values, and input parameter values.
 
-#### 3.20.2 Resolution
+#### 3.21.2 Resolution
 
 At runtime, expressions are resolved as follows:
 
@@ -1462,7 +1552,7 @@ At runtime, expressions are resolved as follows:
 
 If a referenced variable is not declared in any `binds` entry's `keys`, the document MUST be considered invalid.
 
-#### 3.20.3 Relationship with `$this`
+#### 3.21.3 Relationship with `$this`
 
 `\{\{variable\}\}` expressions and `$this` references serve different purposes:
 
@@ -1471,7 +1561,7 @@ If a referenced variable is not declared in any `binds` entry's `keys`, the docu
 
 The two expression systems are independent and MUST NOT be mixed.
 
-#### 3.20.4 Expression Examples
+#### 3.21.4 Expression Examples
 
 ```yaml
 # Authentication token from binding
@@ -1776,7 +1866,7 @@ capability:
                   name: "find-member"
                   index: "list-members"
                   match: "email"
-                  lookupValue: "$.query-tasks.assignee"
+                  lookupValue: "$this.team.email"
                   outputParameters:
                     - "fullName"
                     - "department"
@@ -1927,8 +2017,8 @@ capability:
                 - type: "lookup"
                   name: "match-contributors"
                   index: "list-github-users"
-                  match: "login"
-                  lookupValue: "$.query-tasks.assignee"
+                  match: "email"
+                  lookupValue: "$this.team.email"
                   outputParameters:
                     - "login"
                     - "avatar_url"

@@ -5,8 +5,8 @@
  * standalone files (documents without a `capability` key that have a root-level
  * section array) must not contain import entries (entries with a `from` field).
  *
- * This is a defense-in-depth layer on top of the JSON Schema root-level `oneOf`,
- * which structurally forbids `ImportEntry` variants in standalone branches.
+ * This is a defense-in-depth layer: the Spectral rule catches violations that
+ * may slip past schema validation when the document structure is ambiguous.
  */
 export default function standaloneNoImports(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
@@ -29,7 +29,7 @@ export default function standaloneNoImports(targetVal) {
 
     for (let i = 0; i < entries.length; i += 1) {
       const entry = entries[i];
-      if (entry && typeof entry.from === "string" && entry.from.length > 0) {
+      if (entry && typeof entry.from === "string") {
         results.push({
           message:
             "Standalone " +
