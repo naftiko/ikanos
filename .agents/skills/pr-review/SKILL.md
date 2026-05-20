@@ -293,7 +293,16 @@ The handoff file must include:
 - A clear statement that the receiving agent should fix these findings
 
 The receiving agent lists `/memories/repo/` to discover pending handoffs,
-applies the fixes, commits, pushes, and deletes the handoff file.
+then executes the following steps **in order**:
+
+1. Read the handoff file with `memory view /memories/repo/pr-review-<PR>.md`
+2. Apply all fixes to the files listed
+3. Commit and push
+4. Reply to any open inline review comments on GitHub
+5. If the diff reveals net-new findings not covered by the handoff (whether spotted while applying fixes or from an independent read of the diff), post them as a review comment on GitHub before closing out — do not silently drop them
+6. **Delete the handoff file: `memory delete /memories/repo/pr-review-<PR>.md`**
+
+Step 6 is mandatory — the agent must not consider the workflow complete until the handoff file is deleted.
 
 Once written, inform the user that the handoff file is ready and which agent
 should read it (see *Inter-agent communication* in `AGENTS.md`).
