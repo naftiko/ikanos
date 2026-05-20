@@ -100,28 +100,48 @@
         "ikanos",
         "consumes"
       ],
-      "not": { "required": ["capability"] }
+      "not": { "anyOf": [
+        { "required": ["capability"] },
+        { "required": ["exposes"] },
+        { "required": ["aggregates"] },
+        { "required": ["binds"] }
+      ]}
     },
     {
       "required": [
         "ikanos",
         "exposes"
       ],
-      "not": { "required": ["capability"] }
+      "not": { "anyOf": [
+        { "required": ["capability"] },
+        { "required": ["consumes"] },
+        { "required": ["aggregates"] },
+        { "required": ["binds"] }
+      ]}
     },
     {
       "required": [
         "ikanos",
         "aggregates"
       ],
-      "not": { "required": ["capability"] }
+      "not": { "anyOf": [
+        { "required": ["capability"] },
+        { "required": ["consumes"] },
+        { "required": ["exposes"] },
+        { "required": ["binds"] }
+      ]}
     },
     {
       "required": [
         "ikanos",
         "binds"
       ],
-      "not": { "required": ["capability"] }
+      "not": { "anyOf": [
+        { "required": ["capability"] },
+        { "required": ["consumes"] },
+        { "required": ["exposes"] },
+        { "required": ["aggregates"] }
+      ]}
     }
   ],
   "additionalProperties": false,
