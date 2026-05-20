@@ -207,6 +207,7 @@ Catches semantic and style issues such as:
 | **Quality** | Missing `description` on consumes entries, REST resources, or operations |
 | **Security** | `<script>` tags or `eval(` in description fields |
 | **Scripting** | Script steps missing `language`/`location` without Control Port defaults (`ikanos-script-defaults-required`) |
+| **Imports** | Import directive completeness (`from`+`import`), alias uniqueness, standalone leaf enforcement |
 
 For the full list, see the [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules) page.
 
