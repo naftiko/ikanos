@@ -4,9 +4,6 @@
  * Enforces §11.1 `ikanos-import-unique-alias` of the unified-import-mechanism blueprint:
  * within each section of a capability, the effective namespace of imported entries
  * (the `as` alias, or `import` when no `as`) must be unique.
- *
- * Also covers `ikanos-import-alias-when-needed` (info): suggests `as:` when two
- * imports in the same section target the same `import:` namespace.
  */
 export default function importAliasUnique(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
