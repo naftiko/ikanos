@@ -71,6 +71,26 @@ public abstract class ServerSpec {
         this.type.set(type);
     }
 
+    /**
+     * Returns the namespace of this adapter, or {@code null} if the adapter type does not use
+     * namespaces. Overridden by concrete subclasses that carry a {@code namespace} field
+     * (e.g. {@code RestServerSpec}, {@code McpServerSpec}, {@code SkillServerSpec}).
+     *
+     * <p>Defined here so the generic import resolver can read the namespace without
+     * downcasting to a specific subclass.</p>
+     */
+    public String getNamespace() {
+        return null;
+    }
+
+    /**
+     * Sets the namespace of this adapter. Overridden by concrete subclasses that carry a
+     * {@code namespace} field. The default implementation is a no-op.
+     */
+    public void setNamespace(String namespace) {
+        // no-op — subclasses that support namespace override this
+    }
+
     public String getAddress() {
         return address.get();
     }

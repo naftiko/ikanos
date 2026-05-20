@@ -33,7 +33,12 @@ import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.util.ExecutionContext;
 import io.ikanos.engine.consumes.ClientAdapter;
-import io.ikanos.engine.consumes.ConsumesImportResolver;
+import io.ikanos.engine.imports.AggregatesImportStrategy;
+import io.ikanos.engine.imports.BindsImportStrategy;
+import io.ikanos.engine.imports.ConsumesImportStrategy;
+import io.ikanos.engine.imports.ExposesImportStrategy;
+import io.ikanos.engine.imports.ImportResolver;
+import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
@@ -89,10 +94,23 @@ public class Capability {
     public Capability(IkanosSpec spec, String capabilityDir) throws Exception {
         this.spec.set(spec);
 
-        // Resolve consumes imports early before initializing adapters
-        if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
-            ConsumesImportResolver importResolver = new ConsumesImportResolver();
-            importResolver.resolveImports(spec.getCapability().getConsumes(), capabilityDir);
+        // Resolve imports across all four sections using the unified import mechanism.
+        // A shared SourceFileLoader caches parsed source files across section resolvers.
+        if (spec.getCapability() != null) {
+            Path capabilityPath = (capabilityDir != null && !capabilityDir.isEmpty())
+                    ? Path.of(capabilityDir) : null;
+
+            SourceFileLoader loader = new SourceFileLoader();
+
+            // §10 resolver pass order: consumes → aggregates → exposes → binds
+            new ImportResolver<>(new ConsumesImportStrategy(), loader)
+                    .resolveAll(spec.getCapability().getConsumes(), capabilityPath);
+            new ImportResolver<>(new AggregatesImportStrategy(), loader)
+                    .resolveAll(spec.getCapability().getAggregates(), capabilityPath);
+            new ImportResolver<>(new ExposesImportStrategy(), loader)
+                    .resolveAll(spec.getCapability().getExposes(), capabilityPath);
+            new ImportResolver<>(new BindsImportStrategy(), loader)
+                    .resolveAll(spec.getCapability().getBinds(), capabilityPath);
         }
 
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init

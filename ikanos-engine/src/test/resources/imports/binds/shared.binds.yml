@@ -1,0 +1,14 @@
+ikanos: "1.0.0-alpha3"
+binds:
+  - namespace: "weather-secrets"
+    description: "Weather API credentials"
+    location: "./secrets.env"
+    keys:
+      required:
+        - WEATHER_API_KEY
+  - namespace: "geo-secrets"
+    description: "Geo API credentials"
+    location: "./geo-secrets.env"
+    keys:
+      required:
+        - GEO_API_KEY
