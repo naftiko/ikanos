@@ -1,0 +1,13 @@
+ikanos: "1.0.0-alpha3"
+exposes:
+  - type: "rest"
+    namespace: "weather-rest"
+    address: "localhost"
+    port: 8080
+    resources: []
+  - type: "mcp"
+    namespace: "weather-mcp"
+    address: "localhost"
+    port: 3000
+    tools: []
+    resources: []

@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.ikanos.engine.consumes.ConsumesImportResolver;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 
@@ -38,9 +37,9 @@ import io.ikanos.spec.consumes.http.HttpClientSpec;
  * <pre>
  * consumes:
  *   - import: registry
- *     location: "./shared/step5-registry-consumes.yaml"
+ *     from: "./shared/step5-registry-consumes.yaml"
  *   - import: legacy
- *     location: "./shared/legacy-consumes.yaml"
+ *     from: "./shared/legacy-consumes.yaml"
  * </pre>
  *
  * <p>The capability exposes <strong>three tools</strong>:</p>
@@ -56,9 +55,10 @@ import io.ikanos.spec.consumes.http.HttpClientSpec;
  * <ol>
  *   <li>Patch both bind {@code location}s to an absolute URI so the {@link io.ikanos.engine.util.BindingResolver}
  *       finds the secrets file regardless of Maven CWD.</li>
- *   <li>Manually resolve imported consumes via {@link ConsumesImportResolver} using the
- *       tutorial directory as {@code capabilityDir}. This populates the consumes list with
- *       real {@link HttpClientSpec} objects before {@link io.ikanos.Capability} is constructed.</li>
+ *   <li>Resolve imported consumes via the unified {@link io.ikanos.engine.imports.ImportResolver}
+ *       (driven by the {@link io.ikanos.engine.imports.ConsumesImportStrategy}) in the
+ *       {@link io.ikanos.Capability} constructor using the tutorial directory as
+ *       {@code capabilityDir}.</li>
  *   <li>Patch the resolved {@code legacy} {@link HttpClientSpec#setBaseUri(String)} to a
  *       local XML mock server that returns the expected vessel XML.</li>
  * </ol>
