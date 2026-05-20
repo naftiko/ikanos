@@ -14,6 +14,7 @@
 package io.ikanos.engine.imports;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,23 +49,25 @@ public class SourceFileLoader {
      * Load and parse a YAML source file, returning a cached result if the same path has
      * already been loaded during this session.
      *
-     * @param absolutePath normalized absolute path to the source file
+     * @param absolutePath absolute path to the source file (normalized internally for cache safety)
      * @return the parsed {@link IkanosSpec}
      * @throws IOException if the file cannot be read or parsed
      */
     public IkanosSpec load(Path absolutePath) throws IOException {
-        IkanosSpec cached = cache.get(absolutePath);
-        if (cached != null) {
-            return cached;
-        }
+        Path key = absolutePath.normalize().toAbsolutePath();
 
         try {
-            IkanosSpec spec = yamlMapper.readValue(absolutePath.toFile(), IkanosSpec.class);
-            cache.put(absolutePath, spec);
-            return spec;
-        } catch (IOException e) {
+            return cache.computeIfAbsent(key, p -> {
+                try {
+                    return yamlMapper.readValue(p.toFile(), IkanosSpec.class);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (UncheckedIOException e) {
             throw new IOException(
-                    "Failed to load source file: " + absolutePath + " - " + e.getMessage(), e);
+                    "Failed to load source file: " + key + " - " + e.getCause().getMessage(),
+                    e.getCause());
         }
     }
 
