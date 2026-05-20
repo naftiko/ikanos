@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -115,6 +116,7 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         adapter.start();
 
         serverUrl = "http://localhost:" + port + "/";
+        waitForServerReady();
     }
 
     /**
@@ -132,6 +134,7 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         adapter.start();
 
         serverUrl = "http://localhost:" + port + "/";
+        waitForServerReady();
     }
 
     protected void disableMcpAuthentication(IkanosSpec spec) {
@@ -236,6 +239,24 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    /**
+     * Polls the server until it accepts a TCP connection, retrying up to 50 times
+     * with 100 ms between attempts (≈ 5 s ceiling). Guards against the race condition
+     * where {@code adapter.start()} returns before Jetty is fully listening.
+     */
+    private void waitForServerReady() throws Exception {
+        URI uri = URI.create(serverUrl);
+        for (int i = 0; i < 50; i++) {
+            try (var socket = new java.net.Socket()) {
+                socket.connect(new java.net.InetSocketAddress(uri.getHost(), uri.getPort()), 200);
+                return; // server is accepting connections
+            } catch (IOException ignored) {
+                Thread.sleep(100);
+            }
+        }
+        throw new AssertionError("Server did not become ready within 5 seconds at " + serverUrl);
     }
 
     private void normalizeTutorialSharedLocations(IkanosSpec spec) {
