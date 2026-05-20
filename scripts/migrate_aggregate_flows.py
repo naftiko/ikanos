@@ -40,17 +40,7 @@ PATTERN = re.compile(r'^(\s+)functions:', re.MULTILINE)
 REPLACEMENT = r'\1flows:'
 
 
-def migrate_file(path: Path) -> bool:
-    """Return True if the file was modified."""
-    original = path.read_text(encoding='utf-8')
-    updated = PATTERN.sub(REPLACEMENT, original)
-    if updated != original:
-        path.write_text(updated, encoding='utf-8')
-        return True
-    return False
-
-
-def migrate(paths: list[str]) -> None:
+def migrate(paths: list[str], dry_run: bool = False) -> None:
     total = 0
     modified = 0
     for raw in paths:
@@ -65,15 +55,29 @@ def migrate(paths: list[str]) -> None:
 
         for candidate in candidates:
             total += 1
-            if migrate_file(candidate):
+            original = candidate.read_text(encoding='utf-8')
+            updated = PATTERN.sub(REPLACEMENT, original)
+            if updated != original:
                 modified += 1
-                print(f'  migrated: {candidate}')
+                if dry_run:
+                    print(f'  would migrate: {candidate}')
+                else:
+                    candidate.write_text(updated, encoding='utf-8')
+                    print(f'  migrated: {candidate}')
 
-    print(f'\nDone — {modified}/{total} file(s) updated.')
+    if dry_run:
+        print(f'\nDry run — {modified}/{total} file(s) would be updated.')
+    else:
+        print(f'\nDone — {modified}/{total} file(s) updated.')
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print(f'Usage: {sys.argv[0]} <path> [<path> ...]', file=sys.stderr)
-        sys.exit(1)
-    migrate(sys.argv[1:])
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Migrate Ikanos capability YAML files from alpha3 `functions:` to `flows:`.')
+    parser.add_argument('paths', nargs='+', metavar='path',
+                        help='Files or directories to migrate.')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Print matches without modifying files.')
+    args = parser.parse_args()
+    migrate(args.paths, dry_run=args.dry_run)
