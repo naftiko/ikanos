@@ -59,7 +59,7 @@ class ImportDirectiveDeserializationTest {
     @BeforeEach
     void setUp() {
         mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
     }
 
     // ----- consumes -----
