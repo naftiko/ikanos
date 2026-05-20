@@ -126,7 +126,11 @@ public class ToolHandlerTest {
         ToolHandler handler = assertDoesNotThrow(
                 () -> new ToolHandler(null, toolMap));
 
+        // Valid tool must be registered and callable
         assertNotNull(handler.handleToolCall("valid-tool", Map.of()));
+        // Malformed entries (null/blank name) must have been dropped — calling them must throw
+        assertThrows(IllegalArgumentException.class,
+                () -> handler.handleToolCall("   ", Map.of()));
     }
 }
 
