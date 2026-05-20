@@ -18,38 +18,38 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link ConversionFormat#fromLabel(String)}.
+ * Unit tests for {@link ConversionFormat#fromDisplay(String)}.
  */
 public class ConversionFormatTest {
 
     @Test
-    void fromLabelShouldReturnNullForNullInput() {
-        assertNull(ConversionFormat.fromLabel(null),
+    void fromDisplayShouldReturnNullForNullInput() {
+        assertNull(ConversionFormat.fromDisplay(null),
                 "null input must return null — callers treat null as 'use default JSON'");
     }
 
     @Test
-    void fromLabelShouldReturnNullForUnknownFormat() {
-        assertNull(ConversionFormat.fromLabel("ini"),
+    void fromDisplayShouldReturnNullForUnknownFormat() {
+        assertNull(ConversionFormat.fromDisplay("ini"),
                 "unknown format must return null, not throw");
     }
 
     @Test
-    void fromLabelShouldMatchCaseInsensitively() {
-        assertEquals(ConversionFormat.JSON, ConversionFormat.fromLabel("JSON"));
-        assertEquals(ConversionFormat.JSON, ConversionFormat.fromLabel("json"));
-        assertEquals(ConversionFormat.XML,  ConversionFormat.fromLabel("Xml"));
-        assertEquals(ConversionFormat.CSV,  ConversionFormat.fromLabel("CSV"));
+    void fromDisplayShouldMatchCaseInsensitively() {
+        assertEquals(ConversionFormat.JSON, ConversionFormat.fromDisplay("JSON"));
+        assertEquals(ConversionFormat.JSON, ConversionFormat.fromDisplay("json"));
+        assertEquals(ConversionFormat.XML,  ConversionFormat.fromDisplay("Xml"));
+        assertEquals(ConversionFormat.CSV,  ConversionFormat.fromDisplay("CSV"));
     }
 
     @Test
-    void fromLabelShouldReturnCorrectConstantForEachKnownFormat() {
-        assertEquals(ConversionFormat.YAML,     ConversionFormat.fromLabel("yaml"));
-        assertEquals(ConversionFormat.TSV,      ConversionFormat.fromLabel("tsv"));
-        assertEquals(ConversionFormat.PSV,      ConversionFormat.fromLabel("psv"));
-        assertEquals(ConversionFormat.HTML,     ConversionFormat.fromLabel("html"));
-        assertEquals(ConversionFormat.MARKDOWN, ConversionFormat.fromLabel("markdown"));
-        assertEquals(ConversionFormat.PROTOBUF, ConversionFormat.fromLabel("protobuf"));
-        assertEquals(ConversionFormat.AVRO,     ConversionFormat.fromLabel("avro"));
+    void fromDisplayShouldReturnCorrectConstantForEachKnownFormat() {
+        assertEquals(ConversionFormat.YAML,     ConversionFormat.fromDisplay("yaml"));
+        assertEquals(ConversionFormat.TSV,      ConversionFormat.fromDisplay("tsv"));
+        assertEquals(ConversionFormat.PSV,      ConversionFormat.fromDisplay("psv"));
+        assertEquals(ConversionFormat.HTML,     ConversionFormat.fromDisplay("html"));
+        assertEquals(ConversionFormat.MARKDOWN, ConversionFormat.fromDisplay("markdown"));
+        assertEquals(ConversionFormat.PROTOBUF, ConversionFormat.fromDisplay("protobuf"));
+        assertEquals(ConversionFormat.AVRO,     ConversionFormat.fromDisplay("avro"));
     }
 }
