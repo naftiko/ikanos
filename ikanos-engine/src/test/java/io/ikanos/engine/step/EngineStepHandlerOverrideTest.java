@@ -125,6 +125,7 @@ class EngineStepHandlerOverrideTest {
         LinkedHashMap<String, OperationStepSpec> steps1 = new LinkedHashMap<>();
         steps1.put(step1.getName(), step1);
         steps1.put(step2.getName(), step2);
+        Map<String, Object> params = new HashMap<>();
         OperationStepExecutor.StepExecutionResult result =
                 executor.executeSteps(steps1, params);
 
