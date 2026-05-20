@@ -75,7 +75,7 @@
         <opentelemetry.version>1.48.0</opentelemetry.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
-        <revision>1.0.0-alpha3-SNAPSHOT</revision>
+        <revision>1.0.0-alpha12-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
           Each module's BUNDLE LINE / BRANCH coverage must stay >= these floors.
