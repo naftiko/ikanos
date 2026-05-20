@@ -15,7 +15,7 @@ def extract_version_from_pom(pom_path="pom.xml"):
         root = tree.getroot()
 
         namespace = {'maven': 'http://maven.apache.org/POM/4.0.0'}
-        version_elem = root.find('.//maven:version', namespace)
+        version_elem = root.find('.//maven:properties/maven:revision', namespace)
 
         if version_elem is None:
             version_elem = root.find('.//version')
