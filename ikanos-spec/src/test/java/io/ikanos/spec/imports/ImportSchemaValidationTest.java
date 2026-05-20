@@ -215,6 +215,7 @@ class ImportSchemaValidationTest {
         try (InputStream in = ImportSchemaValidationTest.class
                 .getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
+            assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode root = JSON.readTree(in);
             JsonNode importEntry = root.path("$defs").path("ImportEntry");
             assertFalse(importEntry.isMissingNode(), "$defs/ImportEntry must be defined");

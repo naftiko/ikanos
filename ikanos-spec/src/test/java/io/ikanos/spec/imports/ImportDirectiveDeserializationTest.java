@@ -27,6 +27,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.aggregates.ImportedAggregateSpec;
+import io.ikanos.spec.aggregates.InlineAggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
@@ -67,7 +68,6 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("consumes: import with alias and description deserializes into ImportedConsumesHttpSpec")
     void consumesImportShouldDeserializeIntoImportedConsumesHttpSpec() throws Exception {
         String yaml = """
-            type: "http"
             from: "./shared/notion.consumes.yml"
             import: "notion"
             as: "notion-shared"
@@ -103,7 +103,6 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("consumes: inline HttpClientSpec without 'from' is still parsed as HttpClientSpec")
     void consumesInlineWithoutFromShouldDeserializeAsHttpClientSpec() throws Exception {
         String yaml = """
-            type: "http"
             namespace: "api"
             baseUri: "https://api.example.com"
             resources: []
@@ -183,7 +182,7 @@ class ImportDirectiveDeserializationTest {
 
         AggregateSpec result = mapper.readValue(yaml, AggregateSpec.class);
 
-        assertTrue(result instanceof AggregateSpec);
+        assertInstanceOf(InlineAggregateSpec.class, result);
         assertEquals("crew-resolver", result.getNamespace());
     }
 
