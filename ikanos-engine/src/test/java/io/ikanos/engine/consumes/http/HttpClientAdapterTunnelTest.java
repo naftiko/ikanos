@@ -83,14 +83,13 @@ class HttpClientAdapterTunnelTest {
 
         HttpClientAdapter adapter = new HttpClientAdapter(null, spec, Map.of("ziti", new FakeTunnel()));
 
-        assertNotNull(adapter.getHttpClient().getContext(),
-                "tunnel-routed client must carry a Restlet Context");
-        Object routes = adapter.getHttpClient().getContext().getAttributes()
-                .get(TunnelRouteTable.CONTEXT_ATTRIBUTE);
-        assertNotNull(routes, "route table must be installed on the context");
-        org.junit.jupiter.api.Assertions.assertInstanceOf(TunnelRouteTable.class, routes);
-        assertEquals(1, ((TunnelRouteTable) routes).size());
-        assertNotNull(((TunnelRouteTable) routes).lookup("crm.internal"));
+        // Use the package-private test helper instead of reaching through the Restlet
+        // Context / attributes API: a future refactor that changes how the route table is
+        // stored only needs to update tunnelRouteTable(), not every assertion here.
+        TunnelRouteTable routes = adapter.tunnelRouteTable();
+        assertNotNull(routes, "tunnel-routed adapter must expose a route table");
+        assertEquals(1, routes.size());
+        assertNotNull(routes.lookup("crm.internal"));
     }
 
     @Test
@@ -100,11 +99,8 @@ class HttpClientAdapterTunnelTest {
         HttpClientAdapter adapter = new HttpClientAdapter(null, spec, Map.of());
 
         assertNotNull(adapter.getHttpClient());
-        // No tunnel = no route table context attribute installed.
-        if (adapter.getHttpClient().getContext() != null) {
-            assertNull(adapter.getHttpClient().getContext().getAttributes()
-                    .get(TunnelRouteTable.CONTEXT_ATTRIBUTE));
-        }
+        // Non-tunnel-routed adapter must not expose a route table.
+        assertNull(adapter.tunnelRouteTable());
     }
 
     @Test
@@ -113,6 +109,7 @@ class HttpClientAdapterTunnelTest {
         HttpClientSpec spec = new HttpClientSpec("http", "https://api.example.com", null);
         HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
         assertNotNull(adapter.getHttpClient());
+        assertNull(adapter.tunnelRouteTable());
     }
 
     private static final class FakeTunnel implements Tunnel {
