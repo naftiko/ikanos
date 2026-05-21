@@ -96,6 +96,13 @@ public final class TunnelBootstrap {
      * {@code (type, identity)} pairs are accepted, but mixing two different identities for
      * the same {@code type} in a single capability throws {@link IllegalStateException}.
      *
+     * <p><b>Failure atomicity.</b> If any step throws after some tunnels have already been
+     * started (for example, a later tunnel never becomes ready and {@link #waitReady} throws),
+     * every tunnel already in the result map is {@link Tunnel#close() closed} on a best-effort
+     * basis before the original exception propagates. The caller therefore never observes a
+     * partially-started set of tunnels: either all configured tunnels are returned, or none
+     * remain open. Close exceptions are suppressed so they do not mask the original cause.
+     *
      * @param clientSpecs the list of {@code consumes:} client specs
      * @param readyTimeout maximum time to wait per tunnel for readiness
      * @param bindings nested binding map for Mustache resolution of {@code tunnel.identity}
@@ -112,51 +119,75 @@ public final class TunnelBootstrap {
         if (clientSpecs == null) {
             return Map.of();
         }
-        for (ClientSpec clientSpec : clientSpecs) {
-            if (!(clientSpec instanceof HttpClientSpec http)) {
-                continue;
-            }
-            TunnelConfigSpec tunnelConfig = http.getTunnel();
-            if (tunnelConfig == null) {
-                continue;
-            }
-            String type = tunnelConfig.getType();
-            if (type == null || type.isBlank()) {
-                throw new IllegalStateException(
-                        "tunnel.type is required for ConsumesHttp tunnel block");
-            }
-            String identity = resolveIdentity(tunnelConfig, bindings);
-            String previous = identitiesByType.put(type, identity);
-            if (previous != null && !previous.equals(identity)) {
-                throw new IllegalStateException(
-                        "Multiple distinct identities configured for tunnel type '"
-                                + type
-                                + "'; Phase 2 supports a single identity per type.");
-            }
-            if (tunnels.containsKey(type)) {
-                continue;
-            }
-            String identityPropertyKey = "ikanos.tunnel." + type + ".identity";
-            boolean identityPropertySet = false;
-            if (identity != null && !identity.isBlank()) {
-                System.setProperty(identityPropertyKey, identity);
-                identityPropertySet = true;
-            }
-            try {
-                Tunnel tunnel = loadTunnel(type);
-                waitReady(tunnel, readyTimeout);
-                tunnels.put(type, tunnel);
-            } finally {
-                // Bound the JVM-global side-effect to the ServiceLoader call: by the time
-                // loadTunnel returns, the SPI provider has constructed and cached its
-                // context, so the property is no longer needed. Clearing it here prevents
-                // a second capability in the same JVM from observing a stale value.
-                if (identityPropertySet) {
-                    System.clearProperty(identityPropertyKey);
+        boolean success = false;
+        try {
+            for (ClientSpec clientSpec : clientSpecs) {
+                if (!(clientSpec instanceof HttpClientSpec http)) {
+                    continue;
+                }
+                TunnelConfigSpec tunnelConfig = http.getTunnel();
+                if (tunnelConfig == null) {
+                    continue;
+                }
+                String type = tunnelConfig.getType();
+                if (type == null || type.isBlank()) {
+                    throw new IllegalStateException(
+                            "tunnel.type is required for ConsumesHttp tunnel block");
+                }
+                String identity = resolveIdentity(tunnelConfig, bindings);
+                String previous = identitiesByType.put(type, identity);
+                if (previous != null && !previous.equals(identity)) {
+                    throw new IllegalStateException(
+                            "Multiple distinct identities configured for tunnel type '"
+                                    + type
+                                    + "'; Phase 2 supports a single identity per type.");
+                }
+                if (tunnels.containsKey(type)) {
+                    continue;
+                }
+                String identityPropertyKey = "ikanos.tunnel." + type + ".identity";
+                boolean identityPropertySet = false;
+                if (identity != null && !identity.isBlank()) {
+                    System.setProperty(identityPropertyKey, identity);
+                    identityPropertySet = true;
+                }
+                try {
+                    Tunnel tunnel = loadTunnel(type);
+                    waitReady(tunnel, readyTimeout);
+                    tunnels.put(type, tunnel);
+                } finally {
+                    // Bound the JVM-global side-effect to the ServiceLoader call: by the time
+                    // loadTunnel returns, the SPI provider has constructed and cached its
+                    // context, so the property is no longer needed. Clearing it here prevents
+                    // a second capability in the same JVM from observing a stale value.
+                    if (identityPropertySet) {
+                        System.clearProperty(identityPropertyKey);
+                    }
                 }
             }
+            success = true;
+            return Map.copyOf(tunnels);
+        } finally {
+            // If any step above threw (e.g. a later tunnel failed readiness while an earlier
+            // tunnel of a different type had already started), close every tunnel we already
+            // built. Without this, an InterruptedException-turned-IllegalStateException from
+            // waitReady — or any other mid-loop failure — would leak open SPI contexts that
+            // outlive the failed Capability bootstrap. Best-effort: close exceptions are
+            // suppressed so they do not mask the original failure.
+            if (!success) {
+                closeQuietly(tunnels.values());
+            }
         }
-        return Map.copyOf(tunnels);
+    }
+
+    private static void closeQuietly(Iterable<Tunnel> tunnels) {
+        for (Tunnel tunnel : tunnels) {
+            try {
+                tunnel.close();
+            } catch (Exception ignored) {
+                // best-effort cleanup on failed bootstrap; do not mask the original cause
+            }
+        }
     }
 
     /**
@@ -202,9 +233,14 @@ public final class TunnelBootstrap {
     /**
      * Package-private for testing. Locates the first {@link ServiceLoader} provider whose
      * {@link Tunnel#type()} matches {@code type}, or throws.
+     *
+     * <p>Uses the {@link Tunnel}-defining classloader explicitly (rather than the
+     * thread-context classloader picked up by the no-arg {@link ServiceLoader#load(Class)}
+     * overload) so SPI discovery is correct in OSGi containers and fat-jar layouts where
+     * the context classloader differs from the SPI classloader.
      */
     static Tunnel loadTunnel(String type) {
-        for (Tunnel candidate : ServiceLoader.load(Tunnel.class)) {
+        for (Tunnel candidate : ServiceLoader.load(Tunnel.class, Tunnel.class.getClassLoader())) {
             if (type.equals(candidate.type())) {
                 return candidate;
             }
