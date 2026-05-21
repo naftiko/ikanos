@@ -32,6 +32,7 @@ Here are additional documents to learn more:
 - :speedboat: [Tutorial - Part 2](https://github.com/naftiko/ikanos/wiki/Tutorial-%E2%80%90-Part-2)
 - :ship: [Guide - Use Cases](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Use-Cases)
 - :mag: [Guide - Linting](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Linting)
+- :electric_plug: [Guide - Reverse Tunnel](https://github.com/naftiko/ikanos/wiki/Guide-%E2%80%90-Reverse-Tunnel)
 - :anchor: [Specification - Schema](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Schema)
 - :triangular_ruler: [Specification - Rules](https://github.com/naftiko/ikanos/wiki/Specification-%E2%80%90-Rules)
 - :ocean: [FAQ](https://github.com/naftiko/ikanos/wiki/FAQ)
