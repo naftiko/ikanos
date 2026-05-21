@@ -151,11 +151,34 @@ public final class TunnelTransport implements Transport {
         new ChannelToEndPointPump(zitiChannel, remoteEndPoint).start();
     }
 
+    /**
+     * Hash combines the {@link System#identityHashCode(Object)} of the {@link Tunnel}
+     * instance with the {@code (host, port)} tuple.
+     *
+     * <p><b>Tunnel equality is reference identity ({@code ==}), not logical equality.</b>
+     * This is intentional and matches the {@code (tunnel, host, port)} pool-key contract
+     * documented at the class level. It is safe because {@link TunnelBootstrap} guarantees
+     * a single started {@link Tunnel} instance per {@code tunnel.type} per {@link
+     * io.ikanos.Capability}, shared by all {@link
+     * io.ikanos.engine.consumes.http.HttpClientAdapter} instances within that capability.
+     *
+     * <p>If two {@link TunnelTransport} instances are ever constructed for the same
+     * {@code (host, port)} with two different {@link Tunnel} instances of the same type
+     * (for example in a test, or in a hypothetical future multi-identity scenario), they
+     * will land in <i>different</i> Jetty connection pools — by design, since the two
+     * tunnels are physically distinct.
+     */
     @Override
     public int hashCode() {
         return Objects.hash(System.identityHashCode(tunnel), host, port);
     }
 
+    /**
+     * Equality compares the {@link Tunnel} by <b>reference identity</b> ({@code ==}), not by
+     * {@link Object#equals(Object)} or by {@link Tunnel#type()}. See {@link #hashCode()} for
+     * the rationale and the {@link TunnelBootstrap} single-instance-per-type guarantee that
+     * makes this correct.
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

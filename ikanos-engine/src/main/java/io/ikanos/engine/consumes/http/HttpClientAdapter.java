@@ -239,6 +239,29 @@ public class HttpClientAdapter extends ClientAdapter {
         return httpClient;
     }
 
+    /**
+     * Package-private test helper. Returns the {@link TunnelRouteTable} installed on this
+     * adapter's underlying Restlet {@link Client} context, or {@code null} when this adapter
+     * is not tunnel-routed.
+     *
+     * <p>This indirection lets tests assert tunnel-routing behaviour without reaching
+     * through the Restlet {@link Context} / attributes API in every assertion. If a future
+     * refactor changes how the route table is stored (e.g. moves it off the Restlet context
+     * to a dedicated field, or to a lazy-init slot for connection-pool reset), only this
+     * single method needs updating — the test suite stays green.
+     */
+    TunnelRouteTable tunnelRouteTable() {
+        if (httpClient == null) {
+            return null;
+        }
+        Context context = httpClient.getContext();
+        if (context == null) {
+            return null;
+        }
+        Object attribute = context.getAttributes().get(TunnelRouteTable.CONTEXT_ATTRIBUTE);
+        return attribute instanceof TunnelRouteTable table ? table : null;
+    }
+
     @Override
     public void start() throws Exception {
         getHttpClient().start();
