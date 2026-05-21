@@ -215,6 +215,17 @@ public final class TunnelTransport implements Transport {
             int filled = endPoint.fill(buffer);
             BufferUtil.flipToFlush(buffer, 0);
             if (filled < 0) {
+                // EOS on the Jetty side: the local endpoint has signalled that the application
+                // has finished writing the request body. The pump finishes successfully, which
+                // dispatches to onCompleteSuccess() and closes the tunnel write side
+                // (channel.close()). We deliberately do NOT close the EndPoint itself here:
+                // (1) Jetty's MemoryEndPointPipe drives the EndPoint lifecycle and closes the
+                //     local side on its own EOS detection.
+                // (2) The opposite direction (ChannelToEndPointPump) is still expected to
+                //     deliver the response on the same EndPoint; closing it now would abort
+                //     the response. ChannelToEndPointPump.completed(result < 0) calls
+                //     endPoint.shutdownOutput()/close() once the tunnel side reports EOS,
+                //     which is the correct moment to tear down the EndPoint.
                 return Action.SUCCEEDED;
             }
             if (filled == 0) {

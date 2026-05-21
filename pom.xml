@@ -58,6 +58,19 @@
         <module>ikanos-cli</module>
         <module>ikanos-docs</module>
         <module>ikanos-coverage</module>
+        <!--
+          ikanos-tunnel-ziti is a reactor module so it compiles, tests, and releases with
+          the rest of the build, but it is NOT a transitive dependency of ikanos-cli (the
+          CLI only depends on ikanos-engine, which discovers Tunnel SPI providers at
+          runtime via java.util.ServiceLoader). Consequently:
+          - The "native" profile in ikanos-cli/pom.xml shades only the CLI's transitive
+            dependencies into cli-native.jar, so ikanos-tunnel-ziti and the OpenZiti SDK
+            do not enter the GraalVM native-image step and cannot break it.
+          - A future deployment that DOES want OpenZiti inside the native binary would
+            need to add ikanos-tunnel-ziti as a runtime dependency of ikanos-cli AND
+            register the appropriate reflect-config.json / proxy-config.json under
+            META-INF/native-image/ for the OpenZiti SDK's reflective/proxy use sites.
+        -->
         <module>ikanos-tunnel-ziti</module>
     </modules>
 
