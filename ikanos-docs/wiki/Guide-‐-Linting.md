@@ -323,6 +323,16 @@ functionsDir: ./functions
 
 functions:
   - check-binds-location-scheme
+
+rules:
+  my-org-binds-location-scheme:
+    message: "Bind locations must use an approved URI scheme."
+    severity: error
+    given:
+      - "$.binds[*].location"
+      - "$.capability.binds[*].location"
+    then:
+      function: check-binds-location-scheme
 ```
 
 ### Full Example
