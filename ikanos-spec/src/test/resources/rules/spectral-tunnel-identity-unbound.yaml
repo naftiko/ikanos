@@ -30,4 +30,4 @@ capability:
               outputParameters:
                 - name: "result"
                   type: "string"
-                  const: "ok"
+                  value: "ok"
