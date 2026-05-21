@@ -14,11 +14,14 @@
 package io.ikanos.engine.consumes.http;
 
 import org.restlet.Client;
+import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
+import io.ikanos.engine.consumes.tunnel.Tunnel;
+import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
@@ -31,6 +34,9 @@ import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,11 +44,84 @@ import java.util.Map;
  */
 public class HttpClientAdapter extends ClientAdapter {
 
+    /**
+     * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
+     * Restlet instantiates reflectively when this adapter routes requests through a tunnel.
+     * Kept as a string constant so the engine module need not statically depend on the helper
+     * class via the Restlet helper-resolution path.
+     */
+    static final String TUNNEL_AWARE_HELPER_CLASS_NAME =
+            "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper";
+
     private final Client httpClient;
 
     public HttpClientAdapter(Capability capability, HttpClientSpec spec) {
+        this(capability, spec, Map.of());
+    }
+
+    /**
+     * Tunnel-aware constructor used by {@link Capability} bootstrap.
+     *
+     * <p>When {@code spec.getTunnel()} is non-null AND {@code tunnels} contains an entry for
+     * the tunnel's type, the underlying Restlet {@link Client} is created with a custom
+     * {@link TunnelAwareHttpClientHelper} that installs a Jetty request listener routing
+     * matching hosts through the tunnel. Otherwise this behaves identically to the 2-arg
+     * constructor (direct internet path).
+     *
+     * @param capability the owning capability
+     * @param spec the consumed-HTTP spec
+     * @param tunnels {@code tunnel.type → Tunnel} map of started tunnel instances; an empty
+     *     map disables tunnel routing
+     */
+    public HttpClientAdapter(
+            Capability capability, HttpClientSpec spec, Map<String, Tunnel> tunnels) {
         super(capability, spec);
-        this.httpClient = new Client(HTTP, HTTPS);
+        Tunnel tunnel = selectTunnel(spec, tunnels);
+        if (tunnel == null) {
+            this.httpClient = new Client(HTTP, HTTPS);
+        } else {
+            TunnelRouteTable routes = new TunnelRouteTable();
+            routes.register(extractHost(spec), tunnel);
+            Context restletContext = new Context();
+            restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
+            this.httpClient = new Client(
+                    restletContext, List.of(HTTP, HTTPS), TUNNEL_AWARE_HELPER_CLASS_NAME);
+        }
+    }
+
+    /**
+     * Package-private for testing. Resolves the {@link Tunnel} instance that should serve
+     * {@code spec}, or {@code null} when no tunnel is configured or available.
+     */
+    static Tunnel selectTunnel(HttpClientSpec spec, Map<String, Tunnel> tunnels) {
+        if (spec == null || spec.getTunnel() == null || tunnels == null || tunnels.isEmpty()) {
+            return null;
+        }
+        return tunnels.get(spec.getTunnel().getType());
+    }
+
+    /**
+     * Package-private for testing. Extracts the host portion of {@link HttpClientSpec#getBaseUri()}
+     * for use as the {@link TunnelRouteTable} key.
+     */
+    static String extractHost(HttpClientSpec spec) {
+        String baseUri = spec.getBaseUri();
+        if (baseUri == null || baseUri.isBlank()) {
+            throw new IllegalArgumentException(
+                    "ConsumesHttp.baseUri is required when tunnel is configured");
+        }
+        try {
+            URI uri = new URI(baseUri);
+            String host = uri.getHost();
+            if (host == null) {
+                throw new IllegalArgumentException(
+                        "ConsumesHttp.baseUri must include a host: " + baseUri);
+            }
+            return host;
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException(
+                    "Invalid ConsumesHttp.baseUri: " + baseUri, ex);
+        }
     }
 
     public HttpClientSpec getHttpClientSpec() {

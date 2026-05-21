@@ -40,6 +40,8 @@ import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.tunnel.Tunnel;
+import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
@@ -181,9 +183,18 @@ public class Capability {
             }
         }
 
+        // Discover and start any reverse-tunnel transports declared by consumes-blocks
+        // BEFORE constructing HttpClientAdapters, so the adapter constructors receive a
+        // started (or empty) tunnel map. The 30s default readiness gate matches the
+        // §6.5 design in blueprints/reverse-tunnel-private-network.md.
+        Map<String, Tunnel> tunnels = TunnelBootstrap.discoverAndStart(
+                spec.getCapability().getConsumes(),
+                java.time.Duration.ofSeconds(30),
+                this.bindings.get());
+
         for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
             if ("http".equals(clientSpec.getType())) {
-                clientList.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec));
+                clientList.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec, tunnels));
             }
         }
 
