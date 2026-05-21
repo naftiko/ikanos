@@ -58,6 +58,7 @@
         <module>ikanos-cli</module>
         <module>ikanos-docs</module>
         <module>ikanos-coverage</module>
+        <module>ikanos-tunnel-ziti</module>
     </modules>
 
     <properties>
@@ -75,6 +76,7 @@
         <opentelemetry.version>1.48.0</opentelemetry.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
+        <openziti.version>0.33.1</openziti.version>
         <revision>1.0.0-alpha3-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
@@ -119,6 +121,11 @@
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-engine</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openziti</groupId>
+                <artifactId>ziti</artifactId>
+                <version>${openziti.version}</version>
             </dependency>
 
             <!-- CLI -->
