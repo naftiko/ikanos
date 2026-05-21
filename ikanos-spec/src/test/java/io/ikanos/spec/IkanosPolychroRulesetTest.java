@@ -189,6 +189,106 @@ public class IkanosPolychroRulesetTest {
                 + output);
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // §11 — Unified import mechanism rules
+    //
+    // The fixtures under src/test/resources/imports/ each trigger a single
+    // import-related Spectral rule. Each assertion verifies:
+    //   1. The lint exits non-zero (rule severity is `error`, except
+    //      `ikanos-import-from-not-self` which is `warn` — that test
+    //      asserts the rule id appears in output but does not check exit
+    //      code).
+    //   2. The expected rule id appears in the lint output.
+    //
+    // See blueprints/unified-import-mechanism.md §11 for the rule catalog
+    // and ikanos-rules.yml §6 for the rule definitions.
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void standaloneNoImportsRuleShouldFireWhenStandaloneFileContainsImport() {
+        assertRuleFires("imports/standalone-with-imports.yaml", "ikanos-standalone-no-imports");
+    }
+
+    @Test
+    public void importFromRequiredRuleShouldFireWhenImportFieldIsMissing() {
+        assertRuleFires("imports/import-missing-fields.yaml", "ikanos-import-from-required");
+    }
+
+    @Test
+    public void importImportRequiredRuleShouldFireWhenFromFieldIsMissing() {
+        assertRuleFires("imports/import-missing-fields.yaml", "ikanos-import-import-required");
+    }
+
+    @Test
+    public void importUniqueAliasRuleShouldFireWhenTwoImportsShareEffectiveNamespace() {
+        assertRuleFires("imports/import-duplicate-alias.yaml", "ikanos-import-unique-alias");
+    }
+
+    @Test
+    public void importFromNotSelfRuleShouldFireWhenImportFromIsBareDot() {
+        ProcessResult result = lintFixture("imports/import-from-self.yaml");
+        assertTrue(result.output().contains("ikanos-import-from-not-self"),
+            "Expected lint output to reference ikanos-import-from-not-self.\n"
+                + result.output());
+    }
+
+    @Test
+    public void exposesNamespaceRequiredRuleShouldFireForStandaloneExposeMissingNamespace() {
+        assertRuleFires("imports/exposes-namespace-missing.yaml",
+            "ikanos-exposes-namespace-required");
+    }
+
+    @Test
+    public void exposesNamespaceRequiredRuleShouldFireForCapabilityExposeMissingNamespace() {
+        assertRuleFires("imports/capability-exposes-namespace-missing.yaml",
+            "ikanos-exposes-namespace-required");
+    }
+
+    @Test
+    public void aggregatesNamespaceRequiredRuleShouldFireForStandaloneAggregateMissingNamespace() {
+        assertRuleFires("imports/aggregates-namespace-missing.yaml",
+            "ikanos-aggregates-namespace-required");
+    }
+
+    @Test
+    public void aggregatesNamespaceRequiredRuleShouldFireForCapabilityAggregateMissingNamespace() {
+        assertRuleFires("imports/capability-aggregates-namespace-missing.yaml",
+            "ikanos-aggregates-namespace-required");
+    }
+
+    @Test
+    public void aggregateFunctionUniqueRuleShouldFireWhenTwoFunctionsShareAName() {
+        assertRuleFires("imports/aggregate-duplicate-function-name.yaml",
+            "ikanos-aggregates-unique-function-name");
+    }
+
+    /**
+     * Lint a fixture file under {@code src/test/resources/} with the project ruleset.
+     */
+    private ProcessResult lintFixture(String relativePath) {
+        return runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/" + relativePath,
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+    }
+
+    /**
+     * Assert that linting a fixture both exits non-zero and includes the given rule id
+     * in its output. Use this for any rule whose severity is {@code error}.
+     */
+    private void assertRuleFires(String fixturePath, String ruleId) {
+        ProcessResult result = lintFixture(fixturePath);
+        assertTrue(result.exitCode() != 0,
+            "Expected fixture '" + fixturePath + "' to fail linting, but it passed.\n"
+                + result.output());
+        assertTrue(result.output().contains(ruleId),
+            "Expected lint output for '" + fixturePath + "' to reference " + ruleId + ".\n"
+                + result.output());
+    }
+
     private boolean isCommandAvailable(String command, String arg) {
         ProcessResult result = runCommand(command, arg);
         return result.exitCode() == 0;

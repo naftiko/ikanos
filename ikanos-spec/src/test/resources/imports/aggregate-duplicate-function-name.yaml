@@ -1,0 +1,21 @@
+# Aggregate with two functions sharing the same name.
+# Should trigger: ikanos-aggregates-unique-function-name
+ikanos: "1.0.0-alpha3"
+
+capability:
+  aggregates:
+    - label: Weather Service
+      namespace: weather
+      functions:
+        - name: get-forecast
+          description: First definition
+          call: weather-api.get-forecast
+          outputParameters:
+            - type: string
+              mapping: $.forecast
+        - name: get-forecast
+          description: Duplicate name — should be flagged
+          call: weather-api.get-forecast-v2
+          outputParameters:
+            - type: string
+              mapping: $.forecast

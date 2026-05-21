@@ -470,30 +470,38 @@ rules:
     then:
       function: standalone-no-imports
 
-  # §11.4 — Section-specific: namespace required in source files
+  # §11.4 — Section-specific: namespace required (importability)
 
   ikanos-exposes-namespace-required:
-    message: "Each exposed adapter in a source file must have a 'namespace'."
+    message: "Each exposed adapter must have a 'namespace' to be importable."
     description: >
-      Without a namespace, the import directive cannot reference the adapter.
-      Applies to standalone exposes entries (root-level 'exposes' array).
+      Without a namespace, an exposed adapter cannot be referenced by an
+      import directive from another file. Applies to standalone source files
+      (root-level 'exposes' array) and to inline entries under
+      'capability.exposes' that declare a 'type' (i.e. local definitions,
+      not import entries — which have 'from' instead).
     severity: error
     recommended: true
     given:
       - "$.exposes[*]"
+      - "$.capability.exposes[?(@.type)]"
     then:
       field: "namespace"
       function: truthy
 
   ikanos-aggregates-namespace-required:
-    message: "Each aggregate in a source file must have a 'namespace'."
+    message: "Each aggregate must have a 'namespace' to be importable."
     description: >
-      Without a namespace, the import directive cannot reference the aggregate.
-      Applies to standalone aggregates entries (root-level 'aggregates' array).
+      Without a namespace, an aggregate cannot be referenced by an import
+      directive from another file. Applies to standalone source files
+      (root-level 'aggregates' array) and to inline entries under
+      'capability.aggregates' that declare 'functions' (i.e. local
+      definitions, not import entries — which have 'from' instead).
     severity: error
     recommended: true
     given:
       - "$.aggregates[*]"
+      - "$.capability.aggregates[?(@.functions)]"
     then:
       field: "namespace"
       function: truthy
