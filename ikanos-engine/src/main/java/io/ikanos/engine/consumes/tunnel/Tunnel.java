@@ -22,8 +22,12 @@ import java.nio.channels.AsynchronousSocketChannel;
  *
  * <p>Implementations are discovered via {@link java.util.ServiceLoader} at bootstrap, matched
  * to a {@code ConsumesHttp.tunnel} block by {@link #type()}, and pooled per
- * {@code (type, identity)} so that two {@code ConsumesHttp} entries sharing the same identity
- * also share one underlying context.
+ * {@code tunnel.type}: a single started {@code Tunnel} instance per type is shared across
+ * every {@code ConsumesHttp} entry that references it (see {@link TunnelBootstrap}). The
+ * declared {@code tunnel.identity} is checked for conflicts ({@link TunnelBootstrap} rejects
+ * two different identities for the same type) but is <b>not</b> part of the pool key &mdash;
+ * Phase 2 supports a single identity per type. A composite {@code (type, identity)} pool
+ * key may be introduced when multi-identity support lands.
  *
  * <h2>Design notes</h2>
  *
