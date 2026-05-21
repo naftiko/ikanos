@@ -52,11 +52,19 @@ public abstract class TunnelConfigSpec {
         this.type = type;
     }
 
-    public String getType() {
+    public final String getType() {
         return type;
     }
 
-    public void setType(String type) {
+    /**
+     * Package-private setter used exclusively by Jackson during deserialization to
+     * populate the {@code type} discriminator before the subtype is resolved. The
+     * field is otherwise considered immutable once the concrete subtype is
+     * constructed — exposing this setter publicly would allow callers to break
+     * the {@link com.fasterxml.jackson.annotation.JsonTypeInfo} invariant by
+     * mutating the discriminator independently of the runtime class.
+     */
+    void setType(String type) {
         this.type = type;
     }
 

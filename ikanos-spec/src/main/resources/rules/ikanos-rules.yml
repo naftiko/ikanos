@@ -547,7 +547,9 @@ rules:
       operator decide how to recover.
     severity: warn
     recommended: true
-    given: "$.capability.consumes[?(@.tunnel && @.tunnel.fallback == 'direct')].baseUri"
+    given:
+      - "$.capability.consumes[?(@.tunnel && @.tunnel.fallback == 'direct')].baseUri"
+      - "$.consumes[?(@.tunnel && @.tunnel.fallback == 'direct')].baseUri"
     then:
       function: pattern
       functionOptions:
@@ -565,7 +567,9 @@ rules:
       public internet.
     severity: info
     recommended: true
-    given: "$.capability.consumes[?(@.tunnel)].baseUri"
+    given:
+      - "$.capability.consumes[?(@.tunnel)].baseUri"
+      - "$.consumes[?(@.tunnel)].baseUri"
     then:
       function: pattern
       functionOptions:
