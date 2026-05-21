@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.ikanos</groupId>
+        <artifactId>ikanos-parent</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>ikanos-tunnel-ziti</artifactId>
+    <name>Ikanos Tunnel — OpenZiti</name>
+    <description>OpenZiti implementation of the Ikanos reverse-tunnel SPI. Drop this jar on the classpath to enable type=ziti tunnels declared in capability YAML (blueprint reverse-tunnel-private-network).</description>
+
+    <dependencies>
+        <!-- SPI we implement -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-engine</artifactId>
+        </dependency>
+
+        <!-- OpenZiti SDK -->
+        <dependency>
+            <groupId>org.openziti</groupId>
+            <artifactId>ziti</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
