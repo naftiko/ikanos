@@ -78,6 +78,12 @@ public class ExposesImportStrategy implements ImportStrategy<ServerSpec> {
 
     @Override
     public ServerSpec deepCopy(ServerSpec inline, SourceFileLoader loader) throws IOException {
-        return loader.deepCopy(inline, ServerSpec.class);
+        // Use the concrete runtime subclass as the deserialization target so the
+        // Jackson round-trip is self-describing regardless of which ServerSpec
+        // subtype is involved. Targeting the abstract ServerSpec.class would force
+        // reliance on ServerSpecDeserializer's "type" discriminator and would silently
+        // mistype (or cryptically fail) for any future subclass that lacks a
+        // discriminant field in its serialized form.
+        return loader.deepCopy(inline, inline.getClass().asSubclass(ServerSpec.class));
     }
 }
