@@ -1,0 +1,8 @@
+# Standalone source file (no `capability` key) that contains an import entry.
+# Should trigger: ikanos-standalone-no-imports
+ikanos: "1.0.0-alpha3"
+
+exposes:
+  - namespace: weather
+    from: ./weather.yml
+    import: weather-rest

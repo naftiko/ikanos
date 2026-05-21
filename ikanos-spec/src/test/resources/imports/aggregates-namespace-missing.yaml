@@ -1,0 +1,14 @@
+# Standalone source file with an `aggregates` entry that lacks `namespace`.
+# Should trigger: ikanos-aggregates-namespace-required
+ikanos: "1.0.0-alpha3"
+
+aggregates:
+  - label: Weather Service
+    # missing: namespace
+    functions:
+      - name: get-forecast
+        description: Get weather forecast
+        call: weather-api.get-forecast
+        outputParameters:
+          - type: string
+            mapping: $.forecast

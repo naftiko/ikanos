@@ -1,0 +1,13 @@
+# Capability with an import entry missing the required `import` field
+# and another entry missing the required `from` field.
+# Should trigger:
+#   - ikanos-import-from-required  (entry 0 has `from` but no `import`)
+#   - ikanos-import-import-required (entry 1 has `import` but no `from` and no `type`)
+ikanos: "1.0.0-alpha3"
+
+capability:
+  consumes:
+    - from: ./weather.yml
+      # missing: import
+    - import: weather-api
+      # missing: from
