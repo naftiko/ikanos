@@ -72,14 +72,35 @@ public final class TunnelBootstrap {
      * no-arg constructor required for {@link ServiceLoader} — while still letting providers
      * read per-deployment configuration.
      *
+     * <p><b>Bindings shape.</b> {@code bindings} is the same nested map structure consumed
+     * by {@link Resolver#resolveMustacheTemplate(String, Map)} elsewhere in the engine:
+     * a top-level namespace map whose values are themselves maps of {@code key → value}.
+     * For example, an identity template {@code "{{secrets.IDENT_PATH}}"} requires:
+     * <pre>{@code
+     * Map.of("secrets", Map.of("IDENT_PATH", "/etc/ziti/app.json"))
+     * }</pre>
+     * A flat map (e.g. {@code Map.of("IDENT_PATH", "/etc/ziti/app.json")}) will not satisfy
+     * a {@code "{{secrets.IDENT_PATH}}"} template. To catch this early, {@link
+     * #resolveIdentity} fails fast when the raw identity contains a Mustache expression but
+     * resolution leaves any unresolved {@code {{...}}} marker in the output — see {@link
+     * #resolveIdentity} for the exact condition.
+     *
+     * <p>The per-type identity system property is cleared immediately after {@link
+     * #loadTunnel(String)} returns. The context is constructed and cached by the SPI
+     * provider at that point, so the property is no longer needed; clearing it bounds the
+     * JVM-global side-effect to the {@link ServiceLoader} call and avoids races when two
+     * {@link io.ikanos.Capability} instances coexist in the same JVM (parallel unit tests
+     * today, multi-capability deployments in a future server mode).
+     *
      * <p>For Phase 2 only one identity per {@code tunnel.type} is supported; duplicate
      * {@code (type, identity)} pairs are accepted, but mixing two different identities for
      * the same {@code type} in a single capability throws {@link IllegalStateException}.
      *
      * @param clientSpecs the list of {@code consumes:} client specs
      * @param readyTimeout maximum time to wait per tunnel for readiness
-     * @param bindings binding map for Mustache resolution of {@code tunnel.identity}; may be
-     *     {@code null} or empty if no Mustache substitution is needed
+     * @param bindings nested binding map for Mustache resolution of {@code tunnel.identity}
+     *     (shape: {@code namespace → key → value}); may be {@code null} or empty when no
+     *     Mustache substitution is needed
      * @return immutable map of {@code tunnel.type → Tunnel}
      */
     public static Map<String, Tunnel> discoverAndStart(
@@ -115,12 +136,25 @@ public final class TunnelBootstrap {
             if (tunnels.containsKey(type)) {
                 continue;
             }
+            String identityPropertyKey = "ikanos.tunnel." + type + ".identity";
+            boolean identityPropertySet = false;
             if (identity != null && !identity.isBlank()) {
-                System.setProperty("ikanos.tunnel." + type + ".identity", identity);
+                System.setProperty(identityPropertyKey, identity);
+                identityPropertySet = true;
             }
-            Tunnel tunnel = loadTunnel(type);
-            waitReady(tunnel, readyTimeout);
-            tunnels.put(type, tunnel);
+            try {
+                Tunnel tunnel = loadTunnel(type);
+                waitReady(tunnel, readyTimeout);
+                tunnels.put(type, tunnel);
+            } finally {
+                // Bound the JVM-global side-effect to the ServiceLoader call: by the time
+                // loadTunnel returns, the SPI provider has constructed and cached its
+                // context, so the property is no longer needed. Clearing it here prevents
+                // a second capability in the same JVM from observing a stale value.
+                if (identityPropertySet) {
+                    System.clearProperty(identityPropertyKey);
+                }
+            }
         }
         return Map.copyOf(tunnels);
     }
@@ -128,6 +162,13 @@ public final class TunnelBootstrap {
     /**
      * Package-private for testing. Returns the resolved identity string, or {@code null} when
      * no identity is configured for this tunnel type.
+     *
+     * <p>If the raw identity contains a Mustache expression ({@code {{...}}}) and the
+     * resolved value still contains an unresolved {@code {{...}}} marker, an
+     * {@link IllegalStateException} is thrown. This catches the common mistake of passing a
+     * flat map (e.g. {@code Map.of("IDENT", "...")}) when the template references a
+     * namespaced key (e.g. {@code "{{secrets.IDENT}}"}) — without this guard, the unresolved
+     * template would silently propagate to the SPI provider as a literal file path.
      */
     static String resolveIdentity(TunnelConfigSpec spec, Map<String, Object> bindings) {
         if (spec instanceof ZitiTunnelConfigSpec ziti) {
@@ -138,7 +179,22 @@ public final class TunnelBootstrap {
             if (bindings == null || bindings.isEmpty()) {
                 return raw;
             }
-            return Resolver.resolveMustacheTemplate(raw, bindings);
+            String resolved = Resolver.resolveMustacheTemplate(raw, bindings);
+            // Fail fast when the template was non-empty but resolution produced no output —
+            // this happens when the caller passes a flat binding map (or one missing the
+            // referenced namespace), because Resolver substitutes missing variables with the
+            // empty string. Without this guard, the SPI provider would silently start with
+            // an empty identity path.
+            boolean mustacheTemplate = raw.contains("{{");
+            if (mustacheTemplate
+                    && (resolved == null || resolved.isBlank() || resolved.contains("{{"))) {
+                throw new IllegalStateException(
+                        "tunnel.identity Mustache expression '" + raw
+                                + "' could not be resolved against the provided bindings."
+                                + " Expected nested map shape (namespace -> key -> value),"
+                                + " e.g. {\"secrets\": {\"IDENT\": \"/etc/ziti/app.json\"}}.");
+            }
+            return resolved;
         }
         return null;
     }
