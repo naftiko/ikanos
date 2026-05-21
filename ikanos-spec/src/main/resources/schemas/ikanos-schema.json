@@ -313,10 +313,10 @@
                 "value"
               ]
             }
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "MappedOutputParameterNumber": {
       "allOf": [
@@ -343,10 +343,10 @@
                 "value"
               ]
             }
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "MappedOutputParameterBoolean": {
       "allOf": [
@@ -373,10 +373,10 @@
                 "value"
               ]
             }
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "MappedOutputParameterObject": {
       "allOf": [
@@ -401,10 +401,10 @@
           },
           "required": [
             "properties"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "MappedOutputParameterArray": {
       "allOf": [
@@ -425,10 +425,10 @@
           },
           "required": [
             "items"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "MappedOutputParameter": {
       "description": "Inline-mapped output parameter (simple mode). Used when the exposed operation has a single call + with.",
@@ -483,10 +483,10 @@
                 "boolean"
               ]
             }
-          },
-          "unevaluatedProperties": false
+          }
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterArray": {
       "allOf": [
@@ -508,10 +508,10 @@
           },
           "required": [
             "items"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterObject": {
       "allOf": [
@@ -532,10 +532,10 @@
           },
           "required": [
             "properties"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OrchestratedOutputParameter": {
       "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups.",
@@ -1833,10 +1833,10 @@
           },
           "required": [
             "call"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepLookup": {
       "allOf": [
@@ -1874,10 +1874,10 @@
             "match",
             "lookupValue",
             "outputParameters"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepScript": {
       "allOf": [
@@ -1924,10 +1924,10 @@
           },
           "required": [
             "file"
-          ],
-          "unevaluatedProperties": false
+          ]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStep": {
       "oneOf": [
