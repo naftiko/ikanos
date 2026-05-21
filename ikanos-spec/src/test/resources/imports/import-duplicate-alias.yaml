@@ -1,0 +1,15 @@
+# Capability with two import entries sharing the same effective namespace.
+# Should trigger: ikanos-import-unique-alias
+#
+# Both entries resolve to effective namespace "weather":
+#   - entry 0: `import: weather` (no `as`)
+#   - entry 1: `import: forecast`, `as: weather`
+ikanos: "1.0.0-alpha3"
+
+capability:
+  consumes:
+    - from: ./weather-api.yml
+      import: weather
+    - from: ./forecast-api.yml
+      import: forecast
+      as: weather
