@@ -204,9 +204,12 @@ public class TelemetryBootstrap {
         } else {
             // No OTLP endpoint in spec — default to none to avoid spurious connection errors
             // to localhost:4317 (e.g. inside Docker). OTel env vars still take precedence.
-            props.putIfAbsent("otel.traces.exporter", "none");
-            props.putIfAbsent("otel.metrics.exporter", "none");
-            props.putIfAbsent("otel.logs.exporter", "none");
+            String envEndpoint = System.getenv("OTEL_EXPORTER_OTLP_ENDPOINT");
+            if (envEndpoint == null || envEndpoint.isBlank()) {
+                props.putIfAbsent("otel.traces.exporter", "none");
+                props.putIfAbsent("otel.metrics.exporter", "none");
+                props.putIfAbsent("otel.logs.exporter", "none");
+            }
         }
         return props;
     }
