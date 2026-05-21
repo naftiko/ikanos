@@ -1,0 +1,24 @@
+<!--
+  Test-scope Logback configuration for ikanos-spec.
+
+  Keeps test output quiet by default. Without this file, Logback defaults to
+  DEBUG and floods stdout with com.networknt.schema.* validation traces during
+  schema test runs.
+
+  To temporarily raise verbosity for a specific test, override on the command
+  line, e.g. -Dlogback.configurationFile=... or pass -Droot.level=DEBUG.
+-->
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Silence noisy third-party libraries used heavily in tests. -->
+  <logger name="com.networknt.schema" level="WARN"/>
+
+  <root level="WARN">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
