@@ -41,7 +41,7 @@ public class ControlServerSpec extends ServerSpec {
     private final AtomicReference<ObservabilitySpec> observability = new AtomicReference<>();
 
     public ControlServerSpec() {
-        this("localhost", 0);
+        this(null, 0);
     }
 
     public ControlServerSpec(String address, int port) {
