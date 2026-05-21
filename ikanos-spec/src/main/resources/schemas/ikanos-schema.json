@@ -720,7 +720,7 @@
         },
         "aggregates": {
           "type": "object",
-          "description": "Domain aggregates defining reusable functions that adapters can reference via ref, keyed by aggregate namespace.",
+          "description": "Domain aggregates defining reusable flows that adapters can reference via ref, keyed by aggregate namespace.",
           "propertyNames": {
             "$ref": "#/$defs/IdentifierKebab"
           },
@@ -752,7 +752,7 @@
     },
     "Aggregate": {
       "type": "object",
-      "description": "A domain aggregate grouping reusable functions. Adapters reference these functions via ref.",
+      "description": "A domain aggregate grouping reusable flows. Adapters reference these flows via ref.",
       "properties": {
         "display": {
           "type": "string",
@@ -786,7 +786,7 @@
       "properties": {
         "description": {
           "type": "string",
-          "description": "A meaningful description of the function."
+          "description": "A meaningful description of the flow."
         },
         "tags": {
           "type": "array",

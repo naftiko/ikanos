@@ -203,7 +203,7 @@ capability:
 ```
 
 ### Q: How does `ref` work to reference an aggregate flow?
-**A:** MCP tools and REST operations can reference an aggregate flow using `ref: {namespace}.{function-name}`. The engine merges inherited fields from the function — you only specify what's different at the adapter level.
+**A:** MCP tools and REST operations can reference an aggregate flow using `ref: {namespace}.{flow-name}`. The engine merges inherited fields from the flow — you only specify what's different at the adapter level.
 
 ```yaml
 exposes:
@@ -218,13 +218,13 @@ exposes:
       - path: /forecast
         operations:
           - method: GET
-            ref: forecast.get-forecast   # Same function, REST adapter
+            ref: forecast.get-forecast   # Same flow, REST adapter
 ```
 
 **Merge rules:**
-- Explicit fields on the tool/operation **override** inherited fields from the function.
-- Fields not set on the tool/operation are **inherited** from the function.
-- `name` and `description` are optional when using `ref` — they default to the function's values.
+- Explicit fields on the tool/operation **override** inherited fields from the flow.
+- Fields not set on the tool/operation are **inherited** from the flow.
+- `name` and `description` are optional when using `ref` — they default to the flow's values.
 
 ### Q: How do semantics map to MCP tool hints?
 **A:** Aggregate flows can declare transport-neutral **semantics** (`safe`, `idempotent`, `cacheable`). When exposed as MCP tools, the engine automatically derives [MCP tool hints](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#tool-annotations):
