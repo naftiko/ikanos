@@ -34,5 +34,6 @@ capability:
             - name: "get-ping"
               method: "GET"
               outputParameters:
-                - type: "string"
+                - name: "result"
+                  type: "string"
                   const: "ok"
