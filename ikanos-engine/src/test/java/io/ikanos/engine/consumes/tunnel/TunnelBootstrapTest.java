@@ -65,6 +65,20 @@ class TunnelBootstrapTest {
     }
 
     @Test
+    void resolveIdentityShouldThrowWhenMustacheBindingShapeIsFlat() {
+        // Flat-map mistake: the template references the "secrets" namespace, but the
+        // caller passes a flat map. Resolver leaves "{{secrets.IDENT}}" unresolved, and
+        // resolveIdentity must fail fast instead of silently propagating the literal.
+        ZitiTunnelConfigSpec spec = new ZitiTunnelConfigSpec("crm-api", "{{secrets.IDENT}}");
+        IllegalStateException ex = assertThrows(
+                IllegalStateException.class,
+                () -> TunnelBootstrap.resolveIdentity(
+                        spec, Map.of("IDENT", "/etc/ziti/app.json")));
+        assertTrue(ex.getMessage().contains("{{secrets.IDENT}}"),
+                "exception should echo the unresolved Mustache template");
+    }
+
+    @Test
     void loadTunnelShouldThrowWhenTypeUnknown() {
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
