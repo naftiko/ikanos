@@ -1,0 +1,17 @@
+# Capability with an inline `exposes` entry (declares `type`) that lacks `namespace`.
+# Tests the new `$.capability.exposes[?(@.type)]` JSONPath in the rule.
+# Should trigger: ikanos-exposes-namespace-required
+ikanos: "1.0.0-alpha3"
+
+capability:
+  exposes:
+    - type: rest
+      port: 8080
+      # missing: namespace
+      resources:
+        - path: /health
+          operations:
+            - method: GET
+              outputParameters:
+                - type: string
+                  const: ok

@@ -24,7 +24,6 @@ export default function importAliasUnique(targetVal) {
   for (const { key, base } of sectionPaths) {
     const entries = Array.isArray(capability[key]) ? capability[key] : [];
     const effectiveNames = new Map(); // effectiveName -> { index, path }
-    const importNames = new Map(); // importNamespace -> [indices]
 
     for (let i = 0; i < entries.length; i += 1) {
       const entry = entries[i];
@@ -57,15 +56,6 @@ export default function importAliasUnique(targetVal) {
         } else {
           effectiveNames.set(effective, { index: i, path: [...base, i] });
         }
-      }
-
-      // Track import namespaces for the suggestion rule
-      const importNs = entry.import;
-      if (typeof importNs === "string" && importNs.length > 0) {
-        if (!importNames.has(importNs)) {
-          importNames.set(importNs, []);
-        }
-        importNames.get(importNs).push(i);
       }
     }
   }
