@@ -45,7 +45,7 @@ public class IkanosPolychroRulesetTest {
     @BeforeEach
     public void setUp() {
         projectRoot = Path.of(System.getProperty("user.dir"));
-        rulesetPath = projectRoot.resolve("src/main/resources/schemas/ikanos-rules.yml");
+        rulesetPath = projectRoot.resolve("src/main/resources/rules/ikanos-rules.yml");
 
         Assumptions.assumeTrue(Files.exists(rulesetPath),
             "Skipping Spectral tests: ruleset file not found at " + rulesetPath);
@@ -68,7 +68,7 @@ public class IkanosPolychroRulesetTest {
             "lint",
             "src/main/resources/schemas/examples/cir.yml",
             "--ruleset",
-            "src/main/resources/schemas/ikanos-rules.yml");
+            "src/main/resources/rules/ikanos-rules.yml");
 
         assertEquals(0, result.exitCode(),
             "Expected valid example to pass Spectral linting.\n" + result.output());
@@ -260,6 +260,58 @@ public class IkanosPolychroRulesetTest {
     public void aggregateFunctionUniqueRuleShouldFireWhenTwoFunctionsShareAName() {
         assertRuleFires("imports/aggregate-duplicate-function-name.yaml",
             "ikanos-aggregates-unique-function-name");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Reverse-tunnel rules (PR #513)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void tunnelIdentityMustBindRuleShouldFireWhenNamespaceIsUndeclared() {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-tunnel-identity-unbound.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        assertTrue(result.exitCode() != 0,
+            "Expected unbound-identity fixture to fail linting.\n" + result.output());
+        assertTrue(result.output().contains("ikanos-tunnel-identity-must-bind"),
+            "Expected lint output to reference ikanos-tunnel-identity-must-bind.\n"
+                + result.output());
+    }
+
+    @Test
+    public void tunnelIdentityMustBindRuleShouldNotFireWhenBindingIsDeclared() {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-tunnel-identity-bound.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        String output = result.output();
+        assertTrue(!output.contains("ikanos-tunnel-identity-must-bind"),
+            "Expected no tunnel-identity-must-bind warnings for a correctly bound "
+                + "document.\n" + output);
+    }
+
+    @Test
+    public void tunnelFallbackDirectWarnsRuleShouldFireOnNonLoopbackBaseUri() {
+        ProcessResult result = runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/rules/spectral-tunnel-fallback-direct-public.yaml",
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString());
+
+        assertTrue(result.output().contains("ikanos-tunnel-fallback-direct-warns"),
+            "Expected lint output to reference ikanos-tunnel-fallback-direct-warns.\n"
+                + result.output());
     }
 
     /**
