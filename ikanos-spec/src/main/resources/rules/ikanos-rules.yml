@@ -32,6 +32,7 @@ functions:
   - script-defaults-required
   - standalone-no-imports
   - import-alias-unique
+  - tunnel-identity-binds-ref
 
 rules:
 
@@ -518,3 +519,54 @@ rules:
       - "$.capability.aggregates[*].functions"
     then:
       function: aggregate-function-unique
+
+  # Reverse Tunnel (blueprint: reverse-tunnel-private-network.md, Phase 1)
+
+  ikanos-tunnel-identity-must-bind:
+    message: "tunnel.identity must reference a declared binding."
+    description: >
+      When a ConsumesHttp 'tunnel' uses Mustache references in 'identity'
+      (for example `{{secrets.ZITI_IDENTITY}}`), every referenced namespace and key
+      must be declared in the document's 'binds' or 'capability.binds' section.
+      Bare filesystem paths are accepted but discouraged.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: tunnel-identity-binds-ref
+
+  ikanos-tunnel-fallback-direct-warns:
+    message: >
+      'tunnel.fallback: direct' on a non-loopback baseUri silently bypasses the
+      tunnel and may leak traffic. Use 'fail' unless the baseUri itself is
+      private/loopback.
+    description: >
+      A direct fallback means the engine will skip the tunnel and dial the baseUri
+      directly when the tunnel cannot be opened. For public baseUris this defeats
+      the privacy guarantees of the tunnel. Use 'fail' (the default) and let the
+      operator decide how to recover.
+    severity: warn
+    recommended: true
+    given: "$.capability.consumes[?(@.tunnel && @.tunnel.fallback == 'direct')].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^https?://(127\\.0\\.0\\.1|localhost|\\[::1\\])(:|/|$)"
+
+  ikanos-tunnel-with-public-baseuri-warns:
+    message: >
+      Tunnel target uses a public TLD baseUri — confirm the hostname truly resolves
+      through the tunnel and not via public DNS.
+    description: >
+      A 'tunnel' is intended for reaching APIs on private networks. When the
+      baseUri points to a public TLD (.com, .net, .io, ...), the configuration
+      may still be correct (the tunnel can override DNS), but it is worth
+      double-checking that the upstream is not unintentionally reached over the
+      public internet.
+    severity: info
+    recommended: true
+    given: "$.capability.consumes[?(@.tunnel)].baseUri"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "^https?://[^/]+\\.(com|net|org|io|co|app|dev|cloud|ai)(:|/|$)"

@@ -1782,6 +1782,10 @@
           "$ref": "#/$defs/Authentication",
           "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2`."
         },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for reaching APIs behind a firewall. When set, the engine dials the consumed API through the configured overlay instead of the public internet. The TLS / authentication layer declared via `authentication` runs unchanged on top of the tunnel.\n\n**Engine support** — declarative only in this schema version; runtime engine wiring lands in a later release. Capabilities that declare `tunnel:` parse and validate today, but the engine still dials the public `baseUri` directly until the embedded tunnel feature is enabled. See the Reverse Tunnel guide for the sidecar pattern that works today."
+        },
         "resources": {
           "type": "array",
           "description": "Ordered list of HTTP resources exposed by this upstream API. Each resource groups operations sharing the same base path.",
@@ -1795,6 +1799,48 @@
         "namespace",
         "type",
         "baseUri"
+      ],
+      "additionalProperties": false
+    },
+    "TunnelConfig": {
+      "description": "Tunnel transport configuration for a `ConsumesHttp`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** — `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities — never inline the identity JSON directly.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TunnelZiti"
+        }
+      ]
+    },
+    "TunnelZiti": {
+      "type": "object",
+      "description": "OpenZiti zero-trust overlay transport. The Ikanos engine dials the configured Ziti service for every request to the parent `ConsumesHttp.baseUri`, using the supplied identity. End-to-end mTLS runs through the overlay; application-layer TLS (declared via `authentication`) runs on top.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ziti",
+          "description": "Discriminator for the tunnel transport. Always `ziti` for this shape."
+        },
+        "service": {
+          "type": "string",
+          "description": "Ziti service name to dial (e.g. `crm-api`). Defined in the Ziti controller and authorized for this capability's identity. Routing happens by service name — not by IP or DNS."
+        },
+        "identity": {
+          "type": "string",
+          "description": "Ziti identity used to authenticate to the controller. Recommended form: a Mustache expression resolved from `binds` (e.g. `{{secrets.ZITI_IDENTITY}}`). A bare filesystem path is allowed for local development but discouraged in production. The Polychro rule `ikanos-tunnel-identity-must-bind` requires Mustache references to resolve to an existing binding."
+        },
+        "fallback": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "direct"
+          ],
+          "default": "fail",
+          "description": "Behavior when the tunnel cannot be established. `fail` (default) — operations return a 503-equivalent. `direct` — engine attempts a direct HTTP call to `baseUri`; NOT recommended for production, intended for local development against a stubbed upstream. The Polychro rule `ikanos-tunnel-fallback-direct-warns` warns when `direct` is used against a non-loopback baseUri."
+        }
+      },
+      "required": [
+        "type",
+        "service",
+        "identity"
       ],
       "additionalProperties": false
     },
