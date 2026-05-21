@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
 
 /**
  * Specification Element of consumed HTTP adapter endpoints.
@@ -39,6 +40,7 @@ public class HttpClientSpec extends ClientSpec {
 
     private final AtomicReference<String> baseUri = new AtomicReference<>();
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
+    private final AtomicReference<TunnelConfigSpec> tunnel = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = io.ikanos.spec.InputParameterMapDeserializer.class)
@@ -95,11 +97,24 @@ public class HttpClientSpec extends ClientSpec {
 
     public Map<String, HttpClientResourceSpec> getResources() { return resources; }
 
-    public void setResources(Map<String, HttpClientResourceSpec> resources) {
-        if (resources == null) return;
-        synchronized (this.resources) {
-            this.resources.clear();
-            this.resources.putAll(resources);
-        }
+    /**
+     * Optional reverse-tunnel transport. When set, requests are dialed through the
+     * configured overlay (e.g. an OpenZiti service) instead of the public network.
+     * Returns {@code null} when no {@code tunnel:} block is declared in the YAML.
+     *
+     * <p>Engine runtime support is delivered in a later phase of the Reverse Tunnel
+     * blueprint; the spec layer parses and validates the block today.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public TunnelConfigSpec getTunnel() {
+        return tunnel.get();
+    }
+
+    public void setTunnel(TunnelConfigSpec tunnel) {
+        this.tunnel.set(tunnel);
+    }
+
+    public List<HttpClientResourceSpec> getResources() {
+        return resources;
     }
 }
