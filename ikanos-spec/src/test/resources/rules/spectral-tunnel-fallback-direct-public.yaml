@@ -1,0 +1,38 @@
+---
+# Spectral fixture — ikanos-tunnel-fallback-direct-warns MUST FIRE.
+#
+# The tunnel uses fallback: direct against a non-loopback baseUri
+# (https://crm.internal). The warn rule must report a violation.
+ikanos: "1.0.0-alpha3"
+
+info:
+  label: "Reverse tunnel — direct fallback on non-loopback baseUri"
+  description: "Negative fixture: fallback direct on a non-loopback host."
+
+binds:
+  - namespace: "secrets"
+    description: "Ziti identity bundle."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      ZITI_IDENTITY: "ziti-identity-path"
+
+capability:
+  consumes:
+    - type: "http"
+      namespace: "crm"
+      description: "Private CRM over a Ziti tunnel with risky direct fallback."
+      baseUri: "https://crm.internal"
+      tunnel:
+        type: "ziti"
+        service: "crm-api"
+        identity: "{{secrets.ZITI_IDENTITY}}"
+        fallback: "direct"
+      resources:
+        - name: "ping"
+          path: "/ping"
+          operations:
+            - name: "get-ping"
+              method: "GET"
+              outputParameters:
+                - type: "string"
+                  const: "ok"

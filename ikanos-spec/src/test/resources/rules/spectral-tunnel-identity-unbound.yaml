@@ -1,0 +1,32 @@
+---
+# Spectral fixture — ikanos-tunnel-identity-must-bind MUST FIRE.
+#
+# The tunnel.identity references a Mustache namespace ("secrets") that is NOT
+# declared in binds/capability.binds. The custom function tunnel-identity-binds-ref
+# must report a violation.
+ikanos: "1.0.0-alpha3"
+
+info:
+  label: "Reverse tunnel — unbound identity reference"
+  description: "Negative fixture: identity uses a namespace not in binds."
+
+capability:
+  consumes:
+    - type: "http"
+      namespace: "crm"
+      description: "Private CRM over a Ziti tunnel."
+      baseUri: "https://crm.internal"
+      tunnel:
+        type: "ziti"
+        service: "crm-api"
+        identity: "{{secrets.ZITI_IDENTITY}}"
+        fallback: "fail"
+      resources:
+        - name: "ping"
+          path: "/ping"
+          operations:
+            - name: "get-ping"
+              method: "GET"
+              outputParameters:
+                - type: "string"
+                  const: "ok"
