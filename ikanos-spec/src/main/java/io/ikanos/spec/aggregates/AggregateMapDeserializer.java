@@ -23,6 +23,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 public class AggregateMapDeserializer extends NamedMapDeserializer<AggregateSpec> {
 
     public AggregateMapDeserializer() {
-        super(AggregateSpec.class, AggregateSpec::setNamespace);
+        super(AggregateSpec.class, AggregateSpec::setNamespace, "namespace");
     }
 }

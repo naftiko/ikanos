@@ -48,14 +48,25 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
 
     private final Class<T> type;
     private final BiConsumer<T, String> nameSetter;
+    private final String keyField;
 
     /**
      * @param type       the class of each map value
      * @param nameSetter method reference that injects the map key as the entity name
      */
     public NamedMapDeserializer(Class<T> type, BiConsumer<T, String> nameSetter) {
+        this(type, nameSetter, "name");
+    }
+
+    /**
+     * @param type       the class of each map value
+     * @param nameSetter method reference that injects the map key as the entity name
+     * @param keyField   the JSON field name used as the map key when deserializing an array
+     */
+    public NamedMapDeserializer(Class<T> type, BiConsumer<T, String> nameSetter, String keyField) {
         this.type = type;
         this.nameSetter = nameSetter;
+        this.keyField = keyField;
     }
 
     @Override
@@ -72,7 +83,7 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
             // continue working without modification. The name field is used as the map key and is
             // also injected back via nameSetter so that getName() returns consistently.
             for (JsonNode itemNode : root) {
-                JsonNode nameNode = itemNode.get("name");
+                JsonNode nameNode = itemNode.get(keyField);
                 String key = nameNode != null && !nameNode.isNull() ? nameNode.asText() : null;
                 try {
                     T value = ctx.readTreeAsValue(itemNode, type);
