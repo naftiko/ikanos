@@ -14,6 +14,7 @@
 package io.ikanos.engine.imports;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -41,7 +42,7 @@ public class AggregatesImportStrategy implements ImportStrategy<AggregateSpec> {
         if (source.getCapability() != null
                 && source.getCapability().getAggregates() != null
                 && !source.getCapability().getAggregates().isEmpty()) {
-            return source.getCapability().getAggregates();
+            return new ArrayList<>(source.getCapability().getAggregates().values());
         }
         return Collections.emptyList();
     }

@@ -1,22 +1,6 @@
 ikanos: "1.0.0-alpha3"
 consumes:
-  - type: "http"
-    namespace: "weather-api"
-    baseUri: "https://api.weather.example.com"
-    resources:
-      - name: "forecasts"
-        path: "/forecasts"
-        operations:
-          - name: "get-forecast"
-            method: "GET"
-            description: "Retrieve a weather forecast"
-  - type: "http"
-    namespace: "geo-api"
-    baseUri: "https://geo.example.com"
-    resources:
-      - name: "geocode"
-        path: "/geocode"
-        operations:
-          - name: "reverse-geocode"
-            method: "GET"
-            description: "Converts coordinates to address"
+  - from: "./shared-clients.yml"
+    import: "weather-http"
+  - from: "./shared-clients.yml"
+    import: "geo-http"
