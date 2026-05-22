@@ -173,6 +173,22 @@ class ImportSchemaValidationTest {
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
+    @Test
+    @DisplayName("schema accepts an 'ikanos + binds' standalone document")
+    void schemaShouldAcceptStandaloneBindsDocument() throws Exception {
+        String yaml = """
+            ikanos: "1.0.0-alpha3"
+            binds:
+              - namespace: "secrets"
+                location: "vault://my-vault/secret/data/app"
+                keys:
+                  API_KEY: "api-key"
+                  DB_PASSWORD: "db-password"
+            """;
+        Set<ValidationMessage> errors = validateYaml(yaml);
+        assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
+    }
+
     // ----- error cases -----
 
     @Test

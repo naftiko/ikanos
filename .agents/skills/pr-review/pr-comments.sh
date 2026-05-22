@@ -24,20 +24,27 @@ REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 echo ""
 echo "=== PR #$PR Comments — $REPO ==="
 
-# --- Build jq filter ---
-JQ_FILTER='.'
-if [[ -n "$AUTHOR" ]]; then
-    JQ_FILTER="[.[] | select(.user.login == \"$AUTHOR\")]"
-fi
-if [[ "$NO_OUTDATED" == "--no-outdated" ]]; then
-    JQ_FILTER="[$JQ_FILTER[] | select(.position != null)]"
-fi
-
 # --- Fetch reviews for state mapping ---
 REVIEWS=$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate)
 
-# --- Fetch all inline comments ---
-COMMENTS=$(gh api "repos/$REPO/pulls/$PR/comments" --paginate | jq "$JQ_FILTER")
+# --- Fetch and filter inline comments ---
+# Pass AUTHOR / NO_OUTDATED into jq as bound variables to avoid string
+# interpolation of untrusted input into the jq filter (an author name
+# containing `"`, `]`, or other jq metacharacters would otherwise produce
+# a broken or unintended filter).
+if [[ "$NO_OUTDATED" == "--no-outdated" ]]; then
+    EXCLUDE_OUTDATED="true"
+else
+    EXCLUDE_OUTDATED="false"
+fi
+
+COMMENTS=$(gh api "repos/$REPO/pulls/$PR/comments" --paginate \
+    | jq --arg author "$AUTHOR" --argjson excludeOutdated "$EXCLUDE_OUTDATED" '
+        [ .[]
+          | select($author == "" or .user.login == $author)
+          | select($excludeOutdated == false or .position != null)
+        ]
+    ')
 
 COUNT=$(echo "$COMMENTS" | jq 'length')
 echo "  Matching comments: $COUNT"
