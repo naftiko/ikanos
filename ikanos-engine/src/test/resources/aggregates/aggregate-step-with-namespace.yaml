@@ -10,28 +10,27 @@ info:
   modified: '2026-04-13'
 capability:
   aggregates:
-    shipyard:
-      display: Shipyard
-      namespace: shipyard
-      flows:
-        get-voyage-manifest:
-          description: Assemble a voyage manifest using an orchestrated step.
-          inputParameters:
-            voyage-id:
-              type: string
-              description: Voyage identifier
-          steps:
-            fetch-voyage:
-              type: call
-              call: registry.get-voyage
-              with:
-                voyage-id: shipyard.voyage-id
-          mappings:
-          - target: voyage-id
-            value: $.fetch-voyage.voyageId
-          outputParameters:
-            voyage-id:
-              type: string
+  - display: Shipyard
+    namespace: shipyard
+    flows:
+      get-voyage-manifest:
+        description: Assemble a voyage manifest using an orchestrated step.
+        inputParameters:
+          voyage-id:
+            type: string
+            description: Voyage identifier
+        steps:
+          fetch-voyage:
+            type: call
+            call: registry.get-voyage
+            with:
+              voyage-id: shipyard.voyage-id
+        mappings:
+        - target: voyage-id
+          value: $.fetch-voyage.voyageId
+        outputParameters:
+          voyage-id:
+            type: string
   exposes:
   - type: mcp
     address: localhost

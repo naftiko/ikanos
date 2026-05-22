@@ -1,23 +1,22 @@
 ikanos: 1.0.0-alpha3
 capability:
   aggregates:
-    weather:
-      display: Weather Service
-      namespace: weather
-      flows:
-        get-forecast:
-          description: Get weather forecast (safe, read-only)
-          semantics:
-            safe: true
-            idempotent: true
-          call: weather-api.get-forecast
-          inputParameters:
-            city:
-              type: string
-              description: City name
-          outputParameters:
-          - type: string
-            mapping: $.forecast
+  - display: Weather Service
+    namespace: weather
+    flows:
+      get-forecast:
+        description: Get weather forecast (safe, read-only)
+        semantics:
+          safe: true
+          idempotent: true
+        call: weather-api.get-forecast
+        inputParameters:
+          city:
+            type: string
+            description: City name
+        outputParameters:
+        - type: string
+          mapping: $.forecast
   consumes:
   - type: http
     namespace: weather-api

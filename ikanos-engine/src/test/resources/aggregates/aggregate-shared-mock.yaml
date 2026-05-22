@@ -9,23 +9,22 @@ info:
   modified: '2026-04-09'
 capability:
   aggregates:
-    greeting:
-      display: Greeting
-      namespace: greeting
-      flows:
-        hello:
-          description: Builds a greeting payload from input parameters.
-          inputParameters:
-            name:
-              type: string
-              description: Name to greet
-          outputParameters:
-            message:
-              type: string
-              value: Hello, {{name}}!
-            source:
-              type: string
-              value: aggregate-mock
+  - display: Greeting
+    namespace: greeting
+    flows:
+      hello:
+        description: Builds a greeting payload from input parameters.
+        inputParameters:
+          name:
+            type: string
+            description: Name to greet
+        outputParameters:
+          message:
+            type: string
+            value: Hello, {{name}}!
+          source:
+            type: string
+            value: aggregate-mock
   exposes:
   - type: mcp
     address: localhost

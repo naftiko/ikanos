@@ -22,81 +22,80 @@ capability:
     from: ./shared/legacy-consumes.yaml
 
   aggregates:
-    crew-resolver:
-      display: "Crew Resolver"
-      namespace: crew-resolver
-      flows:
-        resolve-crew-for-ship:
-          description: "Resolve crew member names and roles for a given ship"
-          semantics:
-            safe: true
-            idempotent: true
-            cacheable: true
-          inputParameters:
-            imo:
-              type: string
-              required: true
-              description: "IMO number of the ship"
-          steps:
-            get-ship:
-              type: call
-              call: registry.get-ship
-              with:
-                imo_number: "{{imo}}"
-            list-crew:
-              type: call
-              call: registry.list-crew
-            resolve-crew:
-              type: lookup
-              index: list-crew
-              match: crewId
-              lookupValue: "$.get-ship.assignedCrew"
-              outputParameters:
-              - "fullName"
-              - "role"
-          mappings:
-          - target: imo
-            value: "$.get-ship.imo_number"
-          - target: name
-            value: "$.get-ship.vessel_name"
-          - target: type
-            value: "$.get-ship.vessel_type"
-          - target: flag
-            value: "$.get-ship.flag_code"
-          - target: status
-            value: "$.get-ship.operational_status"
-          - target: yearBuilt
-            value: "$.get-ship.year_built"
-          - target: tonnage
-            value: "$.get-ship.gross_tonnage"
-          - target: length
-            value: "$.get-ship.dimensions.length_overall"
-          - target: crew
-            value: "$.resolve-crew"
-          outputParameters:
-            imo:
-              type: string
-            name:
-              type: string
-            type:
-              type: string
-            flag:
-              type: string
-            status:
-              type: string
-            yearBuilt:
-              type: number
-            tonnage:
-              type: number
-            length:
-              type: number
-            crew:
-              type: array
-              items:
-                fullName:
-                  type: string
-                role:
-                  type: string
+  - display: "Crew Resolver"
+    namespace: crew-resolver
+    flows:
+      resolve-crew-for-ship:
+        description: "Resolve crew member names and roles for a given ship"
+        semantics:
+          safe: true
+          idempotent: true
+          cacheable: true
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        steps:
+          get-ship:
+            type: call
+            call: registry.get-ship
+            with:
+              imo_number: "{{imo}}"
+          list-crew:
+            type: call
+            call: registry.list-crew
+          resolve-crew:
+            type: lookup
+            index: list-crew
+            match: crewId
+            lookupValue: "$.get-ship.assignedCrew"
+            outputParameters:
+            - "fullName"
+            - "role"
+        mappings:
+        - target: imo
+          value: "$.get-ship.imo_number"
+        - target: name
+          value: "$.get-ship.vessel_name"
+        - target: type
+          value: "$.get-ship.vessel_type"
+        - target: flag
+          value: "$.get-ship.flag_code"
+        - target: status
+          value: "$.get-ship.operational_status"
+        - target: yearBuilt
+          value: "$.get-ship.year_built"
+        - target: tonnage
+          value: "$.get-ship.gross_tonnage"
+        - target: length
+          value: "$.get-ship.dimensions.length_overall"
+        - target: crew
+          value: "$.resolve-crew"
+        outputParameters:
+          imo:
+            type: string
+          name:
+            type: string
+          type:
+            type: string
+          flag:
+            type: string
+          status:
+            type: string
+          yearBuilt:
+            type: number
+          tonnage:
+            type: number
+          length:
+            type: number
+          crew:
+            type: array
+            items:
+              fullName:
+                type: string
+              role:
+                type: string
 
   exposes:
   - type: mcp

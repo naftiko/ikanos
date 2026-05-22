@@ -10,13 +10,12 @@ info:
 
 capability:
   aggregates:
-    "data":
-      display: "Data"
-      namespace: "data"
-      flows:
-        "read-items":
-          description: "Read items."
-          call: "mock-api.get-items"
+  - display: "Data"
+    namespace: "data"
+    flows:
+      "read-items":
+        description: "Read items."
+        call: "mock-api.get-items"
   exposes:
   - type: "mcp"
     address: "localhost"
