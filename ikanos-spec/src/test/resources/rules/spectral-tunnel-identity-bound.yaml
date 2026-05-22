@@ -7,7 +7,7 @@
 ikanos: "1.0.0-alpha3"
 
 info:
-  label: "Reverse tunnel — bound identity reference"
+  display: "Reverse tunnel — bound identity reference"
   description: "Positive fixture: identity correctly references a declared binding."
 
 binds:
@@ -29,12 +29,12 @@ capability:
         identity: "{{secrets.ZITI_IDENTITY}}"
         fallback: "fail"
       resources:
-        - name: "ping"
+        ping:
           path: "/ping"
           operations:
-            - name: "get-ping"
+            get-ping:
               method: "GET"
               outputParameters:
-                - name: "result"
+                result:
                   type: "string"
-                  value: "ok"
+                  value: "$.result"
