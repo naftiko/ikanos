@@ -6,7 +6,7 @@
 ikanos: "1.0.0-alpha3"
 
 info:
-  label: "Reverse tunnel — direct fallback on non-loopback baseUri"
+  display: "Reverse tunnel — direct fallback on non-loopback baseUri"
   description: "Negative fixture: fallback direct on a non-loopback host."
 
 binds:
@@ -28,12 +28,12 @@ capability:
         identity: "{{secrets.ZITI_IDENTITY}}"
         fallback: "direct"
       resources:
-        - name: "ping"
+        ping:
           path: "/ping"
           operations:
-            - name: "get-ping"
+            get-ping:
               method: "GET"
               outputParameters:
-                - name: "result"
+                result:
                   type: "string"
-                  value: "ok"
+                  value: "$.result"
