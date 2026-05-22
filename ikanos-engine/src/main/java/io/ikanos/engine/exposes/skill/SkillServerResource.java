@@ -27,7 +27,6 @@ import io.ikanos.spec.exposes.skill.ExposedSkillSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-import javax.annotation.Nonnull;
 
 /**
  * Abstract base for all skill server handler resources.

@@ -262,12 +262,10 @@ public class OutputParameterDeserializationTest {
   @Test
   public void deserializeShouldRouteValueToMappingForConsumedOutputParameterInKeyedMapForm()
       throws Exception {
-    String yamlSnippet = """
-        imo-number:
-          type: string
-          value: "$.imo_number"
-        """;
-
+    // The equivalent YAML snippet — kept inline as a JSON-equivalent below for the parser:
+    //   imo-number:
+    //     type: string
+    //     value: "$.imo_number"
     ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
     OutputParameterListOrMapDeserializer deserializer = new OutputParameterListOrMapDeserializer();
     com.fasterxml.jackson.core.JsonParser p =

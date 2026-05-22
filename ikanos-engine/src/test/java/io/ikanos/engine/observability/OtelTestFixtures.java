@@ -46,7 +46,8 @@ public final class OtelTestFixtures {
     @Nonnull
     public static SdkTracerProvider tracerProvider(InMemorySpanExporter exporter) {
         return OtelNullSafety.nonNull(SdkTracerProvider.builder()
-                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .addSpanProcessor(OtelNullSafety.nonNull(
+                        SimpleSpanProcessor.create(OtelNullSafety.nonNull(exporter))))
                 .build());
     }
 
@@ -56,7 +57,7 @@ public final class OtelTestFixtures {
     @Nonnull
     public static SdkMeterProvider meterProvider(MetricReader reader) {
         return OtelNullSafety.nonNull(SdkMeterProvider.builder()
-                .registerMetricReader(reader)
+                .registerMetricReader(OtelNullSafety.nonNull(reader))
                 .build());
     }
 
