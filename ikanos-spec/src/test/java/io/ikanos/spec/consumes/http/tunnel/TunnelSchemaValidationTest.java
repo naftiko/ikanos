@@ -81,7 +81,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             binds:
               - namespace: "secrets"
@@ -100,10 +100,10 @@ class TunnelSchemaValidationTest {
                     identity: "{{secrets.ZITI_IDENTITY}}"
                     fallback: "fail"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -116,7 +116,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -128,10 +128,10 @@ class TunnelSchemaValidationTest {
                     service: "crm-api"
                     identity: "/etc/ziti/id.json"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -144,7 +144,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -152,10 +152,10 @@ class TunnelSchemaValidationTest {
                   namespace: "crm"
                   baseUri: "https://crm.example.com"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -178,7 +178,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -190,10 +190,10 @@ class TunnelSchemaValidationTest {
                     service: "crm-api"
                     identity: "/etc/wg/id.conf"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -207,7 +207,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -220,10 +220,10 @@ class TunnelSchemaValidationTest {
                     identity: "/etc/ziti/id.json"
                     fallback: "retry"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -237,7 +237,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -248,10 +248,10 @@ class TunnelSchemaValidationTest {
                     type: "ziti"
                     identity: "/etc/ziti/id.json"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -265,7 +265,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -276,10 +276,10 @@ class TunnelSchemaValidationTest {
                     type: "ziti"
                     service: "crm-api"
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
@@ -293,7 +293,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "demo"
+              display: "demo"
               description: "demo"
             capability:
               consumes:
@@ -306,10 +306,10 @@ class TunnelSchemaValidationTest {
                     identity: "/etc/ziti/id.json"
                     timeoutSeconds: 30
                   resources:
-                    - name: "customers"
+                    customers:
                       path: "/customers"
                       operations:
-                        - name: "list-customers"
+                        list-customers:
                           method: "GET"
             """;
         Set<ValidationMessage> errors = validateYaml(yaml);
