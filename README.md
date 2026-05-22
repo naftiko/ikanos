@@ -50,9 +50,9 @@ Ikanos is part of [Naftiko Fleet (Community Edition)](https://github.com/naftiko
 
 | Tool | What it does |
 |---|---|
-| [Naftiko Extension for VS Code](https://github.com/naftiko/fleet/wiki/Naftiko-Extension-for-VS-Code) | Inline structure and rules validation while editing `.naftiko.yaml` files |
-| [Naftiko Templates for Backstage](https://github.com/naftiko/fleet/wiki/Naftiko-Templates-for-Backstage) | Scaffold and catalog capabilities from CNCF Backstage |
-| Naftiko Operator for Kubernetes | Deploy and operate capabilities on Kubernetes *(coming soon)* |
+| [Naftiko Crafter](https://github.com/naftiko/fleet/wiki/Naftiko-Crafter) | Free Naftiko extension for Visual Studio Code to help with the editing and linting of Ikanos capabilities. |
+| [Naftiko Warden](https://github.com/naftiko/fleet/wiki/Naftiko-Warden) | Free Naftiko Warden custom templates for CNCF's Backstage to help with the scaffolding and cataloguing of Ikanos capabilities. |
+| Naftiko Skipper | Free operator and Helm chart for CNCF's Kubernetes to help with the operations of Ikanos capabilities [coming soon]. |
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions).
 

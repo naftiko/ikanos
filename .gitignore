@@ -10,3 +10,5 @@ dependency-reduced-pom.xml
 # ─── Python ────────────────────────────────────────────────────────────────────
 **/__pycache__/
 *.pyc
+# ─── Maven flatten plugin output ───────────────────────────────────────────────
+**/.flattened-pom.xml
