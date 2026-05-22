@@ -176,9 +176,9 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("aggregates: inline entry without 'from' deserializes into base AggregateSpec")
     void aggregatesInlineWithoutFromShouldDeserializeIntoAggregateSpec() throws Exception {
         String yaml = """
-            label: "Crew Resolver"
+            display: "Crew Resolver"
             namespace: "crew-resolver"
-            functions: []
+            flows: []
             """;
 
         AggregateSpec result = mapper.readValue(yaml, AggregateSpec.class);
@@ -234,7 +234,7 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             info:
-              label: "mixed"
+              display: "mixed"
               description: "Capability mixing inline and imported entries."
             capability:
               binds:
@@ -258,9 +258,9 @@ class ImportDirectiveDeserializationTest {
                 - from: "./shared/maritime.exposes.yml"
                   import: "maritime-rest"
               aggregates:
-                - label: "Crew Resolver"
+                - display: "Crew Resolver"
                   namespace: "crew-resolver"
-                  functions: []
+                  flows: {}
                 - from: "./shared/maritime-aggregates.yml"
                   import: "fleet-aggregates"
             """;
@@ -281,9 +281,13 @@ class ImportDirectiveDeserializationTest {
         assertInstanceOf(RestServerSpec.class, spec.getCapability().getExposes().get(0));
         assertInstanceOf(ImportedExposesSpec.class, spec.getCapability().getExposes().get(1));
 
-        // aggregates: 1 inline + 1 imported
+        // aggregates: 1 inline + 1 imported (capability.aggregates is now a Map<String, AggregateSpec>)
         assertEquals(2, spec.getCapability().getAggregates().size());
-        assertInstanceOf(ImportedAggregateSpec.class, spec.getCapability().getAggregates().get(1));
+        assertTrue(
+            spec.getCapability().getAggregates().values().stream()
+                .anyMatch(ImportedAggregateSpec.class::isInstance),
+            "expected at least one ImportedAggregateSpec in capability.aggregates"
+        );
     }
 
     // ----- standalone document shapes -----
@@ -311,9 +315,12 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "1.0.0-alpha3"
             aggregates:
-              - label: "Crew Resolver"
+              - display: "Crew Resolver"
                 namespace: "crew-resolver"
-                functions: []
+                flows:
+                  lookup:
+                    description: "Lookup"
+                    call: "api.lookup"
             """;
 
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
