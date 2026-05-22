@@ -9,25 +9,24 @@ info:
   modified: '2026-04-03'
 capability:
   aggregates:
-    forecast:
-      display: Forecast
-      namespace: forecast
-      flows:
-        get-forecast:
-          description: Fetch current weather forecast for a location.
-          semantics:
-            safe: true
-            idempotent: true
-          inputParameters:
-            location:
-              type: string
-              description: City or coordinates
-          call: weather-api.get-forecast
-          with:
-            location: location
-          outputParameters:
-          - type: string
-            mapping: $.forecast
+  - display: Forecast
+    namespace: forecast
+    flows:
+      get-forecast:
+        description: Fetch current weather forecast for a location.
+        semantics:
+          safe: true
+          idempotent: true
+        inputParameters:
+          location:
+            type: string
+            description: City or coordinates
+        call: weather-api.get-forecast
+        with:
+          location: location
+        outputParameters:
+        - type: string
+          mapping: $.forecast
   exposes:
   - type: mcp
     address: localhost

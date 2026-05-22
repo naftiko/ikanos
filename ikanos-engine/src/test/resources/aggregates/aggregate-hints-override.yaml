@@ -9,31 +9,30 @@ info:
   modified: '2026-04-03'
 capability:
   aggregates:
-    data:
-      display: Data
-      namespace: data
-      flows:
-        read-items:
-          description: Read items from the data store.
-          semantics:
-            safe: true
-            idempotent: true
-          call: mock-api.get-items
-          outputParameters:
-            - type: string
-              mapping: $.items
-        delete-item:
-          description: Delete an item from the data store.
-          semantics:
-            safe: false
-            idempotent: true
-          inputParameters:
-            item-id:
-              type: string
-              description: ID of the item to delete
-          call: mock-api.delete-item
-          with:
-            id: item-id
+  - display: Data
+    namespace: data
+    flows:
+      read-items:
+        description: Read items from the data store.
+        semantics:
+          safe: true
+          idempotent: true
+        call: mock-api.get-items
+        outputParameters:
+          - type: string
+            mapping: $.items
+      delete-item:
+        description: Delete an item from the data store.
+        semantics:
+          safe: false
+          idempotent: true
+        inputParameters:
+          item-id:
+            type: string
+            description: ID of the item to delete
+        call: mock-api.delete-item
+        with:
+          id: item-id
   exposes:
   - type: mcp
     address: localhost
