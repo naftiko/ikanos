@@ -379,8 +379,8 @@ class ImportResolverParameterizedTest {
                     ikanos: "%s"
                     aggregates:
                       - namespace: "%s"
-                        label: "Test Aggregate"
-                        functions: []
+                        display: "Test Aggregate"
+                        flows: []
                     """.formatted(schemaVersion, namespace);
             case "binds" -> """
                     ikanos: "%s"
@@ -419,8 +419,8 @@ class ImportResolverParameterizedTest {
             case "aggregates" -> """
                         aggregates:
                           - namespace: "%s"
-                            label: "Wrapped Aggregate"
-                            functions: []
+                            display: "Wrapped Aggregate"
+                            flows: []
                     """.formatted(namespace);
             case "binds" -> """
                         binds:
