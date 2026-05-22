@@ -1,0 +1,22 @@
+ikanos: "1.0.0-alpha3"
+consumes:
+  - namespace: "weather-http"
+    type: "http"
+    baseUri: "https://api.weather.example.com"
+    resources:
+      - name: "forecasts"
+        path: "/forecasts"
+        operations:
+          - name: "get-forecast"
+            method: "GET"
+            description: "Retrieve a weather forecast"
+  - namespace: "geo-http"
+    type: "http"
+    baseUri: "https://geo.example.com"
+    resources:
+      - name: "geocode"
+        path: "/geocode"
+        operations:
+          - name: "reverse-geocode"
+            method: "GET"
+            description: "Converts coordinates to address"

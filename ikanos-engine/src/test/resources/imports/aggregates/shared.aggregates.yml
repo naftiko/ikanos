@@ -1,14 +1,14 @@
 ikanos: "1.0.0-alpha3"
 aggregates:
   - namespace: "forecast"
-    label: "Forecast Domain"
-    functions:
+    display: "Forecast Domain"
+    flows:
       - name: "get-forecast"
         description: "Retrieves weather forecast"
         call: "weather-api.get-forecast"
   - namespace: "geo"
-    label: "Geo Domain"
-    functions:
+    display: "Geo Domain"
+    flows:
       - name: "reverse-geocode"
         description: "Converts coordinates to address"
         call: "geo-api.reverse-geocode"

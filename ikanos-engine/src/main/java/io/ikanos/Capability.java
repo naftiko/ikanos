@@ -16,7 +16,9 @@ package io.ikanos;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -105,8 +107,19 @@ public class Capability {
             // §10 resolver pass order: consumes → aggregates → exposes → binds
             new ImportResolver<>(new ConsumesImportStrategy(), loader)
                     .resolveAll(spec.getCapability().getConsumes(), capabilityPath);
-            new ImportResolver<>(new AggregatesImportStrategy(), loader)
-                    .resolveAll(spec.getCapability().getAggregates(), capabilityPath);
+            // capability.aggregates is a Map<String, AggregateSpec>; resolve imports via a
+            // mutable list snapshot, then write resolved entries back by namespace key.
+            Map<String, AggregateSpec> aggregatesMap = spec.getCapability().getAggregates();
+            if (aggregatesMap != null && !aggregatesMap.isEmpty()) {
+                List<AggregateSpec> aggregatesList = new ArrayList<>(aggregatesMap.values());
+                new ImportResolver<>(new AggregatesImportStrategy(), loader)
+                        .resolveAll(aggregatesList, capabilityPath);
+                Map<String, AggregateSpec> resolved = new LinkedHashMap<>();
+                for (AggregateSpec agg : aggregatesList) {
+                    resolved.put(agg.getNamespace(), agg);
+                }
+                spec.getCapability().setAggregates(resolved);
+            }
             new ImportResolver<>(new ExposesImportStrategy(), loader)
                     .resolveAll(spec.getCapability().getExposes(), capabilityPath);
             new ImportResolver<>(new BindsImportStrategy(), loader)
