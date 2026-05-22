@@ -15,6 +15,7 @@ package io.ikanos.engine.observability;
 
 import static io.ikanos.engine.observability.OtelTestFixtures.longAttribute;
 import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.spec.observability.ObservabilitySpec;
@@ -505,7 +506,7 @@ public class TelemetryBootstrapTest {
         TelemetryBootstrap bootstrap = TelemetryBootstrap.init("test-service");
 
         InMemorySpanExporter lateExporter = InMemorySpanExporter.create();
-        bootstrap.registerSpanProcessor(SimpleSpanProcessor.create(lateExporter));
+        bootstrap.registerSpanProcessor(nonNull(SimpleSpanProcessor.create(nonNull(lateExporter))));
 
         // Create a span — it should be captured by the late-registered processor
         Span span = bootstrap.startServerSpan("rest", "test-op");

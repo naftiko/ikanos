@@ -63,7 +63,7 @@ class DelegatingSpanProcessorTest {
     @Test
     void onEndShouldForwardToDelegateWhenSet() {
         try (DelegatingSpanProcessor processor = new DelegatingSpanProcessor()) {
-            processor.setDelegate(SimpleSpanProcessor.create(exporter));
+            processor.setDelegate(nonNull(SimpleSpanProcessor.create(nonNull(exporter))));
 
             SdkTracerProvider tracerProvider = nonNull(SdkTracerProvider.builder()
                     .addSpanProcessor(processor)
@@ -97,7 +97,7 @@ class DelegatingSpanProcessorTest {
             assertTrue(exporter.getFinishedSpanItems().isEmpty());
 
             // Now set the delegate
-            processor.setDelegate(SimpleSpanProcessor.create(exporter));
+            processor.setDelegate(nonNull(SimpleSpanProcessor.create(nonNull(exporter))));
 
             // Emit a span after delegate is set — it should be captured
             Span lateSpan = sdk.getTracer("test").spanBuilder("late-span").startSpan();

@@ -50,7 +50,7 @@ public class OutputParameterListOrMapDeserializer extends JsonDeserializer<List<
         } else if (p.currentToken() == JsonToken.START_OBJECT) {
             // Orchestrated / Consumed: map form — key becomes name
             JsonNode node = p.getCodec().readTree(p);
-            node.fields().forEachRemaining(entry -> {
+            node.properties().forEach(entry -> {
                 try {
                     // Inject the map key as "name" into the node so that
                     // OutputParameterDeserializer can apply the value→mapping routing

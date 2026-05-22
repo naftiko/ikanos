@@ -46,13 +46,17 @@ class ZitiTunnelTest {
 
     @Test
     void typeShouldReturnZitiAlways() {
-        assertEquals("ziti", new ZitiTunnel().type());
+        try (ZitiTunnel tunnel = new ZitiTunnel()) {
+            assertEquals("ziti", tunnel.type());
+        }
     }
 
     @Test
     void noArgConstructorShouldBeAvailableForServiceLoader() {
         // ServiceLoader requires a public no-arg constructor; assert nothing thrown.
-        assertNotNull(new ZitiTunnel());
+        try (ZitiTunnel tunnel = new ZitiTunnel()) {
+            assertNotNull(tunnel);
+        }
     }
 
     @Test
@@ -69,24 +73,27 @@ class ZitiTunnelTest {
 
     @Test
     void ensureContextShouldThrowWhenIdentityPropertyMissing() {
-        ZitiTunnel tunnel = new ZitiTunnel();
-        IOException ex = assertThrows(IOException.class, tunnel::ensureContext);
-        assertTrue(ex.getMessage().contains(ZitiTunnel.IDENTITY_PROPERTY));
+        try (ZitiTunnel tunnel = new ZitiTunnel()) {
+            IOException ex = assertThrows(IOException.class, tunnel::ensureContext);
+            assertTrue(ex.getMessage().contains(ZitiTunnel.IDENTITY_PROPERTY));
+        }
     }
 
     @Test
     void ensureContextShouldThrowWhenIdentityFileMissing() {
         System.setProperty(ZitiTunnel.IDENTITY_PROPERTY, "/this/file/definitely/does/not/exist.json");
-        ZitiTunnel tunnel = new ZitiTunnel();
-        IOException ex = assertThrows(IOException.class, tunnel::ensureContext);
-        assertTrue(ex.getMessage().contains("not found"));
+        try (ZitiTunnel tunnel = new ZitiTunnel()) {
+            IOException ex = assertThrows(IOException.class, tunnel::ensureContext);
+            assertTrue(ex.getMessage().contains("not found"));
+        }
     }
 
     @Test
     void isReadyShouldReturnFalseWhenContextCannotBeInitialised() {
         // No identity → ensureContext fails → isReady catches and returns false.
-        ZitiTunnel tunnel = new ZitiTunnel();
-        assertFalse(tunnel.isReady());
+        try (ZitiTunnel tunnel = new ZitiTunnel()) {
+            assertFalse(tunnel.isReady());
+        }
     }
 
     @Test

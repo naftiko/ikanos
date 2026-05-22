@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.OtelTestFixtures;
+import io.ikanos.engine.observability.OtelNullSafety;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -56,7 +57,7 @@ public class ObservabilitySkillIntegrationTest {
     static void setUp() throws Exception {
         tracerProvider = OtelTestFixtures.tracerProvider(exporter);
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-                .setTracerProvider(tracerProvider)
+                .setTracerProvider(OtelNullSafety.nonNull(tracerProvider))
                 .setPropagators(OtelTestFixtures.w3cPropagators())
                 .build();
         TelemetryBootstrap.init(sdk);
