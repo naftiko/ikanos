@@ -79,8 +79,8 @@ class SourceFileLoaderTest {
                 ikanos: "%s"
                 aggregates:
                   - namespace: "agg"
-                    label: "Test"
-                    functions: []
+                    display: "Test"
+                    flows: []
                 """.formatted(schemaVersion);
         Path file = tempDir.resolve("agg.aggregates.yml");
         Files.writeString(file, yaml);
