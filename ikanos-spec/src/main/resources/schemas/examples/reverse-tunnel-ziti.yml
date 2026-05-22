@@ -11,7 +11,7 @@
 ikanos: "1.0.0-alpha3"
 
 info:
-  label: "CRM reverse-tunnel example"
+  display: "CRM reverse-tunnel example"
   description: "Reach an internal CRM API over an OpenZiti reverse tunnel."
 
 binds:
@@ -37,10 +37,10 @@ capability:
         identity: "{{secrets.ZITI_IDENTITY}}"
         fallback: "fail"
       resources:
-        - name: "customers"
+        customers:
           description: "Customer records."
           path: "/customers"
           operations:
-            - name: "list-customers"
+            list-customers:
               method: "GET"
               description: "List all customers."

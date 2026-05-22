@@ -30,10 +30,10 @@ import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
  * Specification Element of consumed HTTP adapter endpoints.
  *
  * <h2>Thread safety</h2>
- * The {@code baseUri} and {@code authentication} fields are held in {@link AtomicReference}s.
- * The {@code inputParameters} list is a {@link java.util.concurrent.CopyOnWriteArrayList}.
- * The {@code resources} map is a synchronized {@link LinkedHashMap} preserving YAML order.
- * This satisfies SonarQube rule {@code java:S3077}.
+ * The {@code baseUri}, {@code authentication} and {@code tunnel} fields are held in
+ * {@link AtomicReference}s. The {@code inputParameters} map and the {@code resources}
+ * map are synchronized {@link LinkedHashMap}s preserving YAML order. This satisfies
+ * SonarQube rule {@code java:S3077}.
  */
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class HttpClientSpec extends ClientSpec {
@@ -97,6 +97,14 @@ public class HttpClientSpec extends ClientSpec {
 
     public Map<String, HttpClientResourceSpec> getResources() { return resources; }
 
+    public void setResources(Map<String, HttpClientResourceSpec> resources) {
+        if (resources == null) return;
+        synchronized (this.resources) {
+            this.resources.clear();
+            this.resources.putAll(resources);
+        }
+    }
+
     /**
      * Optional reverse-tunnel transport. When set, requests are dialed through the
      * configured overlay (e.g. an OpenZiti service) instead of the public network.
@@ -112,9 +120,5 @@ public class HttpClientSpec extends ClientSpec {
 
     public void setTunnel(TunnelConfigSpec tunnel) {
         this.tunnel.set(tunnel);
-    }
-
-    public List<HttpClientResourceSpec> getResources() {
-        return resources;
     }
 }
