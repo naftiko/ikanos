@@ -1,3 +1,28 @@
+/**
+ * Spectral custom function: aggregate-semantics-consistency
+ *
+ * Verifies that explicit MCP tool hints and REST operation methods do not
+ * contradict the declared semantics of the aggregate flow they reference.
+ *
+ * In phase-2 / phase-3 of the unified import mechanism, several collections
+ * were rescoped from arrays to keyed maps:
+ *
+ *   - aggregate.flows         (was: aggregate.functions, an array)
+ *   - mcpAdapter.tools        (was: an array)
+ *   - restResource.operations (was: an array)
+ *   - restAdapter.resources   (was: an array)
+ *
+ * This function accepts BOTH shapes so it keeps working with the older
+ * standalone documents that still emit arrays, as well as the modern
+ * keyed-map documents.
+ *
+ * Naming rules (modern keyed-map form):
+ *   - The map key is the canonical name (e.g. `flows.get-forecast` → name
+ *     "get-forecast").
+ *   - When still in array form, the per-entry `name` field is used.
+ *   - For aggregates themselves, the canonical identifier remains the
+ *     `namespace` field, regardless of array or map outer shape.
+ */
 export default function aggregateSemanticsConsistency(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
@@ -8,65 +33,61 @@ export default function aggregateSemanticsConsistency(targetVal) {
       ? targetVal.capability
       : {};
 
-  const aggregates = Array.isArray(capability.aggregates)
-    ? capability.aggregates
-    : [];
-
+  const aggregates = toAggregateEntries(capability.aggregates);
   if (aggregates.length === 0) {
     return;
   }
 
-  // Build function index: "namespace.function-name" → semantics
-  const functionIndex = new Map();
-  for (let i = 0; i < aggregates.length; i += 1) {
-    const agg = aggregates[i];
+  // Build flow index: "namespace.flow-name" → { semantics }
+  const flowIndex = new Map();
+  for (const aggEntry of aggregates) {
+    const agg = aggEntry.value;
     if (!agg || typeof agg.namespace !== "string") {
       continue;
     }
-    const functions = Array.isArray(agg.functions) ? agg.functions : [];
-    for (let j = 0; j < functions.length; j += 1) {
-      const fn = functions[j];
-      if (!fn || typeof fn.name !== "string") {
+    const flows = toNamedEntries(agg.flows, agg.functions);
+    for (const flowEntry of flows) {
+      const fn = flowEntry.value;
+      if (!fn || typeof fn !== "object") {
         continue;
       }
-      const key = agg.namespace + "." + fn.name;
-      functionIndex.set(key, {
-        semantics: fn.semantics && typeof fn.semantics === "object" ? fn.semantics : null,
-        aggIndex: i,
-        fnIndex: j,
+      const key = agg.namespace + "." + flowEntry.name;
+      flowIndex.set(key, {
+        semantics:
+          fn.semantics && typeof fn.semantics === "object" ? fn.semantics : null,
       });
     }
   }
 
   const results = [];
-  const exposes = Array.isArray(capability.exposes) ? capability.exposes : [];
+  const exposes = toIndexedEntries(capability.exposes);
 
-  for (let e = 0; e < exposes.length; e += 1) {
-    const adapter = exposes[e];
+  for (const adapterEntry of exposes) {
+    const adapter = adapterEntry.value;
     if (!adapter || typeof adapter !== "object") {
       continue;
     }
 
     if (adapter.type === "mcp") {
-      checkMcpTools(adapter, e, functionIndex, results);
+      checkMcpTools(adapter, adapterEntry.locator, flowIndex, results);
     } else if (adapter.type === "rest") {
-      checkRestOperations(adapter, e, functionIndex, results);
+      checkRestOperations(adapter, adapterEntry.locator, flowIndex, results);
     }
   }
 
   return results;
 }
 
-function checkMcpTools(adapter, adapterIndex, functionIndex, results) {
-  const tools = Array.isArray(adapter.tools) ? adapter.tools : [];
+function checkMcpTools(adapter, adapterLocator, flowIndex, results) {
+  const tools = toNamedEntries(adapter.tools, null);
 
-  for (let t = 0; t < tools.length; t += 1) {
-    const tool = tools[t];
+  for (const toolEntry of tools) {
+    const tool = toolEntry.value;
     if (!tool || typeof tool.ref !== "string") {
       continue;
     }
 
-    const entry = functionIndex.get(tool.ref);
+    const entry = flowIndex.get(tool.ref);
     if (!entry || !entry.semantics) {
       continue;
     }
@@ -78,21 +99,21 @@ function checkMcpTools(adapter, adapterIndex, functionIndex, results) {
     }
 
     const basePath = [
-      "capability", "exposes", adapterIndex, "tools", t, "hints",
+      "capability", "exposes", ...adapterLocator, "tools", ...toolEntry.locator, "hints",
     ];
 
     // safe vs readOnly
     if (semantics.safe === true && hints.readOnly === false) {
       results.push({
         message:
-          "Function '" + tool.ref + "' has semantics.safe=true but tool hints set readOnly=false. Safe functions should be read-only.",
+          "Flow '" + tool.ref + "' has semantics.safe=true but tool hints set readOnly=false. Safe flows should be read-only.",
         path: basePath.concat("readOnly"),
       });
     }
     if (semantics.safe === false && hints.readOnly === true) {
       results.push({
         message:
-          "Function '" + tool.ref + "' has semantics.safe=false but tool hints set readOnly=true. Unsafe functions should not be read-only.",
+          "Flow '" + tool.ref + "' has semantics.safe=false but tool hints set readOnly=true. Unsafe flows should not be read-only.",
         path: basePath.concat("readOnly"),
       });
     }
@@ -101,7 +122,7 @@ function checkMcpTools(adapter, adapterIndex, functionIndex, results) {
     if (semantics.safe === true && hints.destructive === true) {
       results.push({
         message:
-          "Function '" + tool.ref + "' has semantics.safe=true but tool hints set destructive=true. Safe functions should not be destructive.",
+          "Flow '" + tool.ref + "' has semantics.safe=true but tool hints set destructive=true. Safe flows should not be destructive.",
         path: basePath.concat("destructive"),
       });
     }
@@ -110,40 +131,38 @@ function checkMcpTools(adapter, adapterIndex, functionIndex, results) {
     if (semantics.idempotent === true && hints.idempotent === false) {
       results.push({
         message:
-          "Function '" + tool.ref + "' has semantics.idempotent=true but tool hints set idempotent=false.",
+          "Flow '" + tool.ref + "' has semantics.idempotent=true but tool hints set idempotent=false.",
         path: basePath.concat("idempotent"),
       });
     }
     if (semantics.idempotent === false && hints.idempotent === true) {
       results.push({
         message:
-          "Function '" + tool.ref + "' has semantics.idempotent=false but tool hints set idempotent=true.",
+          "Flow '" + tool.ref + "' has semantics.idempotent=false but tool hints set idempotent=true.",
         path: basePath.concat("idempotent"),
       });
     }
   }
 }
 
-function checkRestOperations(adapter, adapterIndex, functionIndex, results) {
-  const resources = Array.isArray(adapter.resources) ? adapter.resources : [];
+function checkRestOperations(adapter, adapterLocator, flowIndex, results) {
+  const resources = toNamedEntries(adapter.resources, null);
 
-  for (let r = 0; r < resources.length; r += 1) {
-    const resource = resources[r];
+  for (const resourceEntry of resources) {
+    const resource = resourceEntry.value;
     if (!resource || typeof resource !== "object") {
       continue;
     }
 
-    const operations = Array.isArray(resource.operations)
-      ? resource.operations
-      : [];
+    const operations = toNamedEntries(resource.operations, null);
 
-    for (let o = 0; o < operations.length; o += 1) {
-      const op = operations[o];
+    for (const opEntry of operations) {
+      const op = opEntry.value;
       if (!op || typeof op.ref !== "string" || typeof op.method !== "string") {
         continue;
       }
 
-      const entry = functionIndex.get(op.ref);
+      const entry = flowIndex.get(op.ref);
       if (!entry || !entry.semantics) {
         continue;
       }
@@ -151,21 +170,24 @@ function checkRestOperations(adapter, adapterIndex, functionIndex, results) {
       const semantics = entry.semantics;
       const method = op.method.toUpperCase();
       const basePath = [
-        "capability", "exposes", adapterIndex, "resources", r, "operations", o, "method",
+        "capability", "exposes", ...adapterLocator,
+        "resources", ...resourceEntry.locator,
+        "operations", ...opEntry.locator,
+        "method",
       ];
 
       // safe vs mutating methods
       if (semantics.safe === true && method !== "GET") {
         results.push({
           message:
-            "Function '" + op.ref + "' has semantics.safe=true but REST operation uses " + method + ". Safe functions should use GET.",
+            "Flow '" + op.ref + "' has semantics.safe=true but REST operation uses " + method + ". Safe flows should use GET.",
           path: basePath,
         });
       }
       if (semantics.safe === false && method === "GET") {
         results.push({
           message:
-            "Function '" + op.ref + "' has semantics.safe=false but REST operation uses GET. Unsafe functions should not use GET.",
+            "Flow '" + op.ref + "' has semantics.safe=false but REST operation uses GET. Unsafe flows should not use GET.",
           path: basePath,
         });
       }
@@ -174,10 +196,92 @@ function checkRestOperations(adapter, adapterIndex, functionIndex, results) {
       if (semantics.idempotent === true && method === "POST") {
         results.push({
           message:
-            "Function '" + op.ref + "' has semantics.idempotent=true but REST operation uses POST. POST is not idempotent by convention.",
+            "Flow '" + op.ref + "' has semantics.idempotent=true but REST operation uses POST. POST is not idempotent by convention.",
           path: basePath,
         });
       }
     }
   }
+}
+
+// ----------------------------------------------------------------------
+// Shape adapters: accept BOTH array and keyed-map shapes uniformly.
+// ----------------------------------------------------------------------
+
+/**
+ * Walks an indexed collection (always an array per schema). Each returned
+ * entry has a `locator` of `[index]` so callers can build JSON pointer
+ * paths the same way for arrays and maps.
+ */
+function toIndexedEntries(arr) {
+  if (!Array.isArray(arr)) {
+    return [];
+  }
+  const out = [];
+  for (let i = 0; i < arr.length; i += 1) {
+    out.push({ value: arr[i], locator: [i] });
+  }
+  return out;
+}
+
+/**
+ * Walks a keyed-map collection (modern phase-2 form) OR a fallback array
+ * (legacy form using a `name` field per entry). Each returned entry has:
+ *   - `name`    — string identifier (map key, or entry.name for arrays)
+ *   - `value`   — the entry value
+ *   - `locator` — JSON-pointer segments to reach the entry from the
+ *                 collection root (e.g. `[mapKey]` or `[arrayIndex]`)
+ *
+ * `primary` is the modern keyed-map field (e.g. `flows`). `legacy` is the
+ * older array field name (e.g. `functions`); pass null when there is no
+ * legacy form.
+ */
+function toNamedEntries(primary, legacy) {
+  const out = [];
+  if (primary && typeof primary === "object" && !Array.isArray(primary)) {
+    for (const key of Object.keys(primary)) {
+      out.push({ name: key, value: primary[key], locator: [key] });
+    }
+    return out;
+  }
+  if (Array.isArray(primary)) {
+    for (let i = 0; i < primary.length; i += 1) {
+      const v = primary[i];
+      const name = v && typeof v === "object" && typeof v.name === "string" ? v.name : null;
+      if (name !== null) {
+        out.push({ name, value: v, locator: [i] });
+      }
+    }
+    return out;
+  }
+  if (Array.isArray(legacy)) {
+    for (let i = 0; i < legacy.length; i += 1) {
+      const v = legacy[i];
+      const name = v && typeof v === "object" && typeof v.name === "string" ? v.name : null;
+      if (name !== null) {
+        out.push({ name, value: v, locator: [i] });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * `capability.aggregates` is documented as an array of inline-aggregate /
+ * import-entry objects. However, some older fixtures (and a possible
+ * future migration to a fully keyed-map form) may emit it as a map keyed
+ * by namespace. Accept both, and derive the namespace from the entry
+ * itself rather than the key (matches the rest of the rule's logic).
+ */
+function toAggregateEntries(aggregates) {
+  if (Array.isArray(aggregates)) {
+    return aggregates.map((value, index) => ({ value, locator: [index] }));
+  }
+  if (aggregates && typeof aggregates === "object") {
+    return Object.keys(aggregates).map((key) => ({
+      value: aggregates[key],
+      locator: [key],
+    }));
+  }
+  return [];
 }
