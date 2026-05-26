@@ -930,5 +930,15 @@
     "name": "io.ikanos.spec.OutputParameterSerializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
+  },
+  {
+    "name": "com.networknt.schema.PropertyNamesValidator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.networknt.schema.MinPropertiesValidator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
   }
 ]
