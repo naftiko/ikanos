@@ -3,10 +3,13 @@
 FROM maven:3.9.15-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
+RUN sed -i 's|<module>ikanos-coverage</module>||g' pom.xml
 COPY ikanos-spec ./ikanos-spec
 COPY ikanos-engine ./ikanos-engine
 COPY ikanos-cli ./ikanos-cli
 COPY ikanos-docs ./ikanos-docs
+COPY ikanos-tunnel-ziti ./ikanos-tunnel-ziti
+
 # Build the jar
 RUN mvn clean package -DskipTests
 
