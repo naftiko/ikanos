@@ -81,7 +81,15 @@
     "allDeclaredConstructors": true
   },
   {
+    "name": "com.networknt.schema.ItemsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
     "name": "com.networknt.schema.ItemsValidator202012",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MaxItemsValidator",
     "allDeclaredConstructors": true
   },
   {
@@ -97,7 +105,107 @@
     "allDeclaredConstructors": true
   },
   {
+    "name": "com.networknt.schema.ExclusiveMinimumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ExclusiveMaximumValidator",
+    "allDeclaredConstructors": true
+  },
+  {
     "name": "com.networknt.schema.PatternValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PropertyNamesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PatternPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.DependenciesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ContainsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinMaxContainsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MaxLengthValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinLengthValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MaxPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MinPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.MultipleOfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.FormatValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.IfValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.NotAllowedValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.TrueValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.FalseValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.ReadOnlyValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.WriteOnlyValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.RecursiveRefValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.PrefixItemsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.UnevaluatedItemsValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.UnevaluatedPropertiesValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.UnionTypeValidator",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.networknt.schema.UniqueItemsValidator",
     "allDeclaredConstructors": true
   },
   {
