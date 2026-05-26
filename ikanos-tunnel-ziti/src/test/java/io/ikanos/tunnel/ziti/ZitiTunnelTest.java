@@ -13,9 +13,9 @@
  */
 package io.ikanos.tunnel.ziti;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,9 +54,9 @@ class ZitiTunnelTest {
     @Test
     void noArgConstructorShouldBeAvailableForServiceLoader() {
         // ServiceLoader requires a public no-arg constructor; assert nothing thrown.
-        try (ZitiTunnel tunnel = new ZitiTunnel()) {
-            assertNotNull(tunnel);
-        }
+        // Use assertDoesNotThrow rather than try-with-resources so the test does not
+        // implicitly invoke close() — the intent is solely to verify the constructor.
+        assertDoesNotThrow(() -> new ZitiTunnel());
     }
 
     @Test
