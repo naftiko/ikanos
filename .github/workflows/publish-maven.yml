@@ -55,23 +55,24 @@ jobs:
           cache: 'maven'
 
       - name: Configure Maven Central
-        run: ./scripts/builder.sh config_maven_central
+        run: bash ./scripts/builder.sh config_maven_central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
 
       - name: Configure GPG
-        run: ./scripts/builder.sh config_gpg
+        run: bash ./scripts/builder.sh config_gpg
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Publish to Maven Central
-        run: ./scripts/builder.sh central
+        run: bash ./scripts/builder.sh central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_OPTS: "-Dcentral.publishing.waitUntil=validated"
 
       - name: Cleanup
         if: always()
