@@ -1,4 +1,4 @@
-ikanos: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha4"
 exposes:
   - namespace: "weather-rest"
     type: "rest"
