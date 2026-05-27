@@ -87,6 +87,8 @@ def main():
         "ikanos-docs/tutorial",
         "ikanos-engine/src/test/resources",
         "ikanos-cli/src/test/resources",
+        "ikanos-spec/src/main/resources/schemas/examples",
+        "ikanos-spec/src/test/resources"
     ]
 
     print(" Searching for YAML/JSON files in:")
