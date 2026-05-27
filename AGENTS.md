@@ -127,6 +127,8 @@ When writing or generating tests, follow these rules:
 - Write one focused assertion per test, or group only closely related assertions in a single test
 - Name tests in the form `methodShouldDoSomethingWhenCondition`
 - After renaming any string constant that tests assert against (OTel span names, error messages, log markers), run a codebase-wide grep for the old string across **all** test sources — not just the test class that was directly updated. Compilation failures in unrelated tests do not exempt this search from being exhaustive
+- **Spec version in inline YAML inside Java sources** (text blocks, string literals) — never hardcode the version. Inject it via `io.ikanos.spec.util.VersionHelper.getSchemaVersion()` and `String.formatted(...)`, e.g. `private static final String IKANOS = VersionHelper.getSchemaVersion();` then `"""ikanos: "%s" ... """.formatted(IKANOS)`. Rationale: `VersionHelper` reads the Maven-filtered `version.properties` so the value follows `pom.xml` automatically. Do **not** put placeholders in the published schema JSON — it must remain a ready-to-consume artifact
+- **Spec version in YAML / JSON test fixtures** (files under `src/test/resources/`, examples, tutorial capabilities) keeps a real version string. When you add a new fixture location or file extension that contains `ikanos: <version>`, update `scripts/sync-ikanos-version.py` (and `scripts/ikanos_version.py` if the pattern needs extending) in the same PR so the next version bump picks it up. See `CONTRIBUTING.md` → *Writing tests — handling the spec version* for details
 
 **Don't:**
 - Mix unit test patterns (local mock servers, in-process stubs, hardcoded XML/JSON payloads) into integration test classes — each test class must be one type, not both

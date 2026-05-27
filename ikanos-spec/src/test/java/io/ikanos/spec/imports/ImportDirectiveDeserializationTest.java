@@ -35,6 +35,7 @@ import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.BindingSpec;
 import io.ikanos.spec.util.ImportedBindingSpec;
+import io.ikanos.spec.util.VersionHelper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +53,8 @@ import org.junit.jupiter.api.Test;
  * <p>See {@code blueprints/unified-import-mechanism.md} §5 and §16 (Phase 1).</p>
  */
 class ImportDirectiveDeserializationTest {
+
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     private ObjectMapper mapper;
 
@@ -232,7 +235,7 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("a single capability document mixes inline and imported entries in all four sections")
     void documentShouldAllowInlineAndImportedEntriesInTheSameSection() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "mixed"
               description: "Capability mixing inline and imported entries."
@@ -263,7 +266,7 @@ class ImportDirectiveDeserializationTest {
                   flows: {}
                 - from: "./shared/maritime-aggregates.yml"
                   import: "fleet-aggregates"
-            """;
+            """.formatted(IKANOS);
 
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
@@ -296,12 +299,12 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("standalone-exposes document parses with top-level 'exposes' array")
     void standaloneExposesDocumentShouldParseAtRoot() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             exposes:
               - type: "rest"
                 namespace: "shared-rest"
                 port: 3003
-            """;
+            """.formatted(IKANOS);
 
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
@@ -313,7 +316,7 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("standalone-aggregates document parses with top-level 'aggregates' array")
     void standaloneAggregatesDocumentShouldParseAtRoot() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             aggregates:
               - display: "Crew Resolver"
                 namespace: "crew-resolver"
@@ -321,7 +324,7 @@ class ImportDirectiveDeserializationTest {
                   lookup:
                     description: "Lookup"
                     call: "api.lookup"
-            """;
+            """.formatted(IKANOS);
 
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 

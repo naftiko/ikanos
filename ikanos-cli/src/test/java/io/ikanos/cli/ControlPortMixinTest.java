@@ -20,7 +20,11 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.ikanos.spec.util.VersionHelper;
+
 public class ControlPortMixinTest {
+
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @TempDir
     Path tempDir;
@@ -84,14 +88,14 @@ public class ControlPortMixinTest {
 
         Path yaml = tempDir.resolve("my-capability.yaml");
         Files.writeString(yaml, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test
                 capability:
                   exposes:
                     - type: control
                       port: 9199
-                """);
+                """.formatted(IKANOS));
 
         String originalDir = System.getProperty("user.dir");
         try {
@@ -136,14 +140,14 @@ public class ControlPortMixinTest {
         // Create a YAML with control port to fall back to
         Path yaml = tempDir.resolve("fallback.yaml");
         Files.writeString(yaml, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test
                 capability:
                   exposes:
                     - type: control
                       port: 9200
-                """);
+                """.formatted(IKANOS));
 
         String originalDir = System.getProperty("user.dir");
         try {
@@ -168,14 +172,14 @@ public class ControlPortMixinTest {
 
         Path yaml = tempDir.resolve("rest-only.yaml");
         Files.writeString(yaml, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test
                 capability:
                   exposes:
                     - type: rest
                       port: 8080
-                """);
+                """.formatted(IKANOS));
 
         String originalDir = System.getProperty("user.dir");
         try {
@@ -192,25 +196,25 @@ public class ControlPortMixinTest {
 
         Path yaml1 = tempDir.resolve("a-capability.yaml");
         Files.writeString(yaml1, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test A
                 capability:
                   exposes:
                     - type: rest
                       port: 8080
-                """);
+                """.formatted(IKANOS));
 
         Path yaml2 = tempDir.resolve("b-capability.yaml");
         Files.writeString(yaml2, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test B
                 capability:
                   exposes:
                     - type: control
                       port: 9111
-                """);
+                """.formatted(IKANOS));
 
         String originalDir = System.getProperty("user.dir");
         try {
@@ -228,11 +232,11 @@ public class ControlPortMixinTest {
 
         Path yaml = tempDir.resolve("no-control.yaml");
         Files.writeString(yaml, """
-                ikanos: "1.0.0-alpha2"
+                ikanos: "%s"
                 info:
                   display: Test
                 capability: {}
-                """);
+                """.formatted(IKANOS));
 
         String originalDir = System.getProperty("user.dir");
         try {

@@ -26,6 +26,8 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import io.ikanos.spec.util.VersionHelper;
+
 import java.io.InputStream;
 import java.util.Set;
 
@@ -47,6 +49,7 @@ class ImportSchemaValidationTest {
     private static JsonSchema schema;
     private static final YAMLMapper YAML = new YAMLMapper();
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @BeforeAll
     static void loadSchema() throws Exception {
@@ -71,7 +74,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an import entry inside 'capability.consumes'")
     void schemaShouldAcceptImportEntryInConsumes() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -81,7 +84,7 @@ class ImportSchemaValidationTest {
                   import: "notion"
                   as: "notion-shared"
                   description: "Standard Notion adapter."
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -90,7 +93,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an import entry inside 'capability.exposes'")
     void schemaShouldAcceptImportEntryInExposes() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -99,7 +102,7 @@ class ImportSchemaValidationTest {
                 - from: "./shared/maritime.exposes.yml"
                   import: "maritime-rest"
                   as: "fleet-maritime-rest"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -108,7 +111,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an import entry inside 'capability.aggregates'")
     void schemaShouldAcceptImportEntryInAggregates() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -121,7 +124,7 @@ class ImportSchemaValidationTest {
                 - from: "./shared/maritime-aggregates.yml"
                   import: "crew-resolver"
                   as: "fleet-crew-resolver"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -130,12 +133,12 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an import entry inside top-level 'binds'")
     void schemaShouldAcceptImportEntryInBinds() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             binds:
               - from: "./shared/prod-secrets.binds.yml"
                 import: "secrets"
                 as: "prod-secrets"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -146,12 +149,12 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an 'ikanos + exposes' standalone document")
     void schemaShouldAcceptStandaloneExposesDocument() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             exposes:
               - type: "rest"
                 namespace: "shared-rest"
                 port: 3003
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -160,7 +163,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema accepts an 'ikanos + aggregates' standalone document")
     void schemaShouldAcceptStandaloneAggregatesDocument() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             aggregates:
               - display: "Crew Resolver"
                 namespace: "crew-resolver"
@@ -168,7 +171,7 @@ class ImportSchemaValidationTest {
                   find-by-id:
                     description: "Look up a crew member by id."
                     call: "api.lookup"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -179,7 +182,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema rejects an import entry missing the 'from' property")
     void schemaShouldRejectImportEntryMissingFrom() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -187,7 +190,7 @@ class ImportSchemaValidationTest {
               consumes:
                 - import: "notion"
                   as: "notion-shared"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(), "Expected validation errors for missing 'from'");
     }
@@ -196,7 +199,7 @@ class ImportSchemaValidationTest {
     @DisplayName("schema rejects an import entry missing the 'import' property")
     void schemaShouldRejectImportEntryMissingImport() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -204,7 +207,7 @@ class ImportSchemaValidationTest {
               consumes:
                 - from: "./shared/notion.consumes.yml"
                   as: "notion-shared"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(), "Expected validation errors for missing 'import'");
     }

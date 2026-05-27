@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: Embedding Test
   description: Test capability for step handler registry integration

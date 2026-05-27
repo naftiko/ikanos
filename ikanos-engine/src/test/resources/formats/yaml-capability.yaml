@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: YAML Test Capability
   description: Test capability for YAML parsing from API responses

@@ -114,7 +114,7 @@ public class ValidateCommandTest {
     @Test
     public void callShouldFailWhenSchemaVersionIsUnsupported() {
         Path yaml = tempDir.resolve("capability.yaml");
-        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha4\"\n"));
 
         int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString(), "9.9");
 
@@ -125,7 +125,7 @@ public class ValidateCommandTest {
     @Test
     public void callShouldFailWhenValidationDetectsSchemaErrors() {
         Path yaml = tempDir.resolve("invalid-capability.yaml");
-        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\ninfo: {}\n"));
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha4\"\ninfo: {}\n"));
 
         int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
@@ -153,7 +153,7 @@ public class ValidateCommandTest {
         };
 
         Path yaml = tempDir.resolve("unexpected.yaml");
-        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha3\"\n"));
+        assertDoesNotThrow(() -> Files.writeString(yaml, "ikanos: \"1.0.0-alpha4\"\n"));
 
         int exitCode = new CommandLine(command).execute(yaml.toString());
 

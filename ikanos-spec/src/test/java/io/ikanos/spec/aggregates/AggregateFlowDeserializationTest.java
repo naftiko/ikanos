@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.util.VersionHelper;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -32,8 +33,10 @@ class AggregateFlowDeserializationTest {
     private static final ObjectMapper MAPPER =
             new ObjectMapper(new YAMLFactory()).findAndRegisterModules();
 
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
+
     private static final String CAPABILITY_WITH_FLOWS = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             capability:
               exposes: []
               consumes: []
@@ -47,7 +50,7 @@ class AggregateFlowDeserializationTest {
                     list-forecasts:
                       description: "List recent forecasts"
                       call: weather-api.list-forecasts
-            """;
+            """.formatted(IKANOS);
 
     @Test
     void flowsKeyShouldDeserializeIntoAggregateFlowSpecMap() throws Exception {

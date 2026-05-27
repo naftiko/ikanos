@@ -3,7 +3,7 @@
 #
 # The tunnel uses fallback: direct against a non-loopback baseUri
 # (https://crm.internal). The warn rule must report a violation.
-ikanos: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha4"
 
 info:
   display: "Reverse tunnel — direct fallback on non-loopback baseUri"
