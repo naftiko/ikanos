@@ -4,7 +4,7 @@
 # The tunnel.identity references a Mustache namespace ("secrets") that is NOT
 # declared in binds/capability.binds. The custom function tunnel-identity-binds-ref
 # must report a violation.
-ikanos: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha6"
 
 info:
   display: "Reverse tunnel — unbound identity reference"

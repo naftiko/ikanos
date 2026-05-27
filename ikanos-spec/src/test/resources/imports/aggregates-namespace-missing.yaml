@@ -1,6 +1,6 @@
 # Standalone source file with an `aggregates` entry that lacks `namespace`.
 # Should trigger: ikanos-aggregates-namespace-required
-ikanos: "1.0.0-alpha3"
+ikanos: "1.0.0-alpha6"
 
 aggregates:
   - label: Weather Service
