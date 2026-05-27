@@ -12,7 +12,7 @@
     },
     "info": {
       "$ref": "#/$defs/Info",
-      "description": "Human-readable metadata: label, description, tags, dates, stakeholders.\n\n**When to use** — Required on every capability document. The richer the `description`, the better agents can discover and reason about this capability.\n**Format** — `created` / `modified` must be `YYYY-MM-DD`. `stakeholders[].role` is free-form (`owner`, `editor`, `reviewer`, etc.)."
+      "description": "Human-readable metadata: label, description, tags, dates, stakeholders.\n\n**When to use** \u2014 Required on every capability document. The richer the `description`, the better agents can discover and reason about this capability.\n**Format** \u2014 `created` / `modified` must be `YYYY-MM-DD`. `stakeholders[].role` is free-form (`owner`, `editor`, `reviewer`, etc.)."
     },
     "consumes": {
       "type": "array",
@@ -85,7 +85,7 @@
     },
     "capability": {
       "$ref": "#/$defs/Capability",
-      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** — `info` for metadata, `binds` for secrets."
+      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** \u2014 `info` for metadata, `binds` for secrets."
     }
   },
   "oneOf": [
@@ -301,7 +301,7 @@
     },
     "ConsumedOutputParameter": {
       "type": "object",
-      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** — Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** — Extracted values are referenced by their key in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** — For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
+      "description": "Extracts a named value from the raw API response for use in orchestration steps.\n\n**When to use** \u2014 Declare one entry per piece of data you need from the response. The `value` JsonPath expression is evaluated against the parsed response body.\n**Usage** \u2014 Extracted values are referenced by their key in step `with` mappings and `MappedOutputParameter` definitions.\n**Tip** \u2014 For array responses, use JsonPath wildcards (e.g. `$.results[*].id`) to extract a list.",
       "properties": {
         "type": {
           "type": "string",
@@ -344,7 +344,7 @@
           "description": "JsonPath expression to extract the value. E.g. $.properties.Name.title[0].text.content"
         },
         "const": {
-          "description": "Schema-level constant for validation and linting. Not used at runtime for value injection — use 'value' instead.",
+          "description": "Schema-level constant for validation and linting. Not used at runtime for value injection \u2014 use 'value' instead.",
           "oneOf": [
             {
               "type": "string"
@@ -1756,7 +1756,7 @@
     },
     "ConsumesHttp": {
       "type": "object",
-      "description": "Inline HTTP API adapter. Declares the base URI, shared input parameters, authentication, and resources for an upstream HTTP service.\n\n**When to use** — Define one `ConsumesHttp` per upstream API (e.g. one for Notion, one for GitHub). Declare it at root-level `consumes[]` to share across capabilities, or under `capability.consumes[]` to scope it locally.\n**Execution model** — The framework uses `namespace` as the call target. Operations are resolved by matching `ConsumedHttpResource.name` + `ConsumedHttpOperation.name`.\n**See also** — `ImportedConsumesHttp` (cross-file reuse), `ForwardConfig` (header forwarding), `Authentication` (security).",
+      "description": "Inline HTTP API adapter. Declares the base URI, shared input parameters, authentication, and resources for an upstream HTTP service.\n\n**When to use** \u2014 Define one `ConsumesHttp` per upstream API (e.g. one for Notion, one for GitHub). Declare it at root-level `consumes[]` to share across capabilities, or under `capability.consumes[]` to scope it locally.\n**Execution model** \u2014 The framework uses `namespace` as the call target. Operations are resolved by matching `ConsumedHttpResource.name` + `ConsumedHttpOperation.name`.\n**See also** \u2014 `ImportedConsumesHttp` (cross-file reuse), `ForwardConfig` (header forwarding), `Authentication` (security).",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -1772,7 +1772,7 @@
         },
         "baseUri": {
           "type": "string",
-          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here — use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
+          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here \u2014 use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
           "pattern": "^https?://[^/]+(/[^{]*)?$"
         },
         "inputParameters": {
@@ -1791,7 +1791,7 @@
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",
-          "description": "Optional reverse-tunnel transport for reaching APIs behind a firewall. When set, the engine dials the consumed API through the configured overlay instead of the public internet. The TLS / authentication layer declared via `authentication` runs unchanged on top of the tunnel.\n\n**Engine support** — declarative only in this schema version; runtime engine wiring lands in a later release. Capabilities that declare `tunnel:` parse and validate today, but the engine still dials the public `baseUri` directly until the embedded tunnel feature is enabled. See the Reverse Tunnel guide for the sidecar pattern that works today."
+          "description": "Optional reverse-tunnel transport for reaching APIs behind a firewall. When set, the engine dials the consumed API through the configured overlay instead of the public internet. The TLS / authentication layer declared via `authentication` runs unchanged on top of the tunnel.\n\n**Engine support** \u2014 declarative only in this schema version; runtime engine wiring lands in a later release. Capabilities that declare `tunnel:` parse and validate today, but the engine still dials the public `baseUri` directly until the embedded tunnel feature is enabled. See the Reverse Tunnel guide for the sidecar pattern that works today."
         },
         "resources": {
           "type": "object",
@@ -1813,7 +1813,7 @@
       "additionalProperties": false
     },
     "TunnelConfig": {
-      "description": "Tunnel transport configuration for a `ConsumesHttp`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** — `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities — never inline the identity JSON directly.",
+      "description": "Tunnel transport configuration for a `ConsumesHttp`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** \u2014 `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities \u2014 never inline the identity JSON directly.",
       "oneOf": [
         {
           "$ref": "#/$defs/TunnelZiti"
@@ -1831,7 +1831,7 @@
         },
         "service": {
           "type": "string",
-          "description": "Ziti service name to dial (e.g. `crm-api`). Defined in the Ziti controller and authorized for this capability's identity. Routing happens by service name — not by IP or DNS."
+          "description": "Ziti service name to dial (e.g. `crm-api`). Defined in the Ziti controller and authorized for this capability's identity. Routing happens by service name \u2014 not by IP or DNS."
         },
         "identity": {
           "type": "string",
@@ -1844,7 +1844,7 @@
             "direct"
           ],
           "default": "fail",
-          "description": "Behavior when the tunnel cannot be established. `fail` (default) — operations return a 503-equivalent. `direct` — engine attempts a direct HTTP call to `baseUri`; NOT recommended for production, intended for local development against a stubbed upstream. The Polychro rule `ikanos-tunnel-fallback-direct-warns` warns when `direct` is used against a non-loopback baseUri."
+          "description": "Behavior when the tunnel cannot be established. `fail` (default) \u2014 operations return a 503-equivalent. `direct` \u2014 engine attempts a direct HTTP call to `baseUri`; NOT recommended for production, intended for local development against a stubbed upstream. The Polychro rule `ikanos-tunnel-fallback-direct-warns` warns when `direct` is used against a non-loopback baseUri."
         }
       },
       "required": [
@@ -1856,7 +1856,7 @@
     },
     "ConsumedHttpResource": {
       "type": "object",
-      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** — Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** — `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** — `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
+      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** \u2014 Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** \u2014 `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** \u2014 `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
         "display": {
           "type": "string",
@@ -1871,7 +1871,7 @@
         },
         "description": {
           "type": "string",
-          "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object — a structured collection of pages'). Used for agent discovery."
+          "description": "Description of what this resource represents in the upstream API (e.g. 'A Notion database object \u2014 a structured collection of pages'). Used for agent discovery."
         },
         "path": {
           "type": "string",
@@ -1964,7 +1964,7 @@
         },
         "outputSchema": {
           "type": "string",
-          "description": "Format-specific schema or selector:\n- **avro / protobuf** — path to the schema file (required for these formats).\n- **html** — CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** — Heading prefix to filter sections (e.g. `## Results`).\n- Other formats — unused."
+          "description": "Format-specific schema or selector:\n- **avro / protobuf** \u2014 path to the schema file (required for these formats).\n- **html** \u2014 CSS selector to scope table extraction (e.g. `table.results`).\n- **markdown** \u2014 Heading prefix to filter sections (e.g. `## Results`).\n- Other formats \u2014 unused."
         },
         "outputParameters": {
           "type": "object",
@@ -2082,13 +2082,13 @@
                 "python",
                 "groovy"
               ],
-              "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port — the engine falls back to the default."
+              "description": "GraalVM language identifier for the script engine. Optional when 'management.scripting.defaultLanguage' is set in the Control Port \u2014 the engine falls back to the default."
             },
             "location": {
               "type": "string",
               "format": "uri",
               "pattern": "^file:///",
-              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location — a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port — the engine falls back to the default."
+              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location \u2014 a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port \u2014 the engine falls back to the default."
             },
             "file": {
               "type": "string",
@@ -2150,7 +2150,7 @@
     },
     "RequestBodyJson": {
       "type": "object",
-      "description": "JSON request body. Sends `data` serialized as `application/json`. `data` can be a static string, object, or array — or a Mustache template string resolved from the execution context.",
+      "description": "JSON request body. Sends `data` serialized as `application/json`. `data` can be a static string, object, or array \u2014 or a Mustache template string resolved from the execution context.",
       "properties": {
         "type": {
           "type": "string",
@@ -2183,7 +2183,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Content-type variant: `text` → `text/plain`, `xml` → `application/xml`, `sparql` → `application/sparql-query`.",
+          "description": "Content-type variant: `text` \u2192 `text/plain`, `xml` \u2192 `application/xml`, `sparql` \u2192 `application/sparql-query`.",
           "enum": [
             "text",
             "xml",
@@ -2210,7 +2210,7 @@
           "const": "formUrlEncoded"
         },
         "data": {
-          "description": "Form fields. Provide either a pre-encoded string or a key→value object whose values are URL-encoded by the framework.",
+          "description": "Form fields. Provide either a pre-encoded string or a key\u2192value object whose values are URL-encoded by the framework.",
           "oneOf": [
             {
               "type": "string",
@@ -2218,7 +2218,7 @@
             },
             {
               "type": "object",
-              "description": "Key–value map of form fields. Values must be strings; the framework handles encoding.",
+              "description": "Key\u2013value map of form fields. Values must be strings; the framework handles encoding.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2286,7 +2286,7 @@
       "description": "Raw body string sent as-is. Use a YAML block scalar (`|`) for multi-line payloads. The framework treats the string as JSON by default; pair with a `Content-Type` input parameter to override."
     },
     "RequestBody": {
-      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` → `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` → plain text / XML / SPARQL query\n- `formUrlEncoded` → `application/x-www-form-urlencoded`\n- `multipartForm` → `multipart/form-data` (file uploads)\n- raw string → sent as-is (override content-type via an `inputParameter` with `in: header`)",
+      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` \u2192 `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` \u2192 plain text / XML / SPARQL query\n- `formUrlEncoded` \u2192 `application/x-www-form-urlencoded`\n- `multipartForm` \u2192 `multipart/form-data` (file uploads)\n- raw string \u2192 sent as-is (override content-type via an `inputParameter` with `in: header`)",
       "oneOf": [
         {
           "$ref": "#/$defs/RequestBodyJson"
@@ -2307,7 +2307,7 @@
     },
     "ForwardConfig": {
       "type": "object",
-      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** — Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** — Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** — `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
+      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
       "properties": {
         "targetNamespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -2328,7 +2328,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` — HTTP Basic (username + password)\n- `apikey` — API key in header or query string\n- `bearer` — Static Bearer token\n- `digest` — HTTP Digest (username + password)\n- `oauth2` — OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -2349,7 +2349,7 @@
     },
     "AuthBasic": {
       "type": "object",
-      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime — do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
+      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime \u2014 do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
       "properties": {
         "type": {
           "type": "string",
@@ -2371,7 +2371,7 @@
     },
     "AuthApiKey": {
       "type": "object",
-      "description": "API Key authentication. Injects a named key–value pair into every request, either as a request header or a query parameter. Common for services like Notion (`Authorization: Bearer`), OpenWeather (`appid=...`), etc.",
+      "description": "API Key authentication. Injects a named key\u2013value pair into every request, either as a request header or a query parameter. Common for services like Notion (`Authorization: Bearer`), OpenWeather (`appid=...`), etc.",
       "properties": {
         "type": {
           "type": "string",
@@ -2419,7 +2419,7 @@
     },
     "AuthDigest": {
       "type": "object",
-      "description": "HTTP Digest authentication (RFC 7616). The framework performs the full challenge–response handshake automatically. Used by older APIs that require digest over basic.",
+      "description": "HTTP Digest authentication (RFC 7616). The framework performs the full challenge\u2013response handshake automatically. Used by older APIs that require digest over basic.",
       "properties": {
         "type": {
           "type": "string",
@@ -2492,7 +2492,7 @@
     },
     "ExposesSkill": {
       "type": "object",
-      "description": "Skill server adapter — metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
+      "description": "Skill server adapter \u2014 metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
       "properties": {
         "type": {
           "type": "string",
@@ -2656,7 +2656,7 @@
     },
     "ExposesControl": {
       "type": "object",
-      "description": "Control adapter — management plane for health, metrics, traces, and runtime diagnostics. Endpoints are engine-provided, not user-defined.",
+      "description": "Control adapter \u2014 management plane for health, metrics, traces, and runtime diagnostics. Endpoints are engine-provided, not user-defined.",
       "properties": {
         "type": {
           "type": "string",
@@ -2692,7 +2692,7 @@
     },
     "ControlManagementSpec": {
       "type": "object",
-      "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) — those are configured under observability.",
+      "description": "Toggle individual control port management endpoint groups. Does not include OTel-dependent endpoints (metrics, traces) \u2014 those are configured under observability.",
       "properties": {
         "health": {
           "type": "boolean",
@@ -2810,7 +2810,7 @@
     },
     "ObservabilitySpec": {
       "type": "object",
-      "description": "Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. All fields are optional — defaults to OTel env vars when not specified.",
+      "description": "Spec-driven observability configuration. Controls distributed tracing, metrics collection, and their local exposure on the control port. All fields are optional \u2014 defaults to OTel env vars when not specified.",
       "properties": {
         "enabled": {
           "type": "boolean",
