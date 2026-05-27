@@ -123,6 +123,50 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 - Do **not** modify CI/CD workflows, security configs, or branch protection rules
 - Keep the Ikanos Specification as a **first-class citizen** in your context
 
+### Writing tests — handling the spec version
+
+The Ikanos schema pins the spec version via `"const"` (e.g. `1.0.0-alphaN`). Any test
+material that mentions `ikanos: "<version>"` must stay in sync with the project version
+declared in `pom.xml`. To avoid the silent drift we have hit in the past, follow these
+two rules:
+
+- **Inline YAML inside Java sources** (text blocks, string literals, etc.) **must not**
+  hardcode the spec version. Use `io.ikanos.spec.util.VersionHelper.getSchemaVersion()`
+  and inject the value with `String.formatted(...)`:
+
+  ```java
+  import io.ikanos.spec.util.VersionHelper;
+
+  private static final String IKANOS = VersionHelper.getSchemaVersion();
+
+  String yaml = """
+      ikanos: "%s"
+      kind: Capability
+      // ...
+      """.formatted(IKANOS);
+  ```
+
+  Rationale: `VersionHelper` reads the Maven-filtered `version.properties`, so the
+  version follows `pom.xml` automatically — no manual update needed on a version bump.
+  Do **not** add placeholders to the published schema JSON itself; it must remain a
+  ready-to-consume artifact.
+
+- **YAML / JSON test fixtures** (files under `src/test/resources/`, examples, tutorial
+  capabilities, etc.) keep a real version string. Whenever you add a new fixture path
+  or file extension that contains `ikanos: <version>`, **update
+  `scripts/sync-ikanos-version.py`** so the next version bump picks it up. At minimum
+  check:
+  - the directories scanned by `find_files(...)` cover your new location;
+  - the file suffix is included (currently `.yml`, `.yaml`, `.json`);
+  - if the matching pattern in `scripts/ikanos_version.py` needs to be extended, do
+    it in the same PR.
+
+  Run the script locally after editing to confirm it touches your new file:
+
+  ```bash
+  python scripts/sync-ikanos-version.py
+  ```
+
 ### Key files for agent context
 
 | File / Path | Purpose |

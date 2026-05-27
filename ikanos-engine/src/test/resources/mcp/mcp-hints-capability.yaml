@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: MCP Hints Test Capability
   description: Test capability for MCP tool hints (ToolAnnotations) support

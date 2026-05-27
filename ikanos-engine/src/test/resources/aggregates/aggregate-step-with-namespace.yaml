@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: Aggregate Step Namespace Test
   description: Test capability for namespace-qualified references in aggregate function

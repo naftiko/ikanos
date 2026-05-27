@@ -25,6 +25,8 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import io.ikanos.spec.util.VersionHelper;
+
 import java.io.InputStream;
 import java.util.Set;
 
@@ -44,6 +46,7 @@ class TunnelSchemaValidationTest {
     private static JsonSchema schema;
     private static final YAMLMapper YAML = new YAMLMapper();
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @BeforeAll
     static void loadSchema() throws Exception {
@@ -79,7 +82,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema accepts a ConsumesHttp adapter with a full ziti tunnel block")
     void schemaShouldAcceptConsumesHttpWithZitiTunnel() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -105,7 +108,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -114,7 +117,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema accepts a ConsumesHttp adapter when tunnel omits the optional fallback")
     void schemaShouldAcceptZitiTunnelWithoutFallback() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -133,7 +136,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -142,7 +145,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema accepts a ConsumesHttp adapter with no tunnel at all (backward compatible)")
     void schemaShouldAcceptConsumesHttpWithoutTunnel() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -157,7 +160,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -176,7 +179,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema rejects an unknown tunnel.type value")
     void schemaShouldRejectUnknownTunnelType() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -195,7 +198,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for unknown tunnel.type, but it passed.");
@@ -205,7 +208,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema rejects an invalid fallback enum value")
     void schemaShouldRejectInvalidFallbackEnum() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -225,7 +228,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for invalid fallback enum, but it passed.");
@@ -235,7 +238,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema rejects a ziti tunnel that is missing the required service field")
     void schemaShouldRejectZitiTunnelWithoutService() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -253,7 +256,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail when tunnel.service is missing, but it passed.");
@@ -263,7 +266,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema rejects a ziti tunnel that is missing the required identity field")
     void schemaShouldRejectZitiTunnelWithoutIdentity() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -281,7 +284,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail when tunnel.identity is missing, but it passed.");
@@ -291,7 +294,7 @@ class TunnelSchemaValidationTest {
     @DisplayName("schema rejects unknown extra properties inside a ziti tunnel block")
     void schemaShouldRejectUnknownTunnelProperties() throws Exception {
         String yaml = """
-            ikanos: "1.0.0-alpha3"
+            ikanos: "%s"
             info:
               display: "demo"
               description: "demo"
@@ -311,7 +314,7 @@ class TunnelSchemaValidationTest {
                       operations:
                         list-customers:
                           method: "GET"
-            """;
+            """.formatted(IKANOS);
         Set<ValidationMessage> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for unknown property under tunnel, but it passed.");

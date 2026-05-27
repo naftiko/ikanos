@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: Nested Object Output Capability
   description: Test fixture for verifying that output mappings correctly resolve nested

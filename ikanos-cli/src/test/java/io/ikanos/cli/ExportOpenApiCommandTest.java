@@ -23,8 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 import io.ikanos.Cli;
+import io.ikanos.spec.util.VersionHelper;
 
 public class ExportOpenApiCommandTest {
+
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @TempDir
     Path tempDir;
@@ -33,7 +36,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldSucceedWithValidCapabilityFile() throws Exception {
         Path capFile = tempDir.resolve("capability.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "Test API"
                   description: "A test capability"
@@ -49,7 +52,7 @@ public class ExportOpenApiCommandTest {
                             - method: GET
                               name: list-items
                               description: List all items
-                """);
+                """.formatted(IKANOS));
 
         Path output = tempDir.resolve("openapi.yaml");
 
@@ -71,7 +74,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldSupportJsonFormat() throws Exception {
         Path capFile = tempDir.resolve("capability.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "JSON Test"
                 capability:
@@ -85,7 +88,7 @@ public class ExportOpenApiCommandTest {
                           operations:
                             - method: GET
                               name: get-data
-                """);
+                """.formatted(IKANOS));
 
         Path output = tempDir.resolve("openapi.json");
 
@@ -112,7 +115,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldFailWhenSpecVersionIsUnsupported() throws Exception {
         Path capFile = tempDir.resolve("capability.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "Spec Version Test"
                 capability:
@@ -126,7 +129,7 @@ public class ExportOpenApiCommandTest {
                           operations:
                             - method: GET
                               name: list-items
-                """);
+                """.formatted(IKANOS));
 
         CommandLine cmd = new CommandLine(new Cli());
         int exitCode = cmd.execute("export", "openapi", capFile.toString(),
@@ -139,7 +142,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldSupportSpecVersion31() throws Exception {
         Path capFile = tempDir.resolve("spec31-capability.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "OpenAPI 3.1 Test"
                 capability:
@@ -153,7 +156,7 @@ public class ExportOpenApiCommandTest {
                           operations:
                             - method: GET
                               name: list-items
-                """);
+                """.formatted(IKANOS));
 
         Path output = tempDir.resolve("openapi31.yaml");
 
@@ -169,7 +172,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldUseDefaultOutputPathWhenOutputNotProvided() throws Exception {
         Path capFile = tempDir.resolve("default-output-cap.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "Default Output Test"
                 capability:
@@ -183,7 +186,7 @@ public class ExportOpenApiCommandTest {
                           operations:
                             - method: GET
                               name: list-items
-                """);
+                """.formatted(IKANOS));
 
         Path expectedOutput = Path.of("openapi.yaml").toAbsolutePath().normalize();
         try {
@@ -201,7 +204,7 @@ public class ExportOpenApiCommandTest {
     void exportShouldUseJsonExtensionForDefaultOutputWhenFormatIsJson() throws Exception {
         Path capFile = tempDir.resolve("json-default-cap.yml");
         Files.writeString(capFile, """
-                ikanos: "1.0.0-alpha1"
+                ikanos: "%s"
                 info:
                   display: "JSON Default Output Test"
                 capability:
@@ -215,7 +218,7 @@ public class ExportOpenApiCommandTest {
                           operations:
                             - method: GET
                               name: list-items
-                """);
+                """.formatted(IKANOS));
 
         Path expectedOutput = Path.of("openapi.json").toAbsolutePath().normalize();
         try {

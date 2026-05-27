@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha3
+ikanos: 1.0.0-alpha4
 info:
   display: HTTP Forward with Value Field Test
   description: Test capability for forward spec with value field supporting Mustache
