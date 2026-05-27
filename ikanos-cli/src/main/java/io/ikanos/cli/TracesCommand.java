@@ -27,6 +27,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
@@ -189,7 +190,7 @@ public class TracesCommand implements Callable<Integer> {
 
     static String formatDuration(long ms) {
         if (ms >= 1000) {
-            return String.format("%.1fs", ms / 1000.0);
+            return String.format(Locale.ROOT, "%.1fs", ms / 1000.0);
         }
         return ms + "ms";
     }

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
@@ -108,7 +109,7 @@ public class ScriptingCommand implements Callable<Integer> {
             System.out.println("    Executions: " + stats.path("totalExecutions").asLong());
             System.out.println("    Errors:     " + stats.path("totalErrors").asLong());
             System.out.println("    Avg Duration: "
-                    + String.format("%.2f", stats.path("averageDurationMs").asDouble()) + " ms");
+                    + String.format(Locale.ROOT, "%.2f", stats.path("averageDurationMs").asDouble()) + " ms");
             if (stats.has("lastExecutionAt")) {
                 System.out.println("    Last Run:   " + stats.get("lastExecutionAt").asText());
             }
