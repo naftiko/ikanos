@@ -12,3 +12,8 @@ dependency-reduced-pom.xml
 *.pyc
 # ─── Maven flatten plugin output ───────────────────────────────────────────────
 **/.flattened-pom.xml
+# ─── IDE ───────────────────────────────────────────────────────────────────────
+**/.settings/
+**/.classpath
+**/.project
+**/.factorypath
