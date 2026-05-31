@@ -2,11 +2,11 @@
 
 ## Project Context
 
-**Ikanos** is the engine for [Spec-Driven Integration](https://github.com/naftiko/ikanos/wiki/Spec%E2%80%90Driven-Integration). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
+**Ikanos** is the engine for [Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/spec-driven-integration/). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
 
 - **Language**: Java 21, Maven build system (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
 - **Specification**: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
-- **Wiki**: https://github.com/naftiko/ikanos/wiki (Specification, Tutorial, Use Cases, FAQ)
+- **Shipyard**: https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/ (Specification, Tutorials, Use Cases, FAQ)
 
 ## Key Files
 

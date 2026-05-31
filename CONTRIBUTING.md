@@ -111,7 +111,7 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 - **Specification**: The Ikanos Specification defines the capability schema. See `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` for the latest JSON Schema.
 - **Examples**: `ikanos-spec/src/main/resources/schemas/examples/` contains capability examples. `ikanos-docs/tutorial/` contains step-by-step tutorial capabilities.
 - **Test fixtures**: `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` contain YAML capabilities used for unit tests.
-- **Wiki**: the [project wiki](https://github.com/naftiko/ikanos/wiki) contains the full specification, tutorial, FAQ, and use cases.
+- **Shipyard**: the [Naftiko Shipyard](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/) contains the full specification, tutorials, FAQ, and use cases.
 
 ### Agent contribution rules
 
