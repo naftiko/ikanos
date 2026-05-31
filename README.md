@@ -13,7 +13,7 @@ Welcome to **Ikanos**, the first Open Source project for [Spec-Driven Integratio
 
 ## What Ikanos is
 
-Ikanos is the **capability engine** at the heart of the Naftiko Fleet. It reads an Ikanos YAML specification at startup and immediately serves it as a multi-protocol server — **MCP**, **Skill**, **REST**, and **Control** — with **no code generation and no compilation step**. The spec *is* the artifact and the runtime contract.
+Ikanos is a **capability engine** that reads an Ikanos YAML specification at startup and immediately serves it as a multi-protocol server — **MCP**, **Skill**, **REST**, and **Control** — with **no code generation and no compilation step**. The spec *is* the artifact and the runtime contract.
 
 Each capability is a coarse-grained slice of a domain. It consumes existing HTTP-based APIs, optionally orchestrates and transforms the data, then exposes the result in several protocols so that AI agents, web apps, and partners can all consume it the same way. The project ships as three pieces:
 
