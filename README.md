@@ -9,7 +9,7 @@ Welcome to **Ikanos**, the first Open Source project for [Spec-Driven Integratio
 
 > Ikanos comes from the Greek *ικανός* — **capable**.
 
-<img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="600">
+<img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="700">
 
 ## What Ikanos is
 
