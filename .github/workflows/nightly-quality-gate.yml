@@ -1,0 +1,522 @@
+name: Nightly Quality Gate
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # Every day at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+    
+  test-and-analyze:
+    name: Unit Tests + JaCoCo + SonarQube + Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Init summary
+        run: |
+          echo "# PR Quality Report — $(date '+%Y-%m-%d %H:%M') UTC" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| JaCoCo | Unit test coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarQube | Code quality & bugs |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy | CVE vulnerabilities & secrets |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | Secrets in git history |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+
+      - name: Start Microcks
+        run: |
+          docker run -d \
+            -p 8080:8080 \
+            quay.io/microcks/microcks-uber:latest  
+
+      - name: Wait for Microcks
+        run: |
+          sleep 15
+          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
+
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in .github/microcks/*.yaml; do
+            echo "Importing $file"
+            curl -s -X POST "http://localhost:8080/api/artifact/upload" \
+              -F "file=@$file"
+          done
+
+      - name: Patch baseUri in capability files
+        run: |
+          TUTORIAL_DIR="ikanos-engine/src/test/resources/tutorial"
+
+          get_base_uri() {
+            case "$1" in
+              registry) echo "http://localhost:8080/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2" ;;
+              legacy)   echo "http://localhost:8080/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2" ;;
+              *)        echo "" ;;
+            esac
+          }
+
+          find "$TUTORIAL_DIR" -name "*.yaml" -o -name "*.yml" | while read file; do
+            COUNT=$(yq '.capability.consumes | length' "$file" 2>/dev/null)
+            { [ -z "$COUNT" ] || [ "$COUNT" = "0" ] || [ "$COUNT" = "null" ]; } && continue
+
+            for i in $(seq 0 $(($COUNT - 1))); do
+              IMPORT=$(yq -r ".capability.consumes[$i].import // \"\"" "$file")
+
+              if [ -n "$IMPORT" ]; then
+                # Import-style: patch the referenced shared file
+                LOCATION=$(yq -r ".capability.consumes[$i].location" "$file")
+                SHARED_FILE="$(dirname "$file")/$LOCATION"
+
+                [ ! -f "$SHARED_FILE" ] && echo "Warning: $SHARED_FILE not found, skipping" && continue
+
+                NAMESPACE=$(yq -r ".consumes[0].namespace" "$SHARED_FILE")
+                BASE_URI=$(get_base_uri "$NAMESPACE")
+                [ -z "$BASE_URI" ] && continue
+
+                echo "Patching shared file $SHARED_FILE: '$NAMESPACE' → $BASE_URI"
+                yq -i ".consumes[0].baseUri = \"$BASE_URI\"" "$SHARED_FILE"
+              else
+                # Inline-style: patch baseUri directly in the tutorial file
+                NAMESPACE=$(yq -r ".capability.consumes[$i].namespace // \"\"" "$file")
+                [ -z "$NAMESPACE" ] && continue
+
+                BASE_URI=$(get_base_uri "$NAMESPACE")
+                [ -z "$BASE_URI" ] && continue
+
+                echo "Patching $file inline: '$NAMESPACE' → $BASE_URI"
+                yq -i ".capability.consumes[$i].baseUri = \"$BASE_URI\"" "$file"
+              fi
+            done
+          done
+
+      - name: Prepare shared path
+        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
+
+      - name: Run tests + JaCoCo coverage
+        run: mvn clean verify --no-transfer-progress
+
+      - name: Publish test failures summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          REPORTS=$(find . -path "*/target/surefire-reports/TEST-*.xml")
+          if [ -z "$REPORTS" ]; then
+            echo "> No Surefire reports found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          TOTAL=0; FAILURES=0; ERRORS=0; SKIPPED=0
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            read T FA ER SK < <(
+              python3 -c "
+          import xml.etree.ElementTree as ET
+          import sys
+
+          root = ET.parse(sys.argv[1]).getroot()
+          print(
+              root.get('tests','0'),
+              root.get('failures','0'),
+              root.get('errors','0'),
+              root.get('skipped','0')
+          )
+          " "$f" 2>/dev/null
+            )
+
+            TOTAL=$((TOTAL + T))
+            FAILURES=$((FAILURES + FA))
+            ERRORS=$((ERRORS + ER))
+            SKIPPED=$((SKIPPED + SK))
+          done <<< "$REPORTS"
+          PASSED=$((TOTAL - FAILURES - ERRORS - SKIPPED))
+
+          echo "| Passed | Failed | Errors | Skipped | Total |"  >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|----------|----------|-------|"        >> $GITHUB_STEP_SUMMARY
+          echo "| $PASSED  | $FAILURES | $ERRORS  | $SKIPPED | $TOTAL |"     >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $((FAILURES + ERRORS)) -eq 0 ]; then
+            echo "All tests passed." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "### Failures & Errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 << 'PYEOF' >> $GITHUB_STEP_SUMMARY
+          import xml.etree.ElementTree as ET
+          import os, glob
+
+          reports = glob.glob("**/target/surefire-reports/TEST-*.xml", recursive=True)
+          found = 0
+
+          for path in sorted(reports):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+
+              classname = root.get("name", os.path.basename(path))
+
+              for tc in root.findall("testcase"):
+                  for tag in ("failure", "error"):
+                      node = tc.find(tag)
+                      if node is None:
+                          continue
+                      found += 1
+                      test_name  = tc.get("name", "unknown")
+                      error_type = node.get("type", tag)
+                      message    = node.get("message", "").strip()
+                      body       = (node.text or "").strip()
+
+                      lines = body.splitlines()
+                      trimmed = "\n".join(lines[:20])
+                      if len(lines) > 20:
+                          trimmed += f"\n... ({len(lines)-20} more lines)"
+
+                      print(f"<details>")
+                      print(f"<summary><b>[{tag.upper()}]</b> <code>{classname}</code> | <code>{test_name}</code></summary>")
+                      print(f"")
+                      print(f"**Type:** `{error_type}`  ")
+                      if message:
+                          print(f"**Message:** {message}  ")
+                      print(f"")
+                      print(f"```")
+                      print(trimmed)
+                      print(f"```")
+                      print(f"</details>")
+                      print(f"")
+
+          if found == 0:
+              print("_No detailed failure info found in XML reports._")
+          PYEOF
+
+      - name: Publish JaCoCo summary
+        if: always()
+        run: |
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          {
+            echo ""
+            echo "## JaCoCo Coverage"
+            echo ""
+            if [ ! -f "$CSV" ]; then
+              echo "> No coverage report found."
+            else
+              MISSED_LINES=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
+              COVERED_LINES=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
+              TOTAL=$((MISSED_LINES + COVERED_LINES))
+              PCT=$([ "$TOTAL" -gt 0 ] && awk "BEGIN {printf \"%.1f\", ($COVERED_LINES/$TOTAL)*100}" || echo "0.0")
+              MISSED_B=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$6} END {print sum+0}')
+              COVERED_B=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$7} END {print sum+0}')
+              TOTAL_B=$((MISSED_B + COVERED_B))
+              PCT_B=$([ "$TOTAL_B" -gt 0 ] && awk "BEGIN {printf \"%.1f\", ($COVERED_B/$TOTAL_B)*100}" || echo "0.0")
+              echo "| Metric | Value |"
+              echo "|--------|-------|"
+              echo "| Line Coverage | **${PCT}%** (${COVERED_LINES} / ${TOTAL}) |"
+              echo "| Branch Coverage | **${PCT_B}%** (${COVERED_B} / ${TOTAL_B}) |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report
+          path: "ikanos-coverage/target/site/jacoco-aggregate/"
+          retention-days: 14
+
+      - name: Start SonarQube
+        run: |
+          docker run -d --name sonarqube \
+            -p 9000:9000 \
+            -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
+            sonarqube:community
+
+      - name: Wait for SonarQube
+        run: |
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s http://localhost:9000/api/system/status 2>/dev/null \
+              | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+            echo "Attempt $i — status: $STATUS"
+            [ "$STATUS" = "UP" ] && echo "SonarQube is UP!" && break
+            sleep 10 # Wait before retry to allow startup completion
+          done
+
+      - name: Generate SonarQube token
+        run: |
+          curl -s -u admin:admin -X POST \
+            "http://localhost:9000/api/user_tokens/generate" \
+            -d "name=ci-token&type=GLOBAL_ANALYSIS_TOKEN" \
+            | grep -o '"token":"[^"]*"' | cut -d'"' -f4 > /tmp/sonar_token.txt
+
+      - name: SonarQube Scan
+        run: |
+          SONAR_TOKEN=$(cat /tmp/sonar_token.txt | tr -d '[:space:]')
+          docker run --rm \
+            --network="host" \
+            -e SONAR_TOKEN="$SONAR_TOKEN" \
+            -v "${{ github.workspace }}:/usr/src" \
+            sonarsource/sonar-scanner-cli \
+            -Dsonar.projectKey=io.naftiko:ikanos \
+            -Dsonar.sources=ikanos-spec/src/main/java,ikanos-engine/src/main/java,ikanos-cli/src/main/java \
+            -Dsonar.java.binaries=ikanos-spec/target/classes,ikanos-engine/target/classes,ikanos-cli/target/classes \
+            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-coverage/target/site/jacoco-aggregate/jacoco.xml \
+            -Dsonar.host.url=http://localhost:9000
+
+      - name: Export + Publish SonarQube summary
+        if: always()
+        run: |
+          # Wait 15s for SonarQube to process the analysis results
+          sleep 15 
+          mkdir -p sonar-report
+          AUTH="admin:admin"
+          PROJECT="io.naftiko:ikanos"
+          BASE="http://localhost:9000"
+
+          curl -s -u $AUTH "$BASE/api/measures/component?component=$PROJECT&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc" -o sonar-report/measures.json
+          curl -s -u $AUTH "$BASE/api/qualitygates/project_status?projectKey=$PROJECT" -o sonar-report/quality-gate.json
+          curl -s -u $AUTH "$BASE/api/issues/search?componentKeys=$PROJECT&ps=500" -o sonar-report/issues.json
+
+          echo "=== measures.json ===" && cat sonar-report/measures.json
+          echo "=== quality-gate.json ===" && cat sonar-report/quality-gate.json
+
+          QG=$(python3 -c "import json; d=json.load(open('sonar-report/quality-gate.json')); print(d['projectStatus']['status'])" 2>/dev/null || echo "NONE")
+          BUGS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='bugs'), '0'))" 2>/dev/null || echo "0")
+          VULNS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='vulnerabilities'), '0'))" 2>/dev/null || echo "0")
+          SMELLS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='code_smells'), '0'))" 2>/dev/null || echo "0")
+          COVERAGE=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='coverage'), 'N/A'))" 2>/dev/null || echo "N/A")
+          DUPL=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='duplicated_lines_density'), 'N/A'))" 2>/dev/null || echo "N/A")
+          NCLOC=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='ncloc'), 'N/A'))" 2>/dev/null || echo "N/A")
+          echo "Parsed: QG=$QG BUGS=$BUGS VULNS=$VULNS SMELLS=$SMELLS COVERAGE=$COVERAGE"
+
+          [ "$QG" = "OK" ] && QG_BADGE="✅ PASSED" || QG_BADGE="❌ FAILED"
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## SonarQube Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Quality Gate: ${QG_BADGE}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Bugs | ${BUGS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${COVERAGE:-N/A}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duplications | ${DUPL:-N/A}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lines of Code | ${NCLOC:-N/A} |" >> $GITHUB_STEP_SUMMARY
+
+          cat > /tmp/sonar_metrics.env << EOF
+          QG=$QG
+          BUGS=$BUGS
+          VULNS=$VULNS
+          SMELLS=$SMELLS
+          EOF
+
+      - name: Upload SonarQube report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sonarqube-report
+          path: sonar-report/
+          retention-days: 14
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret,misconfig'
+          format: 'json'
+          output: 'trivy-report.json'
+          exit-code: '0'
+
+      - name: Publish Trivy summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f trivy-report.json ]; then
+            echo "> No report found." >> $GITHUB_STEP_SUMMARY
+            cat > /tmp/trivy_metrics.env << EOF
+          TRIVY_CRITICAL=0
+          TRIVY_HIGH=0
+          TRIVY_MEDIUM=0
+          TRIVY_LOW=0
+          EOF
+            exit 0
+          fi
+
+          CRITICAL=$(grep -o '"Severity":"CRITICAL"' trivy-report.json | wc -l | tr -d ' ')
+          HIGH=$(grep -o '"Severity":"HIGH"' trivy-report.json | wc -l | tr -d ' ')
+          MEDIUM=$(grep -o '"Severity":"MEDIUM"' trivy-report.json | wc -l | tr -d ' ')
+          LOW=$(grep -o '"Severity":"LOW"' trivy-report.json | wc -l | tr -d ' ')
+
+          [ "$CRITICAL" -gt 0 ] && STATUS="❌ ${CRITICAL} critical issue(s)" \
+            || { [ "$HIGH" -gt 0 ] && STATUS="⚠️ ${HIGH} high issue(s)" || STATUS="✅ No critical or high issues"; }
+
+          echo "**${STATUS}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium   | ${MEDIUM} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low      | ${LOW} |" >> $GITHUB_STEP_SUMMARY
+
+          cat > /tmp/trivy_metrics.env << EOF
+          TRIVY_CRITICAL=$CRITICAL
+          TRIVY_HIGH=$HIGH
+          TRIVY_MEDIUM=$MEDIUM
+          TRIVY_LOW=$LOW
+          EOF
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          retention-days: 14
+
+      - name: Install Gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf gitleaks_8.21.2_linux_x64.tar.gz
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/
+          gitleaks version
+ 
+      - name: Run Gitleaks scan
+        run: |
+          gitleaks detect \
+            --source . \
+            --config .github/workflows/.gitleaks.toml \
+            --gitleaks-ignore-path .github/workflows/.gitleaksignore \
+            --report-format json \
+            --report-path gitleaks-report.json \
+            --exit-code 0 \
+            --verbose
+
+      - name: Publish Gitleaks summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Gitleaks Secret Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f gitleaks-report.json ]; then
+            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
+            echo "LEAKS_COUNT=0" > /tmp/gitleaks_metrics.env
+            exit 0
+          fi
+
+          COUNT=$(grep -o '"RuleID"' gitleaks-report.json | wc -l | tr -d ' ')
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **${COUNT} secret(s) detected in git history!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Rule | File | Commit |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY
+            python3 -c "
+          import json, sys
+          with open('gitleaks-report.json') as f:
+            data = json.load(f)
+          if isinstance(data, list):
+            for item in data[:10]:
+              rule = item.get('RuleID', 'N/A')
+              file = item.get('File', 'N/A')
+              commit = item.get('Commit', 'N/A')[:8]
+              print(f'| {rule} | {file} | {commit} |')
+          " >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "LEAKS_COUNT=$COUNT" > /tmp/gitleaks_metrics.env
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 14
+
+      - name: Metrics summary 
+        run: |
+          source /tmp/sonar_metrics.env 2>/dev/null || true
+          source /tmp/trivy_metrics.env 2>/dev/null || true
+          source /tmp/gitleaks_metrics.env 2>/dev/null || true
+
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+
+          if [ -f "$CSV" ]; then
+            MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
+            COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
+            TOTAL=$((MISSED + COVERED))
+            COV_PCT=$([ "$TOTAL" -gt 0 ] && awk "BEGIN {printf \"%.0f\", ($COVERED/$TOTAL)*100}" || echo "0")
+          else
+            COV_PCT="N/A"
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${COV_PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bugs | ${BUGS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Critical | ${TRIVY_CRITICAL:-0} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY          
+
+  integration-tests:
+    uses: ./.github/workflows/validate-tuto-examples.yml
+    secrets: inherit
+
+  smoke-tests:
+    uses: ./.github/workflows/publish-cli-bin.yml
+    secrets: inherit
+
+  nightly-report:
+    name: Nightly Report
+    needs:
+        - test-and-analyze
+        - integration-tests
+        - smoke-tests
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build report
+        run: |
+            echo "# Nightly Smoke Test Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+
+            echo "| Quality Gate | ${{ needs.test-and-analyze.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| CLI Smoke Tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
