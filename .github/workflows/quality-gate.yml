@@ -6,6 +6,7 @@ on:
     branches:
       - main
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   test-and-analyze:
@@ -29,9 +30,6 @@ jobs:
           echo "| Tool | Description |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------------|" >> $GITHUB_STEP_SUMMARY
           echo "| JaCoCo | Unit test coverage |" >> $GITHUB_STEP_SUMMARY
-          echo "| SonarQube | Code quality & bugs |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy | CVE vulnerabilities & secrets |" >> $GITHUB_STEP_SUMMARY
-          echo "| Gitleaks | Secrets in git history |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
@@ -238,233 +236,10 @@ jobs:
           name: jacoco-report
           path: "ikanos-coverage/target/site/jacoco-aggregate/"
           retention-days: 14
-
-      - name: Start SonarQube
-        run: |
-          docker run -d --name sonarqube \
-            -p 9000:9000 \
-            -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
-            sonarqube:community
-
-      - name: Wait for SonarQube
-        run: |
-          for i in $(seq 1 40); do
-            STATUS=$(curl -s http://localhost:9000/api/system/status 2>/dev/null \
-              | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-            echo "Attempt $i — status: $STATUS"
-            [ "$STATUS" = "UP" ] && echo "SonarQube is UP!" && break
-            sleep 10 # Wait before retry to allow startup completion
-          done
-
-      - name: Generate SonarQube token
-        run: |
-          curl -s -u admin:admin -X POST \
-            "http://localhost:9000/api/user_tokens/generate" \
-            -d "name=ci-token&type=GLOBAL_ANALYSIS_TOKEN" \
-            | grep -o '"token":"[^"]*"' | cut -d'"' -f4 > /tmp/sonar_token.txt
-
-      - name: SonarQube Scan
-        run: |
-          SONAR_TOKEN=$(cat /tmp/sonar_token.txt | tr -d '[:space:]')
-          docker run --rm \
-            --network="host" \
-            -e SONAR_TOKEN="$SONAR_TOKEN" \
-            -v "${{ github.workspace }}:/usr/src" \
-            sonarsource/sonar-scanner-cli \
-            -Dsonar.projectKey=io.naftiko:ikanos \
-            -Dsonar.sources=ikanos-spec/src/main/java,ikanos-engine/src/main/java,ikanos-cli/src/main/java \
-            -Dsonar.java.binaries=ikanos-spec/target/classes,ikanos-engine/target/classes,ikanos-cli/target/classes \
-            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-coverage/target/site/jacoco-aggregate/jacoco.xml \
-            -Dsonar.host.url=http://localhost:9000
-
-      - name: Export + Publish SonarQube summary
-        if: always()
-        run: |
-          # Wait 15s for SonarQube to process the analysis results
-          sleep 15 
-          mkdir -p sonar-report
-          AUTH="admin:admin"
-          PROJECT="io.naftiko:ikanos"
-          BASE="http://localhost:9000"
-
-          curl -s -u $AUTH "$BASE/api/measures/component?component=$PROJECT&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc" -o sonar-report/measures.json
-          curl -s -u $AUTH "$BASE/api/qualitygates/project_status?projectKey=$PROJECT" -o sonar-report/quality-gate.json
-          curl -s -u $AUTH "$BASE/api/issues/search?componentKeys=$PROJECT&ps=500" -o sonar-report/issues.json
-
-          echo "=== measures.json ===" && cat sonar-report/measures.json
-          echo "=== quality-gate.json ===" && cat sonar-report/quality-gate.json
-
-          QG=$(python3 -c "import json; d=json.load(open('sonar-report/quality-gate.json')); print(d['projectStatus']['status'])" 2>/dev/null || echo "NONE")
-          BUGS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='bugs'), '0'))" 2>/dev/null || echo "0")
-          VULNS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='vulnerabilities'), '0'))" 2>/dev/null || echo "0")
-          SMELLS=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='code_smells'), '0'))" 2>/dev/null || echo "0")
-          COVERAGE=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='coverage'), 'N/A'))" 2>/dev/null || echo "N/A")
-          DUPL=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='duplicated_lines_density'), 'N/A'))" 2>/dev/null || echo "N/A")
-          NCLOC=$(python3 -c "import json; d=json.load(open('sonar-report/measures.json')); print(next((m['value'] for m in d['component']['measures'] if m['metric']=='ncloc'), 'N/A'))" 2>/dev/null || echo "N/A")
-          echo "Parsed: QG=$QG BUGS=$BUGS VULNS=$VULNS SMELLS=$SMELLS COVERAGE=$COVERAGE"
-
-          [ "$QG" = "OK" ] && QG_BADGE="✅ PASSED" || QG_BADGE="❌ FAILED"
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## SonarQube Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Quality Gate: ${QG_BADGE}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Bugs | ${BUGS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Coverage | ${COVERAGE:-N/A}% |" >> $GITHUB_STEP_SUMMARY
-          echo "| Duplications | ${DUPL:-N/A}% |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lines of Code | ${NCLOC:-N/A} |" >> $GITHUB_STEP_SUMMARY
-
-          cat > /tmp/sonar_metrics.env << EOF
-          QG=$QG
-          BUGS=$BUGS
-          VULNS=$VULNS
-          SMELLS=$SMELLS
-          EOF
-
-      - name: Upload SonarQube report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: sonarqube-report
-          path: sonar-report/
-          retention-days: 14
-
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln,secret,misconfig'
-          format: 'json'
-          output: 'trivy-report.json'
-          exit-code: '0'
-
-      - name: Publish Trivy summary
-        if: always()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ ! -f trivy-report.json ]; then
-            echo "> No report found." >> $GITHUB_STEP_SUMMARY
-            cat > /tmp/trivy_metrics.env << EOF
-          TRIVY_CRITICAL=0
-          TRIVY_HIGH=0
-          TRIVY_MEDIUM=0
-          TRIVY_LOW=0
-          EOF
-            exit 0
-          fi
-
-          CRITICAL=$(grep -o '"Severity":"CRITICAL"' trivy-report.json | wc -l | tr -d ' ')
-          HIGH=$(grep -o '"Severity":"HIGH"' trivy-report.json | wc -l | tr -d ' ')
-          MEDIUM=$(grep -o '"Severity":"MEDIUM"' trivy-report.json | wc -l | tr -d ' ')
-          LOW=$(grep -o '"Severity":"LOW"' trivy-report.json | wc -l | tr -d ' ')
-
-          [ "$CRITICAL" -gt 0 ] && STATUS="❌ ${CRITICAL} critical issue(s)" \
-            || { [ "$HIGH" -gt 0 ] && STATUS="⚠️ ${HIGH} high issue(s)" || STATUS="✅ No critical or high issues"; }
-
-          echo "**${STATUS}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Critical | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Medium   | ${MEDIUM} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Low      | ${LOW} |" >> $GITHUB_STEP_SUMMARY
-
-          cat > /tmp/trivy_metrics.env << EOF
-          TRIVY_CRITICAL=$CRITICAL
-          TRIVY_HIGH=$HIGH
-          TRIVY_MEDIUM=$MEDIUM
-          TRIVY_LOW=$LOW
-          EOF
-
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: trivy-report
-          path: trivy-report.json
-          retention-days: 14
-
-      - name: Install Gitleaks
-        run: |
-          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
-          tar -xzf gitleaks_8.21.2_linux_x64.tar.gz
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/
-          gitleaks version
- 
-      - name: Run Gitleaks scan
-        run: |
-          gitleaks detect \
-            --source . \
-            --config .github/workflows/.gitleaks.toml \
-            --gitleaks-ignore-path .github/workflows/.gitleaksignore \
-            --report-format json \
-            --report-path gitleaks-report.json \
-            --exit-code 0 \
-            --verbose
-
-      - name: Publish Gitleaks summary
-        if: always()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Gitleaks Secret Scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ ! -f gitleaks-report.json ]; then
-            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
-            echo "LEAKS_COUNT=0" > /tmp/gitleaks_metrics.env
-            exit 0
-          fi
-
-          COUNT=$(grep -o '"RuleID"' gitleaks-report.json | wc -l | tr -d ' ')
-
-          if [ "$COUNT" -eq 0 ]; then
-            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **${COUNT} secret(s) detected in git history!**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Rule | File | Commit |" >> $GITHUB_STEP_SUMMARY
-            echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY
-            python3 -c "
-          import json, sys
-          with open('gitleaks-report.json') as f:
-            data = json.load(f)
-          if isinstance(data, list):
-            for item in data[:10]:
-              rule = item.get('RuleID', 'N/A')
-              file = item.get('File', 'N/A')
-              commit = item.get('Commit', 'N/A')[:8]
-              print(f'| {rule} | {file} | {commit} |')
-          " >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "LEAKS_COUNT=$COUNT" > /tmp/gitleaks_metrics.env
-
-      - name: Upload Gitleaks report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-          retention-days: 14
-
+   
       - name: Metrics summary (non-main branches)
         if: github.ref != 'refs/heads/main'
         run: |
-          source /tmp/sonar_metrics.env 2>/dev/null || true
-          source /tmp/trivy_metrics.env 2>/dev/null || true
-          source /tmp/gitleaks_metrics.env 2>/dev/null || true
-
           CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
 
           if [ -f "$CSV" ]; then
@@ -481,12 +256,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Coverage | ${COV_PCT}% |" >> $GITHUB_STEP_SUMMARY
-          echo "| Bugs | ${BUGS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy Critical | ${TRIVY_CRITICAL:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY          
+          echo "| Coverage | ${COV_PCT}% |" >> $GITHUB_STEP_SUMMARY         
 
       - name: Publish badges to Gist
         if: github.ref == 'refs/heads/main' && always()
@@ -494,10 +264,6 @@ jobs:
           GIST_ID: 50bfcb34f6512cbad2dd4f460bfc6526
           GIST_TOKEN: ${{ secrets.GIST_SECRET }}
         run: |
-          source /tmp/sonar_metrics.env 2>/dev/null || true
-          source /tmp/trivy_metrics.env 2>/dev/null || true
-          source /tmp/gitleaks_metrics.env 2>/dev/null || true
-
           # Load JaCoCo coverage
           CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
@@ -509,33 +275,6 @@ jobs:
               || { [ "$COV_PCT" -ge 50 ] && COV_COLOR="yellow" || COV_COLOR="red"; }
           else
             COV_PCT="N/A"; COV_COLOR="lightgrey"
-          fi
-
-          # Sonar Quality Gate badge
-          [ "${QG:-NONE}" = "OK" ] && QG_MSG="passed" && QG_COLOR="brightgreen" \
-            || QG_MSG="failed" && QG_COLOR="red"
-
-          # Sonar bugs badge
-          [ "${BUGS:-0}" = "0" ] && BUGS_COLOR="brightgreen" || BUGS_COLOR="red"
-
-          # Trivy badge
-          CRIT="${TRIVY_CRITICAL:-0}"; HIGH_CNT="${TRIVY_HIGH:-0}"
-          if [ "$CRIT" -gt 0 ]; then
-            TRIVY_MSG="${CRIT} critical"; TRIVY_COLOR="red"
-          elif [ "$HIGH_CNT" -gt 0 ]; then
-            TRIVY_MSG="${HIGH_CNT} high"; TRIVY_COLOR="orange"
-          else
-            TRIVY_MSG="clean"; TRIVY_COLOR="brightgreen"
-          fi
-
-          # Gitleaks badge — use LEAKS_COUNT (sourced from gitleaks_metrics.env)
-          LEAKS_COUNT="${LEAKS_COUNT:-0}"
-          if [ "$LEAKS_COUNT" -eq 0 ]; then
-            LEAKS_MSG="no secrets"
-            LEAKS_COLOR="brightgreen"
-          else
-            LEAKS_MSG="${LEAKS_COUNT} secrets"
-            LEAKS_COLOR="red"
           fi
 
           publish_badge() {
@@ -550,7 +289,3 @@ jobs:
           }
 
           publish_badge "framework-coverage.json"     "coverage"      "${COV_PCT}%"   "$COV_COLOR"
-          publish_badge "framework-quality-gate.json" "quality gate"  "$QG_MSG"       "$QG_COLOR"
-          publish_badge "framework-bugs.json"         "bugs"          "${BUGS:-0}"    "$BUGS_COLOR"
-          publish_badge "framework-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
-          publish_badge "framework-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"

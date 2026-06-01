@@ -1,0 +1,27 @@
+name: Nightly Trigger
+
+on:
+  schedule:
+    - cron: '0 5 * * *' 
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  trigger:
+    name: Trigger nightly on all open PRs and main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch nightly on each branch and main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCHES=$(gh api repos/${{ github.repository }}/pulls \
+            --jq '[.[] | .head.ref] + ["main"] | unique | .[]')
+
+          for BRANCH in $BRANCHES; do
+            echo "Dispatching nightly on branch: $BRANCH"
+            gh api repos/${{ github.repository }}/actions/workflows/nightly-quality-gate.yml/dispatches \
+              -f ref="$BRANCH"
+          done

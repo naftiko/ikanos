@@ -12,6 +12,7 @@ on:
       - 'ikanos-*/pom.xml'
       - 'pom.xml'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   run-tests:
