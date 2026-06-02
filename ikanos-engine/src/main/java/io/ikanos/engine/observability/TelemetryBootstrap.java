@@ -446,4 +446,32 @@ public class TelemetryBootstrap {
             span.end();
         }
     }
+
+    /**
+     * Populates the SLF4J MDC with {@code trace_id} and {@code span_id} from the given span so
+     * that Logback pattern tokens {@code %X{trace_id}} and {@code %X{span_id}} are non-empty in
+     * log lines emitted during the span's lifetime.
+     *
+     * <p>Must be called after {@link Span#makeCurrent()} and paired with {@link #clearMdc()}
+     * in a {@code finally} block. This is required because
+     * {@code opentelemetry-logback-appender-1.0} is a log-forwarding appender, not an MDC bridge —
+     * it does not automatically populate MDC keys for pattern interpolation. See issue #548.</p>
+     */
+    public static void populateMdc(Span span) {
+        if (span == null) return;
+        io.opentelemetry.api.trace.SpanContext ctx = span.getSpanContext();
+        if (ctx.isValid()) {
+            org.slf4j.MDC.put("trace_id", ctx.getTraceId());
+            org.slf4j.MDC.put("span_id", ctx.getSpanId());
+        }
+    }
+
+    /**
+     * Removes the {@code trace_id} and {@code span_id} keys from the SLF4J MDC.
+     * Must be called in the {@code finally} block that pairs with {@link #populateMdc(Span)}.
+     */
+    public static void clearMdc() {
+        org.slf4j.MDC.remove("trace_id");
+        org.slf4j.MDC.remove("span_id");
+    }
 }
