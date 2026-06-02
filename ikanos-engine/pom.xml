@@ -24,6 +24,15 @@
         <dependency>
             <groupId>org.restlet</groupId>
             <artifactId>org.restlet</artifactId>
+            <exclusions>
+                <!-- Jetty 12 bundles its own SLF4J provider which conflicts with Logback.
+                     Logback is the intended provider for log-trace correlation (trace_id/span_id
+                     MDC keys via OpenTelemetryAppender). See issue #548. -->
+                <exclusion>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-slf4j-impl</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.restlet</groupId>

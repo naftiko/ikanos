@@ -77,6 +77,7 @@ public class ResourceRestlet extends Restlet {
         long startNanos = System.nanoTime();
         boolean error = false;
         try (Scope scope = span.makeCurrent()) {
+            TelemetryBootstrap.populateMdc(span);
             boolean handled = handleFromOperationSpec(request, response);
 
             if (!handled && getResourceSpec().getForward() != null) {
@@ -101,6 +102,7 @@ public class ResourceRestlet extends Restlet {
                     : response.getStatus() != null
                             ? String.valueOf(response.getStatus().getCode()) : "200";
             telemetry.getMetrics().recordRequest("rest", operationId, status, durationSec);
+            TelemetryBootstrap.clearMdc();
             TelemetryBootstrap.endSpan(span);
         }
     }

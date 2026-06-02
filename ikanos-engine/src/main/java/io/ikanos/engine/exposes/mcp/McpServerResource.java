@@ -100,6 +100,7 @@ public class McpServerResource extends ServerResource {
             Span span = TelemetryBootstrap.get().startServerSpan("mcp", rpcMethod,
                     extractedContext, null, capabilityName);
             try (Scope scope = span.makeCurrent()) {
+                TelemetryBootstrap.populateMdc(span);
                 // Delegate to the shared protocol dispatcher
                 ObjectNode result = dispatcher.dispatch(root);
 
@@ -114,6 +115,7 @@ public class McpServerResource extends ServerResource {
                 TelemetryBootstrap.recordError(span, e);
                 throw e;
             } finally {
+                TelemetryBootstrap.clearMdc();
                 TelemetryBootstrap.endSpan(span);
             }
 
