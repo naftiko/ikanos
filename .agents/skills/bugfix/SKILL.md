@@ -71,6 +71,13 @@ Before any action:
 2. Read the **Pre-Code Checklist** at the bottom of this file. You will apply it *while*
    writing code in Phase 3 — not after.
 
+> **This workflow assumes an _interactive_ executor** — Phases 1B (triage), 6 (LOW
+> handling), and 7 (capitalize) all ask the user to decide. Only **Phase 5** is delegated
+> to an autonomous, read-only subagent (it writes findings to memory and decides nothing).
+> If *you* are a non-interactive subagent asked to run this skill end-to-end, stop and
+> hand back: produce the diff + a findings report and let an interactive agent (or the
+> user) make the Phase 1B/6/7 decisions.
+
 > If you are resuming after a context compaction (conversation summary), re-read this
 > entire `SKILL.md` before continuing — compaction erases step formalism and the
 > checklist.
@@ -105,9 +112,19 @@ you are resuming because a reviewer — **Copilot, a bot, or a human** — left 
    gh pr view <N> --repo naftiko/ikanos --comments
    gh api repos/naftiko/ikanos/pulls/<N>/comments --jq '.[] | {path, line, body, user: .user.login}'
    ```
-   Also check `/memories/repo/` for a `pr-review-<N>.md` handoff file (Mode B of the
-   `pr-review` skill) — another agent may have left findings there:
-   `memory view /memories/repo/pr-review-<N>.md`
+
+   **Findings can arrive from three sources — none is inherently primary:**
+   - **GitHub review** — the `gh` commands above (Copilot, bot, or human inline comments).
+   - **Memory handoff** — a `/memories/repo/pr-review-<N>.md` file left by the `pr-review`
+     skill (its Mode B). Read it with `memory view /memories/repo/pr-review-<N>.md`. In the
+     in-house flow this is **often the primary source** and GitHub may be empty.
+     > **Constraint:** `/memories/repo/` is scoped to **one local repo/worktree**. The
+     > handoff is visible only if the reviewer ran in the **same workspace**. If the review
+     > happened elsewhere, the file will not be there — ask the user to paste the findings.
+   - **The user directly** — findings dictated in the prompt, with no GitHub review and no
+     handoff file. This is a valid source; triage them exactly like the other two.
+
+   Use whichever source(s) exist; do not assume GitHub is populated.
 3. Triage every comment into actionable findings, classified 🔴 HIGH / 🟡 MEDIUM / 🔵 LOW.
    Separate **"change requested"** from **"question / nit"** — questions get a reply, not
    necessarily a code change.
@@ -118,6 +135,12 @@ you are resuming because a reviewer — **Copilot, a bot, or a human** — left 
 > **Do not blindly apply every comment.** A reviewer can be wrong, or a nit can be out of
 > scope for an atomic bug fix. For each comment you decline, note why — you will surface it
 > as a reply thread in Phase 8. Disagreement is a conversation, not a silent skip.
+
+> **A finding can be plain wrong.** Before acting on a *visibility-reduction* suggestion
+> ("make this package-private / private"), verify the real callers with
+> `vscode_listCodeUsages` — a method called from another package **must** stay `public`.
+> (Lesson from #548: a "make `populateMdc` package-private" finding was declined because it
+> is called from both the `mcp` and `rest` packages.)
 
 > From here, Mode B rejoins the shared path at **Phase 3** (apply the fixes), then Phase 4
 > (green suite), Phase 5 (self-review the **updated** diff), Phase 6 (loop), Phase 7
@@ -165,6 +188,12 @@ you write — do not defer it to the self-review.
 > Do not edit production code (`src/main/`) and test code (`src/test/`) in the same step.
 > Phase 2 owns the test; Phase 3 owns the fix. This keeps the "test fails first, then
 > passes" proof intact.
+
+> **Finish all edits to a file before building.** A build run *between* a series of edits
+> to the same file can report transient "cannot find symbol" / "Unresolved compilation"
+> errors from a half-edited state. After editing, run `get_errors` on the file, then a
+> single `mvn clean test`. Likewise, do not trust a truncated `grep` line (e.g.
+> `Assertions.*;` shown as `Assertions;`) as evidence of a broken import. (Lesson from #548.)
 
 ---
 
@@ -234,6 +263,12 @@ cap:   3 iterations, then STOP and ask the user
 > **Bounded by design.** If the loop has not converged after 3 iterations, stop and ask
 > the user rather than burning tokens. Non-convergence is itself a signal worth surfacing.
 
+> **Cheap 🔵 LOW are worth offering.** LOW findings are not chased in the loop, but a
+> 0-🔴/0-🟡 self-review can still surface genuine LOWs in the *same diff* (doc wording, an
+> over-permissive config value). When they are cheap and in scope, **offer** them to the
+> user rather than only noting them — they cost little and keep the diff clean. (Lesson from
+> #548: two LOW doc/config findings were fixed this way.)
+
 After the loop, delete the findings file: `memory delete /memories/repo/selfreview-<issue>.md`.
 
 ---
@@ -283,8 +318,10 @@ This is what makes the skill better on every use. For each finding that was **av
    review history readable.)
 2. Push to the PR branch with `--force-with-lease` only if you rebased; otherwise a plain
    `git push`. Never `git push --force`.
-3. **Reply to each resolved thread** so reviewers see the resolution — briefly state what
-   changed (or why a comment was declined, per the Phase 1B triage note). All replies in English.
+3. **Reply to each resolved GitHub thread** so reviewers see the resolution — briefly state
+   what changed (or why a comment was declined, per the Phase 1B triage note). All replies in
+   English. *(Skip for findings that had no GitHub thread — e.g. a memory handoff or
+   user-dictated findings; confirm those directly to the user in step 5 instead.)*
 4. If the feedback came from a `/memories/repo/pr-review-<N>.md` handoff, delete it after
    pushing: `memory delete /memories/repo/pr-review-<N>.md`.
 5. Confirm to the user which comments were addressed and which were declined (with reasons).
@@ -340,4 +377,4 @@ time via Phase 7 — always with the user's approval.
 - [ ] Findings file deleted from `/memories/repo/`
 - [ ] Capitalization proposed to the user, if any avoidable+generalizable finding (Phase 7)
 - [ ] **Mode A:** commit `fix: … (closes #N)`; PR body follows the template; temp file deleted
-- [ ] **Mode B:** pushed with `--force-with-lease` (if rebased); threads replied; handoff file deleted
+- [ ] **Mode B:** pushed with `--force-with-lease` (if rebased); GitHub threads replied (if any); handoff file deleted
