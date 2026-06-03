@@ -45,9 +45,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link McpServerResource}, the Logback MDC must contain non-empty {@code trace_id} and
  * {@code span_id} keys for log-trace correlation to work.
  *
- * <p>The underlying cause: {@code logback.xml} referenced {@code %X{trace_id}} / {@code %X{span_id}}
- * but did not include the {@code OpenTelemetryAppender} that populates those MDC keys. As a result,
- * both fields were always empty regardless of whether a span existed.</p>
+ * <p>The underlying cause: {@link TelemetryBootstrap#populateMdc} was never invoked within the
+ * SERVER span scope, so {@code %X{trace_id}} / {@code %X{span_id}} stayed empty. The
+ * {@code OpenTelemetryAppender} in {@code logback.xml} only forwards log events to the OTel
+ * pipeline — it does not populate MDC keys for pattern interpolation. As a result, both fields
+ * were always empty regardless of whether a span existed.</p>
  */
 class ObservabilityMcpHttpLayerTest {
 
@@ -151,35 +153,28 @@ class ObservabilityMcpHttpLayerTest {
      *
      * <p>During the execution of a {@code tools/call} request, the OTel span context must be
      * bridged into the Logback MDC so that {@code %X{trace_id}} and {@code %X{span_id}} are
-     * non-empty in log lines. Without the {@code OpenTelemetryAppender} in {@code logback.xml},
-     * these values are always empty.</p>
+     * non-empty in log lines. If {@link TelemetryBootstrap#populateMdc} is not called within the
+     * span scope, these values are always empty.</p>
      */
     @Test
     void mcpToolsCallShouldPopulateMdcTraceIdAndSpanIdDuringExecution() throws Exception {
         Capability capability = capabilityFromYaml(weatherCapabilityYaml());
-        McpServerResource resource = buildResource(capability);
 
-        // Capture MDC state from inside the span scope by intercepting via a custom
-        // ProtocolDispatcher subclass is not possible without reflection. Instead we rely
-        // on the OTel → MDC bridge being active: after handlePost() completes, the span is
-        // ended and the MDC is cleared. We therefore capture a snapshot mid-flight via a
-        // capturing Restlet context attribute set by an instrumented dispatcher.
-        //
-        // Simpler approach: wrap the handlePost call inside a scope where we can observe MDC.
-        // The OpenTelemetry Logback appender populates MDC synchronously within the span scope.
-        // We verify by asserting that the MDC was non-empty at some point during the call.
+        // The SERVER span scope is entered inside McpServerResource.handlePost(). To observe the
+        // MDC state mid-request (while the span is current), we subclass ProtocolDispatcher and
+        // capture the MDC inside dispatch(), which runs within that scope. This needs no
+        // reflection: ProtocolDispatcher.dispatch is overridable and the resource invokes it.
         AtomicReference<String> capturedTraceId = new AtomicReference<>();
         AtomicReference<String> capturedSpanId = new AtomicReference<>();
 
-        // Re-wire the dispatcher so we can observe MDC during dispatch
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         ProtocolDispatcher capturingDispatcher = new ProtocolDispatcher(adapter) {
             @Override
             public com.fasterxml.jackson.databind.node.ObjectNode dispatch(
                     com.fasterxml.jackson.databind.JsonNode root) {
                 // At this point we are inside the SERVER span scope created by McpServerResource
-                capturedTraceId.set(MDC.get("trace_id"));
-                capturedSpanId.set(MDC.get("span_id"));
+                capturedTraceId.set(MDC.get(TelemetryBootstrap.MDC_TRACE_ID));
+                capturedSpanId.set(MDC.get(TelemetryBootstrap.MDC_SPAN_ID));
                 return super.dispatch(root);
             }
         };
@@ -199,7 +194,7 @@ class ObservabilityMcpHttpLayerTest {
 
         assertNotNull(capturedTraceId.get(),
                 "MDC trace_id must be non-null inside the span scope (issue #548: "
-                + "OpenTelemetryAppender missing from logback.xml)");
+                + "populateMdc() not called within the span scope)");
         assertFalse(capturedTraceId.get().isBlank(),
                 "MDC trace_id must not be blank inside the span scope — was: '"
                 + capturedTraceId.get() + "'");
@@ -223,8 +218,8 @@ class ObservabilityMcpHttpLayerTest {
         resource.handlePost(toolsCallBody("get-forecast"));
 
         // After the span scope exits, the OTel Logback bridge must have cleared the MDC keys
-        String traceIdAfter = MDC.get("trace_id");
-        String spanIdAfter = MDC.get("span_id");
+        String traceIdAfter = MDC.get(TelemetryBootstrap.MDC_TRACE_ID);
+        String spanIdAfter = MDC.get(TelemetryBootstrap.MDC_SPAN_ID);
 
         assertTrue(traceIdAfter == null || traceIdAfter.isBlank(),
                 "MDC trace_id must be blank after span scope ends — was: '" + traceIdAfter + "'");

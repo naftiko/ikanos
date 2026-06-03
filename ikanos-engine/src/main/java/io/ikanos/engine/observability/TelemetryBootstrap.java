@@ -46,6 +46,18 @@ public class TelemetryBootstrap {
 
     static final String INSTRUMENTATION_NAME = "io.ikanos.engine";
 
+    /**
+     * SLF4J MDC key for the current trace id. Must match the {@code %X{trace_id}} token in
+     * {@code logback.xml}. See issue #548.
+     */
+    public static final String MDC_TRACE_ID = "trace_id";
+
+    /**
+     * SLF4J MDC key for the current span id. Must match the {@code %X{span_id}} token in
+     * {@code logback.xml}. See issue #548.
+     */
+    public static final String MDC_SPAN_ID = "span_id";
+
     public static final AttributeKey<String> ATTR_ADAPTER_TYPE = AttributeKey.stringKey("ikanos.adapter.type");
     public static final AttributeKey<String> ATTR_CAPABILITY = AttributeKey.stringKey("ikanos.capability");
     public static final AttributeKey<String> ATTR_OPERATION_ID = AttributeKey.stringKey("ikanos.operation.id");
@@ -461,8 +473,8 @@ public class TelemetryBootstrap {
         if (span == null) return;
         io.opentelemetry.api.trace.SpanContext ctx = span.getSpanContext();
         if (ctx.isValid()) {
-            org.slf4j.MDC.put("trace_id", ctx.getTraceId());
-            org.slf4j.MDC.put("span_id", ctx.getSpanId());
+            org.slf4j.MDC.put(MDC_TRACE_ID, ctx.getTraceId());
+            org.slf4j.MDC.put(MDC_SPAN_ID, ctx.getSpanId());
         }
     }
 
@@ -471,7 +483,7 @@ public class TelemetryBootstrap {
      * Must be called in the {@code finally} block that pairs with {@link #populateMdc(Span)}.
      */
     public static void clearMdc() {
-        org.slf4j.MDC.remove("trace_id");
-        org.slf4j.MDC.remove("span_id");
+        org.slf4j.MDC.remove(MDC_TRACE_ID);
+        org.slf4j.MDC.remove(MDC_SPAN_ID);
     }
 }
