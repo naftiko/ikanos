@@ -95,6 +95,14 @@ Before any action:
 > If the issue number is ambiguous or the reproduction steps are unclear, ask the user
 > before proceeding. A fix for the wrong root cause is more expensive than a question.
 
+> **Enumerate the blast radius — before any code.** If the bug is a cross-cutting concern
+> (logging, tracing, MDC, error handling, auth, a shared header), `grep` for **every** site
+> that exhibits the pattern — not just the one in the report — and list them. The fix must
+> cover all of them in one pass, or each omission must carry an explicit written justification
+> (which becomes a PR comment). *"The report only mentioned X and Y" is not a reason to skip
+> the third site.* (Lesson from #548: the first fix covered the REST + MCP adapters but missed
+> the third SERVER adapter, `SkillServerResource`, drawing the only MEDIUM review finding.)
+
 ---
 
 ## Phase 1B — Ingest the PR and its review feedback · **Mode B only**
@@ -141,6 +149,13 @@ you are resuming because a reviewer — **Copilot, a bot, or a human** — left 
 > `vscode_listCodeUsages` — a method called from another package **must** stay `public`.
 > (Lesson from #548: a "make `populateMdc` package-private" finding was declined because it
 > is called from both the `mcp` and `rest` packages.)
+
+> **A finding about one site implies a blast-radius check.** When a reviewer flags a missing
+> fix at one site of a cross-cutting concern, do not patch only that site — `grep` for **every**
+> site exhibiting the pattern and fix them together, so the *next* reviewer cannot find an
+> (N+1)th one. (Lesson from #548: the first fix covered REST + MCP, a human reviewer flagged the
+> missing `SkillServerResource`; the proper response was to enumerate all three SERVER adapters
+> at once.) See the Pre-Code Checklist "fix all call sites" entry.
 
 > From here, Mode B rejoins the shared path at **Phase 3** (apply the fixes), then Phase 4
 > (green suite), Phase 5 (self-review the **updated** diff), Phase 6 (loop), Phase 7
@@ -278,6 +293,16 @@ After the loop, delete the findings file: `memory delete /memories/repo/selfrevi
 This is what makes the skill better on every use. For each finding that was **avoidable**
 (the agent generated it) **and generalizable** (could recur in another context):
 
+> **Capitalize on TWO sources of findings — not just the self-review.**
+> - **Mode A:** the source is the Phase 5 self-review output.
+> - **Mode B:** the source is the Phase 5 self-review output **and** the **human/reviewer
+>   findings you addressed in this run**. The findings you are *fixing* are the highest-signal
+>   training data the skill will ever get — a human already proved they were avoidable. Run the
+>   same "avoidable + generalizable?" test on each addressed comment and propose a rule for it.
+>   Do not consume reviewer comments as mere work items and discard them; feed them back into
+>   the checklist. (Without this, the loop is blind to findings on the *first* commit, because
+>   the self-review only ever sees the *correcting* commit, which is clean by construction.)
+
 1. Draft a concrete Do/Don't entry and identify where it belongs:
    - **tactical, bugfix-specific** → this skill's Pre-Code Checklist
    - **cross-cutting / transverse** → `AGENTS.md` (the relevant section)
@@ -334,6 +359,12 @@ These are the rules that keep findings out of the diff in the first place. They 
 time via Phase 7 — always with the user's approval.
 
 **Do:**
+- Before fixing a shared / cross-cutting concern, `grep` for **all** call sites of the
+  pattern and fix them in one pass — a reviewer can always find the Nth site you missed, so
+  find it first. List the sites up front (Phase 1 / 1B "enumerate the blast radius") and
+  justify in writing any you deliberately leave out. *(Lesson from #548: the first fix covered
+  the REST + MCP SERVER adapters but missed the third, `SkillServerResource`, drawing the only
+  MEDIUM review finding.)*
 - Extract string values that tests will assert against (MDC keys, span names, error
   messages, HTTP headers) into **production constants before writing the assertions** —
   so a later rename is greppable and cannot drift between code and tests.
@@ -351,6 +382,11 @@ time via Phase 7 — always with the user's approval.
 
 **Don't:**
 - Don't write the fix before the failing test exists and is confirmed red.
+- Don't leave explanatory comments (in code or tests) that describe an **earlier** hypothesis
+  of the root cause. When your understanding of the cause changes mid-fix, re-read every comment
+  you wrote earlier in the session and update it to the final root cause. *(Lesson from #548: a
+  test comment kept blaming "OpenTelemetryAppender missing from logback.xml" after the cause was
+  re-understood as "populateMdc not called within the span scope.")*
 - Don't leave an **unused setup variable or fixture** in a test — it signals an incomplete
   refactor; delete it or move it to a shared `@BeforeEach`.
 - Don't override a YAML-declared value (e.g. `baseUri`) in test code to work around a
