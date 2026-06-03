@@ -16,6 +16,10 @@ allowed-tools:
   - Read
   - Bash
   - Edit
+  - runSubagent          # Phase 5 — spawn the self-review subagent
+  - vscode_listCodeUsages # Phase 1B — verify cross-package callers before narrowing visibility
+  - lsp_java_findSymbol   # Phase 1 — locate Java symbols when scoping the bug
+  - memory                # Phases 1B/5/6/8 — read & delete handoff / self-review findings
 ---
 
 ## Overview
@@ -251,10 +255,11 @@ Run an **independent subagent** as a PR reviewer over the **local diff only**. T
    - Apply the quality bar from `AGENTS.md` (Test Writing Rules, Method Visibility, spec
      version rules) and the severity model from `.agents/skills/pr-review/SKILL.md`.
    - Classify findings 🔴 HIGH / 🟡 MEDIUM / 🔵 LOW.
-   - **Write findings to `/memories/repo/selfreview-<issue>.md`** (memory-handoff style,
+   - **Write findings to `/memories/repo/selfreview-<id>.md`** (memory-handoff style,
      no GitHub round-trip — this is internal to the skill and unrelated to the skill's
-     Mode A/B entry choice).
-3. Read the findings file with `memory view /memories/repo/selfreview-<issue>.md`.
+     Mode A/B entry choice). `<id>` is the issue number in Mode A, or the PR number in
+     Mode B when no distinct issue exists.
+3. Read the findings file with `memory view /memories/repo/selfreview-<id>.md`.
 
 > **Scope discipline.** The subagent writes findings to memory only. Do not let it
 > fetch a GitHub PR, post comments, or scan unrelated files — that is wasted token budget.
@@ -284,7 +289,7 @@ cap:   3 iterations, then STOP and ask the user
 > user rather than only noting them — they cost little and keep the diff clean. (Lesson from
 > #548: two LOW doc/config findings were fixed this way.)
 
-After the loop, delete the findings file: `memory delete /memories/repo/selfreview-<issue>.md`.
+After the loop, delete the findings file: `memory delete /memories/repo/selfreview-<id>.md`.
 
 ---
 
@@ -347,8 +352,14 @@ This is what makes the skill better on every use. For each finding that was **av
    what changed (or why a comment was declined, per the Phase 1B triage note). All replies in
    English. *(Skip for findings that had no GitHub thread — e.g. a memory handoff or
    user-dictated findings; confirm those directly to the user in step 5 instead.)*
-4. If the feedback came from a `/memories/repo/pr-review-<N>.md` handoff, delete it after
-   pushing: `memory delete /memories/repo/pr-review-<N>.md`.
+4. Delete any consumed handoff file after pushing. There may be up to two, depending on how
+   the run started:
+   - the incoming `pr-review` handoff, if the feedback came from one:
+     `memory delete /memories/repo/pr-review-<N>.md` (`<N>` is the PR number).
+   - the internal self-review findings file from Phase 5, if it still exists:
+     `memory delete /memories/repo/selfreview-<id>.md` — `<id>` is the issue number in Mode A,
+     or the PR number in Mode B when no distinct issue exists. Use the exact filename you
+     created in Phase 5 (Phase 6 normally deletes it after the fix loop; this is a safety net).
 5. Confirm to the user which comments were addressed and which were declined (with reasons).
 
 ---

@@ -31,7 +31,9 @@ mvn clean test --no-transfer-progress
 
 # Run a single module's tests after a clean (must also build upstream modules it depends on)
 # `clean` wipes the reactor outputs, so `-pl ikanos-engine` alone fails with
-# "Could not find artifact io.ikanos:ikanos-spec" — add `-am` (also-make) to rebuild deps:
+# "Could not find artifact io.ikanos:ikanos-spec" — add `-am` (also-make) to rebuild deps.
+# `-am` is precisely what pulls in ikanos-spec, so `-pl ikanos-engine -am` alone is enough;
+# listing ikanos-spec explicitly is redundant but harmless (kept here for readability):
 mvn clean test -pl ikanos-spec,ikanos-engine -am --no-transfer-progress
 
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
