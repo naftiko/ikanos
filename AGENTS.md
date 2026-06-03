@@ -29,6 +29,11 @@ All commands must be run from the repository root (`ikanos/`).
 # Run unit tests (standard local workflow — requires JDK 21)
 mvn clean test --no-transfer-progress
 
+# Run a single module's tests after a clean (must also build upstream modules it depends on)
+# `clean` wipes the reactor outputs, so `-pl ikanos-engine` alone fails with
+# "Could not find artifact io.ikanos:ikanos-spec" — add `-am` (also-make) to rebuild deps:
+mvn clean test -pl ikanos-spec,ikanos-engine -am --no-transfer-progress
+
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
 docker build -f deployment/Dockerfile -t ikanos .
 
@@ -56,6 +61,37 @@ mvn -version     # must be 3.9+
 Trivy and Gitleaks are **not required locally** — they run automatically in CI. The `pr-check` scripts use them if installed, but `mvn clean test` is enough to validate your changes before a PR.
 
 If you still want to run the full pre-PR checks locally, install [Trivy](https://github.com/aquasecurity/trivy#installation) and [Gitleaks](https://github.com/zricethezav/gitleaks#installation).
+
+## Working on Windows
+
+The primary development environment is Windows with PowerShell. These rules are
+**environment hazards** that apply to *any* file you touch — Java, YAML capabilities,
+JSON schemas, blueprints, Markdown, anything — not just code. They are hard rules.
+
+### Terminal & file I/O (PowerShell)
+
+**Never pipe or redirect file *content* through PowerShell.** A pipe (`|`), a redirect
+(`>`, `>>`), `Out-File`, or `Set-Content` decodes the byte stream through the console
+encoding (CP850 / Windows-1252), **not** UTF-8 — every multi-byte character (`—`, `→`,
+accented letters, emojis like 🔴🟡🔵) is mangled into mojibake (`ÔÇö`, `├ö├ç├Â`) **before**
+it is written. Adding `-Encoding utf8NoBOM` does **not** help: it re-encodes an
+already-corrupted string. This corrupts capability YAML, schema JSON, blueprints, and docs
+just as easily as source code.
+
+**Do — to materialise a Git blob, ref, or any file content into a file:**
+- Use `git checkout <ref> -- <path>` — Git writes the raw bytes, PowerShell never touches them. This is the safest option.
+- If the content is untracked in a stash (e.g. `stash@{0}^3:path`), use `cmd /c 'git show "<ref>:<path>" > <file>"'` — the OS-level redirect keeps the bytes raw.
+- When the change is small, prefer restoring the clean file with `git checkout HEAD -- <path>` and re-applying the edits with the file-edit tool (it handles UTF-8 outside PowerShell).
+
+**Do — to create or overwrite a file from a string in PowerShell** (rare; prefer the file-creation tool):
+- Use `[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding($false)))` — UTF-8 **without** BOM. The plain `WriteAllText(path, content)` and `[Text.Encoding]::UTF8` both emit a BOM (`EF BB BF`) that breaks JSON/YAML/Java tooling.
+
+**Don't:**
+- Don't use `git show <ref>:<path> | Out-File`, `... > file`, or `... | Set-Content` — guaranteed mojibake on any non-ASCII file.
+- Don't trust a `-Encoding utf8NoBOM` on a piped stream to fix encoding — the damage is already done upstream of the write.
+- Don't construct multiline `gh` issue/PR bodies as a terminal string — write a temp `.md` with the file-creation tool and pass `--body-file` (see Contribution Workflow).
+
+> **When in doubt, the file-creation / edit tools are always safe** — they write UTF-8 correctly and bypass PowerShell entirely. Reach for the terminal only when a Git command can write the file itself.
 
 ## Parallel Agent Workflows
 
@@ -110,6 +146,8 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 **Java** — follows Google Style. Configure VS Code with `Language Support for Java by Red Hat` and apply settings from [naftiko/code-standards — java](https://github.com/naftiko/code-standards/tree/main/java).
 
 **Method visibility** — prefer package-private (no modifier) over `private` for methods that implement non-trivial logic. This allows direct unit testing from the same package without reflection. Reserve `private` for truly internal helpers that are trivially covered by public API tests (e.g. one-liner formatters, simple getters).
+
+**Visibility reduction — verify callers first** — before *narrowing* a method's visibility (e.g. `public` → package-private, in response to a review finding or the rule above), confirm the method is not called from another package. Use `vscode_listCodeUsages` (or grep the fully-qualified call sites) — a method invoked cross-package **must** stay `public`, and a finding that suggests otherwise is wrong. (Discovered on #548: a "make `populateMdc` package-private" suggestion was declined because it is called from both the `mcp` and `rest` packages.)
 
 **Field type migration** — when changing the type of a field (e.g. `T` → `AtomicReference<T>`, plain `int` → `AtomicInteger`), grep the entire owning class for direct field accesses (`fieldName.someMethod()`, `fieldName.length`, etc.) before declaring the migration done. Updating only the getter and setter is not enough — every read inside the class becomes a compile error otherwise. The IDE may not flag these when the field name is also reused as a method parameter (shadowing). For long methods, snapshot the new wrapper into a local variable of the original type at the top of the method so the rest of the body stays unchanged and observes a consistent view for the call duration.
 
@@ -183,7 +221,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - Always read the repository templates before creating issues or PRs:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields
   - PRs: `.github/PULL_REQUEST_TEMPLATE.md` — follow the structure exactly, do not improvise
-- When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"`
+- When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"` (see also *Working on Windows → Terminal & file I/O*)
 - When asked to review a PR, load and follow the `pr-review` skill in `.agents/skills/pr-review/` before doing anything else
 - When resuming after a context compaction (conversation summary), always re-read any active skill's `SKILL.md` before continuing — compaction erases step formalism, workflow constraints, and all details defined in the skill
 - When editing documentation, skill, or instruction files (`.md`, `SKILL.md`, `AGENTS.md`), re-read the **entire file** after applying edits and before committing — to catch terminology drift, broken cross-references, and inconsistencies between sections that targeted edits cannot detect
@@ -270,4 +308,4 @@ When all three conditions are met, propose the specific Do/Don't entry and the s
 
 When the conditions are **not** met, do not propose anything — avoid noise. Most corrections are one-off and do not need a rule.
 
-For reference, the Test Writing Rules, Method Visibility, and Field Type Migration sections in this file were all added through this process.
+For reference, the Test Writing Rules, Method Visibility, Visibility Reduction, Field Type Migration, and Working on Windows sections in this file were all added through this process.
