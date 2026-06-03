@@ -61,6 +61,7 @@ abstract class SkillServerResource extends ServerResource {
         long startNanos = System.nanoTime();
         boolean error = false;
         try (Scope scope = span.makeCurrent()) {
+            TelemetryBootstrap.populateMdc(span);
             return super.handle();
         } catch (Exception e) {
             error = true;
@@ -74,6 +75,7 @@ abstract class SkillServerResource extends ServerResource {
                     : getResponse() != null && getResponse().getStatus() != null
                             ? String.valueOf(getResponse().getStatus().getCode()) : "200";
             telemetry.getMetrics().recordRequest("skill", operationId, status, durationSec);
+            TelemetryBootstrap.clearMdc();
             TelemetryBootstrap.endSpan(span);
         }
     }
