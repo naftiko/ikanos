@@ -22,6 +22,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
+import org.slf4j.MDC;
 
 /**
  * Bootstraps the OpenTelemetry SDK for the Naftiko engine.
@@ -471,10 +473,10 @@ public class TelemetryBootstrap {
      */
     public static void populateMdc(Span span) {
         if (span == null) return;
-        io.opentelemetry.api.trace.SpanContext ctx = span.getSpanContext();
+        SpanContext ctx = span.getSpanContext();
         if (ctx.isValid()) {
-            org.slf4j.MDC.put(MDC_TRACE_ID, ctx.getTraceId());
-            org.slf4j.MDC.put(MDC_SPAN_ID, ctx.getSpanId());
+            MDC.put(MDC_TRACE_ID, ctx.getTraceId());
+            MDC.put(MDC_SPAN_ID, ctx.getSpanId());
         }
     }
 
@@ -483,7 +485,7 @@ public class TelemetryBootstrap {
      * Must be called in the {@code finally} block that pairs with {@link #populateMdc(Span)}.
      */
     public static void clearMdc() {
-        org.slf4j.MDC.remove(MDC_TRACE_ID);
-        org.slf4j.MDC.remove(MDC_SPAN_ID);
+        MDC.remove(MDC_TRACE_ID);
+        MDC.remove(MDC_SPAN_ID);
     }
 }
