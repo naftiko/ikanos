@@ -10,7 +10,7 @@ on:
 
 jobs:
   test-and-analyze:
-    name: Unit Tests + JaCoCo + SonarQube + Security
+    name: Unit Tests + JaCoCo
     runs-on: ubuntu-latest
 
     steps:
