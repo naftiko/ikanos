@@ -88,6 +88,10 @@ just as easily as source code.
 **Do — to create or overwrite a file from a string in PowerShell** (rare; prefer the file-creation tool):
 - Use `[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding($false)))` — UTF-8 **without** BOM. The plain `WriteAllText(path, content)` and `[Text.Encoding]::UTF8` both emit a BOM (`EF BB BF`) that breaks JSON/YAML/Java tooling.
 
+**Do — to read or inspect a file's *bytes* (e.g. to judge whether it is valid UTF-8):**
+- Read the raw bytes outside the console codec. Use the file-read tool, or decode the blob from the API directly: `gh api "repos/<owner>/<repo>/contents/<path>?ref=<sha>" --jq '.content'` returns base64 → `[System.Convert]::FromBase64String((... -replace '\s', ''))` gives the raw bytes.
+- Confirm UTF-8 by counting **byte** sequences, not rendered characters: `E2 80 94` = `—`, `E2 86 92` = `→`, `F0 9F 94 B4` = `🔴`.
+
 **Don't:**
 - Don't use `git show <ref>:<path> | Out-File`, `... > file`, or `... | Set-Content` — guaranteed mojibake on any non-ASCII file.
 - Don't trust a `-Encoding utf8NoBOM` on a piped stream to fix encoding — the damage is already done upstream of the write.
