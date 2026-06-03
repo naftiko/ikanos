@@ -1,11 +1,14 @@
 <configuration>
-  <!-- Bridges the OTel span context into the Logback MDC (trace_id, span_id).
-       Required for %X{trace_id} and %X{span_id} in the pattern below to be non-empty.
+  <!-- Forwards log events (with their MDC attributes) to the OTel log pipeline.
+       This appender does NOT populate the MDC: TelemetryBootstrap.populateMdc() is what makes
+       %X{trace_id} and %X{span_id} in the pattern below non-empty (see issue #548).
        See: https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/logback/logback-appender-1.0 -->
   <appender name="OpenTelemetry"
             class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
     <captureExperimentalAttributes>false</captureExperimentalAttributes>
-    <captureMdcAttributes>*</captureMdcAttributes>
+    <!-- Least-privilege: export only the correlation keys we own, never arbitrary third-party
+         MDC data that embedding applications may set (issue #548 review). -->
+    <captureMdcAttributes>trace_id,span_id</captureMdcAttributes>
   </appender>
 
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
