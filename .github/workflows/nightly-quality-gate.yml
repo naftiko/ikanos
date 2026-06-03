@@ -485,7 +485,67 @@ jobs:
           echo "| Vulnerabilities | ${VULNS:-0} |" >> $GITHUB_STEP_SUMMARY
           echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trivy Critical | ${TRIVY_CRITICAL:-0} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY          
+          echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY    
+                
+      - name: Publish badges to Gist
+        if: github.ref == 'refs/heads/main' && always()
+        env:
+          GIST_ID: 50bfcb34f6512cbad2dd4f460bfc6526
+          GIST_TOKEN: ${{ secrets.GIST_SECRET }}
+        run: |
+          source /tmp/sonar_metrics.env 2>/dev/null || true
+          source /tmp/trivy_metrics.env 2>/dev/null || true
+          source /tmp/gitleaks_metrics.env 2>/dev/null || true
+          # Load JaCoCo coverage
+          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          if [ -f "$CSV" ]; then
+            MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
+            COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
+            TOTAL=$((MISSED + COVERED))
+            COV_PCT=$([ "$TOTAL" -gt 0 ] && awk "BEGIN {printf \"%.0f\", ($COVERED/$TOTAL)*100}" || echo "0")
+            [ "$COV_PCT" -ge 80 ] && COV_COLOR="brightgreen" \
+              || { [ "$COV_PCT" -ge 50 ] && COV_COLOR="yellow" || COV_COLOR="red"; }
+          else
+            COV_PCT="N/A"; COV_COLOR="lightgrey"
+          fi
+          # Sonar Quality Gate badge
+          [ "${QG:-NONE}" = "OK" ] && QG_MSG="passed" && QG_COLOR="brightgreen" \
+            || QG_MSG="failed" && QG_COLOR="red"
+          # Sonar bugs badge
+          [ "${BUGS:-0}" = "0" ] && BUGS_COLOR="brightgreen" || BUGS_COLOR="red"
+          # Trivy badge
+          CRIT="${TRIVY_CRITICAL:-0}"; HIGH_CNT="${TRIVY_HIGH:-0}"
+          if [ "$CRIT" -gt 0 ]; then
+            TRIVY_MSG="${CRIT} critical"; TRIVY_COLOR="red"
+          elif [ "$HIGH_CNT" -gt 0 ]; then
+            TRIVY_MSG="${HIGH_CNT} high"; TRIVY_COLOR="orange"
+          else
+            TRIVY_MSG="clean"; TRIVY_COLOR="brightgreen"
+          fi
+          # Gitleaks badge — use LEAKS_COUNT (sourced from gitleaks_metrics.env)
+          LEAKS_COUNT="${LEAKS_COUNT:-0}"
+          if [ "$LEAKS_COUNT" -eq 0 ]; then
+            LEAKS_MSG="no secrets"
+            LEAKS_COLOR="brightgreen"
+          else
+            LEAKS_MSG="${LEAKS_COUNT} secrets"
+            LEAKS_COLOR="red"
+          fi
+          publish_badge() {
+            local filename="$1" label="$2" message="$3" color="$4"
+            local payload="{\"files\":{\"${filename}\":{\"content\":\"{\\\"schemaVersion\\\":1,\\\"label\\\":\\\"${label}\\\",\\\"message\\\":\\\"${message}\\\",\\\"color\\\":\\\"${color}\\\"}\"}}}"
+            curl -s -X PATCH \
+              -H "Authorization: token ${GIST_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/gists/${GIST_ID}" \
+              -d "$payload" > /dev/null
+            echo "Published: $filename → $message ($color)"
+          }
+          publish_badge "framework-coverage.json"     "coverage"      "${COV_PCT}%"   "$COV_COLOR"
+          publish_badge "framework-quality-gate.json" "quality gate"  "$QG_MSG"       "$QG_COLOR"
+          publish_badge "framework-bugs.json"         "bugs"          "${BUGS:-0}"    "$BUGS_COLOR"
+          publish_badge "framework-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
+          publish_badge "framework-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"
 
   integration-tests:
     uses: ./.github/workflows/validate-tuto-examples.yml
