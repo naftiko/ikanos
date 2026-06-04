@@ -16,6 +16,15 @@ Closes #<!-- issue number -->
 
 ---
 
+## Documentation
+
+<!-- If this PR modifies github actions for example -->
+
+- [ ] Update Notion documentation
+- [ ] Ensure our internal technical documentation (specs, user docs, test docs) reflects the current implementation (no drift)
+
+---
+
 ## Checklist
 
 - [ ] CI is green (build, tests, schema validation, security scans)
