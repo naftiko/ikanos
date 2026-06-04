@@ -3,15 +3,17 @@ name: bugfix
 version: "1.0.0"
 description: >
   Workflow skill for fixing a bug, investigating an issue, or reproducing a
-  reported defect in Ikanos. Bimodal: Mode A starts from a fresh issue
-  (reproduce, failing test, fix, PR); Mode B resumes an existing PR to address
-  review feedback (Copilot, bot, or human comments). Activate when the user
-  asks to: fix a bug, fix issue #<number>, investigate a bug, reproduce a
-  defect, write a regression test, debug a failing behavior, address a bug
+  reported defect in a Java/Maven repository. Bimodal: Mode A starts from a
+  fresh issue (reproduce, failing test, fix, PR); Mode B resumes an existing PR
+  to address review feedback (Copilot, bot, or human comments). Activate when
+  the user asks to: fix a bug, fix issue #<number>, investigate a bug, reproduce
+  a defect, write a regression test, debug a failing behavior, address a bug
   report, address PR feedback, fix review comments on PR #<number>, or resume a
-  fix after review. Enforces a test-first quality bar and a self-review gate
-  that raises first-draft quality on every use. Do NOT use for feature work,
-  refactors, or dependency upgrades.
+  fix after review. The build/test core assumes Maven (`mvn`); fixing a bash
+  script or a CI workflow that lives inside the same Java/Maven repo is in scope.
+  Enforces a test-first quality bar and a self-review gate that raises
+  first-draft quality on every use. Do NOT use for feature work, refactors,
+  dependency upgrades, or non-Java/Maven repositories (e.g. C++, TypeScript).
 allowed-tools:
   - Read
   - Bash
@@ -90,7 +92,14 @@ Before any action:
 
 ## Phase 1 — Understand the bug · **Mode A only**
 
-1. Read the issue: `gh issue view <N> --repo naftiko/ikanos`
+1. Read the issue: `gh issue view <N> --repo <owner/repo>`
+
+   > **Derive `<owner/repo>` — never hardcode it.** This skill targets any Java/Maven repo,
+   > so resolve the repository from the working directory instead of naming it: run
+   > `gh repo view --json nameWithOwner -q .nameWithOwner` (or simply drop `--repo` and let
+   > `gh` infer it from the `origin` remote of the current folder). In a multi-root workspace,
+   > derive it from the folder that owns the failing code.
+
 2. Identify the **component** (Core Engine, CLI, Spec, …) and separate **symptom** from
    **root cause** — they are rarely the same place in the code.
 3. Locate the relevant class(es). For Java, prefer `lsp_java_findSymbol` over `grep_search`.
@@ -116,13 +125,13 @@ you are resuming because a reviewer — **Copilot, a bot, or a human** — left 
 
 1. Check out the PR branch and bring it up to date:
    ```
-   gh pr checkout <N> --repo naftiko/ikanos
+   gh pr checkout <N> --repo <owner/repo>
    git fetch origin main && git rebase origin/main      # resolve conflicts if stale
    ```
 2. Read the PR and **all** its review comments:
    ```
-   gh pr view <N> --repo naftiko/ikanos --comments
-   gh api repos/naftiko/ikanos/pulls/<N>/comments --jq '.[] | {path, line, body, user: .user.login}'
+   gh pr view <N> --repo <owner/repo> --comments
+   gh api repos/<owner/repo>/pulls/<N>/comments --jq '.[] | {path, line, body, user: .user.login}'
    ```
 
    **Findings can arrive from three sources — none is inherently primary:**
@@ -189,7 +198,17 @@ Bug in a single class/method?              → unit test in the matching *Test.j
 Bug needs the full engine stack            → integration test, load a YAML fixture
   (YAML → Capability → Adapter → HTTP)?       from src/test/resources/
 Bug in a config file?                      → test the runtime behavior the config drives
+Bug in a bash script or CI workflow?       → exercise the script/workflow, not a JUnit test
+  (.sh, .github/workflows/*.yml)              (see note below)
 ```
+
+> **Bash / CI fixes** — this skill targets Java/Maven repos, but a bug can live in a shell
+> script or a CI workflow *inside* such a repo. There the regression guard is not a JUnit
+> test: reproduce the failure by running the script (`bash -x script.sh`) or by asserting the
+> workflow's logic (e.g. a small shell assertion, a `shellcheck` clean run, or a dry-run of
+> the workflow step). The test-first discipline still holds — reproduce red, fix, prove green
+> — only the test *medium* changes. Do **not** force a `mvn` test where a shell check is the
+> honest reproduction. Out of scope: non-Java/Maven application code (C++, TypeScript, …).
 
 ---
 
