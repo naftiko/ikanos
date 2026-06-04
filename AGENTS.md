@@ -218,7 +218,7 @@ When designing or modifying a Capability:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 
-- **Open an Issue before starting work** — this applies to every change (feat, fix, chore, skill update, doc edit). Before writing any code or modifying any file, propose opening a GitHub issue and wait for the user's confirmation. The user may explicitly waive the issue step; only then proceed without one.
+- **Track every change with an Issue; reuse the one that already covers it.** This applies to every change (feat, fix, chore, skill update, doc edit). If the work is already covered by an existing issue — the user names it (e.g. "issue #529"), or the current branch/PR references one — that issue satisfies this rule; **do not propose creating another**. Only when **no** tracking issue exists should you propose opening one (using the matching template) and wait for the user's confirmation before writing any code or modifying any file. The user may explicitly waive the issue step; only then proceed without one.
 - **All GitHub interactions must be in English** — issues, PR titles/bodies, inline review comments, and commit messages. The codebase and its community are English-first.
 - Branch from `main`: `feat/`, `fix/`, or `chore/` prefix
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:` — no scopes for now
@@ -244,7 +244,9 @@ When you identify a bug — whether discovered during development, debugging, or
 
 ### 1. Open an Issue
 
-Create a GitHub issue using the **Bug Report** template (`.github/ISSUE_TEMPLATE/bug_report.yml`).
+If the bug is already covered by an existing issue (the user names it, or the branch/PR references one), reuse it and skip to step 2 — do not open another.
+
+Otherwise, create a GitHub issue using the **Bug Report** template (`.github/ISSUE_TEMPLATE/bug_report.yml`).
 Fill in all required fields: component, description (actual vs expected), steps to reproduce, root cause if known, proposed fix.
 If the PR was created or assisted by an AI agent, fill in the **Agent Context** block.
 
@@ -316,5 +318,7 @@ Suggest an AGENTS.md update **only** when all three conditions are met:
 When all three conditions are met, propose the specific Do/Don't entry and the section it belongs to. Do not apply it — let the user decide.
 
 When the conditions are **not** met, do not propose anything — avoid noise. Most corrections are one-off and do not need a rule.
+
+**Tightening over appending; never delete autonomously.** When a rule causes friction, prefer *tightening* the existing rule over appending a new exception below it — a well-bounded rule needs no patches. You may **flag** a rule that looks duplicated or obsolete (state which one and why), but **never remove, merge, or rewrite a rule on your own**: a rule often encodes a regression it silently prevents, and the cost of losing it far outweighs the cost of keeping a slightly redundant line. Deletion and consolidation are always the user's call.
 
 For reference, the Test Writing Rules, Method Visibility, Visibility Reduction, Field Type Migration, Cross-cutting Fixes, and Working on Windows sections in this file were all added through this process.
