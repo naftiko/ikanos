@@ -2,18 +2,12 @@
 name: bugfix
 version: "1.0.0"
 description: >
-  Workflow skill for fixing a bug, investigating an issue, or reproducing a
-  reported defect in a Java/Maven repository. Bimodal: Mode A starts from a
-  fresh issue (reproduce, failing test, fix, PR); Mode B resumes an existing PR
-  to address review feedback (Copilot, bot, or human comments). Activate when
-  the user asks to: fix a bug, fix issue #<number>, investigate a bug, reproduce
-  a defect, write a regression test, debug a failing behavior, address a bug
-  report, address PR feedback, fix review comments on PR #<number>, or resume a
-  fix after review. The build/test core assumes Maven (`mvn`); fixing a bash
-  script or a CI workflow that lives inside the same Java/Maven repo is in scope.
-  Enforces a test-first quality bar and a self-review gate that raises
-  first-draft quality on every use. Do NOT use for feature work, refactors,
-  dependency upgrades, or non-Java/Maven repositories (e.g. C++, TypeScript).
+  Bimodal bugfix workflow skill for a Java/Maven repository. Mode A — start from a
+  fresh issue, e.g. "fix bug #<number>" (reproduce → failing test → fix → PR).
+  Mode B — resume an existing PR, e.g. "address review feedback on PR #<number>"
+  (Copilot, bot, or human comments). Maven-based; fixing a bash script or CI
+  workflow inside such a repo is in scope. Do NOT use for non-Java/Maven repos
+  (e.g. C++, TypeScript), feature work, refactors, or dependency upgrades.
 allowed-tools:
   - Read
   - Bash
