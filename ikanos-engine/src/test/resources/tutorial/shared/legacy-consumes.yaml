@@ -2,7 +2,8 @@ ikanos: 1.0.0-alpha4
 consumes:
 - namespace: legacy
   type: http
-  baseUri: https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2
+  # prod: https://mocks.naftiko.net/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2
+  baseUri: http://localhost:8080/rest/naftiko-shipyard-legacy-dockyard-api/1.0.0-alpha2
   authentication:
     type: apikey
     key: X-Dock-Key
