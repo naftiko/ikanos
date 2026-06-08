@@ -27,6 +27,21 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Start Microcks
+        run: docker run -d -p 8080:8080 quay.io/microcks/microcks-uber:latest
+
+      - name: Wait for Microcks
+        run: |
+          sleep 15
+          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in .github/microcks/*.yaml; do
+            echo "Importing $file"
+            curl -s -X POST "http://localhost:8080/api/artifact/upload" -F "file=@$file"
+          done
+
       - name: Publish to GitHub Packages (release)
         run: mvn --batch-mode deploy
         env:
@@ -48,6 +63,21 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Start Microcks
+        run: docker run -d -p 8080:8080 quay.io/microcks/microcks-uber:latest
+
+      - name: Wait for Microcks
+        run: |
+          sleep 15
+          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in .github/microcks/*.yaml; do
+            echo "Importing $file"
+            curl -s -X POST "http://localhost:8080/api/artifact/upload" -F "file=@$file"
+          done
 
       - name: Configure Maven Central
         run: bash ./scripts/builder.sh config_maven_central
@@ -93,6 +123,21 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+
+      - name: Start Microcks
+        run: docker run -d -p 8080:8080 quay.io/microcks/microcks-uber:latest
+
+      - name: Wait for Microcks
+        run: |
+          sleep 15
+          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in .github/microcks/*.yaml; do
+            echo "Importing $file"
+            curl -s -X POST "http://localhost:8080/api/artifact/upload" -F "file=@$file"
+          done
 
       - name: Get version
         run: echo "VERSION=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec)" >> $GITHUB_ENV
