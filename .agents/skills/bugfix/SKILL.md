@@ -403,6 +403,17 @@ time via Phase 7 — always with the user's approval.
   in inline YAML text blocks — never hardcode it (AGENTS.md).
 - When a test needs mid-execution observation without reflection, document the pattern
   (e.g. an anonymous subclass override) so future tests reuse it instead of reinventing it.
+- When a fix makes a successful lookup depend on **two components that independently
+  produce the same key/path** (e.g. a map indexed by producer A, queried with a path built
+  by producer B), write a **round-trip test** proving the two strings coincide exactly — and
+  that **distinct inputs which could collapse to the same key don't silently alias** (e.g. a
+  flat `"a.b"` key vs nested `a: { b }`) — including edge cases (array indices, the root `$`,
+  keys with special characters). A one-character divergence makes the lookup fail
+  **silently** (null result, no error) and turns the fix into an invisible no-op. *(Lesson
+  from polychro #32: `JacksonSourceMap` indexes ranges by dot-notation path while
+  `JsonPathEvaluator.toDotNotation` builds the lookup path; any disagreement makes
+  `sourceMap.resolve(...)` return null and the diagnostic silently loses its range. PR #33:
+  a dotted-key test passed by coincidence — pin the collision, don't assume uniqueness.)*
 
 **Don't:**
 - Don't write the fix before the failing test exists and is confirmed red.
