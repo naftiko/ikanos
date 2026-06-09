@@ -428,6 +428,11 @@ time via Phase 7 — always with the user's approval.
   broken fixture — fix the fixture (AGENTS.md).
 - Don't copy a pattern from existing test code that contradicts AGENTS.md — flag it instead.
 - Don't refactor unrelated code in a bug fix — keep the PR atomic.
+- Don't use `insert_edit_into_file` on large JSON or XML configuration files (e.g.
+  `reflect-config.json`, `pom.xml`, `logback.xml`). The tool can silently truncate content
+  beyond the edit point, discarding the rest of the file. Instead, use a targeted Python
+  `str.replace()` on a unique anchor string — this is atomic, leaves the rest of the file
+  intact, and fails loudly (`print("ERROR: anchor not found")`) if the anchor is not found.
 
 ---
 
