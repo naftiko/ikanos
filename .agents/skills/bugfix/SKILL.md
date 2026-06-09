@@ -414,6 +414,9 @@ time via Phase 7 — always with the user's approval.
   `JsonPathEvaluator.toDotNotation` builds the lookup path; any disagreement makes
   `sourceMap.resolve(...)` return null and the diagnostic silently loses its range. PR #33:
   a dotted-key test passed by coincidence — pin the collision, don't assume uniqueness.)*
+- **Scan loops must reach the boundary.** When searching a sequence for a delimiter, never
+  bound at `< length() - 1` (it skips the last element); test the marker as the **first** and
+  **last** character, not just mid-string. *(PR #33: `endOfPlainScalar` missed a terminal `#`.)*
 
 **Don't:**
 - Don't write the fix before the failing test exists and is confirmed red.
