@@ -23,7 +23,7 @@ jobs:
             artifact_name: ikanos-cli-linux-arm64
             
           # macOS Apple Silicon (ARM64)
-          - os: macos-latest  # macos-14+ uses Mx runners
+          - os: macos-26  # macos-26+ uses Mx runners
             artifact_name: ikanos-cli-macos-arm64
             
           # Windows AMD64
@@ -92,7 +92,7 @@ jobs:
             artifact_name: ikanos-cli-linux-amd64
           - os: ubuntu-24.04-arm
             artifact_name: ikanos-cli-linux-arm64
-          - os: macos-latest
+          - os: macos-26
             artifact_name: ikanos-cli-macos-arm64
           - os: windows-latest
             artifact_name: ikanos-cli-windows-amd64.exe
