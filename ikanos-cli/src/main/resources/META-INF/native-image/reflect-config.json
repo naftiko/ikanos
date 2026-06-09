@@ -755,6 +755,48 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.ikanos.spec.aggregates.InlineAggregateSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.ImportedAggregateSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateFlowMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateSpecDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.aggregates.AggregateFlowSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.InputParameterMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.util.OperationStepMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.OutputParameterListOrMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
     "name": "io.ikanos.spec.exposes.ServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
@@ -940,5 +982,53 @@
     "name": "com.networknt.schema.MinPropertiesValidator",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.spec.util.NamedMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.util.BindingSpecDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.HttpClientOperationMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.HttpClientResourceMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpPromptArgumentMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerPromptMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerResourceMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerToolMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerOperationMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.rest.RestServerResourceMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.ExposedSkillMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.skill.SkillToolMapDeserializer",
+    "allDeclaredConstructors": true
   }
 ]
