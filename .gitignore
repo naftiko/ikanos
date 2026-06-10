@@ -17,3 +17,6 @@ dependency-reduced-pom.xml
 **/.classpath
 **/.project
 **/.factorypath
+
+# On-demand synced skill copies (never commit)
+.agents/skills/

@@ -230,7 +230,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields
   - PRs: `.github/PULL_REQUEST_TEMPLATE.md` — follow the structure exactly, do not improvise
 - When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"` (see also *Working on Windows → Terminal & file I/O*)
-- When asked to review a PR, load and follow the `pr-review` skill in `.agents/skills/pr-review/` before doing anything else
+- When asked to review a PR, load and follow the `pr-review` skill via the `agents-shared`
+  capability — see `.github/instructions/agents-shared.instructions.md` for the discovery
+  and sync procedure. The skill is served from `code-standards/agents-shared` (naftiko/shipyard#23).
 - When asked to fix a bug, investigate an issue, or address PR review feedback, load and follow the `bugfix` skill in `.agents/skills/bugfix/` before doing anything else. It targets **Java/Maven** repositories (its build/test core assumes `mvn`); fixing a bash script or CI workflow that lives inside such a repo is in scope, but non-Java/Maven application code (C++, TypeScript, …) is not. It does **not** hardcode the repository name — it derives `<owner/repo>` from the working directory, so it is reusable across Java/Maven repos
 - When resuming after a context compaction (conversation summary), always re-read any active skill's `SKILL.md` before continuing — compaction erases step formalism, workflow constraints, and all details defined in the skill
 - When editing documentation, skill, or instruction files (`.md`, `SKILL.md`, `AGENTS.md`), re-read the **entire file** after applying edits and before committing — to catch terminology drift, broken cross-references, and inconsistencies between sections that targeted edits cannot detect
