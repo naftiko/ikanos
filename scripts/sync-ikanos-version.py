@@ -84,6 +84,7 @@ def main():
 
     search_paths = [
         "ikanos-spec/src/main/resources/schemas/ikanos-schema.json",
+        "ikanos-spec/src/test/resources",
         "ikanos-docs/tutorial",
         "ikanos-engine/src/test/resources",
         "ikanos-cli/src/test/resources",
