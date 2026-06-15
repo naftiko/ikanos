@@ -144,7 +144,8 @@ Session memory (`/memories/session/`) is scoped to one conversation and is invis
 
 Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`; the agent working on the branch reads it and commits the fixes directly, without GitHub round-trip.
 
-> This pattern is called **Mode B** in the `pr-review` skill (`.agents/skills/pr-review/SKILL.md`).
+> This pattern is called **Mode B** in the `pr-review` skill (synced from the `agents-shared`
+> capability — see `.github/instructions/agents-shared.instructions.md`).
 > Mode A posts findings as inline comments directly on GitHub instead.
 
 ## Code Style

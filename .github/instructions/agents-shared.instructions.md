@@ -14,6 +14,11 @@ read-only by the `agents-shared` Ikanos capability (Skill Server, `type: skill`)
 1. **Check for a local copy first.** If `.agents/skills/pr-review/SKILL.md` exists in this
    repository, read it and follow it — it is a synced, git-ignored copy.
 
+   > **Detecting a stale copy.** `SKILL.md` carries a `version` field in its front matter.
+   > To avoid relying solely on a user-driven refresh, compare the local copy's `version`
+   > against the server's (`GET {server}/skills/pr-review` exposes the published version);
+   > if they differ, treat the local copy as stale and re-sync via step 2.
+
 2. **If missing (or the user asks to refresh it), sync it from the Skill Server.**
    The server URL defaults to `http://localhost:9700`; the `AGENTS_SHARED_URL` environment
    variable overrides it. Run the one-liner for the current OS:
