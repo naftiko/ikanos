@@ -1,5 +1,6 @@
 <img src="https://naftiko.github.io/docs/images/logos/logo_ikanos_horizontal.png" width="300">
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-coverage.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 [![Bugs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-bugs.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 [![Trivy](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-trivy.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
