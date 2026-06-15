@@ -87,7 +87,6 @@ def main():
     # example folder is covered automatically.
     search_paths = [
         "ikanos-spec/src/main/resources/schemas/ikanos-schema.json",
-        "ikanos-spec/src/test/resources",
         "ikanos-docs/tutorial",
     ]
     repo_root = Path(".")
