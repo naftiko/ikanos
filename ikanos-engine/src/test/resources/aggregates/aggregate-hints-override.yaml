@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha4
+ikanos: 1.0.0-beta1
 info:
   display: Aggregate Hints Override Test
   description: Test capability for semantics-to-hints derivation with override
