@@ -185,6 +185,7 @@ When writing or generating tests, follow these rules:
 - Write tests whose only purpose is to reach a coverage threshold — every test must document a real behavior or guard against a real regression
 - Name tests `shouldCoverXxxBranches` or similar — names must describe behavior, not implementation structure
 - Group unrelated scenarios in a single test method — split them into separate `@Test` methods
+- Load a `src/main/resources/` artifact as a **test fixture** — fixtures go under `src/test/resources/` (copy it there). Reaching into `src/main` couples prod to test data and escapes the fixture sync, so a prod edit silently breaks the test. Only exception: asserting the *shipped artifact itself* is valid — and the name + `@DisplayName` must say so. (Beta1 bump: `TunnelSchemaValidationTest.schemaShouldAcceptBundledReverseTunnelExample` broke on a stale `reverse-tunnel-ziti.yml`.)
 
 ## Capability Design Rules
 

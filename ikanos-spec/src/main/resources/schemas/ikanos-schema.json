@@ -7,7 +7,7 @@
   "properties": {
     "ikanos": {
       "type": "string",
-      "description": "Ikanos specification version. Must be `1.0.0-alpha4`. Signals schema compatibility \u2014 always the first key in a capability file.",
+      "description": "Ikanos specification version. Must be `1.0.0-beta1`. Signals schema compatibility \u2014 always the first key in a capability file.",
       "const": "1.0.0-beta1"
     },
     "info": {

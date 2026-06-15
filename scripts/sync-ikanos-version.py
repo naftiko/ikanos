@@ -51,7 +51,7 @@ def update_json_version(file_path, new_version):
         return False
 
     except Exception as e:
-        print(f" Error while updating JSON {file_path}: {e}", file=sys.stderr)
+        print(f"[error] while updating JSON {file_path}: {e}", file=sys.stderr)
         return False
 
 
@@ -69,7 +69,7 @@ def find_files(base_paths):
             files.extend(path.rglob("*.yaml"))
             files.extend(path.rglob("*.json"))
         else:
-            print(f"⚠ Path not found: {base_path}")
+            print(f"[warn] path not found: {base_path}")
 
     return list(set(files))  # Deduplicate
 
@@ -82,13 +82,21 @@ def main():
 
     version = extract_version_from_pom()
 
+    # Systematic discovery - no per-module whitelist. Picks up every module's
+    # test fixtures and every shipped examples directory, so a new module or
+    # example folder is covered automatically.
     search_paths = [
         "ikanos-spec/src/main/resources/schemas/ikanos-schema.json",
         "ikanos-spec/src/test/resources",
         "ikanos-docs/tutorial",
-        "ikanos-engine/src/test/resources",
-        "ikanos-cli/src/test/resources",
     ]
+    repo_root = Path(".")
+    search_paths += [str(p) for p in repo_root.glob("*/src/test/resources") if p.is_dir()]
+    search_paths += [
+        str(p) for p in repo_root.rglob("schemas/examples")
+        if p.is_dir() and "target" not in p.parts
+    ]
+    search_paths = sorted(set(search_paths))
 
     print(" Searching for YAML/JSON files in:")
     for path in search_paths:
@@ -97,7 +105,7 @@ def main():
     files = find_files(search_paths)
 
     if not files:
-        print("\n⚠ No files found!")
+        print("\n[warn] No files found!")
         return
 
     print(f" {len(files)} file(s) found")
@@ -113,10 +121,10 @@ def main():
             continue
 
         if updated:
-            print(f"   ✓ {file}")
+            print(f"   [updated] {file}")
             updated_count += 1
         else:
-            print(f"   - {file} (no change)")
+            print(f"   [no change] {file}")
 
     print("\n" + "=" * 60)
     print(f" Done! {updated_count}/{len(files)} file(s) updated")

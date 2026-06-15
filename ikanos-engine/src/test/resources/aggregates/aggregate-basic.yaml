@@ -1,4 +1,4 @@
-ikanos: 1.0.0-alpha4
+ikanos: 1.0.0-beta1
 info:
   display: Aggregate Basic Test
   description: Test capability for aggregate function ref resolution
