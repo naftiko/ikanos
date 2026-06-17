@@ -21,6 +21,7 @@ import io.opentelemetry.sdk.metrics.export.CollectionRegistration;
 import io.opentelemetry.sdk.metrics.export.MetricReader;
 import java.util.Collection;
 import java.util.Collections;
+import javax.annotation.Nonnull;
 
 /**
  * A pull-based {@link MetricReader} that stores the SDK's {@link CollectionRegistration} and
@@ -34,7 +35,7 @@ class PullMetricReader implements MetricReader {
     private volatile CollectionRegistration registration = CollectionRegistration.noop();
 
     @Override
-    public void register(CollectionRegistration registration) {
+    public void register(@Nonnull CollectionRegistration registration) {
         this.registration = registration;
     }
 
@@ -44,7 +45,7 @@ class PullMetricReader implements MetricReader {
     }
 
     @Override
-    public AggregationTemporality getAggregationTemporality(InstrumentType instrumentType) {
+    public AggregationTemporality getAggregationTemporality(@Nonnull InstrumentType instrumentType) {
         return AggregationTemporality.CUMULATIVE;
     }
 
