@@ -15,9 +15,10 @@ package io.ikanos.engine.observability;
 
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.common.CompletableResultCode;
-import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
+import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
+import javax.annotation.Nonnull;
 
 /**
  * A {@link SpanProcessor} that delegates to another processor set after construction.
@@ -34,7 +35,7 @@ class DelegatingSpanProcessor implements SpanProcessor {
     private volatile SpanProcessor delegate;
 
     @Override
-    public void onStart(Context parentContext, ReadWriteSpan span) {
+    public void onStart(@Nonnull Context parentContext, @Nonnull ReadWriteSpan span) {
         SpanProcessor d = delegate;
         if (d != null) {
             d.onStart(parentContext, span);
@@ -48,7 +49,7 @@ class DelegatingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    public void onEnd(ReadableSpan span) {
+    public void onEnd(@Nonnull ReadableSpan span) {
         SpanProcessor d = delegate;
         if (d != null) {
             d.onEnd(span);

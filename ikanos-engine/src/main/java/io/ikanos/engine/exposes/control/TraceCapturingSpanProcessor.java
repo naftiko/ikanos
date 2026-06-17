@@ -29,6 +29,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 
 /**
  * Custom OTel {@link SpanProcessor} that captures completed spans into a {@link TraceRingBuffer}
@@ -48,7 +49,7 @@ public class TraceCapturingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    public void onStart(Context parentContext, ReadWriteSpan span) {
+    public void onStart(@Nonnull Context parentContext, @Nonnull ReadWriteSpan span) {
         // No action on start
     }
 
@@ -58,7 +59,7 @@ public class TraceCapturingSpanProcessor implements SpanProcessor {
     }
 
     @Override
-    public void onEnd(ReadableSpan span) {
+    public void onEnd(@Nonnull ReadableSpan span) {
         SpanData data = span.toSpanData();
         String traceId = data.getTraceId();
 
