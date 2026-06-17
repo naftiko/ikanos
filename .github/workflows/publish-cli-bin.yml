@@ -120,3 +120,66 @@ jobs:
         run: |
           "test`nhttps://api.com`n8080`n" | & ./bin/${{ matrix.artifact_name }} create capability
           & ./bin/${{ matrix.artifact_name }} v test.ikanos.yaml
+
+      # --- Native-image reflection regression guard (#581) ---------------------
+      # alpha4 shipped a native binary with org.restlet and part of the networknt
+      # json-schema-validator classes missing from reflect-config.json, so `serve`
+      # (Restlet HTTP connector) and `validate` (MaxLengthValidator) crashed with
+      # ClassNotFoundException / NoSuchMethodException. These steps fail the build
+      # if those reflection exceptions ever reappear. This workflow is invoked
+      # nightly via workflow_call (smoke-tests job in nightly-quality-gate.yml) and
+      # on release tags — so the native binary is exercised every night on each
+      # branch, not only at release time, without building it on every push.
+      # Single `shell: bash` (Git Bash exists on the Windows runner) — broader
+      # job-style alignment is #582.
+      - name: Native regression — validate (networknt validators)
+        shell: bash
+        run: |
+          BIN="./bin/${{ matrix.artifact_name }}"
+          FIXTURE="ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          OUT=$("$BIN" validate "$FIXTURE" 2>&1 || true)
+          echo "$OUT"
+          if echo "$OUT" | grep -E "ClassNotFoundException|NoSuchMethodException|ExceptionInInitializerError"; then
+            echo "FAIL: native reflection regression on validate (#581)"
+            exit 1
+          fi
+
+      - name: Native regression — serve (Restlet HTTP connector boots + exposed port listens)
+        shell: bash
+        run: |
+          BIN="./bin/${{ matrix.artifact_name }}"
+          FIXTURE="ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          REST_PORT=9610
+          "$BIN" serve "$FIXTURE" > serve.log 2>&1 &
+          SERVE_PID=$!
+
+          # A broken reflect-config crashes serve within milliseconds ("No available
+          # server connector"), so the exposed REST port never starts listening. We
+          # probe that port directly over TCP — we deliberately do NOT run `ikanos
+          # health`, which would drag in the unrelated Restlet *client* reflective
+          # surface (and a 30s client timeout); this guard protects the serve-side
+          # connector only.
+          LISTENING=0
+          for i in $(seq 1 20); do
+            if (exec 3<>"/dev/tcp/127.0.0.1/$REST_PORT") 2>/dev/null; then
+              exec 3>&- 3<&- 2>/dev/null || true
+              LISTENING=1
+              break
+            fi
+            # serve may have crashed; stop early if the process is gone
+            kill -0 "$SERVE_PID" 2>/dev/null || break
+            sleep 1
+          done
+
+          kill "$SERVE_PID" 2>/dev/null || true
+
+          echo "----- serve.log -----"; cat serve.log
+
+          if grep -E "ClassNotFoundException|NoSuchMethodException|ExceptionInInitializerError|No available server connector" serve.log; then
+            echo "FAIL: native reflection regression on serve (#581)"
+            exit 1
+          fi
+          if [ "$LISTENING" -ne 1 ]; then
+            echo "FAIL: exposed REST port $REST_PORT never started listening — HTTP connector did not boot (#581)"
+            exit 1
+          fi

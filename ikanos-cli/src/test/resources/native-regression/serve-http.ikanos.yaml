@@ -1,0 +1,62 @@
+ikanos: 1.0.0-alpha4
+info:
+  display: Native Regression — HTTP Connector
+  description: >
+    Minimal REST capability used by the native-image regression guard in
+    publish-cli-bin.yml. Serving it forces ServerAdapter to instantiate the
+    Restlet HTTP server connector (new Server(Protocol.HTTP, ...)), which is the
+    exact reflection path that crashed in alpha4 when org.restlet classes were
+    missing from reflect-config.json (see #581). Self-contained: no external file
+    or skill location dependency, so `ikanos serve` can run it unattended in CI.
+  tags:
+  - test
+  - native-regression
+  created: '2026-06-17'
+  modified: '2026-06-17'
+capability:
+  exposes:
+  - type: rest
+    address: localhost
+    port: 9610
+    namespace: ping-rest
+    resources:
+      ping:
+        path: /ping
+        display: Ping
+        description: Trivial endpoint that exists only to wire up the HTTP connector
+        operations:
+          get-ping:
+            method: GET
+            display: Get Ping
+            call: ping-backend.get
+  - type: skill
+    address: localhost
+    port: 9612
+    namespace: regression-skills
+    description: Native regression skill catalogue
+    skills:
+      networknt-probe:
+        description: >
+          Purely descriptive skill whose description, compatibility and
+          allowed-tools fields carry the schema maxLength constraints, forcing
+          the networknt MaxLengthValidator to be instantiated during validate.
+        license: Apache-2.0
+        compatibility: Any runtime — descriptive only, exercises maxLength validation.
+        allowed-tools: none
+  - type: control
+    address: localhost
+    port: 9619
+    management:
+      health: true
+      info: true
+  consumes:
+  - type: http
+    namespace: ping-backend
+    baseUri: http://localhost:9611/v1
+    resources:
+      ping:
+        path: ping
+        operations:
+          get:
+            method: GET
+            display: Get Ping
