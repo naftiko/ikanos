@@ -2,7 +2,18 @@
   {
     "name": "com.networknt.schema.TypeValidator",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.BaseJsonValidator",
@@ -42,19 +53,63 @@
   },
   {
     "name": "com.networknt.schema.EnumValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.ConstValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.OneOfValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.AnyOfValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.AllOfValidator",
@@ -62,43 +117,153 @@
   },
   {
     "name": "com.networknt.schema.NotValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.PropertiesValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.RequiredValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.AdditionalPropertiesValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.RefValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.ItemsValidator202012",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.MinItemsValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.MinimumValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.MaximumValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.PatternValidator",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "io.swagger.v3.core.jackson.ModelResolver",
@@ -546,43 +711,151 @@
     "name": "io.ikanos.spec.IkanosSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setCapability",
+        "parameterTypes": [
+          "io.ikanos.spec.CapabilitySpec"
+        ]
+      },
+      {
+        "name": "setIkanos",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setInfo",
+        "parameterTypes": [
+          "io.ikanos.spec.InfoSpec"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.ClientSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "setNamespace",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setType",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.http.HttpClientSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setBaseUri",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setResources",
+        "parameterTypes": [
+          "java.util.Map"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.http.HttpClientResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setOperations",
+        "parameterTypes": [
+          "java.util.Map"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.http.HttpClientOperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.OperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "setDisplay",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setMethod",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.ResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "setDescription",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setDisplay",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setPath",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.InputParameterSpec",
@@ -647,18 +920,60 @@
   {
     "name": "io.ikanos.spec.exposes.ServerSpecDeserializer",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.ClientSpecDeserializer",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.InfoSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setCreated",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setDescription",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setDisplay",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setModified",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.StakeholderSpec",
@@ -670,7 +985,13 @@
     "name": "io.ikanos.spec.CapabilitySpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.InputParameterDeserializer",
@@ -768,7 +1089,13 @@
   },
   {
     "name": "io.ikanos.spec.aggregates.AggregateMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.aggregates.AggregateFlowMapDeserializer",
@@ -776,7 +1103,13 @@
   },
   {
     "name": "io.ikanos.spec.aggregates.AggregateSpecDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.aggregates.AggregateFlowSpec",
@@ -786,39 +1119,119 @@
   },
   {
     "name": "io.ikanos.spec.InputParameterMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.util.OperationStepMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.OutputParameterListOrMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.ServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "setAddress",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setPort",
+        "parameterTypes": [
+          "int"
+        ]
+      },
+      {
+        "name": "setType",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setNamespace",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setResources",
+        "parameterTypes": [
+          "java.util.Map"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerResourceSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setOperations",
+        "parameterTypes": [
+          "java.util.Map"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerOperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setCall",
+        "parameterTypes": [
+          "io.ikanos.spec.exposes.ServerCallSpec"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerForwardSpec",
@@ -860,7 +1273,15 @@
     "name": "io.ikanos.spec.exposes.ServerCallSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.util.StepOutputMappingSpec",
@@ -872,13 +1293,67 @@
     "name": "io.ikanos.spec.exposes.skill.ExposedSkillSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setAllowedTools",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setCompatibility",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setDescription",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setLicense",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.skill.SkillServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setDescription",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setNamespace",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setSkills",
+        "parameterTypes": [
+          "java.util.Map"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.skill.SkillToolSpec",
@@ -938,13 +1413,43 @@
     "name": "io.ikanos.spec.exposes.control.ControlServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setManagement",
+        "parameterTypes": [
+          "io.ikanos.spec.exposes.control.ControlManagementSpec"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.control.ControlManagementSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
-    "allDeclaredFields": true
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setHealth",
+        "parameterTypes": [
+          "boolean"
+        ]
+      },
+      {
+        "name": "setInfo",
+        "parameterTypes": [
+          "boolean"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpec",
@@ -955,7 +1460,13 @@
   {
     "name": "io.ikanos.spec.exposes.control.ControlLogsEndpointSpecDeserializer",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.control.ScriptingManagementSpec",
@@ -976,12 +1487,34 @@
   {
     "name": "com.networknt.schema.PropertyNamesValidator",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "com.networknt.schema.MinPropertiesValidator",
     "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.util.NamedMapDeserializer",
@@ -989,15 +1522,33 @@
   },
   {
     "name": "io.ikanos.spec.util.BindingSpecDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.http.HttpClientOperationMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.consumes.http.HttpClientResourceMapDeserializer",
-    "allDeclaredConstructors": true
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.mcp.McpPromptArgumentMapDeserializer",
@@ -1016,19 +1567,1292 @@
     "allDeclaredConstructors": true
   },
   {
+    "name": "org.restlet.data.Parameter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.engine.connector.HttpClientHelper",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Client"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.engine.connector.HttpServerHelper",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Server"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.ext.jackson.JacksonConverter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.ext.slf4j.Slf4jLoggerFacade",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.resource.Finder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Context",
+          "java.lang.Class"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.networknt.schema.MaxLengthValidator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "com.fasterxml.jackson.databind.JsonNode",
+          "com.networknt.schema.JsonSchema",
+          "com.networknt.schema.ValidationContext"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
+    "queryAllPublicMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.classic.joran.SerializedModelConfigurator",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.classic.spi.ILoggingEvent",
+    "methods": [
+      {
+        "name": "getInstant",
+        "parameterTypes": []
+      },
+      {
+        "name": "getKeyValuePairs",
+        "parameterTypes": []
+      },
+      {
+        "name": "getMarkerList",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.classic.util.DefaultJoranConfigurator",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.ConsoleAppender",
+    "queryAllPublicMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.OutputStreamAppender",
+    "methods": [
+      {
+        "name": "setEncoder",
+        "parameterTypes": [
+          "ch.qos.logback.core.encoder.Encoder"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.encoder.Encoder",
+    "methods": [
+      {
+        "name": "valueOf",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.encoder.LayoutWrappingEncoder",
+    "methods": [
+      {
+        "name": "setParent",
+        "parameterTypes": [
+          "ch.qos.logback.core.spi.ContextAware"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.pattern.PatternLayoutEncoderBase",
+    "methods": [
+      {
+        "name": "setPattern",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ch.qos.logback.core.spi.ContextAware",
+    "methods": [
+      {
+        "name": "valueOf",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.fasterxml.jackson.databind.ext.Java7SupportImpl",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.AESCipher$General",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.ARCFOURCipher",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.ChaCha20Cipher$ChaCha20Poly1305",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.DESCipher",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.DESedeCipher",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.DHParameters",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.GaloisCounterMode$AESGCM",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.crypto.provider.TlsMasterSecretGenerator",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "groovy.lang.Closure"
+  },
+  {
+    "name": "io.ikanos.Cli",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.Cli$VersionProvider",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.ControlPortMixin",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.CreateCapabilityCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.CreateCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.ExportCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.ExportOpenApiCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.HealthCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.ImportCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.ImportOpenApiCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.cli.MetricsCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.ScriptingCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.ServeCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.StatusCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.TracesCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.cli.ValidateCommand",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllDeclaredConstructors": true
+  },
+  {
     "name": "io.ikanos.spec.exposes.rest.RestServerOperationMapDeserializer",
-    "allDeclaredConstructors": true
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerResourceMapDeserializer",
-    "allDeclaredConstructors": true
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.skill.ExposedSkillMapDeserializer",
-    "allDeclaredConstructors": true
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   },
   {
     "name": "io.ikanos.spec.exposes.skill.SkillToolMapDeserializer",
-    "allDeclaredConstructors": true
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.opentelemetry.api.incubator.metrics.ExtendedDefaultMeterProvider",
+    "methods": [
+      {
+        "name": "getNoop",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.opentelemetry.api.incubator.trace.ExtendedDefaultTracerProvider",
+    "methods": [
+      {
+        "name": "getNoop",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender",
+    "queryAllPublicMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "setCaptureExperimentalAttributes",
+        "parameterTypes": [
+          "boolean"
+        ]
+      },
+      {
+        "name": "setCaptureMdcAttributes",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk"
+  },
+  {
+    "name": "io.opentelemetry.sdk.extension.incubator.fileconfig.DeclarativeConfiguration"
+  },
+  {
+    "name": "io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder",
+    "methods": [
+      {
+        "name": "setExemplarFilter",
+        "parameterTypes": [
+          "io.opentelemetry.sdk.metrics.internal.exemplar.ExemplarFilter"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.lang.Class",
+    "methods": [
+      {
+        "name": "isRecord",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.lang.Object",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "java.lang.Thread",
+    "fields": [
+      {
+        "name": "threadLocalRandomProbe"
+      }
+    ],
+    "methods": [
+      {
+        "name": "isVirtual",
+        "parameterTypes": []
+      },
+      {
+        "name": "ofVirtual",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.lang.Thread$Builder",
+    "methods": [
+      {
+        "name": "factory",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.lang.management.ManagementFactory",
+    "methods": [
+      {
+        "name": "getRuntimeMXBean",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.lang.management.RuntimeMXBean",
+    "methods": [
+      {
+        "name": "getUptime",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.nio.file.Path"
+  },
+  {
+    "name": "java.nio.file.Paths",
+    "methods": [
+      {
+        "name": "get",
+        "parameterTypes": [
+          "java.lang.String",
+          "java.lang.String[]"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.security.AccessController",
+    "methods": [
+      {
+        "name": "doPrivileged",
+        "parameterTypes": [
+          "java.security.PrivilegedAction"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.security.AlgorithmParametersSpi"
+  },
+  {
+    "name": "java.security.KeyStoreSpi"
+  },
+  {
+    "name": "java.security.SecureRandomParameters"
+  },
+  {
+    "name": "java.sql.Connection"
+  },
+  {
+    "name": "java.sql.Date"
+  },
+  {
+    "name": "java.sql.Driver"
+  },
+  {
+    "name": "java.sql.DriverManager",
+    "methods": [
+      {
+        "name": "getConnection",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "getDriver",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.sql.Time",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "long"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.sql.Timestamp",
+    "methods": [
+      {
+        "name": "valueOf",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.Duration",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.Instant",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.LocalDate",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.LocalDateTime",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.LocalTime",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.MonthDay",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.OffsetDateTime",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.OffsetTime",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.Period",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.Year",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.YearMonth",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.ZoneId",
+    "methods": [
+      {
+        "name": "of",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.ZoneOffset",
+    "methods": [
+      {
+        "name": "of",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.time.ZonedDateTime",
+    "methods": [
+      {
+        "name": "parse",
+        "parameterTypes": [
+          "java.lang.CharSequence"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.CopyOnWriteArrayList",
+    "queryAllDeclaredMethods": true,
+    "queryAllDeclaredConstructors": true
+  },
+  {
+    "name": "java.util.concurrent.Executors",
+    "methods": [
+      {
+        "name": "newThreadPerTaskExecutor",
+        "parameterTypes": [
+          "java.util.concurrent.ThreadFactory"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.AtomicBoolean",
+    "fields": [
+      {
+        "name": "value"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.AtomicReference",
+    "fields": [
+      {
+        "name": "value"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.DoubleAdder"
+  },
+  {
+    "name": "java.util.concurrent.atomic.LongAdder"
+  },
+  {
+    "name": "java.util.concurrent.atomic.Striped64",
+    "fields": [
+      {
+        "name": "base"
+      },
+      {
+        "name": "cellsBusy"
+      }
+    ]
+  },
+  {
+    "name": "javax.security.auth.Subject",
+    "methods": [
+      {
+        "name": "callAs",
+        "parameterTypes": [
+          "javax.security.auth.Subject",
+          "java.util.concurrent.Callable"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "javax.security.auth.x500.X500Principal",
+    "fields": [
+      {
+        "name": "thisX500Name"
+      }
+    ],
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "sun.security.x509.X500Name"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "net.logstash.logback.marker.LogstashMarker"
+  },
+  {
+    "name": "org.eclipse.jetty.util.TypeUtil",
+    "methods": [
+      {
+        "name": "getClassLoaderLocation",
+        "parameterTypes": [
+          "java.lang.Class"
+        ]
+      },
+      {
+        "name": "getCodeSourceLocation",
+        "parameterTypes": [
+          "java.lang.Class"
+        ]
+      },
+      {
+        "name": "getModuleLocation",
+        "parameterTypes": [
+          "java.lang.Class"
+        ]
+      },
+      {
+        "name": "getSystemClassLoaderLocation",
+        "parameterTypes": [
+          "java.lang.Class"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.slf4j.event.KeyValuePair"
+  },
+  {
+    "name": "picocli.CommandLine$AutoHelpMixin",
+    "allDeclaredFields": true,
+    "queryAllDeclaredMethods": true
+  },
+  {
+    "name": "sun.security.pkcs12.PKCS12KeyStore",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.pkcs12.PKCS12KeyStore$DualFormatPKCS12",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.DRBG",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.security.SecureRandomParameters"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.DSA$SHA224withDSA",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.DSA$SHA256withDSA",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA2$SHA224",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA2$SHA256",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA5$SHA384",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA5$SHA512",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.X509Factory",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.rsa.PSSParameters",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.rsa.RSAKeyFactory$Legacy",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.rsa.RSAPSSSignature",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.rsa.RSASignature$SHA224withRSA",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.ssl.SSLContextImpl$TLSContext",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.ssl.TrustManagerFactoryImpl$PKIXFactory",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.AuthorityInfoAccessExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.AuthorityKeyIdentifierExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.BasicConstraintsExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.CRLDistributionPointsExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.CertificatePoliciesExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.ExtendedKeyUsageExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.IssuerAlternativeNameExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.KeyUsageExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.NetscapeCertTypeExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.PrivateKeyUsageExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.SubjectAlternativeNameExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "sun.security.x509.SubjectKeyIdentifierExtension",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Boolean",
+          "java.lang.Object"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.eclipse.jetty.util.Utf8StringBuilder",
+    "methods": [
+      {
+        "name": "errorActionIgnore",
+        "parameterTypes": []
+      },
+      {
+        "name": "errorActionReplace",
+        "parameterTypes": []
+      },
+      {
+        "name": "errorActionReport",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.data.Header",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String",
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.engine.adapter.ClientAdapter",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Context"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.restlet.engine.log.LoggerFacade",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
   }
 ]
