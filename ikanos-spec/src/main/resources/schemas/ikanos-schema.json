@@ -896,6 +896,10 @@
         "semantics": {
           "$ref": "#/$defs/Semantics"
         },
+        "outputMediaType": {
+          "type": "string",
+          "description": "Contract-level media type advertised by this flow to downstream `exposes`. Independent of `outputRawFormat`, which is always inherited from the underlying consumed operation (call:) or the terminal step (steps:). Overrides the consumed op's `outputMediaType` for advertisement only; never changes how the entity is parsed."
+        },
         "inputParameters": {
           "type": "object",
           "propertyNames": {
@@ -1079,6 +1083,11 @@
         "description": {
           "type": "string",
           "description": "A meaningful description of this MCP server's purpose. Used as the server instructions sent during MCP initialization."
+        },
+        "maxBinarySize": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)?$",
+          "description": "Maximum allowed binary response size before base64-encoding. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
@@ -1349,6 +1358,11 @@
           "type": "string",
           "description": "MIME type of the resource content per RFC 6838 (e.g. application/json, text/markdown, text/plain).",
           "pattern": "^[a-zA-Z0-9!#$&^_.+-]+\\/[a-zA-Z0-9!#$&^_.+-]+(?:\\s*;\\s*[a-zA-Z0-9!#$&^_.+-]+=(?:[a-zA-Z0-9!#$&^_.+-]+|\"[^\"]*\"))*$"
+        },
+        "binary": {
+          "type": "boolean",
+          "default": false,
+          "description": "For dynamic resources: when true, the resource read returns `BlobResourceContents` (base64 `blob` + `mimeType`) instead of `TextResourceContents`. The target consumed operation must declare `outputRawFormat: binary`. Defaults to false to preserve the text path."
         },
         "call": {
           "type": "string",
@@ -1703,11 +1717,86 @@
           "items": {
             "$ref": "#/$defs/StepOutputMapping"
           }
+        },
+        "responses": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[1-5][0-9X]{2}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "description": "A single HTTP status-code entry in a REST operation's response contract. Mirrors the OpenAPI Response Object subset Ikanos exports.",
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of this response. Exported verbatim to the OpenAPI `responses.<code>.description`."
+              },
+              "content": {
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[a-zA-Z0-9!#$&^_.+-]+\\/[a-zA-Z0-9!#$&^_.+-]+(?:\\s*;\\s*[a-zA-Z0-9!#$&^_.+-]+=(?:[a-zA-Z0-9!#$&^_.+-]+|\"[^\"]*\"))*$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "description": "The payload contract for one media type. Either `binary: true` (raw bytes, exported as `type: string, format: binary`) or an inline structured `schema`.",
+                  "properties": {
+                    "binary": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "When true, this media type returns raw bytes. Exported to OpenAPI as `schema: { type: string, format: binary }`. Requires the terminal consumed operation to declare `outputRawFormat: binary`."
+                    },
+                    "schema": {
+                      "type": "object",
+                      "description": "Inline JSON Schema for a non-binary structured response. Ignored when `binary` is true.",
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "description": "Response payloads keyed by media type (e.g. `image/jpeg`, `application/json`).",
+                "minProperties": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Explicit per-status-code response contract for this REST operation, keyed by HTTP status code (e.g. '200', '404'). Used to declare binary response media types and to drive OpenAPI export. Mutually exclusive with `responseBinary`."
+        },
+        "responseBinary": {
+          "type": "object",
+          "description": "Shorthand for a single successful binary response. Normalized into the full `responses` structure at spec load. Mutually exclusive with `responses`.",
+          "properties": {
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599,
+              "default": 200,
+              "description": "HTTP status code for the binary response. Defaults to 200."
+            },
+            "mediaType": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9!#$&^_.+-]+\\/[a-zA-Z0-9!#$&^_.+-]+(?:\\s*;\\s*[a-zA-Z0-9!#$&^_.+-]+=(?:[a-zA-Z0-9!#$&^_.+-]+|\"[^\"]*\"))*$",
+              "description": "Response media type (e.g. `image/jpeg`, `application/pdf`, `application/octet-stream`)."
+            },
+            "description": {
+              "type": "string",
+              "description": "Human-readable description exported to OpenAPI `responses.<code>.description`."
+            }
+          },
+          "required": [
+            "mediaType"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
         "method"
       ],
+      "not": {
+        "required": [
+          "responses",
+          "responseBinary"
+        ]
+      },
       "anyOf": [
         {
           "properties": {
@@ -1957,10 +2046,20 @@
             "psv",
             "yaml",
             "html",
-            "markdown"
+            "markdown",
+            "binary"
           ],
           "default": "json",
-          "description": "The raw format of the response from the consumed API. It is used to determine how to parse the response and extract the output parameters. Delimited formats: csv (comma), tsv (tab), psv (pipe). Default value is json."
+          "description": "The raw format of the response from the consumed API. It is used to determine how to parse the response and extract the output parameters. Delimited formats: csv (comma), tsv (tab), psv (pipe). Use `binary` to buffer the raw bytes without UTF-8 decoding (images, audio, PDFs, archives) and propagate the upstream Content-Type. Default value is json."
+        },
+        "outputMediaType": {
+          "type": "string",
+          "description": "Contract-level response media type. Independent of `outputRawFormat`: applies equally to parsed responses (JSON, XML, YAML) and to binary responses. Overrides the upstream Content-Type for advertised media types (REST headers, OAS `responses.content.<mediaType>` keys, MCP `TextResourceContents.mimeType` / `BlobResourceContents.mimeType`) but does not change how the entity is parsed."
+        },
+        "maxBinarySize": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)?$",
+          "description": "Per-operation override of the adapter-level maxBinarySize. Accepts sizes like '512KiB', '5MiB', '1GiB'. Only meaningful when `outputRawFormat` is `binary`."
         },
         "outputSchema": {
           "type": "string",
@@ -1979,6 +2078,42 @@
       },
       "required": [
         "method"
+      ],
+      "not": {
+        "required": [
+          "responses",
+          "responseBinary"
+        ]
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "outputParameters": {
+              "items": {
+                "$ref": "#/$defs/MappedOutputParameter"
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "steps"
+          ],
+          "properties": {
+            "mappings": true,
+            "outputParameters": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/OrchestratedOutputParameter"
+              }
+            }
+          }
+        },
+        {
+          "required": [
+            "ref"
+          ]
+        }
       ],
       "additionalProperties": false
     },

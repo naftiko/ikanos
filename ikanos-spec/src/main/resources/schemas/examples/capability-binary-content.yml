@@ -1,0 +1,139 @@
+---
+# Binary Content example — Phase 0 of the capability-binary-content blueprint.
+#
+# A photo-library capability that fetches original-resolution image bytes from
+# an upstream API and exposes them three ways from a single consumed operation:
+#   - a REST endpoint GET /photos/{imo}/image returning image/jpeg
+#   - an MCP tool `get-photo` (binary-ness inherited from the consumed op)
+#   - an MCP resource photos://library/{id}/bytes returning BlobResourceContents
+#
+# At Phase 0 the engine does NOT yet read or buffer bytes — this YAML only
+# exercises the additive schema fields introduced in §5–§8:
+#   - consumes:  outputRawFormat: binary, outputMediaType, maxBinarySize
+#   - aggregates: outputMediaType on a flow
+#   - exposes rest: responses contract + responseBinary shorthand
+#   - exposes mcp: adapter-level maxBinarySize, resource `binary: true`
+# Runtime byte handling lands in Phases 1+.
+ikanos: "1.0.0-beta1"
+
+info:
+  display: "Photo library (binary content example)"
+  description: >
+    Fetch original-resolution photo bytes from an upstream library API and
+    expose them through REST and MCP using a single binary consumed operation.
+  tags:
+    - photos
+    - binary
+    - example
+
+capability:
+  consumes:
+    - type: "http"
+      namespace: "photo-library"
+      description: "Upstream photo library API serving original-resolution image bytes."
+      baseUri: "https://photos.example.org"
+      resources:
+        photos:
+          description: "Photo binary resource."
+          path: "/photos/{id}/binary"
+          operations:
+            download-photo:
+              method: "GET"
+              description: "Download the original-resolution bytes of a photo by id."
+              outputRawFormat: "binary"
+              outputMediaType: "image/jpeg"
+              maxBinarySize: "5MiB"
+              inputParameters:
+                id:
+                  in: "path"
+
+  aggregates:
+    - display: "Photos"
+      namespace: "photos"
+      flows:
+        get-photo:
+          description: "Resolve and return the original bytes of a photo by id."
+          semantics:
+            safe: true
+            idempotent: true
+            cacheable: true
+          outputMediaType: "image/jpeg"
+          inputParameters:
+            id:
+              type: "string"
+              required: true
+              description: "Photo identifier."
+          call: "photo-library.download-photo"
+          with:
+            id: "{{id}}"
+
+  exposes:
+    - type: "rest"
+      address: "0.0.0.0"
+      port: 8080
+      namespace: "photos-api"
+      resources:
+        photo-image:
+          description: "Original-resolution image bytes for a photo."
+          path: "/photos/{{id}}/image"
+          operations:
+            get-photo-image:
+              method: "GET"
+              description: "Return the original image bytes for a photo."
+              inputParameters:
+                id:
+                  in: "path"
+                  type: "string"
+                  description: "Photo identifier."
+              ref: "photos.get-photo"
+              responses:
+                "200":
+                  description: "Original image bytes."
+                  content:
+                    image/jpeg:
+                      binary: true
+                "404":
+                  description: "Photo not found."
+                  content:
+                    application/json:
+                      schema:
+                        type: "object"
+        photo-thumbnail:
+          description: "Thumbnail image bytes for a photo (responseBinary shorthand)."
+          path: "/photos/{{id}}/thumbnail"
+          operations:
+            get-photo-thumbnail:
+              method: "GET"
+              description: "Return a thumbnail image for a photo."
+              inputParameters:
+                id:
+                  in: "path"
+                  type: "string"
+                  description: "Photo identifier."
+              ref: "photos.get-photo"
+              responseBinary:
+                status: 200
+                mediaType: "image/jpeg"
+                description: "Thumbnail image bytes."
+
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 8765
+      namespace: "photos-mcp"
+      description: "Photo library MCP server exposing image tools and resources."
+      maxBinarySize: "25MiB"
+      tools:
+        get-photo:
+          display: "Get photo"
+          description: "Download the original-resolution bytes of a photo by id."
+          ref: "photos.get-photo"
+      resources:
+        photo-bytes:
+          display: "Photo bytes"
+          uri: "photos://library/{id}/bytes"
+          description: "Original-resolution bytes of a photo."
+          mimeType: "image/jpeg"
+          binary: true
+          call: "photo-library.download-photo"
+          with:
+            id: "{id}"
