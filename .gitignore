@@ -21,3 +21,6 @@ dependency-reduced-pom.xml
 # On-demand synced skill copies (never commit) — scoped to the synced copy only;
 # committed skills (e.g. bugfix/, ikanos-capability/) live under .agents/skills/ and must stay tracked.
 .agents/skills/pr-review/
+
+# ─── Local developer environment notes (machine-specific paths) ─────────────────
+.env.local
