@@ -535,3 +535,44 @@ jobs:
             echo "| Quality Gate | ${{ needs.test-and-analyze.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| CLI Smoke Tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+            
+  notify-on-failure:
+      name: Slack notification on failure
+      needs:
+        - test-and-analyze
+        - integration-tests
+        - smoke-tests
+      if: |
+        always() && (
+          needs.test-and-analyze.result == 'failure' ||
+          needs.integration-tests.result == 'failure' ||
+          needs.smoke-tests.result == 'failure'
+        )
+      runs-on: ubuntu-latest
+      steps:
+        - name: Send Slack notification
+          run: |
+            curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "❌ *Nightly Quality Gate failed*",
+                "attachments": [
+                  {
+                    "color": "danger",
+                    "fields": [
+                      { "title": "Repository", "value": "${{ github.repository }}", "short": true },
+                      { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
+                      { "title": "Quality Gate", "value": "${{ needs.test-and-analyze.result }}", "short": true },
+                      { "title": "Integration Tests", "value": "${{ needs.integration-tests.result }}", "short": true },
+                      { "title": "CLI Smoke Tests", "value": "${{ needs.smoke-tests.result }}", "short": true }
+                    ],
+                    "actions": [
+                      {
+                        "type": "button",
+                        "text": "View Run",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                      }
+                    ]
+                  }
+                ]
+              }'
