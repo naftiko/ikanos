@@ -6,7 +6,7 @@
 [![Trivy](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-trivy.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 [![Gitleaks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-gitleaks.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 
-Welcome to **Ikanos**, the first Open Source project for [Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/spec-driven-integration/) — reinventing API integration for the AI era with governed, versatile **capabilities** that streamline the API sprawl created by massive SaaS and microservices growth.
+Welcome to **Ikanos**, the first Open Source project for [Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha4/concepts/spec-driven-integration/) — reinventing API integration for the AI era with governed, versatile **capabilities** that streamline the API sprawl created by massive SaaS and microservices growth.
 
 > Ikanos comes from the Greek *ικανός* — **capable**.
 
@@ -52,11 +52,11 @@ Increasingly, developers don't hand-write this integration layer at all — they
 - **MCP server frameworks** — *FastMCP, Spring AI MCP, the official MCP SDKs.* The AI writes an MCP server and its tool handlers — again, code to build and maintain.
 - **MCP proxy generators** — *Stainless, APIMatic, Speakeasy, Mintlify.* No AI authoring here; they mechanically turn one OpenAPI document into a 1:1 SDK or MCP server.
 
-Ikanos asks the AI for something simpler and safer: a **declarative YAML capability** validated against a stable schema. Generated YAML is easier for a model to get right than framework code, it shows up as a readable diff in a pull request, and it can be linted (with [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha3/polychro/)) before it ever runs — so a human stays in control of what the AI produced. One capability can also consume and compose several upstream APIs (for example, joining a customer, their orders, and their open tickets from three services) and expose the result over MCP, Skill, and REST at once.
+Ikanos asks the AI for something simpler and safer: a **declarative YAML capability** validated against a stable schema. Generated YAML is easier for a model to get right than framework code, it shows up as a readable diff in a pull request, and it can be linted (with [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha4/polychro/)) before it ever runs — so a human stays in control of what the AI produced. One capability can also consume and compose several upstream APIs (for example, joining a customer, their orders, and their open tickets from three services) and expose the result over MCP, Skill, and REST at once.
 
 Ikanos is also designed to fit alongside these tools rather than replace them: it imports OpenAPI, exposes MCP, and integrates with LangChain4j as in-process tools, so adopting it usually means keeping your runtime and replacing hand-written glue with an AI-authored, reviewable spec.
 
-> For a dimension-by-dimension comparison, and guidance on when another tool is a better fit, see the [Comparison guide](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/comparison/) on the Shipyard.
+> For a dimension-by-dimension comparison, and guidance on when another tool is a better fit, see the [Comparison guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/comparison/) on the Shipyard.
 
 ## Quick start
 
@@ -89,7 +89,7 @@ docker run -p 8081:3001 \
   ghcr.io/naftiko/ikanos:latest
 ```
 
-> Full installation steps for the CLI, Docker, and every platform are in the [Installation guide](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/installation/) on the Shipyard.
+> Full installation steps for the CLI, Docker, and every platform are in the [Installation guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/installation/) on the Shipyard.
 
 ***
 
@@ -97,36 +97,40 @@ docker run -p 8081:3001 \
 
 The complete, always-up-to-date Ikanos documentation lives on the **Naftiko Shipyard**. Start here and keep exploring:
 
-- :compass: [Concepts — Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/)
-- :rowboat: [Installation](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/installation/)
-- :sailboat: [Tutorials](https://shipyard.naftiko.io/docs/1.0.0-alpha3/tutorials/) — guided tracks from your first capability to platform operations
-- :ship: [Use Cases](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/use-cases/)
-- :star: [Features](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/features/)
-- :mag: [Linting Guide](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/guide/linting/) — pair Ikanos with Polychro
-- :anchor: [Specification — Schema](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/schema/)
-- :triangular_ruler: [Specification — Ruleset](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/ruleset/)
-- :keyboard: [CLI Reference](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/cli/)
-- :ocean: [FAQ](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/faq/)
-- :mega: [Releases](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/releases/)
-- :telescope: [Roadmap](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/roadmap/)
+- :compass: [Concepts — Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha4/concepts/)
+- :rowboat: [Installation](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/installation/)
+- :sailboat: [Tutorials](https://shipyard.naftiko.io/docs/1.0.0-alpha4/tutorials/) — guided tracks from your first capability to platform operations
+- :ship: [Use Cases](https://shipyard.naftiko.io/docs/1.0.0-alpha4/concepts/use-cases/)
+- :star: [Features](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/features/)
+- :mag: [Linting Guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/guide/linting/) — pair Ikanos with Polychro
+- :anchor: [Specification — Schema](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/schema/)
+- :triangular_ruler: [Specification — Ruleset](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/ruleset/)
+- :keyboard: [CLI Reference](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/cli/)
+- :ocean: [FAQ](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/faq/)
+- :mega: [Releases](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/releases/)
+- :telescope: [Roadmap](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/roadmap/)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/ikanos/blob/main/CONTRIBUTING.md)
 
 ## :video_game: Try it in the Playground
 
-Want to see Ikanos in action without installing anything? The upcoming **Shipyard Playground** lets you author a capability, lint it live with **Polychro**, and serve it with **Ikanos** — all from your browser. Keep an eye on the [Shipyard](https://shipyard.naftiko.io/docs/1.0.0-alpha3/) for its release.
+Want to see Ikanos in action without installing anything? The **[Shipyard Playground](https://shipyard.naftiko.io/playground)** lets you author a capability, lint it live with **Polychro**, and serve it with **Ikanos** — all from your browser. Jump straight into a guided tutorial:
+
+- **[Track 1 — Context Engineering](https://shipyard.naftiko.io/playground/tutorial/1)** (mock → live → auth → shaping → legacy → writes → lookups)
+- **[Track 2 — API Reusability](https://shipyard.naftiko.io/playground/tutorial/8)** (skill groups → aggregates → REST)
+- **[Track 3 — API Orchestration](https://shipyard.naftiko.io/playground/tutorial/11)** (the Fleet Manifest capstone)
 
 ***
 
 ## Part of the Naftiko Fleet
 
-Ikanos is part of the [Naftiko Fleet (Community Edition)](https://shipyard.naftiko.io/docs/1.0.0-alpha3/fleet/), which adds free complementary tools:
+Ikanos is part of the [Naftiko Fleet (Community Edition)](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/), which adds free complementary tools:
 
 | Tool | What it does |
 |---|---|
-| [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha3/polychro/) | Polyglot linter that validates Ikanos capabilities against the schema and ruleset. |
-| [Crafter](https://shipyard.naftiko.io/docs/1.0.0-alpha3/fleet/crafter/) | Free Naftiko extension for Visual Studio Code to help with editing and linting Ikanos capabilities. |
-| [Warden](https://shipyard.naftiko.io/docs/1.0.0-alpha3/fleet/) | Naftiko custom templates for CNCF's Backstage to help with scaffolding and cataloguing Ikanos capabilities. |
-| [Skipper](https://shipyard.naftiko.io/docs/1.0.0-alpha3/fleet/skipper/) | Operator and Helm chart for CNCF's Kubernetes to help with the operations of Ikanos capabilities. |
+| [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha4/polychro/) | Polyglot linter that validates Ikanos capabilities against the schema and ruleset. |
+| [Crafter](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/crafter/) | Free Naftiko extension for Visual Studio Code to help with editing and linting Ikanos capabilities. |
+| [Warden](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/) | Naftiko custom templates for CNCF's Backstage to help with scaffolding and cataloguing Ikanos capabilities. |
+| [Skipper](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/skipper/) | Operator and Helm chart for CNCF's Kubernetes to help with the operations of Ikanos capabilities. |
 
 Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions)
 
