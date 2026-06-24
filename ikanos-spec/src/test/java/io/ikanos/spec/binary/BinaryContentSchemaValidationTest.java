@@ -139,6 +139,60 @@ class BinaryContentSchemaValidationTest {
         assertFalse(errors.isEmpty(), "Expected a validation error for a malformed maxBinarySize");
     }
 
+    @Test
+    @DisplayName("schema rejects a maxBinarySize with no unit (unit is mandatory)")
+    void schemaShouldRejectMaxBinarySizeWithoutUnit() throws Exception {
+        String yaml = """
+            ikanos: "%s"
+            info:
+              display: "demo"
+              description: "demo"
+            capability:
+              consumes:
+                - type: "http"
+                  namespace: "photo-library"
+                  baseUri: "https://photos.example.org"
+                  resources:
+                    photos:
+                      path: "/photos/{id}/binary"
+                      operations:
+                        download-photo:
+                          method: "GET"
+                          outputRawFormat: "binary"
+                          maxBinarySize: "5"
+            """.formatted(IKANOS);
+        Set<ValidationMessage> errors = validateYaml(yaml);
+        assertFalse(errors.isEmpty(),
+            "Expected a validation error for a unit-less maxBinarySize ('5')");
+    }
+
+    @Test
+    @DisplayName("schema accepts outputMediaType on a non-binary (default JSON) consumed operation")
+    void schemaShouldAcceptOutputMediaTypeOnNonBinaryConsumedOperation() throws Exception {
+        // §4.3.2: outputMediaType is orthogonal to outputRawFormat. A non-binary op
+        // (default JSON parsing) may still advertise a vendor media type variant.
+        String yaml = """
+            ikanos: "%s"
+            info:
+              display: "demo"
+              description: "demo"
+            capability:
+              consumes:
+                - type: "http"
+                  namespace: "github"
+                  baseUri: "https://api.github.com"
+                  resources:
+                    repos:
+                      path: "/repos/{owner}/{repo}"
+                      operations:
+                        get-repo:
+                          method: "GET"
+                          outputMediaType: "application/vnd.github.v3+json"
+            """.formatted(IKANOS);
+        Set<ValidationMessage> errors = validateYaml(yaml);
+        assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
+    }
+
     // ----- aggregates (§6) -----
 
     @Test
