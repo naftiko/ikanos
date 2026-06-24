@@ -226,6 +226,11 @@
       "description": "Extended identifier (alphanumeric, hyphens, underscores, and wildcard).",
       "pattern": "^[a-zA-Z0-9-_*]+$"
     },
+    "BinarySize": {
+      "type": "string",
+      "description": "A binary size with a mandatory unit (`B`, `KiB`, `MiB`, or `GiB`), e.g. `512KiB`, `5MiB`, `1GiB`. The unit is required to avoid ambiguity (a bare number has no scale).",
+      "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)$"
+    },
     "ConsumedInputParameter": {
       "type": "object",
       "description": "Describes a single function parameter. A unique parameter is defined by a combination of a name and location.",
@@ -1085,8 +1090,7 @@
           "description": "A meaningful description of this MCP server's purpose. Used as the server instructions sent during MCP initialization."
         },
         "maxBinarySize": {
-          "type": "string",
-          "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)?$",
+          "$ref": "#/$defs/BinarySize",
           "description": "Maximum allowed binary response size before base64-encoding. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
         },
         "authentication": {
@@ -2057,8 +2061,7 @@
           "description": "Contract-level response media type. Independent of `outputRawFormat`: applies equally to parsed responses (JSON, XML, YAML) and to binary responses. Overrides the upstream Content-Type for advertised media types (REST headers, OAS `responses.content.<mediaType>` keys, MCP `TextResourceContents.mimeType` / `BlobResourceContents.mimeType`) but does not change how the entity is parsed."
         },
         "maxBinarySize": {
-          "type": "string",
-          "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)?$",
+          "$ref": "#/$defs/BinarySize",
           "description": "Per-operation override of the adapter-level maxBinarySize. Accepts sizes like '512KiB', '5MiB', '1GiB'. Only meaningful when `outputRawFormat` is `binary`."
         },
         "outputSchema": {
