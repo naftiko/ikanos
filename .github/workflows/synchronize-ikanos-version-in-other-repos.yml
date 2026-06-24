@@ -16,17 +16,17 @@ jobs:
 
     steps:
       - name: Checkout ikanos
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ikanos
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Checkout warden
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: naftiko/warden
           token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
@@ -52,7 +52,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.git-check.outputs.changes == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
           path: warden
@@ -75,17 +75,17 @@ jobs:
 
     steps:
       - name: Checkout ikanos
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ikanos
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Checkout crafter
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: naftiko/crafter
           token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
@@ -111,7 +111,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.git-check.outputs.changes == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
           path: crafter
