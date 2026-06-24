@@ -1,9 +1,37 @@
+---
+notion_page_id: 3894adce-3d02-8125-9097-df2f13767bbc
+notion_last_sync: 2026-06-24T09:05:42Z
+---
+
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
 **Last updated**: 2026-06-23
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 blueprint = 1 feature.
+
+> **Notion mirror — sync contract.** This document is mirrored to a page in the
+> Internal Tech Documentation (ITD) Notion database
+> (`2e14adce-3d02-8063-8426-eec9aedf3a5e`). The mirror reuses the **sync-pointer formalism** of
+> the `blueprint-itd-sync` skillset (the two `notion_page_id` / `notion_last_sync` frontmatter
+> fields above) — but **this is not a blueprint**: it is a factual tracker, so none of the
+> blueprint-specific machinery applies (no `Status`-maturity mapping, no header-block→property
+> contract).
+>
+> **Expected flow today: VS Code → Notion.** The **source of truth is this file**, edited from VS
+> Code alongside the code it measures; the Notion page is the downstream mirror. The convention is:
+> after every edit of this file, re-push the ITD page — don't edit the Notion page and expect it to
+> flow back. On each successful push, bump `notion_last_sync` (frontmatter, UTC `Z`) to the
+> push-completion time; `notion_page_id` is written once on first push and never overwritten. The
+> mirror page is [`3894adce…`](https://app.notion.com/p/3894adce3d0281259097df2f13767bbc) in the
+> ITD database.
+>
+> This is a **default direction, not a guaranteed invariant**: full bidirectional reconciliation
+> (conflict detection via `notion_last_sync` vs Notion's `last_edited_time`) is **deliberately not
+> set up** — it would be speculative for a need that has not materialised. The frontmatter socle is
+> intentionally **direction-neutral**, so if a two-way need ever arises (or once the
+> `blueprint-itd-sync` skillset is externalised and can adopt this doc), the reconciliation can be
+> layered on **without changing these two fields** — nothing here presumes one-way only.
 
 > **This is a living tracking document, not a one-shot audit.** It started as the #578 e2e
 > coverage audit, but it is meant to be **kept up to date** as features ship and tests are added.
@@ -98,7 +126,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 11 | Skill server adapter (`type: skill`) | SHIPPED | JVM | 4 / 4 | `Step8`, `Step10`, `SkillIntegrationTest`. The native fixture declares a `skill` port but the smoke test only probes the REST port → not exercised at native level. Blueprint `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill`. |
 | 12 | Bindings (`binds:`, file/vault) | SHIPPED | JVM | no dedicated blueprint | Steps 3–11 load `shared/secrets.yaml`. Base-spec primitive. |
 | 13 | Fleet manifest (`catalog-info.yaml`) | SHIPPED | JVM | no dedicated blueprint | `Step11ShipyardFleetManifestIntegrationTest`. Owned by the Fleet/Warden template, not a phasable blueprint. |
-| 14 | Control Port (`type: control`, health/ready/metrics/traces/status) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` exercises lifecycle only; no HTTP GET to the control endpoints. The native fixture declares a `control` port but the smoke test does not call it. Phase 1 (health/status/metrics/traces) shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. Blueprint: `archives/control-port.md`. |
+| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` does a GET on `/health/ready`, but only as a lifecycle/readiness signal — no test asserts the **content** of any control endpoint. The native fixture declares a `control` port but the smoke test does not call it. Real routes (`ControlServerAdapter`): `/health/live` (always 200 `{"status":"UP"}`), `/health/ready` (200/503), `/status` (gated by `info`), `/metrics` + `/traces` (503 unless OTel active) — there is no bare `/health` or `/ready`. Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. Blueprint: `archives/control-port.md`. |
 | 15 | OTel observability (tracing + Prometheus metrics) | SHIPPED | NONE | 5 / 5 | `ObservabilitySpecIntegrationTest` etc. load in-process without booting a server; no OTLP export driven end-to-end. All 5 roadmap phases (logging facade, tracing, metrics, spec-driven config, dashboarding) shipped; coverage still NONE. Blueprint: `archives/opentelemetry-observability.md`. |
 | 16 | Reverse tunnel (Ziti) | SHIPPED | NONE | 2 / 6 | `TunnelTransportTest`/`TunnelRouteTableTest`/`TunnelBootstrapTest` are unit-level; no launched capability routes a call through a Ziti network. Phases 1–2 shipped, 3 partial, 4–5 pending. Blueprint: `reverse-tunnel-private-network.md`. |
 | 17 | MCP exposed auth (OAuth 2.1 / Bearer) | SHIPPED | NONE | no dedicated blueprint | `ServerAdapterAuthenticationTest` is unit-level; no launched MCP adapter validates a token end-to-end. Base-spec primitive. |
@@ -145,7 +173,7 @@ harness from scratch. The existing tutorial fixtures and Microcks backend are re
 the **launch path** changes from in-process JVM to native image.
 
 - **Aggregates** (#9): `step-9-shipyard-aggregates.yml` exists — needs a launched test (start with JVM-level `Step9…` to reach parity, then a NATIVE variant).
-- **Control port** (#14): launch a `type: control` capability; HTTP GET `/health`, `/ready`, `/metrics`, `/traces`, `/status`. No backend needed — a good first **NATIVE** candidate.
+- **Control port** (#14): launch a `type: control` capability; HTTP GET `/health/live` (the reliable always-200 probe), then `/health/ready` and `/status`. `/metrics` + `/traces` return 503 unless OTel is active, so assert their reachability, not a 200. No backend needed — a good first **NATIVE** candidate.
 - **OTel** (#15): launch a capability with a control port; assert `/metrics` returns Prometheus data and `/traces` returns the ring buffer; OTLP export against an in-process collector for enrichment.
 - **Reverse tunnel** (#16): Ziti needs a live controller — not feasible in a plain test. First step: a contract test through a stubbed `TunnelTransport`; true NATIVE e2e requires a Ziti sandbox (CI/nightly only).
 - **MCP auth** (#17): launch an MCP adapter with `authentication: bearer`/`oauth2`; drive with/without a valid token; assert 401 / 200.
