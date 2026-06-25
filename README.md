@@ -12,11 +12,61 @@ Welcome to **Ikanos**, the first Open Source project for [Spec-Driven Integratio
 
 <img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="700">
 
-## What Ikanos is
+## Ikanos in one sentence
+
+**Ikanos reads one YAML file that describes a slice of your business — say *customers* or *orders* — connects it to the HTTP/REST APIs you already have, and instantly serves that same slice to AI agents, web apps, and partners over several protocols at once.** One source of truth, many audiences, no code to write or compile.
+
+That's the whole idea. The rest of this README explains what that means for *you* — and "you" depends on what you're trying to build.
+
+## Who are you?
+
+Ikanos solves a different problem depending on where you sit. Find yourself below.
+
+### :robot: You're building AI agents
+
+> *You want your AI assistant or agent to reach real business systems — safely, without hand-writing and maintaining a pile of glue code.*
+
+**What Ikanos can do for you:**
+
+- **Give agents governed tools without writing handlers.** Describe an operation in YAML and Ikanos serves it as an **MCP** tool (the open standard AI clients speak) — no Python or Java handler to build and trust.
+- **Send the model exactly the context it needs.** Trim and reshape big API responses down to the few fields a task actually uses, so prompts stay relevant and cheap.
+- **Compose context from several systems at once.** Join a customer, their orders, and their open tickets from three different APIs into one clean result the agent receives in a single call.
+- **Stay in control of what the AI produced.** The capability is plain, reviewable YAML — it shows up as a readable diff in a pull request and can be linted before it ever runs.
+
+→ Start with the **[Context Engineering tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-1-context-engineering/)**.
+
+### :electric_plug: You own a sprawl of APIs, microservices, or a monolith
+
+> *You're a platform or integration team, and the systems you expose are messy, inconsistent, or hard for other teams to consume.*
+
+**What Ikanos can do for you:**
+
+- **Elevate an existing API into something easier to consume.** Put a stable, business-oriented contract in front of vendor-native or legacy endpoints — and even fix their semantics (turn a read-only `POST` query into a cacheable `GET`).
+- **Rightsize microservices or a monolith.** Hide service fragmentation behind one curated namespace, or carve focused capabilities out of a broad monolith so each consumer gets only what it needs.
+- **Convert formats for free.** Upstream returns XML, CSV, Avro, Protobuf, or Markdown? Ikanos normalizes it to clean JSON on the way out.
+- **Govern it in CI.** Conventions — naming, security, path rules — are enforced by [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha4/polychro/) linting before anything ships.
+
+→ Start with the **[API Reusability tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-2-api-reusability/)**.
+
+### :bricks: You want one source of truth for every kind of client
+
+> *You're a product or partner-facing developer, and the same domain has to be reachable by web apps, partner integrations, **and** AI agents — without maintaining three separate implementations.*
+
+**What Ikanos can do for you:**
+
+- **Write the domain once, expose it many ways.** A single capability is served as **REST** for conventional clients, **MCP** for AI agents, and **Skill** for agent skill catalogs — from the same YAML.
+- **Keep contracts in sync automatically.** Define a reusable domain function once (an *aggregate*) and project it onto each protocol; no drift between your REST API and your MCP tools.
+- **Interoperate with what you already have.** Import an existing **OpenAPI** document to bootstrap a capability, and export your REST surface back out as OpenAPI for downstream consumers.
+
+> Today Ikanos serves **MCP**, **Skill**, **REST**, and a **Control** management plane. More downstream protocols (such as gRPC and webhooks) are on the [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/roadmap/) — and because the source of truth is one declarative spec, adding an audience never means rewriting your integration.
+
+→ Browse all scenarios in **[Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/)**, or see **[Who is it for?](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/who-is-it-for/)** for the full persona map.
+
+## Under the hood
 
 Ikanos is a **capability engine** that reads an Ikanos YAML specification at startup and immediately serves it as a multi-protocol server — **MCP**, **Skill**, **REST**, and **Control** — with **no code generation and no compilation step**. The spec *is* the artifact and the runtime contract.
 
-Each capability is a coarse-grained slice of a domain. It consumes existing HTTP-based APIs, optionally orchestrates and transforms the data, then exposes the result in several protocols so that AI agents, web apps, and partners can all consume it the same way. The project ships as three pieces:
+Each capability is a coarse-grained slice of a domain. It consumes existing HTTP-based APIs, optionally orchestrates and transforms the data, then exposes the result in several protocols so that AI agents, web apps, and partners can all consume it the same way. The project ships as three pieces: a **specification**, an **engine**, and a **CLI**.
 
 In production, one Ikanos process serves one *capability* as a Docker container. Multiple capabilities running in the same Kubernetes cluster constitute a *ship* while larger organizations operate a *fleet* federating several ships. This is where Naftiko Fleet can help you scale Ikanos from development to governance.
 
