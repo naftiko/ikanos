@@ -13,7 +13,11 @@
  */
 package io.ikanos.spec.openapi;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -799,6 +803,79 @@ public class OasExportBuilderTest {
 
         assertEquals("query", result.getOpenApi().getPaths().get("/data")
                 .getGet().getParameters().get(0).getIn());
+    }
+
+    // ── Binary response contracts (capability-binary-content.md §7.4) ──
+
+    @Test
+    void buildShouldExportBinaryResponseAsStringFormatBinary() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/photos/{id}/image");
+        resource.setName("photo-image");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("get-image");
+
+        io.ikanos.spec.exposes.rest.RestResponseContentSpec content =
+                new io.ikanos.spec.exposes.rest.RestResponseContentSpec(Boolean.TRUE);
+        io.ikanos.spec.exposes.rest.RestResponseSpec resp =
+                new io.ikanos.spec.exposes.rest.RestResponseSpec();
+        resp.setDescription("Original image bytes");
+        resp.setContent(Map.of("image/jpeg", content));
+        op.setResponses(Map.of("200", resp));
+
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation operation =
+                result.getOpenApi().getPaths().get("/photos/{id}/image").getGet();
+        var apiResponse = operation.getResponses().get("200");
+        assertNotNull(apiResponse);
+        assertEquals("Original image bytes", apiResponse.getDescription());
+        var media = apiResponse.getContent().get("image/jpeg");
+        assertNotNull(media, "binary media type must be preserved exactly");
+        assertEquals("string", media.getSchema().getType());
+        assertEquals("binary", media.getSchema().getFormat());
+        assertNull(operation.getResponses().get("200").getContent().get("application/json"),
+                "binary responses must not be collapsed to application/json");
+    }
+
+    @Test
+    void buildShouldExportBinaryResponseFromResponseBinaryShorthand() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/contracts/{id}/pdf");
+        resource.setName("contract-pdf");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("get-pdf");
+
+        io.ikanos.spec.exposes.rest.RestResponseBinarySpec shorthand =
+                new io.ikanos.spec.exposes.rest.RestResponseBinarySpec();
+        shorthand.setMediaType("application/pdf");
+        shorthand.setDescription("Signed contract PDF");
+        op.setResponseBinary(shorthand);
+
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation operation =
+                result.getOpenApi().getPaths().get("/contracts/{id}/pdf").getGet();
+        var apiResponse = operation.getResponses().get("200");
+        assertNotNull(apiResponse, "responseBinary defaults to status 200");
+        var media = apiResponse.getContent().get("application/pdf");
+        assertNotNull(media);
+        assertEquals("string", media.getSchema().getType());
+        assertEquals("binary", media.getSchema().getFormat());
     }
 
     // ── Utility methods ──

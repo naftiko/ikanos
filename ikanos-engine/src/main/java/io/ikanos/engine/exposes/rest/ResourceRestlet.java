@@ -41,7 +41,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import org.restlet.representation.ByteArrayRepresentation;
 
 /**
  * Restlet that handles calls to an API resource
@@ -376,6 +378,13 @@ public class ResourceRestlet extends Restlet {
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,
             OperationStepExecutor.HandlingContext found) {
+        // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
+        // bytes with the size cap, return them with the resolved Content-Type, and skip output
+        // mappings (they are nonsensical for raw bytes). See capability-binary-content.md §7.5.
+        if (found.isBinary() && sendBinaryResponse(serverOp, response, found)) {
+            return;
+        }
+
         // Apply output mappings if present or forward the raw entity
         if (serverOp.getOutputParameters() != null && !serverOp.getOutputParameters().isEmpty()) {
             try {
@@ -397,6 +406,72 @@ public class ResourceRestlet extends Restlet {
         }
 
         response.commit();
+    }
+
+    /**
+     * Return a buffered binary entity for a REST operation whose consumed operation declares
+     * {@code outputRawFormat: binary} (§7.5).
+     *
+     * <p>The size cap is the per-operation {@code maxBinarySize} (falling back to the engine
+     * default). The {@code Content-Type} follows the precedence in §4.3.1: a declared
+     * {@code outputMediaType} on the consumed operation wins (resolved inside
+     * {@link OperationStepExecutor.HandlingContext#readBoundedBytes(long)}); otherwise the REST
+     * response contract's declared binary media type is used; otherwise the resolved upstream type;
+     * otherwise {@code application/octet-stream}. {@code outputParameters} mappings are skipped with
+     * an INFO log (§4.6).</p>
+     *
+     * @return {@code true} when the binary entity was written (response committed); {@code false}
+     *         when there were no bytes to return, so the caller falls back to the text path
+     */
+    private boolean sendBinaryResponse(RestServerOperationSpec serverOp, Response response,
+            OperationStepExecutor.HandlingContext found) {
+        try {
+            byte[] bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(null));
+            if (bytes == null) {
+                return false;
+            }
+
+            if (serverOp.getOutputParameters() != null
+                    && !serverOp.getOutputParameters().isEmpty()) {
+                Context.getCurrentLogger().info(
+                        "Skipping outputParameters mappings for REST operation '"
+                                + resourceSpec.getPath() + " " + serverOp.getMethod()
+                                + "': response is binary (" + found.clientResponseMediaType + ")");
+            }
+
+            // §4.3.1: declared outputMediaType (already applied in clientResponseMediaType) wins;
+            // otherwise prefer the REST response contract's declared binary media type.
+            String mediaType = found.clientResponseMediaType;
+            Optional<String> declaredRestType = serverOp.findBinaryResponseMediaType();
+            boolean hasDeclaredUpstreamType = found.clientOperation != null
+                    && found.clientOperation.getOutputMediaType() != null
+                    && !found.clientOperation.getOutputMediaType().isBlank();
+            if (!hasDeclaredUpstreamType && declaredRestType.isPresent()) {
+                mediaType = declaredRestType.get();
+            }
+            if (mediaType == null || mediaType.isBlank()) {
+                mediaType = MediaType.APPLICATION_OCTET_STREAM.getName();
+            }
+
+            response.setEntity(new ByteArrayRepresentation(bytes, MediaType.valueOf(mediaType)));
+            response.commit();
+            return true;
+        } catch (OperationStepExecutor.BinarySizeExceededException e) {
+            Context.getCurrentLogger().warning("Binary response exceeded maxBinarySize: " + e);
+            response.setStatus(Status.SERVER_ERROR_INTERNAL);
+            response.setEntity(
+                    "Upstream response exceeded maxBinarySize (limit=" + e.getMaxBytes()
+                            + " bytes)",
+                    MediaType.TEXT_PLAIN);
+            response.commit();
+            return true;
+        } catch (IOException e) {
+            Context.getCurrentLogger().warning("Error buffering binary response: " + e);
+            response.setStatus(Status.SERVER_ERROR_INTERNAL);
+            response.setEntity("Error buffering binary response\n\n" + e, MediaType.TEXT_PLAIN);
+            response.commit();
+            return true;
+        }
     }
 
     /**
