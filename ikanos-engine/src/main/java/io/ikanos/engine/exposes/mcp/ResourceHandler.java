@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,18 @@ public class ResourceHandler {
 
         public static ResourceContent text(String uri, String mimeType, String text) {
             return new ResourceContent(uri, mimeType, text, null);
+        }
+
+        /**
+         * Create a binary resource content item. The {@code base64} payload is sent to the agent
+         * as the {@code blob} field of an MCP {@code BlobResourceContents} (§4.5).
+         *
+         * @param uri      the concrete resource URI
+         * @param mimeType the resolved contract media type
+         * @param base64   the base64-encoded bytes
+         */
+        public static ResourceContent binary(String uri, String mimeType, String base64) {
+            return new ResourceContent(uri, mimeType, null, base64);
         }
     }
 
@@ -260,6 +273,14 @@ public class ResourceHandler {
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), parameters,
                         "Resource '" + spec.getName() + "'");
 
+        // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
+        // bytes under the maxBinarySize cap and return a BlobResourceContents (base64) instead of
+        // text. outputParameters mappings are skipped — they are nonsensical for raw bytes.
+        // See capability-binary-content.md §4.5 / §8.3.
+        if (found != null && found.isBinary()) {
+            return readBinaryDynamic(spec, uri, found);
+        }
+
         String text = extractContent(spec, found);
         String mimeType = spec.getMimeType() != null ? spec.getMimeType() : "application/json";
         return List.of(ResourceContent.text(uri, mimeType, text));
@@ -285,6 +306,36 @@ public class ResourceHandler {
         String mapped = stepExecutor.applyOutputMappings(responseText,
                 spec.getOutputParameters(), outputRawFormat, outputSchema);
         return mapped != null ? mapped : responseText;
+    }
+
+    /**
+     * Build a binary {@link ResourceContent} for a dynamic resource whose consumed operation
+     * declares {@code outputRawFormat: binary} (§4.5).
+     *
+     * <p>The bytes are buffered under the per-operation {@code maxBinarySize} cap (engine default
+     * 10&nbsp;MiB) and base64-encoded. The media type follows the spec's declared {@code mimeType},
+     * falling back to the resolved upstream/contract type, then {@code application/octet-stream}.
+     * {@code outputParameters} mappings are skipped with an INFO log (§4.6).</p>
+     */
+    private List<ResourceContent> readBinaryDynamic(McpServerResourceSpec spec, String uri,
+            OperationStepExecutor.HandlingContext found) throws IOException {
+        if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()) {
+            Context.getCurrentLogger().info(
+                    "Skipping outputParameters mappings for resource '" + spec.getName()
+                            + "': response is binary (" + found.clientResponseMediaType + ")");
+        }
+
+        byte[] bytes = found.readBoundedBytes();
+        if (bytes == null) {
+            // No entity to return — degrade to an empty blob rather than throwing.
+            bytes = new byte[0];
+        }
+
+        String mimeType = spec.getMimeType() != null ? spec.getMimeType()
+                : found.clientResponseMediaType != null ? found.clientResponseMediaType
+                        : "application/octet-stream";
+        String base64 = Base64.getEncoder().encodeToString(bytes);
+        return List.of(ResourceContent.binary(uri, mimeType, base64));
     }
 
     /**
