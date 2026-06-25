@@ -257,7 +257,12 @@ public class OasExportBuilder {
 
         // Responses
         ApiResponses responses = new ApiResponses();
-        if (opSpec.getOutputParameters() != null && !opSpec.getOutputParameters().isEmpty()) {
+        if (opSpec.hasBinaryResponse()) {
+            // Binary REST response contract (capability-binary-content.md §7.4): emit each declared
+            // status code with its media types, mapping `binary: true` to
+            // `schema: { type: string, format: binary }` and preserving inline structured schemas.
+            buildBinaryResponses(opSpec, responses);
+        } else if (opSpec.getOutputParameters() != null && !opSpec.getOutputParameters().isEmpty()) {
             Schema<?> responseSchema = buildOutputSchema(opSpec.getOutputParameters());
             responses.addApiResponse("200", new ApiResponse()
                     .description("Successful response")
@@ -270,6 +275,64 @@ public class OasExportBuilder {
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    /**
+     * Populate {@code responses} from a REST operation's declared response contract, mapping each
+     * {@code content.<mediaType>.binary: true} to an OpenAPI {@code type: string, format: binary}
+     * schema and copying any inline structured {@code schema} verbatim. Declared media types are
+     * preserved exactly and binary responses are never collapsed to {@code application/json}
+     * (§7.4).
+     */
+    void buildBinaryResponses(RestServerOperationSpec opSpec, ApiResponses responses) {
+        for (Map.Entry<String, io.ikanos.spec.exposes.rest.RestResponseSpec> statusEntry
+                : opSpec.getEffectiveResponses().entrySet()) {
+            io.ikanos.spec.exposes.rest.RestResponseSpec responseSpec = statusEntry.getValue();
+            ApiResponse apiResponse = new ApiResponse();
+            apiResponse.setDescription(responseSpec.getDescription() != null
+                    ? responseSpec.getDescription() : "Successful response");
+
+            Map<String, io.ikanos.spec.exposes.rest.RestResponseContentSpec> contentMap =
+                    responseSpec.getContent();
+            if (contentMap != null && !contentMap.isEmpty()) {
+                Content content = new Content();
+                for (Map.Entry<String, io.ikanos.spec.exposes.rest.RestResponseContentSpec>
+                        mediaEntry : contentMap.entrySet()) {
+                    io.ikanos.spec.exposes.rest.RestResponseContentSpec contentSpec =
+                            mediaEntry.getValue();
+                    Schema<?> schema;
+                    if (contentSpec != null && contentSpec.isBinary()) {
+                        schema = new Schema<>().type("string").format("binary");
+                    } else if (contentSpec != null && contentSpec.getSchema() != null) {
+                        schema = mapInlineSchema(contentSpec.getSchema());
+                    } else {
+                        schema = new Schema<>();
+                    }
+                    content.addMediaType(mediaEntry.getKey(), new MediaType().schema(schema));
+                }
+                apiResponse.setContent(content);
+            }
+
+            responses.addApiResponse(statusEntry.getKey(), apiResponse);
+        }
+    }
+
+    /**
+     * Best-effort mapping of an inline JSON-schema map (from a non-binary {@code content.<mediaType>
+     * .schema}) into a Swagger {@link Schema}. Only the {@code type} keyword is interpreted; the map
+     * is otherwise copied as the schema's extensions are out of scope for this blueprint phase.
+     */
+    Schema<?> mapInlineSchema(Map<String, Object> inline) {
+        Schema<?> schema = new Schema<>();
+        Object type = inline.get("type");
+        if (type instanceof String typeStr) {
+            schema.setType(typeStr);
+        }
+        Object format = inline.get("format");
+        if (format instanceof String formatStr) {
+            schema.setFormat(formatStr);
+        }
+        return schema;
     }
 
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {
