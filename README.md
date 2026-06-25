@@ -62,10 +62,10 @@ For a complete, always-up-to-date Ikanos documentation, start here and keep expl
 
 - :compass: [Concepts — Spec-Driven Integration](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/spec-driven-integration/)
 - :rowboat: [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/installation/)
-- :sailboat: [Tutorials](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/) — guided tracks from your first capability to platform operations
+- :sailboat: [Tutorials](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/)
 - :ship: [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/)
 - :star: [Features](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/features/)
-- :scales: [Comparison](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/comparison/)
+- :balance_scale: [Comparison](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/comparison/)
 - :anchor: [Specification](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/schema/)
 - :keyboard: [Guide - CLI](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/guide/cli)
 - :ocean: [FAQ](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/faq/)
