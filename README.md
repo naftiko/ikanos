@@ -56,59 +56,21 @@ Ikanos asks the AI for something simpler and safer: a **declarative YAML capabil
 
 Ikanos is also designed to fit alongside these tools rather than replace them: it imports OpenAPI, exposes MCP, and integrates with LangChain4j as in-process tools, so adopting it usually means keeping your runtime and replacing hand-written glue with an AI-authored, reviewable spec.
 
-> For a dimension-by-dimension comparison, and guidance on when another tool is a better fit, see the [Comparison guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/comparison/) on the Shipyard.
+## :anchor: Dive deeper
 
-## Quick start
+For a complete, always-up-to-date Ikanos documentation, start here and keep exploring:
 
-You can run Ikanos with the **native CLI** or the **Docker image**. The CLI has the least friction, so start there.
-
-### With the CLI
-
-```bash
-# Create a minimal, valid capability interactively
-ikanos create capability
-
-# Validate it against the latest schema
-ikanos validate my-capability.yml
-
-# Serve it locally (Ctrl-C to stop)
-ikanos serve my-capability.yml
-```
-
-The CLI can also bootstrap a capability from an existing OpenAPI document (`ikanos import openapi ...`) and export a REST adapter back to OpenAPI (`ikanos export openapi ...`).
-
-### With Docker
-
-```bash
-# Pull the image (pin to a release tag, or use latest for the newest snapshot)
-docker pull ghcr.io/naftiko/ikanos:latest
-
-# Serve a capability file (mount it at /app/ikanos.yaml — the image serves it by default)
-docker run -p 8081:3001 \
-  -v "$PWD/my-capability.yml:/app/ikanos.yaml" \
-  ghcr.io/naftiko/ikanos:latest
-```
-
-> Full installation steps for the CLI, Docker, and every platform are in the [Installation guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/installation/) on the Shipyard.
-
-***
-
-## :anchor: Dive deeper on the Shipyard
-
-The complete, always-up-to-date Ikanos documentation lives on the **Naftiko Shipyard**. Start here and keep exploring:
-
-- :compass: [Concepts — Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha4/concepts/)
-- :rowboat: [Installation](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/installation/)
-- :sailboat: [Tutorials](https://shipyard.naftiko.io/docs/1.0.0-alpha4/tutorials/) — guided tracks from your first capability to platform operations
-- :ship: [Use Cases](https://shipyard.naftiko.io/docs/1.0.0-alpha4/concepts/use-cases/)
-- :star: [Features](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/features/)
-- :mag: [Linting Guide](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/guide/linting/) — pair Ikanos with Polychro
-- :anchor: [Specification — Schema](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/schema/)
-- :triangular_ruler: [Specification — Ruleset](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/ruleset/)
-- :keyboard: [CLI Reference](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/cli/)
-- :ocean: [FAQ](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/faq/)
-- :mega: [Releases](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/releases/)
-- :telescope: [Roadmap](https://shipyard.naftiko.io/docs/1.0.0-alpha4/ikanos/roadmap/)
+- :compass: [Concepts — Spec-Driven Integration](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/spec-driven-integration/)
+- :rowboat: [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/installation/)
+- :sailboat: [Tutorials](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/) — guided tracks from your first capability to platform operations
+- :ship: [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/)
+- :star: [Features](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/features/)
+- :scales: [Comparison](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/comparison/)
+- :anchor: [Specification](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/schema/)
+- :keyboard: [Guide - CLI](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/guide/cli)
+- :ocean: [FAQ](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/faq/)
+- :mega: [Releases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/releases/)
+- :telescope: [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/roadmap/)
 - :nut_and_bolt: [Contribute](https://github.com/naftiko/ikanos/blob/main/CONTRIBUTING.md)
 
 ## :video_game: Try it in the Playground
@@ -123,15 +85,12 @@ Want to see Ikanos in action without installing anything? The **[Shipyard Playgr
 
 ## Part of the Naftiko Fleet
 
-Ikanos is part of the [Naftiko Fleet (Community Edition)](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/), which adds free complementary tools:
+Ikanos is part of the [Naftiko Fleet](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/), which adds  complementary tools:
 
 | Tool | What it does |
 |---|---|
-| [Polychro](https://shipyard.naftiko.io/docs/1.0.0-alpha4/polychro/) | Polyglot linter that validates Ikanos capabilities against the schema and ruleset. |
-| [Crafter](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/crafter/) | Free Naftiko extension for Visual Studio Code to help with editing and linting Ikanos capabilities. |
-| [Warden](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/) | Naftiko custom templates for CNCF's Backstage to help with scaffolding and cataloguing Ikanos capabilities. |
-| [Skipper](https://shipyard.naftiko.io/docs/1.0.0-alpha4/fleet/skipper/) | Operator and Helm chart for CNCF's Kubernetes to help with the operations of Ikanos capabilities. |
-
-Please join the community of users and contributors in [this GitHub Discussion forum!](https://github.com/orgs/naftiko/discussions)
+| [Crafter](https://shipyard.naftiko.io/fleet/1.0.0-alpha4/crafter/) | Free Naftiko extension for Visual Studio Code to help with editing and linting Ikanos capabilities. |
+| [Warden](https://shipyard.naftiko.io/fleet/1.0.0-alpha4/warden/) | Naftiko custom templates for CNCF's Backstage to help with scaffolding and cataloguing Ikanos capabilities. |
+| [Skipper](https://shipyard.naftiko.io/fleet/1.0.0-alpha4/skipper/) | Operator and Helm chart for CNCF's Kubernetes to help with the operations of Ikanos capabilities. |
 
 <img src="https://naftiko.github.io/docs/images/navi/navi_hello.svg" width="50">
