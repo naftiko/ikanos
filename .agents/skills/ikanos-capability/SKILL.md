@@ -114,6 +114,7 @@ for *how*.
 |---|---|
 | "I want to combine several APIs into a single reusable service" | Read `references/reusable-capability.md` |
 | "I want to expose this API as an MCP server, including tools, resources, and prompts" | Read `references/wrap-api-as-mcp.md` |
+| "I want to return images, audio, PDFs, or other binary bytes from an upstream API through REST or MCP" | Read `references/return-binary-content.md` |
 | "I want to proxy an API today and encapsulate it incrementally" | Read `references/proxy-then-customize.md` |
 | "I want to chain multiple HTTP calls to consumed APIs and expose the result into a single REST operation" | Read `references/chain-api-calls.md` |
 | "I need to go from local test credentials to production secrets" | Read `references/dev-to-production.md` |
