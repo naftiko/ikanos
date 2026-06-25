@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.rest;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
 
@@ -118,6 +119,42 @@ public class RestBinaryResponseIntegrationTest {
         }
     }
 
+    @Test
+    public void handleShouldSkipOutputParametersAndLogWhenResponseIsBinary() throws Exception {
+        int port = findFreePort();
+        Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
+        upstream.start();
+
+        java.util.logging.Logger logger = org.restlet.Context.getCurrentLogger();
+        java.util.List<String> messages = new java.util.ArrayList<>();
+        java.util.logging.Handler captor = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord record) {
+                messages.add(record.getMessage());
+            }
+            @Override public void flush() { }
+            @Override public void close() { }
+        };
+        logger.addHandler(captor);
+
+        try {
+            Capability capability =
+                    capabilityFromYaml(binaryCapabilityWithOutputParametersYaml(port));
+            Response response = invokeGetPhotoImage(capability);
+
+            // Mappings are bypassed: the response is the raw image, not a JSON projection.
+            assertEquals(Status.SUCCESS_OK, response.getStatus());
+            assertEquals("image/jpeg", response.getEntity().getMediaType().getName());
+            assertArrayEquals(JPEG_BYTES, readBytes(response));
+
+            assertTrue(messages.stream().anyMatch(m ->
+                    m != null && m.contains("Skipping outputParameters mappings for REST operation")),
+                    "expected an INFO log that outputParameters were skipped, got: " + messages);
+        } finally {
+            logger.removeHandler(captor);
+            upstream.stop();
+        }
+    }
+
     private Response invokeGetPhotoImage(Capability capability) {
         RestServerSpec serverSpec =
                 (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
@@ -166,6 +203,45 @@ public class RestBinaryResponseIntegrationTest {
                               outputRawFormat: "binary"
                               outputMediaType: "image/jpeg"%s
                 """.formatted(schemaVersion, port, capLine);
+    }
+
+    /** Same as {@link #binaryCapabilityYaml} but declares outputParameters on the REST operation. */
+    private String binaryCapabilityWithOutputParametersYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "photos"
+                      resources:
+                        - path: "/photos/image"
+                          name: "photo-image"
+                          operations:
+                            - method: "GET"
+                              name: "get-photo-image"
+                              call: "photos.download"
+                              responseBinary:
+                                status: 200
+                                mediaType: "image/jpeg"
+                                description: "Original image bytes"
+                              outputParameters:
+                                - caption:
+                                    mapping: "$.caption"
+                  consumes:
+                    - type: "http"
+                      namespace: "photos"
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        - path: "/photos/binary"
+                          name: "photo-bytes"
+                          operations:
+                            - method: "GET"
+                              name: "download"
+                              outputRawFormat: "binary"
+                              outputMediaType: "image/jpeg"
+                """.formatted(schemaVersion, port);
     }
 
     private static byte[] readBytes(Response response) throws Exception {
