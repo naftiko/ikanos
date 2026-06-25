@@ -1037,6 +1037,10 @@
           "$ref": "#/$defs/Authentication",
           "description": "Authentication required on incoming requests to this REST adapter. Protects all resources and operations under this adapter. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` (JWT/introspection)."
         },
+        "maxBinarySize": {
+          "$ref": "#/$defs/BinarySize",
+          "description": "Maximum allowed binary response size before buffering. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
+        },
         "resources": {
           "type": "object",
           "propertyNames": {

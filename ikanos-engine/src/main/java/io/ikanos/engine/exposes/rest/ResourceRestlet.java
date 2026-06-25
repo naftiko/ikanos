@@ -412,8 +412,9 @@ public class ResourceRestlet extends Restlet {
      * Return a buffered binary entity for a REST operation whose consumed operation declares
      * {@code outputRawFormat: binary} (§7.5).
      *
-     * <p>The size cap is the per-operation {@code maxBinarySize} (falling back to the engine
-     * default). The {@code Content-Type} follows the precedence in §4.3.1: a declared
+     * <p>The size cap is the per-operation {@code maxBinarySize} when declared, otherwise the REST
+     * adapter-level {@code maxBinarySize} ({@code exposes.<name>.maxBinarySize}), otherwise the
+     * engine default (§4.7). The {@code Content-Type} follows the precedence in §4.3.1: a declared
      * {@code outputMediaType} on the consumed operation wins (resolved inside
      * {@link OperationStepExecutor.HandlingContext#readBoundedBytes(long)}); otherwise the REST
      * response contract's declared binary media type is used; otherwise the resolved upstream type;
@@ -426,7 +427,8 @@ public class ResourceRestlet extends Restlet {
     private boolean sendBinaryResponse(RestServerOperationSpec serverOp, Response response,
             OperationStepExecutor.HandlingContext found) {
         try {
-            byte[] bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(null));
+            byte[] bytes = found.readBoundedBytes(
+                    found.resolveMaxBinaryBytes(serverSpec.getMaxBinarySize()));
             if (bytes == null) {
                 return false;
             }

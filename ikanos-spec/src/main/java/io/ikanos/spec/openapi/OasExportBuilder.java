@@ -318,9 +318,10 @@ public class OasExportBuilder {
     }
 
     /**
-     * Best-effort mapping of an inline JSON-schema map (from a non-binary {@code content.<mediaType>
-     * .schema}) into a Swagger {@link Schema}. Only the {@code type} keyword is interpreted; the map
-     * is otherwise copied as the schema's extensions are out of scope for this blueprint phase.
+     * Best-effort mapping of an inline JSON-schema map (from a non-binary
+     * {@code content.<mediaType>.schema}) into a Swagger {@link Schema}. Only the {@code type} and
+     * {@code format} keywords are interpreted; all other keywords are ignored, as richer schema
+     * mapping is out of scope for this blueprint phase.
      */
     Schema<?> mapInlineSchema(Map<String, Object> inline) {
         Schema<?> schema = new Schema<>();

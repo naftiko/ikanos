@@ -75,8 +75,9 @@ cleanly rather than truncating or OOM-ing:
 - **REST** → `500` server error;
 - **MCP resource** → JSON-RPC error.
 
-Declare it per operation (`consumes.…operations.<op>.maxBinarySize`) or per MCP adapter
-(`exposes[].maxBinarySize`).
+Declare it per operation (`consumes.…operations.<op>.maxBinarySize`) or per exposing adapter
+(`exposes[].maxBinarySize`, on a `type: rest` or `type: mcp` adapter). Precedence is
+latest-wins: per-operation overrides the adapter-level cap, which overrides the engine default.
 
 ## Recipe 1 — REST endpoint returning image bytes
 
@@ -195,7 +196,7 @@ exposes:
         uri: "photos://library/{id}/bytes"
         description: Original-resolution image bytes for a single photo.
         mimeType: image/jpeg
-        binary: true                      # opt-in; must point at a binary consumed op
+        binary: true                      # advisory; the binary path is gated by the consumed op
         call: photos.download
         with:
           id: "{id}"
@@ -217,9 +218,11 @@ Resource-read wire output (truncated):
 }
 ```
 
-> If `binary: true` is declared but the target operation does **not** declare
-> `outputRawFormat: binary`, spec load fails fast — this catches the common mistake of
-> declaring binary on one side but not the other.
+> The blob-vs-text decision is driven by the **consumed** operation: the resource returns
+> `BlobResourceContents` precisely when its `call` (or terminal step) targets an operation that
+> declares `outputRawFormat: binary`. The resource-level `binary: true` is an advisory hint for
+> readers and tooling — it documents intent but is not independently validated, so always make
+> sure the called operation is itself declared binary.
 
 ## Recipe 4 — MCP static binary file
 
@@ -251,7 +254,8 @@ exposes:
 - Set a `maxBinarySize` appropriate to the payload (per op or per MCP adapter); the
   engine default is 10 MiB.
 - Do **not** declare `outputParameters` on a binary tool/operation — they are skipped.
-- For MCP dynamic resources, set `binary: true` **and** ensure the called op is binary.
+- For MCP dynamic resources, ensure the called op declares `outputRawFormat: binary` (the
+  resource `binary: true` flag is an advisory hint, not what triggers the blob path).
 - For REST, use `responseBinary` (single 200) or a full `responses:` map with
   `binary: true` on the content entry.
 - Choose the MCP surface by intent: a **tool** for an agent action that returns bytes,

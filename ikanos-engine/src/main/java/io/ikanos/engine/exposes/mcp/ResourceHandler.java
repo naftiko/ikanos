@@ -53,12 +53,27 @@ public class ResourceHandler {
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
 
+    /**
+     * Adapter-level {@code maxBinarySize} sized string ({@code exposes.<name>.maxBinarySize}), or
+     * {@code null} when none is declared. Threaded into
+     * {@link OperationStepExecutor.HandlingContext#resolveMaxBinaryBytes(String)} (dynamic
+     * resources) and {@link BinarySize#parseOrDefault(String)} (static files) so the per-op value
+     * still wins but the adapter cap overrides the engine default (§4.7 / §8.1).
+     */
+    private final String maxBinarySize;
+
     public ResourceHandler(Capability capability, Map<String, McpServerResourceSpec> resources,
             String namespace) {
+        this(capability, resources, namespace, null);
+    }
+
+    public ResourceHandler(Capability capability, Map<String, McpServerResourceSpec> resources,
+            String namespace, String maxBinarySize) {
         this.capability = capability;
         this.resourceSpecs = resources != null ? new ArrayList<>(resources.values()) : new ArrayList<>();
         this.stepExecutor = new OperationStepExecutor(capability, namespace);
         this.namespace = namespace;
+        this.maxBinarySize = maxBinarySize;
     }
 
     /**
@@ -212,7 +227,7 @@ public class ResourceHandler {
         // application/zip, …) must be returned as a base64 BlobResourceContents. Reading them as
         // UTF-8 text silently corrupts the bytes. Only text-family MIME types take the text path.
         if (isBinaryMime(mimeType)) {
-            long maxBytes = BinarySize.DEFAULT_MAX_BINARY_SIZE_BYTES;
+            long maxBytes = BinarySize.parseOrDefault(maxBinarySize);
             long size = Files.size(resolvedTarget);
             if (size > maxBytes) {
                 throw new OperationStepExecutor.BinarySizeExceededException(size, maxBytes);
@@ -394,7 +409,7 @@ public class ResourceHandler {
                             + "': response is binary (" + found.clientResponseMediaType + ")");
         }
 
-        byte[] bytes = found.readBoundedBytes();
+        byte[] bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(maxBinarySize));
         if (bytes == null) {
             // No entity to return — degrade to an empty blob rather than throwing.
             bytes = new byte[0];

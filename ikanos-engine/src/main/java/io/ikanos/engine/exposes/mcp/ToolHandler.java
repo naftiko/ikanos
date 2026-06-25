@@ -48,16 +48,30 @@ public class ToolHandler {
     private final OperationStepExecutor stepExecutor;
     private final String exposeNamespace;
 
+    /**
+     * Adapter-level {@code maxBinarySize} sized string ({@code exposes.<name>.maxBinarySize}), or
+     * {@code null} when none is declared. Threaded into
+     * {@link OperationStepExecutor.HandlingContext#resolveMaxBinaryBytes(String)} so the per-op
+     * value still wins but the adapter cap overrides the engine default (§4.7 / §8.1).
+     */
+    private final String maxBinarySize;
+
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools) {
         this(capability, tools, null);
     }
 
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
             String exposeNamespace) {
+        this(capability, tools, exposeNamespace, null);
+    }
+
+    public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
+            String exposeNamespace, String maxBinarySize) {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
         this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);
         this.exposeNamespace = exposeNamespace;
+        this.maxBinarySize = maxBinarySize;
 
         if (tools != null) {
             for (McpServerToolSpec tool : tools.values()) {
@@ -301,8 +315,9 @@ public class ToolHandler {
     /**
      * Build an MCP {@code CallToolResult} for a binary upstream response.
      *
-     * <p>The raw bytes are buffered under the per-operation {@code maxBinarySize} cap (engine
-     * default 10&nbsp;MiB) and base64-encoded into the MIME-appropriate content block via
+     * <p>The raw bytes are buffered under the per-operation {@code maxBinarySize} cap (falling back
+     * to the adapter-level {@code maxBinarySize}, then the engine default 10&nbsp;MiB) and
+     * base64-encoded into the MIME-appropriate content block via
      * {@link #buildBinaryContent}. {@code outputParameters} mappings are skipped with an INFO log
      * (§4.6). When the upstream payload exceeds the cap, an error result is returned rather than an
      * exception, so the agent receives a usable diagnostic.</p>
@@ -317,7 +332,7 @@ public class ToolHandler {
 
         byte[] bytes;
         try {
-            bytes = found.readBoundedBytes();
+            bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(maxBinarySize));
         } catch (OperationStepExecutor.BinarySizeExceededException e) {
             Context.getCurrentLogger().warning(
                     "Binary tool response exceeded maxBinarySize for '" + toolSpec.getName()
