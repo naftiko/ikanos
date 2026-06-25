@@ -1,12 +1,12 @@
 ---
 notion_page_id: 3894adce-3d02-8125-9097-df2f13767bbc
-notion_last_sync: 2026-06-24T09:05:42Z
+notion_last_sync: 2026-06-25T11:31:54Z
 ---
 
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
-**Last updated**: 2026-06-23
+**Last updated**: 2026-06-25
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 blueprint = 1 feature.
 
@@ -96,6 +96,22 @@ level.
 > JVM. Lifting a JVM-partial feature to NATIVE is cheap (the harness and fixtures already exist via
 > #581); covering a NONE feature from scratch is the larger effort.
 
+> **Native HTTP-serve was broken until [#594](https://github.com/naftiko/ikanos/issues/594) — and
+> the #581 smoke does not catch it.** The nightly native smoke only **TCP-probes** the exposed REST
+> port (`/dev/tcp/127.0.0.1/$REST_PORT` in the `test-binary` job — it *deliberately* does not run an
+> HTTP client), so it proves the socket *binds* but never that a request is *served*. In fact the
+> native binary **bound the port yet hung on every HTTP request** (the JVM served fine) because
+> conditional Jetty/Restlet reflection classes were missing from `reflect-config.json`. The fix
+> (#594, commit `636a00e2` on the **origin-only** branch `fix/native-jetty-reflect-config`) adds 5
+> entries (318→323: `NativePRNG`, `SecurityUtils`, `ForwardedRequestCustomizer$Forwarded`,
+> `org.restlet…ServerAdapter`, a Xerces factory) and a minimal fixture
+> `serve-rest-mock.ikanos.yaml` exposing `GET /greet` → real native `200` (was hanging). **#594 is
+> OPEN, not yet merged (no PR).** Consequence for this tracker: any *real-HTTP* native e2e of an
+> HTTP-adapter feature (REST, Skill, Control) is **gated on #594** — the current "NATIVE" marks
+> below rest on the TCP-probe, not on a served request. A first native control-port scaffold,
+> `ControlPortNativeIT`, is parked on `origin/chore/issue-578-control-port-native-it` (`a4fff4b3`),
+> awaiting #594's merge before it can assert a real `200`.
+
 ---
 
 ## What this document does NOT do
@@ -122,11 +138,11 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated blueprint | No end-user test sends these content types. Base-spec primitives. |
 | 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated blueprint | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
 | 9 | Aggregates + `ref` (REST + MCP reuse) | SHIPPED | NONE | no dedicated blueprint | `AggregateIntegrationTest` / `AggregateSharedMockIntegrationTest` load the spec in-process **without booting an HTTP server** → NONE. `step-9-shipyard-aggregates.yml` fixture exists but **has no test class**. |
-| 10 | REST exposition (`type: rest`) | SHIPPED | NATIVE | no dedicated blueprint | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also NATIVE** — the nightly `smoke-tests` boots `serve-http.ikanos.yaml` on the native binary and TCP-probes the exposed REST port (`ping-rest`, #581). |
-| 11 | Skill server adapter (`type: skill`) | SHIPPED | JVM | 4 / 4 | `Step8`, `Step10`, `SkillIntegrationTest`. The native fixture declares a `skill` port but the smoke test only probes the REST port → not exercised at native level. Blueprint `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill`. |
+| 10 | REST exposition (`type: rest`) | SHIPPED | NATIVE | no dedicated blueprint | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also NATIVE** — the nightly `smoke-tests` boots `serve-http.ikanos.yaml` on the native binary and TCP-probes the exposed REST port (`ping-rest`, #581). **Caveat**: this NATIVE mark rests on a **TCP-probe only**, not a served HTTP request — real native `GET` was hanging until [#594](https://github.com/naftiko/ikanos/issues/594) (fixed on branch `fix/native-jetty-reflect-config`, commit `636a00e2`, fixture `serve-rest-mock.ikanos.yaml` → `GET /greet` 200; **OPEN, pending merge**). A *real-HTTP* native REST e2e is **gated on #594**. |
+| 11 | Skill server adapter (`type: skill`) | SHIPPED | JVM | 4 / 4 | `Step8`, `Step10`, `SkillIntegrationTest`. The native fixture declares a `skill` port but the smoke test only probes the REST port → not exercised at native level. A native skill smoke (real HTTP) is **gated on [#594](https://github.com/naftiko/ikanos/issues/594)** like the other HTTP adapters. Blueprint `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill`. |
 | 12 | Bindings (`binds:`, file/vault) | SHIPPED | JVM | no dedicated blueprint | Steps 3–11 load `shared/secrets.yaml`. Base-spec primitive. |
 | 13 | Fleet manifest (`catalog-info.yaml`) | SHIPPED | JVM | no dedicated blueprint | `Step11ShipyardFleetManifestIntegrationTest`. Owned by the Fleet/Warden template, not a phasable blueprint. |
-| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` does a GET on `/health/ready`, but only as a lifecycle/readiness signal — no test asserts the **content** of any control endpoint. The native fixture declares a `control` port but the smoke test does not call it. Real routes (`ControlServerAdapter`): `/health/live` (always 200 `{"status":"UP"}`), `/health/ready` (200/503), `/status` (gated by `info`), `/metrics` + `/traces` (503 unless OTel active) — there is no bare `/health` or `/ready`. Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. Blueprint: `archives/control-port.md`. |
+| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` does a GET on `/health/ready`, but only as a lifecycle/readiness signal — no test asserts the **content** of any control endpoint. The native fixture declares a `control` port but the smoke test does not call it. Real routes (`ControlServerAdapter`): `/health/live` (always 200 `{"status":"UP"}`), `/health/ready` (200/503), `/status` (gated by `info`), `/metrics` + `/traces` (503 unless OTel active) — there is no bare `/health` or `/ready`. Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. A native control-port e2e (the `ControlPortNativeIT` scaffold parked on `origin/chore/issue-578-control-port-native-it`, `a4fff4b3`) is **gated on [#594](https://github.com/naftiko/ikanos/issues/594)** — it cannot assert a real `200` until native HTTP-serve is fixed. Blueprint: `archives/control-port.md`. |
 | 15 | OTel observability (tracing + Prometheus metrics) | SHIPPED | NONE | 5 / 5 | `ObservabilitySpecIntegrationTest` etc. load in-process without booting a server; no OTLP export driven end-to-end. All 5 roadmap phases (logging facade, tracing, metrics, spec-driven config, dashboarding) shipped; coverage still NONE. Blueprint: `archives/opentelemetry-observability.md`. |
 | 16 | Reverse tunnel (Ziti) | SHIPPED | NONE | 2 / 6 | `TunnelTransportTest`/`TunnelRouteTableTest`/`TunnelBootstrapTest` are unit-level; no launched capability routes a call through a Ziti network. Phases 1–2 shipped, 3 partial, 4–5 pending. Blueprint: `reverse-tunnel-private-network.md`. |
 | 17 | MCP exposed auth (OAuth 2.1 / Bearer) | SHIPPED | NONE | no dedicated blueprint | `ServerAdapterAuthenticationTest` is unit-level; no launched MCP adapter validates a token end-to-end. Base-spec primitive. |
@@ -173,7 +189,7 @@ harness from scratch. The existing tutorial fixtures and Microcks backend are re
 the **launch path** changes from in-process JVM to native image.
 
 - **Aggregates** (#9): `step-9-shipyard-aggregates.yml` exists — needs a launched test (start with JVM-level `Step9…` to reach parity, then a NATIVE variant).
-- **Control port** (#14): launch a `type: control` capability; HTTP GET `/health/live` (the reliable always-200 probe), then `/health/ready` and `/status`. `/metrics` + `/traces` return 503 unless OTel is active, so assert their reachability, not a 200. No backend needed — a good first **NATIVE** candidate.
+- **Control port** (#14): launch a `type: control` capability; HTTP GET `/health/live` (the reliable always-200 probe), then `/health/ready` and `/status`. `/metrics` + `/traces` return 503 unless OTel is active, so assert their reachability, not a 200. No backend needed — a good first **NATIVE** candidate. The scaffold (`ControlPortNativeIT`, parked on `origin/chore/issue-578-control-port-native-it`) is ready but **gated on #594** (native HTTP-serve fix) before it can assert a real `200`.
 - **OTel** (#15): launch a capability with a control port; assert `/metrics` returns Prometheus data and `/traces` returns the ring buffer; OTLP export against an in-process collector for enrichment.
 - **Reverse tunnel** (#16): Ziti needs a live controller — not feasible in a plain test. First step: a contract test through a stubbed `TunnelTransport`; true NATIVE e2e requires a Ziti sandbox (CI/nightly only).
 - **MCP auth** (#17): launch an MCP adapter with `authentication: bearer`/`oauth2`; drive with/without a valid token; assert 401 / 200.
@@ -200,7 +216,7 @@ a first end-user test for a NONE feature.
 | 🟠 Medium | A1 | Script step launched (JS) | Medium |
 | 🟠 Medium | A1 | MCP adapter auth (bearer/OAuth2.1) | Medium |
 | 🟠 Medium | A1 | Import mechanism launched | Medium |
-| 🟠 Medium | A0 | **Extend the existing native smoke** (#581 `serve-http` fixture) to drive the **MCP** and **Skill** adapters at native level — both ports are already declared in the fixture but never probed | Medium — fixture exists, add a real client call |
+| 🟠 Medium | A0 | **Extend the existing native smoke** (#581 `serve-http` fixture) to drive the **MCP** and **Skill** adapters at native level — both ports are already declared in the fixture but never probed (**gated on #594**: a *real* HTTP call, vs today's TCP-probe, only succeeds once the native serve fix lands) | Medium — fixture exists, add a real client call |
 | 🟡 Low | A1 | OTel via control port (`/metrics` + `/traces`) | Low |
 | 🟡 Low | A1 | Consumed auth basic / apikey / digest | Low |
 | 🟡 Low | A1 | Request body form / multipart | Medium |
@@ -226,3 +242,12 @@ a first end-user test for a NONE feature.
 ## Limitations of this tracker
 
 1. **Blueprint inventory cross-checked against Notion ITD (2026-06-23).** Both the local disk (`blueprints/` + `blueprints/archives/`) and the ITD Notion database (`2e14adce-3d02-8063-8426-eec9aedf3a5e`) were queried. Several features carry a blueprint that lives only in Notion or only in `archives/` (e.g. #11 *Agent Skills Support*, #21/#22 *MCP Resources & Prompt Templates*, #24 *CLI serve Command*). Residual caveat: the ITD listing was read by `Doc name`; a blueprint filed under an unexpected title could still be missed.
+
+---
+
+## Changelog
+
+| Date | Change |
+|---|---|
+| 2026-06-25 | Recorded the native HTTP-serve dependency on [#594](https://github.com/naftiko/ikanos/issues/594): the #581 native smoke is a **TCP-probe only**, so real-HTTP native e2e of the REST / Skill / Control adapters is **gated on #594** (OPEN, fix on branch `fix/native-jetty-reflect-config` `636a00e2`, fixture `serve-rest-mock.ikanos.yaml`). Qualified rows #10/#11/#14, the Control-port launch strategy (parked `ControlPortNativeIT` scaffold), and Family-A A0. Facts verified read-only via the `crawler` agent. |
+| 2026-06-23 | Initial coverage audit for #578 / #590 (32 features, delivery × coverage × phases table, Family-A/B backlog). Mirrored to Notion ITD. |
