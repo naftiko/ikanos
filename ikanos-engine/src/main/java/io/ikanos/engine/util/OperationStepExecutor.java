@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.util;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,7 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import org.restlet.representation.StringRepresentation;
+import org.restlet.representation.Representation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -865,6 +868,23 @@ public class OperationStepExecutor {
         public Request clientRequest;
         public Response clientResponse;
 
+        /**
+         * Raw response bytes, populated by {@link #readBoundedBytes(long)} when the consumed
+         * operation declares {@code outputRawFormat: binary}. {@code null} on the text path so
+         * existing adapters are unaffected. See
+         * {@code blueprints/capability-binary-content.md} §13 (Phase&nbsp;1).
+         */
+        public byte[] clientResponseBytes;
+
+        /**
+         * Effective contract media type for {@link #clientResponseBytes}, resolved per
+         * {@code blueprints/capability-binary-content.md} §4.3.1: a declared
+         * {@code outputMediaType} wins over a specific upstream {@code Content-Type}, which wins
+         * over {@code application/octet-stream}. {@code null} until
+         * {@link #readBoundedBytes(long)} runs.
+         */
+        public String clientResponseMediaType;
+
         public void handle() {
             TelemetryBootstrap telemetry = TelemetryBootstrap.get();
 
@@ -907,6 +927,184 @@ public class OperationStepExecutor {
                         code, clientDurationSec);
                 TelemetryBootstrap.endSpan(span);
             }
+        }
+
+        /**
+         * Whether the consumed operation declares {@code outputRawFormat: binary}.
+         *
+         * <p>Binary detection is declarative, never heuristic: the engine never sniffs response
+         * bodies (blueprint §4 / Key Design Decision&nbsp;1). Returns {@code false} when no
+         * operation is bound.</p>
+         *
+         * @return {@code true} iff {@code clientOperation.outputRawFormat} equals {@code "binary"}
+         *         (case-insensitive)
+         */
+        public boolean isBinary() {
+            return clientOperation != null
+                    && "binary".equalsIgnoreCase(clientOperation.getOutputRawFormat());
+        }
+
+        /**
+         * Resolve the effective {@code maxBinarySize} cap (in bytes) for this operation.
+         *
+         * <p>Applies the blueprint's three-level precedence (§4.7), latest wins:
+         * a per-operation {@code maxBinarySize} overrides the supplied adapter-level cap, which in
+         * turn overrides the engine default ({@link BinarySize#DEFAULT_MAX_BINARY_SIZE_BYTES}).</p>
+         *
+         * @param adapterMaxBinarySize the adapter-level sized string (e.g. {@code "25MiB"}), or
+         *                             {@code null} when the adapter declares none
+         * @return the resolved cap in bytes
+         * @throws IllegalArgumentException if a declared size string is malformed
+         */
+        public long resolveMaxBinaryBytes(String adapterMaxBinarySize) {
+            String opSize = clientOperation != null ? clientOperation.getMaxBinarySize() : null;
+            if (opSize != null && !opSize.isBlank()) {
+                return BinarySize.parse(opSize);
+            }
+            return BinarySize.parseOrDefault(adapterMaxBinarySize);
+        }
+
+        /**
+         * Convenience overload of {@link #readBoundedBytes(long)} that resolves the cap from the
+         * per-operation {@code maxBinarySize} (or the engine default when none is declared).
+         *
+         * @return the buffered bytes, or {@code null} when there is no response entity
+         * @throws BinarySizeExceededException if the upstream payload exceeds the resolved cap
+         * @throws IOException                 if the response stream cannot be read
+         */
+        public byte[] readBoundedBytes() throws IOException {
+            return readBoundedBytes(resolveMaxBinaryBytes(null));
+        }
+
+        /**
+         * Resolve the effective contract media type for a buffered binary response, applying the
+         * blueprint's precedence rules (§4.3.1):
+         *
+         * <ol>
+         *   <li>{@code outputMediaType} declared on the consumed operation — wins unconditionally;
+         *   </li>
+         *   <li>the upstream {@code Content-Type}, when specific (i.e. not
+         *       {@code application/octet-stream} and not absent);</li>
+         *   <li>the upstream {@code Content-Type} even if generic;</li>
+         *   <li>{@code application/octet-stream} — engine default for binary responses.</li>
+         * </ol>
+         *
+         * <p>REST {@code responses.content.<mediaType>} (precedence step&nbsp;2 in the blueprint) is
+         * an adapter-side concern and is layered on top of this core resolution by the REST adapter
+         * in a later phase.</p>
+         *
+         * @return the resolved media type string; never {@code null}
+         */
+        String resolveBinaryMediaType() {
+            String declared = clientOperation != null ? clientOperation.getOutputMediaType() : null;
+            if (declared != null && !declared.isBlank()) {
+                return declared.trim();
+            }
+
+            String upstream = null;
+            if (clientResponse != null && clientResponse.getEntity() != null
+                    && clientResponse.getEntity().getMediaType() != null) {
+                upstream = clientResponse.getEntity().getMediaType().getName();
+            }
+
+            if (upstream != null && !upstream.isBlank()
+                    && !MediaType.APPLICATION_OCTET_STREAM.getName().equalsIgnoreCase(upstream)
+                    && !"binary/octet-stream".equalsIgnoreCase(upstream)) {
+                return upstream;
+            }
+
+            if (upstream != null && !upstream.isBlank()) {
+                return upstream;
+            }
+
+            return MediaType.APPLICATION_OCTET_STREAM.getName();
+        }
+
+        /**
+         * Buffer the response entity into {@link #clientResponseBytes} with a hard size cap, and
+         * resolve {@link #clientResponseMediaType}.
+         *
+         * <p>This is the reusable Phase&nbsp;1 core (blueprint §13): every server adapter (REST,
+         * MCP tool, MCP resource) calls this single method to obtain byte-faithful binary content
+         * instead of {@code entity.getText()}, which UTF-8-decodes and corrupts non-text payloads.
+         * The cap is enforced <em>while</em> reading, so an oversized upstream never gets fully
+         * buffered — the stream is abandoned as soon as it exceeds {@code maxBytes}.</p>
+         *
+         * <p>No-op (returns {@code null}) when there is no response entity. Idempotent: a second
+         * call returns the already-buffered array without re-reading the (now consumed) stream.</p>
+         *
+         * @param maxBytes the hard cap in bytes; see {@link BinarySize}
+         * @return the buffered bytes, or {@code null} when there is no response entity
+         * @throws BinarySizeExceededException if the upstream payload exceeds {@code maxBytes}
+         * @throws IOException                 if the response stream cannot be read
+         */
+        public byte[] readBoundedBytes(long maxBytes) throws IOException {
+            if (clientResponseBytes != null) {
+                return clientResponseBytes;
+            }
+
+            Representation entity = clientResponse != null ? clientResponse.getEntity() : null;
+            if (entity == null || entity.isEmpty()) {
+                return null;
+            }
+
+            // Fail fast when the upstream advertises a size beyond the cap, avoiding a read.
+            long advertised = entity.getSize();
+            if (advertised > 0 && advertised > maxBytes) {
+                throw new BinarySizeExceededException(advertised, maxBytes);
+            }
+
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream(
+                    advertised > 0 && advertised <= maxBytes ? (int) advertised : 8192);
+            byte[] chunk = new byte[8192];
+            long total = 0;
+            try (InputStream in = entity.getStream()) {
+                int read;
+                while ((read = in.read(chunk)) != -1) {
+                    total += read;
+                    if (total > maxBytes) {
+                        throw new BinarySizeExceededException(total, maxBytes);
+                    }
+                    buffer.write(chunk, 0, read);
+                }
+            }
+
+            clientResponseBytes = buffer.toByteArray();
+            clientResponseMediaType = resolveBinaryMediaType();
+            return clientResponseBytes;
+        }
+    }
+
+    /**
+     * Thrown when a buffered binary response exceeds the configured {@code maxBinarySize} cap.
+     *
+     * <p>The message carries the offending size (or, when known, the upstream-advertised size) and
+     * the cap so adapters can surface an actionable error to the caller instead of silently
+     * truncating or risking an {@link OutOfMemoryError} (blueprint §4.7 / Key Design Decision&nbsp;6
+     * and the memory-pressure risk in §1).</p>
+     */
+    public static class BinarySizeExceededException extends IOException {
+
+        private static final long serialVersionUID = 1L;
+
+        private final long sizeBytes;
+        private final long maxBytes;
+
+        public BinarySizeExceededException(long sizeBytes, long maxBytes) {
+            super("Binary response of " + sizeBytes + " bytes exceeds the maxBinarySize cap of "
+                    + maxBytes + " bytes");
+            this.sizeBytes = sizeBytes;
+            this.maxBytes = maxBytes;
+        }
+
+        /** @return the observed (or upstream-advertised) response size in bytes */
+        public long getSizeBytes() {
+            return sizeBytes;
+        }
+
+        /** @return the configured cap in bytes */
+        public long getMaxBytes() {
+            return maxBytes;
         }
     }
 

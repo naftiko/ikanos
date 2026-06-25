@@ -15,6 +15,8 @@ package io.ikanos.spec.consumes.http;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import io.ikanos.spec.OperationSpec;
 
 /**
@@ -36,6 +38,22 @@ public class HttpClientOperationSpec extends OperationSpec {
      * </ul>
      */
     private final AtomicReference<Object> body = new AtomicReference<>();
+
+    /**
+     * Contract-level response media type. Independent of {@code outputRawFormat}: it applies
+     * equally to parsed responses (JSON, XML, YAML, TOML, INI) and to binary responses. It
+     * overrides the upstream {@code Content-Type} for advertised media types but never changes how
+     * the entity is parsed. See {@code blueprints/capability-binary-content.md} §4.3.1 / §4.3.2.
+     */
+    private final AtomicReference<String> outputMediaType = new AtomicReference<>();
+
+    /**
+     * Per-operation override of the adapter-level {@code maxBinarySize}. Accepts sized strings such
+     * as {@code "512KiB"}, {@code "10MiB"}, {@code "1GiB"} (pattern
+     * {@code ^\d+(\.\d+)?(B|KiB|MiB|GiB)?$}). See {@code blueprints/capability-binary-content.md}
+     * §4.7 / §5.1.
+     */
+    private final AtomicReference<String> maxBinarySize = new AtomicReference<>();
 
     public HttpClientOperationSpec() {
         this(null, null, null, null, null, null, null);
@@ -60,6 +78,24 @@ public class HttpClientOperationSpec extends OperationSpec {
 
     public void setBody(Object body) {
         this.body.set(body);
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getOutputMediaType() {
+        return outputMediaType.get();
+    }
+
+    public void setOutputMediaType(String outputMediaType) {
+        this.outputMediaType.set(outputMediaType);
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getMaxBinarySize() {
+        return maxBinarySize.get();
+    }
+
+    public void setMaxBinarySize(String maxBinarySize) {
+        this.maxBinarySize.set(maxBinarySize);
     }
 
 }
