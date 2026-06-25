@@ -14,9 +14,11 @@
 package io.ikanos.engine.exposes.mcp;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -267,6 +269,14 @@ public class ToolHandler {
                     true, null, null);
         }
 
+        // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
+        // bytes under the maxBinarySize cap and emit the MIME-appropriate MCP content block
+        // (ImageContent / AudioContent / EmbeddedResource). outputParameters mappings are skipped —
+        // they are nonsensical for raw bytes. See capability-binary-content.md §4.4 / §8.2.
+        if (found.isBinary()) {
+            return buildBinaryToolResult(toolSpec, found, isError);
+        }
+
         // Buffer entity text before any mapping to avoid double-read issues
         String responseText = found.clientResponse.getEntity().getText();
 
@@ -286,6 +296,93 @@ public class ToolHandler {
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(responseText != null ? responseText : "")),
                 isError, null, null);
+    }
+
+    /**
+     * Build an MCP {@code CallToolResult} for a binary upstream response.
+     *
+     * <p>The raw bytes are buffered under the per-operation {@code maxBinarySize} cap (engine
+     * default 10&nbsp;MiB) and base64-encoded into the MIME-appropriate content block via
+     * {@link #buildBinaryContent}. {@code outputParameters} mappings are skipped with an INFO log
+     * (§4.6). When the upstream payload exceeds the cap, an error result is returned rather than an
+     * exception, so the agent receives a usable diagnostic.</p>
+     */
+    private McpSchema.CallToolResult buildBinaryToolResult(McpServerToolSpec toolSpec,
+            OperationStepExecutor.HandlingContext found, boolean isError) {
+        if (toolSpec.getOutputParameters() != null && !toolSpec.getOutputParameters().isEmpty()) {
+            Context.getCurrentLogger().info(
+                    "Skipping outputParameters mappings for tool '" + toolSpec.getName()
+                            + "': response is binary (" + found.clientResponseMediaType + ")");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = found.readBoundedBytes();
+        } catch (OperationStepExecutor.BinarySizeExceededException e) {
+            Context.getCurrentLogger().warning(
+                    "Binary tool response exceeded maxBinarySize for '" + toolSpec.getName()
+                            + "': " + e);
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent(
+                            "Upstream response exceeded maxBinarySize (limit=" + e.getMaxBytes()
+                                    + " bytes)")),
+                    true, null, null);
+        } catch (IOException e) {
+            Context.getCurrentLogger().warning(
+                    "Error buffering binary tool response for '" + toolSpec.getName() + "': " + e);
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent("Error buffering binary response: "
+                            + e.getMessage())),
+                    true, null, null);
+        }
+
+        if (bytes == null) {
+            return new McpSchema.CallToolResult(
+                    List.of(new McpSchema.TextContent("No binary response entity received")),
+                    true, null, null);
+        }
+
+        String mediaType = found.clientResponseMediaType != null
+                ? found.clientResponseMediaType
+                : "application/octet-stream";
+        McpSchema.Content content = buildBinaryContent(toolSpec.getName(), bytes, mediaType);
+        return new McpSchema.CallToolResult(List.of(content), isError, null, null);
+    }
+
+    /**
+     * Dispatch a base64-encoded binary payload to the MCP content block that matches its MIME type
+     * (§4.4):
+     *
+     * <ul>
+     *   <li>{@code image/*} → {@link McpSchema.ImageContent}</li>
+     *   <li>{@code audio/*} → {@link McpSchema.AudioContent}</li>
+     *   <li>anything else → {@link McpSchema.EmbeddedResource} wrapping a transient
+     *       {@link McpSchema.BlobResourceContents} with a generated, non-addressable URI of the
+     *       form {@code ikanos://transient/{capability}/{toolName}/{uuid}}</li>
+     * </ul>
+     *
+     * @param toolName  the invoked tool name (used in the transient resource URI)
+     * @param bytes     the raw response bytes
+     * @param mediaType the resolved upstream/contract media type (never {@code null})
+     * @return the MIME-appropriate MCP content block
+     */
+    McpSchema.Content buildBinaryContent(String toolName, byte[] bytes, String mediaType) {
+        String data = Base64.getEncoder().encodeToString(bytes);
+        String lower = mediaType.toLowerCase();
+
+        if (lower.startsWith("image/")) {
+            return new McpSchema.ImageContent(null, data, mediaType);
+        }
+        if (lower.startsWith("audio/")) {
+            return new McpSchema.AudioContent(null, data, mediaType);
+        }
+
+        String capabilityName = exposeNamespace != null ? exposeNamespace : "ikanos";
+        String uri = "ikanos://transient/" + capabilityName + "/" + toolName + "/"
+                + UUID.randomUUID();
+        McpSchema.BlobResourceContents blob =
+                new McpSchema.BlobResourceContents(uri, mediaType, data);
+        return new McpSchema.EmbeddedResource(null, blob);
     }
 
     /**
