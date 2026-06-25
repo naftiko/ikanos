@@ -1,9 +1,9 @@
 ---
 name: ikanos-capability
-version: "1.0.0-alpha4"
+version: "1.0.0-beta1"
 description: >
   Skill for authoring, validating, and debugging Ikanos Capability YAML files
-  (spec v1.0.0-alpha4). Activate when the user wants to: write a new capability
+  (spec v1.0.0-beta1). Activate when the user wants to: write a new capability
   document, add or change authentication on a consumed API, configure orchestration
   steps or parameter mappings, set up a forward proxy, expose an MCP server or Skill
   server, configure external references for secrets, add a control port for health
@@ -21,7 +21,7 @@ allowed-tools:
 
 Ikanos lets you declare **capabilities** — functional units that
 **consume** external APIs and **expose** adapters (REST, MCP, Skill). A capability
-is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-alpha4).
+is a single YAML file validated against the Ikanos JSON Schema (v1.0.0-beta1).
 
 Key spec objects you will work with:
 
@@ -41,9 +41,9 @@ Canonical sources (read these, never duplicate them):
 - JSON Schema: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json`
 - Polychro Ruleset: `ikanos-spec/src/main/resources/rules/ikanos-rules.yml`
 
-## Named-Entity Format (alpha4)
+## Named-Entity Format (beta1)
 
-Since v1.0.0-alpha4, most named collections use **keyed maps** instead of
+Since v1.0.0-beta1, most named collections use **keyed maps** instead of
 arrays. The entity's `name` becomes the YAML map key; the `name` property is
 removed from the object body.
 
@@ -137,7 +137,7 @@ Specification directly.
    files, existing capabilities). Read that story file, then present a
    capability outline for the user to validate. Only ask what you cannot infer.
 2. **Scaffold.** Copy `assets/capability-example.yml`. The document must
-   begin with `ikanos: "1.0.0-alpha4"`.
+   begin with `ikanos: "1.0.0-beta1"`.
 3. **Fill exposes.** Choose the adapter type (REST, MCP, or Skill) and
    follow the pattern from the story. For REST operations, use `call` +
    `with` (simple) or `steps` + `mappings` (orchestrated) — never both.
