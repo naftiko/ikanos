@@ -194,6 +194,46 @@ public class ToolHandlerBinaryTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldSkipOutputParametersAndLogForBinaryUpstream() throws Exception {
+        int port = findFreePort();
+        Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
+        upstream.start();
+
+        java.util.logging.Logger logger = org.restlet.Context.getCurrentLogger();
+        java.util.List<String> messages = new java.util.ArrayList<>();
+        java.util.logging.Handler captor = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord record) {
+                messages.add(record.getMessage());
+            }
+            @Override public void flush() { }
+            @Override public void close() { }
+        };
+        logger.addHandler(captor);
+
+        try {
+            ToolHandler handler =
+                    handlerFromYaml(binaryToolWithOutputParametersYaml(port));
+            McpSchema.CallToolResult result =
+                    handler.handleToolCall("get-photo", Map.of("id", "p-1"));
+
+            // Mappings are bypassed: the result is the raw image, not a mapped text payload.
+            assertEquals(Boolean.FALSE, result.isError());
+            assertEquals(1, result.content().size());
+            McpSchema.ImageContent image =
+                    assertInstanceOf(McpSchema.ImageContent.class, result.content().get(0));
+            assertEquals("image/jpeg", image.mimeType());
+            assertEquals(Base64.getEncoder().encodeToString(JPEG_BYTES), image.data());
+
+            assertTrue(messages.stream().anyMatch(m ->
+                    m != null && m.contains("Skipping outputParameters mappings for tool 'get-photo'")),
+                    "expected an INFO log that outputParameters were skipped, got: " + messages);
+        } finally {
+            logger.removeHandler(captor);
+            upstream.stop();
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────────────────────
 
     private ToolHandler handlerFromYaml(String yaml) throws Exception {
@@ -248,7 +288,49 @@ public class ToolHandlerBinaryTest {
                             type: string
                             description: Photo id
                             required: true
+                        outputParameters:
+                          caption:
+                            type: string
+                            mapping: "$.caption"
                 """.formatted(schemaVersion, port, mediaLine, capLine);
+    }
+
+    /** Same as the basic binary tool capability but with outputParameters declared on the tool. */
+    private String binaryToolWithOutputParametersYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                  - namespace: photos
+                    type: http
+                    baseUri: http://localhost:%d
+                    resources:
+                      photoBytes:
+                        path: /photos/binary
+                        operations:
+                          download:
+                            method: GET
+                            outputRawFormat: binary
+                            outputMediaType: "image/jpeg"
+                  exposes:
+                  - type: mcp
+                    transport: http
+                    port: 0
+                    namespace: photos
+                    tools:
+                      get-photo:
+                        description: Get photo bytes
+                        call: photos.download
+                        inputParameters:
+                          id:
+                            type: string
+                            description: Photo id
+                            required: true
+                        outputParameters:
+                          caption:
+                            type: string
+                            mapping: "$.caption"
+                """.formatted(schemaVersion, port);
     }
 
     private static Component createBinaryServer(int port, byte[] bytes, MediaType mediaType) {
