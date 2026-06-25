@@ -29,6 +29,7 @@ import org.restlet.Context;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.ikanos.Capability;
+import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 
@@ -206,6 +207,21 @@ public class ResourceHandler {
 
         String mimeType = spec.getMimeType() != null ? spec.getMimeType()
                 : probeMimeType(resolvedTarget);
+
+        // MIME-aware branch (§4.5 / §8.5): binary static files (image/*, audio/*, application/pdf,
+        // application/zip, …) must be returned as a base64 BlobResourceContents. Reading them as
+        // UTF-8 text silently corrupts the bytes. Only text-family MIME types take the text path.
+        if (isBinaryMime(mimeType)) {
+            long maxBytes = BinarySize.DEFAULT_MAX_BINARY_SIZE_BYTES;
+            long size = Files.size(resolvedTarget);
+            if (size > maxBytes) {
+                throw new OperationStepExecutor.BinarySizeExceededException(size, maxBytes);
+            }
+            byte[] bytes = Files.readAllBytes(resolvedTarget);
+            return List.of(ResourceContent.binary(requestedUri, mimeType,
+                    Base64.getEncoder().encodeToString(bytes)));
+        }
+
         String text = Files.readString(resolvedTarget, StandardCharsets.UTF_8);
         return List.of(ResourceContent.text(requestedUri, mimeType, text));
     }
@@ -258,7 +274,60 @@ public class ResourceHandler {
         if (name.endsWith(".yaml") || name.endsWith(".yml")) return "application/yaml";
         if (name.endsWith(".txt")) return "text/plain";
         if (name.endsWith(".xml")) return "application/xml";
+        // Common binary extensions — keeps the binary branch deterministic when the platform
+        // probeContentType returns null (notably on Windows / minimal JREs).
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".gif")) return "image/gif";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".svg")) return "image/svg+xml";
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".zip")) return "application/zip";
+        if (name.endsWith(".mp3")) return "audio/mpeg";
+        if (name.endsWith(".wav")) return "audio/wav";
         return "application/octet-stream";
+    }
+
+    /**
+     * Classifies a media type as text or binary for the purpose of choosing between
+     * {@code TextResourceContents} and {@code BlobResourceContents} (§4.5 / §14).
+     *
+     * <p>Text-family types ({@code text/*}, {@code application/json}, {@code application/yaml},
+     * {@code application/xml}, {@code application/javascript}) take the UTF-8 text path; everything
+     * else (images, audio, PDF, ZIP, {@code application/octet-stream}, …) is treated as binary and
+     * returned as a base64 blob.</p>
+     */
+    static boolean isBinaryMime(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            // Unknown type — be safe and treat as binary so bytes are never UTF-8 corrupted.
+            return true;
+        }
+        // Strip any parameters (e.g. "text/plain; charset=utf-8") and normalise.
+        String base = mimeType;
+        int semicolon = base.indexOf(';');
+        if (semicolon >= 0) {
+            base = base.substring(0, semicolon);
+        }
+        base = base.trim().toLowerCase();
+
+        if (base.startsWith("text/")) {
+            return false;
+        }
+        switch (base) {
+            case "application/json":
+            case "application/yaml":
+            case "application/x-yaml":
+            case "application/xml":
+            case "application/javascript":
+                return false;
+            default:
+                // Structured-syntax text suffixes such as application/vnd.api+json or
+                // application/problem+json are still text.
+                if (base.endsWith("+json") || base.endsWith("+xml") || base.endsWith("+yaml")) {
+                    return false;
+                }
+                return true;
+        }
     }
 
     // ── Dynamic resource helpers ─────────────────────────────────────────────────────────────────
