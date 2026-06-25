@@ -45,6 +45,9 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String description;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String maxBinarySize;
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -96,6 +99,19 @@ public class McpServerSpec extends ServerSpec {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    /**
+     * @return the adapter-level {@code maxBinarySize} sized string (e.g. {@code "25MiB"}), or
+     *         {@code null} when none is declared (engine default applies). See
+     *         {@code blueprints/capability-binary-content.md} §4.7 / §8.1.
+     */
+    public String getMaxBinarySize() {
+        return maxBinarySize;
+    }
+
+    public void setMaxBinarySize(String maxBinarySize) {
+        this.maxBinarySize = maxBinarySize;
     }
 
     public Map<String, McpServerToolSpec> getTools() {

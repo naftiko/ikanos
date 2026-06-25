@@ -86,11 +86,11 @@ public class McpServerAdapter extends ServerAdapter {
 
         // Create the tool handler (transport-agnostic)
         this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
-                serverSpec.getNamespace());
+                serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
 
         // Create the resource handler (transport-agnostic)
         this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),
-                serverSpec.getNamespace());
+                serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
 
         // Create the prompt handler (transport-agnostic)
         this.promptHandler = new PromptHandler(serverSpec.getPrompts());

@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 
 /**
@@ -116,6 +118,23 @@ public class ResourceHandlerStaticBinaryTest {
 
         assertEquals("image/jpeg", content.get(0).mimeType);
         assertEquals(Base64.getEncoder().encodeToString(raw), content.get(0).blob);
+    }
+
+    @Test
+    public void readShouldEnforceAdapterMaxBinarySizeForStaticFile() throws Exception {
+        // A static binary file larger than the adapter-level cap must be rejected (§4.7). Before the
+        // adapter cap was threaded through, only the 10 MiB engine default applied here.
+        Path assets = tempDir.resolve("big");
+        Files.createDirectories(assets);
+        byte[] raw = new byte[512];
+        Files.write(assets.resolve("big.png"), raw);
+
+        // Adapter cap of 100B is well below the 512B file.
+        ResourceHandler handler = new ResourceHandler(null,
+                Map.of("big", staticResource("big", "files://big", assets)), null, "100B");
+
+        assertThrows(OperationStepExecutor.BinarySizeExceededException.class,
+                () -> handler.read("files://big/big.png"));
     }
 
     // ── isBinaryMime classifier ──────────────────────────────────────────────────────────────────
