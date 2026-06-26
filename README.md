@@ -16,11 +16,11 @@ It reads one YAML file describing a slice of your business — say *customers* o
 
 ## What that means for *you*
 
-- :robot: **You're building AI agents** — give agents governed MCP tools without writing handlers, and send the model exactly the context a task needs. → [Context engineering tutorial](tutorials/track-1-context-engineering/index.md)
-- :electric_plug: **You own a sprawl of APIs, microservices, or a monolith** — put a clean, governed contract in front of messy or legacy endpoints. → [API reusability tutorial](tutorials/track-2-api-reusability/index.md)
-- :bricks: **You want one source of truth for every client** — write the domain once and serve it as REST, MCP, and Skill from the same spec. → [Use cases](concepts/use-cases.md)
+- :robot: **You're building AI agents** — give agents governed MCP tools without writing handlers, and send the model exactly the context a task needs. → [Context engineering tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-1-context-engineering/)
+- :electric_plug: **You own a sprawl of APIs, microservices, or a monolith** — put a clean, governed contract in front of messy or legacy endpoints. → [API reusability tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-2-api-reusability/)
+- :bricks: **You want one source of truth for every client** — write the domain once and serve it as REST, MCP, and Skill from the same spec. → [Use cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/)
 
-See **[Who is it for?](concepts/who-is-it-for.md)** for the full persona map.
+See **[Who is it for?](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/who-is-it-for/)** for the full persona map.
 
 ---
 
@@ -39,7 +39,7 @@ See **[Who is it for?](concepts/who-is-it-for.md)** for the full persona map.
 | **Cloud-Native Operations** | OTel tracing, RED metrics, Prometheus scrape, single Docker image |
 | **AI Native** | Designed for context engineering and agent orchestration |
 
-For the full feature list see [Features](features.md).
+For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/features/).
 
 ---
 
@@ -53,10 +53,10 @@ For the full feature list see [Features](features.md).
 
 ## Continue reading
 
-- [Installation](installation.md) — install via Docker or native binary
-- [Use Cases](concepts/use-cases.md) — typical integration scenarios
-- [Schema](schema/) — the full reference for every keyword
-- [Linting Guide](guide/linting.md) — pair Ikanos with Polychro
-- [Roadmap](roadmap.md) — what's coming in upcoming alphas
+- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/installation/) — install via Docker or native binary
+- [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/) — typical integration scenarios
+- [Schema](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/schema/) — the full reference for every keyword
+- [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/guide/linting/) — pair Ikanos with Polychro
+- [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/roadmap/) — what's coming in upcoming alphas
 
 <img src="https://naftiko.github.io/docs/images/navi/navi_hello.svg" width="50">
