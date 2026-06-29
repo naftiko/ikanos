@@ -1,6 +1,6 @@
 # Aggregate with two functions sharing the same name.
 # Should trigger: ikanos-aggregates-unique-function-name
-ikanos: "1.0.0-beta1"
+ikanos: "1.0.0-beta2"
 
 capability:
   aggregates:
