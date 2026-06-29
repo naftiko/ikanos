@@ -1,7 +1,7 @@
 # Capability with an inline `aggregates` entry (declares `functions`) that lacks `namespace`.
 # Tests the new `$.capability.aggregates[?(@.functions)]` JSONPath in the rule.
 # Should trigger: ikanos-aggregates-namespace-required
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta1"
 
 capability:
   aggregates:

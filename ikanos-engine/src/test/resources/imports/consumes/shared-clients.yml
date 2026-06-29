@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta1"
 consumes:
   - namespace: "weather-http"
     type: "http"
