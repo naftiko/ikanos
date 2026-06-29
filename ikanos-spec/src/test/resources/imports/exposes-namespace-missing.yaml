@@ -1,6 +1,6 @@
 # Standalone source file with an `exposes` entry that lacks `namespace`.
 # Should trigger: ikanos-exposes-namespace-required
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta1"
 
 exposes:
   - type: rest

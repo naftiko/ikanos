@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta1"
 info:
   display: "BaseUri Trailing Slash Regression Test"
   description: "Capability intentionally using a trailing-slash baseUri to test strict validation"
