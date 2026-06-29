@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta1"
+ikanos: "1.0.0-beta2"
 info:
   display: "Markdown Test Capability"
   description: "Test capability for Markdown parsing"
