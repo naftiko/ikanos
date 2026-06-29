@@ -90,7 +90,7 @@
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
         <openziti.version>0.33.1</openziti.version>
-        <revision>1.0.0-beta2-SNAPSHOT</revision>
+        <revision>1.0.0-beta1</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
           Each module's BUNDLE LINE / BRANCH coverage must stay >= these floors.
