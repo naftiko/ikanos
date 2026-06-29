@@ -46,7 +46,7 @@ jobs:
           token: ${{ secrets.FRAMEWORK_CONTENTS_WRITE_PR_WRITE }}
           base: ${{ github.ref_name }}
           branch: "chore/sync-ikanos-version"
-          commit-message: "chore: sync Ikanos version from pom.xml [skip ci]"
+          commit-message: "chore: sync Ikanos version from pom.xml"
           title: "chore: sync Ikanos version"
           body: |
             ## No related issue
