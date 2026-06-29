@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../../../../ikanos-spec/src/main/resources/schemas/ikanos-schema.json
 ---
-ikanos: "1.0.0-beta1"
+ikanos: "1.0.0-beta2"
 info:
   display: "Control Port Test Capability"
   description: "Test capability for Control Server Adapter deserialization and wiring"
