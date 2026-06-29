@@ -1,7 +1,7 @@
 # Capability with an inline `exposes` entry (declares `type`) that lacks `namespace`.
 # Tests the new `$.capability.exposes[?(@.type)]` JSONPath in the rule.
 # Should trigger: ikanos-exposes-namespace-required
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta1"
 
 capability:
   exposes:
