@@ -58,7 +58,7 @@ jobs:
           path: warden
           base: main
           branch: "chore/sync-ikanos-version"
-          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
+          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           title: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           body: |
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
@@ -117,7 +117,7 @@ jobs:
           path: crafter
           base: main
           branch: "chore/sync-ikanos-version"
-          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }} [skip ci]"
+          commit-message: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           title: "chore: sync Ikanos version to ${{ steps.sync.outputs.value }}"
           body: |
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
