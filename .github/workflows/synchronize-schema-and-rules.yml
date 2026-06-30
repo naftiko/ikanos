@@ -15,6 +15,15 @@ jobs:
   sync-to-crafter:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+          owner: naftiko
+          repositories: crafter
+
       - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
@@ -24,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: naftiko/crafter
-          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: crafter
 
       - name: Copy schema and rules
@@ -39,7 +48,7 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: crafter
           base: main
           branch: chore/schema-and-rules
@@ -57,6 +66,15 @@ jobs:
   sync-to-schema-viewer:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+          owner: naftiko
+          repositories: schema-viewer
+
       - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
@@ -66,7 +84,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: naftiko/schema-viewer
-          token: ${{ secrets.SCHEMA_VIEWER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: schema-viewer
 
       - name: Copy schema
@@ -77,7 +95,7 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.SCHEMA_VIEWER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: schema-viewer
           base: main
           branch: chore/schema
