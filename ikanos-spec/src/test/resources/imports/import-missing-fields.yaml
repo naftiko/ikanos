@@ -3,7 +3,7 @@
 # Should trigger:
 #   - ikanos-import-from-required  (entry 0 has `from` but no `import`)
 #   - ikanos-import-import-required (entry 1 has `import` but no `from` and no `type`)
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta3"
 
 capability:
   consumes:
