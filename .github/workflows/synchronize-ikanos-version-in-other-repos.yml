@@ -3,7 +3,7 @@ name: Synchronize Ikanos Version in Other Repos
 on:
   push:
     branches:
-      - main
+      - feat/using-github-apps
     paths:
       - 'pom.xml'
   workflow_dispatch:
@@ -12,9 +12,17 @@ jobs:
   # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-warden-version:
     runs-on: ubuntu-latest
-    if: github.ref_name == 'main'
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+          owner: naftiko
+          repositories: warden
+                
       - name: Checkout ikanos
         uses: actions/checkout@v4
         with:
@@ -29,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: naftiko/warden
-          token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: warden
 
       - name: Sync Ikanos version to warden
@@ -54,7 +62,7 @@ jobs:
         if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.WARDEN_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: warden
           base: main
           branch: "chore/sync-ikanos-version"
@@ -70,7 +78,7 @@ jobs:
   # This job is only executed when triggered (automatically or manually) from the 'main' branch.
   sync-crafter-version:
     runs-on: ubuntu-latest
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'feat/using-github-apps'
     needs: sync-warden-version
 
     steps:
@@ -88,7 +96,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: naftiko/crafter
-          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: crafter
 
       - name: Sync Ikanos version to crafter
@@ -113,7 +121,7 @@ jobs:
         if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.CRAFTER_CONTENTS_WRITE_PR_WRITE }}
+          token: ${{ steps.app-token.outputs.token }}
           path: crafter
           base: main
           branch: "chore/sync-ikanos-version"
