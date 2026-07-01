@@ -1,0 +1,47 @@
+name: Test Badge Publication
+
+on:
+  push:
+    branches:
+      - "feat/testing-dedicated-repo-for-badges"
+
+jobs:
+  publish-test-badge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_QUALITY_GATE_BADGES_ID }}
+          private-key: ${{ secrets.APP_QUALITY_GATE_BADGES_PRIVATE_KEY }}
+          owner: naftiko
+
+      - name: Checkout badges repository
+        uses: actions/checkout@v4
+        with:
+          repository: naftiko/badges
+          token: ${{ steps.app-token.outputs.token }}
+          path: badges
+
+      - name: Generate test badge
+        run: |
+          cat > badges/test-badge.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "github-app",
+            "message": "OK",
+            "color": "brightgreen"
+          }
+          EOF
+
+      - name: Commit & Push
+        run: |
+          cd badges
+          git config user.name "github-app[bot]"
+          git config user.email "github-app[bot]@users.noreply.github.com"
+
+          git add test-badge.json
+          git commit -m "Add test badge" || exit 0
+          git push
