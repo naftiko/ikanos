@@ -18,9 +18,13 @@ dependency-reduced-pom.xml
 **/.project
 **/.factorypath
 
-# On-demand synced skill copies (never commit) — scoped to the synced copy only;
-# committed skills (e.g. bugfix/, ikanos-capability/) live under .agents/skills/ and must stay tracked.
+# On-demand synced skill copies (never commit) — the transversal skills served by the
+# agents-shared capability (pr-review, bugfix, ikanos-capability) are versioned once in the
+# naftiko-golden-repo golden repo and fetched on demand via
+# .github/instructions/agents-shared.instructions.md. Never commit these synced copies.
 .agents/skills/pr-review/
+.agents/skills/bugfix/
+.agents/skills/ikanos-capability/
 
 # ─── Local developer environment notes (machine-specific paths) ─────────────────
 .env.local
