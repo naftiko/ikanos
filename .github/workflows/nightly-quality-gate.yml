@@ -518,7 +518,7 @@ jobs:
             echo "No badge changes to commit."
             exit 0
           fi
-          git commit -m "chore: update badges for ${{ github.ref_name }} [skip ci]"
+          git commit -m "chore: update badges for ${{ github.ref_name }}"
 
           # Stash any leftover unstaged changes (build artifacts) so rebase can run
           STASHED=false
