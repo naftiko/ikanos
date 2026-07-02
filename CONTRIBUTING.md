@@ -154,7 +154,7 @@ two rules:
 - **YAML / JSON test fixtures** (files under `src/test/resources/`, examples, tutorial
   capabilities, etc.) keep a real version string. Whenever you add a new fixture path
   or file extension that contains `ikanos: <version>`, **update
-  `scripts/sync-ikanos-version.py`** so the next version bump picks it up. At minimum
+  `scripts/sync-schema-version.py`** so the next version bump picks it up. At minimum
   check:
   - the directories scanned by `find_files(...)` cover your new location;
   - the file suffix is included (currently `.yml`, `.yaml`, `.json`);
@@ -164,7 +164,7 @@ two rules:
   Run the script locally after editing to confirm it touches your new file:
 
   ```bash
-  python scripts/sync-ikanos-version.py
+  python scripts/sync-schema-version.py
   ```
 
 ### Key files for agent context

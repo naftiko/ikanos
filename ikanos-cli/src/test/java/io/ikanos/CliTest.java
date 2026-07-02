@@ -47,12 +47,12 @@ public class CliTest {
     }
 
     @Test
-    void versionProviderShouldReturnSchemaVersion() throws Exception {
+    void versionProviderShouldReturnEngineVersion() throws Exception {
         String[] version = new Cli.VersionProvider().getVersion();
 
         assertEquals(1, version.length);
         // Use the same source as the actual version provider to stay in sync
-        assertEquals(io.ikanos.spec.util.VersionHelper.getSchemaVersion(), version[0]);
+        assertEquals(io.ikanos.spec.util.VersionHelper.getEngineVersion(), version[0]);
     }
 
     @Test

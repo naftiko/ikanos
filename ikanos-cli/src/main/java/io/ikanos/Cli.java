@@ -42,7 +42,7 @@ public class Cli implements Runnable {
     static class VersionProvider implements IVersionProvider {
         @Override
         public String[] getVersion() {
-            return new String[] { VersionHelper.getSchemaVersion() };
+            return new String[] { VersionHelper.getEngineVersion() };
         }
     }
 
