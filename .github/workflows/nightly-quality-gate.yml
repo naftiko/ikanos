@@ -46,7 +46,6 @@ jobs:
           sleep 15
           curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
 
-
       - name: Import OpenAPI specs into Microcks
         run: |
           for file in .github/microcks/*.yaml; do
@@ -353,10 +352,11 @@ jobs:
 
       - name: Install Gitleaks
         run: |
-          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
-          tar -xzf gitleaks_8.21.2_linux_x64.tar.gz
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/
+          mkdir -p /tmp/gitleaks-install
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz -O /tmp/gitleaks-install/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks-install/gitleaks.tar.gz -C /tmp/gitleaks-install
+          chmod +x /tmp/gitleaks-install/gitleaks
+          sudo mv /tmp/gitleaks-install/gitleaks /usr/local/bin/
           gitleaks version
  
       - name: Run Gitleaks scan
@@ -443,13 +443,11 @@ jobs:
           echo "| Code Smells | ${SMELLS:-0} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trivy Critical | ${TRIVY_CRITICAL:-0} |" >> $GITHUB_STEP_SUMMARY
           echo "| Gitleaks | ${LEAKS_COUNT:-0} |" >> $GITHUB_STEP_SUMMARY    
-                
-      - name: Publish badges to Gist
-        if: github.ref == 'refs/heads/main' && always()
-        env:
-          GIST_ID: 50bfcb34f6512cbad2dd4f460bfc6526
-          GIST_TOKEN: ${{ secrets.GIST_SECRET }}
+
+      - name: Generate badge JSON
+        if: always()
         run: |
+          mkdir -p .github/badges
           source /tmp/sonar_metrics.env 2>/dev/null || true
           source /tmp/trivy_metrics.env 2>/dev/null || true
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
@@ -488,21 +486,57 @@ jobs:
             LEAKS_MSG="${LEAKS_COUNT} secrets"
             LEAKS_COLOR="red"
           fi
-          publish_badge() {
+
+          write_badge() {
             local filename="$1" label="$2" message="$3" color="$4"
-            local payload="{\"files\":{\"${filename}\":{\"content\":\"{\\\"schemaVersion\\\":1,\\\"label\\\":\\\"${label}\\\",\\\"message\\\":\\\"${message}\\\",\\\"color\\\":\\\"${color}\\\"}\"}}}"
-            curl -s -X PATCH \
-              -H "Authorization: token ${GIST_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/gists/${GIST_ID}" \
-              -d "$payload" > /dev/null
-            echo "Published: $filename → $message ($color)"
+            cat > ".github/badges/${filename}" <<EOF
+          {"schemaVersion":1,"label":"${label}","message":"${message}","color":"${color}"}
+          EOF
+            echo "Generated: .github/badges/${filename} → ${message} (${color})"
           }
-          publish_badge "framework-coverage.json"     "coverage"      "${COV_PCT}%"   "$COV_COLOR"
-          publish_badge "framework-quality-gate.json" "quality gate"  "$QG_MSG"       "$QG_COLOR"
-          publish_badge "framework-bugs.json"         "bugs"          "${BUGS:-0}"    "$BUGS_COLOR"
-          publish_badge "framework-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
-          publish_badge "framework-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"
+
+          write_badge "ikanos-coverage.json"     "coverage"      "${COV_PCT}%"   "$COV_COLOR"
+          write_badge "ikanos-quality-gate.json" "quality gate"  "$QG_MSG"       "$QG_COLOR"
+          write_badge "ikanos-bugs.json"         "bugs"          "${BUGS:-0}"    "$BUGS_COLOR"
+          write_badge "ikanos-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
+          write_badge "ikanos-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"
+
+      - name: Update README badge URLs for this branch
+        if: always()
+        run: |
+          if [ -f README.md ]; then
+            sed -i -E "s|(raw\.githubusercontent\.com/)[^/]+/[^/]+(/)[^/]+(/\.github/badges/)|\1${{ github.repository }}\2${{ github.ref_name }}\3|g" README.md
+          fi
+
+      - name: Commit badges to current branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges README.md
+          if git diff --staged --quiet; then
+            echo "No badge changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: update badges for ${{ github.ref_name }} [skip ci]"
+
+          # Stash any leftover unstaged changes (build artifacts) so rebase can run
+          STASHED=false
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git stash push -u -m "pre-rebase-stash"
+            STASHED=true
+          fi
+
+          for i in 1 2 3; do
+            git pull --rebase origin "${{ github.ref_name }}" && \
+            git push origin HEAD:"${{ github.ref_name }}" && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 3
+          done
+
+          if [ "$STASHED" = true ]; then
+            git stash drop || true
+          fi
 
   integration-tests:
     uses: ./.github/workflows/validate-tuto-examples.yml
@@ -543,7 +577,7 @@ jobs:
         - integration-tests
         - smoke-tests
       if: |
-        always() && (
+        always() && !startsWith(github.ref_name, 'dependabot/') && (
           needs.test-and-analyze.result == 'failure' ||
           needs.integration-tests.result == 'failure' ||
           needs.smoke-tests.result == 'failure'
