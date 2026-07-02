@@ -1,0 +1,77 @@
+name: Synchronize Schema Version in Other Repos
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
+  workflow_dispatch:
+
+jobs:
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
+  sync-warden-schema-version:
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+          owner: naftiko
+          repositories: warden
+                
+      - name: Checkout ikanos
+        uses: actions/checkout@v4
+        with:
+          path: ikanos
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Checkout warden
+        uses: actions/checkout@v4
+        with:
+          repository: naftiko/warden
+          token: ${{ steps.app-token.outputs.token }}
+          path: warden
+
+      - name: Sync Ikanos schema version to warden
+        id: sync
+        run: |
+          VERSION=$(python3 ikanos/scripts/sync-schema-version-to-warden.py \
+            --schema ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+            --target warden/templates/skeletons/capabilities)
+          echo "value=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Check for changes
+        id: git-check
+        working-directory: warden
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          path: warden
+          base: main
+          branch: "chore/sync-ikanos-schema-version"
+          commit-message: "chore: sync Ikanos schema version to ${{ steps.sync.outputs.value }}"
+          title: "chore: sync Ikanos schema version to ${{ steps.sync.outputs.value }}"
+          body: |
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+
+            Updated files:
+            - `templates/skeletons/capabilities/*.ikanos.yml`
+          delete-branch: true

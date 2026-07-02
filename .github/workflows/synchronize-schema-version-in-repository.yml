@@ -1,11 +1,11 @@
-name: Synchronize Ikanos Version in Repository
+name: Synchronize Ikanos Schema Version in Repository
 
 on:
   workflow_dispatch:
 
 jobs:
   # This job is only executed when the action is manually launched on a branch other than 'main'.
-  sync-ikanos-version:
+  sync-ikanos-schema-version:
     runs-on: ubuntu-latest
     if: github.ref_name != 'main'
     steps:
@@ -26,15 +26,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Run version sync script
         run: |
-          python3 scripts/sync-ikanos-version.py
+          python3 scripts/sync-schema-version.py
 
       - name: Check for changes
         id: git-check
@@ -51,9 +45,9 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           base: ${{ github.ref_name }}
-          branch: "chore/sync-ikanos-version"
-          commit-message: "chore: sync Ikanos version from pom.xml"
-          title: "chore: sync Ikanos version"
+          branch: "chore/sync-ikanos-schema-version"
+          commit-message: "chore: sync Ikanos schema version from ikanos-schema.json"
+          title: "chore: sync Ikanos schema version"
           body: |
             ## No related issue
 
@@ -61,12 +55,10 @@ jobs:
 
             ## What does this PR do?
 
-            Automatically synchronizes the Ikanos version across the repository:
+            Automatically synchronizes the Ikanos schema version across the repository:
             - Updates `ikanos` version in YAML files
-            - Updates `const` in JSON schema
-            - Updates `$id` schema URL
 
-            Source of truth: `pom.xml`
+            Source of truth: `ikanos-schema.json`
 
             ---
 

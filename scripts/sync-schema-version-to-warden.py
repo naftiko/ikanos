@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to synchronize the Ikanos version from pom.xml into Warden backstage skeleton templates.
+Script to synchronize the Ikanos schema version from ikanos-schema.json into Warden backstage skeleton templates.
 """
 
 import argparse
@@ -8,16 +8,16 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ikanos_version import extract_version_from_pom, update_yaml_version
+from ikanos_version import extract_version_from_schema, update_yaml_version
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync Ikanos version to Warden backstage skeletons")
-    parser.add_argument("--pom", required=True, help="Path to ikanos pom.xml")
+    parser = argparse.ArgumentParser(description="Sync Ikanos schema version to Warden backstage skeletons")
+    parser.add_argument("--schema", required=True, help="Path to ikanos-schema.json")
     parser.add_argument("--target", required=True, help="Path to skeleton capabilities directory")
     args = parser.parse_args()
 
-    version = extract_version_from_pom(args.pom)
+    version = extract_version_from_schema(args.schema)
 
     target = Path(args.target)
     files = list(target.glob("*.ikanos.yml"))

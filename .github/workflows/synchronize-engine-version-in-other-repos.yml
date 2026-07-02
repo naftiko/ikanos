@@ -1,0 +1,77 @@
+name: Synchronize Engine Version in Other Repos
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pom.xml'
+  workflow_dispatch:
+
+jobs:
+  # This job is only executed when triggered (automatically or manually) from the 'main' branch.
+  sync-crafter-engine-version:
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+          owner: naftiko
+          repositories: crafter
+
+      - name: Checkout ikanos
+        uses: actions/checkout@v4
+        with:
+          path: ikanos
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Checkout crafter
+        uses: actions/checkout@v4
+        with:
+          repository: naftiko/crafter
+          token: ${{ steps.app-token.outputs.token }}
+          path: crafter
+
+      - name: Sync Ikanos engine version to crafter
+        id: sync
+        run: |
+          VERSION=$(python3 ikanos/scripts/sync-engine-version-to-crafter.py \
+            --pom ikanos/pom.xml \
+            --target crafter/extensions/naftiko-crafter/package.json)
+          echo "value=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Check for changes
+        id: git-check
+        working-directory: crafter
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          path: crafter
+          base: main
+          branch: "chore/sync-ikanos-engine-version"
+          commit-message: "chore: sync Ikanos engine version to ${{ steps.sync.outputs.value }}"
+          title: "chore: sync Ikanos engine version to ${{ steps.sync.outputs.value }}"
+          body: |
+            Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+
+            Updated files:
+            - `extensions/naftiko-crafter/package.json`
+          delete-branch: true

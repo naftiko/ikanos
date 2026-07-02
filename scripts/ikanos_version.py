@@ -4,6 +4,7 @@ Shared utilities for Ikanos version synchronization.
 """
 
 import re
+import json
 import xml.etree.ElementTree as ET
 import sys
 
@@ -33,6 +34,26 @@ def extract_version_from_pom(pom_path="pom.xml"):
 
     except Exception as e:
         print(f"[error] Error while reading pom.xml: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def extract_version_from_schema(schema_path="ikanos-spec/src/main/resources/schemas/ikanos-schema.json"):
+    """Extracts the ikanos spec version from the JSON schema's properties.ikanos.const."""
+    try:
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            schema = json.load(f)
+
+        version = schema.get('properties', {}).get('ikanos', {}).get('const')
+
+        if version is None:
+            raise ValueError("properties.ikanos.const not found in schema")
+
+        print(f"[ok] Version extracted from schema: {version}", file=sys.stderr)
+
+        return version
+
+    except Exception as e:
+        print(f"[error] Error while reading schema {schema_path}: {e}", file=sys.stderr)
         sys.exit(1)
 
 

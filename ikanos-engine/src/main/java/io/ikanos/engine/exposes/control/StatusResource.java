@@ -55,7 +55,7 @@ public class StatusResource extends ServerResource {
 
         // Engine info
         ObjectNode engineNode = MAPPER.createObjectNode();
-        engineNode.put("version", VersionHelper.getSchemaVersion());
+        engineNode.put("version", VersionHelper.getEngineVersion());
         engineNode.put("java", System.getProperty("java.version"));
         engineNode.put("native", isNativeImage());
         root.set("engine", engineNode);
