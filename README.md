@@ -1,13 +1,12 @@
-<img src="https://naftiko.github.io/docs/images/logos/logo_ikanos_horizontal.png" width="300">
-
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/naftiko/ikanos/feat/removing-gist-logic/.github/badges/ikanos-coverage.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
-[![Quality Gate](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/naftiko/ikanos/feat/removing-gist-logic/.github/badges/ikanos-quality-gate.json)](https://github.com/naftiko/ikanos/actions/workflows/nightly-quality-gate.yml)
-[![Bugs](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/naftiko/ikanos/feat/removing-gist-logic/.github/badges/ikanos-bugs.json)](https://github.com/naftiko/ikanos/actions/workflows/nightly-quality-gate.yml)
-[![Trivy](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/naftiko/ikanos/feat/removing-gist-logic/.github/badges/ikanos-trivy.json)](https://github.com/naftiko/ikanos/actions/workflows/nightly-quality-gate.yml)
-[![Gitleaks](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/naftiko/ikanos/feat/removing-gist-logic/.github/badges/ikanos-gitleaks.json)](https://github.com/naftiko/ikanos/actions/workflows/nightly-quality-gate.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-coverage.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
+[![Bugs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-bugs.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
+[![Trivy](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-trivy.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
+[![Gitleaks](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farah-t-trigui/50bfcb34f6512cbad2dd4f460bfc6526/raw/framework-gitleaks.json)](https://github.com/naftiko/ikanos/actions/workflows/quality-gate.yml)
 
-**Ikanos** is the open source capability engine for Spec-Driven Integration.
+# Ikanos
+
+**Ikanos** is the open source framework for Spec-Driven Integration. **It lets you build the MCP server your agent needs, not use the one your vendor ships**. Custom, use-case-shaped MCP surfaces — integrated from as many public and private APIs as the context requires — without the generic-server tax.
 
 <img src="https://naftiko.github.io/docs/images/technology/architecture_capability.png" width="700">
 
@@ -17,11 +16,11 @@ It reads one YAML file describing a slice of your business — say *customers* o
 
 ## What that means for *you*
 
-- :robot: **You're building AI agents** — give agents governed MCP tools without writing handlers, and send the model exactly the context a task needs. → [Context engineering tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-1-context-engineering/)
-- :electric_plug: **You own a sprawl of APIs, microservices, or a monolith** — put a clean, governed contract in front of messy or legacy endpoints. → [API reusability tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/tutorials/track-2-api-reusability/)
-- :bricks: **You want one source of truth for every client** — write the domain once and serve it as REST, MCP, and Skill from the same spec. → [Use cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/)
+- :robot: **You're building AI agents** — give agents governed MCP tools without writing handlers, and send the model exactly the context a task needs. → [Context engineering tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/tutorials/track-1-context-engineering/)
+- :electric_plug: **You own a sprawl of APIs, microservices, or a monolith** — put a clean, governed contract in front of messy or legacy endpoints. → [API reusability tutorial](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/tutorials/track-2-api-reusability/)
+- :bricks: **You want one source of truth for every client** — write the domain once and serve it as REST, MCP, and Skill from the same spec. → [Use cases](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/concepts/use-cases/)
 
-See **[Who is it for?](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/who-is-it-for/)** for the full persona map.
+See **[Who is it for?](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/concepts/who-is-it-for/)** for the full persona map.
 
 ---
 
@@ -40,7 +39,7 @@ See **[Who is it for?](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/
 | **Cloud-Native Operations** | OTel tracing, RED metrics, Prometheus scrape, single Docker image |
 | **AI Native** | Designed for context engineering and agent orchestration |
 
-For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/features/).
+For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/features/).
 
 ---
 
@@ -54,10 +53,10 @@ For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.
 
 ## Continue reading
 
-- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/installation/) — install via Docker or native binary
-- [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/) — typical integration scenarios
-- [Schema](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/schema/) — the full reference for every keyword
-- [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/guide/linting/) — pair Ikanos with Polychro
-- [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/roadmap/) — what's coming in upcoming alphas
+- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/installation/) — install via Docker or native binary
+- [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/concepts/use-cases/) — typical integration scenarios
+- [Spec](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/spec/) — the full reference for every keyword
+- [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/guide/linting/) — pair Ikanos with Polychro
+- [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-beta1/roadmap/) — what's coming in upcoming releases
 
 <img src="https://naftiko.github.io/docs/images/navi/navi_hello.svg" width="50">
