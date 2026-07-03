@@ -287,7 +287,7 @@ jobs:
         if: always()
         run: |
           if [ -f README.md ]; then
-            sed -i -E "s|(raw\.githubusercontent\.com/)[^/]+/[^/]+(/)[^/]+(/\.github/badges/)|\1${{ github.repository }}\2${{ github.ref_name }}\3|g" README.md
+            sed -i -E "s|(raw\.githubusercontent\.com/)[^/]+/[^/]+/.*(/\.github/badges/)|\1${{ github.repository }}/${{ github.ref_name }}\2|g" README.md
           fi
 
       - name: Commit badges to current branch
