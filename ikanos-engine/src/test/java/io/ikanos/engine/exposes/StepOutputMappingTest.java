@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
@@ -51,7 +50,7 @@ public class StepOutputMappingTest {
     @Test
     void mcpToolSpecShouldHaveGetMappingsAccessor() {
         boolean hasMappings = Arrays.stream(McpServerToolSpec.class.getMethods())
-                .map(Method::getName)
+                .map(m -> m != null ? m.getName() : null)
                 .anyMatch("getMappings"::equals);
 
         assertTrue(hasMappings,

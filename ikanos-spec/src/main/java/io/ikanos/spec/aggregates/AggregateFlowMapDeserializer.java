@@ -23,6 +23,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 public class AggregateFlowMapDeserializer extends NamedMapDeserializer<AggregateFlowSpec> {
 
     public AggregateFlowMapDeserializer() {
-        super(AggregateFlowSpec.class, AggregateFlowSpec::setName);
+        super(AggregateFlowSpec.class, (spec, name) -> spec.setName(name));
     }
 }

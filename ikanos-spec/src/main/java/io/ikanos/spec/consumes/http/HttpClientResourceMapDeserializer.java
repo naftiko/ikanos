@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ConsumesHttp.resources} named-object map. */
 public class HttpClientResourceMapDeserializer extends NamedMapDeserializer<HttpClientResourceSpec> {
     public HttpClientResourceMapDeserializer() {
-        super(HttpClientResourceSpec.class, HttpClientResourceSpec::setName);
+        super(HttpClientResourceSpec.class, (spec, name) -> spec.setName(name));
     }
 }
