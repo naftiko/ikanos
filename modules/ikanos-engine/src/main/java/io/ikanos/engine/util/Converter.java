@@ -721,7 +721,7 @@ public class Converter {
             headers.add(header);
         }
 
-        if (headers.stream().allMatch(String::isBlank)) {
+        if (headers.stream().allMatch(h -> h == null || h.isBlank())) {
             return List.of();
         }
 
