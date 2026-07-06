@@ -447,10 +447,12 @@ jobs:
       - name: Generate badge JSON
         if: always()
         run: |
-          mkdir -p .github/badges
+          BRANCH_SLUG=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          mkdir -p "badges-output/${BRANCH_SLUG}"
           source /tmp/sonar_metrics.env 2>/dev/null || true
           source /tmp/trivy_metrics.env 2>/dev/null || true
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
+
           # Load JaCoCo coverage
           CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
@@ -458,16 +460,36 @@ jobs:
             COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
             TOTAL=$((MISSED + COVERED))
             COV_PCT=$([ "$TOTAL" -gt 0 ] && awk "BEGIN {printf \"%.0f\", ($COVERED/$TOTAL)*100}" || echo "0")
-            [ "$COV_PCT" -ge 80 ] && COV_COLOR="brightgreen" \
-              || { [ "$COV_PCT" -ge 50 ] && COV_COLOR="yellow" || COV_COLOR="red"; }
           else
-            COV_PCT="N/A"; COV_COLOR="lightgrey"
+            COV_PCT="N/A"
           fi
+
+          if [ "$COV_PCT" != "N/A" ] && [ "$COV_PCT" -ge 80 ]; then
+            COV_COLOR="brightgreen"
+          elif [ "$COV_PCT" != "N/A" ] && [ "$COV_PCT" -ge 50 ]; then
+            COV_COLOR="yellow"
+          elif [ "$COV_PCT" = "N/A" ]; then
+            COV_COLOR="lightgrey"
+          else
+            COV_COLOR="red"
+          fi
+
           # Sonar Quality Gate badge
-          [ "${QG:-NONE}" = "OK" ] && QG_MSG="passed" && QG_COLOR="brightgreen" \
-            || QG_MSG="failed" && QG_COLOR="red"
+          if [ "${QG:-NONE}" = "OK" ]; then
+            QG_MSG="passed"
+            QG_COLOR="brightgreen"
+          else
+            QG_MSG="failed"
+            QG_COLOR="red"
+          fi
+
           # Sonar bugs badge
-          [ "${BUGS:-0}" = "0" ] && BUGS_COLOR="brightgreen" || BUGS_COLOR="red"
+          if [ "${BUGS:-0}" = "0" ]; then
+            BUGS_COLOR="brightgreen"
+          else
+            BUGS_COLOR="red"
+          fi
+
           # Trivy badge
           CRIT="${TRIVY_CRITICAL:-0}"; HIGH_CNT="${TRIVY_HIGH:-0}"
           if [ "$CRIT" -gt 0 ]; then
@@ -477,6 +499,7 @@ jobs:
           else
             TRIVY_MSG="clean"; TRIVY_COLOR="brightgreen"
           fi
+
           # Gitleaks badge — use LEAKS_COUNT (sourced from gitleaks_metrics.env)
           LEAKS_COUNT="${LEAKS_COUNT:-0}"
           if [ "$LEAKS_COUNT" -eq 0 ]; then
@@ -489,10 +512,10 @@ jobs:
 
           write_badge() {
             local filename="$1" label="$2" message="$3" color="$4"
-            cat > ".github/badges/${filename}" <<EOF
+            cat > "badges-output/${BRANCH_SLUG}/${filename}" <<EOF
           {"schemaVersion":1,"label":"${label}","message":"${message}","color":"${color}"}
           EOF
-            echo "Generated: .github/badges/${filename} → ${message} (${color})"
+            echo "Generated: badges-output/${BRANCH_SLUG}/${filename} → ${message} (${color})"
           }
 
           write_badge "ikanos-coverage.json"     "coverage"      "${COV_PCT}%"   "$COV_COLOR"
@@ -501,42 +524,17 @@ jobs:
           write_badge "ikanos-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
           write_badge "ikanos-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"
 
-      - name: Update README badge URLs for this branch
+      - name: Deploy badges to badges branch
         if: always()
-        run: |
-          if [ -f README.md ]; then
-            sed -i -E "s|(raw\.githubusercontent\.com/)[^/]+/[^/]+(/)[^/]+(/\.github/badges/)|\1${{ github.repository }}\2${{ github.ref_name }}\3|g" README.md
-          fi
-
-      - name: Commit badges to current branch
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/badges README.md
-          if git diff --staged --quiet; then
-            echo "No badge changes to commit."
-            exit 0
-          fi
-          git commit -m "chore: update badges for ${{ github.ref_name }}"
-
-          # Stash any leftover unstaged changes (build artifacts) so rebase can run
-          STASHED=false
-          if ! git diff --quiet || ! git diff --cached --quiet; then
-            git stash push -u -m "pre-rebase-stash"
-            STASHED=true
-          fi
-
-          for i in 1 2 3; do
-            git pull --rebase origin "${{ github.ref_name }}" && \
-            git push origin HEAD:"${{ github.ref_name }}" && break
-            echo "Push attempt $i failed, retrying..."
-            sleep 3
-          done
-
-          if [ "$STASHED" = true ]; then
-            git stash drop || true
-          fi
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./badges-output
+          publish_branch: badges
+          destination_dir: .
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
 
   integration-tests:
     uses: ./.github/workflows/validate-tuto-examples.yml
