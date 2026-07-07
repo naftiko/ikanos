@@ -150,7 +150,7 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 
 ## Code Style
 
-**Java** — follows Google Style. Configure VS Code with `Language Support for Java by Red Hat` and apply settings from [naftiko/naftiko-golden-repo — java](https://github.com/naftiko/naftiko-golden-repo/tree/main/java).
+**Java** — follows Google Style. Configure VS Code with `Language Support for Java by Red Hat` and apply settings from [naftiko/golden-repo-naftiko — java](https://github.com/naftiko/golden-repo-naftiko/tree/main/java).
 
 **Method visibility** — prefer package-private (no modifier) over `private` for methods that implement non-trivial logic. This allows direct unit testing from the same package without reflection. Reserve `private` for truly internal helpers that are trivially covered by public API tests (e.g. one-liner formatters, simple getters).
 
@@ -234,7 +234,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"` (see also *Working on Windows → Terminal & file I/O*)
 - When asked to review a PR, load and follow the `pr-review` skill via the `agents-shared`
   capability — see `.github/instructions/agents-shared.instructions.md` for the discovery
-  and sync procedure. The skill is served from `naftiko-golden-repo/agents-shared` (naftiko/shipyard#23).
+  and sync procedure. The skill is served from `golden-repo-naftiko/agents-shared` (naftiko/shipyard#23).
 - When asked to fix a bug, investigate an issue, or address PR review feedback, load and follow the `bugfix` skill via the `agents-shared` capability — see `.github/instructions/agents-shared.instructions.md` for the discovery and sync procedure — before doing anything else. It targets **Java/Maven** repositories (its build/test core assumes `mvn`); fixing a bash script or CI workflow that lives inside such a repo is in scope, but non-Java/Maven application code (C++, TypeScript, …) is not. It does **not** hardcode the repository name — it derives `<owner/repo>` from the working directory, so it is reusable across Java/Maven repos
 - When resuming after a context compaction (conversation summary), always re-read any active skill's `SKILL.md` before continuing — compaction erases step formalism, workflow constraints, and all details defined in the skill
 - When editing documentation, skill, or instruction files (`.md`, `SKILL.md`, `AGENTS.md`), re-read the **entire file** after applying edits and before committing — to catch terminology drift, broken cross-references, and inconsistencies between sections that targeted edits cannot detect

@@ -20,7 +20,7 @@ dependency-reduced-pom.xml
 
 # On-demand synced skill copies (never commit) — the transversal skills served by the
 # agents-shared capability (pr-review, bugfix, ikanos-capability) are versioned once in the
-# naftiko-golden-repo golden repo and fetched on demand via
+# golden-repo-naftiko golden repo and fetched on demand via
 # .github/instructions/agents-shared.instructions.md. Never commit these synced copies.
 .agents/skills/pr-review/
 .agents/skills/bugfix/
