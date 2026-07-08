@@ -68,7 +68,7 @@ If you still want to run the full pre-PR checks locally, install [Trivy](https:/
 
 The primary development environment is Windows with PowerShell. These rules are
 **environment hazards** that apply to *any* file you touch — Java, YAML capabilities,
-JSON schemas, blueprints, Markdown, anything — not just code. They are hard rules.
+JSON schemas, design docs, Markdown, anything — not just code. They are hard rules.
 
 ### Terminal & file I/O (PowerShell)
 
@@ -77,7 +77,7 @@ JSON schemas, blueprints, Markdown, anything — not just code. They are hard ru
 encoding (CP850 / Windows-1252), **not** UTF-8 — every multi-byte character (`—`, `→`,
 accented letters, emojis like 🔴🟡🔵) is mangled into mojibake (`ÔÇö`, `├ö├ç├Â`) **before**
 it is written. Adding `-Encoding utf8NoBOM` does **not** help: it re-encodes an
-already-corrupted string. This corrupts capability YAML, schema JSON, blueprints, and docs
+already-corrupted string. This corrupts capability YAML, schema JSON, design docs, and docs
 just as easily as source code.
 
 **Do — to materialise a Git blob, ref, or any file content into a file:**
