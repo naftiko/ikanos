@@ -40,11 +40,11 @@ jobs:
       - name: Copy schema and rules
         run: |
           cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
-             crafter/extensions/naftiko-crafter/src/resources/schemas/ikanos-schema.json
+             crafter/extensions/naftiko-crafter/src/formats/ikanos/schemas/ikanos-schema.json
 
-          rm -rf crafter/extensions/naftiko-crafter/src/resources/rules/*
+          rm -rf crafter/extensions/naftiko-crafter/src/formats/ikanos/rules/*
           cp -R ikanos/ikanos-spec/src/main/resources/rules/* \
-               crafter/extensions/naftiko-crafter/src/resources/rules/
+               crafter/extensions/naftiko-crafter/src/formats/ikanos/rules/
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
@@ -59,8 +59,8 @@ jobs:
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
             Updated files:
-            - `resources/schemas/ikanos-schema.json`
-            - `resources/rules/*`
+            - `formats/ikanos/schemas/ikanos-schema.json`
+            - `formats/ikanos/rules/*`
           delete-branch: true
 
   # Synchronize schema to schema-viewer repository.
