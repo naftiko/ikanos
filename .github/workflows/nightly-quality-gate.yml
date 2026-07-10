@@ -35,30 +35,11 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
-      - name: Start Microcks
-        run: |
-          docker run -d \
-            -p 8080:8080 \
-            quay.io/microcks/microcks-uber:latest  
-
-      - name: Wait for Microcks
-        run: |
-          sleep 15
-          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
-
-      - name: Import OpenAPI specs into Microcks
-        run: |
-          for file in .github/microcks/*.yaml; do
-            echo "Importing $file"
-            curl -s -X POST "http://localhost:8080/api/artifact/upload" \
-              -F "file=@$file"
-          done
-
       # Tutorial test fixtures already point to http://localhost:8080 (Refs #560).
       # The 'Patch baseUri' step has been removed.
 
       - name: Prepare shared path
-        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
+        run: ln -s modules/ikanos-engine/src/test/resources/tutorial/shared shared
 
       - name: Run tests + JaCoCo coverage
         run: mvn clean verify --no-transfer-progress
@@ -164,7 +145,7 @@ jobs:
       - name: Publish JaCoCo summary
         if: always()
         run: |
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           {
             echo ""
             echo "## JaCoCo Coverage"
@@ -192,7 +173,7 @@ jobs:
         if: always()
         with:
           name: jacoco-report
-          path: "ikanos-coverage/target/site/jacoco-aggregate/"
+          path: "modules/ikanos-coverage/target/site/jacoco-aggregate/"
           retention-days: 14
 
       - name: Start SonarQube
@@ -228,9 +209,9 @@ jobs:
             -v "${{ github.workspace }}:/usr/src" \
             sonarsource/sonar-scanner-cli \
             -Dsonar.projectKey=io.naftiko:ikanos \
-            -Dsonar.sources=ikanos-spec/src/main/java,ikanos-engine/src/main/java,ikanos-cli/src/main/java \
-            -Dsonar.java.binaries=ikanos-spec/target/classes,ikanos-engine/target/classes,ikanos-cli/target/classes \
-            -Dsonar.coverage.jacoco.xmlReportPaths=ikanos-coverage/target/site/jacoco-aggregate/jacoco.xml \
+            -Dsonar.sources=modules/ikanos-spec/src/main/java,modules/ikanos-engine/src/main/java,modules/ikanos-cli/src/main/java \
+            -Dsonar.java.binaries=modules/ikanos-spec/target/classes,modules/ikanos-engine/target/classes,modules/ikanos-cli/target/classes \
+            -Dsonar.coverage.jacoco.xmlReportPaths=modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.xml \
             -Dsonar.host.url=http://localhost:9000
 
       - name: Export + Publish SonarQube summary
@@ -421,7 +402,7 @@ jobs:
           source /tmp/trivy_metrics.env 2>/dev/null || true
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
 
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
 
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
@@ -454,7 +435,7 @@ jobs:
           source /tmp/gitleaks_metrics.env 2>/dev/null || true
 
           # Load JaCoCo coverage
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
             COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')

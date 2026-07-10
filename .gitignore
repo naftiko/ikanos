@@ -13,6 +13,7 @@ dependency-reduced-pom.xml
 # ─── Maven flatten plugin output ───────────────────────────────────────────────
 **/.flattened-pom.xml
 # ─── IDE ───────────────────────────────────────────────────────────────────────
+/.idea/
 **/.settings/
 **/.classpath
 **/.project

@@ -60,24 +60,24 @@ jobs:
       
       - name: Rename artifact (Unix)
         if: runner.os != 'Windows'
-        run: mv ikanos-cli/target/ikanos-cli ikanos-cli/target/${{ matrix.artifact_name }}
+        run: mv modules/ikanos-cli/target/ikanos-cli modules/ikanos-cli/target/${{ matrix.artifact_name }}
       
       - name: Rename artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Move-Item ikanos-cli\target\ikanos-cli.exe ikanos-cli\target\${{ matrix.artifact_name }}
+        run: Move-Item modules\ikanos-cli\target\ikanos-cli.exe modules\ikanos-cli\target\${{ matrix.artifact_name }}
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ikanos-cli/target/${{ matrix.artifact_name }}
+          path: modules/ikanos-cli/target/${{ matrix.artifact_name }}
       
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')  # Only create release when a new tag is pushed (not when action is manually triggered).
         uses: softprops/action-gh-release@v1
         with:
-          files: ikanos-cli/target/${{ matrix.artifact_name }}
+          files: modules/ikanos-cli/target/${{ matrix.artifact_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: |
           BIN="./bin/${{ matrix.artifact_name }}"
-          FIXTURE="ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
           OUT=$("$BIN" validate "$FIXTURE" 2>&1 || true)
           echo "$OUT"
           if echo "$OUT" | grep -E "ClassNotFoundException|NoSuchMethodException|ExceptionInInitializerError"; then
@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           BIN="./bin/${{ matrix.artifact_name }}"
-          FIXTURE="ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
           REST_PORT=9610
           "$BIN" serve "$FIXTURE" > serve.log 2>&1 &
           SERVE_PID=$!

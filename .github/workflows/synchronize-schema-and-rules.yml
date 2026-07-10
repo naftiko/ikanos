@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
-      - 'ikanos-spec/src/main/resources/rules/ikanos-rules.yml'
-      - 'ikanos-spec/src/main/resources/rules/functions/**'
+      - 'modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
+      - 'modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml'
+      - 'modules/ikanos-spec/src/main/resources/rules/functions/**'
   workflow_dispatch:
 
 jobs:
@@ -39,11 +39,11 @@ jobs:
 
       - name: Copy schema and rules
         run: |
-          cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos/modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              crafter/extensions/naftiko-crafter/src/formats/ikanos/schemas/ikanos-schema.json
 
           rm -rf crafter/extensions/naftiko-crafter/src/formats/ikanos/rules/*
-          cp -R ikanos/ikanos-spec/src/main/resources/rules/* \
+          cp -R ikanos/modules/ikanos-spec/src/main/resources/rules/* \
                crafter/extensions/naftiko-crafter/src/formats/ikanos/rules/
 
       - name: Create pull request
@@ -91,7 +91,7 @@ jobs:
 
       - name: Copy schema
         run: |
-          cp ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+          cp ikanos/modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
              schema-viewer/src/schemas/ikanos-schema.json
 
       - name: Create pull request

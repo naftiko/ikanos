@@ -32,6 +32,24 @@ deploy_remote(){
   deploy_central
 }
 
+print_central(){
+  local staging_dir="$(pwd)/target-staging-central"
+  rm -rf "$staging_dir"
+  mkdir -p "$staging_dir"
+
+  println "Building and staging artifacts locally..."
+  mvn clean deploy \
+    -DskipTests=true \
+    -DaltDeploymentRepository="local-staging::default::file://${staging_dir}" \
+    --no-transfer-progress
+
+  println ""
+  println "=== Artifacts that would be published to Maven Central ==="
+  find "$staging_dir" -type f | sed "s|^${staging_dir}/||" | sort
+  println "==========================================================="
+  println "Staged in: $staging_dir"
+}
+
 config_gpg(){
   if [ "$GPG_SIGNING_KEY" = "" ]; then
     println "ERROR: No GPG_SIGNING_KEY defined"
@@ -154,6 +172,7 @@ case "$1" in
   "config_maven_central"|"config_maven") config_maven_central ;;
   "config_maven_all") config_maven_all ;;
   "config_gpg") config_gpg ;;
+  "print_central"|"dry_run"|"dry-run") print_central ;;
   *)
     cat <<EOF | sed 's/^[ \t]*//'
       Usage: $0 <OPTION>

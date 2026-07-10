@@ -3,12 +3,12 @@
 FROM maven:3.9.15-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN sed -i 's|<module>ikanos-coverage</module>||g' pom.xml
-COPY ikanos-spec ./ikanos-spec
-COPY ikanos-engine ./ikanos-engine
-COPY ikanos-cli ./ikanos-cli
-COPY ikanos-docs ./ikanos-docs
-COPY ikanos-tunnel-ziti ./ikanos-tunnel-ziti
+RUN sed -i 's|<module>modules/ikanos-coverage</module>||g' pom.xml
+COPY modules/ikanos-spec ./modules/ikanos-spec
+COPY modules/ikanos-engine ./modules/ikanos-engine
+COPY modules/ikanos-cli ./modules/ikanos-cli
+COPY modules/ikanos-docs ./modules/ikanos-docs
+COPY modules/ikanos-tunnel-ziti ./modules/ikanos-tunnel-ziti
 
 # Build the jar
 RUN mvn clean package -DskipTests
@@ -23,7 +23,7 @@ LABEL org.opencontainers.image.title="Ikanos" \
 WORKDIR /app
 
 # Copy the built jar from the build stage
-COPY --from=build /app/ikanos-cli/target/ikanos.jar ikanos.jar
+COPY --from=build /app/modules/ikanos-cli/target/ikanos.jar ikanos.jar
 
 # Set the entrypoint to run the CLI jar and default to the runtime subcommand
 ENTRYPOINT ["java", "-jar", "ikanos.jar"]

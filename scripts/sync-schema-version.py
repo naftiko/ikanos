@@ -40,10 +40,10 @@ def main():
     # test fixtures and every shipped examples directory, so a new module or
     # example folder is covered automatically.
     search_paths = [
-        "ikanos-docs/tutorial",
+        "modules/ikanos-docs/tutorial",
     ]
     repo_root = Path(".")
-    search_paths += [str(p) for p in repo_root.glob("*/src/test/resources") if p.is_dir()]
+    search_paths += [str(p) for p in repo_root.glob("modules/*/src/test/resources") if p.is_dir()]
     search_paths += [
         str(p) for p in repo_root.rglob("schemas/examples")
         if p.is_dir() and "target" not in p.parts

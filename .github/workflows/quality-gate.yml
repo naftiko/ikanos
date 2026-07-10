@@ -37,28 +37,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
-      - name: Start Microcks
-        run: |
-          docker run -d \
-            -p 8080:8080 \
-            quay.io/microcks/microcks-uber:latest  
-
-      - name: Wait for Microcks
-        run: |
-          sleep 15
-          curl -sf http://localhost:8080/api/health || (echo "Microcks failed to start" && exit 1)
-
-      - name: Import OpenAPI specs into Microcks
-        run: |
-          for file in .github/microcks/*.yaml; do
-            echo "Importing $file"
-            curl -s -X POST "http://localhost:8080/api/artifact/upload" \
-              -F "file=@$file"
-          done
-
       - name: Patch baseUri in capability files
         run: |
-          TUTORIAL_DIR="ikanos-engine/src/test/resources/tutorial"
+          TUTORIAL_DIR="modules/ikanos-engine/src/test/resources/tutorial"
 
           get_base_uri() {
             case "$1" in
@@ -103,7 +84,7 @@ jobs:
           done
 
       - name: Prepare shared path
-        run: ln -s ikanos-engine/src/test/resources/tutorial/shared shared
+        run: ln -s modules/ikanos-engine/src/test/resources/tutorial/shared shared
 
       - name: Run tests + JaCoCo coverage
         run: mvn clean verify --no-transfer-progress
@@ -209,7 +190,7 @@ jobs:
       - name: Publish JaCoCo summary
         if: always()
         run: |
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           {
             echo ""
             echo "## JaCoCo Coverage"
@@ -237,13 +218,13 @@ jobs:
         if: always()
         with:
           name: jacoco-report
-          path: "ikanos-coverage/target/site/jacoco-aggregate/"
+          path: "modules/ikanos-coverage/target/site/jacoco-aggregate/"
           retention-days: 14
    
       - name: Metrics summary (non-main branches)
         if: github.ref != 'refs/heads/main'
         run: |
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
 
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
@@ -268,7 +249,7 @@ jobs:
           BRANCH_SLUG=$(echo "${{ github.ref_name }}" | tr '/' '-')
           mkdir -p "badges-output/${BRANCH_SLUG}"
 
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
             COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
@@ -305,11 +286,11 @@ jobs:
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-  
+
       - name: Build PR comment
         if: always() && github.event_name == 'pull_request'
         run: |
-          CSV="ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
+          CSV="modules/ikanos-coverage/target/site/jacoco-aggregate/jacoco.csv"
           if [ -f "$CSV" ]; then
             MISSED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$8} END {print sum+0}')
             COVERED=$(tail -n +2 "$CSV" | awk -F',' '{sum+=$9} END {print sum+0}')
@@ -343,4 +324,4 @@ jobs:
         with:
           header: quality-gate-report
           path: pr-comment-body.md
-          
+
