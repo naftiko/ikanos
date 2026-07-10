@@ -37,7 +37,7 @@ def extract_version_from_pom(pom_path="pom.xml"):
         sys.exit(1)
 
 
-def extract_version_from_schema(schema_path="ikanos-spec/src/main/resources/schemas/ikanos-schema.json"):
+def extract_version_from_schema(schema_path="modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json"):
     """Extracts the ikanos spec version from the JSON schema's properties.ikanos.const."""
     try:
         with open(schema_path, 'r', encoding='utf-8') as f:

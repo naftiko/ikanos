@@ -3,17 +3,17 @@ name: Lint Ikanos Capabilities
 on:
   push:
     paths:
-      - 'ikanos-spec/src/main/resources/schemas/**'
-      - 'ikanos-spec/src/main/resources/rules/**'
-      - 'ikanos-docs/tutorial/**'
-      - 'ikanos-spec/src/test/resources/**'
+      - 'modules/ikanos-spec/src/main/resources/schemas/**'
+      - 'modules/ikanos-spec/src/main/resources/rules/**'
+      - 'modules/ikanos-docs/tutorial/**'
+      - 'modules/ikanos-spec/src/test/resources/**'
       - '.mega-linter.yml'
   pull_request:
     paths:
-      - 'ikanos-spec/src/main/resources/schemas/**'
-      - 'ikanos-spec/src/main/resources/rules/**'
-      - 'ikanos-docs/tutorial/**'
-      - 'ikanos-spec/src/test/resources/**'
+      - 'modules/ikanos-spec/src/main/resources/schemas/**'
+      - 'modules/ikanos-spec/src/main/resources/rules/**'
+      - 'modules/ikanos-docs/tutorial/**'
+      - 'modules/ikanos-spec/src/test/resources/**'
       - '.mega-linter.yml'
   workflow_dispatch:
 

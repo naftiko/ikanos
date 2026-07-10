@@ -108,9 +108,9 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 ### Repository context
 
 - **Language**: Java 21, Maven (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
-- **Specification**: The Ikanos Specification defines the capability schema. See `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` for the latest JSON Schema.
-- **Examples**: `ikanos-spec/src/main/resources/schemas/examples/` contains capability examples. `ikanos-docs/tutorial/` contains step-by-step tutorial capabilities.
-- **Test fixtures**: `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` contain YAML capabilities used for unit tests.
+- **Specification**: The Ikanos Specification defines the capability schema. See `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` for the latest JSON Schema.
+- **Examples**: `modules/ikanos-spec/src/main/resources/schemas/examples/` contains capability examples. `modules/ikanos-docs/tutorial/` contains step-by-step tutorial capabilities.
+- **Test fixtures**: `modules/ikanos-engine/src/test/resources/` and `modules/ikanos-cli/src/test/resources/` contain YAML capabilities used for unit tests.
 - **Shipyard**: the [Naftiko Shipyard](https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/) contains the full specification, tutorials, FAQ, and use cases.
 
 ### Agent contribution rules
@@ -169,17 +169,17 @@ two rules:
 
 ### Key files for agent context
 
-| File / Path | Purpose |
-|---|---|
-| `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos Specification JSON Schema (latest) |
-| `ikanos-spec/src/main/resources/schemas/examples/` | Capability examples: `cir.yml`, `notion.yml`, `skill-adapter.yml`, `multi-consumes-*.yml`... |
-| `ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
-| `ikanos-docs/tutorial/` | Step-by-step tutorial capabilities (`step-1-` to `step-10-`) |
-| `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
-| `.github/workflows/` | CI/CD pipelines |
-| `scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
-| `scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
-| `CONTRIBUTING.md` | This file |
+| File / Path                                                                      | Purpose |
+|----------------------------------------------------------------------------------|---|
+| `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json`              | Ikanos Specification JSON Schema (latest) |
+| `modules/ikanos-spec/src/main/resources/schemas/examples/`                       | Capability examples: `cir.yml`, `notion.yml`, `skill-adapter.yml`, `multi-consumes-*.yml`... |
+| `modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml`                  | Polychro ruleset (cross-object consistency, quality, security) |
+| `modules/ikanos-docs/tutorial/`                                                  | Step-by-step tutorial capabilities (`step-1-` to `step-10-`) |
+| `modules/ikanos-engine/src/test/resources/` and `modules/ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
+| `.github/workflows/`                                                             | CI/CD pipelines |
+| `scripts/pr-check-wind.ps1`                                                      | Local pre-PR validation (Windows) |
+| `scripts/pr-check-mac-linux.sh`                                                  | Local pre-PR validation (Unix/macOS) |
+| `CONTRIBUTING.md`                                                                | This file |
 
 ---
 

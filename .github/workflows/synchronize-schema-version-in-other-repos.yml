@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
+      - 'modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json'
   workflow_dispatch:
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
         id: sync
         run: |
           VERSION=$(python3 ikanos/scripts/sync-schema-version-to-warden.py \
-            --schema ikanos/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
+            --schema ikanos/modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json \
             --target warden/templates/skeletons/capabilities)
           echo "value=${VERSION}" >> $GITHUB_OUTPUT
 

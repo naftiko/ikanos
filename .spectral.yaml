@@ -1,2 +1,2 @@
 extends:
-  - ./ikanos-spec/src/main/resources/rules/ikanos-rules.yml
+  - ./modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml

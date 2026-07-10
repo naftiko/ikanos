@@ -5,18 +5,18 @@
 **Ikanos** is the engine for [Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/spec-driven-integration/). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
 
 - **Language**: Java 21, Maven build system (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
-- **Specification**: `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
+- **Specification**: `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
 - **Shipyard**: https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/ (Specification, Tutorials, Use Cases, FAQ)
 
 ## Key Files
 
 | Path | Purpose |
 |---|---|
-| `ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos JSON Schema (source of truth) |
-| `ikanos-spec/src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
-| `ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
-| `ikanos-docs/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
-| `ikanos-engine/src/test/resources/` and `ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
+| `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos JSON Schema (source of truth) |
+| `modules/ikanos-spec/src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
+| `modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
+| `modules/ikanos-docs/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
+| `modules/ikanos-engine/src/test/resources/` and `modules/ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
 | `scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
 | `scripts/pr-check-mac-linux.sh` | Local pre-PR validation (Unix/macOS) |
 | `CONTRIBUTING.md` | Full contribution workflow |
@@ -30,17 +30,17 @@ All commands must be run from the repository root (`ikanos/`).
 mvn clean test --no-transfer-progress
 
 # Run a single module's tests after a clean (must also build upstream modules it depends on)
-# `clean` wipes the reactor outputs, so `-pl ikanos-engine` alone fails with
+# `clean` wipes the reactor outputs, so `-pl modules/ikanos-engine` alone fails with
 # "Could not find artifact io.ikanos:ikanos-spec" — add `-am` (also-make) to rebuild deps.
-# `-am` is precisely what pulls in ikanos-spec, so `-pl ikanos-engine -am` alone is enough;
-# listing ikanos-spec explicitly is redundant but harmless (kept here for readability):
-mvn clean test -pl ikanos-spec,ikanos-engine -am --no-transfer-progress
+# `-am` is precisely what pulls in ikanos-spec, so `-pl modules/ikanos-engine -am` alone is enough;
+# listing modules/ikanos-spec explicitly is redundant but harmless (kept here for readability):
+mvn clean test -pl modules/ikanos-spec,modules/ikanos-engine -am --no-transfer-progress
 
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
 docker build -f deployment/Dockerfile -t ikanos .
 
 # Build native CLI binary (requires GraalVM 21 — triggered by version tags in CI)
-mvn -B clean package -Pnative -pl ikanos-cli -am
+mvn -B clean package -Pnative -pl modules/ikanos-cli -am
 
 # Pre-PR validation (Windows)
 .\scripts\pr-check-wind.ps1
@@ -192,8 +192,8 @@ When writing or generating tests, follow these rules:
 When designing or modifying a Capability:
 
 **Do:**
-- Keep the [Ikanos Specification](ikanos-spec/src/main/resources/schemas/ikanos-schema.json) and the [Ikanos Rules](ikanos-spec/src/main/resources/rules/ikanos-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
-- Look at `ikanos-spec/src/main/resources/schemas/examples/` for patterns before writing new capabilities
+- Keep the [Ikanos Specification](modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json) and the [Ikanos Rules](modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml) as first-class citizens — the schema enforces structure, the rules enforce cross-object consistency, quality, and security
+- Look at `modules/ikanos-spec/src/main/resources/schemas/examples/` for patterns before writing new capabilities
 - When renaming a consumed field for a lookup `match`, also add a `ConsumedOutputParameter` on the consumed operation to map the raw field name to a kebab-case name — otherwise the lookup has nothing to match against
 - Use `aggregates` to define reusable domain flows when the same operation is exposed through multiple adapters (REST and MCP) — this follows the DDD Aggregate pattern: one definition, multiple projections
 - Declare `semantics` (safe, idempotent, cacheable) on aggregate flows to describe domain behavior — the engine derives MCP `hints` automatically
@@ -285,7 +285,7 @@ For every bug fix, two tests are required:
 
 **Unit test** — targets the smallest unit of code that contains the bug (method or class level). Place it in the test class corresponding to the fixed class (e.g. `ConverterTest`, `ResolverTest`). If the class has no test file yet, create one. If a test already covers the scenario but is wrong, fix the test first and explain why in a comment.
 
-**Integration test** — validates the fix end-to-end, typically loading a YAML capability fixture and exercising the full chain (deserialization → engine → output). Place the fixture under the appropriate module (`ikanos-engine/src/test/resources/` or `ikanos-cli/src/test/resources/`) and the test class in the package closest to the integration point (e.g. `io.ikanos.engine.exposes.mcp`).
+**Integration test** — validates the fix end-to-end, typically loading a YAML capability fixture and exercising the full chain (deserialization → engine → output). Place the fixture under the appropriate module (`modules/ikanos-engine/src/test/resources/` or `modules/ikanos-cli/src/test/resources/`) and the test class in the package closest to the integration point (e.g. `io.ikanos.engine.exposes.mcp`).
 
 Run the full test suite before committing:
 
