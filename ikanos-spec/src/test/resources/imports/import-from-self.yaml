@@ -1,6 +1,6 @@
 # Capability with an import `from` pointing to the current directory (bare dot).
 # Should trigger: ikanos-import-from-not-self
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta55"
 
 capability:
   consumes:

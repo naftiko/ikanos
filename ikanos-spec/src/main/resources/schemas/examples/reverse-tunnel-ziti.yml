@@ -8,7 +8,7 @@
 # At Phase 1 the engine does NOT yet wire the tunnel — this YAML validates
 # against the schema and the Polychro rules only. End-to-end execution lands
 # in Phases 2+ (embedded Ziti integration).
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta55"
 
 info:
   display: "CRM reverse-tunnel example"

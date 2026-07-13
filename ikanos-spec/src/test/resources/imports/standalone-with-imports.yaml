@@ -1,6 +1,6 @@
 # Standalone source file (no `capability` key) that contains an import entry.
 # Should trigger: ikanos-standalone-no-imports
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta55"
 
 exposes:
   - namespace: weather
