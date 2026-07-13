@@ -8,7 +8,7 @@
     "ikanos": {
       "type": "string",
       "description": "Ikanos specification version. Must be `1.0.0-beta1`. Signals schema compatibility \u2014 always the first key in a capability file.",
-      "const": "1.0.0-beta2"
+      "const": "1.0.0-beta55"
     },
     "info": {
       "$ref": "#/$defs/Info",
