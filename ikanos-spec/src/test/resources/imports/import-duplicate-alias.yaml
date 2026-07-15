@@ -4,7 +4,7 @@
 # Both entries resolve to effective namespace "weather":
 #   - entry 0: `import: weather` (no `as`)
 #   - entry 1: `import: forecast`, `as: weather`
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta3"
 
 capability:
   consumes:
