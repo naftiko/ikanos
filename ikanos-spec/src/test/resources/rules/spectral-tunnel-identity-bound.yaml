@@ -4,7 +4,7 @@
 # The tunnel.identity references the "secrets.ZITI_IDENTITY" key, and "secrets"
 # is declared in binds with a matching key. The custom function must accept this
 # document silently.
-ikanos: "1.0.0-beta2"
+ikanos: "1.0.0-beta3"
 
 info:
   display: "Reverse tunnel — bound identity reference"
