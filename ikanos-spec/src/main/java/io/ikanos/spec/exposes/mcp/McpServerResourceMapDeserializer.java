@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ExposesMcp.resources} named-object map. */
 public class McpServerResourceMapDeserializer extends NamedMapDeserializer<McpServerResourceSpec> {
     public McpServerResourceMapDeserializer() {
-        super(McpServerResourceSpec.class, McpServerResourceSpec::setName);
+        super(McpServerResourceSpec.class, (spec, name) -> spec.setName(name));
     }
 }

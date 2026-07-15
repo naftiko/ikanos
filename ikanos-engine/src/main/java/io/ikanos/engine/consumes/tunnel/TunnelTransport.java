@@ -114,7 +114,7 @@ public final class TunnelTransport implements Transport {
             ClientConnector clientConnector =
                     (ClientConnector) context.get(ClientConnector.CLIENT_CONNECTOR_CONTEXT_KEY);
             MemoryEndPointPipe pipe = new MemoryEndPointPipe(
-                    clientConnector.getScheduler(), Runnable::run, syntheticAddress);
+                    clientConnector.getScheduler(), r -> r.run(), syntheticAddress);
 
             EndPoint localEndPoint = pipe.getLocalEndPoint();
             EndPoint remoteEndPoint = pipe.getRemoteEndPoint();

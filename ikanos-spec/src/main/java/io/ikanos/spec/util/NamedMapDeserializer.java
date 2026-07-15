@@ -38,7 +38,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <pre>{@code
  *   NamedMapDeserializer<MySpec> d = new NamedMapDeserializer<>(
  *       MySpec.class,
- *       MySpec::setName
+ *       (spec, name) -> spec.setName(name)
  *   );
  * }</pre>
  *

@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code McpPrompt.arguments} named-object map. */
 public class McpPromptArgumentMapDeserializer extends NamedMapDeserializer<McpPromptArgumentSpec> {
     public McpPromptArgumentMapDeserializer() {
-        super(McpPromptArgumentSpec.class, McpPromptArgumentSpec::setName);
+        super(McpPromptArgumentSpec.class, (spec, name) -> spec.setName(name));
     }
 }

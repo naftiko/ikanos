@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ExposesMcp.tools} named-object map. */
 public class McpServerToolMapDeserializer extends NamedMapDeserializer<McpServerToolSpec> {
     public McpServerToolMapDeserializer() {
-        super(McpServerToolSpec.class, McpServerToolSpec::setName);
+        super(McpServerToolSpec.class, (spec, name) -> spec.setName(name));
     }
 }

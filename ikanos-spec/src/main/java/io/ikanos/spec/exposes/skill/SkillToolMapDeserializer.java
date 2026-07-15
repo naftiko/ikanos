@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ExposedSkill.tools} named-object map. */
 public class SkillToolMapDeserializer extends NamedMapDeserializer<SkillToolSpec> {
     public SkillToolMapDeserializer() {
-        super(SkillToolSpec.class, SkillToolSpec::setName);
+        super(SkillToolSpec.class, (spec, name) -> spec.setName(name));
     }
 }
