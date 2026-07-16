@@ -1,4 +1,4 @@
-name: Synchronize Ikanos Schema Version in Repository
+name: Synchronize Schema Version in Repository
 
 on:
   workflow_dispatch:
