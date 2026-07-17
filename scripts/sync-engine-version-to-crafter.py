@@ -18,7 +18,7 @@ def convert_pom_version_to_crafter_version(pom_version):
 
     - If the version is composed of 1 to 4 numbers separated by dots, and each
       number is between 0 and 2147483647, the version is returned as-is.
-    - If the version ends with "-betaX" (X being a number), returns "0.X".
+    - If the version ends with "-betaX" (X being a number), returns "0.X.0".
     - Otherwise, prints an error message and exits with status 1.
     """
     parts = pom_version.split(".")
@@ -29,7 +29,7 @@ def convert_pom_version_to_crafter_version(pom_version):
 
     match = re.search(r"-beta(\d+)$", pom_version)
     if match:
-        return f"0.{match.group(1)}"
+        return f"0.{match.group(1)}.0"
 
     print(f"Impossible to convert pom version {pom_version} to crafter version format", file=sys.stderr)
     sys.exit(1)
