@@ -67,8 +67,8 @@ jobs:
           path: crafter
           base: main
           branch: "chore/sync-ikanos-engine-version"
-          commit-message: "chore: sync Ikanos engine version to ${{ steps.sync.outputs.value }}"
-          title: "chore: sync Ikanos engine version to ${{ steps.sync.outputs.value }}"
+          commit-message: "chore: sync Ikanos engine version to crafter version ${{ steps.sync.outputs.value }}"
+          title: "chore: sync Ikanos engine version to crafter version ${{ steps.sync.outputs.value }}"
           body: |
             Automated sync from [ikanos@${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
 
