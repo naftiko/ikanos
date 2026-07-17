@@ -13,26 +13,8 @@
  */
 package io.ikanos.engine.exposes.rest;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.net.ServerSocket;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.restlet.Application;
-import org.restlet.Component;
-import org.restlet.Request;
-import org.restlet.Response;
-import org.restlet.Restlet;
-import org.restlet.data.MediaType;
-import org.restlet.data.Method;
-import org.restlet.data.Protocol;
-import org.restlet.data.Status;
-import org.restlet.representation.ByteArrayRepresentation;
-import org.restlet.routing.Router;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -40,6 +22,19 @@ import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.restlet.*;
+import org.restlet.data.MediaType;
+import org.restlet.data.Method;
+import org.restlet.data.Protocol;
+import org.restlet.data.Status;
+import org.restlet.representation.ByteArrayRepresentation;
+import org.restlet.routing.Router;
+
+import java.net.ServerSocket;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for the REST binary-response runtime branch (capability-binary-content.md
@@ -125,16 +120,10 @@ public class RestBinaryResponseIntegrationTest {
         Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
         upstream.start();
 
-        java.util.logging.Logger logger = org.restlet.Context.getCurrentLogger();
-        java.util.List<String> messages = new java.util.ArrayList<>();
-        java.util.logging.Handler captor = new java.util.logging.Handler() {
-            @Override public void publish(java.util.logging.LogRecord record) {
-                messages.add(record.getMessage());
-            }
-            @Override public void flush() { }
-            @Override public void close() { }
-        };
-        logger.addHandler(captor);
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) ((org.restlet.ext.slf4j.Slf4jLogger) org.restlet.Context.getCurrentLogger()).getSlf4jLogger();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
 
         try {
             Capability capability =
@@ -146,12 +135,13 @@ public class RestBinaryResponseIntegrationTest {
             assertEquals("image/jpeg", response.getEntity().getMediaType().getName());
             assertArrayEquals(JPEG_BYTES, readBytes(response));
 
-            assertTrue(messages.stream().anyMatch(m ->
-                    m != null && m.contains("Skipping outputParameters mappings for REST operation")),
-                    "expected an INFO log that outputParameters were skipped, got: " + messages);
+            assertTrue(appender.list.stream().anyMatch(m ->
+                    m != null && m.getMessage().contains("Skipping outputParameters mappings for REST operation")),
+                    "expected an INFO log that outputParameters were skipped, got: " + appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
         } finally {
-            logger.removeHandler(captor);
             upstream.stop();
+            logger.detachAppender(appender);
+            appender.stop();
         }
     }
 
