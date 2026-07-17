@@ -6,10 +6,33 @@ Script to synchronize the Ikanos engine version from pom.xml into the Naftiko Cr
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
 from ikanos_version import extract_version_from_pom
+
+
+def convert_pom_version_to_crafter_version(pom_version):
+    """Converts a pom.xml version string to a Crafter-compatible version format.
+
+    - If the version is composed of 1 to 4 numbers separated by dots, and each
+      number is between 0 and 2147483647, the version is returned as-is.
+    - If the version ends with "-betaX" (X being a number), returns "0.X".
+    - Otherwise, prints an error message and exits with status 1.
+    """
+    parts = pom_version.split(".")
+    if 1 <= len(parts) <= 4 and all(
+        part.isdigit() and 0 <= int(part) <= 2147483647 for part in parts
+    ):
+        return pom_version
+
+    match = re.search(r"-beta(\d+)$", pom_version)
+    if match:
+        return f"0.{match.group(1)}"
+
+    print(f"Impossible to convert pom version {pom_version} to crafter version format", file=sys.stderr)
+    sys.exit(1)
 
 
 def update_package_json_version(file_path, new_version):
@@ -41,15 +64,16 @@ def main():
     args = parser.parse_args()
 
     version = extract_version_from_pom(args.pom)
+    crafter_version = convert_pom_version_to_crafter_version(version)
 
     target = Path(args.target)
-    if update_package_json_version(target, version):
+    if update_package_json_version(target, crafter_version):
         print(f"   ✓ {target}", file=sys.stderr)
     else:
         print(f"   - {target} (no change)", file=sys.stderr)
 
     # Output clean version for workflow capture
-    print(version)
+    print(crafter_version)
 
 
 if __name__ == "__main__":
