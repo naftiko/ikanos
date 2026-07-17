@@ -186,6 +186,9 @@
                 <configuration>
                     <systemPropertyVariables>
                         <microcks.image>${microcks.image}</microcks.image>
+                        <org.restlet.engine.loggerFacadeClass>
+                            org.restlet.ext.slf4j.Slf4jLoggerFacade
+                        </org.restlet.engine.loggerFacadeClass>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

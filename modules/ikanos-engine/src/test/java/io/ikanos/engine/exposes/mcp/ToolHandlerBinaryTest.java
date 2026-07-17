@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
@@ -200,16 +203,11 @@ public class ToolHandlerBinaryTest {
         Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
         upstream.start();
 
-        java.util.logging.Logger logger = org.restlet.Context.getCurrentLogger();
-        java.util.List<String> messages = new java.util.ArrayList<>();
-        java.util.logging.Handler captor = new java.util.logging.Handler() {
-            @Override public void publish(java.util.logging.LogRecord record) {
-                messages.add(record.getMessage());
-            }
-            @Override public void flush() { }
-            @Override public void close() { }
-        };
-        logger.addHandler(captor);
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) ((org.restlet.ext.slf4j.Slf4jLogger) org.restlet.Context.getCurrentLogger()).getSlf4jLogger();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
 
         try {
             ToolHandler handler =
@@ -225,11 +223,10 @@ public class ToolHandlerBinaryTest {
             assertEquals("image/jpeg", image.mimeType());
             assertEquals(Base64.getEncoder().encodeToString(JPEG_BYTES), image.data());
 
-            assertTrue(messages.stream().anyMatch(m ->
-                    m != null && m.contains("Skipping outputParameters mappings for tool 'get-photo'")),
-                    "expected an INFO log that outputParameters were skipped, got: " + messages);
+            assertTrue(appender.list.stream().anyMatch(m ->
+                    m != null && m.getFormattedMessage().contains("Skipping outputParameters mappings for tool 'get-photo'")),
+                    "expected an INFO log that outputParameters were skipped, got: " + appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
         } finally {
-            logger.removeHandler(captor);
             upstream.stop();
         }
     }

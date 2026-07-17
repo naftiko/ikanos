@@ -20,6 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Application;
@@ -40,6 +43,8 @@ import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Integration tests for the REST binary-response runtime branch (capability-binary-content.md
@@ -55,6 +60,7 @@ public class RestBinaryResponseIntegrationTest {
             0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
             0x00, 0x01, 0x00, 0x00, (byte) 0xFF, (byte) 0xD9
     };
+    private static final Logger log = LoggerFactory.getLogger(RestBinaryResponseIntegrationTest.class);
 
     private String schemaVersion;
 
@@ -125,16 +131,11 @@ public class RestBinaryResponseIntegrationTest {
         Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
         upstream.start();
 
-        java.util.logging.Logger logger = org.restlet.Context.getCurrentLogger();
-        java.util.List<String> messages = new java.util.ArrayList<>();
-        java.util.logging.Handler captor = new java.util.logging.Handler() {
-            @Override public void publish(java.util.logging.LogRecord record) {
-                messages.add(record.getMessage());
-            }
-            @Override public void flush() { }
-            @Override public void close() { }
-        };
-        logger.addHandler(captor);
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) ((org.restlet.ext.slf4j.Slf4jLogger) org.restlet.Context.getCurrentLogger()).getSlf4jLogger();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
 
         try {
             Capability capability =
@@ -146,11 +147,10 @@ public class RestBinaryResponseIntegrationTest {
             assertEquals("image/jpeg", response.getEntity().getMediaType().getName());
             assertArrayEquals(JPEG_BYTES, readBytes(response));
 
-            assertTrue(messages.stream().anyMatch(m ->
-                    m != null && m.contains("Skipping outputParameters mappings for REST operation")),
-                    "expected an INFO log that outputParameters were skipped, got: " + messages);
+            assertTrue(appender.list.stream().anyMatch(m ->
+                    m != null && m.getMessage().contains("Skipping outputParameters mappings for REST operation")),
+                    "expected an INFO log that outputParameters were skipped, got: " + appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
         } finally {
-            logger.removeHandler(captor);
             upstream.stop();
         }
     }
