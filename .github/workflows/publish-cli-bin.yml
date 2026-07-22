@@ -35,7 +35,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Setup GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -68,14 +68,14 @@ jobs:
         run: Move-Item modules\ikanos-cli\target\ikanos-cli.exe modules\ikanos-cli\target\${{ matrix.artifact_name }}
       
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: modules/ikanos-cli/target/${{ matrix.artifact_name }}
       
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')  # Only create release when a new tag is pushed (not when action is manually triggered).
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: modules/ikanos-cli/target/${{ matrix.artifact_name }}
         env:
@@ -99,10 +99,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact_name }}
           path: ./bin

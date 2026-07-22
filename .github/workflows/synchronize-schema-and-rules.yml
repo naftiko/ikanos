@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
           private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
@@ -26,12 +26,12 @@ jobs:
           repositories: crafter
 
       - name: Checkout ikanos
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ikanos
 
       - name: Checkout crafter
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: naftiko/crafter
           token: ${{ steps.app-token.outputs.token }}
@@ -47,7 +47,7 @@ jobs:
                crafter/extensions/naftiko-crafter/src/formats/ikanos/rules/
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.app-token.outputs.token }}
           path: crafter
@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
           private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
@@ -78,12 +78,12 @@ jobs:
           repositories: schema-viewer
 
       - name: Checkout ikanos
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ikanos
 
       - name: Checkout schema-viewer
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: naftiko/schema-viewer
           token: ${{ steps.app-token.outputs.token }}
@@ -95,7 +95,7 @@ jobs:
              schema-viewer/src/schemas/ikanos-schema.json
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ steps.app-token.outputs.token }}
           path: schema-viewer
