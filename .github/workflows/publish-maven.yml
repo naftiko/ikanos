@@ -17,12 +17,12 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       
       - name: Prepare shared path
         run: ln -s modules/ikanos-engine/src/test/resources/tutorial/shared shared
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -38,12 +38,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Prepare shared path
         run: ln -s modules/ikanos-engine/src/test/resources/tutorial/shared shared
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -84,12 +84,12 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Prepare shared path
         run: ln -s modules/ikanos-engine/src/test/resources/tutorial/shared shared
         
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
