@@ -54,10 +54,10 @@ For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.
 
 ## Continue reading
 
-- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/installation/) — install via Docker or native binary
-- [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/concepts/use-cases/) — typical integration scenarios
-- [Schema](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/schema/) — the full reference for every keyword
-- [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/guide/linting/) — pair Ikanos with Polychro
-- [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-alpha4/roadmap/) — what's coming in upcoming alphas
+- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/installation/) — install via Docker or native binary
+- [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/concepts/use-cases/) — typical integration scenarios
+- [Schema](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/spec/) — the full reference for every keyword
+- [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/guide/linting/) — pair Ikanos with Polychro
+- [Roadmap](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/roadmap/) — what's coming in upcoming alphas
 
 <img src="https://naftiko.github.io/docs/images/navi/navi_hello.svg" width="50">
