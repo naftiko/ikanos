@@ -84,6 +84,8 @@
         <avro.version>1.11.4</avro.version>
         <json-smart.version>2.5.2</json-smart.version>
         <junit.jupiter.version>5.12.2</junit.jupiter.version>
+        <assertj.version>3.27.7</assertj.version>
+        <mockito.version>5.23.0</mockito.version>
         <jacoco.version>0.8.13</jacoco.version>
         <slf4j.version>2.0.17</slf4j.version>
         <opentelemetry.version>1.48.0</opentelemetry.version>
@@ -328,6 +330,18 @@
                 <groupId>io.opentelemetry</groupId>
                 <artifactId>opentelemetry-sdk-testing</artifactId>
                 <version>${opentelemetry.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>

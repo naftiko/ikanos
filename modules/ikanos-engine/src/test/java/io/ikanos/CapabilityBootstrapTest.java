@@ -13,16 +13,15 @@
  */
 package io.ikanos;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class CapabilityBootstrapTest {
 
@@ -35,7 +34,7 @@ public class CapabilityBootstrapTest {
 
     @Test
     public void constructorShouldFailWhenNoExposesDefined() throws Exception {
-        IkanosSpec spec = parseYaml("""
+        IkanosSpec spec = TestUtils.parseYaml("""
                 ikanos: "%s"
                 capability:
                   exposes: []
@@ -49,7 +48,7 @@ public class CapabilityBootstrapTest {
 
     @Test
     public void constructorShouldCreateServerAndClientAdapters() throws Exception {
-        IkanosSpec spec = parseYaml("""
+        IkanosSpec spec = TestUtils.parseYaml("""
                 ikanos: "%s"
                 capability:
                   exposes:
@@ -79,15 +78,21 @@ public class CapabilityBootstrapTest {
         assertEquals(1, capability.getServerAdapters().size());
         assertEquals(1, capability.getClientAdapters().size());
     }
-
+    
     @Test
-    public void constructorShouldResolveRuntimeBindings() throws Exception {
-        IkanosSpec spec = parseYaml("""
+    void gettingBindingsShouldReturnResolvedValues() throws Exception {
+        // Given
+        IkanosSpec spec = TestUtils.parseYaml("""
                 ikanos: "%s"
                 binds:
                   - namespace: "env"
                     keys:
-                      env_path: PATH
+                      path: PATH
+                  - namespace: "env2"
+                    description: "Environment 2"
+                    location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
+                    keys:
+                      registry_token: registry-bearer-token
                 capability:
                   exposes:
                     - type: "rest"
@@ -101,16 +106,16 @@ public class CapabilityBootstrapTest {
                               name: "list-orders"
                   consumes: []
                 """.formatted(schemaVersion));
-
         Capability capability = new Capability(spec);
+        
+        // When
+        Object path = capability.getBindings().get("path");
+        Object registryToken = capability.getBindings().get("registry_token");
+        Object unknown = capability.getBindings().get("unknown");
 
-        Object value = capability.getBindings().get("env_path");
-        assertTrue(value != null && !String.valueOf(value).isBlank());
-    }
-
-    private static IkanosSpec parseYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return mapper.readValue(yaml, IkanosSpec.class);
+        // Then
+        assertThat(path).isNotNull();
+        assertThat(registryToken).isEqualTo("dummy-token");
+        assertThat(unknown).isNull();
     }
 }

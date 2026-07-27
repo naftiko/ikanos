@@ -36,6 +36,7 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -167,6 +168,7 @@ public class HttpClientAdapter extends ClientAdapter {
         AuthenticationSpec authenticationSpec = getHttpClientSpec().getAuthentication();
 
         if (authenticationSpec != null) {
+            Map<String, Object> extendedParameters = getRequestParametersWithBindings(parameters);
             // Add authentication headers if needed
             String type = authenticationSpec.getType();
             ChallengeResponse challengeResponse = null;
@@ -177,9 +179,9 @@ public class HttpClientAdapter extends ClientAdapter {
                             (BasicAuthenticationSpec) authenticationSpec;
                     challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
                     challengeResponse.setIdentifier(
-                            Resolver.resolveMustacheTemplate(basicAuth.getUsername(), parameters));
+                            Resolver.resolveMustacheTemplate(basicAuth.getUsername(), extendedParameters));
                     challengeResponse.setSecret(Resolver
-                            .resolveMustacheTemplate(new String(basicAuth.getPassword()), parameters)
+                            .resolveMustacheTemplate(new String(basicAuth.getPassword()), extendedParameters)
                             .toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
@@ -189,9 +191,9 @@ public class HttpClientAdapter extends ClientAdapter {
                             (DigestAuthenticationSpec) authenticationSpec;
                     challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_DIGEST);
                     challengeResponse.setIdentifier(
-                            Resolver.resolveMustacheTemplate(digestAuth.getUsername(), parameters));
+                            Resolver.resolveMustacheTemplate(digestAuth.getUsername(), extendedParameters));
                     challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                            new String(digestAuth.getPassword()), parameters).toCharArray());
+                            new String(digestAuth.getPassword()), extendedParameters).toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
 
@@ -200,16 +202,16 @@ public class HttpClientAdapter extends ClientAdapter {
                             (BearerAuthenticationSpec) authenticationSpec;
                     challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_OAUTH_BEARER);
                     challengeResponse.setRawValue(
-                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), parameters));
+                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), extendedParameters));
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
 
                 case "apikey":
                     ApiKeyAuthenticationSpec apiKeyAuth =
                             (ApiKeyAuthenticationSpec) authenticationSpec;
-                    String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), parameters);
+                    String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), extendedParameters);
                     String value =
-                            Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
+                            Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), extendedParameters);
                     String placement = apiKeyAuth.getPlacement();
 
                     if (placement == null) {
@@ -233,6 +235,23 @@ public class HttpClientAdapter extends ClientAdapter {
             // Use existing challenge response if present
             clientRequest.setChallengeResponse(serverRequest.getChallengeResponse());
         }
+    }
+
+    private Map<String, Object> getRequestParametersWithBindings(Map<String, Object> parameters) {
+        Map<String, Object> extendedParameters = new HashMap<>();
+
+        if (parameters != null) {
+            extendedParameters.putAll(parameters);
+        }
+
+        if (getCapability() != null) {
+            Map<String, Object> bindings = getCapability().getBindings();
+            if (bindings != null) {
+                extendedParameters.putAll(bindings);
+            }
+        }
+
+        return extendedParameters;
     }
 
     public Client getHttpClient() {

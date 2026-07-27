@@ -15,10 +15,6 @@ package io.ikanos.engine.exposes;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import org.restlet.Context;
 import org.restlet.Restlet;
 import org.restlet.Server;
@@ -30,9 +26,6 @@ import org.restlet.security.Verifier;
 import io.ikanos.Capability;
 import io.ikanos.engine.Adapter;
 import io.ikanos.engine.util.Resolver;
-import io.ikanos.spec.util.BindingKeysSpec;
-import io.ikanos.spec.util.BindingSpec;
-import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -95,30 +88,6 @@ public abstract class ServerAdapter extends Adapter {
     }
 
     /**
-     * Extracts all allowed variable names from the capability spec's bindings. These are the
-     * variable names defined in the binds keys mapping.
-     *
-     * @param spec The Naftiko spec
-     * @return Set of allowed variable names from binds declarations
-     */
-    public static Set<String> extractAllowedVariables(IkanosSpec spec) {
-        Set<String> allowed = new HashSet<>();
-
-        if (spec == null || spec.getBinds() == null) {
-            return allowed;
-        }
-
-        for (BindingSpec bind : spec.getBinds()) {
-            BindingKeysSpec keysSpec = bind.getKeys();
-            if (keysSpec != null && keysSpec.getKeys() != null) {
-                allowed.addAll(keysSpec.getKeys().keySet());
-            }
-        }
-
-        return allowed;
-    }
-
-    /**
      * Builds the Restlet handler chain, optionally wrapping the next restlet with an
      * authentication filter based on the adapter's spec. Subclasses may override
      * {@link #createOAuth2Restlet} to provide adapter-specific OAuth 2.1 behaviour.
@@ -139,9 +108,7 @@ public abstract class ServerAdapter extends Adapter {
             return createOAuth2Restlet(oauth2, next);
         }
 
-        Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
-        return new ServerAuthenticationRestlet(authentication, next, allowedVariables,
-                getCapability().getBindings());
+        return new ServerAuthenticationRestlet(authentication, next, getCapability().getBindings());
     }
 
     /**
@@ -157,8 +124,6 @@ public abstract class ServerAdapter extends Adapter {
                 ? ChallengeScheme.HTTP_DIGEST
                 : ChallengeScheme.HTTP_BASIC;
 
-        Set<String> allowedVariables = extractAllowedVariables(getCapability().getSpec());
-        Map<String, Object> bindings = getCapability().getBindings();
         ChallengeAuthenticator authenticator =
                 new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos");
         authenticator.setVerifier(new SecretVerifier() {
@@ -169,11 +134,11 @@ public abstract class ServerAdapter extends Adapter {
                 char[] expectedPassword = null;
 
                 if (authentication instanceof BasicAuthenticationSpec basic) {
-                    expectedUsername = resolveTemplate(basic.getUsername(), allowedVariables, bindings);
-                    expectedPassword = resolveTemplateChars(basic.getPassword(), allowedVariables, bindings);
+                    expectedUsername = resolveTemplate(basic.getUsername());
+                    expectedPassword = resolveTemplateChars(basic.getPassword());
                 } else if (authentication instanceof DigestAuthenticationSpec digest) {
-                    expectedUsername = resolveTemplate(digest.getUsername(), allowedVariables, bindings);
-                    expectedPassword = resolveTemplateChars(digest.getPassword(), allowedVariables, bindings);
+                    expectedUsername = resolveTemplate(digest.getUsername());
+                    expectedPassword = resolveTemplateChars(digest.getPassword());
                 }
 
                 if (expectedUsername == null || expectedPassword == null || identifier == null
@@ -192,37 +157,19 @@ public abstract class ServerAdapter extends Adapter {
         return authenticator;
     }
 
-    private static String resolveTemplate(String value, Set<String> allowedVariables,
-            Map<String, Object> bindings) {
+    private String resolveTemplate(String value) {
         if (value == null) {
             return null;
         }
-        Map<String, Object> env = new HashMap<>();
-        if (value.contains("{{") && value.contains("}}")) {
-            for (String varName : allowedVariables) {
-                // Prefer resolved bindings (file-based or injected) over env vars
-                if (bindings != null && bindings.containsKey(varName)) {
-                    Object bindingValue = bindings.get(varName);
-                    if (bindingValue != null) {
-                        env.put(varName, bindingValue);
-                        continue;
-                    }
-                }
-                String varValue = System.getenv(varName);
-                if (varValue != null) {
-                    env.put(varName, varValue);
-                }
-            }
-        }
-        return Resolver.resolveMustacheTemplate(value, env);
+
+        return Resolver.resolveMustacheTemplate(value, getCapability().getBindings());
     }
 
-    private static char[] resolveTemplateChars(char[] value, Set<String> allowedVariables,
-            Map<String, Object> bindings) {
+    private char[] resolveTemplateChars(char[] value) {
         if (value == null) {
             return null;
         }
-        String resolved = resolveTemplate(new String(value), allowedVariables, bindings);
+        String resolved = resolveTemplate(new String(value));
         return resolved == null ? null : resolved.toCharArray();
     }
 

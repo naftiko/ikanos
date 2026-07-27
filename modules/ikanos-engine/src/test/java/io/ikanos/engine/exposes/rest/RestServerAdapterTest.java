@@ -13,21 +13,18 @@
  */
 package io.ikanos.engine.exposes.rest;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.util.Set;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.restlet.Restlet;
-import org.restlet.security.ChallengeAuthenticator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
-import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.restlet.Restlet;
+import org.restlet.security.ChallengeAuthenticator;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RestServerAdapterTest {
   private String schemaVersion;
@@ -87,27 +84,6 @@ public class RestServerAdapterTest {
 
         Restlet chain = adapter.getServer().getNext();
         assertTrue(chain instanceof ChallengeAuthenticator);
-    }
-
-    @Test
-    public void extractAllowedVariablesShouldReturnAllBindingKeys() throws Exception {
-        IkanosSpec spec = parseYaml("""
-                ikanos: "%s"
-                binds:
-                  - namespace: "env"
-                    keys:
-                      auth_token: AUTH_TOKEN
-                      api_key: API_KEY
-                capability:
-                  exposes: []
-                  consumes: []
-                """.formatted(schemaVersion));
-
-        Set<String> keys = ServerAdapter.extractAllowedVariables(spec);
-
-        assertEquals(2, keys.size());
-        assertTrue(keys.contains("auth_token"));
-        assertTrue(keys.contains("api_key"));
     }
 
     private static RestServerAdapter adapterFromYaml(String yaml) throws Exception {

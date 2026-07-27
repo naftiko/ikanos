@@ -1,11 +1,11 @@
 /**
  * Copyright 2025-2026 Naftiko
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -13,50 +13,37 @@
  */
 package io.ikanos.engine.exposes;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
-import io.ikanos.engine.util.Resolver;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
-import io.ikanos.spec.consumes.http.AuthenticationSpec;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Map;
 
 /**
  * Restlet responsible for API server-side authentication for bearer and apikey schemes.
  */
 public class ServerAuthenticationRestlet extends Restlet {
 
-    private static final Pattern ENV_MUSTACHE =
-            Pattern.compile("\\{\\{\\s*([A-Za-z0-9_\\-]+)\\s*\\}\\}");
-
     private final AuthenticationSpec authentication;
     private final Restlet next;
-    private final Set<String> allowedVariables;
     private final Map<String, Object> bindings;
 
     public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next) {
-        this(authentication, next, null, null);
+        this(authentication, next, null);
     }
 
     public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
-            Set<String> allowedVariables) {
-        this(authentication, next, allowedVariables, null);
-    }
-
-    public ServerAuthenticationRestlet(AuthenticationSpec authentication, Restlet next,
-            Set<String> allowedVariables, Map<String, Object> bindings) {
+                                       Map<String, Object> bindings) {
         this.authentication = authentication;
         this.next = next;
-        this.allowedVariables = allowedVariables != null ? allowedVariables : Set.of();
         this.bindings = bindings != null ? bindings : Map.of();
     }
 
@@ -154,35 +141,7 @@ public class ServerAuthenticationRestlet extends Restlet {
             return null;
         }
 
-        Map<String, Object> variables = new HashMap<>();
-
-        Matcher matcher = ENV_MUSTACHE.matcher(rawValue);
-
-        while (matcher.find()) {
-            String variableName = matcher.group(1);
-
-            // Only resolve variables that are explicitly declared in binds
-            if (!allowedVariables.isEmpty() && !allowedVariables.contains(variableName)) {
-                continue;
-            }
-
-            // Prefer resolved bindings (file-based or injected) over env vars
-            if (bindings.containsKey(variableName)) {
-                Object bindingValue = bindings.get(variableName);
-                if (bindingValue != null) {
-                    variables.put(variableName, bindingValue);
-                    continue;
-                }
-            }
-
-            String envValue = System.getenv(variableName);
-
-            if (envValue != null) {
-                variables.put(variableName, envValue);
-            }
-        }
-
-        return Resolver.resolveMustacheTemplate(rawValue, variables);
+        return Resolver.resolveMustacheTemplate(rawValue, bindings);
     }
 
     private boolean secureEquals(String expected, String actual) {
