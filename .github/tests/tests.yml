@@ -78,6 +78,26 @@ tests:
       - jq: 'has("flag")'
       - jq: 'has("status")'
 
+  - name: step3-get-ship-no-token
+    file: step-3-shipyard-auth.yml
+    port: 3001
+    tool: get-ship
+    token: none
+    expectStatus: 401
+    args:
+      imo: "IMO-9321483"
+    validations: []
+
+  - name: step3-get-ship-invalid-token
+    file: step-3-shipyard-auth.yml
+    port: 3001
+    tool: get-ship
+    token: not-a-real-token
+    expectStatus: 401
+    args:
+      imo: "IMO-9321483"
+    validations: []
+
   - name: step4-get-ship-shaped
     file: step-4-shipyard-output-shaping.yml
     port: 3001

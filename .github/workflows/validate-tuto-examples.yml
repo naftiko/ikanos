@@ -103,9 +103,21 @@ jobs:
           echo "-----------------------------------"
 
           ARGS=$(yq -o=json ".tests[$i].args // {}" $TEST_FILE)
-          
+
           # Determine test type FIRST (before health check)
           TYPE=$(yq -r ".tests[$i].type // \"mcp\"" $TEST_FILE)
+
+          # Optional auth override for the MCP tools/call request:
+          #   unset      -> default $MCP_SERVER_TOKEN (unchanged behavior)
+          #   "none"     -> omit the Authorization header entirely
+          #   any string -> sent verbatim as the Bearer token (e.g. an invalid one)
+          TOKEN_OVERRIDE=$(yq -r ".tests[$i].token // \"\"" $TEST_FILE)
+
+          # Optional expected HTTP status for the tools/call request.
+          # When set, the response's HTTP status is asserted; if it is not
+          # 200, the tool-result parsing/validation below is skipped since
+          # a rejected request has no MCP tool result to parse.
+          EXPECT_STATUS=$(yq -r ".tests[$i].expectStatus // \"\"" $TEST_FILE)
 
           # Start server with a timeout guard
           timeout 120 java -jar modules/ikanos-cli/target/ikanos.jar serve modules/ikanos-engine/src/test/resources/tutorial/$FILE &
@@ -174,9 +186,18 @@ jobs:
             DATA="$RESPONSE"
 
           else
-            RESPONSE=$(curl -s http://localhost:$PORT \
+            AUTH_ARGS=()
+            if [ "$TOKEN_OVERRIDE" = "none" ]; then
+              : # no Authorization header
+            elif [ -n "$TOKEN_OVERRIDE" ]; then
+              AUTH_ARGS=(-H "Authorization: Bearer $TOKEN_OVERRIDE")
+            else
+              AUTH_ARGS=(-H "Authorization: Bearer $MCP_SERVER_TOKEN")
+            fi
+
+            HTTP_RESPONSE=$(curl -s -w '\n%{http_code}' http://localhost:$PORT \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $MCP_SERVER_TOKEN" \
+              "${AUTH_ARGS[@]}" \
               -d "{
                 \"jsonrpc\": \"2.0\",
                 \"id\": 1,
@@ -186,6 +207,31 @@ jobs:
                   \"arguments\": $ARGS
                 }
               }")
+
+            HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n1)
+            RESPONSE=$(echo "$HTTP_RESPONSE" | sed '$d')
+
+            if [ -n "$EXPECT_STATUS" ]; then
+              if [ "$HTTP_STATUS" != "$EXPECT_STATUS" ]; then
+                echo "Expected HTTP status $EXPECT_STATUS but got $HTTP_STATUS"
+                echo "Response body: $RESPONSE"
+                cleanup
+                exit 1
+              fi
+              echo "HTTP status $HTTP_STATUS matched expected $EXPECT_STATUS"
+
+              if [ "$EXPECT_STATUS" != "200" ]; then
+                echo "Test $NAME passed :)"
+                cleanup
+                for j in {1..10}; do
+                  if ! curl -s http://localhost:$PORT > /dev/null 2>&1; then
+                    break
+                  fi
+                  sleep 1
+                done
+                continue
+              fi
+            fi
 
             IS_ERROR=$(echo "$RESPONSE" | jq -r '.result.isError // false')
             DATA=$(echo "$RESPONSE" | jq -r '.result.content[0].text')
