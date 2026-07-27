@@ -13,20 +13,24 @@
  */
 package io.ikanos.engine.consumes.http;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import io.ikanos.Capability;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.data.Method;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
-import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
-import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
+
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HttpClientAdapterTest {
 
@@ -39,14 +43,11 @@ public class HttpClientAdapterTest {
         authentication.setPassword("{{password}}".toCharArray());
         spec.setAuthentication(authentication);
 
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of("username", "alice", "password", "secret")), spec);
         Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
-        Map<String, Object> parameters = new ConcurrentHashMap<>();
-        parameters.put("username", "alice");
-        parameters.put("password", "secret");
 
         adapter.setChallengeResponse(null, clientRequest,
-                clientRequest.getResourceRef().toString(), parameters);
+                clientRequest.getResourceRef().toString(), Map.of());
 
         assertNotNull(clientRequest.getChallengeResponse());
         assertEquals("alice", clientRequest.getChallengeResponse().getIdentifier());
@@ -67,7 +68,7 @@ public class HttpClientAdapterTest {
         authentication.setPassword("digest-pass".toCharArray());
         spec.setAuthentication(authentication);
 
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()), spec);
         Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
 
         adapter.setChallengeResponse(null, clientRequest,
@@ -93,11 +94,11 @@ public class HttpClientAdapterTest {
         authentication.setValue("{{token}}");
         spec.setAuthentication(authentication);
 
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of("token", "abc123")), spec);
         Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
 
         adapter.setChallengeResponse(null, clientRequest,
-                clientRequest.getResourceRef().toString(), Map.of("token", "abc123"));
+                clientRequest.getResourceRef().toString(), Map.of());
 
         assertEquals("https://api.example.com/v1/items?api_key=abc123",
                 clientRequest.getResourceRef().toString());
@@ -106,7 +107,7 @@ public class HttpClientAdapterTest {
     @Test
     public void shouldForwardExistingServerChallengeResponseWhenClientAuthIsAbsent() {
         HttpClientSpec spec = new HttpClientSpec("forwarded", "https://api.example.com", null);
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()), spec);
 
         Request serverRequest = new Request(Method.GET, "https://upstream.example.com");
         ChallengeResponse upstreamChallenge = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
@@ -133,7 +134,7 @@ public class HttpClientAdapterTest {
         authentication.setValue("MY_API_KEY");
         spec.setAuthentication(authentication);
 
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()), spec);
         Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -141,5 +142,11 @@ public class HttpClientAdapterTest {
                         clientRequest.getResourceRef().toString(), Map.of()));
         assertEquals("Placement is required for apikey authentication (expected: header or query)",
                 ex.getMessage());
+    }
+
+    private Capability getMockCapability(Map<String, Object> bindings) {
+        Capability capability = mock(Capability.class);
+        when(capability.getBindings()).thenReturn(bindings);
+        return capability;
     }
 }

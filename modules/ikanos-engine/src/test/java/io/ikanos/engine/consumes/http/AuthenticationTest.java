@@ -13,39 +13,71 @@
  */
 package io.ikanos.engine.consumes.http;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import io.ikanos.Capability;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
+
+import java.util.Map;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class AuthenticationTest {
 
-    @Test
-    public void bearerAuthenticationShouldSetAuthorizationHeader() {
-        HttpClientSpec spec = new HttpClientSpec("notion", "https://api.notion.com/v1", null);
+    private String schemaVersion;
 
+    @BeforeEach
+    public void setUp() {
+        schemaVersion = VersionHelper.getSchemaVersion();
+    }
+
+    @Test
+    public void bearerAuthenticationShouldSetAuthorizationHeader() throws Exception {
+        // Given
+        Capability capability = getCapability();
         BearerAuthenticationSpec authentication = new BearerAuthenticationSpec();
         authentication.setType("bearer");
-        authentication.setToken("{{notion_api_key}}");
-        spec.setAuthentication(authentication);
+        authentication.setToken("{{notion_token}}");
+        HttpClientSpec spec = new HttpClientSpec("notion", "https://api.notion.com/v1", authentication);
 
-        HttpClientAdapter adapter = new HttpClientAdapter(null, spec);
+        HttpClientAdapter adapter = new HttpClientAdapter(capability, spec);
         Request clientRequest = new Request(Method.GET, "https://api.notion.com/v1/pages");
 
-        Map<String, Object> parameters = new ConcurrentHashMap<>();
-        parameters.put("notion_api_key", "ntn_test_abc123");
-
+        // When
         adapter.setChallengeResponse(null, clientRequest,
-                clientRequest.getResourceRef().toString(), parameters);
+                clientRequest.getResourceRef().toString(), Map.of());
 
-        assertNotNull(clientRequest.getChallengeResponse(),
-                "Bearer auth should use Restlet ChallengeResponse");
-        assertEquals("ntn_test_abc123", clientRequest.getChallengeResponse().getRawValue(),
-                "Bearer token should be set as challenge raw value");
+        // Then
+        assertThat(clientRequest.getChallengeResponse().getRawValue()).isEqualTo("notion-token");
+    }
+
+    private Capability getCapability() throws Exception {
+        IkanosSpec spec = TestUtils.parseYaml("""
+                ikanos: "%s"
+                binds:
+                  - namespace: "registry"
+                    location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
+                    keys:
+                      notion_token: "notion_api_key"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "orders-api"
+                      resources:
+                        - path: "/orders"
+                          operations:
+                            - method: "GET"
+                              name: "list-orders"
+                  consumes: []
+                """.formatted(schemaVersion));
+        return new Capability(spec);
     }
 }

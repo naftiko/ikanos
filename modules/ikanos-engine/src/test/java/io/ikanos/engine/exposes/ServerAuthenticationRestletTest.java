@@ -117,7 +117,7 @@ public class ServerAuthenticationRestletTest {
     }
 
     @Test
-    public void bearerWithoutAllowedVariablesShouldNotResolveEnvironmentVariable() {
+    public void bearerWithoutBindingsShouldNotResolveEnvironmentVariable() {
         // Setup environment variable
         String envVarName = "TEST_UNDECLARED_TOKEN_456";
         String envVarValue = "secret-token-from-env";
@@ -135,10 +135,10 @@ public class ServerAuthenticationRestletTest {
             }
         };
 
-        // Create restlet WITHOUT allowed variables (empty set)
+        // Create restlet WITHOUT bindings
         // This means no external refs were declared
         ServerAuthenticationRestlet secured = 
-            new ServerAuthenticationRestlet(auth, next, Set.of());
+            new ServerAuthenticationRestlet(auth, next, Map.of());
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer secret-token-from-env");
@@ -152,7 +152,7 @@ public class ServerAuthenticationRestletTest {
     }
 
     @Test
-    public void bearerWithAllowedVariablesShouldResolveOnlyDeclaredVariables() {
+    public void bearerWithBindingShouldResolveOnlyDeclaredVariables() {
         BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
         auth.setToken("{{declared_token}}");
 
@@ -167,23 +167,29 @@ public class ServerAuthenticationRestletTest {
         // Create restlet WITH allowed variables set
         // This simulates bindings declaring this variable
         ServerAuthenticationRestlet secured = 
-            new ServerAuthenticationRestlet(auth, next, Set.of("declared_token"));
+            new ServerAuthenticationRestlet(auth, next, Map.of("declared_token", "my-token-123"));
         
-        Request request = new Request(Method.GET, "http://localhost/test");
-        request.getHeaders().set("Authorization", "Bearer my-token-123");
-        Response response = new Response(request);
+        Request request1 = new Request(Method.GET, "http://localhost/test");
+        request1.getHeaders().set("Authorization", "Bearer my-token-123");
+        Response response1 = new Response(request1);
+
+        Request request2 = new Request(Method.GET, "http://localhost/test");
+        request2.getHeaders().set("Authorization", "Bearer my-token-456");
+        Response response2 = new Response(request2);
 
         // Note: In a real scenario, the environment would have DECLARED_TOKEN set
         // but we're testing the mechanism that prevents undeclared ones
-        secured.handle(request, response);
+        secured.handle(request1, response1);
+        secured.handle(request2, response2);
 
         // Will be unauthorized because environment var is not set, but the point is
         // that it TRIED to resolve it (because it's in the allowed set)
-        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response.getStatus());
+        assertEquals(Status.SUCCESS_OK, response1.getStatus());
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response2.getStatus());
     }
 
     @Test
-    public void apiKeyWithoutAllowedVariablesShouldNotResolveEnvironmentVariable() {
+    public void apiKeyWithoutBindingShouldNotResolveEnvironmentVariable() {
         ApiKeyAuthenticationSpec auth = new ApiKeyAuthenticationSpec();
         auth.setKey("X-API-Key");
         auth.setValue("{{undeclared_api_key}}");
@@ -195,9 +201,9 @@ public class ServerAuthenticationRestletTest {
             }
         };
 
-        // Create restlet WITHOUT allowed variables (not declared in bindings)
+        // Create restlet WITHOUT bindings
         ServerAuthenticationRestlet secured = 
-            new ServerAuthenticationRestlet(auth, next, Set.of());
+            new ServerAuthenticationRestlet(auth, next, Map.of());
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "actual-key-value");
@@ -210,7 +216,7 @@ public class ServerAuthenticationRestletTest {
     }
 
     @Test
-    public void apiKeyWithAllowedVariablesShouldResolveOnlyDeclaredKey() {
+    public void apiKeyWithBindingShouldResolveOnlyDeclaredKey() {
         ApiKeyAuthenticationSpec auth = new ApiKeyAuthenticationSpec();
         auth.setKey("X-API-Key");
         auth.setValue("{{my_declared_key}}");
@@ -224,7 +230,7 @@ public class ServerAuthenticationRestletTest {
 
         // Create restlet WITH this variable in the allowed set
         ServerAuthenticationRestlet secured = 
-            new ServerAuthenticationRestlet(auth, next, Set.of("my_declared_key"));
+            new ServerAuthenticationRestlet(auth, next, Map.of("my_declared_key", "actual-key-value"));
         
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "actual-key-value");
@@ -232,13 +238,11 @@ public class ServerAuthenticationRestletTest {
 
         secured.handle(request, response);
 
-        // Should fail authorization (environment var not set in test)
-        // but it shows the mechanism works - it tried to resolve the allowed variable
-        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response.getStatus());
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
     }
 
     @Test
-    public void backwardCompatibilityShouldAllowNoAllowedVariablesParameter() {
+    public void backwardCompatibilityShouldAllowNotBoundParameter() {
         // Test that old code using the 2-parameter constructor still works
         BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
         auth.setToken("hardcoded-token");
@@ -251,7 +255,7 @@ public class ServerAuthenticationRestletTest {
             }
         };
 
-        // Old-style instantiation without allowed variables
+        // Old-style instantiation without bindings
         ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(auth, next);
         
         Request request = new Request(Method.GET, "http://localhost/test");
@@ -279,7 +283,7 @@ public class ServerAuthenticationRestletTest {
         // Simulate file-based binding resolution: bindings map has the resolved value
         Map<String, Object> bindings = Map.of("MCP_SERVER_TOKEN", "sk-mcp-YYYYYYYYYYYY");
         ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
-                auth, next, Set.of("MCP_SERVER_TOKEN"), bindings);
+                auth, next, bindings);
 
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer sk-mcp-YYYYYYYYYYYY");
@@ -305,7 +309,7 @@ public class ServerAuthenticationRestletTest {
 
         Map<String, Object> bindings = Map.of("MCP_SERVER_TOKEN", "sk-mcp-YYYYYYYYYYYY");
         ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
-                auth, next, Set.of("MCP_SERVER_TOKEN"), bindings);
+                auth, next, bindings);
 
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer wrong-token");
@@ -332,7 +336,7 @@ public class ServerAuthenticationRestletTest {
         // Bindings have one value; env might have a different one
         Map<String, Object> bindings = Map.of("MY_TOKEN", "token-from-bindings");
         ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
-                auth, next, Set.of("MY_TOKEN"), bindings);
+                auth, next, bindings);
 
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("Authorization", "Bearer token-from-bindings");
@@ -360,7 +364,7 @@ public class ServerAuthenticationRestletTest {
 
         Map<String, Object> bindings = Map.of("API_KEY_VAR", "secret-api-key-from-file");
         ServerAuthenticationRestlet secured = new ServerAuthenticationRestlet(
-                auth, next, Set.of("API_KEY_VAR"), bindings);
+                auth, next, bindings);
 
         Request request = new Request(Method.GET, "http://localhost/test");
         request.getHeaders().set("X-API-Key", "secret-api-key-from-file");
