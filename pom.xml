@@ -274,7 +274,7 @@
             <dependency>
                 <groupId>com.nimbusds</groupId>
                 <artifactId>nimbus-jose-jwt</artifactId>
-                <version>9.37.3</version>
+                <version>9.37.4</version>
             </dependency>
             <dependency>
                 <groupId>org.json-structure</groupId>
