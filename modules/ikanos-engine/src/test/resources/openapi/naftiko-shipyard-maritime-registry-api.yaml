@@ -183,6 +183,49 @@ paths:
                     error: "not_found"
                     message: "Ship with IMO number IMO-0000000 not found"
 
+  /ships/{imo_number}/crew:
+    post:
+      tags:
+        - Refresh crew
+      operationId: refresh-crew
+      summary: Refresh a ship's crew
+      description: >-
+        Refreshes the crew of a ship.
+      x-microcks-operation:
+        dispatcher: URI_PARTS
+        dispatcherRules: imo_number
+      parameters:
+        - name: imo_number
+          in: path
+          required: true
+          description: IMO number of the ship
+          schema:
+            type: string
+          examples:
+            "/imo_number=IMO-9321483":
+              value: "IMO-9321483"
+            "/imo_number=IMO-9456781":
+              value: "IMO-9456781"
+            "/imo_number=IMO-9876543":
+              value: "IMO-9876543"
+        - $ref: '#/components/parameters/RegistryVersion'
+      responses:
+        '204':
+          description: Crew refreshed successfully.
+          x-microcks-refs:
+            - "/imo_number=IMO-9876543"
+        '400':
+          description: Invalid vessel request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidShip:
+                  value:
+                    error: "bad_request"
+                    message: "vessel_type must be one of: cargo, tanker, bulk_carrier, container, passenger"
+
   /voyages:
     post:
       tags:
@@ -539,6 +582,7 @@ components:
           example:
             - "CREW-001"
             - "CREW-003"
+
 
     CreateVoyageRequest:
       type: object

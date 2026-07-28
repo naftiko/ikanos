@@ -20,6 +20,14 @@ consumes:
           inputParameters:
             status:
               in: query
+    ships-crew:
+      path: /ships/{{imo_number}}/crew
+      operations:
+        refresh-crew:
+          method: POST
+          inputParameters:
+            imo_number:
+              in: path
     ship:
       path: /ships/{{imo_number}}
       operations:
