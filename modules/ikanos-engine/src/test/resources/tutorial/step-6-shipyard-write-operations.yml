@@ -212,5 +212,20 @@ capability:
             status:
               type: string
               mapping: "$.status"
+      refresh-crew:
+        description: "Refresh a ship's crew"
+        inputParameters:
+          imo_number:
+            type: string
+            required: true
+            description: "IMO identification number"
+        call: registry.refresh-crew
+        with:
+          imo_number: shipyard-tools.imo_number
+        hints:
+          readOnly: false
+          destructive: false
+          idempotent: false
+          openWorld: true
 
 

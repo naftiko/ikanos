@@ -13,6 +13,7 @@
  */
 package io.ikanos.tutorial;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +29,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import io.github.microcks.testcontainers.MicrocksContainer;
 import org.junit.jupiter.api.AfterAll;
@@ -204,6 +206,14 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
      * JSON payload from {@code result.content[0].text}.
      */
     protected JsonNode callTool(HttpClient http, String sessionId, String body) throws Exception {
+        return doCallTool(http, sessionId, body, true).orElseThrow();
+    }
+
+    protected Optional<JsonNode> callTool(HttpClient http, String sessionId, String body, boolean contentExpected) throws Exception {
+        return doCallTool(http, sessionId, body, contentExpected);
+    }
+
+    private Optional<JsonNode> doCallTool(HttpClient http, String sessionId, String body, boolean contentExpected) throws IOException, InterruptedException {
         HttpResponse<String> response = http.send(buildPost(body, sessionId), string());
         assertEquals(200, response.statusCode());
 
@@ -214,9 +224,11 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
                 "Tool must not return an error. Raw response: " + envelope.toPrettyString());
 
         JsonNode content = callResult.path("content");
-        assertTrue(content.isArray() && !content.isEmpty(), "result.content must be non-empty");
+        assertThat(content.isArray()).overridingErrorMessage(() -> "Expecting result.content to be an array").isTrue();
+        assertThat(content.isEmpty()).overridingErrorMessage(() -> "Expecting result.content to be %s, actual content: %s".formatted(contentExpected ?
+                "non-empty" : "empty", content.toPrettyString())).isEqualTo(!contentExpected);
 
-        return json.readTree(content.get(0).path("text").asText());
+        return contentExpected ? Optional.of(json.readTree(content.get(0).path("text").asText())) : Optional.empty();
     }
 
     protected HttpRequest buildPost(String body) {

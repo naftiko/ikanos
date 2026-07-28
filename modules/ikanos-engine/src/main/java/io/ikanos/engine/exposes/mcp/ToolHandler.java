@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.restlet.representation.EmptyRepresentation;
 
 /**
  * Handles MCP tool calls by delegating to consumed HTTP operations.
@@ -274,8 +276,12 @@ public class ToolHandler {
         // Check for error status
         int statusCode = found.clientResponse.getStatus().getCode();
         boolean isError = statusCode >= 400;
+        boolean hasBody = found.clientResponse.getEntity() != null && !(found.clientResponse.getEntity() instanceof EmptyRepresentation);
 
-        if (found.clientResponse.getEntity() == null) {
+        if (!isError && !hasBody) {
+            return new McpSchema.CallToolResult(Collections.emptyList(),
+                    false, null, null);
+        } else if (!hasBody) {
             return new McpSchema.CallToolResult(
                     List.of(new McpSchema.TextContent(
                             "No response entity received (HTTP " + statusCode + " "

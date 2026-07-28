@@ -13,11 +13,13 @@
  */
 package io.ikanos.tutorial;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.http.HttpClient;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,11 +61,12 @@ public class Step6ShipyardMcpClientIntegrationTest
 
         JsonNode tools = callToolsList(http, sessionId);
 
-        assertEquals(4, tools.size(), "step-6 exposes exactly four tools");
+        assertEquals(5, tools.size(), "step-6 exposes exactly five tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
         assertEquals("get-ship",            tools.get(1).path("name").asText());
         assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
         assertEquals("create-voyage",       tools.get(3).path("name").asText());
+        assertEquals("refresh-crew",       tools.get(4).path("name").asText());
     }
 
     @Test
@@ -157,5 +160,23 @@ public class Step6ShipyardMcpClientIntegrationTest
         assertTrue(voyage.path("crewIds").size() > 0, "crewIds must not be empty");
         assertTrue(voyage.path("cargoIds").isArray(), "cargoIds must be an array");
         assertFalse(voyage.path("status").asText().isBlank(), "status must not be blank");
+    }
+
+    @Test
+    void refreshCrewShouldReturnEmptyResult() throws Exception {
+        // Given
+        HttpClient http = HttpClient.newHttpClient();
+        String sessionId = initialize(http);
+
+        // When
+        Optional<JsonNode> result = callTool(http, sessionId, """
+                {"jsonrpc":"2.0","id":4,"method":"tools/call",
+                 "params":{"name":"refresh-crew","arguments":{
+                   "imo_number":"IMO-9876543"
+                 }}}
+                """, false);
+
+        // Then
+        assertThat(result).isEmpty();
     }
 }
