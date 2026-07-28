@@ -80,6 +80,10 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <restlet.version>2.7.0-m2</restlet.version>
+        <!-- Restlet 2.7.0-m2 pulls in Jetty 12.0.22 transitively, which carries
+             CVE-2025-5115, CVE-2026-2332 and CVE-2026-1605 (fixed in 12.0.33+).
+             Pinned here via jetty-bom import until Restlet bumps its own. -->
+        <jetty.version>12.0.38</jetty.version>
         <jackson.version>2.21.5</jackson.version>
         <avro.version>1.11.4</avro.version>
         <json-smart.version>2.5.2</json-smart.version>
@@ -201,6 +205,13 @@
             </dependency>
 
             <!-- Engine -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-bom</artifactId>
+                <version>${jetty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.restlet</groupId>
                 <artifactId>org.restlet</artifactId>
