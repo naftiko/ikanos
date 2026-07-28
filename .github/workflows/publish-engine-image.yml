@@ -1,24 +1,33 @@
 name: Publish Engine Docker Image
-
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: write
-
+  build-and-scan:
+    name: Build & scan (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      # GHCR login
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -26,14 +35,105 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker Hub login
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v6
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          images: ghcr.io/${{ github.repository_owner }}/ikanos
 
-      - name: Extract metadata (tags & labels)
+      - name: Set platform tag suffix
+        id: platform
+        run: echo "suffix=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
+
+      # We push by digest only, no tags, so nobody can pull this by name.
+      # If Trivy fails below, the image just sits there untagged — registries
+      # can't "unpush" a digest, and nothing in this repo prunes untagged
+      # digests yet. That's an accepted gap for now: it's unreachable and the
+      # publish job never runs, it just isn't cleaned up automatically.
+      - name: Build image and push by digest (only for scanning)
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deployment/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          sbom: false
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/ikanos,push-by-digest=true,name-canonical=true
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/ikanos@${{ steps.build.outputs.digest }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+          format: 'table'
+          output: trivy-results-${{ steps.platform.outputs.suffix }}.txt
+
+      - name: Add Trivy results to job summary
+        if: always()
+        run: |
+          echo "## 🔍 Trivy Vulnerability Scan — ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat trivy-results-${{ steps.platform.outputs.suffix }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Trivy report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-report-${{ steps.platform.outputs.suffix }}-${{ github.sha }}
+          path: trivy-results-${{ steps.platform.outputs.suffix }}.txt
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/ikanos@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-${{ steps.platform.outputs.suffix }}.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ steps.platform.outputs.suffix }}-${{ github.sha }}
+          path: sbom-${{ steps.platform.outputs.suffix }}.spdx.json
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ steps.platform.outputs.suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish multi-arch manifest
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: digests-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract metadata (tags)
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -45,18 +145,30 @@ jobs:
             type=raw,value=latest
             type=ref,event=tag
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
         with:
-          context: .
-          file: deployment/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest from scanned digests
+        working-directory: /tmp/digests
+        run: |
+          TAG_ARGS=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && TAG_ARGS+=(-t "$tag")
+          done <<< "${{ steps.meta.outputs.tags }}"
+          docker buildx imagetools create "${TAG_ARGS[@]}" \
+            $(printf 'ghcr.io/${{ github.repository_owner }}/ikanos@sha256:%s ' *)
+
+      - name: Inspect pushed manifest
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/ikanos:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect docker.io/naftiko/ikanos:${{ steps.meta.outputs.version }}

@@ -15,6 +15,9 @@ RUN mvn clean package -DskipTests
 
 # Stage 2: Create the runtime image
 FROM eclipse-temurin:21-jre-alpine
+
+RUN apk upgrade --no-cache
+
 LABEL org.opencontainers.image.title="Ikanos" \
       org.opencontainers.image.description="Ikanos Capability Engine." \
       org.opencontainers.image.url="https://github.com/naftiko/ikanos" \
