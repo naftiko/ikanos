@@ -1,0 +1,339 @@
+ikanos: "1.0.0-beta10"
+
+# Consumed-side auth (basic, apikey): does Ikanos send the credentials it was
+# configured with? The upstream is Microcks behind the authgw proxy (see
+# authgw/httpd.conf), which enforces the auth Microcks cannot:
+#   :8090 basic   :8091 apikey (header or query)   :8093 apikey (raw Authorization)
+# Each type is declared with correct and with wrong credentials: the wrong ones
+# prove the correct ones were actually checked.
+# Digest is not covered yet: the engine does not answer the 401 challenge.
+
+capability:
+  binds:
+  - namespace: "authgw-env"
+    description: "Credentials expected by the authgw vhosts, and their wrong counterparts."
+    location: "file:///app/shared/secrets.yaml"
+    keys:
+      BASIC_USER: "authgw-basic-user"
+      BASIC_PASSWORD: "authgw-basic-password"
+      API_KEY: "authgw-apikey"
+      RAW_AUTHORIZATION_KEY: "authgw-authorization-key"
+      BAD_USER: "authgw-bad-user"
+      BAD_PASSWORD: "authgw-bad-password"
+      BAD_API_KEY: "authgw-bad-apikey"
+      BASIC_NOPASS_USER: "authgw-basic-nopass-user"
+  - namespace: "bearer-env"
+    description: "Static bearer token for the MCP surface."
+    location: "file:///app/shared/secrets.yaml"
+    keys:
+      MCP_BEARER_TOKEN: "mcp-server-token"
+  consumes:
+
+  # ── basic ───────────────────────────────────────────────────────────────────
+  - namespace: registry-basic
+    description: "Registry behind the authgw basic vhost."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BASIC_USER}}"
+      password: "{{BASIC_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+
+  # #707: `password` is absent on purpose. The authgw account has an empty
+  # password, so this only passes if the engine sends an empty one.
+  - namespace: registry-basic-nopass
+    description: "Same upstream, username only — password field omitted entirely (#707 regression)."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BASIC_NOPASS_USER}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  - namespace: registry-basic-bad
+    description: "Same upstream, wrong password — must be rejected 401."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BAD_USER}}"
+      password: "{{BAD_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  # ── apikey ──────────────────────────────────────────────────────────────────
+  # Query placement is used on get-ship only: Microcks receives the api_key
+  # parameter, which breaks list-ships (dispatched on `status`), so that one
+  # uses the header placement.
+  - namespace: registry-apikey-header
+    description: "Registry behind the authgw apikey vhost, key in a header."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "X-Api-Key"
+      value: "{{API_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+
+  - namespace: registry-apikey-query
+    description: "Registry behind the authgw apikey vhost, key in the query string."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "api_key"
+      value: "{{API_KEY}}"
+      placement: query
+    resources:
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+
+  # #698 / #716: Restlet drops a plain write of the Authorization header. The
+  # :8093 vhost expects the raw token there, with no scheme prefix.
+  - namespace: registry-apikey-authorization
+    description: "Registry behind a vhost expecting a raw, scheme-less Authorization header."
+    type: http
+    baseUri: "http://localhost:8093/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "Authorization"
+      value: "{{RAW_AUTHORIZATION_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  - namespace: registry-apikey-bad
+    description: "Same upstream, wrong key — must be rejected 401."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "X-Api-Key"
+      value: "{{BAD_API_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  exposes:
+  - type: mcp
+    address: "0.0.0.0"
+    port: 3003
+    namespace: consumed-auth-tools
+    authentication:
+      type: bearer
+      token: "{{MCP_BEARER_TOKEN}}"
+    description: "One tool per consumed authentication type, plus its negative counterpart"
+    tools:
+
+      # ── basic ──
+      basic-list-ships:
+        description: "List ships through a basic-authenticated upstream"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry-basic.list-ships
+        with:
+          status: consumed-auth-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      basic-get-ship:
+        description: "Retrieve one ship through a basic-authenticated upstream"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry-basic.get-ship
+        with:
+          imo_number: consumed-auth-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+      basic-nopass-list-ships:
+        description: "List ships through a basic-authenticated upstream whose password is omitted (#707 regression)"
+        call: registry-basic-nopass.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      basic-bad-credentials:
+        description: "Negative path — upstream rejects the basic credentials (401)"
+        call: registry-basic-bad.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+
+      # ── apikey ──
+      apikey-header-list-ships:
+        description: "List ships, key sent as the X-Api-Key header"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry-apikey-header.list-ships
+        with:
+          status: consumed-auth-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      apikey-query-get-ship:
+        description: "Retrieve one ship, key sent as the api_key query parameter"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry-apikey-query.get-ship
+        with:
+          imo_number: consumed-auth-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+      apikey-authorization-list-ships:
+        description: "List ships, raw token sent in the Authorization header"
+        call: registry-apikey-authorization.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      apikey-bad-key:
+        description: "Negative path — upstream rejects the API key (401)"
+        call: registry-apikey-bad.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
