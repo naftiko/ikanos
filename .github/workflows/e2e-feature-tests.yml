@@ -1,0 +1,147 @@
+name: E2E Feature Tests
+
+# ── Trigger decision ──────────────────────────────────────────────────────────
+# workflow_dispatch  → manual run on any branch (useful for pre-release checks)
+# workflow_call      → called by nightly-orchestrator or other parent workflows
+# schedule           → nightly at 02:00 UTC against the default branch
+#
+# Deliberately NOT on push/PR — this suite spins up a full Docker stack
+# (Microcks + Keycloak + Ikanos container) and can take several minutes.
+# Fast feedback on PRs is handled by validate-tuto-examples.yml; this suite
+# is the deeper, daily quality gate.
+on:
+  push:
+    branches:
+      - 'feat/e2e-test-workflow'
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  # ── Level 1: re-run the existing tutorial validation as a sub-workflow ──────
+  # This gives E2E a full regression baseline before running the extended suite.
+#   tutorial-validation:
+#     uses: ./.github/workflows/validate-tuto-examples.yml
+#     secrets: inherit
+
+  # ── Level 2: feature E2E tests ───────────────────────────────────────────────
+  feature-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Tooling ──────────────────────────────────────────────────────────────
+      # jq is pre-installed on ubuntu-latest; no extra tooling needed.
+      # run.sh scripts use only bash, curl, jq, and docker.
+
+      # ── Start infrastructure (Microcks + Keycloak) ───────────────────────────
+      - name: Start infrastructure stack
+        run: |
+          docker compose \
+            -f .github/e2e/resources/docker-compose.yml \
+            up -d microcks keycloak
+        env:
+          COMPOSE_PROJECT_NAME: ikanos-e2e
+
+      - name: Wait for Microcks
+        run: |
+          echo "Waiting for Microcks..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/health > /dev/null; then
+              echo "Microcks is up"; break
+            fi
+            echo "  attempt $i/30 – retrying in 5s..."; sleep 5
+            [ "$i" -eq 30 ] && { docker compose -f .github/e2e/resources/docker-compose.yml logs microcks; exit 1; }
+          done
+
+      - name: Wait for Keycloak
+        run: |
+          echo "Waiting for Keycloak..."
+          for i in $(seq 1 36); do
+            if curl -sf http://localhost:8180/realms/e2e-test > /dev/null; then
+              echo "Keycloak is up"; break
+            fi
+            echo "  attempt $i/36 – retrying in 5s..."; sleep 5
+            [ "$i" -eq 36 ] && { docker compose -f .github/e2e/resources/docker-compose.yml logs keycloak; exit 1; }
+          done
+
+      - name: Import OpenAPI specs into Microcks
+        run: |
+          for file in modules/ikanos-engine/src/test/resources/openapi/*.yaml; do
+            echo "Importing $file"
+            curl -sf -X POST "http://localhost:8080/api/artifact/upload" \
+              -F "file=@$file" || { echo "Failed to import $file"; exit 1; }
+          done
+
+      # ── Pull Ikanos image ─────────────────────────────────────────────────────
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Ikanos image
+        run: docker pull ghcr.io/naftiko/ikanos:latest
+
+      # ── Main loop ─────────────────────────────────────────────────────────────
+      # Each feature lives in its own subdirectory under features/.
+      # The directory contains:
+      #   capability.yml  — Ikanos capability config
+      #   run.sh          — tests only (start/stop is handled by this loop)
+      # The workflow starts ikanos, calls run.sh, then stops ikanos.
+      - name: Run E2E tests for each feature
+        env:
+          IKANOS_IMAGE: ghcr.io/naftiko/ikanos:latest
+          IKANOS_CONTAINER: ikanos-e2e-run
+          SECRETS_DIR: ${{ github.workspace }}/.github/e2e/resources/shared
+          KC_CLIENT_SECRET: ${{ secrets.KC_E2E_CLIENT_SECRET || 'test-secret' }}
+          MCP_SERVER_TOKEN: ${{ secrets.MCP_SERVER_TOKEN || 'sk-mcp-YYYYYYYYYYYY' }}
+        run: |
+          # shellcheck source=.github/e2e/resources/features/_lib/helpers.sh
+          source ".github/e2e/resources/features/_lib/helpers.sh"
+
+          FEATURES_DIR="${GITHUB_WORKSPACE}/.github/e2e/resources/features"
+          TOTAL_PASSED=0
+          TOTAL_FAILED=0
+
+          for FEATURE_DIR in "$FEATURES_DIR"/*/; do
+            FEATURE_DIR="${FEATURE_DIR%/}"   # strip trailing slash from glob
+            [ -f "$FEATURE_DIR/run.sh" ] || continue
+            CAPABILITY_FILE="$FEATURE_DIR/capability.yml"
+            echo ""
+
+            # ── Start ikanos for this feature ──────────────────────────────────
+            start_ikanos "$CAPABILITY_FILE"
+
+            # ── Run the feature's test script (tests only) ─────────────────────
+            if bash "$FEATURE_DIR/run.sh"; then
+              TOTAL_PASSED=$((TOTAL_PASSED + 1))
+            else
+              TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            fi
+
+            # ── Teardown: stop ikanos ──────────────────────────────────────────
+            cleanup_ikanos
+          done
+
+          echo ""
+          echo "================================================================"
+          echo "E2E overall — features passed: $TOTAL_PASSED | failed: $TOTAL_FAILED"
+          echo "================================================================"
+          [ "$TOTAL_FAILED" -gt 0 ] && exit 1 || true
+
+      # ── Teardown ──────────────────────────────────────────────────────────────
+      - name: Teardown infrastructure stack
+        if: always()
+        run: |
+          docker compose \
+            -f .github/e2e/resources/docker-compose.yml \
+            down --volumes --remove-orphans 2>/dev/null || true
+          docker rm -f ikanos-e2e-run 2>/dev/null || true
+        env:
+          COMPOSE_PROJECT_NAME: ikanos-e2e

@@ -1,0 +1,43 @@
+# Infrastructure-only compose for E2E tests.
+# Ikanos itself is NOT started here — it is launched per-feature by the
+# workflow orchestrator (e2e-feature-tests.yml) so each feature's capability
+# file can be injected cleanly without rebuilding the image.
+
+services:
+  microcks:
+    image: quay.io/microcks/microcks-uber:latest
+    container_name: e2e-microcks
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 18   # up to 90s
+    networks:
+      - e2e
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: e2e-keycloak
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    # Imports the E2E realm on first startup (e2e-test realm with a
+    # service-account client whose client_secret is "test-secret").
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak/realm-e2e.json:/opt/keycloak/data/import/realm-e2e.json
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/realms/e2e-test"]
+      interval: 5s
+      timeout: 5s
+      retries: 24   # up to 120s
+    networks:
+      - e2e
+
+networks:
+  e2e:
+    driver: bridge
