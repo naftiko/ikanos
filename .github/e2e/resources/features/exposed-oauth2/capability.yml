@@ -1,0 +1,158 @@
+ikanos: "1.0.0-beta3"
+
+binds:
+- namespace: "registry-env"
+  description: "Maritime Registry API credentials and config."
+  location: "file:///app/shared/secrets.yaml"
+  keys:
+    REGISTRY_TOKEN: "registry-bearer-token"
+    REGISTRY_VERSION: "registry-api-version"
+- namespace: "bearer-env"
+  description: "Static bearer token for the MCP bearer-auth surface."
+  location: "file:///app/shared/secrets.yaml"
+  keys:
+    MCP_BEARER_TOKEN: "mcp-server-token"
+
+capability:
+  consumes:
+  - namespace: registry
+    type: http
+    baseUri: "http://localhost:8080/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: bearer
+      token: "{{REGISTRY_TOKEN}}"
+    inputParameters:
+      Registry-Version:
+        in: header
+        value: "{{REGISTRY_VERSION}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+  exposes:
+  - type: mcp
+    address: "0.0.0.0"
+    port: 3001
+    namespace: shipyard-tools
+    # Real OAuth2.1 resource server: validates incoming JWTs via Keycloak JWKS.
+    # The engine auto-discovers the jwks_uri from:
+    #   http://localhost:8180/realms/e2e-test/.well-known/oauth-authorization-server
+    # `resource` is used as the expected `aud` claim in every JWT.
+    # NOTE: http:// is intentional for CI — the lint rule ikanos-oauth2-https-authserver
+    # only runs on modules/ikanos-docs/tutorial/** and does not cover .github/e2e/.
+    authentication:
+      type: oauth2
+      authorizationServerUri: "http://localhost:8180/realms/e2e-test"
+      resource: "http://ikanos-e2e"
+    description: "Shipyard MCP tools for fleet management"
+    tools:
+      list-ships:
+        description: "List ships in the shipyard, optionally filtered by status"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry.list-ships
+        with:
+          status: shipyard-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              type:
+                type: string
+                mapping: "$.vessel_type"
+              flag:
+                type: string
+                mapping: "$.flag_code"
+              status:
+                type: string
+                mapping: "$.operational_status"
+      get-ship:
+        description: "Retrieve a ship's details by IMO number"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry.get-ship
+        with:
+          imo_number: shipyard-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            type:
+              type: string
+              mapping: "$.vessel_type"
+            flag:
+              type: string
+              mapping: "$.flag_code"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+  # Second expose: same tools, static bearer token, port 3002.
+  # Tests that type: bearer authentication (401 on wrong token) works
+  # independently from the OAuth2/JWKS surface on port 3001.
+  - type: mcp
+    address: "0.0.0.0"
+    port: 3002
+    namespace: shipyard-tools-bearer
+    authentication:
+      type: bearer
+      token: "{{MCP_BEARER_TOKEN}}"
+    description: "Shipyard MCP tools — bearer-auth surface"
+    tools:
+      list-ships:
+        description: "List ships in the shipyard, optionally filtered by status"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry.list-ships
+        with:
+          status: shipyard-tools-bearer.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
