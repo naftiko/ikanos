@@ -54,9 +54,8 @@ public class Step7ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseFiveTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(5, tools.size(), "step-7 exposes exactly five tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
@@ -69,9 +68,8 @@ public class Step7ShipyardMcpClientIntegrationTest
     @Test
     public void getShipWithCrewInputSchemaShouldDeclareRequiredImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode getShipWithCrew = callToolsList(http, sessionId).get(4);
+        JsonNode getShipWithCrew = callToolsList(http).get(4);
 
         JsonNode props = getShipWithCrew.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship-with-crew inputSchema must declare 'imo'");
@@ -91,9 +89,8 @@ public class Step7ShipyardMcpClientIntegrationTest
     @Test
     public void getShipWithCrewShouldReturnMappedShipAndCrewObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode result = callTool(http, sessionId, """
+        JsonNode result = callTool(http, """
                 {"jsonrpc":"2.0","id":5,"method":"tools/call",
                  "params":{"name":"get-ship-with-crew","arguments":{"imo":"IMO-9321483"}}}
                 """);
@@ -113,7 +110,7 @@ public class Step7ShipyardMcpClientIntegrationTest
         assertTrue(result.has("crew"), "mapped output must have crew");
         JsonNode crew = result.get("crew");
         assertTrue(crew.isArray(), "crew must be an array");
-        assertTrue(crew.size() > 0, "crew must not be empty");
+        assertFalse(crew.isEmpty(), "crew must not be empty");
 
         JsonNode first = crew.get(0);
         assertTrue(first.has("fullName"), "crew entries must have fullName");

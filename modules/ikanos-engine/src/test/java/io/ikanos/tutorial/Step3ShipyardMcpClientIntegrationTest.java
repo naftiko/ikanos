@@ -13,6 +13,7 @@
  */
 package io.ikanos.tutorial;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -77,16 +78,21 @@ public class Step3ShipyardMcpClientIntegrationTest
         startServerFromSpec(spec);
     }
 
-    // ── initialize — proves binds resolved and auth pipeline is live ─────────
+    // ── server/discover — proves binds resolved and auth pipeline is live ────
 
     @Test
-    public void initializeShouldSucceedWithBindsAndAuth() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
+    public void serverDiscoverShouldSucceedWithBindsAndAuth() throws Exception {
+        // server/discover call returning 200 proves binds were resolved
+        // and the bearer auth pipeline accepted the request.
+        try (HttpClient http = HttpClient.newHttpClient()) {
 
-        String sessionId = initialize(http);
+            String discoverBody = """
+                    {"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}
+                    """;
 
-        assertNotNull(sessionId, "Server must issue a session ID after initialize");
-        assertFalse(sessionId.isBlank(), "Session ID must not be blank");
+            HttpResponse<String> response = http.send(buildPost(discoverBody), string());
+            assertThat(response.statusCode()).isEqualTo(200);
+        }
     }
 
     // ── tools/list ───────────────────────────────────────────────────────────
@@ -94,9 +100,8 @@ public class Step3ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseBothTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(2, tools.size(), "step-3 exposes exactly two tools");
         assertEquals("list-ships", tools.get(0).path("name").asText());
@@ -106,9 +111,8 @@ public class Step3ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsInputSchemaShouldDeclareOptionalStatusParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
         JsonNode listShips = tools.get(0);
 
         JsonNode props = listShips.path("inputSchema").path("properties");
@@ -130,9 +134,8 @@ public class Step3ShipyardMcpClientIntegrationTest
     @Test
     public void getShipInputSchemaShouldDeclareRequiredImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
         JsonNode getShip = tools.get(1);
 
         JsonNode props = getShip.path("inputSchema").path("properties");
@@ -155,15 +158,14 @@ public class Step3ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsWithBearerAuthShouldReturnMappedShipArray() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ships = callTool(http, sessionId, """
+        JsonNode ships = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-ships","arguments":{}}}
                 """);
 
         assertTrue(ships.isArray(), "list-ships must return an array");
-        assertTrue(ships.size() > 0, "Ship list must not be empty");
+        assertFalse(ships.isEmpty(), "Ship list must not be empty");
 
         // Verify the output mapping is correctly applied (imo_number → imo, vessel_name → name …)
         JsonNode first = ships.get(0);
@@ -180,22 +182,21 @@ public class Step3ShipyardMcpClientIntegrationTest
 
     @Test
     public void getShipWithBearerAuthShouldResolveMustacheAndReturnSingleShip() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
+        try (HttpClient http = HttpClient.newHttpClient()) {
 
-        JsonNode ship = callTool(http, sessionId, """
-                {"jsonrpc":"2.0","id":3,"method":"tools/call",
-                 "params":{"name":"get-ship","arguments":{"imo":"IMO-9321483"}}}
-                """);
-
-        assertTrue(ship.isObject(), "get-ship must return a JSON object");
-        assertTrue(ship.has("imo"),    "Must have 'imo'");
-        assertTrue(ship.has("name"),   "Must have 'name'");
-        assertTrue(ship.has("type"),   "Must have 'type'");
-        assertTrue(ship.has("flag"),   "Must have 'flag'");
-        assertTrue(ship.has("status"), "Must have 'status'");
-        assertEquals("IMO-9321483", ship.path("imo").asText(),
-                "Returned imo must match the requested IMO number");
+            JsonNode ship = callTool(http, """
+                    {"jsonrpc":"2.0","id":3,"method":"tools/call",
+                     "params":{"name":"get-ship","arguments":{"imo":"IMO-9321483"}}}
+                    """);
+            assertTrue(ship.isObject(), "get-ship must return a JSON object");
+            assertTrue(ship.has("imo"),    "Must have 'imo'");
+            assertTrue(ship.has("name"),   "Must have 'name'");
+            assertTrue(ship.has("type"),   "Must have 'type'");
+            assertTrue(ship.has("flag"),   "Must have 'flag'");
+            assertTrue(ship.has("status"), "Must have 'status'");
+            assertEquals("IMO-9321483", ship.path("imo").asText(),
+                    "Returned imo must match the requested IMO number");
+        }
     }
 
     // ── authentication pipeline — validates fix for issue #482 ───────────────
@@ -218,45 +219,51 @@ public class Step3ShipyardMcpClientIntegrationTest
         useMcpServerToken(SECRETS_FILE);
         startServerFromSpecWithAuth(spec);
 
-        HttpClient http = HttpClient.newHttpClient();
-        String initBody = """
-                {"jsonrpc":"2.0","id":1,"method":"initialize",
-                 "params":{"protocolVersion":"2025-11-25",
-                           "clientInfo":{"name":"test-client","version":"1.0"},
-                           "capabilities":{}}}
-                """;
+        HttpResponse<String> noToken;
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            String discoverBody = """
+                    {"jsonrpc":"2.0","id":1,"method":"server/discover",
+                     "params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"%s"}}}
+                    """.formatted(io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION);
 
-        // Correct token from secrets.yaml should be accepted (issue #482 fix)
-        HttpResponse<String> accepted = http.send(
-                HttpRequest.newBuilder(URI.create(serverUrl))
-                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer " + mcpServerToken)
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
+            // Correct token from secrets.yaml should be accepted (issue #482 fix)
+            HttpResponse<String> accepted = http.send(
+                    HttpRequest.newBuilder(URI.create(serverUrl))
+                            .POST(HttpRequest.BodyPublishers.ofString(discoverBody.strip()))
+                            .header("Content-Type", "application/json")
+                            .header("MCP-Protocol-Version", io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                            .header("Mcp-Method", "server/discover")
+                            .header("Authorization", "Bearer " + mcpServerToken)
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(200, accepted.statusCode(),
-                "Correct token resolved from file binding must be accepted (issue #482)");
+            assertEquals(200, accepted.statusCode(),
+                    "Correct token resolved from file binding must be accepted (issue #482)");
 
-        // Wrong token must be rejected
-        HttpResponse<String> rejected = http.send(
-                HttpRequest.newBuilder(URI.create(serverUrl))
-                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer wrong-token")
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
+            // Wrong token must be rejected
+            HttpResponse<String> rejected = http.send(
+                    HttpRequest.newBuilder(URI.create(serverUrl))
+                            .POST(HttpRequest.BodyPublishers.ofString(discoverBody.strip()))
+                            .header("Content-Type", "application/json")
+                            .header("MCP-Protocol-Version", io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                            .header("Mcp-Method", "server/discover")
+                            .header("Authorization", "Bearer wrong-token")
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(401, rejected.statusCode(),
-                "Wrong token must be rejected");
+            assertEquals(401, rejected.statusCode(),
+                    "Wrong token must be rejected");
 
-        // Missing token must be rejected
-        HttpResponse<String> noToken = http.send(
-                HttpRequest.newBuilder(URI.create(serverUrl))
-                        .POST(HttpRequest.BodyPublishers.ofString(initBody.strip()))
-                        .header("Content-Type", "application/json")
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
+            // Missing token must be rejected
+            noToken = http.send(
+                    HttpRequest.newBuilder(URI.create(serverUrl))
+                            .POST(HttpRequest.BodyPublishers.ofString(discoverBody.strip()))
+                            .header("Content-Type", "application/json")
+                            .header("MCP-Protocol-Version", io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                            .header("Mcp-Method", "server/discover")
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+        }
 
         assertEquals(401, noToken.statusCode(),
                 "Request without token must be rejected");

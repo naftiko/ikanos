@@ -65,9 +65,8 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseBothTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(2, tools.size(), "step-2 exposes exactly two tools");
 
@@ -79,9 +78,8 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsInputSchemaShouldDeclareOptionalStatusParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
         JsonNode listShips = tools.get(0);
 
         JsonNode props = listShips.path("inputSchema").path("properties");
@@ -103,9 +101,8 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void getShipInputSchemaShouldDeclareRequiredImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
         JsonNode getShip = tools.get(1);
 
         JsonNode props = getShip.path("inputSchema").path("properties");
@@ -128,15 +125,14 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsWithoutFilterShouldReturnMappedShipArray() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ships = callTool(http, sessionId, """
+        JsonNode ships = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-ships","arguments":{}}}
                 """);
 
         assertTrue(ships.isArray(), "list-ships must return an array");
-        assertTrue(ships.size() > 0, "Ship list must not be empty");
+        assertFalse(ships.isEmpty(), "Ship list must not be empty");
 
         JsonNode first = ships.get(0);
         assertTrue(first.has("imo"),    "Must have 'imo'");
@@ -151,15 +147,14 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsFilteredByStatusShouldReturnOnlyMatchingShips() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ships = callTool(http, sessionId, """
+        JsonNode ships = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-ships","arguments":{"status":"active"}}}
                 """);
 
         assertTrue(ships.isArray(), "list-ships must return an array");
-        assertTrue(ships.size() > 0, "Filtered list must not be empty");
+        assertFalse(ships.isEmpty(), "Filtered list must not be empty");
 
         // Every ship returned by the mock must have status=active
         for (JsonNode ship : ships) {
@@ -173,10 +168,9 @@ public class Step2ShipyardMcpClientIntegrationTest
     @Test
     public void getShipShouldResolveMustacheWithAndReturnSingleShip() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
         // The 'with' mapping resolves imo → imo_number, which fills /ships/{{imo_number}}
-        JsonNode ship = callTool(http, sessionId, """
+        JsonNode ship = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"get-ship","arguments":{"imo":"IMO-9321483"}}}
                 """);

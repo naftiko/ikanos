@@ -76,9 +76,8 @@ public class Step4ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseBothTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(2, tools.size(), "step-4 exposes exactly two tools");
         assertEquals("list-ships", tools.get(0).path("name").asText());
@@ -88,9 +87,8 @@ public class Step4ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsInputSchemaShouldDeclareOptionalStatusParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode listShips = callToolsList(http, sessionId).get(0);
+        JsonNode listShips = callToolsList(http).get(0);
 
         JsonNode props = listShips.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-ships inputSchema must declare 'status'");
@@ -110,9 +108,8 @@ public class Step4ShipyardMcpClientIntegrationTest
     @Test
     public void getShipInputSchemaShouldDeclareRequiredImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode getShip = callToolsList(http, sessionId).get(1);
+        JsonNode getShip = callToolsList(http).get(1);
 
         JsonNode props = getShip.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship inputSchema must declare 'imo'");
@@ -134,14 +131,13 @@ public class Step4ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsShouldReturnMappedFlatFields() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ships = callTool(http, sessionId, """
+        JsonNode ships = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-ships","arguments":{}}}
                 """);
 
-        assertTrue(ships.isArray() && ships.size() > 0, "list-ships must return a non-empty array");
+        assertTrue(ships.isArray() && !ships.isEmpty(), "list-ships must return a non-empty array");
 
         JsonNode first = ships.get(0);
         assertTrue(first.has("imo"),    "Must have 'imo'");
@@ -158,9 +154,8 @@ public class Step4ShipyardMcpClientIntegrationTest
     @Test
     public void getShipShouldReturnFlatFieldsAndNestedSpecsObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ship = callTool(http, sessionId, """
+        JsonNode ship = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"get-ship","arguments":{"imo":"IMO-9321483"}}}
                 """);

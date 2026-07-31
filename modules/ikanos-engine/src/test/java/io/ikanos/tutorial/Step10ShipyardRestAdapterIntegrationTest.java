@@ -77,8 +77,8 @@ public class Step10ShipyardRestAdapterIntegrationTest
         int mcpPort = findFreePort();
         int skillPort = findFreePort();
 
-        spec.getCapability().getExposes().get(0).setPort(mcpPort);
-        spec.getCapability().getExposes().get(0).setAddress("localhost");
+        spec.getCapability().getExposes().getFirst().setPort(mcpPort);
+        spec.getCapability().getExposes().getFirst().setAddress("localhost");
 
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
@@ -105,18 +105,20 @@ public class Step10ShipyardRestAdapterIntegrationTest
 
     @Test
     public void restListShipsShouldReturnShipsArray() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + restPort + "/ships"))
-                .GET()
-                .build();
+        HttpResponse<String> response;
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + restPort + "/ships"))
+                    .GET()
+                    .build();
 
-        HttpResponse<String> response = http.send(request, string());
+            response = http.send(request, string());
+        }
         assertEquals(200, response.statusCode(), "GET /ships must succeed");
 
         JsonNode ships = json.readTree(response.body());
         assertTrue(ships.isArray(), "GET /ships must return an array");
-        assertTrue(ships.size() > 0, "Ships array must not be empty");
+        assertFalse(ships.isEmpty(), "Ships array must not be empty");
 
         JsonNode firstShip = ships.get(0);
         assertTrue(firstShip.has("imo"), "Ship must have imo field");
@@ -128,27 +130,29 @@ public class Step10ShipyardRestAdapterIntegrationTest
 
     @Test
     public void restCreateVoyageShouldReturnMappedVoyageObject() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
+        HttpResponse<String> response;
+        try (HttpClient http = HttpClient.newHttpClient()) {
 
-        String voyagePayload = """
-                {
-                  "shipImo": "IMO-9321483",
-                  "departurePort": "Oslo",
-                  "arrivalPort": "Singapore",
-                  "departureDate": "2026-04-10",
-                  "arrivalDate": "2026-05-02",
-                  "crewIds": ["CREW-001", "CREW-003"],
-                  "cargoIds": ["CARGO-2024-0451"]
-                }
-                """;
+            String voyagePayload = """
+                    {
+                      "shipImo": "IMO-9321483",
+                      "departurePort": "Oslo",
+                      "arrivalPort": "Singapore",
+                      "departureDate": "2026-04-10",
+                      "arrivalDate": "2026-05-02",
+                      "crewIds": ["CREW-001", "CREW-003"],
+                      "cargoIds": ["CARGO-2024-0451"]
+                    }
+                    """;
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + restPort + "/voyages"))
-                .POST(HttpRequest.BodyPublishers.ofString(voyagePayload))
-                .header("Content-Type", "application/json")
-                .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + restPort + "/voyages"))
+                    .POST(HttpRequest.BodyPublishers.ofString(voyagePayload))
+                    .header("Content-Type", "application/json")
+                    .build();
 
-        HttpResponse<String> response = http.send(request, string());
+            response = http.send(request, string());
+        }
         assertEquals(201, response.statusCode(), "POST /voyages must return 201 Created");
 
         JsonNode voyage = json.readTree(response.body());
@@ -167,7 +171,7 @@ public class Step10ShipyardRestAdapterIntegrationTest
         assertEquals("2026-05-02", dates.path("arrival").asText(), "dates.arrival must map");
 
         assertTrue(voyage.path("crewIds").isArray(), "crewIds must be an array");
-        assertTrue(voyage.path("crewIds").size() > 0, "crewIds must not be empty");
+        assertFalse(voyage.path("crewIds").isEmpty(), "crewIds must not be empty");
         assertTrue(voyage.path("cargoIds").isArray(), "cargoIds must be an array");
         assertFalse(voyage.path("status").asText().isBlank(), "status must not be blank");
     }
@@ -177,8 +181,7 @@ public class Step10ShipyardRestAdapterIntegrationTest
         int skillPort = findFreePort();
         SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
 
-        try {
-            HttpClient http = HttpClient.newHttpClient();
+        try (HttpClient http = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + skillPort + "/skills"))
                     .GET()
@@ -206,8 +209,7 @@ public class Step10ShipyardRestAdapterIntegrationTest
         int skillPort = findFreePort();
         SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
 
-        try {
-            HttpClient http = HttpClient.newHttpClient();
+        try (HttpClient http = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + skillPort + "/skills/fleet-ops"))
                     .GET()
@@ -250,7 +252,7 @@ public class Step10ShipyardRestAdapterIntegrationTest
     private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
         IkanosSpec spec = loadPatchedStep10Spec();
 
-        spec.getCapability().getExposes().get(0).setPort(findFreePort());
+        spec.getCapability().getExposes().getFirst().setPort(findFreePort());
 
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)

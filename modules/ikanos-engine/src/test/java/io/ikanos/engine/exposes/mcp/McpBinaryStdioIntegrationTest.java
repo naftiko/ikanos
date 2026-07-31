@@ -86,13 +86,10 @@ public class McpBinaryStdioIntegrationTest {
 
             ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
 
-            String input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
-                    + "\"params\":{\"protocolVersion\":\"2025-11-25\","
-                    + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"},"
-                    + "\"capabilities\":{}}}\n"
-                    + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"
-                    + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\","
-                    + "\"params\":{\"name\":\"get-photo\",\"arguments\":{\"id\":\"p-1\"}}}\n";
+            String input = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\","
+                    + "\"params\":{\"name\":\"get-photo\",\"arguments\":{\"id\":\"p-1\"},"
+                    + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                    + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}\n";
 
             ByteArrayInputStream in =
                     new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
@@ -103,11 +100,12 @@ public class McpBinaryStdioIntegrationTest {
 
             String output = out.toString(StandardCharsets.UTF_8);
             String[] lines = output.strip().split("\\n");
-            // initialize + tools/call (the notification produces no response line).
-            assertEquals(2, lines.length, "expected initialize + tools/call responses");
+            // Protocol 2026-07-28 is stateless — no initialize/notifications handshake, so a
+            // single tools/call line produces a single response line.
+            assertEquals(1, lines.length, "expected a single tools/call response");
 
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode callResponse = mapper.readTree(lines[1]);
+            JsonNode callResponse = mapper.readTree(lines[0]);
             assertEquals(2, callResponse.path("id").asInt());
 
             JsonNode result = callResponse.path("result");

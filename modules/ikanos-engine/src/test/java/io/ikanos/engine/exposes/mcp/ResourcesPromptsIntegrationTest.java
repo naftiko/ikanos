@@ -259,16 +259,16 @@ public class ResourcesPromptsIntegrationTest {
         assertEquals("ping", localAdapter.getTools().get(0).name());
     }
 
-    // ── MCP protocol: initialize ──────────────────────────────────────────────────────────────────
+    // ── MCP protocol: server/discover ─────────────────────────────────────────────────────────────
 
     @Test
-    public void testInitializeAdvertisesResourcesAndPrompts() throws Exception {
+    public void testServerDiscoverAdvertisesResourcesAndPrompts() throws Exception {
         String requestJson = """
-                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+                {"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}
                 """;
         ObjectNode response = dispatch(requestJson);
 
-        assertNotNull(response, "initialize should return a response");
+        assertNotNull(response, "server/discover should return a response");
         JsonNode result = response.path("result");
 
         JsonNode capabilities = result.path("capabilities");
@@ -644,9 +644,15 @@ public class ResourcesPromptsIntegrationTest {
     // ── Helpers ───────────────────────────────────────────────────────────────────────────────────
 
     private ObjectNode dispatch(String requestJson) throws Exception {
-        JsonNode request = jsonMapper.readTree(requestJson);
+        ObjectNode request = (ObjectNode) jsonMapper.readTree(requestJson);
+        ObjectNode params = request.has("params") && request.get("params").isObject()
+                ? (ObjectNode) request.get("params")
+                : request.putObject("params");
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+
         var dispatcher = new io.ikanos.engine.exposes.mcp.ProtocolDispatcher(adapter);
-        return dispatcher.dispatch(request);
+        return dispatcher.dispatch(request).responseBody();
     }
 
 }

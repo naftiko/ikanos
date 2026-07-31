@@ -48,6 +48,12 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String maxBinarySize;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile Integer ttlMs;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String cacheScope;
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -112,6 +118,22 @@ public class McpServerSpec extends ServerSpec {
 
     public void setMaxBinarySize(String maxBinarySize) {
         this.maxBinarySize = maxBinarySize;
+    }
+
+    public Integer getTtlMs() {
+        return ttlMs;
+    }
+
+    public void setTtlMs(Integer ttlMs) {
+        this.ttlMs = ttlMs;
+    }
+
+    public String getCacheScope() {
+        return cacheScope;
+    }
+
+    public void setCacheScope(String cacheScope) {
+        this.cacheScope = cacheScope;
     }
 
     public Map<String, McpServerToolSpec> getTools() {
