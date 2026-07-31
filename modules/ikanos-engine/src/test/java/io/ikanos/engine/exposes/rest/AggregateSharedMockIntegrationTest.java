@@ -52,7 +52,9 @@ public class AggregateSharedMockIntegrationTest {
 
         JsonNode mcpResponse = dispatcher.dispatch(JSON.readTree(
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\"," +
-                        "\"params\":{\"name\":\"hello\",\"arguments\":{\"name\":\"Nina\"}}}"));
+                        "\"params\":{\"name\":\"hello\",\"arguments\":{\"name\":\"Nina\"}," +
+                        "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"" + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                .responseBody();
 
         assertFalse(mcpResponse.path("result").path("isError").asBoolean(),
                 "MCP tools/call should not fail for aggregate mock ref");

@@ -133,6 +133,7 @@ class ObservabilityMcpHttpLayerTest {
 
         McpServerResource resource = new McpServerResource();
         Request request = new Request(Method.POST, "http://localhost/mcp");
+        addMcpHeaders(request, "get-forecast");
         Response response = new Response(request);
         resource.init(ctx, request, response);
         return resource;
@@ -142,8 +143,16 @@ class ObservabilityMcpHttpLayerTest {
         return new StringRepresentation(
                 """
                 {"jsonrpc":"2.0","id":1,"method":"tools/call",\
-                "params":{"name":"%s","arguments":{"location":"Paris"}}}""".formatted(toolName),
+                "params":{"name":"%s","arguments":{"location":"Paris"},\
+                "_meta":{"io.modelcontextprotocol/protocolVersion":"%s"}}}"""
+                        .formatted(toolName, ProtocolDispatcher.MCP_PROTOCOL_VERSION),
                 MediaType.APPLICATION_JSON);
+    }
+
+    private static void addMcpHeaders(Request request, String toolName) {
+        request.getHeaders().add("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        request.getHeaders().add("Mcp-Method", "tools/call");
+        request.getHeaders().add("Mcp-Name", toolName);
     }
 
     // ─── tests ────────────────────────────────────────────────────────────────
@@ -170,7 +179,7 @@ class ObservabilityMcpHttpLayerTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         ProtocolDispatcher capturingDispatcher = new ProtocolDispatcher(adapter) {
             @Override
-            public com.fasterxml.jackson.databind.node.ObjectNode dispatch(
+            public io.ikanos.engine.exposes.mcp.model.DispatchResult dispatch(
                     com.fasterxml.jackson.databind.JsonNode root) {
                 // At this point we are inside the SERVER span scope created by McpServerResource
                 capturedTraceId.set(MDC.get(TelemetryBootstrap.MDC_TRACE_ID));
@@ -187,6 +196,7 @@ class ObservabilityMcpHttpLayerTest {
 
         McpServerResource observedResource = new McpServerResource();
         Request request = new Request(Method.POST, "http://localhost/mcp");
+        addMcpHeaders(request, "get-forecast");
         Response response = new Response(request);
         observedResource.init(ctx, request, response);
 

@@ -231,6 +231,14 @@
       "description": "A binary size with a mandatory unit (`B`, `KiB`, `MiB`, or `GiB`), e.g. `512KiB`, `5MiB`, `1GiB`. The unit is required to avoid ambiguity (a bare number has no scale).",
       "pattern": "^\\d+(\\.\\d+)?(B|KiB|MiB|GiB)$"
     },
+    "CacheScope": {
+      "type": "string",
+      "description": "Controls whether shared intermediaries may cache the response.",
+      "enum": [
+        "public",
+        "private"
+      ]
+    },
     "ConsumedInputParameter": {
       "type": "object",
       "description": "Describes a single function parameter. A unique parameter is defined by a combination of a name and location.",
@@ -721,6 +729,10 @@
           "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
           "description": "The date when the capability was last modified"
         },
+        "version": {
+          "type": "string",
+          "description": "The version of the capability"
+        },
         "stakeholders": {
           "type": "array",
           "description": "List of stakeholders related to this capability. It can be used for discovery and filtering purposes.",
@@ -1096,6 +1108,14 @@
         "maxBinarySize": {
           "$ref": "#/$defs/BinarySize",
           "description": "Maximum allowed binary response size before base64-encoding. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
+        },
+        "ttlMs": {
+          "type": "integer",
+          "description": "A freshness hint (in milliseconds) allowing clients to cache responses and reduce polling. If set to '0', the client will always make a request to the server."
+        },
+        "cacheScope": {
+          "$ref": "#/$defs/CacheScope",
+          "description": "Controls whether shared intermediaries may cache the response."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",

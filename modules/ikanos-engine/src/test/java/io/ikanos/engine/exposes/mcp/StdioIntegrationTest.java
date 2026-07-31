@@ -93,30 +93,29 @@ public class StdioIntegrationTest {
     }
 
     @Test
-    public void testStdioInitializeProtocol() throws Exception {
+    public void testStdioServerDiscoverProtocol() throws Exception {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
 
-        // Simulate an initialize request via the protocol dispatcher
+        // Simulate a server/discover request via the protocol dispatcher
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
         ObjectMapper mapper = new ObjectMapper();
 
-        String initRequest = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
-                + "\"params\":{\"protocolVersion\":\"2025-11-25\","
-                + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"},"
-                + "\"capabilities\":{}}}";
+        String discoverRequest = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
+                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
 
-        JsonNode request = mapper.readTree(initRequest);
-        JsonNode response = dispatcher.dispatch(request);
+        JsonNode request = mapper.readTree(discoverRequest);
+        JsonNode response = dispatcher.dispatch(request).responseBody();
 
-        assertNotNull(response, "Initialize should return a response");
+        assertNotNull(response, "server/discover should return a response");
         assertEquals("2.0", response.path("jsonrpc").asText());
         assertEquals(1, response.path("id").asInt());
 
         JsonNode result = response.get("result");
         assertNotNull(result, "Should have a result");
-        assertEquals("2025-11-25", result.path("protocolVersion").asText());
-        assertEquals("test-mcp-stdio",
-                result.path("serverInfo").path("name").asText());
+        JsonNode supportedVersions = result.path("supportedVersions");
+        assertTrue(supportedVersions.isArray() && supportedVersions.size() > 0);
+        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asText());
     }
 
     @Test
@@ -126,9 +125,11 @@ public class StdioIntegrationTest {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
         ObjectMapper mapper = new ObjectMapper();
 
-        String listRequest = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
+        String listRequest = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\","
+                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
 
-        JsonNode response = dispatcher.dispatch(mapper.readTree(listRequest));
+        JsonNode response = dispatcher.dispatch(mapper.readTree(listRequest)).responseBody();
 
         assertNotNull(response);
         JsonNode tools = response.path("result").path("tools");
@@ -138,32 +139,22 @@ public class StdioIntegrationTest {
     }
 
     @Test
-    public void testStdioNotificationReturnsNull() throws Exception {
+    public void testStdioUnsupportedProtocolVersionReturnsError() throws Exception {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
 
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
         ObjectMapper mapper = new ObjectMapper();
 
-        String notification = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}";
+        // A request without a matching protocolVersion in _meta must be rejected —
+        // the initialize/notifications/initialized handshake no longer exists in 2026-07-28,
+        // every request must self-describe its protocol version.
+        String requestWithoutVersion = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\"}";
 
-        JsonNode response = dispatcher.dispatch(mapper.readTree(notification));
-        assertNull(response, "Notifications should return null (no response)");
-    }
-
-    @Test
-    public void testStdioPingProtocol() throws Exception {
-        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
-
-        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
-        ObjectMapper mapper = new ObjectMapper();
-
-        String pingRequest = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}";
-
-        JsonNode response = dispatcher.dispatch(mapper.readTree(pingRequest));
+        JsonNode response = dispatcher.dispatch(mapper.readTree(requestWithoutVersion)).responseBody();
 
         assertNotNull(response);
-        assertEquals(3, response.path("id").asInt());
-        assertNotNull(response.get("result"), "Ping should return an empty result");
+        assertEquals(-32022, response.path("error").path("code").asInt(),
+                "Missing/unsupported protocol version should return UnsupportedProtocolVersion (-32022)");
     }
 
     @Test
@@ -172,14 +163,14 @@ public class StdioIntegrationTest {
 
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
 
-        // Build a multi-line input: initialize + tools/list + ping
-        String input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
-                + "\"params\":{\"protocolVersion\":\"2025-11-25\","
-                + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"},"
-                + "\"capabilities\":{}}}\n"
-                + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"
-                + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n"
-                + "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}\n";
+        String metaSuffix = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}";
+
+        // Build a multi-line input: server/discover + tools/list
+        String input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
+                + "\"params\":{" + metaSuffix + "}}\n"
+                + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\","
+                + "\"params\":{" + metaSuffix + "}}\n";
 
         ByteArrayInputStream in = new ByteArrayInputStream(
                 input.getBytes(StandardCharsets.UTF_8));
@@ -191,27 +182,23 @@ public class StdioIntegrationTest {
         String output = out.toString(StandardCharsets.UTF_8);
         String[] lines = output.strip().split("\\n");
 
-        // Should have 3 responses (notification has no response)
-        assertEquals(3, lines.length,
-                "Should have 3 response lines (initialize, tools/list, ping)");
+        // Should have 2 responses (server/discover, tools/list)
+        assertEquals(2, lines.length,
+                "Should have 2 response lines (server/discover, tools/list)");
 
         ObjectMapper mapper = new ObjectMapper();
 
-        // Verify initialize response
-        JsonNode initResponse = mapper.readTree(lines[0]);
-        assertEquals(1, initResponse.path("id").asInt());
-        assertEquals("2025-11-25",
-                initResponse.path("result").path("protocolVersion").asText());
+        // Verify server/discover response
+        JsonNode discoverResponse = mapper.readTree(lines[0]);
+        assertEquals(1, discoverResponse.path("id").asInt());
+        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
+                discoverResponse.path("result").path("supportedVersions").get(0).asText());
 
         // Verify tools/list response
         JsonNode toolsResponse = mapper.readTree(lines[1]);
         assertEquals(2, toolsResponse.path("id").asInt());
         assertEquals("query-database",
                 toolsResponse.path("result").path("tools").get(0).path("name").asText());
-
-        // Verify ping response
-        JsonNode pingResponse = mapper.readTree(lines[2]);
-        assertEquals(3, pingResponse.path("id").asInt());
     }
 
     @Test

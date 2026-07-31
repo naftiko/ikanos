@@ -76,8 +76,8 @@ public class Step11ShipyardFleetManifestIntegrationTest
         int mcpPort = findFreePort();
         int skillPort = findFreePort();
 
-        spec.getCapability().getExposes().get(0).setPort(mcpPort);
-        spec.getCapability().getExposes().get(0).setAddress("localhost");
+        spec.getCapability().getExposes().getFirst().setPort(mcpPort);
+        spec.getCapability().getExposes().getFirst().setAddress("localhost");
 
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)
@@ -105,9 +105,8 @@ public class Step11ShipyardFleetManifestIntegrationTest
     @Test
     public void toolsListShouldAdvertiseSixTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(6, tools.size(), "step-11 MCP exposes exactly six tools");
         assertEquals("list-ships", tools.get(0).path("name").asText());
@@ -121,9 +120,8 @@ public class Step11ShipyardFleetManifestIntegrationTest
     @Test
     public void getShipWithCrewInputSchemaShouldDeclareImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode getShipWithCrew = callToolsList(http, sessionId).get(4);
+        JsonNode getShipWithCrew = callToolsList(http).get(4);
 
         JsonNode props = getShipWithCrew.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship-with-crew must declare imo parameter");
@@ -143,9 +141,8 @@ public class Step11ShipyardFleetManifestIntegrationTest
     @Test
     public void getVoyageManifestInputSchemaShouldDeclareVoyageIdParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode getVoyageManifest = callToolsList(http, sessionId).get(5);
+        JsonNode getVoyageManifest = callToolsList(http).get(5);
 
         JsonNode props = getVoyageManifest.path("inputSchema").path("properties");
         assertTrue(props.has("voyageId"), "get-voyage-manifest must declare voyageId parameter");
@@ -167,8 +164,7 @@ public class Step11ShipyardFleetManifestIntegrationTest
         int skillPort = findFreePort();
         SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
 
-        try {
-            HttpClient http = HttpClient.newHttpClient();
+        try (HttpClient http = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + skillPort + "/skills/voyage-ops"))
                     .GET()
@@ -199,14 +195,13 @@ public class Step11ShipyardFleetManifestIntegrationTest
         IkanosSpec spec = loadSpec(CAPABILITY_FILE);
         disableMcpAuthentication(spec);
 
-
         return spec;
     }
 
     private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
         IkanosSpec spec = loadPatchedStep11Spec();
 
-        spec.getCapability().getExposes().get(0).setPort(findFreePort());
+        spec.getCapability().getExposes().getFirst().setPort(findFreePort());
 
         RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
                 .filter(e -> e instanceof RestServerSpec)

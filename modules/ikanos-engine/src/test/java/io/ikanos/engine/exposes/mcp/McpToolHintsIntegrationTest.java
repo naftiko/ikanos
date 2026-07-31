@@ -130,7 +130,8 @@ public class McpToolHintsIntegrationTest {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
 
         JsonNode response = dispatcher.dispatch(JSON.readTree(
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"));
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"%s\"}}}"
+                        .formatted(ProtocolDispatcher.MCP_PROTOCOL_VERSION))).responseBody();
 
         JsonNode tools = response.path("result").path("tools");
         assertEquals(3, tools.size(), "Should have three tools");

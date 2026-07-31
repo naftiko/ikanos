@@ -45,170 +45,183 @@ class McpAuthenticationIntegrationTest {
     @Test
     void bearerAuthShouldRejectRequestWithoutToken() throws Exception {
         McpServerAdapter adapter = startBearerProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(401, response.statusCode(),
-                    "Request without bearer token should be rejected");
-        } finally {
-            adapter.stop();
+                assertEquals(401, response.statusCode(),
+                        "Request without bearer token should be rejected");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void bearerAuthShouldRejectRequestWithWrongToken() throws Exception {
         McpServerAdapter adapter = startBearerProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("Authorization", "Bearer wrong-token")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer wrong-token")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(401, response.statusCode(),
-                    "Request with wrong bearer token should be rejected");
-        } finally {
-            adapter.stop();
+                assertEquals(401, response.statusCode(),
+                        "Request with wrong bearer token should be rejected");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void bearerAuthShouldAcceptRequestWithCorrectToken() throws Exception {
         McpServerAdapter adapter = startBearerProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("Authorization", "Bearer mcp-secret-token-123")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer mcp-secret-token-123")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode(),
-                    "Request with correct bearer token should be accepted");
+                assertEquals(200, response.statusCode(),
+                        "Request with correct bearer token should be accepted");
 
-            JsonNode body = JSON.readTree(response.body());
-            assertNotNull(body.path("result").path("protocolVersion").asText(),
-                    "Initialize response should contain protocolVersion");
-        } finally {
-            adapter.stop();
+                JsonNode body = JSON.readTree(response.body());
+                assertNotNull(body.path("result").path("supportedVersions"),
+                        "server/discover response should contain supportedVersions");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void apiKeyAuthShouldRejectRequestWithoutKey() throws Exception {
         McpServerAdapter adapter = startApiKeyProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(401, response.statusCode(),
-                    "Request without API key should be rejected");
-        } finally {
-            adapter.stop();
+                assertEquals(401, response.statusCode(),
+                        "Request without API key should be rejected");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void apiKeyAuthShouldAcceptRequestWithCorrectKey() throws Exception {
         McpServerAdapter adapter = startApiKeyProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("X-MCP-Key", "abc-key-456")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("X-MCP-Key", "abc-key-456")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode(),
-                    "Request with correct API key should be accepted");
+                assertEquals(200, response.statusCode(),
+                        "Request with correct API key should be accepted");
 
-            JsonNode body = JSON.readTree(response.body());
-            assertNotNull(body.path("result").path("protocolVersion").asText(),
-                    "Initialize response should contain protocolVersion");
-        } finally {
-            adapter.stop();
+                JsonNode body = JSON.readTree(response.body());
+                assertNotNull(body.path("result").path("supportedVersions"),
+                        "server/discover response should contain supportedVersions");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void bearerAuthShouldProtectAllMethods() throws Exception {
         McpServerAdapter adapter = startBearerProtectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            // GET without token should be rejected
-            HttpResponse<String> getResponse = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            assertEquals(401, getResponse.statusCode(),
-                    "GET without token should be rejected");
+            try {
+                // GET without token should be rejected
+                HttpResponse<String> getResponse = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(401, getResponse.statusCode(),
+                        "GET without token should be rejected");
 
-            // DELETE without token should be rejected
-            HttpResponse<String> deleteResponse = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .method("DELETE", HttpRequest.BodyPublishers.noBody())
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-            assertEquals(401, deleteResponse.statusCode(),
-                    "DELETE without token should be rejected");
-        } finally {
-            adapter.stop();
+                // DELETE without token should be rejected
+                HttpResponse<String> deleteResponse = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .method("DELETE", HttpRequest.BodyPublishers.noBody())
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(401, deleteResponse.statusCode(),
+                        "DELETE without token should be rejected");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void noAuthShouldAllowAllRequests() throws Exception {
         McpServerAdapter adapter = startUnprotectedServer();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode(),
-                    "Unprotected server should accept all requests");
-        } finally {
-            adapter.stop();
+                assertEquals(200, response.statusCode(),
+                        "Unprotected server should accept all requests");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
@@ -220,41 +233,50 @@ class McpAuthenticationIntegrationTest {
         try {
             McpServerAdapter adapter = startBearerProtectedServerWithBinding(
                     secretsFile.toUri().toString());
-            HttpClient client = HttpClient.newHttpClient();
-            String baseUrl = baseUrlFor(adapter);
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                String baseUrl = baseUrlFor(adapter);
 
-            try {
-                // Correct token from the file should be accepted
-                HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create(baseUrl))
-                                .POST(HttpRequest.BodyPublishers.ofString(
-                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                                .header("Content-Type", "application/json")
-                                .header("Authorization", "Bearer sk-mcp-from-file")
-                                .build(),
-                        HttpResponse.BodyHandlers.ofString());
+                try {
+                    // Correct token from the file should be accepted
+                    HttpResponse<String> response = client.send(
+                            HttpRequest.newBuilder(URI.create(baseUrl))
+                                    .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                    .header("Content-Type", "application/json")
+                                    .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                    .header("Mcp-Method", "server/discover")
+                                    .header("Authorization", "Bearer sk-mcp-from-file")
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofString());
 
-                assertEquals(200, response.statusCode(),
-                        "Token resolved from file binding should be accepted");
+                    assertEquals(200, response.statusCode(),
+                            "Token resolved from file binding should be accepted");
 
-                // Wrong token should still be rejected
-                HttpResponse<String> rejectedResponse = client.send(
-                        HttpRequest.newBuilder(URI.create(baseUrl))
-                                .POST(HttpRequest.BodyPublishers.ofString(
-                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                                .header("Content-Type", "application/json")
-                                .header("Authorization", "Bearer wrong-token")
-                                .build(),
-                        HttpResponse.BodyHandlers.ofString());
+                    // Wrong token should still be rejected
+                    HttpResponse<String> rejectedResponse = client.send(
+                            HttpRequest.newBuilder(URI.create(baseUrl))
+                                    .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                    .header("Content-Type", "application/json")
+                                    .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                    .header("Mcp-Method", "server/discover")
+                                    .header("Authorization", "Bearer wrong-token")
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofString());
 
-                assertEquals(401, rejectedResponse.statusCode(),
-                        "Wrong token should still be rejected when using file binding");
-            } finally {
-                adapter.stop();
+                    assertEquals(401, rejectedResponse.statusCode(),
+                            "Wrong token should still be rejected when using file binding");
+                } finally {
+                    adapter.stop();
+                }
             }
         } finally {
             Files.deleteIfExists(secretsFile);
         }
+    }
+
+    private static String discoverBody() {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
+                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
     }
 
     private McpServerAdapter startBearerProtectedServer() throws Exception {
