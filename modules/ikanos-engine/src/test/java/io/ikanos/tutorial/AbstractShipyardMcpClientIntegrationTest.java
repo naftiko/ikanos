@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import io.github.microcks.testcontainers.MicrocksContainer;
+import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 
@@ -164,38 +165,13 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     }
 
     /**
-     * Runs the MCP {@code initialize} + {@code notifications/initialized} handshake and
-     * returns the session ID issued by the server.
-     */
-    protected String initialize(HttpClient http) throws Exception {
-        String initBody = """
-                {"jsonrpc":"2.0","id":1,"method":"initialize",
-                 "params":{"protocolVersion":"2025-11-25",
-                           "clientInfo":{"name":"test-client","version":"1.0"},
-                           "capabilities":{}}}
-                """;
-
-        HttpResponse<String> initResp = http.send(buildPost(initBody), string());
-        assertEquals(200, initResp.statusCode(), "initialize must succeed");
-
-        String sessionId = initResp.headers().firstValue("Mcp-Session-Id")
-                .orElseThrow(() -> new AssertionError("No Mcp-Session-Id in initialize response"));
-
-        http.send(buildPost("""
-                {"jsonrpc":"2.0","method":"notifications/initialized"}
-                """, sessionId), string());
-
-        return sessionId;
-    }
-
-    /**
      * Sends {@code tools/list} and returns the {@code result.tools} array.
      */
-    protected JsonNode callToolsList(HttpClient http, String sessionId) throws Exception {
+    protected JsonNode callToolsList(HttpClient http) throws Exception {
         HttpResponse<String> response = http.send(
                 buildPost("""
                         {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
-                        """, sessionId),
+                        """),
                 string());
         assertEquals(200, response.statusCode());
         return json.readTree(response.body()).path("result").path("tools");
@@ -205,16 +181,16 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
      * Sends {@code tools/call}, asserts {@code isError} is false, and returns the parsed
      * JSON payload from {@code result.content[0].text}.
      */
-    protected JsonNode callTool(HttpClient http, String sessionId, String body) throws Exception {
-        return doCallTool(http, sessionId, body, true).orElseThrow();
+    protected JsonNode callTool(HttpClient http, String body) throws Exception {
+        return doCallTool(http, body, true).orElseThrow();
     }
 
-    protected Optional<JsonNode> callTool(HttpClient http, String sessionId, String body, boolean contentExpected) throws Exception {
-        return doCallTool(http, sessionId, body, contentExpected);
+    protected Optional<JsonNode> callTool(HttpClient http, String body, boolean contentExpected) throws Exception {
+        return doCallTool(http, body, contentExpected);
     }
 
-    private Optional<JsonNode> doCallTool(HttpClient http, String sessionId, String body, boolean contentExpected) throws IOException, InterruptedException {
-        HttpResponse<String> response = http.send(buildPost(body, sessionId), string());
+    private Optional<JsonNode> doCallTool(HttpClient http, String body, boolean contentExpected) throws IOException, InterruptedException {
+        HttpResponse<String> response = http.send(buildPost(body), string());
         assertEquals(200, response.statusCode());
 
         JsonNode envelope = json.readTree(response.body());
@@ -232,10 +208,6 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     }
 
     protected HttpRequest buildPost(String body) {
-        return buildPost(body, null);
-    }
-
-    protected HttpRequest buildPost(String body, String sessionId) {
         if (mcpServerToken == null) {
             File defaultSecretsFile = new File(DEFAULT_TUTORIAL_SECRETS_FILE);
             if (defaultSecretsFile.exists()) {
@@ -247,17 +219,53 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
             }
         }
 
+        String enrichedBody = withProtocolVersionMeta(body.strip());
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(serverUrl))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body.strip()));
+                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                .POST(HttpRequest.BodyPublishers.ofString(enrichedBody));
         if (mcpServerToken != null) {
             builder.header("Authorization", "Bearer " + mcpServerToken);
         }
-        if (sessionId != null) {
-            builder.header("Mcp-Session-Id", sessionId);
+
+        try {
+            JsonNode request = json.readTree(enrichedBody);
+            String rpcMethod = request.path("method").asText("");
+            if (!rpcMethod.isEmpty()) {
+                builder.header("Mcp-Method", rpcMethod);
+            }
+            String toolOrPromptName = request.path("params").path("name").asText(null);
+            String resourceUri = request.path("params").path("uri").asText(null);
+            if (toolOrPromptName != null) {
+                builder.header("Mcp-Name", toolOrPromptName);
+            } else if (resourceUri != null) {
+                builder.header("Mcp-Name", resourceUri);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse JSON-RPC request body for header injection", e);
         }
+
         return builder.build();
+    }
+
+    /**
+     * Injects {@code params._meta["io.modelcontextprotocol/protocolVersion"]} into a raw
+     * JSON-RPC request body, creating {@code params} if it is absent.
+     */
+    private String withProtocolVersionMeta(String requestJson) {
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode request =
+                    (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(requestJson);
+            com.fasterxml.jackson.databind.node.ObjectNode params =
+                    request.has("params") && request.get("params").isObject()
+                            ? (com.fasterxml.jackson.databind.node.ObjectNode) request.get("params")
+                            : request.putObject("params");
+            params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+            return json.writeValueAsString(request);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to inject protocolVersion into request body", e);
+        }
     }
 
     protected static HttpResponse.BodyHandler<String> string() {

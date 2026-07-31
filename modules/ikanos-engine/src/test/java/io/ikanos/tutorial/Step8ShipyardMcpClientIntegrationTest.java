@@ -63,9 +63,8 @@ public class Step8ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseFiveTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(5, tools.size(), "step-8 MCP exposes exactly five tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
@@ -78,9 +77,8 @@ public class Step8ShipyardMcpClientIntegrationTest
     @Test
     public void createVoyageInputSchemaShouldDeclareRequiredFields() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode createVoyage = callToolsList(http, sessionId).get(3);
+        JsonNode createVoyage = callToolsList(http).get(3);
 
         JsonNode props = createVoyage.path("inputSchema").path("properties");
         assertTrue(props.has("shipImo"), "create-voyage inputSchema must declare 'shipImo'");
@@ -133,9 +131,8 @@ public class Step8ShipyardMcpClientIntegrationTest
     @Test
     public void createVoyageShouldReturnMappedVoyageObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode voyage = callTool(http, sessionId, """
+        JsonNode voyage = callTool(http, """
                 {"jsonrpc":"2.0","id":4,"method":"tools/call",
                  "params":{"name":"create-voyage","arguments":{
                    "shipImo":"IMO-9321483",
@@ -173,8 +170,7 @@ public class Step8ShipyardMcpClientIntegrationTest
         int skillPort = findFreePort();
         SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
 
-        try {
-            HttpClient http = HttpClient.newHttpClient();
+        try (HttpClient http = HttpClient.newHttpClient()){
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + skillPort + "/skills"))
                     .GET()
@@ -202,8 +198,7 @@ public class Step8ShipyardMcpClientIntegrationTest
         int skillPort = findFreePort();
         SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
 
-        try {
-            HttpClient http = HttpClient.newHttpClient();
+        try (HttpClient http = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + skillPort + "/skills/fleet-ops"))
                     .GET()

@@ -13,18 +13,6 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import org.restlet.Context;
-import org.restlet.Restlet;
-import org.restlet.routing.Router;
-import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -33,6 +21,18 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
+import io.modelcontextprotocol.spec.McpSchema;
+import org.restlet.Context;
+import org.restlet.Restlet;
+import org.restlet.routing.Router;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 
 /**
  * MCP Server Adapter implementation.
@@ -107,11 +107,9 @@ public class McpServerAdapter extends ServerAdapter {
      */
     private void initHttpTransport(McpServerSpec serverSpec) {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);
-        Map<String, Boolean> activeSessions = new ConcurrentHashMap<>();
 
         Context context = new Context();
         context.getAttributes().put("dispatcher", dispatcher);
-        context.getAttributes().put("activeSessions", activeSessions);
         if (getCapability().getSpec().getInfo() != null
                 && getCapability().getSpec().getInfo().getDisplay() != null) {
             context.getAttributes().put("capabilityName",

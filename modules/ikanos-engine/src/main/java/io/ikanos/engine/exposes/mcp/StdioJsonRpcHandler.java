@@ -21,10 +21,15 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
+
+import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import org.restlet.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.PARSE_ERROR;
+import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 
 /**
  * MCP stdio transport handler.
@@ -76,7 +81,8 @@ public class StdioJsonRpcHandler implements Runnable {
 
                 try {
                     JsonNode request = dispatcher.getMapper().readTree(line);
-                    ObjectNode response = dispatcher.dispatch(request);
+                    DispatchResult dispatchResult = dispatcher.dispatch(request);
+                    ObjectNode response = dispatchResult.responseBody();
 
                     // Notifications return null — no response to write
                     if (response != null) {
@@ -89,13 +95,13 @@ public class StdioJsonRpcHandler implements Runnable {
 
 
                     // Malformed JSON — write parse error response
-                    ObjectNode errorResponse = dispatcher.buildJsonRpcError(
-                            null, -32700, "Parse error: " + e.getMessage());
+                    ObjectNode errorResponse = buildJsonRpcError(
+                            null, PARSE_ERROR.getCode(), "Parse error: " + e.getMessage());
                     try {
                         output.println(dispatcher.getMapper().writeValueAsString(errorResponse));
                         output.flush();
-                    } catch (JsonProcessingException ignored) {
-                        Context.getCurrentLogger().log(Level.SEVERE, "Error serializing error response", ignored);
+                    } catch (JsonProcessingException ex) {
+                        Context.getCurrentLogger().log(Level.SEVERE, "Error serializing error response", ex);
                         // Cannot serialize the error response — nothing more we can do
                     }
                 }
@@ -115,8 +121,8 @@ public class StdioJsonRpcHandler implements Runnable {
         this.running = false;
         try {
             input.close();
-        } catch (IOException ignored) {
-            Context.getCurrentLogger().log(Level.SEVERE, "Error closing input stream", ignored);
+        } catch (IOException e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error closing input stream", e);
             // Best-effort close to interrupt the read loop
         }
     }

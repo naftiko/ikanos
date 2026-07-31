@@ -31,7 +31,7 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 
 /**
  * MCP-specific OAuth 2.1 Restlet that extends {@link OAuth2AuthenticationRestlet} with
- * MCP 2025-11-25 protocol behavior:
+ * MCP protocol behavior:
  * <ul>
  *   <li>Auto-serves Protected Resource Metadata (RFC 9728) at the well-known path</li>
  *   <li>Includes {@code resource_metadata} URL in {@code WWW-Authenticate} headers</li>

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
@@ -44,9 +45,9 @@ public class ProtocolDispatcherNegativeTest {
 
     @Test
     public void dispatchShouldRejectInvalidJsonRpcVersion() throws Exception {
-        JsonNode response = dispatcher.dispatch(mapper.readTree("""
-                {"jsonrpc":"1.0","id":1,"method":"ping"}
-                """));
+        JsonNode response = dispatcher.dispatch(mapper.readTree(withProtocolVersion("""
+                {"jsonrpc":"1.0","id":1,"method":"tools/list"}
+                """))).responseBody();
 
         assertEquals(-32600, response.path("error").path("code").asInt());
     }
@@ -55,26 +56,26 @@ public class ProtocolDispatcherNegativeTest {
     public void dispatchShouldRejectUnknownMethod() throws Exception {
         JsonNode response = dispatcher.dispatch(mapper.readTree("""
                 {"jsonrpc":"2.0","id":2,"method":"unknown/method"}
-                """));
+                """)).responseBody();
 
         assertEquals(-32601, response.path("error").path("code").asInt());
     }
 
     @Test
-    public void dispatchShouldRejectToolsCallWithoutParams() throws Exception {
-        JsonNode response = dispatcher.dispatch(mapper.readTree("""
+    public void dispatchShouldRejectToolsCallWithoutName() throws Exception {
+        JsonNode response = dispatcher.dispatch(mapper.readTree(withProtocolVersion("""
                 {"jsonrpc":"2.0","id":3,"method":"tools/call"}
-                """));
+                """))).responseBody();
 
         assertEquals(-32602, response.path("error").path("code").asInt());
-        assertEquals("Invalid params: missing params", response.path("error").path("message").asText());
+        assertEquals("Invalid params: Unknown tool: ", response.path("error").path("message").asText());
     }
 
     @Test
     public void dispatchShouldRejectResourcesReadWithoutUri() throws Exception {
-        JsonNode response = dispatcher.dispatch(mapper.readTree("""
+        JsonNode response = dispatcher.dispatch(mapper.readTree(withProtocolVersion("""
                 {"jsonrpc":"2.0","id":4,"method":"resources/read","params":{}}
-                """));
+                """))).responseBody();
 
         assertEquals(-32602, response.path("error").path("code").asInt());
         assertEquals("Invalid params: uri is required", response.path("error").path("message").asText());
@@ -82,12 +83,22 @@ public class ProtocolDispatcherNegativeTest {
 
     @Test
     public void dispatchShouldRejectPromptsGetWithoutName() throws Exception {
-        JsonNode response = dispatcher.dispatch(mapper.readTree("""
+        JsonNode response = dispatcher.dispatch(mapper.readTree(withProtocolVersion("""
                 {"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{}}
-                """));
+                """))).responseBody();
 
         assertNotNull(response.path("error"));
         assertEquals(-32602, response.path("error").path("code").asInt());
         assertEquals("Invalid params: name is required", response.path("error").path("message").asText());
+    }
+
+    private String withProtocolVersion(String requestJson) throws Exception {
+        ObjectNode request = (ObjectNode) mapper.readTree(requestJson);
+        ObjectNode params = request.has("params") && request.get("params").isObject()
+                ? (ObjectNode) request.get("params")
+                : request.putObject("params");
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        return mapper.writeValueAsString(request);
     }
 }

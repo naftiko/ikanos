@@ -88,9 +88,8 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseThreeTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(3, tools.size(), "step-5 exposes exactly three tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
@@ -101,9 +100,8 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsInputSchemaShouldDeclareOptionalStatusParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode listShips = callToolsList(http, sessionId).get(0);
+        JsonNode listShips = callToolsList(http).get(0);
 
         JsonNode props = listShips.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-ships inputSchema must declare 'status'");
@@ -123,9 +121,8 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void getShipInputSchemaShouldDeclareRequiredImoParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode getShip = callToolsList(http, sessionId).get(1);
+        JsonNode getShip = callToolsList(http).get(1);
 
         JsonNode props = getShip.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship inputSchema must declare 'imo'");
@@ -145,9 +142,8 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void listLegacyVesselsInputSchemaShouldDeclareOptionalStatusParameter() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode listLegacy = callToolsList(http, sessionId).get(2);
+        JsonNode listLegacy = callToolsList(http).get(2);
 
         JsonNode props = listLegacy.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-legacy-vessels inputSchema must declare 'status'");
@@ -169,14 +165,13 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void listShipsShouldReturnMappedFlatFields() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ships = callTool(http, sessionId, """
+        JsonNode ships = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-ships","arguments":{}}}
                 """);
 
-        assertTrue(ships.isArray() && ships.size() > 0, "list-ships must return a non-empty array");
+        assertTrue(ships.isArray() && !ships.isEmpty(), "list-ships must return a non-empty array");
 
         JsonNode first = ships.get(0);
         assertTrue(first.has("imo"),    "Must have 'imo'");
@@ -193,9 +188,8 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void getShipShouldReturnFlatFieldsAndNestedSpecsObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode ship = callTool(http, sessionId, """
+        JsonNode ship = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"get-ship","arguments":{"imo":"IMO-9321483"}}}
                 """);
@@ -225,14 +219,13 @@ public class Step5ShipyardMcpClientIntegrationTest
     @Test
     public void listLegacyVesselsShouldReturnMappedVesselArray() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode vessels = callTool(http, sessionId, """
+        JsonNode vessels = callTool(http, """
                 {"jsonrpc":"2.0","id":3,"method":"tools/call",
                  "params":{"name":"list-legacy-vessels","arguments":{}}}
                 """);
 
-        assertTrue(vessels.isArray() && vessels.size() > 0,
+        assertTrue(vessels.isArray() && !vessels.isEmpty(),
                 "list-legacy-vessels must return a non-empty array");
 
         JsonNode first = vessels.get(0);
