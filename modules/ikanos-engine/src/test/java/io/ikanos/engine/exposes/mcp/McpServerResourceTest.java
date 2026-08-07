@@ -33,10 +33,13 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 /**
- * Unit tests for the Restlet-based MCP Streamable HTTP transport.
- * 
- * Validates POST dispatch, DELETE session removal, GET rejection, empty body handling,
- * and malformed JSON handling through actual HTTP calls.
+ * Unit tests for the Restlet-based MCP Streamable HTTP transport (protocol revision
+ * {@code 2026-07-28}).
+ *
+ * <p>Validates POST dispatch, GET/DELETE rejection (protocol-level sessions and the GET stream
+ * endpoint were removed in this revision), empty body handling, malformed JSON handling, and the
+ * new mandatory request-metadata headers ({@code MCP-Protocol-Version}, {@code Mcp-Method},
+ * {@code Mcp-Name}) through actual HTTP calls.</p>
  */
 class McpServerResourceTest {
 
@@ -47,213 +50,269 @@ class McpServerResourceTest {
     @Test
     void getShouldReturn405WithNotSupportedMessage() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(405, response.statusCode());
-            assertEquals("GET not supported", response.body());
-        } finally {
-            adapter.stop();
+                assertEquals(405, response.statusCode());
+                assertEquals("GET not supported", response.body());
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void deleteShouldReturn405RegardlessOfSessionHeader() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> withoutHeader = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .method("DELETE", HttpRequest.BodyPublishers.noBody())
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(405, withoutHeader.statusCode());
+
+                HttpResponse<String> withStaleSessionHeader = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .method("DELETE", HttpRequest.BodyPublishers.noBody())
+                                .header("Mcp-Session-Id", "some-legacy-session-id")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(405, withStaleSessionHeader.statusCode(),
+                        "A stale Mcp-Session-Id header from a pre-2026-07-28 client must be ignored");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void postWithEmptyBodyShouldReturnParseError() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(""))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(""))
+                                .header("Content-Type", "application/json")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode());
-            JsonNode body = JSON.readTree(response.body());
-            assertEquals(-32700, body.path("error").path("code").asInt());
-            assertTrue(body.path("error").path("message").asText().contains("empty body"));
-        } finally {
-            adapter.stop();
+                assertEquals(400, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32700, body.path("error").path("code").asInt());
+                assertTrue(body.path("error").path("message").asText().contains("empty body"));
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void postWithMalformedJsonShouldReturnParseError() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString("{"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString("{"))
+                                .header("Content-Type", "application/json")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode());
-            JsonNode body = JSON.readTree(response.body());
-            assertEquals(-32700, body.path("error").path("code").asInt());
-        } finally {
-            adapter.stop();
-        }
-    }
-
-    @Test
-    void initializeShouldReturnSessionIdHeader() throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
-
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-
-            assertEquals(200, response.statusCode());
-            String sessionId =
-                    response.headers().firstValue("Mcp-Session-Id").orElse(null);
-            assertNotNull(sessionId);
-
-            JsonNode body = JSON.readTree(response.body());
-            assertEquals("2.0", body.path("jsonrpc").asText());
-            assertEquals(1, body.path("id").asInt());
-            assertNotNull(body.path("result").path("protocolVersion").asText());
-        } finally {
-            adapter.stop();
-        }
-    }
-
-    @Test
-    void notificationsInitializedShouldReturn202() throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
-
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-
-            assertEquals(202, response.statusCode());
-            assertTrue(response.body() == null || response.body().isBlank());
-        } finally {
-            adapter.stop();
-        }
-    }
-
-    @Test
-    void deleteShouldReturn200AndRemoveSession() throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
-
-        try {
-            // First initialize to get a session ID
-            HttpResponse<String> initResponse = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-            String sessionId =
-                    initResponse.headers().firstValue("Mcp-Session-Id").orElse(null);
-            assertNotNull(sessionId);
-
-            // DELETE with session ID
-            HttpResponse<String> deleteResponse = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .method("DELETE", HttpRequest.BodyPublishers.noBody())
-                            .header("Mcp-Session-Id", sessionId)
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-
-            assertEquals(200, deleteResponse.statusCode());
-        } finally {
-            adapter.stop();
-        }
-    }
-
-    @Test
-    void deleteShouldReturn200EvenWithoutSessionHeader() throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
-
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .method("DELETE", HttpRequest.BodyPublishers.noBody())
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
-
-            assertEquals(200, response.statusCode());
-        } finally {
-            adapter.stop();
+                assertEquals(400, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32700, body.path("error").path("code").asInt());
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void postShouldReturnMethodNotFoundForUnknownRpcMethod() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"unknown/method\"}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"unknown/method\"}"))
+                                .header("Content-Type", "application/json")
+                                .header("Mcp-Method", "unknown/method")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode());
-            JsonNode body = JSON.readTree(response.body());
-            assertEquals(-32601, body.path("error").path("code").asInt());
-            assertFalse(body.path("error").path("message").asText().isBlank());
-        } finally {
-            adapter.stop();
+                assertEquals(404, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32601, body.path("error").path("code").asInt());
+                assertFalse(body.path("error").path("message").asText().isBlank());
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void postShouldReturnHeaderMismatchWhenMcpMethodHeaderIsMissing() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/list\",\"params\":{}}"))
+                                .header("Content-Type", "application/json")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(400, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32020, body.path("error").path("code").asInt());
+                assertTrue(body.path("error").path("message").asText().contains("Mcp-Method"));
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void postShouldReturnInvalidRequestForBadJsonRpcVersion() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"1.0\",\"id\":1,\"method\":\"initialize\"}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"1.0\",\"id\":1,\"method\":\"tools/list\","
+                                                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                                                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "tools/list")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode());
-            JsonNode body = JSON.readTree(response.body());
-            assertEquals(-32600, body.path("error").path("code").asInt());
-        } finally {
-            adapter.stop();
+                assertEquals(400, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32600, body.path("error").path("code").asInt());
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void serverDiscoverShouldSucceedWithValidHeaders() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
+                                                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                                                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(200, response.statusCode());
+                assertFalse(response.headers().firstValue("Mcp-Session-Id").isPresent(),
+                        "This revision no longer mints session IDs");
+
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals("2.0", body.path("jsonrpc").asText());
+                assertEquals(1, body.path("id").asInt());
+
+                JsonNode supportedVersions = body.path("result").path("supportedVersions");
+                assertTrue(supportedVersions.isArray() && !supportedVersions.isEmpty());
+                assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asText());
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void toolsCallShouldSucceedWithValidHeaders() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                                                + "\"params\":{\"name\":\"query-database\",\"arguments\":{},"
+                                                + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                                                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "tools/call")
+                                .header("Mcp-Name", "=?base64?cXVlcnktZGF0YWJhc2U=?=")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(200, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertNotNull(body.path("result"));
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void toolsCallShouldReturnHeaderMismatchWhenMcpNameHeaderDoesNotMatchBody() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                                                + "\"params\":{\"name\":\"query-database\",\"arguments\":{},"
+                                                + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                                                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "tools/call")
+                                .header("Mcp-Name", "does-not-match")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(400, response.statusCode());
+                JsonNode body = JSON.readTree(response.body());
+                assertEquals(-32020, body.path("error").path("code").asInt());
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
@@ -265,12 +324,12 @@ class McpServerResourceTest {
     private static McpServerAdapter startAdapterOnFreePort() throws Exception {
         String resourcePath = "src/test/resources/mcp/mcp-capability.yaml";
         IkanosSpec spec = YAML.readValue(new File(resourcePath), IkanosSpec.class);
-        McpServerSpec mcpServerSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        McpServerSpec mcpServerSpec = (McpServerSpec) spec.getCapability().getExposes().getFirst();
         mcpServerSpec.setPort(findFreePort());
         mcpServerSpec.setAddress("127.0.0.1");
 
         Capability capability = new Capability(spec);
-        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
+        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().getFirst();
         adapter.start();
         return adapter;
     }

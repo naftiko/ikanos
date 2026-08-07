@@ -31,6 +31,8 @@ public class InfoSpec {
 
     private volatile String modified;
 
+    private volatile String version;
+
     private final List<StakeholderSpec> stakeholders;
 
     public InfoSpec(String display, String description, String created, String modified) {
@@ -80,6 +82,14 @@ public class InfoSpec {
 
     public void setModified(String modified) {
         this.modified = modified;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
     }
 
     public List<StakeholderSpec> getStakeholders() {

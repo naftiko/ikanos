@@ -131,11 +131,17 @@ jobs:
               RESPONSE=$(curl -s http://localhost:$PORT \
                 -H "Content-Type: application/json" \
                 -H "Authorization: Bearer $MCP_SERVER_TOKEN" \
+                -H "MCP-Protocol-Version: 2026-07-28" \
+                -H "Mcp-Method: tools/list" \
                 -d '{
                   "jsonrpc":"2.0",
                   "id":1,
                   "method":"tools/list",
-                  "params":{}
+                  "params": {
+                    "_meta": {
+                      "io.modelcontextprotocol/protocolVersion": "2026-07-28"
+                    }
+                  }
                 }' || true)
 
               if echo "$RESPONSE" | jq -e '.result.tools' > /dev/null 2>&1; then
@@ -177,13 +183,19 @@ jobs:
             RESPONSE=$(curl -s http://localhost:$PORT \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer $MCP_SERVER_TOKEN" \
+              -H "MCP-Protocol-Version: 2026-07-28" \
+              -H "Mcp-Method: tools/call" \
+              -H "Mcp-Name: $TOOL" \
               -d "{
                 \"jsonrpc\": \"2.0\",
                 \"id\": 1,
                 \"method\": \"tools/call\",
                 \"params\": {
                   \"name\": \"$TOOL\",
-                  \"arguments\": $ARGS
+                  \"arguments\": $ARGS,
+                  \"_meta\": {
+                      \"io.modelcontextprotocol/protocolVersion\": \"2026-07-28\"
+                  }
                 }
               }")
 

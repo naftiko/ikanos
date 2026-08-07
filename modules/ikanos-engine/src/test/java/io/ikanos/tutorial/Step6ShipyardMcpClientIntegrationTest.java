@@ -57,9 +57,8 @@ public class Step6ShipyardMcpClientIntegrationTest
     @Test
     public void toolsListShouldAdvertiseFourTools() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode tools = callToolsList(http, sessionId);
+        JsonNode tools = callToolsList(http);
 
         assertEquals(5, tools.size(), "step-6 exposes exactly five tools");
         assertEquals("list-ships",          tools.get(0).path("name").asText());
@@ -72,9 +71,8 @@ public class Step6ShipyardMcpClientIntegrationTest
     @Test
     public void createVoyageInputSchemaShouldDeclareRequiredFields() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode createVoyage = callToolsList(http, sessionId).get(3);
+        JsonNode createVoyage = callToolsList(http).get(3);
 
         JsonNode props = createVoyage.path("inputSchema").path("properties");
         assertTrue(props.has("shipImo"), "create-voyage inputSchema must declare 'shipImo'");
@@ -127,9 +125,8 @@ public class Step6ShipyardMcpClientIntegrationTest
     @Test
     public void createVoyageShouldReturnMappedVoyageObject() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
-        JsonNode voyage = callTool(http, sessionId, """
+        JsonNode voyage = callTool(http, """
                 {"jsonrpc":"2.0","id":4,"method":"tools/call",
                  "params":{"name":"create-voyage","arguments":{
                    "shipImo":"IMO-9321483",
@@ -157,7 +154,7 @@ public class Step6ShipyardMcpClientIntegrationTest
         assertEquals("2026-05-02", dates.path("arrival").asText(), "dates.arrival must map");
 
         assertTrue(voyage.path("crewIds").isArray(), "crewIds must be an array");
-        assertTrue(voyage.path("crewIds").size() > 0, "crewIds must not be empty");
+        assertFalse(voyage.path("crewIds").isEmpty(), "crewIds must not be empty");
         assertTrue(voyage.path("cargoIds").isArray(), "cargoIds must be an array");
         assertFalse(voyage.path("status").asText().isBlank(), "status must not be blank");
     }
@@ -166,10 +163,9 @@ public class Step6ShipyardMcpClientIntegrationTest
     void refreshCrewShouldReturnEmptyResult() throws Exception {
         // Given
         HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
 
         // When
-        Optional<JsonNode> result = callTool(http, sessionId, """
+        Optional<JsonNode> result = callTool(http, """
                 {"jsonrpc":"2.0","id":4,"method":"tools/call",
                  "params":{"name":"refresh-crew","arguments":{
                    "imo_number":"IMO-9876543"

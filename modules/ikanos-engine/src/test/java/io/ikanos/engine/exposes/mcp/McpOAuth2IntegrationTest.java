@@ -118,155 +118,164 @@ class McpOAuth2IntegrationTest {
     @Test
     void oauth2ShouldRejectRequestWithoutToken() throws Exception {
         McpServerAdapter adapter = startOAuth2Server();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(401, response.statusCode(),
-                    "Request without bearer token should return 401");
+                assertEquals(401, response.statusCode(),
+                        "Request without bearer token should return 401");
 
-            String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
-            assertTrue(wwwAuth.contains("Bearer"), "Should contain Bearer challenge");
-            assertTrue(wwwAuth.contains("resource_metadata"),
-                    "Should contain resource_metadata URL");
-        } finally {
-            adapter.stop();
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("Bearer"), "Should contain Bearer challenge");
+                assertTrue(wwwAuth.contains("resource_metadata"),
+                        "Should contain resource_metadata URL");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void oauth2ShouldRejectExpiredToken() throws Exception {
         McpServerAdapter adapter = startOAuth2Server();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            String token = signedJwt(new JWTClaimsSet.Builder()
-                    .issuer("http://127.0.0.1:" + mockAsPort)
-                    .audience("http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp")
-                    .expirationTime(new Date(System.currentTimeMillis() - 60_000))
-                    .claim("scope", "tools:read")
-                    .build());
+            try {
+                String token = signedJwt(new JWTClaimsSet.Builder()
+                        .issuer("http://127.0.0.1:" + mockAsPort)
+                        .audience("http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp")
+                        .expirationTime(new Date(System.currentTimeMillis() - 60_000))
+                        .claim("scope", "tools:read")
+                        .build());
 
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("Authorization", "Bearer " + token)
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer " + token)
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(401, response.statusCode(),
-                    "Expired token should return 401");
-        } finally {
-            adapter.stop();
+                assertEquals(401, response.statusCode(),
+                        "Expired token should return 401");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void oauth2ShouldAcceptValidToken() throws Exception {
         McpServerAdapter adapter = startOAuth2Server();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
-            String token = signedJwt(new JWTClaimsSet.Builder()
-                    .issuer("http://127.0.0.1:" + mockAsPort)
-                    .audience(resourceUri)
-                    .expirationTime(new Date(System.currentTimeMillis() + 300_000))
-                    .claim("scope", "tools:read")
-                    .build());
+            try {
+                String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
+                String token = signedJwt(new JWTClaimsSet.Builder()
+                        .issuer("http://127.0.0.1:" + mockAsPort)
+                        .audience(resourceUri)
+                        .expirationTime(new Date(System.currentTimeMillis() + 300_000))
+                        .claim("scope", "tools:read")
+                        .build());
 
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("Authorization", "Bearer " + token)
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer " + token)
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode(),
-                    "Valid token should return 200");
+                assertEquals(200, response.statusCode(),
+                        "Valid token should return 200");
 
-            JsonNode body = JSON.readTree(response.body());
-            assertNotNull(body.path("result").path("protocolVersion").asText(null),
-                    "Initialize response should contain protocolVersion");
-        } finally {
-            adapter.stop();
+                JsonNode body = JSON.readTree(response.body());
+                assertNotNull(body.path("result").path("supportedVersions"),
+                        "server/discover response should contain supportedVersions");
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void oauth2ShouldServeProtectedResourceMetadata() throws Exception {
         McpServerAdapter adapter = startOAuth2Server();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort();
 
-        try {
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(
-                            URI.create(baseUrl + "/.well-known/oauth-protected-resource/mcp"))
-                            .GET()
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(
+                                        URI.create(baseUrl + "/.well-known/oauth-protected-resource/mcp"))
+                                .GET()
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(200, response.statusCode(),
-                    "Protected Resource Metadata should be served");
+                assertEquals(200, response.statusCode(),
+                        "Protected Resource Metadata should be served");
 
-            JsonNode metadata = JSON.readTree(response.body());
-            assertNotNull(metadata.get("resource"), "Metadata should contain resource");
-            assertNotNull(metadata.get("authorization_servers"),
-                    "Metadata should contain authorization_servers");
-            assertEquals("header",
-                    metadata.get("bearer_methods_supported").get(0).asText());
-        } finally {
-            adapter.stop();
+                JsonNode metadata = JSON.readTree(response.body());
+                assertNotNull(metadata.get("resource"), "Metadata should contain resource");
+                assertNotNull(metadata.get("authorization_servers"),
+                        "Metadata should contain authorization_servers");
+                assertEquals("header",
+                        metadata.get("bearer_methods_supported").get(0).asText());
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
     @Test
     void oauth2ShouldReturnForbiddenForInsufficientScope() throws Exception {
         McpServerAdapter adapter = startOAuth2ServerWithScopes();
-        HttpClient client = HttpClient.newHttpClient();
-        String baseUrl = baseUrlFor(adapter);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
 
-        try {
-            String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
-            String token = signedJwt(new JWTClaimsSet.Builder()
-                    .issuer("http://127.0.0.1:" + mockAsPort)
-                    .audience(resourceUri)
-                    .expirationTime(new Date(System.currentTimeMillis() + 300_000))
-                    .claim("scope", "tools:read")
-                    .build());
+            try {
+                String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
+                String token = signedJwt(new JWTClaimsSet.Builder()
+                        .issuer("http://127.0.0.1:" + mockAsPort)
+                        .audience(resourceUri)
+                        .expirationTime(new Date(System.currentTimeMillis() + 300_000))
+                        .claim("scope", "tools:read")
+                        .build());
 
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder(URI.create(baseUrl))
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"))
-                            .header("Content-Type", "application/json")
-                            .header("Authorization", "Bearer " + token)
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer " + token)
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
 
-            assertEquals(403, response.statusCode(),
-                    "Token missing required scope should return 403");
+                assertEquals(403, response.statusCode(),
+                        "Token missing required scope should return 403");
 
-            String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
-            assertTrue(wwwAuth.contains("insufficient_scope"));
-            assertTrue(wwwAuth.contains("resource_metadata"));
-        } finally {
-            adapter.stop();
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("insufficient_scope"));
+                assertTrue(wwwAuth.contains("resource_metadata"));
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
@@ -363,6 +372,12 @@ class McpOAuth2IntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    private static String discoverBody() {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
+                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
     }
 
 }

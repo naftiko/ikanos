@@ -31,12 +31,12 @@ import com.fasterxml.jackson.databind.JsonNode;
  * from a remote MCP client perspective.
  *
  * <p>The test starts a real Jetty-backed MCP server loaded from the tutorial YAML, then
- * drives the full MCP Streamable HTTP protocol handshake — exactly as an external MCP
+ * drives the MCP Streamable HTTP protocol (revision 2026-07-28) — exactly as an external MCP
  * client (e.g. Claude Desktop, Cursor, or the MCP Inspector) would:</p>
  *
  * <ol>
- *   <li>{@code initialize} — establishes a session and negotiates protocol version</li>
- *   <li>{@code notifications/initialized} — client confirms readiness</li>
+ *   <li>{@code server/discover} — negotiates the protocol version and discovers capabilities
+ *       (this revision is stateless: there is no {@code initialize} handshake or session)</li>
  *   <li>{@code tools/list} — discovers the available tools</li>
  *   <li>{@code tools/call} — invokes {@code get-ship}, which returns a single mock ship
  *       object with mapped output fields</li>
@@ -57,45 +57,40 @@ public class Step1ShipyardMcpClientIntegrationTest
         startServerFromSpec(loadSpec(CAPABILITY_FILE));
     }
 
-    // ── MCP protocol handshake ───────────────────────────────────────────────
+    // ── MCP protocol: server/discover ────────────────────────────────────────
 
     @Test
-    public void initializeShouldNegotiateProtocolVersionAndReturnSessionId() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
+    public void serverDiscoverShouldAdvertiseSupportedProtocolVersionAndCapabilities() throws Exception {
+        HttpResponse<String> response;
+        try (HttpClient http = HttpClient.newHttpClient()) {
 
-        String initBody = """
-                {"jsonrpc":"2.0","id":1,"method":"initialize",
-                 "params":{"protocolVersion":"2025-11-25",
-                           "clientInfo":{"name":"test-client","version":"1.0"},
-                           "capabilities":{}}}
-                """;
+            String discoverBody = """
+                    {"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}
+                    """;
 
-        HttpResponse<String> response = http.send(buildPost(initBody), string());
+            response = http.send(buildPost(discoverBody), string());
+        }
 
         assertEquals(200, response.statusCode());
 
         JsonNode result = json.readTree(response.body()).path("result");
-        assertEquals("2025-11-25", result.path("protocolVersion").asText(),
-                "Server must confirm the requested protocol version");
-        assertEquals("shipyard-tools", result.path("serverInfo").path("name").asText(),
-                "Server name must match the capability namespace");
+        JsonNode supportedVersions = result.path("supportedVersions");
+        assertTrue(supportedVersions.isArray() && !supportedVersions.isEmpty(),
+                "Server must advertise its supported protocol versions");
         assertNotNull(result.path("capabilities").path("tools"),
                 "Capabilities block must advertise tools");
-
-        assertTrue(response.headers().firstValue("Mcp-Session-Id").isPresent(),
-                "Server must return a session ID on initialize");
     }
 
     @Test
-        public void toolsListShouldAdvertiseGetShipTool() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
-
-        HttpResponse<String> response = http.send(
-                buildPost("""
-                        {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
-                        """, sessionId),
-                string());
+    public void toolsListShouldAdvertiseGetShipTool() throws Exception {
+        HttpResponse<String> response;
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            response = http.send(
+                    buildPost("""
+                            {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+                            """),
+                    string());
+        }
 
         assertEquals(200, response.statusCode());
 
@@ -112,16 +107,16 @@ public class Step1ShipyardMcpClientIntegrationTest
     // ── Tool call — hits real mocks.ikanos.net ──────────────────────────────
 
     @Test
-        public void getShipToolCallShouldReturnMappedShipObject() throws Exception {
-        HttpClient http = HttpClient.newHttpClient();
-        String sessionId = initialize(http);
-
-        HttpResponse<String> response = http.send(
-                buildPost("""
-                        {"jsonrpc":"2.0","id":3,"method":"tools/call",
-                         "params":{"name":"get-ship","arguments":{"imo_number":"IMO-9321483"}}}
-                        """, sessionId),
-                string());
+    public void getShipToolCallShouldReturnMappedShipObject() throws Exception {
+        HttpResponse<String> response;
+        try (HttpClient http = HttpClient.newHttpClient()) {
+            response = http.send(
+                    buildPost("""
+                            {"jsonrpc":"2.0","id":3,"method":"tools/call",
+                             "params":{"name":"get-ship","arguments":{"imo_number":"IMO-9321483"}}}
+                            """),
+                    string());
+        }
 
         assertEquals(200, response.statusCode());
 
