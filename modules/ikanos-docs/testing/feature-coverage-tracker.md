@@ -6,7 +6,7 @@ notion_last_sync: 2026-06-26T13:25:14Z
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
-**Last updated**: 2026-06-26
+**Last updated**: 2026-08-12
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 blueprint = 1 feature.
 
@@ -165,6 +165,12 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 30 | gRPC adapter | NOT_IMPL | — | 0 / 6 | Out of scope. 6 milestones planned. Blueprint: `grpc-server-adapter.md`. |
 | 31 | Webhook adapter | NOT_IMPL | — | 0 / 3 | Out of scope. 3 phases planned. Blueprint: `webhook-server-adapter.md`. |
 | 32 | mTLS client certificates | NOT_IMPL | — | 0 / 1 | Out of scope. Phase 1 (MVP) planned, blocked on token-refresh refactor; Phase 2 = future/out of proposal. Blueprint: `mtls-client-certificates.md`. |
+| 33 | MCP logging (`logging/setLevel`, `notifications/message`) | NOT_IMPL | — | no dedicated blueprint | Not implemented. `ServerDiscoverHandler` never advertises a `logging` capability, `McpCallHandlersFactory` registers no `logging/setLevel` handler, and no handler emits `notifications/message`. Base-spec MCP primitive, no blueprint of its own. |
+| 34 | MCP tasks (`io.modelcontextprotocol/tasks`) | NOT_IMPL | — | no dedicated blueprint | Not implemented. No handler, capability flag, or spec field references `io.modelcontextprotocol/tasks`; long-running/augmented-async tool calls are not modeled. Base-spec MCP primitive, no blueprint of its own. |
+| 35 | Multi Round-Trip Requests (MRTR) | NOT_IMPL | — | no dedicated blueprint | Not implemented. The engine has no notion of a multi-turn tool call that pauses awaiting client input; every `ToolsCallHandler` response is a single terminal round trip. Base-spec MCP primitive, no blueprint of its own. |
+| 36 | `resultType` field handling (`complete` vs `input_required`) for MRTR | NOT_IMPL | — | no dedicated blueprint | Not implemented. Every handler (`ToolsCallHandler`, `ToolsListHandler`, `ResourcesListHandler`, etc.) hardcodes `result.put("resultType", "complete")` — `input_required` is never produced, since MRTR (#35) itself is not implemented. Base-spec MCP primitive, no blueprint of its own. |
+| 37 | Extensions in `ClientCapabilities` / `ServerCapabilities` | NOT_IMPL | — | no dedicated blueprint | Not implemented. `ServerDiscoverHandler` builds a fixed `capabilities` object (`tools`, conditionally `resources`/`prompts`) with no generic extension point, and no inbound `ClientCapabilities` payload is parsed or negotiated. Base-spec MCP primitive, no blueprint of its own. |
+| 38 | Support for custom headers (consumed/exposed, beyond the fixed MCP header set) | NOT_IMPL | — | no dedicated blueprint | Not implemented as a first-class mechanism. Consumed side: arbitrary headers work today only via `inputParameters` with `in: header` (`HttpClientAdapter.setHeaders`) — no dedicated "custom headers" block. Exposed side: `McpHeader` is a closed enum of protocol-reserved headers and `ForwardConfig.trustedHeaders` only allowlists forwarding, neither lets a spec author declare arbitrary custom headers on responses. Base-spec primitive, no blueprint of its own. |
 
 > **Note on the `Phases` column.** A numeric count `delivered / total` is the *delivered / total*
 > phases declared in the blueprint's roadmap; ranges (e.g. `0–1 / 4`) mean a phase is partially
@@ -253,5 +259,6 @@ a first end-user test for a NONE feature.
 
 | Date | Change |
 |---|---|
+| 2026-08-12 | Added rows #33–#38 for six MCP protocol gaps not yet implemented: MCP logging (`logging/setLevel` / `notifications/message`), MCP tasks (`io.modelcontextprotocol/tasks`), Multi Round-Trip Requests (MRTR), the `resultType` field (`complete` vs `input_required`) for MRTR, extensions in `ClientCapabilities`/`ServerCapabilities`, and first-class support for custom headers. All confirmed absent via grep against `McpCallHandlersFactory`, `ServerDiscoverHandler`, every `McpCallHandler.handle()` (`resultType` hardcoded to `complete`), `McpHeader`, and `ForwardConfig`. |
 | 2026-06-26 | **#594 native HTTP-serve fix MERGED** (PR [#596](https://github.com/naftiko/ikanos/pull/596), on `main` 2026-06-25): blocker lifted. Updated the #594 callout and rows #10/#11/#14 from "gated/pending merge" to "unblocked". Specified the first real-HTTP native control-port smoke (`GET /health/live` → `{"status":"UP"}` on control port `9619`) as a handoff (issue [#608](https://github.com/naftiko/ikanos/issues/608)) — agents may not edit `.github/workflows/`. Refreshed Family-A (control-port A1, MCP/Skill A0) and the Control-port launch strategy. Closes audit [#590](https://github.com/naftiko/ikanos/issues/590). |
 | 2026-06-25 | Recorded the native HTTP-serve dependency on [#594](https://github.com/naftiko/ikanos/issues/594): the #581 native smoke is a **TCP-probe only**, so real-HTTP native e2e of the REST / Skill / Control adapters is **gated on #594** (OPEN, fix on branch `fix/native-jetty-reflect-config` `636a00e2`, fixture `serve-rest-mock.ikanos.yaml`). Qualified rows #10/#11/#14, the Control-port launch strategy (parked `ControlPortNativeIT` scaffold), and Family-A A0. Facts verified read-only via the `crawler` agent. |
