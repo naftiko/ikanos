@@ -166,11 +166,8 @@ public abstract class ServerAdapter extends Adapter {
     }
 
     private char[] resolveTemplateChars(char[] value) {
-        if (value == null) {
-            return null;
-        }
-        String resolved = resolveTemplate(new String(value));
-        return resolved == null ? null : resolved.toCharArray();
+        String resolved = resolveTemplate(new String(value == null ? new char[0] : value));
+        return resolved.toCharArray();
     }
 
     private static boolean secureEquals(String expected, String actual) {
