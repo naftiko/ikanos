@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta4"
+ikanos: "1.0.0-beta5"
 aggregates:
   - namespace: "forecast"
     display: "Forecast Domain"
