@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Restlet;
 import org.restlet.routing.Router;
 import org.restlet.security.ChallengeAuthenticator;
+import org.restlet.security.SecretVerifier;
+import org.restlet.security.Verifier;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -122,6 +125,42 @@ class ServerAdapterAuthenticationTest {
 
         assertInstanceOf(ChallengeAuthenticator.class, chain,
                 "Digest auth should produce ChallengeAuthenticator");
+    }
+
+    @Test
+    void basicChallengeAuthenticatorWithNoPasswordShouldAcceptEmptyPassword() throws Exception {
+        String authBlock = """
+                      authentication:
+                        type: "basic"
+                        username: "admin"
+                """;
+        ServerAdapter adapter = adapterFromYaml(MCP_YAML.formatted(schemaVersion, authBlock));
+
+        ChallengeAuthenticator chain = (ChallengeAuthenticator) adapter.buildServerChain(new Router());
+        SecretVerifier verifier = (SecretVerifier) chain.getVerifier();
+
+        assertEquals(Verifier.RESULT_VALID, verifier.verify("admin", new char[0]),
+                "Omitted password should be satisfied by an empty password on the incoming request");
+        assertEquals(Verifier.RESULT_INVALID, verifier.verify("admin", "wrong".toCharArray()),
+                "Omitted password should still reject an arbitrary non-empty password");
+    }
+
+    @Test
+    void digestChallengeAuthenticatorWithNoPasswordShouldAcceptEmptyPassword() throws Exception {
+        String authBlock = """
+                      authentication:
+                        type: "digest"
+                        username: "admin"
+                """;
+        ServerAdapter adapter = adapterFromYaml(MCP_YAML.formatted(schemaVersion, authBlock));
+
+        ChallengeAuthenticator chain = (ChallengeAuthenticator) adapter.buildServerChain(new Router());
+        SecretVerifier verifier = (SecretVerifier) chain.getVerifier();
+
+        assertEquals(Verifier.RESULT_VALID, verifier.verify("admin", new char[0]),
+                "Omitted password should be satisfied by an empty password on the incoming request");
+        assertEquals(Verifier.RESULT_INVALID, verifier.verify("admin", "wrong".toCharArray()),
+                "Omitted password should still reject an arbitrary non-empty password");
     }
 
     @Test
