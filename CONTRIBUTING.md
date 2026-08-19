@@ -72,6 +72,18 @@ bash ./scripts/pr-check-mac-linux.sh
         chore: bump dependencies
 
 - **Rebase on `main`** before requesting a review — we maintain a linear history (no merge commits)
+- **Sign off every commit** — by contributing, you certify the
+  [Developer Certificate of Origin](https://developercertificate.org/): you wrote the change, or
+  you have the right to submit it under the project's licence. `git commit -s` adds the required
+  `Signed-off-by:` trailer, which must match your commit author identity:
+
+        git commit -s -m "feat: add OAuth login"
+
+  The [DCO check](https://probot.github.io/apps/dco/) is **required** — one unsigned commit blocks
+  the whole PR, so make `-s` a habit rather than something to retrofit. If you forgot it, add it
+  to the last commit with `git commit -s --amend --no-edit`, or to every commit on the branch with
+  `git rebase --signoff origin/main`; both rewrite history, so finish with
+  `git push --force-with-lease`.
 - Use `git push --force-with-lease` (never `--force`)
 - Run the local validation script before opening your PR:
 

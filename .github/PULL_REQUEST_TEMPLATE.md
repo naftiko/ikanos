@@ -31,6 +31,7 @@ Closes #<!-- issue number -->
 - [ ] Rebased on latest `main`
 - [ ] Small and focused — one concern per PR
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+- [ ] Every commit is signed off (`git commit -s`) — the [DCO](https://probot.github.io/apps/dco/) check must pass
 
 ---
 
