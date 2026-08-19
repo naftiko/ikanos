@@ -181,9 +181,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     challengeResponse.setIdentifier(
                             Resolver.resolveMustacheTemplate(basicAuth.getUsername(), extendedParameters));
                     challengeResponse.setSecret(Resolver
-                            .resolveMustacheTemplate(
-                                    basicAuth.getPassword() == null ? "" : new String(basicAuth.getPassword()),
-                                    extendedParameters)
+                            .resolveMustacheTemplate(passwordOrEmpty(basicAuth.getPassword()), extendedParameters)
                             .toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
@@ -195,8 +193,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     challengeResponse.setIdentifier(
                             Resolver.resolveMustacheTemplate(digestAuth.getUsername(), extendedParameters));
                     challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                            digestAuth.getPassword() == null ? "" : new String(digestAuth.getPassword()),
-                            extendedParameters).toCharArray());
+                            passwordOrEmpty(digestAuth.getPassword()), extendedParameters).toCharArray());
                     clientRequest.setChallengeResponse(challengeResponse);
                     break;
 
@@ -238,6 +235,10 @@ public class HttpClientAdapter extends ClientAdapter {
             // Use existing challenge response if present
             clientRequest.setChallengeResponse(serverRequest.getChallengeResponse());
         }
+    }
+
+    private static String passwordOrEmpty(char[] password) {
+        return password == null ? "" : new String(password);
     }
 
     private Map<String, Object> getRequestParametersWithBindings(Map<String, Object> parameters) {
