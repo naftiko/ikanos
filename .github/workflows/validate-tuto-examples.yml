@@ -31,15 +31,10 @@ jobs:
     - name: Build project
       run: mvn package -DskipTests -q
 
-    - name: Create secrets file
+    - name: Copy secrets file
       run: |
         mkdir -p shared
-        cat > shared/secrets.yaml << EOF
-        registry-bearer-token: ${{ secrets.REGISTRY_TOKEN }}
-        registry-api-version: ${{ secrets.REGISTRY_VERSION }}
-        dockyard-api-key: ${{ secrets.DOCKYARD_API_KEY }}
-        mcp-server-token: ${{ secrets.MCP_SERVER_TOKEN }}
-        EOF
+        cp modules/ikanos-docs/tutorial/shared/secrets.yaml shared/secrets.yaml
 
     - name: Start Microcks
       run: |
@@ -62,10 +57,10 @@ jobs:
         done
 
     - name: Run tests
-      env:
-        MCP_SERVER_TOKEN: ${{ secrets.MCP_SERVER_TOKEN }}
       run: |
         set -e
+        
+        MCP_SERVER_TOKEN=$(yq -r '.mcp-server-token' shared/secrets.yaml)
 
         PID=""
 
