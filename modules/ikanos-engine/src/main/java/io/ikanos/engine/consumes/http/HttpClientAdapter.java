@@ -220,7 +220,13 @@ public class HttpClientAdapter extends ClientAdapter {
                     }
 
                     if (placement.equals("header")) {
-                        clientRequest.getHeaders().add(key, value);
+                        if ("Authorization".equalsIgnoreCase(key)) {
+                            ChallengeResponse rawChallenge = new ChallengeResponse(new ChallengeScheme("HTTP_APIKEY", ""));
+                            rawChallenge.setRawValue(value);
+                            clientRequest.setChallengeResponse(rawChallenge);
+                        } else {
+                            clientRequest.getHeaders().add(key, value);
+                        }
                     } else if (placement.equals("query")) {
                         String separator = targetRef.contains("?") ? "&" : "?";
                         String newTargetRef = targetRef + separator + key + "=" + value;

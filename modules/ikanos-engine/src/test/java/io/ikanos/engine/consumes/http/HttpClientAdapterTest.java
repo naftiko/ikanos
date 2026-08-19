@@ -105,6 +105,78 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void apiKeyHeaderAuthenticationShouldSetHeaderForNonReservedKey() {
+        HttpClientSpec spec = new HttpClientSpec("apikey", "https://api.example.com", null);
+        ApiKeyAuthenticationSpec authentication = new ApiKeyAuthenticationSpec();
+        authentication.setType("apikey");
+        authentication.setKey("X-Custom-Key");
+        authentication.setPlacement("header");
+        authentication.setValue("{{token}}");
+        spec.setAuthentication(authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of("token", "abc123")), spec);
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
+
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        assertEquals("abc123", clientRequest.getHeaders().getFirstValue("X-Custom-Key"));
+    }
+
+    @Test
+    public void apiKeyHeaderAuthenticationWithAuthorizationKeyShouldRouteThroughChallengeResponse() {
+        HttpClientSpec spec = new HttpClientSpec("apikey", "https://api.example.com", null);
+        ApiKeyAuthenticationSpec authentication = new ApiKeyAuthenticationSpec();
+        authentication.setType("apikey");
+        authentication.setKey("Authorization");
+        authentication.setPlacement("header");
+        authentication.setValue("{{token}}");
+        spec.setAuthentication(authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of("token", "SENTINEL-TOKEN-12345")), spec);
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
+
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        // Authorization is a reserved header: Restlet silently drops it if added via
+        // getHeaders().add() (see #698). It must go through the ChallengeResponse instead.
+        assertEquals(null, clientRequest.getHeaders().getFirstValue("Authorization", true));
+        assertNotNull(clientRequest.getChallengeResponse());
+
+        // AuthenticatorUtils.formatResponse() is the exact method Restlet's engine calls to
+        // serialize the ChallengeResponse into the outbound Authorization header value, so
+        // this proves what will actually be sent on the wire, with no scheme prefix.
+        String wireValue = org.restlet.engine.security.AuthenticatorUtils.formatResponse(
+                clientRequest.getChallengeResponse(), clientRequest,
+                new org.restlet.util.Series<>(org.restlet.data.Header.class));
+        assertEquals("SENTINEL-TOKEN-12345", wireValue.trim());
+    }
+
+    @Test
+    public void apiKeyHeaderAuthenticationWithLowercaseAuthorizationKeyShouldRouteThroughChallengeResponse() {
+        HttpClientSpec spec = new HttpClientSpec("apikey", "https://api.example.com", null);
+        ApiKeyAuthenticationSpec authentication = new ApiKeyAuthenticationSpec();
+        authentication.setType("apikey");
+        authentication.setKey("authorization");
+        authentication.setPlacement("header");
+        authentication.setValue("{{token}}");
+        spec.setAuthentication(authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of("token", "pk_live_abc")), spec);
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
+
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        assertNotNull(clientRequest.getChallengeResponse());
+        String wireValue = org.restlet.engine.security.AuthenticatorUtils.formatResponse(
+                clientRequest.getChallengeResponse(), clientRequest,
+                new org.restlet.util.Series<>(org.restlet.data.Header.class));
+        assertEquals("pk_live_abc", wireValue.trim());
+    }
+
+    @Test
     public void shouldForwardExistingServerChallengeResponseWhenClientAuthIsAbsent() {
         HttpClientSpec spec = new HttpClientSpec("forwarded", "https://api.example.com", null);
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()), spec);
