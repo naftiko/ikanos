@@ -31,6 +31,13 @@ jobs:
     - name: Build project
       run: mvn package -DskipTests -q
 
+    # NOTE: these are mock/dummy credentials for tutorial validation only (see
+    # modules/ikanos-docs/tutorial/shared/secrets.yaml), never real secrets.
+    # This pattern (committing values, no secrets: context) is intentional here
+    # specifically because forked PRs don't get access to repo secrets, and these
+    # tokens have zero real-world value. Do NOT reproduce this pattern for actual
+    # credentials, use secrets: and the workflow_run split pattern instead
+    # (see publish-badges-and-comment.yml for an example).
     - name: Copy secrets file
       run: |
         mkdir -p shared
