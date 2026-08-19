@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
 
-import java.util.Base64;
 import java.util.Map;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -78,17 +77,12 @@ public class AuthenticationTest {
                 clientRequest.getResourceRef().toString(), Map.of());
 
         // Then
-        String expected = Base64.getEncoder().encodeToString("sk_test_FAKEKEY123:".getBytes());
         assertThat(clientRequest.getChallengeResponse().getIdentifier()).isEqualTo("sk_test_FAKEKEY123");
         assertThat(String.valueOf(clientRequest.getChallengeResponse().getSecret())).isEqualTo("");
-        assertThat(Base64.getEncoder().encodeToString(
-                (clientRequest.getChallengeResponse().getIdentifier() + ":"
-                        + String.valueOf(clientRequest.getChallengeResponse().getSecret())).getBytes()))
-                .isEqualTo(expected);
     }
 
     @Test
-    public void digestAuthenticationWithNoPasswordShouldNotThrow() throws Exception {
+    public void digestAuthenticationWithNoPasswordShouldSendEmptyPasswordNotThrow() throws Exception {
         // Given
         Capability capability = getCapability();
         DigestAuthenticationSpec authentication = new DigestAuthenticationSpec();

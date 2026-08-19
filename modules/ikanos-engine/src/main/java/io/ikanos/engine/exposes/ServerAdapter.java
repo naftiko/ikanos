@@ -141,8 +141,7 @@ public abstract class ServerAdapter extends Adapter {
                     expectedPassword = resolveTemplateChars(digest.getPassword());
                 }
 
-                if (expectedUsername == null || expectedPassword == null || identifier == null
-                        || secret == null) {
+                if (expectedUsername == null || identifier == null || secret == null) {
                     return Verifier.RESULT_INVALID;
                 }
 
