@@ -226,6 +226,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - **All GitHub interactions must be in English** — issues, PR titles/bodies, inline review comments, and commit messages. The codebase and its community are English-first.
 - Branch from `main`: `feat/`, `fix/`, or `chore/` prefix
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:` — no scopes for now
+- **Sign off every commit — `git commit -s`, always.** A `Signed-off-by:` trailer matching the commit author is mandatory: the [DCO GitHub App](https://probot.github.io/apps/dco/) is a required check, and a single unsigned commit blocks the whole PR. Make `-s` reflexive on *every* `git commit` you run in this repo — it costs nothing when redundant, and retrofitting it later means rewriting history on a branch that may already be under review. The trailer must be produced by `-s` at commit time; never hand-write it into the body, and never sign off a commit whose author is someone else — the sign-off is that author's certification, not yours.
+- **After any history rewrite, re-verify the trailer before pushing** — an interactive rebase, a squash, or a `--amend` from another tool can silently drop it. Check the whole branch in one shot rather than waiting for CI to tell you:
+  ```bash
+  git log origin/main..HEAD --format='%h %s%n  signoff: %(trailers:key=Signed-off-by,valueonly)'
+  ```
+  An empty `signoff:` line is a commit the DCO check will reject. Fix the last commit with `git commit -s --amend --no-edit`, or a whole branch with `git rebase --signoff origin/main`. Both are idempotent on the trailer (no duplicate is added if one is already present) but **both rewrite the commit SHAs** — so run them only when a trailer is genuinely missing, and follow with `git push --force-with-lease` (never `--force`).
 - AGENTS.md improvements are `feat:`, not `chore:` — they add value to the agent workflow
 - Rebase on `main` before PR — linear history, no merge commits
 - One logical change per PR — keep it atomic
