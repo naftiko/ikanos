@@ -1,0 +1,69 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  native-bin:
+    name: Publish CLI Binaries (native)
+    uses: ./.github/workflows/publish-cli-bin.yml
+    secrets: inherit
+
+  jlink-packages:
+    name: Publish CLI Packages (jlink)
+    uses: ./.github/workflows/publish-cli-packages.yml
+    secrets: inherit
+
+  release:
+    name: Create GitHub Release
+    needs:
+      - native-bin
+      - jlink-packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ./release-artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ./release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-installer:
+    name: Publish installer scripts to GitHub Pages
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Stage installer scripts (latest alias + frozen per-tag path)
+        run: |
+          mkdir -p pages-stage
+          cp docs/install.sh pages-stage/install.sh
+          cp docs/install.ps1 pages-stage/install.ps1
+          mkdir -p "pages-stage/${{ github.ref_name }}"
+          cp docs/install.sh "pages-stage/${{ github.ref_name }}/install.sh"
+          cp docs/install.ps1 "pages-stage/${{ github.ref_name }}/install.ps1"
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages-stage
+          publish_branch: gh-pages
+          destination_dir: .
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'

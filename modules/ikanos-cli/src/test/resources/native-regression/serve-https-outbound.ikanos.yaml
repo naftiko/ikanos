@@ -1,0 +1,45 @@
+ikanos: "1.0.0-beta5"
+info:
+  display: Native Regression — Outbound HTTPS Call
+  description: >
+    Minimal REST capability whose single operation forwards to a `consumes: http`
+    backend reachable only over HTTPS (a real, always-on public endpoint —
+    https://api.github.com). This exists to guard the jlink module set computed
+    in publish-cli-packages.yml via `jdeps --print-module-deps`: that set is
+    derived only from the two other native-regression fixtures
+    (serve-http.ikanos.yaml, serve-rest-mock.ikanos.yaml), neither of which
+    performs an outbound TLS call. A jlink image missing jdk.crypto.ec /
+    jdk.crypto.cryptoki / jdk.security.jgss would pass CI silently while every
+    `consumes` capability calling out over HTTPS breaks in the field. Self
+    -contained: `ikanos serve` can run it unattended, and the outbound call
+    targets a stable, public, always-available HTTPS endpoint.
+  tags:
+  - test
+  - native-regression
+capability:
+  consumes:
+  - type: http
+    namespace: github-api
+    baseUri: https://api.github.com
+    resources:
+      get-zen:
+        path: /zen
+        operations:
+          get-zen:
+            method: GET
+            display: Get Zen
+  exposes:
+    - type: rest
+      address: localhost
+      port: 9621
+      namespace: https-probe
+      resources:
+        status:
+          path: /status
+          display: Status
+          description: Forwards to a real HTTPS backend to exercise outbound TLS.
+          operations:
+            get-status:
+              method: GET
+              display: Get Status
+              call: github-api.get-zen
