@@ -1,0 +1,3 @@
+#!/bin/bash
+ln -sf "/Applications/ikanos.app/Contents/MacOS/ikanos" /usr/local/bin/ikanos
+exit 0

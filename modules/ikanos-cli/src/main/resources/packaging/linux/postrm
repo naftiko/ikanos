@@ -1,0 +1,12 @@
+#!/bin/sh
+# jpackage .deb postrm script - removes the /usr/bin/ikanos symlink created
+# by packaging/linux/postinstall when the package is uninstalled.
+#
+# jpackage looks up this exact file name ("postrm") in --resource-dir when
+# building a Linux DEB installer only - RPM has no equivalent hook (its only
+# overridable resource is the full <package-name>.spec file; see that file's
+# own header comment for the %postun-based removal logic used there
+# instead). See:
+# https://docs.oracle.com/en/java/javase/21/docs/specs/man/jpackage.html
+rm -f /usr/bin/ikanos
+exit 0
