@@ -1,5 +1,7 @@
 name: Synchronize Schema Version in Repository
 
+# Superseded by bump-next-versions.yml — remove after first successful run.
+
 on:
   workflow_dispatch:
 

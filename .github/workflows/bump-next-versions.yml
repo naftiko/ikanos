@@ -1,0 +1,110 @@
+name: Bump Next Versions
+
+on:
+  workflow_dispatch:
+    inputs:
+      next-engine-version:
+        description: "Next engine version (pom.xml revision, e.g. 1.0.0-beta6). The -SNAPSHOT suffix is appended automatically. At least one of next-engine-version / next-schema-version is required."
+        required: false
+        type: string
+      next-schema-version:
+        description: "Next schema version (ikanos-schema.json, e.g. 1.0.0-beta5). When set, the schema version is also synchronized across the repository. At least one of next-engine-version / next-schema-version is required."
+        required: false
+        type: string
+
+jobs:
+  bump-next-versions:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions here are pinned to immutable commit SHAs (with the release tag as
+      # a trailing comment for readability), unlike the rest of this repository's
+      # workflows which use mutable major-version tags. This is a deliberate,
+      # tighter choice for this workflow since it mutates repo sources (pom.xml,
+      # ikanos-schema.json) and opens a PR with elevated GitHub App credentials.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.11'
+
+      - name: Bump engine and/or schema versions
+        env:
+          NEXT_ENGINE_VERSION: ${{ inputs.next-engine-version }}
+          NEXT_SCHEMA_VERSION: ${{ inputs.next-schema-version }}
+        run: |
+          if [ -z "$NEXT_ENGINE_VERSION" ] && [ -z "$NEXT_SCHEMA_VERSION" ]; then
+            echo "[error] at least one of next-engine-version or next-schema-version must be provided" >&2
+            exit 1
+          fi
+          ARGS=()
+          if [ -n "$NEXT_ENGINE_VERSION" ]; then
+            ARGS+=(--next-engine-version "$NEXT_ENGINE_VERSION")
+          fi
+          if [ -n "$NEXT_SCHEMA_VERSION" ]; then
+            ARGS+=(--next-schema-version "$NEXT_SCHEMA_VERSION")
+          fi
+          python3 scripts/bump-next-versions.py "${ARGS[@]}"
+
+      - name: Synchronize schema version across the repository
+        if: inputs.next-schema-version != ''
+        run: |
+          python3 scripts/sync-schema-version.py
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          base: ${{ github.ref_name }}
+          branch: "chore/bump-next-versions-${{ github.run_id }}"
+          commit-message: "chore: bump next versions"
+          title: "chore: bump next versions"
+          body: |
+            ## No related issue
+
+            ---
+
+            ## What does this PR do?
+
+            Automatically bumps the Ikanos version:
+            ${{ inputs.next-engine-version != '' && format('- Sets `revision` in `pom.xml` to `{0}-SNAPSHOT`', inputs.next-engine-version) || '' }}
+            ${{ inputs.next-schema-version != '' && format('- Sets `properties.ikanos.const` in `ikanos-schema.json` to `{0}` and synchronizes the `ikanos` version across the repository', inputs.next-schema-version) || '' }}
+
+            ---
+
+            ## Tests
+
+            No additional tests required.
+            This change is limited to version bumping and does not impact runtime behavior.
+
+            ---
+
+            ## Checklist
+
+            - [ ] CI is green (build, tests, schema validation, security scans)
+            - [ ] Rebased on latest `main`
+            - [ ] Small and focused — one concern per PR
+            - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+            - [ ] Every commit is signed off (`git commit -s`) — the [DCO](https://probot.github.io/apps/dco/) check must pass
+          delete-branch: true
+          signoff: true
