@@ -1,0 +1,357 @@
+name: Publish CLI Packages
+
+on:
+  pull_request:
+    branches:
+      - main
+    # Only trigger when the PR's source branch is exactly "packaging".
+    # (GitHub Actions has no direct "source branch" filter, so this is
+    # enforced via an explicit check at the job level below.)
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-package:
+    name: Build on ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.head_ref == 'chore/remove-reflect-config'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # macOS Apple Silicon (ARM64)
+          - os: macos-latest  # macos-14+ uses Mx runners
+            package_type: pkg
+            artifact_name: ikanos-cli-macos-arm64.pkg
+
+          # Windows AMD64
+          - os: windows-latest
+            package_type: msi
+            artifact_name: ikanos-cli-windows-amd64.msi
+
+          # Linux AMD64 (.deb)
+          - os: ubuntu-latest
+            package_type: deb
+            artifact_name: ikanos-cli-linux-amd64.deb
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build shaded jar with Maven
+        run: mvn -B clean package -pl modules/ikanos-cli -am -DskipTests
+
+      - name: Build custom JRE with jlink (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODS=$(jdeps --print-module-deps -R --ignore-missing-deps modules/ikanos-cli/target/ikanos.jar)
+          if [ -z "$MODS" ]; then
+            echo "FAIL: jdeps produced no module list — check ikanos.jar exists and is valid"
+            exit 1
+          fi
+          echo "Detected modules: $MODS"
+
+          jlink \
+            --module-path "$JAVA_HOME/jmods" \
+            --add-modules "$MODS" \
+            --bind-services \
+            --output "$RUNNER_TEMP/ikanos-jre" \
+            --strip-native-commands
+
+      - name: Build custom JRE with jlink (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $MODS = jdeps --print-module-deps -R --ignore-missing-deps modules/ikanos-cli/target/ikanos.jar
+          if ([string]::IsNullOrWhiteSpace($MODS)) {
+            Write-Error "FAIL: jdeps produced no module list — check ikanos.jar exists and is valid"
+            exit 1
+          }
+          Write-Host "Detected modules: $MODS"
+
+          jlink `
+            --module-path "$env:JAVA_HOME\jmods" `
+            --add-modules "$MODS" `
+            --bind-services `
+            --output "$env:RUNNER_TEMP\ikanos-jre" `
+            --strip-native-commands
+
+      - name: Stage jar for jpackage (avoid bundling all of target/) (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ikanos-jpackage-input"
+          cp modules/ikanos-cli/target/ikanos.jar "$RUNNER_TEMP/ikanos-jpackage-input/"
+
+      - name: Stage jar for jpackage (avoid bundling all of target/) (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\ikanos-jpackage-input" | Out-Null
+          Copy-Item modules\ikanos-cli\target\ikanos.jar "$env:RUNNER_TEMP\ikanos-jpackage-input\"
+
+      - name: Make postinstall script executable (macOS)
+        if: runner.os == 'macOS'
+        run: chmod +x "${{ github.workspace }}/modules/ikanos-cli/src/main/resources/packaging/macos/postinstall"
+
+      - name: Make postinst/postrm scripts executable (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x "${{ github.workspace }}/modules/ikanos-cli/src/main/resources/packaging/linux/postinst"
+          chmod +x "${{ github.workspace }}/modules/ikanos-cli/src/main/resources/packaging/linux/postrm"
+
+      - name: Build .pkg with jpackage (macOS)
+        if: matrix.package_type == 'pkg'
+        run: |
+          jpackage \
+            --input "$RUNNER_TEMP/ikanos-jpackage-input" \
+            --name ikanos \
+            --main-jar ikanos.jar \
+            --main-class io.ikanos.Cli \
+            --resource-dir modules/ikanos-cli/src/main/resources/packaging/macos \
+            --runtime-image "$RUNNER_TEMP/ikanos-jre" \
+            --type pkg \
+            --dest "$RUNNER_TEMP/ikanos-packages"
+
+      - name: Build .msi with jpackage (Windows)
+        if: matrix.package_type == 'msi'
+        shell: pwsh
+        run: |
+          jpackage `
+            --input "$env:RUNNER_TEMP\ikanos-jpackage-input" `
+            --name ikanos `
+            --main-jar ikanos.jar `
+            --main-class io.ikanos.Cli `
+            --win-console `
+            --resource-dir modules\ikanos-cli\src\main\resources\packaging\windows `
+            --runtime-image "$env:RUNNER_TEMP\ikanos-jre" `
+            --type msi `
+            --dest "$env:RUNNER_TEMP\ikanos-packages"
+
+      - name: Build .deb with jpackage (Linux)
+        if: matrix.package_type == 'deb'
+        run: |
+          jpackage \
+            --input "$RUNNER_TEMP/ikanos-jpackage-input" \
+            --name ikanos \
+            --main-jar ikanos.jar \
+            --main-class io.ikanos.Cli \
+            --resource-dir modules/ikanos-cli/src/main/resources/packaging/linux \
+            --runtime-image "$RUNNER_TEMP/ikanos-jre" \
+            --type deb \
+            --linux-package-name ikanos \
+            --dest "$RUNNER_TEMP/ikanos-packages"
+
+      - name: Rename artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p modules/ikanos-cli/target/packages
+          PKG=$(ls "$RUNNER_TEMP"/ikanos-packages/*."${{ matrix.package_type }}")
+          mv "$PKG" "modules/ikanos-cli/target/packages/${{ matrix.artifact_name }}"
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path modules\ikanos-cli\target\packages | Out-Null
+          $PKG = Get-ChildItem "$env:RUNNER_TEMP\ikanos-packages\*.${{ matrix.package_type }}" | Select-Object -First 1
+          Move-Item $PKG.FullName "modules\ikanos-cli\target\packages\${{ matrix.artifact_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: modules/ikanos-cli/target/packages/${{ matrix.artifact_name }}
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')  # Only create release when a new tag is pushed (not when action is manually triggered).
+        uses: softprops/action-gh-release@v3
+        with:
+          files: modules/ikanos-cli/target/packages/${{ matrix.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-package:
+    name: Test package on ${{ matrix.os }}
+    needs: build-package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            package_type: pkg
+            artifact_name: ikanos-cli-macos-arm64.pkg
+          - os: windows-latest
+            package_type: msi
+            artifact_name: ikanos-cli-windows-amd64.msi
+          - os: ubuntu-latest
+            package_type: deb
+            artifact_name: ikanos-cli-linux-amd64.deb
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ./pkg
+
+      - name: Install .pkg (macOS)
+        if: matrix.package_type == 'pkg'
+        run: sudo installer -pkg "./pkg/${{ matrix.artifact_name }}" -target /
+
+      - name: Install .msi (Windows)
+        if: matrix.package_type == 'msi'
+        shell: pwsh
+        run: |
+          $pkgPath = (Resolve-Path "./pkg/${{ matrix.artifact_name }}").Path
+          Start-Process msiexec.exe -ArgumentList "/i `"$pkgPath`" /qn /l*v install.log" -Wait -NoNewWindow
+          Get-Content install.log -Tail 40
+
+          # Installer changes the machine PATH but the current process env block
+          # is a snapshot from before install — refresh it so `ikanos` resolves
+          # in this same job/step sequence without needing a new shell.
+          $machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
+          $userPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+          echo "$machinePath;$userPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install .deb (Linux)
+        if: matrix.package_type == 'deb'
+        run: sudo apt-get install -y "./pkg/${{ matrix.artifact_name }}"
+
+      - name: Test create + validate (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          printf "test\nhttps://api.com\n8080\n" | ikanos create capability
+          ikanos v test.ikanos.yaml
+
+      - name: Test create + validate (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "test`nhttps://api.com`n8080`n" | ikanos create capability
+          ikanos v test.ikanos.yaml
+
+      # --- jpackage / jlink module-set regression guard -------------------------
+      # Ensures the custom runtime image built via jlink didn't silently drop a
+      # module needed at runtime (e.g. the #594-style Restlet HTTP connector class
+      # of failure, or missing crypto providers for outbound HTTPS). Mirrors the
+      # native-image reflection regression guards in publish-cli-bin.yml, adapted
+      # to the jlink/jpackage failure mode (NoClassDefFoundError / SSLHandshakeException
+      # rather than reflection ClassNotFoundException).
+      - name: Package regression — validate (module completeness) (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          OUT=$(ikanos validate "$FIXTURE" 2>&1 || true)
+          echo "$OUT"
+          if echo "$OUT" | grep -E "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError"; then
+            echo "FAIL: jlink module-set regression on validate"
+            exit 1
+          fi
+
+      - name: Package regression — validate (module completeness) (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $FIXTURE = "modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          $OUT = (& ikanos validate $FIXTURE 2>&1 | Out-String)
+          Write-Host $OUT
+          if ($OUT -match "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError") {
+            Write-Error "FAIL: jlink module-set regression on validate"
+            exit 1
+          }
+
+      - name: Package regression — serve (HTTP connector boots + exposed port listens) (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          REST_PORT=9610
+          ikanos serve "$FIXTURE" > serve.log 2>&1 &
+          SERVE_PID=$!
+
+          LISTENING=0
+          for i in $(seq 1 20); do
+            if (exec 3<>"/dev/tcp/127.0.0.1/$REST_PORT") 2>/dev/null; then
+              exec 3>&- 3<&- 2>/dev/null || true
+              LISTENING=1
+              break
+            fi
+            kill -0 "$SERVE_PID" 2>/dev/null || break
+            sleep 1
+          done
+
+          kill "$SERVE_PID" 2>/dev/null || true
+
+          echo "----- serve.log -----"; cat serve.log
+
+          if grep -E "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError|No available server connector" serve.log; then
+            echo "FAIL: jlink module-set regression on serve"
+            exit 1
+          fi
+          if [ "$LISTENING" -ne 1 ]; then
+            echo "FAIL: exposed REST port $REST_PORT never started listening — HTTP connector did not boot"
+            exit 1
+          fi
+
+      - name: Package regression — serve (HTTP connector boots + exposed port listens) (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $FIXTURE = "modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          $REST_PORT = 9610
+          $proc = Start-Process -FilePath "ikanos" -ArgumentList "serve `"$FIXTURE`"" -RedirectStandardOutput serve.log -RedirectStandardError serve-err.log -PassThru -NoNewWindow
+
+          $listening = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            try {
+              $conn = New-Object System.Net.Sockets.TcpClient
+              $conn.Connect("127.0.0.1", $REST_PORT)
+              $conn.Close()
+              $listening = $true
+              break
+            } catch {
+              if ($proc.HasExited) { break }
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+
+          Write-Host "----- serve.log -----"
+          Get-Content serve.log -ErrorAction SilentlyContinue
+          Get-Content serve-err.log -ErrorAction SilentlyContinue
+
+          $combined = (Get-Content serve.log,serve-err.log -ErrorAction SilentlyContinue | Out-String)
+          if ($combined -match "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError|No available server connector") {
+            Write-Error "FAIL: jlink module-set regression on serve"
+            exit 1
+          }
+          if (-not $listening) {
+            Write-Error "FAIL: exposed REST port $REST_PORT never started listening — HTTP connector did not boot"
+            exit 1
+          }
+
+      - name: CLI is on PATH (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          command -v ikanos
+          which ikanos
+
+      - name: CLI is on PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-Command ikanos
