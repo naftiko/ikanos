@@ -15,7 +15,9 @@ package io.ikanos.engine.consumes.http;
 
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.utils.TestUtils;
@@ -55,6 +57,50 @@ public class AuthenticationTest {
 
         // Then
         assertThat(clientRequest.getChallengeResponse().getRawValue()).isEqualTo("notion-token");
+    }
+
+    @Test
+    public void basicAuthenticationWithNoPasswordShouldSendEmptyPasswordNotThrow() throws Exception {
+        // Given
+        Capability capability = getCapability();
+        BasicAuthenticationSpec authentication = new BasicAuthenticationSpec();
+        authentication.setType("basic");
+        authentication.setUsername("sk_test_FAKEKEY123");
+        // password intentionally left unset (null) - schema allows this
+        HttpClientSpec spec = new HttpClientSpec("stripe", "https://api.stripe.com/v1", authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(capability, spec);
+        Request clientRequest = new Request(Method.GET, "https://api.stripe.com/v1/charges");
+
+        // When
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        // Then
+        assertThat(clientRequest.getChallengeResponse().getIdentifier()).isEqualTo("sk_test_FAKEKEY123");
+        assertThat(String.valueOf(clientRequest.getChallengeResponse().getSecret())).isEqualTo("");
+    }
+
+    @Test
+    public void digestAuthenticationWithNoPasswordShouldSendEmptyPasswordNotThrow() throws Exception {
+        // Given
+        Capability capability = getCapability();
+        DigestAuthenticationSpec authentication = new DigestAuthenticationSpec();
+        authentication.setType("digest");
+        authentication.setUsername("sk_test_FAKEKEY123");
+        // password intentionally left unset (null) - schema allows this
+        HttpClientSpec spec = new HttpClientSpec("digest-service", "https://api.example.com", authentication);
+
+        HttpClientAdapter adapter = new HttpClientAdapter(capability, spec);
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/resource");
+
+        // When
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        // Then
+        assertThat(clientRequest.getChallengeResponse().getIdentifier()).isEqualTo("sk_test_FAKEKEY123");
+        assertThat(String.valueOf(clientRequest.getChallengeResponse().getSecret())).isEqualTo("");
     }
 
     private Capability getCapability() throws Exception {
