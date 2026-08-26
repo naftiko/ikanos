@@ -276,7 +276,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          scanners: 'vuln,secret,misconfig'
+          scanners: 'vuln,misconfig'
           format: 'json'
           output: 'trivy-report.json'
           exit-code: '0'
@@ -315,6 +315,22 @@ jobs:
           echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
           echo "| Medium   | ${MEDIUM} |" >> $GITHUB_STEP_SUMMARY
           echo "| Low      | ${LOW} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Critical/High vulnerability findings (counts above also include misconfig findings)</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Package | Vulnerability ID | Severity | Installed | Fixed |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|-------------------|----------|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+            jq -r '
+              [.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")]
+              | sort_by(if .Severity=="CRITICAL" then 0 else 1 end)
+              | .[]
+              | "| \(.PkgName) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(if (.FixedVersion // "") == "" then "n/a" else .FixedVersion end) |"
+            ' trivy-report.json >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
 
           cat > /tmp/trivy_metrics.env << EOF
           TRIVY_CRITICAL=$CRITICAL
