@@ -17,11 +17,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCHES=$(gh api repos/${{ github.repository }}/pulls \
-            --jq '[.[] | .head.ref] + ["main"] | unique | .[]')
+          BRANCHES=$(gh api --paginate repos/${{ github.repository }}/pulls | jq -s '
+            [.[][] | select(.head.repo.fork == false) | .head.ref] + ["main"] | unique | .[]
+          ')
 
+          FAILED=""
           for BRANCH in $BRANCHES; do
             echo "Dispatching nightly on branch: $BRANCH"
-            gh api repos/${{ github.repository }}/actions/workflows/nightly-quality-gate.yml/dispatches \
-              -f ref="$BRANCH"
+            if ! gh api repos/${{ github.repository }}/actions/workflows/nightly-quality-gate.yml/dispatches \
+              -f ref="$BRANCH"; then
+              echo "::error::Failed to dispatch nightly quality gate on branch: $BRANCH"
+              FAILED="$FAILED $BRANCH"
+            fi
           done
+
+          if [ -n "$FAILED" ]; then
+            echo "::error::Dispatch failed for:$FAILED"
+            exit 1
+          fi
