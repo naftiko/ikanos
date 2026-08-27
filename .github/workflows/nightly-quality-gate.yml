@@ -11,6 +11,9 @@ jobs:
   test-and-analyze:
     name: Unit Tests + JaCoCo + SonarQube + Security
     runs-on: ubuntu-latest
+    outputs:
+      trivy_critical: ${{ steps.trivy-summary.outputs.trivy_critical }}
+      trivy_high: ${{ steps.trivy-summary.outputs.trivy_high }}
 
     steps:
       - uses: actions/checkout@v7
@@ -282,6 +285,7 @@ jobs:
           exit-code: '0'
 
       - name: Publish Trivy summary
+        id: trivy-summary
         if: always()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -296,6 +300,8 @@ jobs:
           TRIVY_MEDIUM=0
           TRIVY_LOW=0
           EOF
+            echo "trivy_critical=0" >> "$GITHUB_OUTPUT"
+            echo "trivy_high=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -338,6 +344,9 @@ jobs:
           TRIVY_MEDIUM=$MEDIUM
           TRIVY_LOW=$LOW
           EOF
+
+          echo "trivy_critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+          echo "trivy_high=$HIGH" >> "$GITHUB_OUTPUT"
 
       - name: Upload Trivy report
         uses: actions/upload-artifact@v7
@@ -565,8 +574,8 @@ jobs:
             echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| CLI Smoke Tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
             
-  notify-on-failure:
-      name: Slack notification on failure
+  notify-on-failure-or-vulnerabilities:
+      name: Slack notification on failure or vulnerability finding
       needs:
         - test-and-analyze
         - integration-tests
@@ -575,16 +584,26 @@ jobs:
         always() && !startsWith(github.ref_name, 'dependabot/') && (
           needs.test-and-analyze.result == 'failure' ||
           needs.integration-tests.result == 'failure' ||
-          needs.smoke-tests.result == 'failure'
+          needs.smoke-tests.result == 'failure' ||
+          needs.test-and-analyze.outputs.trivy_critical > 0 ||
+          needs.test-and-analyze.outputs.trivy_high > 0
         )
       runs-on: ubuntu-latest
       steps:
         - name: Send Slack notification
+          env:
+            PIPELINE_FAILED: ${{ needs.test-and-analyze.result == 'failure' || needs.integration-tests.result == 'failure' || needs.smoke-tests.result == 'failure' }}
           run: |
+            if [ "$PIPELINE_FAILED" = "true" ]; then
+              TEXT="❌ *Nightly Quality Gate failed*"
+            else
+              TEXT="⚠️ *Nightly Quality Gate: vulnerabilities found on an otherwise green run*"
+            fi
+
             curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
               -H "Content-Type: application/json" \
               -d '{
-                "text": "❌ *Nightly Quality Gate failed*",
+                "text": "'"$TEXT"'",
                 "attachments": [
                   {
                     "color": "danger",
@@ -593,7 +612,9 @@ jobs:
                       { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
                       { "title": "Quality Gate", "value": "${{ needs.test-and-analyze.result }}", "short": true },
                       { "title": "Integration Tests", "value": "${{ needs.integration-tests.result }}", "short": true },
-                      { "title": "CLI Smoke Tests", "value": "${{ needs.smoke-tests.result }}", "short": true }
+                      { "title": "CLI Smoke Tests", "value": "${{ needs.smoke-tests.result }}", "short": true },
+                      { "title": "Trivy Critical", "value": "${{ needs.test-and-analyze.outputs.trivy_critical }}", "short": true },
+                      { "title": "Trivy High", "value": "${{ needs.test-and-analyze.outputs.trivy_high }}", "short": true }
                     ],
                     "actions": [
                       {
