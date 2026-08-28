@@ -17,7 +17,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCHES=$(gh api --paginate repos/${{ github.repository }}/pulls | jq -s '
+          BRANCHES=$(gh api --paginate repos/${{ github.repository }}/pulls | jq -r -s '
             [.[][] | select(.head.repo.fork == false) | .head.ref] + ["main"] | unique | .[]
           ')
 
