@@ -221,8 +221,14 @@ public class HttpClientAdapter extends ClientAdapter {
 
                     if (placement.equals("header")) {
                         if ("Authorization".equalsIgnoreCase(key)) {
-                            ChallengeResponse rawChallenge = new ChallengeResponse(new ChallengeScheme("HTTP_APIKEY", ""));
-                            rawChallenge.setRawValue(value);
+                            ApiKeyAuthorizationHeaderHelper.ensureRegistered();
+                            ChallengeResponse rawChallenge =
+                                    new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
+                            // setIdentifier (not setRawValue): formatResponse() short-circuits to
+                            // the raw value when it is set and never calls the registered helper,
+                            // which is what strips the technicalName + separator Restlet would
+                            // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
+                            rawChallenge.setIdentifier(value);
                             clientRequest.setChallengeResponse(rawChallenge);
                         } else {
                             clientRequest.getHeaders().add(key, value);
