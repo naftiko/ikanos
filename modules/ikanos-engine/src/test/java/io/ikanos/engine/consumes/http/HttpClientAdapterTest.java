@@ -146,11 +146,13 @@ public class HttpClientAdapterTest {
 
         // AuthenticatorUtils.formatResponse() is the exact method Restlet's engine calls to
         // serialize the ChallengeResponse into the outbound Authorization header value, so
-        // this proves what will actually be sent on the wire, with no scheme prefix.
+        // this proves what will actually be sent on the wire, with no scheme prefix and no
+        // leading space (asserting on the untrimmed value on purpose: a regression that
+        // reintroduces the leading space injected by technicalName + " " must fail here).
         String wireValue = org.restlet.engine.security.AuthenticatorUtils.formatResponse(
                 clientRequest.getChallengeResponse(), clientRequest,
                 new org.restlet.util.Series<>(org.restlet.data.Header.class));
-        assertEquals("SENTINEL-TOKEN-12345", wireValue.trim());
+        assertEquals("SENTINEL-TOKEN-12345", wireValue);
     }
 
     @Test
@@ -170,10 +172,11 @@ public class HttpClientAdapterTest {
                 clientRequest.getResourceRef().toString(), Map.of());
 
         assertNotNull(clientRequest.getChallengeResponse());
+        // Untrimmed on purpose — see comment above.
         String wireValue = org.restlet.engine.security.AuthenticatorUtils.formatResponse(
                 clientRequest.getChallengeResponse(), clientRequest,
                 new org.restlet.util.Series<>(org.restlet.data.Header.class));
-        assertEquals("pk_live_abc", wireValue.trim());
+        assertEquals("pk_live_abc", wireValue);
     }
 
     @Test
