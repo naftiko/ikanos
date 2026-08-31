@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ikanos_version import extract_version_from_schema
+from ikanos_version import extract_version_from_schema, read_pom_revision, write_pom_revision
 
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$")
 
@@ -49,23 +49,13 @@ def validate_version_format(version, label):
 
 def update_pom_revision(pom_path, new_engine_version):
     """Updates the <revision> element in pom.xml to '<new_engine_version>-SNAPSHOT'."""
-    pom_path = Path(pom_path)
-    content = pom_path.read_text(encoding="utf-8")
-
     new_revision = f"{new_engine_version}-SNAPSHOT"
-    pattern = re.compile(r"(<revision>)[^<]*(</revision>)")
 
-    if not pattern.search(content):
-        print(f"[error] <revision> element not found in {pom_path}", file=sys.stderr)
-        sys.exit(1)
-
-    updated_content = pattern.sub(rf"\g<1>{new_revision}\g<2>", content, count=1)
-
-    if updated_content == content:
+    if read_pom_revision(pom_path) == new_revision:
         print(f"[ok] {pom_path} already at revision {new_revision}", file=sys.stderr)
         return False
 
-    pom_path.write_text(updated_content, encoding="utf-8")
+    write_pom_revision(pom_path, new_revision)
     print(f"[ok] {pom_path}: revision -> {new_revision}", file=sys.stderr)
     return True
 
