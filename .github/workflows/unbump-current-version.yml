@@ -1,0 +1,88 @@
+name: Unbump Current Version
+
+on:
+  workflow_dispatch:
+
+# No secrets.GITHUB_TOKEN is used in this workflow (a GitHub App token is minted
+# instead for checkout/push/PR creation), so this is not an active privilege-escalation
+# risk. Declared explicitly anyway for consistency with this repo's other workflows
+# (quality-gate.yml, nightly-*.yml, publish-*.yml), which all set least-privilege
+# permissions rather than relying on the repository/org default.
+permissions:
+  contents: read
+
+jobs:
+  unbump-current-version:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions here are pinned to immutable commit SHAs (with the release tag as
+      # a trailing comment for readability), unlike the rest of this repository's
+      # workflows which use mutable major-version tags. This is a deliberate,
+      # tighter choice for this workflow since it mutates a repo source (pom.xml)
+      # and opens a PR with elevated GitHub App credentials.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ secrets.APP_SYNC_IKANOS_VERSION_ID }}
+          private-key: ${{ secrets.APP_SYNC_IKANOS_VERSION_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.11'
+
+      - name: Remove -SNAPSHOT suffix from engine version
+        run: python3 scripts/unbump-current-version.py
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          base: ${{ github.ref_name }}
+          branch: "chore/unbump-current-version-${{ github.run_id }}"
+          commit-message: "chore: unbump current version"
+          title: "chore: unbump current version"
+          body: |
+            ## No related issue
+
+            ---
+
+            ## What does this PR do?
+
+            Automatically removes the `-SNAPSHOT` suffix from the current Ikanos engine
+            version by setting `revision` in `pom.xml` to its release value.
+
+            ---
+
+            ## Tests
+
+            No additional tests required.
+            This change is limited to version bumping and does not impact runtime behavior.
+
+            ---
+
+            ## Checklist
+
+            - [ ] CI is green (build, tests, schema validation, security scans)
+            - [ ] Rebased on latest `main`
+            - [ ] Small and focused — one concern per PR
+            - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+            - [ ] Every commit is signed off (`git commit -s`) — the [DCO](https://probot.github.io/apps/dco/) check must pass
+          delete-branch: true
+          signoff: true

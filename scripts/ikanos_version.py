@@ -7,6 +7,48 @@ import re
 import json
 import xml.etree.ElementTree as ET
 import sys
+from pathlib import Path
+
+# Shared by bump-next-versions.py and unbump-current-version.py so the
+# <revision> read/write logic lives in exactly one place - see
+# read_pom_revision / write_pom_revision below.
+POM_REVISION_PATTERN = re.compile(r"(<revision>)([^<]*)(</revision>)")
+
+
+def read_pom_revision(pom_path="pom.xml"):
+    """Reads the raw <revision> value from pom.xml, verbatim (no -SNAPSHOT
+    stripping - use extract_version_from_pom for that). Exits with an error
+    if the element is not found."""
+    pom_path = Path(pom_path)
+    content = pom_path.read_text(encoding="utf-8")
+
+    match = POM_REVISION_PATTERN.search(content)
+    if not match:
+        print(f"[error] <revision> element not found in {pom_path}", file=sys.stderr)
+        sys.exit(1)
+
+    return match.group(2)
+
+
+def write_pom_revision(pom_path, new_revision):
+    """Writes new_revision into the <revision> element of pom.xml. Returns
+    True if the file was changed, False if it was already at new_revision
+    (clean no-op). Exits with an error if the element is not found."""
+    pom_path = Path(pom_path)
+    content = pom_path.read_text(encoding="utf-8")
+
+    updated_content, count = POM_REVISION_PATTERN.subn(
+        rf"\g<1>{new_revision}\g<3>", content, count=1
+    )
+    if count == 0:
+        print(f"[error] <revision> element not found in {pom_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if updated_content == content:
+        return False
+
+    pom_path.write_text(updated_content, encoding="utf-8")
+    return True
 
 
 def extract_version_from_pom(pom_path="pom.xml"):
