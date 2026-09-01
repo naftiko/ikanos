@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta5"
+ikanos: "1.0.0-beta6"
 info:
   display: "Aggregate Invalid Ref Test"
   description: "Test capability with an unknown aggregate ref"
