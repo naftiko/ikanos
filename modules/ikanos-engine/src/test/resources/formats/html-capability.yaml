@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta5"
+ikanos: "1.0.0-beta6"
 info:
   display: "HTML Test Capability"
   description: "Test capability for HTML table parsing"
