@@ -19,6 +19,8 @@
 #   KC_CLIENT_SECRET  Keycloak client secret (default: test-secret)
 #   MCP_SERVER_TOKEN  static fallback bearer token
 
+MCP_VERSION="${MCP_VERSION:-2026-07-28}"
+
 # ── Counters (accumulated across tests within one run.sh) ─────────────────────
 PASSED=0
 FAILED=0
@@ -55,7 +57,9 @@ _wait_for_mcp() {
     RESP=$(curl -s "http://localhost:$PORT" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $TOKEN" \
-      -d '{"jsonrpc":"2.0","id":0,"method":"tools/list","params":{}}' \
+      -H "MCP-Protocol-Version: $MCP_VERSION" \
+      -H "Mcp-Method: tools/list" \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"$MCP_VERSION\"}}}" \
       2>/dev/null || true)
     if echo "$RESP" | jq -e '.result.tools' > /dev/null 2>&1; then
       echo "  MCP server is ready on port $PORT"; return 0
@@ -143,7 +147,10 @@ run_mcp_test() {
   RESPONSE=$(curl -s "http://localhost:$PORT" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS}}" || true)
+    -H "MCP-Protocol-Version: $MCP_VERSION" \
+    -H "Mcp-Method: tools/call" \
+    -H "Mcp-Name: $TOOL" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS,\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"$MCP_VERSION\"}}}" || true)
 
   IS_ERROR=$(echo "$RESPONSE" | jq -r '.result.isError // false')
   DATA=$(echo "$RESPONSE" | jq -r '.result.content[0].text // empty')
@@ -193,7 +200,10 @@ run_auth_test() {
     "http://localhost:$PORT" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS}}" || true)
+    -H "MCP-Protocol-Version: $MCP_VERSION" \
+    -H "Mcp-Method: tools/call" \
+    -H "Mcp-Name: $TOOL" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS,\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"$MCP_VERSION\"}}}" || true)
 
   if [ "$HTTP_STATUS" = "$EXPECTED_STATUS" ]; then
     echo "  PASS ✓ — $NAME (HTTP $HTTP_STATUS)"
