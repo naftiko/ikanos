@@ -1,19 +1,20 @@
 ---
-description: "Use when: reviewing a PR, reviewing a pull request, doing a code review, posting inline comments on a PR, reviewing PR #<number>, fixing PR comments, addressing PR feedback, fixing PR #<number>, addressing review comments, fixing Copilot comments, resolving PR threads; OR fixing a bug, investigating an issue (bugfix skill); OR building an Ikanos capability / MCP server (ikanos-capability skill). Tells the agent how to fetch a shared skill from the agents-shared capability before following it."
+description: "Use when: reviewing a PR, reviewing a pull request, doing a code review, posting inline comments on a PR, reviewing PR #<number>, fixing PR comments, addressing PR feedback, fixing PR #<number>, addressing review comments, fixing Copilot comments, resolving PR threads; OR fixing a bug, investigating an issue (bugfix skill); OR building an Ikanos capability / MCP server (ikanos-capability skill); OR drafting release notes, writing release notes for a tag (release-notes-drafting skill). Tells the agent how to fetch a shared skill from the agents-shared capability before following it."
 name: "agents-shared skill discovery"
 ---
 # Shared agent skills — `agents-shared` capability
 
-The transversal skills served to this repository — `pr-review`, `bugfix`, and
-`ikanos-capability` — are **not** committed here. They are versioned once in the
+The transversal skills served to this repository — `pr-review`, `bugfix`,
+`ikanos-capability`, and `release-notes-drafting` — are **not** committed here. They are
+versioned once in the
 [`golden-repo-naftiko`](https://github.com/naftiko/golden-repo-naftiko) golden repo and served
 read-only by the `agents-shared` Ikanos capability (Skill Server, `type: skill`).
 
 ## How to use a skill
 
 1. **Check for a local copy first.** If `.agents/skills/<skill>/SKILL.md` exists in this
-   repository (where `<skill>` is `pr-review`, `bugfix`, or `ikanos-capability`), read it and
-   follow it — it is a synced, git-ignored copy.
+   repository (where `<skill>` is `pr-review`, `bugfix`, `ikanos-capability`, or
+   `release-notes-drafting`), read it and follow it — it is a synced, git-ignored copy.
 
    > **Detecting a stale copy.** `SKILL.md` carries a `version` field in its front matter.
    > To avoid relying solely on a user-driven refresh, compare the local copy's `version`
