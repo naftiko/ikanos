@@ -129,7 +129,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 
 - **Delivery**: `SHIPPED` / `PARTIAL` / `NOT_IMPL` — sourced from `gap-analysis-report.md` + engine presence, **not** the design doc `Status` field (unreliable).
 - **Coverage**: `NATIVE` / `JVM` / `NONE` per the model above.
-- **Phases**: delivered / total phases declared in the design doc's roadmap — a coarse count (e.g. `2 / 6`). When no count applies, one of three explicit labels: `no phasing` (a design doc exists but declares no phased roadmap — delivered in one block), `no dedicated design doc` (a base-spec engine primitive covered only by the generic capability spec, with no design doc of its own), or `unverified` (a phased design doc exists but the delivered-count is not yet reconciled). Design docs were cross-checked against **both** the local disk (`design-docs/` + `design-docs/archives/`) **and** the Notion ITD database.
+- **Phases**: delivered / total phases declared in the design doc's roadmap — a coarse count (e.g. `2 / 6`). When no count applies, one of three explicit labels: `no phasing` (a design doc exists but declares no phased roadmap — delivered in one block), `no dedicated design doc` (a base-spec engine primitive covered only by the generic capability spec, with no design doc of its own), or `unverified` (a phased design doc exists but the delivered-count is not yet reconciled). Design docs were cross-checked against **both** the local disk (`internal-docs/design-docs/` + `internal-docs/archives/`) **and** the Notion ITD database.
 
 | # | Design doc (feature) | Delivery | Coverage | Phases | Evidence — test(s) / launch path |
 |---|---|---|---|---|---|
@@ -251,7 +251,7 @@ a first end-user test for a NONE feature.
 
 ## Limitations of this tracker
 
-1. **Design doc inventory cross-checked against Notion ITD (2026-06-23).** Both the local disk (`design-docs/` + `design-docs/archives/`) and the ITD Notion database (`2e14adce-3d02-8063-8426-eec9aedf3a5e`) were queried. Several features carry a design doc that lives only in Notion or only in `archives/` (e.g. #11 *Agent Skills Support*, #21/#22 *MCP Resources & Prompt Templates*, #24 *CLI serve Command*). Residual caveat: the ITD listing was read by `Doc name`; a design doc filed under an unexpected title could still be missed.
+1. **Design doc inventory cross-checked against Notion ITD (2026-06-23).** Both the local disk (`internal-docs/design-docs/` + `internal-docs/archives/`) and the ITD Notion database (`2e14adce-3d02-8063-8426-eec9aedf3a5e`) were queried. Several features carry a design doc that lives only in Notion or only in `archives/` (e.g. #11 *Agent Skills Support*, #21/#22 *MCP Resources & Prompt Templates*, #24 *CLI serve Command*). Residual caveat: the ITD listing was read by `Doc name`; a design doc filed under an unexpected title could still be missed.
 
 ---
 
