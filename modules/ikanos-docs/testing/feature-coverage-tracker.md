@@ -8,14 +8,14 @@ notion_last_sync: 2026-06-26T13:25:14Z
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
 **Last updated**: 2026-08-12
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
-**Model**: 1 blueprint = 1 feature.
+**Model**: 1 design doc = 1 feature.
 
 > **Notion mirror — sync contract.** This document is mirrored to a page in the
 > Internal Tech Documentation (ITD) Notion database
 > (`2e14adce-3d02-8063-8426-eec9aedf3a5e`). The mirror reuses the **sync-pointer formalism** of
-> the `blueprint-itd-sync` skillset (the two `notion_page_id` / `notion_last_sync` frontmatter
-> fields above) — but **this is not a blueprint**: it is a factual tracker, so none of the
-> blueprint-specific machinery applies (no `Status`-maturity mapping, no header-block→property
+> the `design-itd-sync` skillset (the two `notion_page_id` / `notion_last_sync` frontmatter
+> fields above) — but **this is not a design doc**: it is a factual tracker, so none of the
+> design doc-specific machinery applies (no `Status`-maturity mapping, no header-block→property
 > contract).
 >
 > **Expected flow today: VS Code → Notion.** The **source of truth is this file**, edited from VS
@@ -29,21 +29,21 @@ notion_last_sync: 2026-06-26T13:25:14Z
 > This is a **default direction, not a guaranteed invariant**: full bidirectional reconciliation
 > (conflict detection via `notion_last_sync` vs Notion's `last_edited_time`) is **deliberately not
 > set up** — it would be speculative for a need that has not materialised. The frontmatter socle is
-> intentionally **direction-neutral**, so if a two-way need ever arises (or once the
-> `blueprint-itd-sync` skillset is externalised and can adopt this doc), the reconciliation can be
+> intentionally **direction-neutral**, so if a two-way need ever arises (the `design-itd-sync`
+> skillset, now served from `golden-repo-naftiko`, could adopt this doc), the reconciliation can be
 > layered on **without changing these two fields** — nothing here presumes one-way only.
 
 > **This is a living tracking document, not a one-shot audit.** It started as the #578 e2e
 > coverage audit, but it is meant to be **kept up to date** as features ship and tests are added.
-> It tracks, per feature/blueprint, two things over time:
+> It tracks, per feature/design doc, two things over time:
 >
 > 1. **Test coverage** — does a shipped feature have an end-user integration test, and at which
 >    level (NATIVE / JVM / NONE)?
-> 2. **Implementation phases** — which phases declared in the blueprint's *Roadmap* are
+> 2. **Implementation phases** — which phases declared in the design doc's *Roadmap* are
 >    **actually delivered** today (reconciled against the engine + the GitHub issues), and which
 >    remain.
 >
-> **Maintenance rule**: whenever a PR ships a blueprint phase or adds an end-user test, update the
+> **Maintenance rule**: whenever a PR ships a design doc phase or adds an end-user test, update the
 > matching row in the [feature table](#feature-table) — the `Phases` count and the `Coverage`
 > status — and bump **Last updated** above.
 
@@ -127,59 +127,59 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 
 ## Feature table
 
-- **Delivery**: `SHIPPED` / `PARTIAL` / `NOT_IMPL` — sourced from `gap-analysis-report.md` + engine presence, **not** the blueprint `Status` field (unreliable).
+- **Delivery**: `SHIPPED` / `PARTIAL` / `NOT_IMPL` — sourced from `gap-analysis-report.md` + engine presence, **not** the design doc `Status` field (unreliable).
 - **Coverage**: `NATIVE` / `JVM` / `NONE` per the model above.
-- **Phases**: delivered / total phases declared in the blueprint's roadmap — a coarse count (e.g. `2 / 6`). When no count applies, one of three explicit labels: `no phasing` (a blueprint exists but declares no phased roadmap — delivered in one block), `no dedicated blueprint` (a base-spec engine primitive covered only by the generic capability spec, with no blueprint of its own), or `unverified` (a phased blueprint exists but the delivered-count is not yet reconciled). Blueprints were cross-checked against **both** the local disk (`blueprints/` + `blueprints/archives/`) **and** the Notion ITD database.
+- **Phases**: delivered / total phases declared in the design doc's roadmap — a coarse count (e.g. `2 / 6`). When no count applies, one of three explicit labels: `no phasing` (a design doc exists but declares no phased roadmap — delivered in one block), `no dedicated design doc` (a base-spec engine primitive covered only by the generic capability spec, with no design doc of its own), or `unverified` (a phased design doc exists but the delivered-count is not yet reconciled). Design docs were cross-checked against **both** the local disk (`design-docs/` + `design-docs/archives/`) **and** the Notion ITD database.
 
-| # | Blueprint (feature) | Delivery | Coverage | Phases | Evidence — test(s) / launch path |
+| # | Design doc (feature) | Delivery | Coverage | Phases | Evidence — test(s) / launch path |
 |---|---|---|---|---|---|
-| 1 | MCP HTTP exposition (`type: mcp`, tools) | SHIPPED | JVM | no dedicated blueprint | Steps 1–8, 11 boot the MCP adapter in-process; nightly runs them against Microcks. No native-image launch. Base-spec primitive (Generic Capability Spec), no phasable blueprint of its own. |
-| 2 | Mock mode (`MockOutputParameter`) | SHIPPED | JVM | no dedicated blueprint | `Step1ShipyardMcpClientIntegrationTest` (in-process boot). The ITD *Capability Mocking & Resolution Policies* blueprint describes a broader future `scenarios`/`resolution` model, not this shipped base-spec primitive. |
-| 3 | Consumed HTTP + output shaping | SHIPPED | JVM | no dedicated blueprint | Steps 2–7 (in-process boot, Microcks backend). Base-spec primitive. |
-| 4 | Consumed auth — bearer | SHIPPED | JVM | no dedicated blueprint | `Step3ShipyardMcpClientIntegrationTest`. Base-spec auth scheme. |
-| 5 | Consumed auth — basic / apikey / digest | SHIPPED | NONE | no dedicated blueprint | No integration test launches a capability against a backend requiring these schemes. Base-spec auth schemes. |
-| 6 | Request body — JSON | SHIPPED | JVM | no dedicated blueprint | `Step6ShipyardMcpClientIntegrationTest` (write operations). Base-spec primitive. |
-| 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated blueprint | No end-user test sends these content types. Base-spec primitives. |
-| 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated blueprint | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
-| 9 | Aggregates + `ref` (REST + MCP reuse) | SHIPPED | NONE | no dedicated blueprint | `AggregateIntegrationTest` / `AggregateSharedMockIntegrationTest` load the spec in-process **without booting an HTTP server** → NONE. `step-9-shipyard-aggregates.yml` fixture exists but **has no test class**. |
-| 10 | REST exposition (`type: rest`) | SHIPPED | NATIVE | no dedicated blueprint | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also NATIVE** — the nightly `smoke-tests` boots `serve-http.ikanos.yaml` on the native binary and TCP-probes the exposed REST port (`ping-rest`, #581). **Caveat**: this NATIVE mark rests on a **TCP-probe only**, not a served HTTP request — real native `GET` was hanging until [#594](https://github.com/naftiko/ikanos/issues/594) (fixed via PR [#596](https://github.com/naftiko/ikanos/pull/596), **MERGED on `main` 2026-06-25**; fixture `serve-rest-mock.ikanos.yaml` → `GET /greet` 200). A *real-HTTP* native REST e2e is now **viable** (a control-port variant is handed off via issue [#608](https://github.com/naftiko/ikanos/issues/608)). |
-| 11 | Skill server adapter (`type: skill`) | SHIPPED | JVM | 4 / 4 | `Step8`, `Step10`, `SkillIntegrationTest`. The native fixture declares a `skill` port but the smoke test only probes the REST port → not exercised at native level. A native skill smoke (real HTTP) is now **viable** since [#594](https://github.com/naftiko/ikanos/issues/594)/PR [#596](https://github.com/naftiko/ikanos/pull/596) merged (no longer blocked). Blueprint `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill`. |
-| 12 | Bindings (`binds:`, file/vault) | SHIPPED | JVM | no dedicated blueprint | Steps 3–11 load `shared/secrets.yaml`. Base-spec primitive. |
-| 13 | Fleet manifest (`catalog-info.yaml`) | SHIPPED | JVM | no dedicated blueprint | `Step11ShipyardFleetManifestIntegrationTest`. Owned by the Fleet/Warden template, not a phasable blueprint. |
-| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` does a GET on `/health/ready`, but only as a lifecycle/readiness signal — no test asserts the **content** of any control endpoint. The native fixture declares a `control` port (`9619`, `health: true` + `info: true`) but the smoke test does not yet call it. Real routes (`ControlServerAdapter`): `/health/live` (always 200 `{"status":"UP"}`), `/health/ready` (200/503), `/status` (gated by `info`), `/metrics` + `/traces` (503 unless OTel active) — there is no bare `/health` or `/ready`. Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. A native control-port e2e (real `GET /health/live` → `{"status":"UP"}`) is now **unblocked** since [#594](https://github.com/naftiko/ikanos/issues/594)/PR [#596](https://github.com/naftiko/ikanos/pull/596) merged; the smoke step is tracked in issue [#608](https://github.com/naftiko/ikanos/issues/608). Blueprint: `archives/control-port.md`. |
-| 15 | OTel observability (tracing + Prometheus metrics) | SHIPPED | NONE | 5 / 5 | `ObservabilitySpecIntegrationTest` etc. load in-process without booting a server; no OTLP export driven end-to-end. All 5 roadmap phases (logging facade, tracing, metrics, spec-driven config, dashboarding) shipped; coverage still NONE. Blueprint: `archives/opentelemetry-observability.md`. |
-| 16 | Reverse tunnel (Ziti) | SHIPPED | NONE | 2 / 6 | `TunnelTransportTest`/`TunnelRouteTableTest`/`TunnelBootstrapTest` are unit-level; no launched capability routes a call through a Ziti network. Phases 1–2 shipped, 3 partial, 4–5 pending. Blueprint: `reverse-tunnel-private-network.md`. |
-| 17 | MCP exposed auth (OAuth 2.1 / Bearer) | SHIPPED | NONE | no dedicated blueprint | `ServerAdapterAuthenticationTest` is unit-level; no launched MCP adapter validates a token end-to-end. Base-spec primitive. |
-| 18 | Script step (`type: script`, JS/Python/Groovy) | SHIPPED | NONE | no dedicated blueprint | `ScriptStepExecutorTest` / `OperationStepExecutorIntegrationTest` run in-process; no launched capability calls a scripted tool. Base-spec primitive. |
-| 19 | Import mechanism (`from:` across sections) | SHIPPED | NONE | 3 / 3 | `ImportResolverParameterizedTest` loads specs only; no launched capability uses `from:` imports. All 3 roadmap phases shipped (blueprint checklist `[x]`); coverage still NONE. Blueprint: `unified-import-mechanism.md`. |
-| 20 | OAS import/export | SHIPPED | NONE | 0–1 / 4 | `Oas*IntegrationTest` are in-process round-trips; no end-user CLI/HTTP flow. Phase 1 partial, 2–4 pending. Blueprint: `openapi-interoperability.md`. |
-| 21 | MCP resources (`McpResource`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `resources:` block. Blueprint: ITD *MCP Resources & Prompt Templates Support Proposal* (Notion `31b4adce…`) — all 6 roadmap phases shipped. |
-| 22 | MCP prompts (`McpPrompt`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `prompts:` block. Same blueprint as #21 (ITD *MCP Resources & Prompt Templates Support Proposal*) — all 6 roadmap phases shipped. |
-| 23 | MCP tool hints (`McpToolHints`) | SHIPPED | NONE | no dedicated blueprint | `AggregateIntegrationTest` checks semantics→hints in-process; no launched tool-call asserts hints on the wire. Hints derived from `semantics`, no phasable blueprint of their own. |
-| 24 | CLI `serve` command | SHIPPED | NATIVE | no phasing | Nightly `smoke-tests` runs `ikanos serve` **on the native binary** (`serve-http.ikanos.yaml`), confirming the HTTP connector boots and the REST port listens (#581). `ServeCommandTest` adds JVM-level parsing coverage. Blueprint `archives/cli-serve-command.md` (ITD: *CLI serve Command*) is a post-hoc record (PR #460), no phased roadmap. |
-| 25 | Embedded library (`StepHandlerRegistry`) | SHIPPED | NONE | no phasing | `EngineStepHandlerOverrideTest` is in-process; not an end-user launch (and partly out of the launched-capability scope). Blueprint `embedded-library.md` has a `Delivery` section but no enumerated phases. |
+| 1 | MCP HTTP exposition (`type: mcp`, tools) | SHIPPED | JVM | no dedicated design doc | Steps 1–8, 11 boot the MCP adapter in-process; nightly runs them against Microcks. No native-image launch. Base-spec primitive (Generic Capability Spec), no phasable design doc of its own. |
+| 2 | Mock mode (`MockOutputParameter`) | SHIPPED | JVM | no dedicated design doc | `Step1ShipyardMcpClientIntegrationTest` (in-process boot). The ITD *Capability Mocking & Resolution Policies* design doc describes a broader future `scenarios`/`resolution` model, not this shipped base-spec primitive. |
+| 3 | Consumed HTTP + output shaping | SHIPPED | JVM | no dedicated design doc | Steps 2–7 (in-process boot, Microcks backend). Base-spec primitive. |
+| 4 | Consumed auth — bearer | SHIPPED | JVM | no dedicated design doc | `Step3ShipyardMcpClientIntegrationTest`. Base-spec auth scheme. |
+| 5 | Consumed auth — basic / apikey / digest | SHIPPED | NONE | no dedicated design doc | No integration test launches a capability against a backend requiring these schemes. Base-spec auth schemes. |
+| 6 | Request body — JSON | SHIPPED | JVM | no dedicated design doc | `Step6ShipyardMcpClientIntegrationTest` (write operations). Base-spec primitive. |
+| 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated design doc | No end-user test sends these content types. Base-spec primitives. |
+| 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated design doc | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
+| 9 | Aggregates + `ref` (REST + MCP reuse) | SHIPPED | NONE | no dedicated design doc | `AggregateIntegrationTest` / `AggregateSharedMockIntegrationTest` load the spec in-process **without booting an HTTP server** → NONE. `step-9-shipyard-aggregates.yml` fixture exists but **has no test class**. |
+| 10 | REST exposition (`type: rest`) | SHIPPED | NATIVE | no dedicated design doc | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also NATIVE** — the nightly `smoke-tests` boots `serve-http.ikanos.yaml` on the native binary and TCP-probes the exposed REST port (`ping-rest`, #581). **Caveat**: this NATIVE mark rests on a **TCP-probe only**, not a served HTTP request — real native `GET` was hanging until [#594](https://github.com/naftiko/ikanos/issues/594) (fixed via PR [#596](https://github.com/naftiko/ikanos/pull/596), **MERGED on `main` 2026-06-25**; fixture `serve-rest-mock.ikanos.yaml` → `GET /greet` 200). A *real-HTTP* native REST e2e is now **viable** (a control-port variant is handed off via issue [#608](https://github.com/naftiko/ikanos/issues/608)). |
+| 11 | Skill server adapter (`type: skill`) | SHIPPED | JVM | 4 / 4 | `Step8`, `Step10`, `SkillIntegrationTest`. The native fixture declares a `skill` port but the smoke test only probes the REST port → not exercised at native level. A native skill smoke (real HTTP) is now **viable** since [#594](https://github.com/naftiko/ikanos/issues/594)/PR [#596](https://github.com/naftiko/ikanos/pull/596) merged (no longer blocked). Design doc `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill`. |
+| 12 | Bindings (`binds:`, file/vault) | SHIPPED | JVM | no dedicated design doc | Steps 3–11 load `shared/secrets.yaml`. Base-spec primitive. |
+| 13 | Fleet manifest (`catalog-info.yaml`) | SHIPPED | JVM | no dedicated design doc | `Step11ShipyardFleetManifestIntegrationTest`. Owned by the Fleet/Warden template, not a phasable design doc. |
+| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NONE | 1 / 4 | `CapabilityRuntimeIntegrationTest` does a GET on `/health/ready`, but only as a lifecycle/readiness signal — no test asserts the **content** of any control endpoint. The native fixture declares a `control` port (`9619`, `health: true` + `info: true`) but the smoke test does not yet call it. Real routes (`ControlServerAdapter`): `/health/live` (always 200 `{"status":"UP"}`), `/health/ready` (200/503), `/status` (gated by `info`), `/metrics` + `/traces` (503 unless OTel active) — there is no bare `/health` or `/ready`. Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. A native control-port e2e (real `GET /health/live` → `{"status":"UP"}`) is now **unblocked** since [#594](https://github.com/naftiko/ikanos/issues/594)/PR [#596](https://github.com/naftiko/ikanos/pull/596) merged; the smoke step is tracked in issue [#608](https://github.com/naftiko/ikanos/issues/608). Design doc: `archives/control-port.md`. |
+| 15 | OTel observability (tracing + Prometheus metrics) | SHIPPED | NONE | 5 / 5 | `ObservabilitySpecIntegrationTest` etc. load in-process without booting a server; no OTLP export driven end-to-end. All 5 roadmap phases (logging facade, tracing, metrics, spec-driven config, dashboarding) shipped; coverage still NONE. Design doc: `archives/opentelemetry-observability.md`. |
+| 16 | Reverse tunnel (Ziti) | SHIPPED | NONE | 2 / 6 | `TunnelTransportTest`/`TunnelRouteTableTest`/`TunnelBootstrapTest` are unit-level; no launched capability routes a call through a Ziti network. Phases 1–2 shipped, 3 partial, 4–5 pending. Design doc: `reverse-tunnel-private-network.md`. |
+| 17 | MCP exposed auth (OAuth 2.1 / Bearer) | SHIPPED | NONE | no dedicated design doc | `ServerAdapterAuthenticationTest` is unit-level; no launched MCP adapter validates a token end-to-end. Base-spec primitive. |
+| 18 | Script step (`type: script`, JS/Python/Groovy) | SHIPPED | NONE | no dedicated design doc | `ScriptStepExecutorTest` / `OperationStepExecutorIntegrationTest` run in-process; no launched capability calls a scripted tool. Base-spec primitive. |
+| 19 | Import mechanism (`from:` across sections) | SHIPPED | NONE | 3 / 3 | `ImportResolverParameterizedTest` loads specs only; no launched capability uses `from:` imports. All 3 roadmap phases shipped (design doc checklist `[x]`); coverage still NONE. Design doc: `unified-import-mechanism.md`. |
+| 20 | OAS import/export | SHIPPED | NONE | 0–1 / 4 | `Oas*IntegrationTest` are in-process round-trips; no end-user CLI/HTTP flow. Phase 1 partial, 2–4 pending. Design doc: `openapi-interoperability.md`. |
+| 21 | MCP resources (`McpResource`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `resources:` block. Design doc: ITD *MCP Resources & Prompt Templates Support Proposal* (Notion `31b4adce…`) — all 6 roadmap phases shipped. |
+| 22 | MCP prompts (`McpPrompt`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `prompts:` block. Same design doc as #21 (ITD *MCP Resources & Prompt Templates Support Proposal*) — all 6 roadmap phases shipped. |
+| 23 | MCP tool hints (`McpToolHints`) | SHIPPED | NONE | no dedicated design doc | `AggregateIntegrationTest` checks semantics→hints in-process; no launched tool-call asserts hints on the wire. Hints derived from `semantics`, no phasable design doc of their own. |
+| 24 | CLI `serve` command | SHIPPED | NATIVE | no phasing | Nightly `smoke-tests` runs `ikanos serve` **on the native binary** (`serve-http.ikanos.yaml`), confirming the HTTP connector boots and the REST port listens (#581). `ServeCommandTest` adds JVM-level parsing coverage. Design doc `archives/cli-serve-command.md` (ITD: *CLI serve Command*) is a post-hoc record (PR #460), no phased roadmap. |
+| 25 | Embedded library (`StepHandlerRegistry`) | SHIPPED | NONE | no phasing | `EngineStepHandlerOverrideTest` is in-process; not an end-user launch (and partly out of the launched-capability scope). Design doc `embedded-library.md` has a `Delivery` section but no enumerated phases. |
 | 26 | Consumed auth — OAuth2 client credentials (token refresh) | PARTIAL | NONE | 0 / 3 | `token-refresh-authentication.md` §12 — client-side flow not implemented (Phase 4 is explicitly out of proposal). |
-| 27 | Resilience (retry / timeout / failover) | PARTIAL | NONE | 0–1 / 4 | gap-report §17.3 — Phase 1b partial, rest pending (+1 Adjacent item). Blueprint: `resilience-through-resolution-policies.md`. |
-| 28 | HTTP cache control | NOT_IMPL | — | 0 / 4 | Out of scope. Blueprint: `http-cache-control.md`. |
-| 29 | Deterministic flow steps (if/for-each/parallel) | NOT_IMPL | — | no phasing | Out of scope. Blueprint `deterministic-flow-steps.md` declares no roadmap section. |
-| 30 | gRPC adapter | NOT_IMPL | — | 0 / 6 | Out of scope. 6 milestones planned. Blueprint: `grpc-server-adapter.md`. |
-| 31 | Webhook adapter | NOT_IMPL | — | 0 / 3 | Out of scope. 3 phases planned. Blueprint: `webhook-server-adapter.md`. |
-| 32 | mTLS client certificates | NOT_IMPL | — | 0 / 1 | Out of scope. Phase 1 (MVP) planned, blocked on token-refresh refactor; Phase 2 = future/out of proposal. Blueprint: `mtls-client-certificates.md`. |
-| 33 | MCP logging (`logging/setLevel`, `notifications/message`) | NOT_IMPL | — | no dedicated blueprint | Not implemented. `ServerDiscoverHandler` never advertises a `logging` capability, `McpCallHandlersFactory` registers no `logging/setLevel` handler, and no handler emits `notifications/message`. Base-spec MCP primitive, no blueprint of its own. |
-| 34 | MCP tasks (`io.modelcontextprotocol/tasks`) | NOT_IMPL | — | no dedicated blueprint | Not implemented. No handler, capability flag, or spec field references `io.modelcontextprotocol/tasks`; long-running/augmented-async tool calls are not modeled. Base-spec MCP primitive, no blueprint of its own. |
-| 35 | Multi Round-Trip Requests (MRTR) | NOT_IMPL | — | no dedicated blueprint | Not implemented. The engine has no notion of a multi-turn tool call that pauses awaiting client input; every `ToolsCallHandler` response is a single terminal round trip. Base-spec MCP primitive, no blueprint of its own. |
-| 36 | `resultType` field handling (`complete` vs `input_required`) for MRTR | NOT_IMPL | — | no dedicated blueprint | Not implemented. Every handler (`ToolsCallHandler`, `ToolsListHandler`, `ResourcesListHandler`, etc.) hardcodes `result.put("resultType", "complete")` — `input_required` is never produced, since MRTR (#35) itself is not implemented. Base-spec MCP primitive, no blueprint of its own. |
-| 37 | Extensions in `ClientCapabilities` / `ServerCapabilities` | NOT_IMPL | — | no dedicated blueprint | Not implemented. `ServerDiscoverHandler` builds a fixed `capabilities` object (`tools`, conditionally `resources`/`prompts`) with no generic extension point, and no inbound `ClientCapabilities` payload is parsed or negotiated. Base-spec MCP primitive, no blueprint of its own. |
-| 38 | Support for custom headers (consumed/exposed, beyond the fixed MCP header set) | NOT_IMPL | — | no dedicated blueprint | Not implemented as a first-class mechanism. Consumed side: arbitrary headers work today only via `inputParameters` with `in: header` (`HttpClientAdapter.setHeaders`) — no dedicated "custom headers" block. Exposed side: `McpHeader` is a closed enum of protocol-reserved headers and `ForwardConfig.trustedHeaders` only allowlists forwarding, neither lets a spec author declare arbitrary custom headers on responses. Base-spec primitive, no blueprint of its own. |
+| 27 | Resilience (retry / timeout / failover) | PARTIAL | NONE | 0–1 / 4 | gap-report §17.3 — Phase 1b partial, rest pending (+1 Adjacent item). Design doc: `resilience-through-resolution-policies.md`. |
+| 28 | HTTP cache control | NOT_IMPL | — | 0 / 4 | Out of scope. Design doc: `http-cache-control.md`. |
+| 29 | Deterministic flow steps (if/for-each/parallel) | NOT_IMPL | — | no phasing | Out of scope. Design doc `deterministic-flow-steps.md` declares no roadmap section. |
+| 30 | gRPC adapter | NOT_IMPL | — | 0 / 6 | Out of scope. 6 milestones planned. Design doc: `grpc-server-adapter.md`. |
+| 31 | Webhook adapter | NOT_IMPL | — | 0 / 3 | Out of scope. 3 phases planned. Design doc: `webhook-server-adapter.md`. |
+| 32 | mTLS client certificates | NOT_IMPL | — | 0 / 1 | Out of scope. Phase 1 (MVP) planned, blocked on token-refresh refactor; Phase 2 = future/out of proposal. Design doc: `mtls-client-certificates.md`. |
+| 33 | MCP logging (`logging/setLevel`, `notifications/message`) | NOT_IMPL | — | no dedicated design doc | Not implemented. `ServerDiscoverHandler` never advertises a `logging` capability, `McpCallHandlersFactory` registers no `logging/setLevel` handler, and no handler emits `notifications/message`. Base-spec MCP primitive, no design doc of its own. |
+| 34 | MCP tasks (`io.modelcontextprotocol/tasks`) | NOT_IMPL | — | no dedicated design doc | Not implemented. No handler, capability flag, or spec field references `io.modelcontextprotocol/tasks`; long-running/augmented-async tool calls are not modeled. Base-spec MCP primitive, no design doc of its own. |
+| 35 | Multi Round-Trip Requests (MRTR) | NOT_IMPL | — | no dedicated design doc | Not implemented. The engine has no notion of a multi-turn tool call that pauses awaiting client input; every `ToolsCallHandler` response is a single terminal round trip. Base-spec MCP primitive, no design doc of its own. |
+| 36 | `resultType` field handling (`complete` vs `input_required`) for MRTR | NOT_IMPL | — | no dedicated design doc | Not implemented. Every handler (`ToolsCallHandler`, `ToolsListHandler`, `ResourcesListHandler`, etc.) hardcodes `result.put("resultType", "complete")` — `input_required` is never produced, since MRTR (#35) itself is not implemented. Base-spec MCP primitive, no design doc of its own. |
+| 37 | Extensions in `ClientCapabilities` / `ServerCapabilities` | NOT_IMPL | — | no dedicated design doc | Not implemented. `ServerDiscoverHandler` builds a fixed `capabilities` object (`tools`, conditionally `resources`/`prompts`) with no generic extension point, and no inbound `ClientCapabilities` payload is parsed or negotiated. Base-spec MCP primitive, no design doc of its own. |
+| 38 | Support for custom headers (consumed/exposed, beyond the fixed MCP header set) | NOT_IMPL | — | no dedicated design doc | Not implemented as a first-class mechanism. Consumed side: arbitrary headers work today only via `inputParameters` with `in: header` (`HttpClientAdapter.setHeaders`) — no dedicated "custom headers" block. Exposed side: `McpHeader` is a closed enum of protocol-reserved headers and `ForwardConfig.trustedHeaders` only allowlists forwarding, neither lets a spec author declare arbitrary custom headers on responses. Base-spec primitive, no design doc of its own. |
 
 > **Note on the `Phases` column.** A numeric count `delivered / total` is the *delivered / total*
-> phases declared in the blueprint's roadmap; ranges (e.g. `0–1 / 4`) mean a phase is partially
-> delivered. When no count applies the cell carries an explicit label — `no phasing` (a blueprint
-> exists but declares no phased roadmap), `no dedicated blueprint` (base-spec engine primitive with
-> no blueprint of its own, covered only by the generic capability spec), or `unverified` (a phased
-> blueprint exists but its delivered-count has not been reconciled). Blueprint existence was checked
+> phases declared in the design doc's roadmap; ranges (e.g. `0–1 / 4`) mean a phase is partially
+> delivered. When no count applies the cell carries an explicit label — `no phasing` (a design doc
+> exists but declares no phased roadmap), `no dedicated design doc` (base-spec engine primitive with
+> no design doc of its own, covered only by the generic capability spec), or `unverified` (a phased
+> design doc exists but its delivered-count has not been reconciled). Design doc existence was checked
 > against **both** the local disk and the Notion ITD database. This is a coarse indicator — to
-> recheck a value, read the blueprint's Roadmap section directly. Keep the count in sync on every PR
+> recheck a value, read the design doc's Roadmap section directly. Keep the count in sync on every PR
 > that ships a phase.
 
 ---
@@ -251,7 +251,7 @@ a first end-user test for a NONE feature.
 
 ## Limitations of this tracker
 
-1. **Blueprint inventory cross-checked against Notion ITD (2026-06-23).** Both the local disk (`blueprints/` + `blueprints/archives/`) and the ITD Notion database (`2e14adce-3d02-8063-8426-eec9aedf3a5e`) were queried. Several features carry a blueprint that lives only in Notion or only in `archives/` (e.g. #11 *Agent Skills Support*, #21/#22 *MCP Resources & Prompt Templates*, #24 *CLI serve Command*). Residual caveat: the ITD listing was read by `Doc name`; a blueprint filed under an unexpected title could still be missed.
+1. **Design doc inventory cross-checked against Notion ITD (2026-06-23).** Both the local disk (`design-docs/` + `design-docs/archives/`) and the ITD Notion database (`2e14adce-3d02-8063-8426-eec9aedf3a5e`) were queried. Several features carry a design doc that lives only in Notion or only in `archives/` (e.g. #11 *Agent Skills Support*, #21/#22 *MCP Resources & Prompt Templates*, #24 *CLI serve Command*). Residual caveat: the ITD listing was read by `Doc name`; a design doc filed under an unexpected title could still be missed.
 
 ---
 
