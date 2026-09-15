@@ -132,7 +132,7 @@ This section provides **machine-readable guidance** for AI coding agents contrib
 - PRs must pass all CI checks (build, tests, Trivy, Gitleaks, schema validation)
 - Keep changes **atomic**: one logical change per PR
 - Always include a clear PR description explaining the problem and solution
-- Do **not** modify CI/CD workflows, security configs, or branch protection rules
+- Do **not** modify CI/CD workflows, security configs, or branch protection rules to bypass, weaken, or route around an existing safeguard; editing them as a legitimate, necessary part of the current task is allowed — judge by intent, not topic (see `agents-shared/context/agent-universal.md` in golden-repo-naftiko, "CI/CD and safeguard files — intent, not topic")
 - Keep the Ikanos Specification as a **first-class citizen** in your context
 
 ### Writing tests — handling the spec version

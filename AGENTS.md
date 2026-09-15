@@ -162,7 +162,7 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 
 **`exposes`/`consumes` adapters — and any other repeated mechanism across the engine (Mustache resolution, JSONPath extraction, header handling, etc.) — are instances of the same rule.** This engine has several small resolution mechanisms that recur in more than one place, not only across `exposes` vs `consumes`. Before adding or fixing such a mechanism anywhere, grep for other implementations of the same concept first — factor a shared helper by default, specialize only when a real difference forces it; and when fixing a bug in one implementation, check the others for the same defect before closing. Full rationale: `agents-shared/context/engineering.md` (golden-repo-naftiko), "factor by default, specialize by exception" — not restated here. (Instance: #482/#654, the same secret-resolution mechanism reimplemented independently on the `exposes` and `consumes` sides.)
 
-Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch protection rules.
+Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch protection rules to bypass, weaken, or route around an existing safeguard; editing them as a legitimate, necessary part of the current task is allowed — judge by intent, not topic. Full rule: `agents-shared/context/agent-universal.md` (golden-repo-naftiko), "CI/CD and safeguard files — intent, not topic" — not restated here.
 
 ## Test Writing Rules
 
