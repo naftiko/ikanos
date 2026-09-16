@@ -1,0 +1,481 @@
+ikanos: "1.0.0-beta3"
+
+# Consumed-side authentication — basic, apikey and digest in one capability.
+#
+# These are three variants of a single feature (does Ikanos actually send the
+# credentials it was configured with?), so they live in one folder and run on
+# one Ikanos instance.
+#
+# The upstream is always Microcks, reached through the authgw reverse proxy
+# (see .github/e2e/resources/authgw/httpd.conf), which enforces the auth that
+# Microcks itself cannot:
+#
+#   :8090  basic   mod_auth_basic
+#   :8091  apikey  mod_rewrite  (X-Api-Key header or api_key query param)
+#   :8092  digest  mod_auth_digest, full RFC 2617 handshake
+#
+# Every auth type is declared twice — once with correct credentials, once with
+# deliberately wrong ones. The negative half is what gives the positive half its
+# meaning: without it, the tests would also pass against an upstream that
+# ignores authentication entirely, which is exactly the trap Microcks alone sets.
+#
+# ⚠️ THE DIGEST TOOLS ARE FAILING TODAY. HttpClientAdapter builds a
+# ChallengeResponse(HTTP_DIGEST) carrying only identifier and secret, never
+# retries on 401, and the Restlet helper able to serialise a digest header
+# (org.restlet.ext.crypto) is not even a dependency — the core jar ships only
+# HttpBasicHelper. So the request leaves unauthenticated, Apache answers 401
+# with an HTML error page, and that HTML reaches the JSON parser.
+
+binds:
+- namespace: "authgw-env"
+  description: "Credentials expected by the authgw vhosts, and their wrong counterparts."
+  location: "file:///app/shared/secrets.yaml"
+  keys:
+    BASIC_USER: "authgw-basic-user"
+    BASIC_PASSWORD: "authgw-basic-password"
+    API_KEY: "authgw-apikey"
+    RAW_AUTHORIZATION_KEY: "authgw-authorization-key"
+    DIGEST_USER: "authgw-digest-user"
+    DIGEST_PASSWORD: "authgw-digest-password"
+    BAD_USER: "authgw-bad-user"
+    BAD_PASSWORD: "authgw-bad-password"
+    BAD_API_KEY: "authgw-bad-apikey"
+    BASIC_NOPASS_USER: "authgw-basic-nopass-user"
+- namespace: "bearer-env"
+  description: "Static bearer token for the MCP surface."
+  location: "file:///app/shared/secrets.yaml"
+  keys:
+    MCP_BEARER_TOKEN: "mcp-server-token"
+
+capability:
+  consumes:
+
+  # ── basic ───────────────────────────────────────────────────────────────────
+  - namespace: registry-basic
+    description: "Registry behind the authgw basic vhost."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BASIC_USER}}"
+      password: "{{BASIC_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+
+  # Regression test for naftiko/ikanos#707: `password` is deliberately absent
+  # (not empty-string — absent), which used to NPE in
+  # HttpClientAdapter.setChallengeResponse() instead of sending an empty
+  # password. The authgw account behind this vhost has an empty password
+  # (see authgw/htpasswd), so this only succeeds if the fix actually sends one.
+  - namespace: registry-basic-nopass
+    description: "Same upstream, username only — password field omitted entirely (#707 regression)."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BASIC_NOPASS_USER}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  - namespace: registry-basic-bad
+    description: "Same upstream, wrong password — must be rejected 401."
+    type: http
+    baseUri: "http://localhost:8090/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: basic
+      username: "{{BAD_USER}}"
+      password: "{{BAD_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  # ── apikey ──────────────────────────────────────────────────────────────────
+  # Two placements, deliberately paired with different operations.
+  # The api_key query parameter is forwarded to Microcks as-is, so the query
+  # placement is used on get-ship (dispatched URI_PARTS, on the path) where the
+  # extra parameter is harmless. list-ships is dispatched URI_PARAMS on `status`
+  # and therefore uses the header placement.
+  - namespace: registry-apikey-header
+    description: "Registry behind the authgw apikey vhost, key in a header."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "X-Api-Key"
+      value: "{{API_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+
+  - namespace: registry-apikey-query
+    description: "Registry behind the authgw apikey vhost, key in the query string."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "api_key"
+      value: "{{API_KEY}}"
+      placement: query
+    resources:
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+
+  # RED : regression test for the apikey/Authorization bug.
+  #
+  # The apikey branch of HttpClientAdapter writes the header through
+  # clientRequest.getHeaders().add(key, value). Restlet reserves Authorization
+  # (HeaderUtils.STANDARD_HEADERS, matched case-insensitively, 56 names in all)
+  # and refuses the addition with:
+  #
+  #   WARN  Addition of the standard header "Authorization" is not allowed.
+  #         Please use the equivalent property in the Restlet API.
+  #
+  # The return value is never checked, so the engine carries on and the request
+  # leaves with no credential. The :8093 vhost then answers 401 with an HTML
+  # error page, and that HTML reaches the JSON parser:
+  - namespace: registry-apikey-authorization
+    description: "Registry behind a vhost expecting a raw, scheme-less Authorization header."
+    type: http
+    baseUri: "http://localhost:8093/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "Authorization"
+      value: "{{RAW_AUTHORIZATION_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  - namespace: registry-apikey-bad
+    description: "Same upstream, wrong key — must be rejected 401."
+    type: http
+    baseUri: "http://localhost:8091/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: apikey
+      key: "X-Api-Key"
+      value: "{{BAD_API_KEY}}"
+      placement: header
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  # ── digest ──────────────────────────────────────────────────────────────────
+  - namespace: registry-digest
+    description: "Registry behind the authgw digest vhost (realm ikanos-e2e)."
+    type: http
+    baseUri: "http://localhost:8092/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: digest
+      username: "{{DIGEST_USER}}"
+      password: "{{DIGEST_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            inputParameters:
+              status:
+                in: query
+      ship:
+        path: "/ships/{{imo_number}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
+
+  - namespace: registry-digest-bad
+    description: "Same upstream, wrong password — the digest hash must not verify."
+    type: http
+    baseUri: "http://localhost:8092/rest/naftiko-shipyard-maritime-registry-api/1.0.0-alpha2"
+    authentication:
+      type: digest
+      username: "{{BAD_USER}}"
+      password: "{{BAD_PASSWORD}}"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+
+  exposes:
+  - type: mcp
+    address: "0.0.0.0"
+    port: 3003
+    namespace: consumed-auth-tools
+    authentication:
+      type: bearer
+      token: "{{MCP_BEARER_TOKEN}}"
+    description: "One tool per consumed authentication type, plus its negative counterpart"
+    tools:
+
+      # ── basic ──
+      basic-list-ships:
+        description: "List ships through a basic-authenticated upstream"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry-basic.list-ships
+        with:
+          status: consumed-auth-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      basic-get-ship:
+        description: "Retrieve one ship through a basic-authenticated upstream"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry-basic.get-ship
+        with:
+          imo_number: consumed-auth-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+      basic-nopass-list-ships:
+        description: "List ships through a basic-authenticated upstream whose password is omitted (#707 regression)"
+        call: registry-basic-nopass.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      basic-bad-credentials:
+        description: "Negative path — upstream rejects the basic credentials (401)"
+        call: registry-basic-bad.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+
+      # ── apikey ──
+      apikey-header-list-ships:
+        description: "List ships, key sent as the X-Api-Key header"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry-apikey-header.list-ships
+        with:
+          status: consumed-auth-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      apikey-query-get-ship:
+        description: "Retrieve one ship, key sent as the api_key query parameter"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry-apikey-query.get-ship
+        with:
+          imo_number: consumed-auth-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+      apikey-authorization-list-ships:
+        description: "List ships, raw token sent in the Authorization header (red : see registry-apikey-authorization)"
+        call: registry-apikey-authorization.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      apikey-bad-key:
+        description: "Negative path — upstream rejects the API key (401)"
+        call: registry-apikey-bad.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+
+      # ── digest ──
+      digest-list-ships:
+        description: "List ships through a digest-authenticated upstream"
+        inputParameters:
+          status:
+            type: string
+            required: false
+            description: "Filter by operational status"
+        call: registry-digest.list-ships
+        with:
+          status: consumed-auth-tools.status
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
+              name:
+                type: string
+                mapping: "$.vessel_name"
+              status:
+                type: string
+                mapping: "$.operational_status"
+
+      digest-get-ship:
+        description: "Retrieve one ship through a digest-authenticated upstream"
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: "IMO number of the ship"
+        call: registry-digest.get-ship
+        with:
+          imo_number: consumed-auth-tools.imo
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: "$.imo_number"
+            name:
+              type: string
+              mapping: "$.vessel_name"
+            status:
+              type: string
+              mapping: "$.operational_status"
+
+      digest-bad-credentials:
+        description: "Negative path — digest hash does not verify (401)"
+        call: registry-digest-bad.list-ships
+        outputParameters:
+        - type: array
+          mapping: "$."
+          items:
+            type: object
+            properties:
+              imo:
+                type: string
+                mapping: "$.imo_number"
