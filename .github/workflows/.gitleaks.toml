@@ -9,7 +9,8 @@ paths = [
   "^sonar-report/",
   "^target/",
   "^node_modules/",
-  "^.git/"
+  "^.git/",
+  "^.cache/"
 ]
 
 [[allowlists]]
