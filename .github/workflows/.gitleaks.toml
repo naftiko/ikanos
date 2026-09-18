@@ -1,10 +1,39 @@
 title = "Custom Gitleaks config"
 
-[allowlist]
-description = "Ignore heavy/generated directories"
+[extend]
+useDefault = true
+
+# NOTE on ordering: quality-gate.yml's `security-scan` job runs Trivy BEFORE
+# Gitleaks on purpose. Trivy leaves behind .cache/trivy/ (its vulnerability DB)
+# and trivy-report.json (its own scan report), both scanned by Gitleaks'
+# `dir .` right after. Their binary/metadata content (DB blobs, the current
+# commit SHA) can match Gitleaks' heuristic rules — false positives, not real
+# secrets. That's why they're allowlisted below. If the step order changes, a
+# new Trivy output path is added, or another tool is inserted before Gitleaks,
+# re-check this allowlist (history: #741 / PR #756).
+[[allowlists]]
+description = "Ignore heavy/generated directories and CI-generated scan report artifacts (they contain tool/commit metadata, not repo content)"
 paths = [
   "^sonar-report/",
   "^target/",
   "^node_modules/",
-  "^.git/"
+  "^.git/",
+  "^.cache/",
+  "^trivy-report\\.json$",
+  "^gitleaks-report\\.json$"
 ]
+
+[[allowlists]]
+description = "Repo convention: values explicitly marked as fake/dummy/placeholder are not real secrets"
+regexes = [
+  '''(?i)fake''',
+  '''(?i)dummy''',
+  '''(?i)placeholder''',
+]
+
+# SonarQube local scanner default admin:admin credentials, used only against
+# localhost during the quality gate bootstrap - not a real credential.
+[[rules]]
+id = "curl-auth-user"
+  [[rules.allowlists]]
+  regexes = [ '''^admin:admin$''' ]
