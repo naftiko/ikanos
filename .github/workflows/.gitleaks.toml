@@ -1,6 +1,9 @@
 title = "Custom Gitleaks config"
 
-[allowlist]
+[extend]
+useDefault = true
+
+[[allowlists]]
 description = "Ignore heavy/generated directories"
 paths = [
   "^sonar-report/",
@@ -8,3 +11,18 @@ paths = [
   "^node_modules/",
   "^.git/"
 ]
+
+[[allowlists]]
+description = "Repo convention: values explicitly marked as fake/dummy/placeholder are not real secrets"
+regexes = [
+  '''(?i)fake''',
+  '''(?i)dummy''',
+  '''(?i)placeholder''',
+]
+
+# SonarQube local scanner default admin:admin credentials, used only against
+# localhost during the quality gate bootstrap - not a real credential.
+[[rules]]
+id = "curl-auth-user"
+  [[rules.allowlists]]
+  regexes = [ '''^admin:admin$''' ]

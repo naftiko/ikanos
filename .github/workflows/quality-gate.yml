@@ -325,4 +325,165 @@ jobs:
           path: |
             pr-comment-body.md
             pr-number.txt
-          retention-days: 1          
+          retention-days: 1
+
+  security-scan:
+    name: Dependency & Secret Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Init summary
+        run: |
+          echo "# Security Scan Report — $(date '+%Y-%m-%d %H:%M') UTC" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy | CVE vulnerabilities (CRITICAL/HIGH, unfixed ignored) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | Secrets in the current working tree |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,misconfig'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          format: 'json'
+          output: 'trivy-report.json'
+          exit-code: '0'
+
+      - name: Publish Trivy summary
+        id: trivy-summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f trivy-report.json ]; then
+            echo "> No report found." >> $GITHUB_STEP_SUMMARY
+            echo "trivy_findings=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Report is already pre-filtered to CRITICAL/HIGH with ignore-unfixed by trivy-action.
+          CRITICAL=$(grep -o '"Severity":"CRITICAL"' trivy-report.json | wc -l | tr -d ' ')
+          HIGH=$(grep -o '"Severity":"HIGH"' trivy-report.json | wc -l | tr -d ' ')
+
+          [ "$CRITICAL" -gt 0 ] && STATUS="❌ ${CRITICAL} critical issue(s)" \
+            || { [ "$HIGH" -gt 0 ] && STATUS="❌ ${HIGH} high issue(s)" || STATUS="✅ No critical or high issues"; }
+
+          echo "**${STATUS}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Critical/High findings (unfixed vulnerabilities ignored)</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Package | Vulnerability ID | Severity | Installed | Fixed |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|-------------------|----------|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+            jq -r '
+              [.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")]
+              | sort_by(if .Severity=="CRITICAL" then 0 else 1 end)
+              | .[]
+              | "| \(.PkgName) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(if (.FixedVersion // "") == "" then "n/a" else .FixedVersion end) |"
+            ' trivy-report.json >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "trivy_findings=$((CRITICAL + HIGH))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          retention-days: 14
+
+      - name: Install Gitleaks
+        run: |
+          mkdir -p /tmp/gitleaks-install
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -O /tmp/gitleaks-install/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks-install/gitleaks.tar.gz -C /tmp/gitleaks-install
+          chmod +x /tmp/gitleaks-install/gitleaks
+          sudo mv /tmp/gitleaks-install/gitleaks /usr/local/bin/
+          gitleaks version
+
+      - name: Run Gitleaks scan
+        run: |
+          gitleaks dir . \
+            --config .github/workflows/.gitleaks.toml \
+            --gitleaks-ignore-path .github/workflows/.gitleaksignore \
+            --report-format json \
+            --report-path gitleaks-report.json \
+            --exit-code 0 \
+            --verbose
+
+      - name: Publish Gitleaks summary
+        id: gitleaks-summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Gitleaks Secret Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ ! -f gitleaks-report.json ]; then
+            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
+            echo "gitleaks_findings=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COUNT=$(grep -o '"RuleID"' gitleaks-report.json | wc -l | tr -d ' ')
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **${COUNT} secret(s) detected in the working tree!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Rule | File |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+            python3 -c "
+          import json
+          with open('gitleaks-report.json') as f:
+            data = json.load(f)
+          if isinstance(data, list):
+            for item in data[:20]:
+              rule = item.get('RuleID', 'N/A')
+              file = item.get('File', 'N/A')
+              print(f'| {rule} | {file} |')
+          " >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "gitleaks_findings=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          retention-days: 14
+
+      - name: Enforce security gate
+        if: always()
+        run: |
+          TRIVY_FINDINGS="${{ steps.trivy-summary.outputs.trivy_findings }}"
+          GITLEAKS_FINDINGS="${{ steps.gitleaks-summary.outputs.gitleaks_findings }}"
+
+          if [ "${TRIVY_FINDINGS:-0}" -gt 0 ] || [ "${GITLEAKS_FINDINGS:-0}" -gt 0 ]; then
+            echo "::error::Security gate failed — ${TRIVY_FINDINGS:-0} Trivy CRITICAL/HIGH finding(s), ${GITLEAKS_FINDINGS:-0} Gitleaks secret(s). See the job summary for details."
+            exit 1
+          fi
+
+          echo "Security gate passed."
