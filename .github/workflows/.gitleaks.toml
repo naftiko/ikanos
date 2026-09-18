@@ -4,13 +4,15 @@ title = "Custom Gitleaks config"
 useDefault = true
 
 [[allowlists]]
-description = "Ignore heavy/generated directories"
+description = "Ignore heavy/generated directories and CI-generated scan report artifacts (they contain tool/commit metadata, not repo content)"
 paths = [
   "^sonar-report/",
   "^target/",
   "^node_modules/",
   "^.git/",
-  "^.cache/"
+  "^.cache/",
+  "^trivy-report\\.json$",
+  "^gitleaks-report\\.json$"
 ]
 
 [[allowlists]]
