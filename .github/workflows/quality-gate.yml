@@ -330,6 +330,15 @@ jobs:
   security-scan:
     name: Dependency & Secret Scan
     runs-on: ubuntu-latest
+    # Step order in this job matters: Trivy MUST run before Gitleaks.
+    # Trivy writes its cache (.cache/trivy/) and its own report (trivy-report.json)
+    # into the workspace, and both contain hex-looking data (DB blobs, the current
+    # commit SHA in report metadata) that Gitleaks' heuristic rules can mistake for
+    # secrets. Running Gitleaks second is intentional so those paths exist and can be
+    # allowlisted in .github/workflows/.gitleaks.toml (see the entries for .cache/,
+    # trivy-report.json and gitleaks-report.json) — swapping the order, or adding a
+    # new Trivy/other-tool output file, without updating that allowlist will
+    # reintroduce false positives (see #741 PR #756 history).
 
     steps:
       - uses: actions/checkout@v7
@@ -345,6 +354,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
+      # Runs first (see the job-level note above): downloads its vulnerability DB
+      # into .cache/trivy/ and writes trivy-report.json, both of which Gitleaks will
+      # see and must ignore (allowlisted in .github/workflows/.gitleaks.toml).
       - name: Run Trivy scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -420,6 +432,11 @@ jobs:
           sudo mv /tmp/gitleaks-install/gitleaks /usr/local/bin/
           gitleaks version
 
+      # Runs after Trivy on purpose (see the job-level note above): `dir .` scans
+      # the whole workspace, including .cache/trivy/ and trivy-report.json that the
+      # previous step just created. Both are allowlisted in .gitleaks.toml — if this
+      # step is ever reordered before Trivy, or Trivy starts writing to a new path,
+      # revisit that allowlist.
       - name: Run Gitleaks scan
         run: |
           gitleaks dir . \
