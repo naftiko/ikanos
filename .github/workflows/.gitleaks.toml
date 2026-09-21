@@ -25,11 +25,11 @@ paths = [
 ]
 
 [[allowlists]]
-description = "Repo convention: values explicitly marked as fake/dummy/placeholder are not real secrets"
+description = "Repo convention: values explicitly marked as fake/dummy/placeholder are not real secrets. Deliberately NOT word-boundary-anchored (\\bfake\\b): \\b never matches between two word characters, so it would silently stop matching this repo's own fixture convention (e.g. sk_test_FAKEKEY123, fakeApiKeyBackup) while doing nothing to prevent the false-negative it was meant to guard against."
 regexes = [
-  '''(?i)\bfake\b''',
-  '''(?i)\bdummy\b''',
-  '''(?i)\bplaceholder\b''',
+  '''(?i)fake''',
+  '''(?i)dummy''',
+  '''(?i)placeholder''',
 ]
 
 # SonarQube local scanner default admin:admin credentials, used only against
