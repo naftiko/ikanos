@@ -5,7 +5,8 @@ useDefault = true
 
 # NOTE on ordering: quality-gate.yml's `security-scan` job runs Trivy BEFORE
 # Gitleaks on purpose. Trivy leaves behind .cache/trivy/ (its vulnerability DB)
-# and trivy-report.json (its own scan report), both scanned by Gitleaks'
+# and its scan reports (trivy-vuln-report.json, trivy-misconfig-report.json,
+# merged into trivy-report.json), both scanned by Gitleaks'
 # `dir .` right after. Their binary/metadata content (DB blobs, the current
 # commit SHA) can match Gitleaks' heuristic rules — false positives, not real
 # secrets. That's why they're allowlisted below. If the step order changes, a
@@ -19,16 +20,16 @@ paths = [
   "^node_modules/",
   "^.git/",
   "^.cache/",
-  "^trivy-report\\.json$",
+  "^trivy-.*\\.json$",
   "^gitleaks-report\\.json$"
 ]
 
 [[allowlists]]
 description = "Repo convention: values explicitly marked as fake/dummy/placeholder are not real secrets"
 regexes = [
-  '''(?i)fake''',
-  '''(?i)dummy''',
-  '''(?i)placeholder''',
+  '''(?i)\bfake\b''',
+  '''(?i)\bdummy\b''',
+  '''(?i)\bplaceholder\b''',
 ]
 
 # SonarQube local scanner default admin:admin credentials, used only against

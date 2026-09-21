@@ -34,7 +34,7 @@ jobs:
           echo "| JaCoCo | Unit test coverage |" >> $GITHUB_STEP_SUMMARY
           echo "| SonarQube | Code quality & bugs |" >> $GITHUB_STEP_SUMMARY
           echo "| Trivy | CVE vulnerabilities & secrets |" >> $GITHUB_STEP_SUMMARY
-          echo "| Gitleaks | Secrets in git history |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | Secrets in the working tree |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
 
@@ -367,8 +367,7 @@ jobs:
  
       - name: Run Gitleaks scan
         run: |
-          gitleaks detect \
-            --source . \
+          gitleaks dir . \
             --config .github/workflows/.gitleaks.toml \
             --gitleaks-ignore-path .github/workflows/.gitleaksignore \
             --report-format json \
@@ -394,10 +393,10 @@ jobs:
           if [ "$COUNT" -eq 0 ]; then
             echo "✅ No secrets detected." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **${COUNT} secret(s) detected in git history!**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **${COUNT} secret(s) detected in the working tree!**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Rule | File | Commit |" >> $GITHUB_STEP_SUMMARY
-            echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Rule | File |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
             python3 -c "
           import json, sys
           with open('gitleaks-report.json') as f:
@@ -406,8 +405,7 @@ jobs:
             for item in data[:10]:
               rule = item.get('RuleID', 'N/A')
               file = item.get('File', 'N/A')
-              commit = item.get('Commit', 'N/A')[:8]
-              print(f'| {rule} | {file} | {commit} |')
+              print(f'| {rule} | {file} |')
           " >> $GITHUB_STEP_SUMMARY
           fi
 
