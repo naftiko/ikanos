@@ -330,25 +330,9 @@ jobs:
   security-scan:
     name: Dependency & Secret Scan
     runs-on: ubuntu-latest
-    # Step order in this job matters: Trivy MUST run before Gitleaks.
-    # Trivy writes its cache (.cache/trivy/) and its own reports (trivy-*.json)
-    # into the workspace, and both contain hex-looking data (DB blobs, the current
-    # commit SHA in report metadata) that Gitleaks' heuristic rules can mistake for
-    # secrets. Running Gitleaks second is intentional so those paths exist and can be
-    # allowlisted in .github/workflows/.gitleaks.toml (see the entries for .cache/,
-    # trivy-*.json and gitleaks-report.json) — swapping the order, or adding a
-    # new Trivy/other-tool output file, without updating that allowlist will
-    # reintroduce false positives (see #741 PR #756 history).
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: maven
 
       - name: Init summary
         run: |
@@ -356,117 +340,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Tool | Description |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy | CVE vulnerabilities (CRITICAL/HIGH, unfixed ignored) — Java (SBOM), misconfig |" >> $GITHUB_STEP_SUMMARY
           echo "| Gitleaks | Secrets in the current working tree |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-
-      - name: Resolve Java dependencies
-        # Populates the local .m2 repo so the SBOM reflects actual resolved
-        # transitive versions. Mirrors polychro's quality-gate.yml security-scan job.
-        run: mvn -B dependency:go-offline
-
-      - name: Generate SBOM (CycloneDX)
-        # Scans the SBOM (dependencies already resolved into ~/.m2 above)
-        # instead of raw pom.xml files. Avoids Trivy's static pom.xml parser,
-        # which for a *released* (non-SNAPSHOT) parent POM falls back to a live
-        # Maven Central lookup and can hit a 429 rate-limit — the same failure
-        # mode as sibling naftiko/polychro#154, which this mirrors. This repo's
-        # `revision` is a SNAPSHOT right now, but it briefly becomes a released,
-        # non-SNAPSHOT literal on `main` between the unbump-current-version and
-        # bump-next-versions automated commits — a PR opened/pushed during that
-        # window would otherwise hit the same 429 (see naftiko/polychro#160 review).
-        run: mvn -B org.cyclonedx:cyclonedx-maven-plugin:2.9.2:makeAggregateBom -DoutputFormat=json -DoutputName=bom
-
-      - name: Run Trivy scan (Java dependency vulnerabilities via SBOM)
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: 'sbom'
-          scan-ref: 'target/bom.json'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          format: 'json'
-          output: 'trivy-vuln-report.json'
-          exit-code: '0'
-
-      - name: Run Trivy scan (misconfigurations)
-        # skip-files avoids Trivy's static pom.xml parser here too (same
-        # Maven Central rate-limit risk as the SBOM scan above) — misconfig
-        # scanning doesn't need pom.xml, Java dependency CVEs are covered by
-        # the SBOM scan.
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'misconfig'
-          skip-files: '**/pom.xml'
-          severity: 'CRITICAL,HIGH'
-          format: 'json'
-          output: 'trivy-misconfig-report.json'
-          exit-code: '0'
-
-      - name: Merge Trivy reports
-        if: always()
-        run: |
-          for f in trivy-vuln-report.json trivy-misconfig-report.json; do
-            [ -f "$f" ] || echo '{"Results":[]}' > "$f"
-          done
-          jq -s '{Results: ([.[].Results // []] | add)}' \
-            trivy-vuln-report.json trivy-misconfig-report.json \
-            > trivy-report.json
-
-      - name: Publish Trivy summary
-        id: trivy-summary
-        if: always()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ ! -f trivy-report.json ]; then
-            echo "> No report found." >> $GITHUB_STEP_SUMMARY
-            echo "trivy_findings=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]?, .Results[]?.Misconfigurations[]? | select(.Severity=="CRITICAL")] | length' trivy-report.json)
-          HIGH=$(jq '[.Results[]?.Vulnerabilities[]?, .Results[]?.Misconfigurations[]? | select(.Severity=="HIGH")] | length' trivy-report.json)
-
-          [ "$CRITICAL" -gt 0 ] && STATUS="❌ ${CRITICAL} critical issue(s)" \
-            || { [ "$HIGH" -gt 0 ] && STATUS="❌ ${HIGH} high issue(s)" || STATUS="✅ No critical or high issues"; }
-
-          echo "**${STATUS}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Critical | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "<details><summary>Critical/High findings (vulnerabilities + misconfigurations, unfixed vulnerabilities ignored)</summary>" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Package | Vulnerability ID | Severity | Installed | Fixed |" >> $GITHUB_STEP_SUMMARY
-            echo "|---------|-------------------|----------|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-            jq -r '
-              [.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")]
-              | sort_by(if .Severity=="CRITICAL" then 0 else 1 end)
-              | .[]
-              | "| \(.PkgName) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(if (.FixedVersion // "") == "" then "n/a" else .FixedVersion end) |"
-            ' trivy-report.json >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "</details>" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "trivy_findings=$((CRITICAL + HIGH))" >> "$GITHUB_OUTPUT"
-
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: trivy-report
-          path: trivy-report.json
-          retention-days: 14
 
       - name: Install Gitleaks
         run: |
@@ -477,11 +353,13 @@ jobs:
           sudo mv /tmp/gitleaks-install/gitleaks /usr/local/bin/
           gitleaks version
 
-      # Runs after Trivy on purpose (see the job-level note above): `dir .` scans
-      # the whole workspace, including .cache/trivy/ and trivy-*.json that the
-      # previous steps just created. Both are allowlisted in .gitleaks.toml — if this
-      # step is ever reordered before Trivy, or Trivy starts writing to a new path,
-      # revisit that allowlist.
+      # This job scans secrets only — dependency/CVE scanning (Trivy) stays
+      # nightly-only (see naftiko/ikanos#741 / #756 discussion: the PR gate
+      # was scoped down to secrets, since a CVE gate can start failing on an
+      # unrelated PR the moment a new advisory is published against an
+      # already-merged dependency, which is not something that PR's author
+      # can be expected to fix). `dir .` scans the working tree only, not the
+      # full git history — this is a PR gate, not a forensic scan.
       - name: Run Gitleaks scan
         run: |
           gitleaks dir . \
@@ -540,11 +418,10 @@ jobs:
       - name: Enforce security gate
         if: always()
         run: |
-          TRIVY_FINDINGS="${{ steps.trivy-summary.outputs.trivy_findings }}"
           GITLEAKS_FINDINGS="${{ steps.gitleaks-summary.outputs.gitleaks_findings }}"
 
-          if [ "${TRIVY_FINDINGS:-0}" -gt 0 ] || [ "${GITLEAKS_FINDINGS:-0}" -gt 0 ]; then
-            echo "::error::Security gate failed — ${TRIVY_FINDINGS:-0} Trivy CRITICAL/HIGH finding(s), ${GITLEAKS_FINDINGS:-0} Gitleaks secret(s). See the job summary for details."
+          if [ "${GITLEAKS_FINDINGS:-0}" -gt 0 ]; then
+            echo "::error::Security gate failed — ${GITLEAKS_FINDINGS:-0} Gitleaks secret(s). See the job summary for details."
             exit 1
           fi
 
