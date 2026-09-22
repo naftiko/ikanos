@@ -29,3 +29,9 @@ dependency-reduced-pom.xml
 
 # ─── Local developer environment notes (machine-specific paths) ─────────────────
 .env.local
+
+# ─── Scratch / disposable working files (PR bodies, test downloads, etc.) ─────
+# ─── Agent scratch / working files (PR bodies, diffs, findings, tool downloads) ───
+# Kept inside the workspace per agents-shared/context/agent-universal.md
+# ("Working directory — inside the workspace, never outside it"), never /tmp.
+/.work/

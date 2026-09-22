@@ -8,6 +8,44 @@
 - **Specification**: `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
 - **Shipyard**: https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/ (Specification, Tutorials, Use Cases, FAQ)
 
+<!-- BEGIN agents-shared:always-on — mirrored from agents-shared/context/agent-universal.md.
+     Temporary: remove once that Context is served and verifiably loaded. Keep in sync. -->
+## Always-On Rules
+
+These apply to every task in this repository, regardless of topic. They mirror the universal
+guard-rails in `agents-shared/context/agent-universal.md` (golden-repo-naftiko) — the canonical,
+tightened wording lives there; this is a working copy so the rules are actually in context.
+
+- **Secrets — never expose one.** Never print, log, echo, or commit an API key, token, password,
+  or private key — not in output, a PR body, or a commit message. Never request a secret through
+  a chat tool; have the human type it into the terminal. A committed secret must be flagged for
+  rotation, not merely deleted (history retains it).
+- **Git hygiene — check before you edit.** Before the first edit of any task:
+  `git fetch origin --prune` + `git status -sb`. A branch behind `main`, or whose PR is already
+  merged, is cleaned up — not worked around.
+- **CI/CD and safeguards — judge by intent, not topic.** Never edit a workflow, security config,
+  or branch protection to bypass, weaken, or route around a safeguard. Editing them *is* allowed
+  when that is the legitimate point of the task. Ambiguous intent → ask first.
+- **Edits — never silently truncate.** Anchor-based edits fail silently: they delete between two
+  occurrences of a repeated anchor, or eat the file tail near the end of a file. Count the
+  anchor's occurrences first — it must be exactly 1; near the end of a file, splice by line range
+  instead. After every edit, check `git diff --stat` and confirm the terminal sections still
+  exist.
+- **Delegation — pass the finding, not the routing.** Hand a specialized agent the raw finding
+  and stop; naming the skill, repo, or tool it should use defeats the point of delegating.
+- **Reporting — hand over a pointer that opens.** Inviting someone to look at something requires
+  the pointer in that same message: a repo-relative path in backticks for a file (absolute paths
+  and `file://` URIs do not render), a full URL for an issue, PR, commit, or page.
+- **Investigation — scope before you scan.** Never grep or scan a whole filesystem, repo, or
+  branch set as a first move: name the plausible locations, or ask. A scan that times out is
+  mis-scoped, not slow.
+- **Working directory — inside the workspace, never outside it.** Scratch and working files
+  (diffs, findings, temp payloads, PR/commit bodies, downloaded tool binaries, CI artifacts) go
+  in this repo's git-ignored `.work/` — never `/tmp`, `$env:TEMP`, `%TEMP%`, or any path outside
+  the workspace. If unsure which directory a repo uses, check its `.gitignore` for an
+  already-declared scratch directory.
+<!-- END agents-shared:always-on -->
+
 ## Key Files
 
 | Path | Purpose |
@@ -95,7 +133,7 @@ just as easily as source code.
 **Don't:**
 - Don't use `git show <ref>:<path> | Out-File`, `... > file`, or `... | Set-Content` — guaranteed mojibake on any non-ASCII file.
 - Don't trust a `-Encoding utf8NoBOM` on a piped stream to fix encoding — the damage is already done upstream of the write.
-- Don't construct multiline `gh` issue/PR bodies as a terminal string — write a temp `.md` with the file-creation tool and pass `--body-file` (see Contribution Workflow).
+- Don't construct multiline `gh` issue/PR bodies as a terminal string — write the body to a `.md` file in `.work/` with the file-creation tool and pass `--body-file` (see Contribution Workflow).
 
 > **When in doubt, the file-creation / edit tools are always safe** — they write UTF-8 correctly and bypass PowerShell entirely. Reach for the terminal only when a Git command can write the file itself.
 
@@ -161,8 +199,6 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 **Cross-cutting fixes — fix all sites in one pass** — when fixing a shared concern (logging, tracing, MDC, error handling, auth, a shared header), `grep` for **every** site that exhibits the pattern before coding — not just the one in the bug report — and fix them together. Each site you deliberately leave out must carry an explicit written justification (which becomes a PR comment). A reviewer can always find the Nth site you missed, so find it first; "the report only mentioned X and Y" is not a reason to skip the third site. (Discovered on #548: a first fix wired MDC pairing into the REST and MCP SERVER adapters but missed the third, `SkillServerResource`, drawing the PR's only MEDIUM review finding.)
 
 **`exposes`/`consumes` adapters — and any other repeated mechanism across the engine (Mustache resolution, JSONPath extraction, header handling, etc.) — are instances of the same rule.** This engine has several small resolution mechanisms that recur in more than one place, not only across `exposes` vs `consumes`. Before adding or fixing such a mechanism anywhere, grep for other implementations of the same concept first — factor a shared helper by default, specialize only when a real difference forces it; and when fixing a bug in one implementation, check the others for the same defect before closing. Full rationale: `agents-shared/context/engineering.md` (golden-repo-naftiko), "factor by default, specialize by exception" — not restated here. (Instance: #482/#654, the same secret-resolution mechanism reimplemented independently on the `exposes` and `consumes` sides.)
-
-Never modify CI/CD workflows (`.github/workflows/`), security configs, or branch protection rules to bypass, weaken, or route around an existing safeguard; editing them as a legitimate, necessary part of the current task is allowed — judge by intent, not topic. Full rule: `agents-shared/context/agent-universal.md` (golden-repo-naftiko), "CI/CD and safeguard files — intent, not topic" — not restated here.
 
 ## Test Writing Rules
 
@@ -231,7 +267,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
   ```bash
   git log origin/main..HEAD --format='%h %s%n  signoff: %(trailers:key=Signed-off-by,valueonly)'
   ```
-  An empty `signoff:` line is a commit the DCO check will reject. Fix the last commit with `git commit -s --amend --no-edit`, or a whole branch with `git rebase --signoff origin/main`. Both are idempotent on the trailer (no duplicate is added if one is already present) but **both rewrite the commit SHAs** — so run them only when a trailer is genuinely missing, and follow with `git push --force-with-lease` (never `--force`).
+  An empty `signoff:` line is a commit the DCO check will reject. Fix the last commit with `git commit -s --amend --no-edit`, or a whole branch with `git rebase --signoff origin/main`. Both are idempotent on the trailer (no duplicate is added if one is already present) but **both rewrite the commit SHAs** — so run them only when a trailer is genuinely missing, and follow with `git push --force-with-leet` (never `--force`).
 - AGENTS.md improvements are `feat:`, not `chore:` — they add value to the agent workflow
 - Rebase on `main` before PR — linear history, no merge commits
 - One logical change per PR — keep it atomic
@@ -239,7 +275,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - Always read the repository templates before creating issues or PRs:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields
   - PRs: `.github/PULL_REQUEST_TEMPLATE.md` — follow the structure exactly, do not improvise
-- When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a temp `.md` file using the file creation tool (outside the terminal), then pass it via `--body-file "/path/to/file.md"` (see also *Working on Windows → Terminal & file I/O*)
+- When creating issues or PRs with multiline bodies via `gh`, **never construct the body as a string in the terminal** — PowerShell here-strings and multiline variable assignments hang or corrupt content. Always write the body to a `.md` file in the repo's git-ignored `.work/` using the file creation tool (outside the terminal), then pass it via `--body-file ".work/<name>.md"` (see also *Working on Windows → Terminal & file I/O* and the always-on working-directory rule)
 - When asked to review a PR, load and follow the `pr-review` skill via the `agents-shared`
   capability — see `.github/instructions/agents-shared.instructions.md` for the discovery
   and sync procedure. The skill is served from `golden-repo-naftiko/agents-shared` (naftiko/shipyard#23).
