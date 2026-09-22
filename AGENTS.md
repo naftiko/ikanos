@@ -44,6 +44,11 @@ tightened wording lives there; this is a working copy so the rules are actually 
   in this repo's git-ignored `.work/` — never `/tmp`, `$env:TEMP`, `%TEMP%`, or any path outside
   the workspace. If unsure which directory a repo uses, check its `.gitignore` for an
   already-declared scratch directory.
+- **Scratch is disposable — clean up when the task ends.** A repo-local scratch directory is
+  never purged by the OS the way `/tmp` is, so whatever you leave behind stays. Delete the files
+  you created once the work they support is done (PR opened, issue filed, investigation closed),
+  and never leave a downloaded dependency tree, a virtualenv, or a git worktree behind. Anything
+  still needed afterwards belongs in a commit, an issue, or memory — not in scratch.
 <!-- END agents-shared:always-on -->
 
 ## Key Files
