@@ -52,7 +52,7 @@ public class CreateCapabilityCommand implements Callable<Integer> {
             }
 
             // Base URI.
-            out.print("Type the targted URI: ");
+            out.print("Enter the target URI: ");
             String baseUri = scanner.nextLine().trim();
             if (baseUri.isEmpty()) {
                 err.println("Error: targetUri cannot be empty");
@@ -60,7 +60,7 @@ public class CreateCapabilityCommand implements Callable<Integer> {
             }
 
             // Port.
-            out.print("Type your capability exposition port: ");
+            out.print("Enter the port to expose your capability on: ");
             String port = scanner.nextLine().trim();
             if (port.isEmpty()) {
                 err.println("Error: port cannot be empty");
