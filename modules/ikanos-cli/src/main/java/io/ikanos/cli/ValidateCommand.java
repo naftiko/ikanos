@@ -23,6 +23,7 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import io.ikanos.spec.util.SchemaValidatorFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -74,11 +75,11 @@ public class ValidateCommand implements Callable<Integer> {
             JsonSchemaFactory factory;
             JsonNode schemaField = schemaNode.get("$schema");
             if (schemaField != null && schemaField.asText().contains("2020-12")) {
-                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+                factory = SchemaValidatorFactory.getInstance(SpecVersion.VersionFlag.V202012);
             } else if (schemaField != null && schemaField.asText().contains("2019-09")) {
-                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V201909);
+                factory = SchemaValidatorFactory.getInstance(SpecVersion.VersionFlag.V201909);
             } else {
-                factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+                factory = SchemaValidatorFactory.getInstance(SpecVersion.VersionFlag.V7);
             }
             JsonSchema schema = factory.getSchema(schemaNode);
             

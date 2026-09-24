@@ -25,6 +25,7 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import io.ikanos.spec.util.SchemaValidatorFactory;
 
 import io.ikanos.spec.util.VersionHelper;
 
@@ -58,7 +59,7 @@ class ImportSchemaValidationTest {
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode schemaNode = JSON.readTree(in);
-            JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            JsonSchemaFactory factory = SchemaValidatorFactory.getInstance(SpecVersion.VersionFlag.V202012);
             schema = factory.getSchema(schemaNode);
         }
     }
