@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
@@ -72,13 +73,13 @@ public class ToolsCallHandler extends McpCallHandler {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
-            Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
+            String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
             // Tool execution error — return as a tool result with isError=true
             ObjectNode result = MAPPER.createObjectNode();
             ArrayNode content = result.putArray("content");
             ObjectNode textContent = content.addObject();
             textContent.put("type", "text");
-            textContent.put("text", "Error: " + e.getMessage());
+            textContent.put("text", ErrorReference.withReference("Tool execution failed", ref));
             result.put("isError", true);
             result.put("resultType", "complete");
             return new HandlerSuccessResult(result);

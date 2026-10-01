@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.McpErrors;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.PromptHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
@@ -89,8 +90,8 @@ public class PromptsGetHandler extends McpCallHandler {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling prompts/get", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
-            Context.getCurrentLogger().log(Level.SEVERE, "Error handling prompts/get", e);
-            return new HandlerFailureResult(INTERNAL_ERROR, buildJsonRpcError(idNode, INTERNAL_ERROR.getCode(), "Internal error: " + e.getMessage()));
+            return new HandlerFailureResult(INTERNAL_ERROR,
+                    McpErrors.internalError(idNode, "Error handling prompts/get", e));
         }
     }
 

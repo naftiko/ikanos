@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp;
 
 import java.io.IOException;
+import java.util.logging.Level;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowResult;
@@ -191,11 +193,8 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            Context.getCurrentLogger().warning("Error during HTTP client call for tool '" + toolName + "': " + e);
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent(
-                            "Error during HTTP client call: " + e.getMessage())),
-                    true, null, null);
+            return errorResult("Error during HTTP client call",
+                    "Error during HTTP client call for tool '" + toolName + "'", e);
         }
 
         // Map the response to MCP CallToolResult
@@ -230,12 +229,8 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            Context.getCurrentLogger().warning("Error during aggregate function call for tool '" + toolName + "': "
-                    + e);
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent(
-                            "Error during aggregate function call: " + e.getMessage())),
-                    true, null, null);
+            return errorResult("Error during aggregate function call",
+                    "Error during aggregate function call for tool '" + toolName + "'", e);
         }
     }
 
@@ -252,6 +247,20 @@ public class ToolHandler {
         String json = mapper.writeValueAsString(mockRoot != null ? mockRoot : mapper.createObjectNode());
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(json)), false, null, null);
+    }
+
+    /**
+     * Build an error tool result that carries only a generic message and a correlation
+     * identifier; the exception detail is logged under that identifier. See
+     * {@link ErrorReference}.
+     */
+    private static McpSchema.CallToolResult errorResult(String publicMessage, String logContext,
+            Throwable cause) {
+        String ref = ErrorReference.record(Level.WARNING, logContext, cause);
+        return new McpSchema.CallToolResult(
+                List.of(new McpSchema.TextContent(
+                        ErrorReference.withReference(publicMessage, ref))),
+                true, null, null);
     }
 
     /**
@@ -349,12 +358,8 @@ public class ToolHandler {
                                     + " bytes)")),
                     true, null, null);
         } catch (IOException e) {
-            Context.getCurrentLogger().warning(
-                    "Error buffering binary tool response for '" + toolSpec.getName() + "': " + e);
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent("Error buffering binary response: "
-                            + e.getMessage())),
-                    true, null, null);
+            return errorResult("Error buffering binary response",
+                    "Error buffering binary tool response for '" + toolSpec.getName() + "'", e);
         }
 
         if (bytes == null) {

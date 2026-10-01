@@ -108,10 +108,8 @@ public class McpServerResource extends ServerResource {
                 return new StringRepresentation("Internal server error", MediaType.TEXT_PLAIN);
             }
         } catch (Exception e) {
-            getLogger().log(Level.SEVERE, "Error processing request", e);
             setStatusCode(INTERNAL_ERROR);
-            ObjectNode error = buildJsonRpcError(null, INTERNAL_ERROR.getCode(),
-                    "Internal error: " + e.getMessage());
+            ObjectNode error = McpErrors.internalError(null, "Error processing request", e);
             try {
                 return toJsonRepresentation(mapper, error);
             } catch (Exception ex) {

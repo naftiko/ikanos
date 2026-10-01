@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
@@ -520,6 +523,71 @@ public class ResourceRestletTest {
     assertEquals("Alice", payload.get(0).path("name").asText());
     assertEquals("2", payload.get(1).path("id").asText());
     assertEquals("Bob", payload.get(1).path("name").asText());
+  }
+
+  private static final String SENSITIVE_DETAIL = "jdbc:postgresql://internal-db:5432/orders";
+  private static final Pattern UUID_PATTERN = Pattern
+      .compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+
+  @Test
+  public void sendErrorShouldNotIncludeExceptionDetailInBody() throws Exception {
+    ResourceRestlet restlet = newRestlet();
+    Response response = new Response(new Request(Method.GET, "http://localhost/preview"));
+
+    restlet.sendError(response, Status.SERVER_ERROR_INTERNAL, "Something failed", "Context",
+        new IllegalStateException(SENSITIVE_DETAIL, new java.io.IOException("root cause")));
+
+    String body = response.getEntity().getText();
+    assertFalse(body.contains(SENSITIVE_DETAIL), body);
+    assertFalse(body.contains("IllegalStateException"), body);
+    assertFalse(body.contains("java.lang"), body);
+    assertFalse(body.contains("root cause"), body);
+    assertFalse(body.contains("\tat "), body);
+  }
+
+  @Test
+  public void sendErrorShouldSetStatusAndPublicMessage() throws Exception {
+    ResourceRestlet restlet = newRestlet();
+    Response response = new Response(new Request(Method.GET, "http://localhost/preview"));
+
+    restlet.sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, "Invalid request", "Context",
+        new IllegalArgumentException(SENSITIVE_DETAIL));
+
+    assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus());
+    assertEquals(MediaType.TEXT_PLAIN, response.getEntity().getMediaType());
+    assertTrue(response.getEntity().getText().startsWith("Invalid request"));
+  }
+
+  @Test
+  public void sendErrorShouldLogFullDetailUnderTheCorrelationIdReturnedToTheCaller()
+      throws Exception {
+    ResourceRestlet restlet = newRestlet();
+    Response response = new Response(new Request(Method.GET, "http://localhost/preview"));
+    LogCapture logs = new LogCapture();
+
+    try {
+      restlet.sendError(response, Status.SERVER_ERROR_INTERNAL, "Something failed", "Context",
+          new IllegalStateException(SENSITIVE_DETAIL));
+
+      var matcher = UUID_PATTERN.matcher(response.getEntity().getText());
+      assertTrue(matcher.find(), "expected a correlation id in the body");
+      String correlationId = matcher.group();
+
+      assertTrue(logs.messages().stream()
+          .anyMatch(m -> m.contains(correlationId) && m.contains(SENSITIVE_DETAIL)),
+          "expected a log entry with both the id and the detail");
+      assertTrue(logs.events().stream().anyMatch(e -> e.getThrowableProxy() != null),
+          "expected the stack trace to be logged");
+    } finally {
+      logs.close();
+    }
+  }
+
+  private ResourceRestlet newRestlet() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
+    return new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
   }
 
   private static OutputParameterSpec stringOutput(String name, String value) {

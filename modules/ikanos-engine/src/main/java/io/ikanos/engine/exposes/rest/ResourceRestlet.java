@@ -24,6 +24,7 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 import org.restlet.representation.ByteArrayRepresentation;
 
 /**
@@ -141,10 +143,9 @@ public class ResourceRestlet extends Restlet {
                         found = stepExecutor.findClientRequestFor(serverOp.getCall(),
                                 inputParameters);
                     } catch (IllegalArgumentException e) {
-                        Context.getCurrentLogger().warning("Error resolving request parameters: " + e);
-                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-                        response.setEntity("Error resolving request parameters: " + e.getMessage(),
-                                MediaType.TEXT_PLAIN);
+                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                                "Error resolving request parameters",
+                                "Error resolving request parameters", e);
                         return true;
                     }
 
@@ -154,11 +155,9 @@ public class ResourceRestlet extends Restlet {
                             found.handle();
                             response.setStatus(found.clientResponse.getStatus());
                         } catch (Exception e) {
-                            Context.getCurrentLogger().warning("Error while handling HTTP client call in call mode: " + e);
-                            response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                            response.setEntity(
-                                    "Error while handling an HTTP client call\n\n" + e.toString(),
-                                    MediaType.TEXT_PLAIN);
+                            sendError(response, Status.SERVER_ERROR_INTERNAL,
+                                    "Error while handling an HTTP client call",
+                                    "Error while handling HTTP client call in call mode", e);
                             return true;
                         }
 
@@ -196,23 +195,18 @@ public class ResourceRestlet extends Restlet {
                             }
                         }
                     } catch (IllegalArgumentException e) {
-                        Context.getCurrentLogger().warning("Invalid argument in orchestrated steps: " + e);
-                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-                        response.setEntity(e.getMessage(), MediaType.TEXT_PLAIN);
+                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                                "Invalid request", "Invalid argument in orchestrated steps", e);
                         return true;
                     } catch (RuntimeException e) {
-                        Context.getCurrentLogger().warning("Error while handling orchestrated steps: " + e);
-                        response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                        response.setEntity(
-                                "Error while handling an HTTP client call\n\n" + e.toString(),
-                                MediaType.TEXT_PLAIN);
+                        sendError(response, Status.SERVER_ERROR_INTERNAL,
+                                "Error while handling an HTTP client call",
+                                "Error while handling orchestrated steps", e);
                         return true;
                     } catch (IOException e) {
-                        Context.getCurrentLogger().warning("Error resolving step output mappings: " + e);
-                        response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                        response.setEntity(
-                                "Error resolving step output mappings\n\n" + e.toString(),
-                                MediaType.TEXT_PLAIN);
+                        sendError(response, Status.SERVER_ERROR_INTERNAL,
+                                "Error resolving step output mappings",
+                                "Error resolving step output mappings", e);
                         return true;
                     }
 
@@ -275,15 +269,12 @@ public class ResourceRestlet extends Restlet {
                     MediaType.TEXT_PLAIN);
             return true;
         } catch (IllegalArgumentException e) {
-            Context.getCurrentLogger().warning("Error in aggregate function call: " + e);
-            response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-            response.setEntity(e.getMessage(), MediaType.TEXT_PLAIN);
+            sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, "Invalid request",
+                    "Error in aggregate function call", e);
             return true;
         } catch (Exception e) {
-            Context.getCurrentLogger().warning("Error in aggregate function call: " + e);
-            response.setStatus(Status.SERVER_ERROR_INTERNAL);
-            response.setEntity("Error in aggregate function call\n\n" + e.toString(),
-                    MediaType.TEXT_PLAIN);
+            sendError(response, Status.SERVER_ERROR_INTERNAL, "Error in aggregate function call",
+                    "Error in aggregate function call", e);
             return true;
         }
     }
@@ -367,13 +358,24 @@ public class ResourceRestlet extends Restlet {
                 response.setStatus(Status.SUCCESS_NO_CONTENT);
             }
         } catch (Exception e) {
-            Context.getCurrentLogger().warning("Error building mock response: " + e);
-            response.setStatus(Status.SERVER_ERROR_INTERNAL);
-            response.setEntity("Error building mock response: " + e.getMessage(),
-                    MediaType.TEXT_PLAIN);
+            sendError(response, Status.SERVER_ERROR_INTERNAL, "Error building mock response",
+                    "Error building mock response", e);
         }
 
         response.commit();
+    }
+
+    /**
+     * Answer a failed request without disclosing internal detail: the caller receives a generic
+     * message and a correlation identifier, the full exception goes to the log under the same
+     * identifier. See {@link ErrorReference}. Package-private so it can be unit-tested directly.
+     */
+    void sendError(Response response, Status status, String publicMessage, String logContext,
+            Throwable cause) {
+        String correlationId = ErrorReference.record(Level.WARNING, logContext, cause);
+        response.setStatus(status);
+        response.setEntity(ErrorReference.withReference(publicMessage, correlationId),
+                MediaType.TEXT_PLAIN);
     }
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,
@@ -396,10 +398,8 @@ public class ResourceRestlet extends Restlet {
                     response.setEntity(found.clientResponse.getEntity());
                 }
             } catch (Exception e) {
-                Context.getCurrentLogger().warning("Failed to map output parameters: " + e);
-                response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                response.setEntity("Failed to map output parameters: " + e.getMessage(),
-                        MediaType.TEXT_PLAIN);
+                sendError(response, Status.SERVER_ERROR_INTERNAL, "Failed to map output parameters",
+                        "Failed to map output parameters", e);
             }
         } else {
             response.setEntity(found.clientResponse.getEntity());
@@ -468,9 +468,8 @@ public class ResourceRestlet extends Restlet {
             response.commit();
             return true;
         } catch (IOException e) {
-            Context.getCurrentLogger().warning("Error buffering binary response: " + e);
-            response.setStatus(Status.SERVER_ERROR_INTERNAL);
-            response.setEntity("Error buffering binary response\n\n" + e, MediaType.TEXT_PLAIN);
+            sendError(response, Status.SERVER_ERROR_INTERNAL, "Error buffering binary response",
+                    "Error buffering binary response", e);
             response.commit();
             return true;
         }
@@ -523,11 +522,9 @@ public class ResourceRestlet extends Restlet {
                         response.commit();
                         return true;
                     } catch (Exception e) {
-                        Context.getCurrentLogger().warning("Error while handling HTTP client call in forward mode: " + e);
-                        response.setStatus(Status.SERVER_ERROR_INTERNAL);
-                        response.setEntity(
-                                "Error while handling an HTTP client call\n\n" + e.toString(),
-                                MediaType.TEXT_PLAIN);
+                        sendError(response, Status.SERVER_ERROR_INTERNAL,
+                                "Error while handling an HTTP client call",
+                                "Error while handling HTTP client call in forward mode", e);
                         return true;
                     }
                 }

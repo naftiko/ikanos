@@ -133,9 +133,8 @@ public class ProtocolDispatcher {
             getCurrentLogger().log(Level.SEVERE, "An error has occurred while processing a request", e);
             return new DispatchResult(e.getResult(), e.getRpcError());
         } catch (Exception e) {
-            getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
-            return new DispatchResult(buildJsonRpcError(request.get("id"), INTERNAL_ERROR.getCode(),
-                    "Internal error: " + e.getMessage()), INTERNAL_ERROR);
+            return new DispatchResult(McpErrors.internalError(request.get("id"),
+                    "Error processing request", e), INTERNAL_ERROR);
         }
     }
 
