@@ -16,6 +16,8 @@ package io.ikanos.engine.util;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -625,17 +627,28 @@ public class OperationStepExecutor {
                                 String bodyType = String.valueOf(
                                         bodyMap.getOrDefault("type", "json"));
                                 Object data = bodyMap.get("data");
-                                String dataStr;
-                                try {
-                                    dataStr = mapper.writeValueAsString(data);
-                                } catch (IOException e) {
-                                    throw new IllegalArgumentException(
-                                        "Invalid structured body data for operation: "
-                                            + clientNamespace + "." + clientOpName,
-                                        e);
+                                if ("formUrlEncoded".equalsIgnoreCase(bodyType)
+                                        && data instanceof Map) {
+                                    resolvedBody = encodeFormBody((Map<?, ?>) data, parameters);
+                                } else if (data instanceof String) {
+                                    // String data (text/xml/sparql, pre-encoded form, or a JSON
+                                    // template) is sent as-is after Mustache resolution, never
+                                    // JSON-quoted.
+                                    resolvedBody = Resolver.resolveMustacheTemplate(
+                                            (String) data, parameters);
+                                } else {
+                                    String dataStr;
+                                    try {
+                                        dataStr = mapper.writeValueAsString(data);
+                                    } catch (IOException e) {
+                                        throw new IllegalArgumentException(
+                                            "Invalid structured body data for operation: "
+                                                + clientNamespace + "." + clientOpName,
+                                            e);
+                                    }
+                                    resolvedBody = Resolver.resolveMustacheTemplate(
+                                            dataStr, parameters);
                                 }
-                                resolvedBody = Resolver.resolveMustacheTemplate(
-                                        dataStr, parameters);
                                 if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
                                     bodyMediaType = MediaType.APPLICATION_WWW_FORM;
                                 } else if ("xml".equalsIgnoreCase(bodyType)) {
@@ -668,6 +681,33 @@ public class OperationStepExecutor {
         }
 
         return null;
+    }
+
+    /**
+     * Encode a key/value form map as {@code application/x-www-form-urlencoded}. Mustache templates
+     * are resolved in each value first; keys and values are then percent-encoded (UTF-8), so
+     * bracketed keys such as {@code line_items[0][quantity]} are sent the way APIs like Stripe
+     * expect.
+     *
+     * @throws IllegalArgumentException when a value still contains an unresolved template
+     */
+    static String encodeFormBody(Map<?, ?> data, Map<String, Object> parameters) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<?, ?> entry : data.entrySet()) {
+            String key = String.valueOf(entry.getKey());
+            String raw = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
+            String value = Resolver.resolveMustacheTemplate(raw, parameters);
+            if (value.contains("{{") && value.contains("}}")) {
+                throw new IllegalArgumentException(
+                        "Unresolved template parameters in form field '" + key + "': " + value);
+            }
+            if (sb.length() > 0) {
+                sb.append('&');
+            }
+            sb.append(URLEncoder.encode(key, StandardCharsets.UTF_8)).append('=')
+                    .append(URLEncoder.encode(value, StandardCharsets.UTF_8));
+        }
+        return sb.toString();
     }
 
     /**
