@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.spec.util.OperationStepLookupSpec;
+import io.ikanos.engine.util.OperationStepExecutor.StepFailedException;
 
 public class OperationStepExecutorIntegrationTest {
     private String schemaVersion;
@@ -341,6 +343,201 @@ public class OperationStepExecutorIntegrationTest {
 
         assertEquals("Lookup step references non-existent step: does-not-exist",
                 error.getMessage());
+    }
+
+    /**
+     * Regression test for #739: a call step that receives a non-2xx response must stop the
+     * sequence. Before the fix, the failed step's error body was stored as its output and the
+     * next step ran anyway, with unresolved values from the failed step.
+     */
+    @Test
+    public void executeStepsShouldStopWhenCallStepReturnsServerError() throws Exception {
+        int port = findFreePort();
+        AtomicInteger secondStepHits = new AtomicInteger();
+        Component server = createServer(port, Map.of(
+                "/v1/parts/p-1", new StubResponse(Status.SERVER_ERROR_INTERNAL,
+                        "{\"message\":\"part p-1 is not payable\"}", null),
+                "/v1/charges", new StubResponse(Status.SUCCESS_OK, "{\"ok\":true}", secondStepHits)));
+        server.start();
+        try {
+            Capability capability = twoStepCapability(port);
+            OperationStepExecutor executor = new OperationStepExecutor(capability);
+
+            StepFailedException error = assertThrows(StepFailedException.class,
+                    () -> executor.executeSteps(twoStepSpec(capability), Map.of("partId", "p-1")),
+                    "#739: a 500 on step 'read-part' must fail the sequence");
+
+            assertEquals(0, secondStepHits.get(),
+                    "#739: step 'charge' must not run after step 'read-part' failed");
+            assertEquals("read-part", error.getStepName());
+            assertEquals(500, error.getStatusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    /**
+     * Regression test for #739: a client error (4xx) on a call step also stops the sequence.
+     */
+    @Test
+    public void executeStepsShouldStopWhenCallStepReturnsClientError() throws Exception {
+        int port = findFreePort();
+        AtomicInteger secondStepHits = new AtomicInteger();
+        Component server = createServer(port, Map.of(
+                "/v1/parts/p-1", new StubResponse(Status.CLIENT_ERROR_NOT_FOUND,
+                        "{\"message\":\"no such part\"}", null),
+                "/v1/charges", new StubResponse(Status.SUCCESS_OK, "{\"ok\":true}", secondStepHits)));
+        server.start();
+        try {
+            Capability capability = twoStepCapability(port);
+            OperationStepExecutor executor = new OperationStepExecutor(capability);
+
+            StepFailedException error = assertThrows(StepFailedException.class,
+                    () -> executor.executeSteps(twoStepSpec(capability), Map.of("partId", "p-1")),
+                    "#739: a 404 on step 'read-part' must fail the sequence");
+
+            assertEquals(0, secondStepHits.get(),
+                    "#739: step 'charge' must not run after step 'read-part' failed");
+            assertEquals(404, error.getStatusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    /**
+     * Regression test for #739 (the reported scenario): the last step fails while the
+     * mappings would only read an earlier, successful step. The sequence must still fail,
+     * instead of the caller mapping the earlier output into a success.
+     */
+    @Test
+    public void executeStepsShouldFailWhenLaterStepFailsEvenIfEarlierStepSucceeded() throws Exception {
+        int port = findFreePort();
+        Component server = createServer(port, Map.of(
+                "/v1/parts/p-1", new StubResponse(Status.SUCCESS_OK,
+                        "{\"amount\":500000}", null),
+                "/v1/charges", new StubResponse(Status.SERVER_ERROR_SERVICE_UNAVAILABLE,
+                        "{\"message\":\"down\"}", null)));
+        server.start();
+        try {
+            Capability capability = twoStepCapability(port);
+            OperationStepExecutor executor = new OperationStepExecutor(capability);
+
+            StepFailedException error = assertThrows(StepFailedException.class,
+                    () -> executor.executeSteps(twoStepSpec(capability), Map.of("partId", "p-1")),
+                    "#739: a 503 on the last step must fail the sequence");
+
+            assertEquals("charge", error.getStepName());
+            assertEquals(503, error.getStatusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void executeStepsShouldPassStepOutputToNextStepWhenAllStepsSucceed() throws Exception {
+        int port = findFreePort();
+        AtomicInteger secondStepHits = new AtomicInteger();
+        Component server = createServer(port, Map.of(
+                "/v1/parts/p-1", new StubResponse(Status.SUCCESS_OK, "{\"amount\":500000}", null),
+                "/v1/charges", new StubResponse(Status.SUCCESS_CREATED, "{\"ok\":true}", secondStepHits)));
+        server.start();
+        try {
+            Capability capability = twoStepCapability(port);
+            OperationStepExecutor executor = new OperationStepExecutor(capability);
+
+            OperationStepExecutor.StepExecutionResult result =
+                    executor.executeSteps(twoStepSpec(capability), Map.of("partId", "p-1"));
+
+            assertEquals(1, secondStepHits.get());
+            assertTrue(result.stepContext.getStepOutput("charge").path("ok").asBoolean());
+        } finally {
+            server.stop();
+        }
+    }
+
+    /** Two steps: read a part, then charge its amount. Mappings would only read step 1. */
+    private Capability twoStepCapability(int port) throws Exception {
+        return capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "steps"
+                      resources:
+                        - path: "/pay"
+                          operations:
+                            - method: "POST"
+                              name: "pay"
+                              steps:
+                                - type: call
+                                  name: read-part
+                                  call: shop.get-part
+                                  with:
+                                    partId: "{{partId}}"
+                                - type: call
+                                  name: charge
+                                  call: shop.create-charge
+                                  with:
+                                    amount: "{{read-part.amount}}"
+                              mappings:
+                                - target: amount
+                                  value: "$.read-part.amount"
+                  consumes:
+                    - type: "http"
+                      namespace: "shop"
+                      baseUri: "http://localhost:%d/v1"
+                      resources:
+                        - path: "/parts/{{partId}}"
+                          name: "parts"
+                          operations:
+                            - method: "GET"
+                              name: "get-part"
+                        - path: "/charges"
+                          name: "charges"
+                          operations:
+                            - method: "POST"
+                              name: "create-charge"
+                              body: |
+                                {"amount": "{{amount}}"}
+                """.formatted(schemaVersion, port));
+    }
+
+    private static Map<String, io.ikanos.spec.util.OperationStepSpec> twoStepSpec(
+            Capability capability) {
+        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters()
+                .get(0).getSpec();
+        RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
+        return resourceSpec.getOperations().values().iterator().next().getSteps();
+    }
+
+    /** Canned upstream response; {@code hits} (optional) counts how often the path was called. */
+    private record StubResponse(Status status, String body, AtomicInteger hits) {
+    }
+
+    private static Component createServer(int port, Map<String, StubResponse> pathToResponse)
+            throws Exception {
+        Component component = new Component();
+        component.getServers().add(Protocol.HTTP, port);
+        component.getDefaultHost().attach(new Application() {
+            @Override
+            public Restlet createInboundRoot() {
+                Router router = new Router(getContext());
+                pathToResponse.forEach((path, stub) -> router.attach(path, new Restlet() {
+                    @Override
+                    public void handle(org.restlet.Request request, org.restlet.Response response) {
+                        if (stub.hits() != null) {
+                            stub.hits().incrementAndGet();
+                        }
+                        response.setStatus(stub.status());
+                        response.setEntity(stub.body(), MediaType.APPLICATION_JSON);
+                    }
+                }));
+                return router;
+            }
+        });
+        return component;
     }
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {

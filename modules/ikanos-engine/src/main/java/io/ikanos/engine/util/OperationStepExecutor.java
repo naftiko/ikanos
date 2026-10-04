@@ -250,6 +250,10 @@ public class OperationStepExecutor {
                                     "Error while handling an HTTP client call", e);
                         }
 
+                        // #739: a non-2xx response fails the whole sequence. Without this, the
+                        // error body became the step output and later steps ran with it.
+                        failIfUnsuccessful(callStep.getName(), lastContext.clientResponse);
+
                         // Store call output for lookup references when response is valid JSON
                         if (lastContext.clientResponse != null
                                 && lastContext.clientResponse.getEntity() != null) {
@@ -1115,6 +1119,82 @@ public class OperationStepExecutor {
             clientResponseBytes = buffer.toByteArray();
             clientResponseMediaType = resolveBinaryMediaType();
             return clientResponseBytes;
+        }
+    }
+
+    /** Longest upstream error excerpt carried by {@link StepFailedException}. */
+    static final int STEP_FAILURE_BODY_EXCERPT = 300;
+
+    /**
+     * Throw {@link StepFailedException} when a call step's upstream response is not 2xx.
+     * A missing response or status (connection failure) counts as a failure too.
+     */
+    static void failIfUnsuccessful(String stepName, Response clientResponse) {
+        if (clientResponse != null && clientResponse.getStatus() != null
+                && clientResponse.getStatus().isSuccess()) {
+            return;
+        }
+        int code = clientResponse != null && clientResponse.getStatus() != null
+                ? clientResponse.getStatus().getCode() : 0;
+        String excerpt = null;
+        Representation entity = clientResponse != null ? clientResponse.getEntity() : null;
+        if (entity != null) {
+            // Read only the head of the body: an error page can be arbitrarily large.
+            try (InputStream in = entity.getStream()) {
+                if (in != null) {
+                    byte[] head = in.readNBytes(STEP_FAILURE_BODY_EXCERPT + 1);
+                    String text = new String(head, 0, Math.min(head.length, STEP_FAILURE_BODY_EXCERPT),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    if (!text.isBlank()) {
+                        excerpt = head.length > STEP_FAILURE_BODY_EXCERPT ? text + "..." : text;
+                    }
+                }
+            } catch (IOException e) {
+                logger.debug("Could not read the failed step's response body", e);
+            } finally {
+                entity.release();
+            }
+        }
+        throw new StepFailedException(stepName, code, excerpt);
+    }
+
+    /**
+     * Thrown when a call step in an orchestrated sequence receives a non-2xx response (or no
+     * response at all). The remaining steps are not executed (#739).
+     *
+     * <p>The message names the step and the HTTP status; the upstream body excerpt is kept
+     * separately so adapters can decide whether to expose it.</p>
+     */
+    public static class StepFailedException extends IllegalStateException {
+
+        private static final long serialVersionUID = 1L;
+
+        private final String stepName;
+        private final int statusCode;
+        private final transient String bodyExcerpt;
+
+        public StepFailedException(String stepName, int statusCode, String bodyExcerpt) {
+            super(statusCode > 0
+                    ? "Step '" + stepName + "' failed with HTTP " + statusCode
+                    : "Step '" + stepName + "' failed: no response received");
+            this.stepName = stepName;
+            this.statusCode = statusCode;
+            this.bodyExcerpt = bodyExcerpt;
+        }
+
+        /** @return the name of the step that failed */
+        public String getStepName() {
+            return stepName;
+        }
+
+        /** @return the upstream HTTP status, or 0 when no response was received */
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        /** @return the start of the upstream response body, or null */
+        public String getBodyExcerpt() {
+            return bodyExcerpt;
         }
     }
 
