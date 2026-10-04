@@ -64,6 +64,10 @@ public class ToolsListHandler extends McpCallHandler {
                 toolNode.set("inputSchema", MAPPER.valueToTree(tool.inputSchema()));
             }
 
+            if (tool.outputSchema() != null) {
+                toolNode.set("outputSchema", MAPPER.valueToTree(tool.outputSchema()));
+            }
+
             if (tool.annotations() != null) {
                 ObjectNode annotationsNode = MAPPER.createObjectNode();
                 McpSchema.ToolAnnotations ann = tool.annotations();

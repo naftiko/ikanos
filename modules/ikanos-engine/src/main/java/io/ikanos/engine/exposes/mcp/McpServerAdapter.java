@@ -65,6 +65,11 @@ public class McpServerAdapter extends ServerAdapter {
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
 
+        // Create the tool handler first (transport-agnostic): it owns each tool's output
+        // contract, which buildMcpTool() advertises as the MCP outputSchema.
+        this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
+                serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
+
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
         this.toolLabels = new HashMap<>();
@@ -83,10 +88,6 @@ public class McpServerAdapter extends ServerAdapter {
                 this.toolLabels.put(toolSpec.getName(), toolSpec.getDisplay());
             }
         }
-
-        // Create the tool handler (transport-agnostic)
-        this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
-                serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
 
         // Create the resource handler (transport-agnostic)
         this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),
@@ -176,8 +177,12 @@ public class McpServerAdapter extends ServerAdapter {
         // Build ToolAnnotations from spec hints and label
         McpSchema.ToolAnnotations annotations = buildToolAnnotations(toolSpec);
 
+        // Advertise the output contract (if any) as the MCP outputSchema
+        McpToolOutputSchema.Contract contract = toolHandler.getOutputContract(toolSpec.getName());
+
         return McpSchema.Tool.builder().name(toolSpec.getName())
                 .description(toolSpec.getDescription()).inputSchema(inputSchema)
+                .outputSchema(contract != null ? contract.schema() : null)
                 .annotations(annotations).build();
     }
 

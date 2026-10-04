@@ -34,6 +34,7 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.restlet.representation.EmptyRepresentation;
@@ -47,10 +48,18 @@ import org.restlet.representation.EmptyRepresentation;
  */
 public class ToolHandler {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
     private final OperationStepExecutor stepExecutor;
     private final String exposeNamespace;
+
+    /**
+     * Per-tool output contracts (MCP {@code outputSchema}), keyed by tool name. Only tools whose
+     * output can be described as a JSON object have an entry. See {@link McpToolOutputSchema}.
+     */
+    private final Map<String, McpToolOutputSchema.Contract> outputContracts;
 
     /**
      * Adapter-level {@code maxBinarySize} sized string ({@code exposes.<name>.maxBinarySize}), or
@@ -73,6 +82,7 @@ public class ToolHandler {
             String exposeNamespace, String maxBinarySize) {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
+        this.outputContracts = new ConcurrentHashMap<>();
         this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);
         this.exposeNamespace = exposeNamespace;
         this.maxBinarySize = maxBinarySize;
@@ -85,7 +95,69 @@ public class ToolHandler {
                     continue;
                 }
                 toolSpecs.put(tool.getName(), tool);
+                McpToolOutputSchema.Contract contract =
+                        McpToolOutputSchema.resolve(tool, capability);
+                if (contract != null) {
+                    outputContracts.put(tool.getName(), contract);
+                }
             }
+        }
+    }
+
+    /**
+     * Return the output contract (MCP {@code outputSchema}) of a tool, or {@code null} when the
+     * tool's output is not described.
+     *
+     * @param toolName the tool name
+     * @return the contract, or {@code null}
+     */
+    McpToolOutputSchema.Contract getOutputContract(String toolName) {
+        return toolName != null ? outputContracts.get(toolName) : null;
+    }
+
+    /**
+     * Build a text tool result for a mapped JSON payload, adding {@code structuredContent} when the
+     * tool advertises an {@code outputSchema} for this result path.
+     *
+     * <p>The serialized JSON is always kept as a {@link McpSchema.TextContent} block for clients
+     * that do not read {@code structuredContent} (MCP backward-compatibility recommendation).
+     * {@code structuredContent} is attached only when the result is not an error, the tool has an
+     * output contract whose {@link McpToolOutputSchema.Source} matches {@code source}, and the
+     * payload parses to a JSON object.</p>
+     *
+     * @param toolName the invoked tool name
+     * @param mapped   the mapped JSON payload
+     * @param isError  whether the result is an error
+     * @param source   the result path that produced {@code mapped}
+     * @return the tool result
+     */
+    McpSchema.CallToolResult mappedResult(String toolName, String mapped, boolean isError,
+            McpToolOutputSchema.Source source) {
+        Object structured = isError ? null : structuredContentFor(toolName, mapped, source);
+        return new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(mapped)), isError,
+                structured, null);
+    }
+
+    /**
+     * Parse {@code mapped} into a {@code structuredContent} map when the tool's output contract
+     * covers {@code source}; {@code null} otherwise.
+     */
+    Map<String, Object> structuredContentFor(String toolName, String mapped,
+            McpToolOutputSchema.Source source) {
+        McpToolOutputSchema.Contract contract = getOutputContract(toolName);
+        if (contract == null || contract.source() != source || mapped == null) {
+            return null;
+        }
+        try {
+            JsonNode node = JSON.readTree(mapped);
+            if (node == null || !node.isObject()) {
+                return null;
+            }
+            return JSON.convertValue(node, new TypeReference<Map<String, Object>>() {});
+        } catch (IOException | IllegalArgumentException e) {
+            Context.getCurrentLogger().log(Level.FINE,
+                    "Mapped output of tool '" + toolName + "' is not a JSON object", e);
+            return null;
         }
     }
 
@@ -180,8 +252,8 @@ public class ToolHandler {
                     String mapped = stepExecutor.resolveStepMappings(
                             toolSpec.getMappings(), stepResult.stepContext);
                     if (mapped != null) {
-                        return new McpSchema.CallToolResult(
-                                List.of(new McpSchema.TextContent(mapped)), false, null, null);
+                        return mappedResult(toolName, mapped, false,
+                                McpToolOutputSchema.Source.STEPS);
                     }
                 }
 
@@ -211,18 +283,19 @@ public class ToolHandler {
             FlowResult result = fn.execute(parameters);
 
             if (result.isMock()) {
-                ObjectMapper mapper = new ObjectMapper();
-                String json = mapper.writeValueAsString(
+                String json = JSON.writeValueAsString(
                         result.mockOutput != null ? result.mockOutput
-                                : mapper.createObjectNode());
+                                : JSON.createObjectNode());
                 return new McpSchema.CallToolResult(
                         List.of(new McpSchema.TextContent(json)), false, null, null);
             }
 
             if (result.hasMappedOutput()) {
-                return new McpSchema.CallToolResult(
-                        List.of(new McpSchema.TextContent(result.mappedOutput)), false, null,
-                        null);
+                McpToolOutputSchema.Source source = fn.getSteps() != null
+                        && !fn.getSteps().isEmpty()
+                                ? McpToolOutputSchema.Source.STEPS
+                                : McpToolOutputSchema.Source.CALL;
+                return mappedResult(toolName, result.mappedOutput, false, source);
             }
 
             return buildToolResult(toolSpec, result.lastContext);
@@ -240,11 +313,10 @@ public class ToolHandler {
      */
     private McpSchema.CallToolResult buildMockToolResult(McpServerToolSpec toolSpec,
             Map<String, Object> parameters) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode mockRoot = Resolver.buildMockData(toolSpec.getOutputParameters(), mapper,
+        JsonNode mockRoot = Resolver.buildMockData(toolSpec.getOutputParameters(), JSON,
                 parameters);
 
-        String json = mapper.writeValueAsString(mockRoot != null ? mockRoot : mapper.createObjectNode());
+        String json = JSON.writeValueAsString(mockRoot != null ? mockRoot : JSON.createObjectNode());
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(json)), false, null, null);
     }
@@ -317,8 +389,8 @@ public class ToolHandler {
         String mapped = stepExecutor.applyOutputMappings(responseText,
                 toolSpec.getOutputParameters(), outputRawFormat, outputSchema);
         if (mapped != null) {
-            return new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(mapped)),
-                    isError, null, null);
+            return mappedResult(toolSpec.getName(), mapped, isError,
+                    McpToolOutputSchema.Source.CALL);
         }
 
         // Fall back to raw response
