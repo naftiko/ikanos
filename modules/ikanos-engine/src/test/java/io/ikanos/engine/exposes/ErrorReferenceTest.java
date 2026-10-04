@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes;
 
 import io.ikanos.engine.LogCapture;
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -36,9 +37,10 @@ public class ErrorReferenceTest {
     @Test
     public void correlationIdShouldReturnTraceIdWhenSpanIsValid() {
         SpanContext spanContext = SpanContext.create("0af7651916cd43dd8448eb211c80319c",
-                "b7ad6b7169203331", TraceFlags.getSampled(), TraceState.getDefault());
+                "b7ad6b7169203331", nonNull(TraceFlags.getSampled()),
+                nonNull(TraceState.getDefault()));
 
-        try (Scope scope = Span.wrap(spanContext).makeCurrent()) {
+        try (Scope scope = Span.wrap(nonNull(spanContext)).makeCurrent()) {
             assertEquals("0af7651916cd43dd8448eb211c80319c", ErrorReference.correlationId());
         }
     }
@@ -53,7 +55,7 @@ public class ErrorReferenceTest {
 
     @Test
     public void correlationIdShouldReturnUuidWhenCurrentSpanHasInvalidContext() {
-        try (Scope scope = Span.wrap(SpanContext.getInvalid()).makeCurrent()) {
+        try (Scope scope = Span.wrap(nonNull(SpanContext.getInvalid())).makeCurrent()) {
             String id = ErrorReference.correlationId();
 
             assertTrue(UUID_PATTERN.matcher(id).matches(), id);
