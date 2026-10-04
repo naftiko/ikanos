@@ -218,19 +218,21 @@ class McpToolOutputSchemaTest {
     }
 
     @Test
-    void forStepsShouldRequireNothingBecauseUnresolvedMappingsAreOmitted() {
+    void forStepsShouldRequireEveryDeclaredParameterBecauseShapingNullFillsThem() {
         StepOutputMappingSpec mapping = new StepOutputMappingSpec();
         mapping.setTarget("voyageId");
         mapping.setValue("$.get-voyage.voyageId");
 
         Map<String, Object> schema = McpToolOutputSchema.forSteps(
-                List.of(scalar("voyageId", "string", null)), List.of(mapping));
+                List.of(scalar("voyageId", "string", null), scalar("status", "string", null)),
+                List.of(mapping));
 
-        assertFalse(schema.containsKey("required"));
+        assertEquals(List.of("voyageId", "status"), schema.get("required"),
+                "shapeStepOutput emits every declared parameter, null when unresolved");
     }
 
     @Test
-    void forStepsShouldNotDescribeArrayItemsBecauseStepValuesAreCopiedUnshaped() {
+    void forStepsShouldDescribeArrayItemsBecauseStepValuesAreShaped() {
         StepOutputMappingSpec mapping = new StepOutputMappingSpec();
         mapping.setTarget("crew");
         mapping.setValue("$.get-ship.crew");
@@ -241,7 +243,25 @@ class McpToolOutputSchemaTest {
                 McpToolOutputSchema.forSteps(List.of(crew), List.of(mapping))), "crew");
 
         assertEquals(List.of("array", "null"), crewSchema.get("type"));
-        assertFalse(crewSchema.containsKey("items"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> items = (Map<String, Object>) crewSchema.get("items");
+        assertEquals(List.of("object", "null"), items.get("type"),
+                "a non-object upstream element is shaped to null, so step items stay nullable");
+        assertEquals(List.of("name"), items.get("required"));
+    }
+
+    @Test
+    void forStepsShouldDescribeNestedObjectPropertiesAsRequired() {
+        StepOutputMappingSpec mapping = new StepOutputMappingSpec();
+        mapping.setTarget("route.from");
+        mapping.setValue("$.get-voyage.departurePort");
+        OutputParameterSpec route = object("route",
+                scalar("from", "string", null), scalar("to", "string", null));
+
+        Map<String, Object> routeSchema = property(properties(
+                McpToolOutputSchema.forSteps(List.of(route), List.of(mapping))), "route");
+
+        assertEquals(List.of("from", "to"), routeSchema.get("required"));
     }
 
     @Test

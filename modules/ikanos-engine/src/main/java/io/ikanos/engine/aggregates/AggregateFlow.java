@@ -143,7 +143,7 @@ public class AggregateFlow {
 
             if (spec.getMappings() != null && !spec.getMappings().isEmpty()) {
                 String mapped = stepExecutor.resolveStepMappings(
-                        spec.getMappings(), stepResult.stepContext);
+                        spec.getMappings(), spec.getOutputParameters(), stepResult.stepContext);
                 if (mapped != null) {
                     return new FlowResult(stepResult.lastContext, mapped, null);
                 }

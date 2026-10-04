@@ -57,6 +57,7 @@ class McpToolOutputSchemaDispatchTest {
               "imo_number": "IMO-9321483",
               "vessel_name": "Northern Star",
               "gross_tonnage": 42000,
+              "gross_tonnage_text": "42000",
               "dimensions": { "length_overall": 229 },
               "crew": [ { "full_name": "Ada" }, { "full_name": "Grace" } ],
               "crewIds": [ "CREW-001", "CREW-003" ],
@@ -147,6 +148,72 @@ class McpToolOutputSchemaDispatchTest {
         assertTrue(errors.isEmpty(), "sparse upstream must still conform: " + errors);
         assertTrue(structured.path("crew").isNull());
         assertTrue(structured.path("dimensions").isNull());
+    }
+
+    @Test
+    void toolsCallShouldCoerceLeafToDeclaredTypeInCallMode() throws Exception {
+        JsonNode structured = toolsCall("get-ship").path("structuredContent");
+
+        assertTrue(structured.path("tonnageText").isNumber(),
+                "a numeric string declared as number must be emitted as a JSON number");
+        assertEquals(42000, structured.path("tonnageText").asInt());
+    }
+
+    @Test
+    void toolsCallStructuredContentShouldConformWhenUpstreamTypesMismatch() throws Exception {
+        upstreamBody = """
+                {
+                  "imo_number": 9321483,
+                  "vessel_name": "Northern Star",
+                  "gross_tonnage": "not-a-number",
+                  "gross_tonnage_text": "42000",
+                  "dimensions": { "length_overall": "229" },
+                  "crew": [ { "full_name": 7 }, "not-an-object" ],
+                  "crewIds": "not-an-array",
+                  "ports": []
+                }
+                """;
+        for (String toolName : new String[] {"get-ship", "ship-name", "get-ship-ref"}) {
+            JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
+            JsonNode structured = toolsCall(toolName).path("structuredContent");
+
+            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
+                    .getInstance(SpecVersion.VersionFlag.V202012)
+                    .getSchema(outputSchema).validate(structured);
+
+            assertTrue(errors.isEmpty(), "mistyped upstream must still conform for '" + toolName
+                    + "': " + errors + " in " + structured);
+        }
+    }
+
+    @Test
+    void toolsListShouldAdvertiseRequiredKeysAndNestedShapesForOrchestratedTool()
+            throws Exception {
+        JsonNode outputSchema = findTool(toolsList(), "ship-name").path("outputSchema");
+        JsonNode properties = outputSchema.path("properties");
+
+        assertEquals(JSON.readTree("[\"name\",\"tonnage\",\"flag\",\"specs\",\"crew\"]"),
+                outputSchema.path("required"));
+        assertEquals(JSON.readTree("[\"length\",\"beam\"]"),
+                properties.path("specs").path("required"));
+        assertEquals("string", properties.path("crew").path("items").path("properties")
+                .path("full_name").path("type").get(0).asText());
+        assertEquals(JSON.readTree("[\"full_name\",\"rank\"]"),
+                properties.path("crew").path("items").path("required"));
+    }
+
+    @Test
+    void toolsCallShouldShapeOrchestratedOutput() throws Exception {
+        JsonNode structured = toolsCall("ship-name").path("structuredContent");
+
+        assertTrue(structured.path("tonnage").isNumber(), "numeric text must be coerced");
+        assertEquals(42000, structured.path("tonnage").asInt());
+        assertTrue(structured.has("flag") && structured.path("flag").isNull(),
+                "an unresolved declared parameter must be present as null");
+        assertEquals(229, structured.path("specs").path("length").asInt());
+        assertTrue(structured.path("specs").has("beam"));
+        assertTrue(structured.path("crew").get(0).has("rank"),
+                "each array item must carry every declared property");
     }
 
     @Test
@@ -334,6 +401,9 @@ class McpToolOutputSchemaDispatchTest {
                               items:
                                 type: string
                                 mapping: "$."
+                            tonnageText:
+                              type: number
+                              mapping: "$.gross_tonnage_text"
                             ports:
                               type: object
                               mapping: "$.ports"
@@ -386,9 +456,33 @@ class McpToolOutputSchemaDispatchTest {
                         mappings:
                         - target: name
                           value: $.fetch-ship.vessel_name
+                        - target: tonnage
+                          value: $.fetch-ship.gross_tonnage_text
+                        - target: specs.length
+                          value: $.fetch-ship.dimensions.length_overall
+                        - target: crew
+                          value: $.fetch-ship.crew
                         outputParameters:
                           name:
                             type: string
+                          tonnage:
+                            type: number
+                          flag:
+                            type: string
+                          specs:
+                            type: object
+                            properties:
+                              length:
+                                type: number
+                              beam:
+                                type: number
+                          crew:
+                            type: array
+                            items:
+                              full_name:
+                                type: string
+                              rank:
+                                type: string
                       get-ship-ref:
                         description: Get ship details through an aggregate flow
                         ref: fleet.get-ship

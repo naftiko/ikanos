@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.restlet.Request;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;
@@ -254,10 +256,30 @@ public class Resolver {
      * Build a mapped JSON node from the output parameter specification and the client response
      * root, optionally resolving Mustache templates in {@code value} fields.
      *
+     * <p>Extracted values are passed through with their upstream JSON type. Use
+     * {@link #resolveExposedOutputMappings} for an exposed output contract, where values must be
+     * coerced to their declared type.</p>
+     *
      * @param parameters input parameters for Mustache resolution (may be null)
      */
     public static JsonNode resolveOutputMappings(OutputParameterSpec spec, JsonNode clientRoot,
             ObjectMapper mapper, Map<String, Object> parameters) {
+        return resolveOutputMappings(spec, clientRoot, mapper, parameters, false);
+    }
+
+    /**
+     * Build a mapped JSON node for an <em>exposed</em> output contract (MCP tool result, REST
+     * response, aggregate flow output): same shaping as {@link #resolveOutputMappings}, but every
+     * extracted value is coerced to its declared type with {@link #coerceToDeclaredType}, so the
+     * result conforms to the types the contract advertises.
+     */
+    public static JsonNode resolveExposedOutputMappings(OutputParameterSpec spec,
+            JsonNode clientRoot, ObjectMapper mapper) {
+        return resolveOutputMappings(spec, clientRoot, mapper, null, true);
+    }
+
+    static JsonNode resolveOutputMappings(OutputParameterSpec spec, JsonNode clientRoot,
+            ObjectMapper mapper, Map<String, Object> parameters, boolean coerce) {
         if (spec == null) {
             return NullNode.instance;
         }
@@ -289,7 +311,8 @@ public class Resolver {
 
                         for (OutputParameterSpec prop : items.getProperties()) {
                             String propName = prop.getName();
-                            JsonNode val = resolveNestedProperty(prop, element, mapper, parameters);
+                            JsonNode val = resolveNestedProperty(prop, element, mapper, parameters,
+                                    coerce);
 
                             if (val == null || val instanceof NullNode) {
                                 outObj.putNull(propName);
@@ -304,9 +327,13 @@ public class Resolver {
                         if (items.getMapping() != null) {
                             JsonNode val = Converter.jsonPathExtract(element, items.getMapping());
                             val = Converter.applyMaxLengthIfNeeded(items, val);
+                            if (coerce) {
+                                val = coerceToDeclaredType(items, val, mapper);
+                            }
                             outArray.add(val == null ? NullNode.instance : val);
                         } else {
-                            outArray.add(element);
+                            outArray.add(coerce ? coerceToDeclaredType(items, element, mapper)
+                                    : element);
                         }
                     }
                 } else {
@@ -336,6 +363,9 @@ public class Resolver {
                         mappedVal = entry.getValue();
                     }
                     mappedVal = Converter.applyMaxLengthIfNeeded(valuesSpec, mappedVal);
+                    if (coerce) {
+                        mappedVal = coerceToDeclaredType(valuesSpec, mappedVal, mapper);
+                    }
                     outObj.set(entry.getKey(), mappedVal == null ? NullNode.instance : mappedVal);
                 });
 
@@ -345,7 +375,7 @@ public class Resolver {
             ObjectNode outObj = mapper.createObjectNode();
             for (OutputParameterSpec prop : spec.getProperties()) {
                 String propName = prop.getName();
-                JsonNode val = resolveNestedProperty(prop, clientRoot, mapper, parameters);
+                JsonNode val = resolveNestedProperty(prop, clientRoot, mapper, parameters, coerce);
                 if (val == null || val instanceof NullNode) {
                     outObj.putNull(propName);
                 } else {
@@ -357,8 +387,177 @@ public class Resolver {
             // primitive/value mapping
             JsonNode v = Converter.jsonPathExtract(clientRoot, spec.getMapping());
             v = Converter.applyMaxLengthIfNeeded(spec, v);
+            if (coerce) {
+                v = coerceToDeclaredType(spec, v, mapper);
+            }
             return v == null ? NullNode.instance : v;
         }
+    }
+
+    /**
+     * Coerce an extracted value to the parameter's declared type, so an exposed output conforms to
+     * the type it advertises. Values that cannot be represented in the declared type become
+     * {@code null} (every advertised value type is nullable):
+     *
+     * <ul>
+     *   <li>{@code string} — text is kept; numbers and booleans become their text; objects and
+     *       arrays become their JSON text;</li>
+     *   <li>{@code number} — numbers are kept; numeric text is parsed; anything else is
+     *       {@code null};</li>
+     *   <li>{@code boolean} — booleans are kept; the text {@code true}/{@code false} (any case) is
+     *       parsed; anything else is {@code null};</li>
+     *   <li>{@code object} / {@code array} — kept only when the value has that JSON type;</li>
+     *   <li>missing or unknown declared type — the value is returned unchanged.</li>
+     * </ul>
+     *
+     * @param spec   the declared parameter (may be {@code null})
+     * @param node   the extracted value (may be {@code null})
+     * @param mapper Jackson mapper used to serialize containers declared as {@code string}
+     * @return the coerced value, {@link NullNode} when not representable, or {@code node} as-is
+     *         when it is {@code null}/JSON null or no known type is declared
+     */
+    public static JsonNode coerceToDeclaredType(OutputParameterSpec spec, JsonNode node,
+            ObjectMapper mapper) {
+        if (node == null || node.isNull() || node.isMissingNode() || spec == null
+                || spec.getType() == null) {
+            return node == null || node.isMissingNode() ? NullNode.instance : node;
+        }
+
+        JsonNodeFactory factory = JsonNodeFactory.instance;
+        switch (spec.getType().toLowerCase()) {
+            case "string":
+                if (node.isTextual()) {
+                    return node;
+                }
+                if (node.isValueNode()) {
+                    return factory.textNode(node.asText());
+                }
+                try {
+                    return factory.textNode(mapper.writeValueAsString(node));
+                } catch (IOException e) {
+                    return NullNode.instance;
+                }
+            case "number":
+                if (node.isNumber()) {
+                    return node;
+                }
+                if (node.isTextual()) {
+                    try {
+                        // Validate as a decimal, then parse its canonical form as JSON so the
+                        // coerced node has the same type (int, long, double...) as a number that
+                        // arrived as a JSON number.
+                        String canonical = new BigDecimal(node.asText().trim()).toString();
+                        return mapper.readTree(canonical);
+                    } catch (NumberFormatException | IOException e) {
+                        return NullNode.instance;
+                    }
+                }
+                return NullNode.instance;
+            case "boolean":
+                if (node.isBoolean()) {
+                    return node;
+                }
+                if (node.isTextual()) {
+                    String text = node.asText().trim();
+                    if ("true".equalsIgnoreCase(text)) {
+                        return factory.booleanNode(true);
+                    }
+                    if ("false".equalsIgnoreCase(text)) {
+                        return factory.booleanNode(false);
+                    }
+                }
+                return NullNode.instance;
+            case "object":
+                return node.isObject() ? node : NullNode.instance;
+            case "array":
+                return node.isArray() ? node : NullNode.instance;
+            default:
+                return node;
+        }
+    }
+
+    /**
+     * Shape the object assembled by orchestrated step {@code mappings} against the declared
+     * (orchestrated) {@code outputParameters}, so it conforms to the output contract they
+     * advertise:
+     *
+     * <ul>
+     *   <li>every declared parameter is present — {@code null} when its mapping did not
+     *       resolve;</li>
+     *   <li>a declared {@code object} with {@code properties} keeps every declared property
+     *       (null-filled) and is {@code null} when the mapped value is not an object;</li>
+     *   <li>a declared {@code array} with {@code items} has each element shaped by its
+     *       {@code items} declaration and is {@code null} when the mapped value is not an
+     *       array;</li>
+     *   <li>leaf values are coerced with {@link #coerceToDeclaredType}.</li>
+     * </ul>
+     *
+     * <p>Keys that are mapped but not declared are kept unchanged, so the shaping never removes
+     * data a caller already receives.</p>
+     *
+     * @param outputParameters the declared orchestrated output parameters (may be {@code null})
+     * @param assembled        the object assembled from step mappings
+     * @param mapper           Jackson mapper
+     * @return the shaped object, or {@code assembled} unchanged when nothing is declared
+     */
+    public static ObjectNode shapeStepOutput(List<OutputParameterSpec> outputParameters,
+            ObjectNode assembled, ObjectMapper mapper) {
+        if (outputParameters == null || outputParameters.isEmpty() || assembled == null) {
+            return assembled;
+        }
+        ObjectNode shaped = assembled.deepCopy();
+        for (OutputParameterSpec param : outputParameters) {
+            if (param != null && param.getName() != null) {
+                shaped.set(param.getName(),
+                        shapeStepValue(param, assembled.get(param.getName()), mapper));
+            }
+        }
+        return shaped;
+    }
+
+    /**
+     * Shape one orchestrated output value against its declaration.
+     *
+     * @see #shapeStepOutput(List, ObjectNode, ObjectMapper)
+     */
+    static JsonNode shapeStepValue(OutputParameterSpec param, JsonNode value,
+            ObjectMapper mapper) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return NullNode.instance;
+        }
+        String type = param.getType() != null ? param.getType().toLowerCase() : null;
+
+        if ("object".equals(type)) {
+            if (!value.isObject()) {
+                return NullNode.instance;
+            }
+            if (param.getProperties() == null || param.getProperties().isEmpty()) {
+                return value;
+            }
+            ObjectNode out = ((ObjectNode) value).deepCopy();
+            for (OutputParameterSpec prop : param.getProperties()) {
+                if (prop != null && prop.getName() != null) {
+                    out.set(prop.getName(), shapeStepValue(prop, value.get(prop.getName()), mapper));
+                }
+            }
+            return out;
+        }
+
+        if ("array".equals(type)) {
+            if (!value.isArray()) {
+                return NullNode.instance;
+            }
+            if (param.getItems() == null) {
+                return value;
+            }
+            ArrayNode out = mapper.createArrayNode();
+            for (JsonNode element : value) {
+                out.add(shapeStepValue(param.getItems(), element, mapper));
+            }
+            return out;
+        }
+
+        return coerceToDeclaredType(param, value, mapper);
     }
 
     /**
@@ -457,35 +656,41 @@ public class Resolver {
      */
     static JsonNode resolveNestedProperty(OutputParameterSpec prop, JsonNode root,
             ObjectMapper mapper, Map<String, Object> parameters) {
+        return resolveNestedProperty(prop, root, mapper, parameters, false);
+    }
+
+    static JsonNode resolveNestedProperty(OutputParameterSpec prop, JsonNode root,
+            ObjectMapper mapper, Map<String, Object> parameters, boolean coerce) {
         if (prop.getValue() != null) {
-            return resolveOutputMappings(prop, root, mapper, parameters);
+            return resolveOutputMappings(prop, root, mapper, parameters, coerce);
         }
 
         String type = prop.getType();
         String mapping = prop.getMapping();
 
         if ("array".equalsIgnoreCase(type) && mapping != null && prop.getItems() != null) {
-            return resolveOutputMappings(prop, root, mapper, parameters);
+            return resolveOutputMappings(prop, root, mapper, parameters, coerce);
         }
 
         if ("object".equalsIgnoreCase(type)) {
             if (prop.getValues() != null && mapping != null) {
-                return resolveOutputMappings(prop, root, mapper, parameters);
+                return resolveOutputMappings(prop, root, mapper, parameters, coerce);
             }
             if (prop.getProperties() != null && !prop.getProperties().isEmpty()) {
                 if (mapping == null) {
-                    return resolveOutputMappings(prop, root, mapper, parameters);
+                    return resolveOutputMappings(prop, root, mapper, parameters, coerce);
                 }
                 JsonNode subRoot = Converter.jsonPathExtract(root, mapping);
                 if (subRoot == null || !subRoot.isObject()) {
                     return NullNode.instance;
                 }
-                return resolveOutputMappings(prop, subRoot, mapper, parameters);
+                return resolveOutputMappings(prop, subRoot, mapper, parameters, coerce);
             }
         }
 
         JsonNode val = Converter.jsonPathExtract(root, mapping);
-        return Converter.applyMaxLengthIfNeeded(prop, val);
+        val = Converter.applyMaxLengthIfNeeded(prop, val);
+        return coerce ? coerceToDeclaredType(prop, val, mapper) : val;
     }
 }
 

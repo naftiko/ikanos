@@ -284,4 +284,49 @@ public class OutputParameterDeserializationTest {
         "setValue() must remain null for a ConsumedOutputParameter in keyed-map form");
   }
 
+  /**
+   * The orchestrated {@code items} form is a map of named property declarations. It must
+   * deserialize into an {@code object} item whose properties are those entries, so the runtime
+   * and the MCP outputSchema can shape each array element (#772).
+   */
+  @Test
+  public void deserializeShouldReadOrchestratedItemsMapAsObjectItemProperties() throws Exception {
+    String yamlSnippet = """
+        type: array
+        items:
+          fullName:
+            type: string
+          type:
+            type: string
+        """;
+
+    OutputParameterSpec spec =
+        new ObjectMapper(new YAMLFactory()).readValue(yamlSnippet, OutputParameterSpec.class);
+
+    OutputParameterSpec items = spec.getItems();
+    assertNotNull(items, "orchestrated items map must produce an item declaration");
+    assertEquals("object", items.getType());
+    assertEquals(List.of("fullName", "type"),
+        items.getProperties().stream().map(OutputParameterSpec::getName).toList(),
+        "a property named 'type' must not be mistaken for the item's own type");
+    assertEquals("string", items.getProperties().get(1).getType());
+  }
+
+  @Test
+  public void deserializeShouldKeepSingleItemDeclarationWhenTypeIsTextual() throws Exception {
+    String yamlSnippet = """
+        type: array
+        mapping: $.ids
+        items:
+          type: string
+          mapping: $.
+        """;
+
+    OutputParameterSpec spec =
+        new ObjectMapper(new YAMLFactory()).readValue(yamlSnippet, OutputParameterSpec.class);
+
+    assertEquals("string", spec.getItems().getType());
+    assertEquals("$.", spec.getItems().getMapping());
+    assertTrue(spec.getItems().getProperties().isEmpty());
+  }
 }

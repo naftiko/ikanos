@@ -911,6 +911,7 @@ Used in **simple mode** exposed operations. Maps a value from the consumed respo
 
 - Both `type` and `mapping` are mandatory.
 - No additional properties are allowed.
+- **Runtime shaping and type coercion.** The exposed result is built from the declaration at every level: each object carries every declared property (`null` when its mapping does not resolve), arrays with `items` are built element by element, and every extracted value is coerced to its declared `type` — numeric text becomes a number, `"true"`/`"false"` become booleans, any scalar declared `string` becomes text, and a value that cannot be represented in its declared type becomes `null`. This guarantees that the result conforms to the contract the operation advertises (the MCP tool `outputSchema`, the exported OpenAPI response schema).
 
 **MappedOutputParameter Examples:**
 
@@ -968,6 +969,7 @@ Used in **orchestrated mode** exposed operations. Declares an output by `name` a
 
 - Both `name` and `type` are mandatory.
 - No additional properties are allowed.
+- **Runtime shaping and type coercion.** The object assembled from step `mappings` is shaped by these declarations: every declared output parameter is present (`null` when no mapping resolved it), a declared `object` keeps every declared property, each element of a declared `array` is shaped by its `items`, and leaf values are coerced to their declared `type` exactly as for MappedOutputParameter. Mapped keys that are not declared are kept unchanged.
 
 **OrchestratedOutputParameter Example:**
 

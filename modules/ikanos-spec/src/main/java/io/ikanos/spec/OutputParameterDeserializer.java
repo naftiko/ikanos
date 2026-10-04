@@ -84,6 +84,8 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
             if (itemsNode.isArray() && itemsNode.size() > 0) {
                 OutputParameterSpec itemsSpec = deserializeNode(itemsNode.get(0), ctxt);
                 spec.setItems(itemsSpec);
+            } else if (isOrchestratedItemsMap(itemsNode)) {
+                spec.setItems(deserializeOrchestratedItems(itemsNode, ctxt));
             } else if (itemsNode.isObject()) {
                 OutputParameterSpec itemsSpec = deserializeNode(itemsNode, ctxt);
                 spec.setItems(itemsSpec);
@@ -163,6 +165,51 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
         }
 
         return spec;
+    }
+
+    /**
+     * Whether {@code itemsNode} uses the orchestrated items form: a non-empty map of named
+     * property declarations ({@code {fullName: {type: string}, role: {type: string}}}) rather than
+     * a single parameter declaration ({@code {type: object, properties: {...}}}).
+     *
+     * <p>The two are told apart by {@code type}: a single declaration has a textual
+     * {@code type}, while in the map form every entry is an object — including an entry for a
+     * property that happens to be named {@code type}.</p>
+     */
+    static boolean isOrchestratedItemsMap(JsonNode itemsNode) {
+        if (itemsNode == null || !itemsNode.isObject() || itemsNode.isEmpty()) {
+            return false;
+        }
+        JsonNode type = itemsNode.get("type");
+        if (type != null && type.isTextual()) {
+            return false;
+        }
+        for (JsonNode entry : itemsNode) {
+            if (!entry.isObject()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Deserialize the orchestrated items map form into an {@code object} item whose
+     * {@code properties} are the named entries.
+     */
+    private OutputParameterSpec deserializeOrchestratedItems(JsonNode itemsNode,
+            DeserializationContext ctxt) throws IOException {
+        OutputParameterSpec itemsSpec = new OutputParameterSpec();
+        itemsSpec.setType("object");
+        var fields = itemsNode.properties().iterator();
+        while (fields.hasNext()) {
+            var entry = fields.next();
+            OutputParameterSpec propSpec = deserializeNode(entry.getValue(), ctxt);
+            if (propSpec.getName() == null) {
+                propSpec.setName(entry.getKey());
+            }
+            itemsSpec.getProperties().add(propSpec);
+        }
+        return itemsSpec;
     }
 
 }

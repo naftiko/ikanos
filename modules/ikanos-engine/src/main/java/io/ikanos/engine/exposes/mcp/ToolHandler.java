@@ -250,7 +250,8 @@ public class ToolHandler {
                 // Apply step output mappings if defined
                 if (toolSpec.getMappings() != null && !toolSpec.getMappings().isEmpty()) {
                     String mapped = stepExecutor.resolveStepMappings(
-                            toolSpec.getMappings(), stepResult.stepContext);
+                            toolSpec.getMappings(), toolSpec.getOutputParameters(),
+                            stepResult.stepContext);
                     if (mapped != null) {
                         return mappedResult(toolName, mapped, false,
                                 McpToolOutputSchema.Source.STEPS);

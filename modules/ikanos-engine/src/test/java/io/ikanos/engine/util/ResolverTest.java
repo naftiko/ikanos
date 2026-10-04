@@ -27,6 +27,7 @@ import org.restlet.data.Method;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.InputParameterSpec;
 
@@ -456,5 +457,158 @@ public class ResolverTest {
                 Map.of("imo", "IMO-1"));
 
         assertEquals("registry:IMO-1", result.path("source").asText());
+    }
+
+    // ── Coercion to the declared type (exposed outputs, #772) ──────────────────────────────
+
+    @Test
+    public void coerceToDeclaredTypeShouldParseNumericText() throws Exception {
+        JsonNode coerced = Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("n", "number", null, null), MAPPER.readTree("\"42.5\""),
+                MAPPER);
+
+        assertTrue(coerced.isNumber());
+        assertEquals(42.5, coerced.asDouble());
+    }
+
+    @Test
+    public void coerceToDeclaredTypeShouldNullNonNumericTextDeclaredAsNumber() throws Exception {
+        JsonNode coerced = Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("n", "number", null, null), MAPPER.readTree("\"n/a\""),
+                MAPPER);
+
+        assertTrue(coerced.isNull());
+    }
+
+    @Test
+    public void coerceToDeclaredTypeShouldParseBooleanTextCaseInsensitively() throws Exception {
+        JsonNode coerced = Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("b", "boolean", null, null), MAPPER.readTree("\"TRUE\""),
+                MAPPER);
+
+        assertTrue(coerced.isBoolean());
+        assertTrue(coerced.asBoolean());
+    }
+
+    @Test
+    public void coerceToDeclaredTypeShouldRenderScalarsAndContainersAsStrings() throws Exception {
+        OutputParameterSpec string = new OutputParameterSpec("s", "string", null, null);
+
+        assertEquals("42", Resolver.coerceToDeclaredType(string, MAPPER.readTree("42"), MAPPER)
+                .textValue());
+        assertEquals("{\"a\":1}", Resolver.coerceToDeclaredType(string,
+                MAPPER.readTree("{\"a\":1}"), MAPPER).textValue());
+    }
+
+    @Test
+    public void coerceToDeclaredTypeShouldNullContainerTypeMismatch() throws Exception {
+        assertTrue(Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("o", "object", null, null), MAPPER.readTree("[1]"), MAPPER)
+                .isNull());
+        assertTrue(Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("a", "array", null, null), MAPPER.readTree("{}"), MAPPER)
+                .isNull());
+    }
+
+    @Test
+    public void coerceToDeclaredTypeShouldKeepValueWhenNoTypeIsDeclared() throws Exception {
+        JsonNode value = MAPPER.readTree("\"42\"");
+
+        assertEquals(value, Resolver.coerceToDeclaredType(
+                new OutputParameterSpec("x", null, null, null), value, MAPPER));
+    }
+
+    @Test
+    public void resolveExposedOutputMappingsShouldCoerceNestedLeaves() throws Exception {
+        JsonNode apiResponse = MAPPER.readTree("""
+                { "tonnage": "42000", "active": "false", "crew": [ { "age": "41" } ] }
+                """);
+        OutputParameterSpec age = new OutputParameterSpec("age", "number", null, "$.age");
+        OutputParameterSpec item = new OutputParameterSpec();
+        item.setType("object");
+        item.getProperties().add(age);
+        OutputParameterSpec crew = new OutputParameterSpec("crew", "array", null, "$.crew");
+        crew.setItems(item);
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().addAll(List.of(
+                new OutputParameterSpec("tonnage", "number", null, "$.tonnage"),
+                new OutputParameterSpec("active", "boolean", null, "$.active"), crew));
+
+        JsonNode result = Resolver.resolveExposedOutputMappings(root, apiResponse, MAPPER);
+
+        assertEquals(MAPPER.readTree("""
+                { "tonnage": 42000, "active": false, "crew": [ { "age": 41 } ] }
+                """), result);
+    }
+
+    @Test
+    public void resolveOutputMappingsShouldNotCoerceConsumedValues() throws Exception {
+        JsonNode result = Resolver.resolveOutputMappings(
+                new OutputParameterSpec("tonnage", "number", null, "$.tonnage"),
+                MAPPER.readTree("{ \"tonnage\": \"42000\" }"), MAPPER);
+
+        assertTrue(result.isTextual(),
+                "consumed (step) outputs keep their upstream JSON type; only exposed outputs coerce");
+    }
+
+    // ── Steps-mode shaping (#772) ──────────────────────────────────────────────────────────
+
+    @Test
+    public void shapeStepOutputShouldNullFillUnresolvedDeclaredParameters() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"voyageId\": \"V-1\" }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(List.of(
+                new OutputParameterSpec("voyageId", "string", null, null),
+                new OutputParameterSpec("status", "string", null, null)), assembled, MAPPER);
+
+        assertEquals(MAPPER.readTree("{ \"voyageId\": \"V-1\", \"status\": null }"), shaped);
+    }
+
+    @Test
+    public void shapeStepOutputShouldShapeArrayItemsAndCoerceLeaves() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("""
+                { "crew": [ { "fullName": "Ada", "age": "41" }, { "fullName": "Grace" }, "x" ] }
+                """);
+        OutputParameterSpec item = new OutputParameterSpec();
+        item.setType("object");
+        item.getProperties().addAll(List.of(
+                new OutputParameterSpec("fullName", "string", null, null),
+                new OutputParameterSpec("age", "number", null, null)));
+        OutputParameterSpec crew = new OutputParameterSpec("crew", "array", null, null);
+        crew.setItems(item);
+
+        JsonNode shaped = Resolver.shapeStepOutput(List.of(crew), assembled, MAPPER);
+
+        assertEquals(MAPPER.readTree("""
+                { "crew": [ { "fullName": "Ada", "age": 41 },
+                            { "fullName": "Grace", "age": null },
+                            null ] }
+                """), shaped);
+    }
+
+    @Test
+    public void shapeStepOutputShouldNullFillNestedObjectProperties() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"route\": { \"from\": \"Oslo\" } }");
+        OutputParameterSpec route = new OutputParameterSpec("route", "object", null, null);
+        route.getProperties().addAll(List.of(
+                new OutputParameterSpec("from", "string", null, null),
+                new OutputParameterSpec("to", "string", null, null)));
+
+        JsonNode shaped = Resolver.shapeStepOutput(List.of(route), assembled, MAPPER);
+
+        assertEquals(MAPPER.readTree("{ \"route\": { \"from\": \"Oslo\", \"to\": null } }"),
+                shaped);
+    }
+
+    @Test
+    public void shapeStepOutputShouldKeepMappedKeysThatAreNotDeclared() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"a\": 1, \"extra\": true }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(
+                List.of(new OutputParameterSpec("a", "number", null, null)), assembled, MAPPER);
+
+        assertTrue(shaped.path("extra").asBoolean(),
+                "shaping must never remove data a caller already receives");
     }
 }

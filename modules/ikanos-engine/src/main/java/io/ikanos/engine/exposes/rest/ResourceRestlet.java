@@ -186,7 +186,8 @@ public class ResourceRestlet extends Restlet {
                         if (serverOp.getMappings() != null
                                 && !serverOp.getMappings().isEmpty()) {
                             String mapped = stepExecutor.resolveStepMappings(
-                                    serverOp.getMappings(), stepResult.stepContext);
+                                    serverOp.getMappings(), serverOp.getOutputParameters(),
+                                    stepResult.stepContext);
                             if (mapped != null) {
                                 response.setStatus(Status.SUCCESS_OK);
                                 response.setEntity(mapped, MediaType.APPLICATION_JSON);
@@ -575,7 +576,8 @@ public class ResourceRestlet extends Restlet {
         for (OutputParameterSpec outputParameter : serverOp.getOutputParameters()) {
             if ("body".equalsIgnoreCase(inOrDefault(outputParameter))) {
                 ObjectMapper mapper = new ObjectMapper();
-                JsonNode mapped = Resolver.resolveOutputMappings(outputParameter, root, mapper);
+                JsonNode mapped =
+                        Resolver.resolveExposedOutputMappings(outputParameter, root, mapper);
 
                 if (mapped != null && !(mapped instanceof NullNode)) {
                     return mapper.writeValueAsString(mapped);

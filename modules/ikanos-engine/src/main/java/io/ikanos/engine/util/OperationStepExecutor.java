@@ -718,6 +718,28 @@ public class OperationStepExecutor {
      */
     public String resolveStepMappings(List<StepOutputMappingSpec> mappings,
             StepExecutionContext stepContext) throws IOException {
+        return resolveStepMappings(mappings, null, stepContext);
+    }
+
+    /**
+     * Resolve step output mappings into a composite JSON object shaped by the declared
+     * orchestrated {@code outputParameters}.
+     *
+     * <p>Values are first assembled from {@code mappings} exactly as
+     * {@link #resolveStepMappings(List, StepExecutionContext)} does; the result is then shaped by
+     * {@link Resolver#shapeStepOutput}: every declared parameter is present ({@code null} when
+     * unresolved), nested objects and array items follow their declarations, and leaf values are
+     * coerced to their declared type. This is what makes the advertised MCP {@code outputSchema}
+     * of an orchestrated tool hold.</p>
+     *
+     * @param mappings         the list of step output mappings to apply
+     * @param outputParameters the declared orchestrated output parameters (may be {@code null})
+     * @param stepContext      the execution context containing step outputs
+     * @return the composite JSON string, or {@code null} when no mapping resolved
+     */
+    public String resolveStepMappings(List<StepOutputMappingSpec> mappings,
+            List<OutputParameterSpec> outputParameters, StepExecutionContext stepContext)
+            throws IOException {
         if (mappings == null || mappings.isEmpty() || stepContext == null) {
             return null;
         }
@@ -731,7 +753,12 @@ public class OperationStepExecutor {
             }
         }
 
-        return result.isEmpty() ? null : mapper.writeValueAsString(result);
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        return mapper.writeValueAsString(
+                Resolver.shapeStepOutput(outputParameters, result, mapper));
     }
 
     /**
@@ -851,7 +878,7 @@ public class OperationStepExecutor {
         }
         JsonNode root = Converter.convertToJson(outputRawFormat, outputSchema, responseText);
         for (OutputParameterSpec outputParam : outputParameters) {
-            JsonNode mapped = Resolver.resolveOutputMappings(outputParam, root, mapper);
+            JsonNode mapped = Resolver.resolveExposedOutputMappings(outputParam, root, mapper);
             if (mapped != null && !(mapped instanceof NullNode)) {
                 return mapper.writeValueAsString(mapped);
             }
