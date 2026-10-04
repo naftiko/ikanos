@@ -49,8 +49,18 @@ class McpToolOutputSchemaTest {
         assertEquals(List.of("string", "null"), property(properties, "imo").get("type"));
         assertEquals(List.of("number", "null"), property(properties, "tonnage").get("type"));
         assertEquals(List.of("boolean", "null"), property(properties, "active").get("type"));
-        assertFalse(schema.containsKey("required"),
-                "no property may be required: unresolved mappings are emitted as null");
+    }
+
+    @Test
+    void forCallShouldRequireEveryRootPropertyBecauseTheResolverAlwaysEmitsEveryKey() {
+        OutputParameterSpec root = object(null,
+                scalar("imo", "string", "$.imo_number"),
+                scalar("tonnage", "number", "$.gross_tonnage"));
+
+        Map<String, Object> schema = McpToolOutputSchema.forCall(List.of(root));
+
+        assertEquals(List.of("imo", "tonnage"), schema.get("required"),
+                "unresolved mappings are emitted as null, so every key is always present");
     }
 
     @Test
@@ -65,10 +75,27 @@ class McpToolOutputSchemaTest {
         assertEquals(List.of("object", "null"), specsSchema.get("type"));
         assertEquals(List.of("number", "null"),
                 property(properties(specsSchema), "yearBuilt").get("type"));
+        assertEquals(List.of("yearBuilt"), specsSchema.get("required"));
     }
 
     @Test
-    void forCallShouldNotDescribeShapeOfMappedArrays() {
+    void forCallShouldDescribeMappedNestedObjectWithProperties() {
+        OutputParameterSpec dimensions = object("dimensions",
+                scalar("length", "number", "$.length_overall"));
+        dimensions.setMapping("$.dimensions");
+        OutputParameterSpec root = object(null, dimensions);
+
+        Map<String, Object> dimensionsSchema =
+                property(properties(McpToolOutputSchema.forCall(List.of(root))), "dimensions");
+
+        assertEquals(List.of("object", "null"), dimensionsSchema.get("type"));
+        assertEquals(List.of("number", "null"),
+                property(properties(dimensionsSchema), "length").get("type"));
+        assertEquals(List.of("length"), dimensionsSchema.get("required"));
+    }
+
+    @Test
+    void forCallShouldDescribeObjectItemsOfMappedArrays() {
         OutputParameterSpec crew = new OutputParameterSpec("crew", "array", null, "$.crew");
         crew.setItems(object(null, scalar("name", "string", "$.full_name")));
         OutputParameterSpec root = object(null, crew);
@@ -77,8 +104,55 @@ class McpToolOutputSchemaTest {
                 property(properties(McpToolOutputSchema.forCall(List.of(root))), "crew");
 
         assertEquals(List.of("array", "null"), crewSchema.get("type"));
-        assertFalse(crewSchema.containsKey("items"),
-                "a mapped array is passed through as-is, so its items must not be constrained");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> items = (Map<String, Object>) crewSchema.get("items");
+        assertEquals("object", items.get("type"),
+                "the resolver always assembles an object per element, never null");
+        assertEquals(List.of("string", "null"), property(properties(items), "name").get("type"));
+        assertEquals(List.of("name"), items.get("required"));
+    }
+
+    @Test
+    void forCallShouldDescribeScalarItemsOfMappedArrays() {
+        OutputParameterSpec ids = new OutputParameterSpec("crewIds", "array", null, "$.crewIds");
+        ids.setItems(scalar(null, "string", "$."));
+        OutputParameterSpec root = object(null, ids);
+
+        Map<String, Object> idsSchema =
+                property(properties(McpToolOutputSchema.forCall(List.of(root))), "crewIds");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> items = (Map<String, Object>) idsSchema.get("items");
+        assertEquals(List.of("string", "null"), items.get("type"));
+    }
+
+    @Test
+    void forCallShouldDescribeNestedValuesMapAsAdditionalProperties() {
+        OutputParameterSpec ports = new OutputParameterSpec("ports", "object", null, "$.ports");
+        ports.setValues(scalar(null, "string", "$.name"));
+        OutputParameterSpec root = object(null, ports);
+
+        Map<String, Object> portsSchema =
+                property(properties(McpToolOutputSchema.forCall(List.of(root))), "ports");
+
+        assertEquals(List.of("object", "null"), portsSchema.get("type"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> values = (Map<String, Object>) portsSchema.get("additionalProperties");
+        assertEquals(List.of("string", "null"), values.get("type"));
+        assertFalse(portsSchema.containsKey("required"));
+    }
+
+    @Test
+    void forCallShouldDescribeNestedStaticValueAsString() {
+        OutputParameterSpec source = scalar("source", "number", null);
+        source.setValue("registry");
+        OutputParameterSpec root = object(null, scalar("imo", "string", "$.imo"), source);
+
+        Map<String, Object> sourceSchema =
+                property(properties(McpToolOutputSchema.forCall(List.of(root))), "source");
+
+        assertEquals("string", sourceSchema.get("type"),
+                "static values are always emitted as non-null text, whatever the declared type");
     }
 
     @Test
@@ -144,9 +218,30 @@ class McpToolOutputSchemaTest {
     }
 
     @Test
-    void forStepsShouldReturnNullWithoutMappings() {
-        assertNull(McpToolOutputSchema.forSteps(List.of(scalar("voyageId", "string", null)),
-                List.of()));
+    void forStepsShouldRequireNothingBecauseUnresolvedMappingsAreOmitted() {
+        StepOutputMappingSpec mapping = new StepOutputMappingSpec();
+        mapping.setTarget("voyageId");
+        mapping.setValue("$.get-voyage.voyageId");
+
+        Map<String, Object> schema = McpToolOutputSchema.forSteps(
+                List.of(scalar("voyageId", "string", null)), List.of(mapping));
+
+        assertFalse(schema.containsKey("required"));
+    }
+
+    @Test
+    void forStepsShouldNotDescribeArrayItemsBecauseStepValuesAreCopiedUnshaped() {
+        StepOutputMappingSpec mapping = new StepOutputMappingSpec();
+        mapping.setTarget("crew");
+        mapping.setValue("$.get-ship.crew");
+        OutputParameterSpec crew = new OutputParameterSpec("crew", "array", null, null);
+        crew.setItems(object(null, scalar("name", "string", null)));
+
+        Map<String, Object> crewSchema = property(properties(
+                McpToolOutputSchema.forSteps(List.of(crew), List.of(mapping))), "crew");
+
+        assertEquals(List.of("array", "null"), crewSchema.get("type"));
+        assertFalse(crewSchema.containsKey("items"));
     }
 
     @Test

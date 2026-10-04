@@ -289,11 +289,9 @@ public class Resolver {
 
                         for (OutputParameterSpec prop : items.getProperties()) {
                             String propName = prop.getName();
-                            String propMapping = prop.getMapping();
-                            JsonNode val = Converter.jsonPathExtract(element, propMapping);
-                            val = Converter.applyMaxLengthIfNeeded(prop, val);
+                            JsonNode val = resolveNestedProperty(prop, element, mapper, parameters);
 
-                            if (val == null) {
+                            if (val == null || val instanceof NullNode) {
                                 outObj.putNull(propName);
                             } else {
                                 outObj.set(propName, val);
@@ -347,15 +345,7 @@ public class Resolver {
             ObjectNode outObj = mapper.createObjectNode();
             for (OutputParameterSpec prop : spec.getProperties()) {
                 String propName = prop.getName();
-                String propMapping = prop.getMapping();
-                JsonNode val;
-                if (propMapping == null && "object".equalsIgnoreCase(prop.getType())
-                        && prop.getProperties() != null && !prop.getProperties().isEmpty()) {
-                    val = resolveOutputMappings(prop, clientRoot, mapper);
-                } else {
-                    val = Converter.jsonPathExtract(clientRoot, propMapping);
-                    val = Converter.applyMaxLengthIfNeeded(prop, val);
-                }
+                JsonNode val = resolveNestedProperty(prop, clientRoot, mapper, parameters);
                 if (val == null || val instanceof NullNode) {
                     outObj.putNull(propName);
                 } else {
@@ -450,5 +440,52 @@ public class Resolver {
         return NullNode.instance;
     }
 
+    /**
+     * Resolve a nested output property (an object property or an array item property) against
+     * {@code root}, honouring its declared shape the same way a root-level parameter is honoured:
+     *
+     * <ul>
+     *   <li>a static {@code value} is emitted as-is (Mustache-resolved);</li>
+     *   <li>an {@code array} with a {@code mapping} and {@code items} is shaped element by element;
+     *   </li>
+     *   <li>an {@code object} with {@code values} and a {@code mapping} is shaped as a map;</li>
+     *   <li>an {@code object} with {@code properties} is assembled from them — against
+     *       {@code root} when it has no {@code mapping}, or against the extracted node when it
+     *       has one (the same relative rule that applies to array {@code items});</li>
+     *   <li>anything else is extracted by its {@code mapping} and passed through.</li>
+     * </ul>
+     */
+    static JsonNode resolveNestedProperty(OutputParameterSpec prop, JsonNode root,
+            ObjectMapper mapper, Map<String, Object> parameters) {
+        if (prop.getValue() != null) {
+            return resolveOutputMappings(prop, root, mapper, parameters);
+        }
+
+        String type = prop.getType();
+        String mapping = prop.getMapping();
+
+        if ("array".equalsIgnoreCase(type) && mapping != null && prop.getItems() != null) {
+            return resolveOutputMappings(prop, root, mapper, parameters);
+        }
+
+        if ("object".equalsIgnoreCase(type)) {
+            if (prop.getValues() != null && mapping != null) {
+                return resolveOutputMappings(prop, root, mapper, parameters);
+            }
+            if (prop.getProperties() != null && !prop.getProperties().isEmpty()) {
+                if (mapping == null) {
+                    return resolveOutputMappings(prop, root, mapper, parameters);
+                }
+                JsonNode subRoot = Converter.jsonPathExtract(root, mapping);
+                if (subRoot == null || !subRoot.isObject()) {
+                    return NullNode.instance;
+                }
+                return resolveOutputMappings(prop, subRoot, mapper, parameters);
+            }
+        }
+
+        JsonNode val = Converter.jsonPathExtract(root, mapping);
+        return Converter.applyMaxLengthIfNeeded(prop, val);
+    }
 }
 

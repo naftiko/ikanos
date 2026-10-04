@@ -355,4 +355,106 @@ public class ResolverTest {
 
         assertEquals("{\"name\": \"Erik Lindstrøm\", \"port\": \"Göteborg\"}", result);
     }
+
+    /**
+     * A nested array with a {@code mapping} and object {@code items} must be shaped element by
+     * element, exactly as a root-level array is — not passed through raw (#772).
+     */
+    @Test
+    public void resolveOutputMappingsShouldShapeNestedMappedArrayItems() throws Exception {
+        JsonNode apiResponse = MAPPER.readTree("""
+                { "crew": [ { "full_name": "Ada", "rank": "captain" }, { "full_name": "Grace" } ] }
+                """);
+        OutputParameterSpec name = new OutputParameterSpec("name", "string", null, "$.full_name");
+        OutputParameterSpec item = new OutputParameterSpec();
+        item.setType("object");
+        item.getProperties().add(name);
+        OutputParameterSpec crew = new OutputParameterSpec("crew", "array", null, "$.crew");
+        crew.setItems(item);
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().add(crew);
+
+        JsonNode result = Resolver.resolveOutputMappings(root, apiResponse, MAPPER);
+
+        assertEquals(MAPPER.readTree("""
+                { "crew": [ { "name": "Ada" }, { "name": "Grace" } ] }
+                """), result);
+    }
+
+    /**
+     * A nested object with both a {@code mapping} and {@code properties} must be assembled from its
+     * properties, resolved relative to the extracted sub-node (#772).
+     */
+    @Test
+    public void resolveOutputMappingsShouldShapeMappedNestedObjectRelativeToItsMapping()
+            throws Exception {
+        JsonNode apiResponse = MAPPER.readTree("""
+                { "dimensions": { "length_overall": 229, "beam": 32 } }
+                """);
+        OutputParameterSpec length = new OutputParameterSpec("length", "number", null,
+                "$.length_overall");
+        OutputParameterSpec dimensions = new OutputParameterSpec("dimensions", "object", null,
+                "$.dimensions");
+        dimensions.getProperties().add(length);
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().add(dimensions);
+
+        JsonNode result = Resolver.resolveOutputMappings(root, apiResponse, MAPPER);
+
+        assertEquals(MAPPER.readTree("""
+                { "dimensions": { "length": 229 } }
+                """), result);
+    }
+
+    @Test
+    public void resolveOutputMappingsShouldEmitNullForMappedNestedObjectWhenSubNodeIsMissing()
+            throws Exception {
+        OutputParameterSpec length = new OutputParameterSpec("length", "number", null,
+                "$.length_overall");
+        OutputParameterSpec dimensions = new OutputParameterSpec("dimensions", "object", null,
+                "$.dimensions");
+        dimensions.getProperties().add(length);
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().add(dimensions);
+
+        JsonNode result = Resolver.resolveOutputMappings(root, MAPPER.readTree("{}"), MAPPER);
+
+        assertTrue(result.has("dimensions"));
+        assertTrue(result.get("dimensions").isNull());
+    }
+
+    @Test
+    public void resolveOutputMappingsShouldShapeNestedValuesMap() throws Exception {
+        JsonNode apiResponse = MAPPER.readTree("""
+                { "ports": { "NOOSL": { "name": "Oslo", "country": "NO" } } }
+                """);
+        OutputParameterSpec ports = new OutputParameterSpec("ports", "object", null, "$.ports");
+        ports.setValues(new OutputParameterSpec(null, "string", null, "$.name"));
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().add(ports);
+
+        JsonNode result = Resolver.resolveOutputMappings(root, apiResponse, MAPPER);
+
+        assertEquals(MAPPER.readTree("""
+                { "ports": { "NOOSL": "Oslo" } }
+                """), result);
+    }
+
+    @Test
+    public void resolveOutputMappingsShouldEmitNestedStaticValue() throws Exception {
+        OutputParameterSpec source = new OutputParameterSpec("source", "string", null, null);
+        source.setValue("registry:{{imo}}");
+        OutputParameterSpec root = new OutputParameterSpec();
+        root.setType("object");
+        root.getProperties().add(source);
+
+        JsonNode result = Resolver.resolveOutputMappings(root, MAPPER.readTree("{}"), MAPPER,
+                Map.of("imo", "IMO-1"));
+
+        assertEquals("registry:IMO-1", result.path("source").asText());
+    }
 }

@@ -36,6 +36,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -55,13 +58,18 @@ class McpToolOutputSchemaDispatchTest {
               "vessel_name": "Northern Star",
               "gross_tonnage": 42000,
               "dimensions": { "length_overall": 229 },
-              "crew": [ { "full_name": "Ada" }, { "full_name": "Grace" } ]
+              "crew": [ { "full_name": "Ada" }, { "full_name": "Grace" } ],
+              "crewIds": [ "CREW-001", "CREW-003" ],
+              "ports": { "NOOSL": { "name": "Oslo" }, "SEGOT": { "name": "Gothenburg" } }
             }
             """;
 
     private Component upstream;
     private int port;
     private String schemaVersion;
+
+    /** Body served by the in-process upstream; a test may replace it before calling a tool. */
+    private volatile String upstreamBody = SHIP_JSON;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -94,6 +102,54 @@ class McpToolOutputSchemaDispatchTest {
     }
 
     @Test
+    void toolsListShouldAdvertiseNestedShapesAndRequiredKeys() throws Exception {
+        JsonNode properties = findTool(toolsList(), "get-ship").path("outputSchema")
+                .path("properties");
+
+        assertEquals("string", properties.path("crew").path("items").path("properties")
+                .path("name").path("type").get(0).asText());
+        assertEquals("string",
+                properties.path("crewIds").path("items").path("type").get(0).asText());
+        assertEquals("string", properties.path("ports").path("additionalProperties")
+                .path("type").get(0).asText());
+        assertEquals("number", properties.path("dimensions").path("properties")
+                .path("length").path("type").get(0).asText());
+        assertTrue(findTool(toolsList(), "get-ship").path("outputSchema").path("required")
+                .isArray());
+    }
+
+    @Test
+    void toolsCallStructuredContentShouldConformToAdvertisedOutputSchema() throws Exception {
+        for (String toolName : new String[] {"get-ship", "ship-name", "get-ship-ref"}) {
+            JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
+            JsonNode structured = toolsCall(toolName).path("structuredContent");
+
+            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
+                    .getInstance(SpecVersion.VersionFlag.V202012)
+                    .getSchema(outputSchema).validate(structured);
+
+            assertTrue(errors.isEmpty(),
+                    "structuredContent of '" + toolName + "' violates its outputSchema: " + errors);
+        }
+    }
+
+    @Test
+    void toolsCallStructuredContentShouldConformWhenUpstreamOmitsMappedFields()
+            throws Exception {
+        upstreamBody = "{\"imo_number\": \"IMO-9321483\"}";
+        JsonNode outputSchema = findTool(toolsList(), "get-ship").path("outputSchema");
+        JsonNode structured = toolsCall("get-ship").path("structuredContent");
+
+        java.util.Set<ValidationMessage> errors = JsonSchemaFactory
+                .getInstance(SpecVersion.VersionFlag.V202012)
+                .getSchema(outputSchema).validate(structured);
+
+        assertTrue(errors.isEmpty(), "sparse upstream must still conform: " + errors);
+        assertTrue(structured.path("crew").isNull());
+        assertTrue(structured.path("dimensions").isNull());
+    }
+
+    @Test
     void toolsListShouldOmitOutputSchemaForArrayOutput() throws Exception {
         JsonNode tool = findTool(toolsList(), "list-crew");
 
@@ -118,6 +174,11 @@ class McpToolOutputSchemaDispatchTest {
         assertEquals(42000, structured.path("tonnage").asInt());
         assertEquals(229, structured.path("specs").path("length").asInt());
         assertEquals(2, structured.path("crew").size());
+        assertEquals("Ada", structured.path("crew").get(0).path("name").asText());
+        assertTrue(structured.path("crew").get(0).path("full_name").isMissingNode(),
+                "nested array items must be shaped, not passed through raw");
+        assertEquals("Oslo", structured.path("ports").path("NOOSL").asText());
+        assertEquals(229, structured.path("dimensions").path("length").asInt());
 
         JsonNode text = JSON.readTree(result.path("content").get(0).path("text").asText());
         assertEquals(structured, text,
@@ -267,6 +328,25 @@ class McpToolOutputSchemaDispatchTest {
                                   name:
                                     type: string
                                     mapping: "$.full_name"
+                            crewIds:
+                              type: array
+                              mapping: "$.crewIds"
+                              items:
+                                type: string
+                                mapping: "$."
+                            ports:
+                              type: object
+                              mapping: "$.ports"
+                              values:
+                                type: string
+                                mapping: "$.name"
+                            dimensions:
+                              type: object
+                              mapping: "$.dimensions"
+                              properties:
+                                length:
+                                  type: number
+                                  mapping: "$.length_overall"
                       list-crew:
                         description: List crew members
                         inputParameters:
@@ -332,7 +412,7 @@ class McpToolOutputSchemaDispatchTest {
                 """.formatted(schemaVersion, port);
     }
 
-    private static Component createUpstream(int port) {
+    private Component createUpstream(int port) {
         Component component = new Component();
         component.getServers().add(Protocol.HTTP, port);
         component.getDefaultHost().attach(new Application() {
@@ -344,7 +424,7 @@ class McpToolOutputSchemaDispatchTest {
                     public void handle(Request request, Response response) {
                         response.setStatus(Status.SUCCESS_OK);
                         response.setEntity(
-                                new StringRepresentation(SHIP_JSON, MediaType.APPLICATION_JSON));
+                                new StringRepresentation(upstreamBody, MediaType.APPLICATION_JSON));
                     }
                 });
                 return router;

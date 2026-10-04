@@ -44,11 +44,30 @@ import java.util.Map;
  * <p>Mock tools (no {@code call}, no {@code steps}) are not described: mock values are always
  * emitted as strings regardless of the declared type, so a typed schema would not match.</p>
  *
- * <p>Every non-root type is nullable ({@code ["<type>", "null"]}) and no property is
- * {@code required}, because the resolver fills unresolved mappings with {@code null} (call mode)
- * or omits them (steps mode). No {@code additionalProperties: false} is emitted, and the shape of
- * a value extracted by a {@code mapping} (e.g. array {@code items}) is not described, because
- * such values are passed through from the upstream response as-is.</p>
+ * <h2>Call mode: shaped, keyed output</h2>
+ *
+ * <p>In call mode {@code Resolver#resolveOutputMappings} <em>shapes</em> the result from the
+ * declared parameters (see {@code Resolver#resolveNestedProperty}), so the schema describes that
+ * shape in depth:</p>
+ * <ul>
+ *   <li>every assembled object (the root, a nested object with {@code properties}, an array item
+ *       object) always carries <b>every</b> declared key — unresolved values are emitted as
+ *       {@code null} — so all of its properties are listed as {@code required};</li>
+ *   <li>a mapped {@code array} with {@code items} advertises its {@code items} schema;</li>
+ *   <li>a mapped {@code object} with {@code values} advertises {@code additionalProperties};</li>
+ *   <li>a nested static {@code value} is always emitted as a string.</li>
+ * </ul>
+ * <p>Values stay nullable ({@code ["<type>", "null"]}): {@code required} guarantees the key, not
+ * a non-null value. Leaf values are extracted as-is, so their declared type is advertised but not
+ * coerced.</p>
+ *
+ * <h2>Steps mode: unshaped, partial output</h2>
+ *
+ * <p>{@code resolveStepMappings} only sets the keys whose mapping resolved and copies step values
+ * through unshaped, so steps-mode schemas declare no {@code required} keys and no
+ * {@code items} / {@code additionalProperties}.</p>
+ *
+ * <p>No {@code additionalProperties: false} is emitted in either mode.</p>
  *
  * <p>This is deliberately not shared with {@code OasExportBuilder#buildOutputSchema}: that
  * builder emits Swagger model objects for OpenAPI 3.x and describes the declared shape, while MCP
@@ -128,10 +147,10 @@ final class McpToolOutputSchema {
      * Build the output schema for a single-call tool.
      *
      * <p>Only a single root {@code object} with {@code properties} is described: the resolver
-     * always emits an object for it (unresolved properties become {@code null}), so every
-     * successful result can carry a conforming {@code structuredContent}. A {@code values} map
-     * root is not described, because an unresolvable map makes the runtime fall back to the raw
-     * upstream text.</p>
+     * always emits an object for it carrying every declared key (unresolved properties become
+     * {@code null}), so every successful result can carry a conforming {@code structuredContent}
+     * and every root property is {@code required}. A {@code values} map root is not described,
+     * because an unresolvable map makes the runtime fall back to the raw upstream text.</p>
      *
      * @param outputParameters the tool's mapped output parameters
      * @return the object schema, or {@code null} when the output is not a single mapped object
@@ -146,7 +165,7 @@ final class McpToolOutputSchema {
             return null;
         }
 
-        Map<String, Object> properties = propertiesSchema(root.getProperties());
+        Map<String, Object> properties = propertiesSchema(root.getProperties(), true);
         if (properties.isEmpty()) {
             return null;
         }
@@ -154,6 +173,7 @@ final class McpToolOutputSchema {
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         schema.put("properties", properties);
+        schema.put("required", List.copyOf(properties.keySet()));
         if (root.getDescription() != null) {
             schema.put("description", root.getDescription());
         }
@@ -172,7 +192,7 @@ final class McpToolOutputSchema {
         if (mappings == null || mappings.isEmpty() || outputParameters == null) {
             return null;
         }
-        Map<String, Object> properties = propertiesSchema(outputParameters);
+        Map<String, Object> properties = propertiesSchema(outputParameters, false);
         if (properties.isEmpty()) {
             return null;
         }
@@ -183,12 +203,13 @@ final class McpToolOutputSchema {
         return schema;
     }
 
-    private static Map<String, Object> propertiesSchema(List<OutputParameterSpec> params) {
+    private static Map<String, Object> propertiesSchema(List<OutputParameterSpec> params,
+            boolean shaped) {
         Map<String, Object> properties = new LinkedHashMap<>();
         if (params != null) {
             for (OutputParameterSpec param : params) {
                 if (param != null && param.getName() != null) {
-                    properties.put(param.getName(), propertySchema(param));
+                    properties.put(param.getName(), propertySchema(param, shaped));
                 }
             }
         }
@@ -196,31 +217,116 @@ final class McpToolOutputSchema {
     }
 
     /**
-     * Build the (nullable) JSON Schema of a nested output parameter, mirroring
-     * {@code Resolver#resolveOutputMappings}: a nested {@code object} without a {@code mapping}
-     * is assembled from its {@code properties}; any other nested parameter (including arrays and
-     * mapped objects) is extracted as-is, so only its type is described. Unknown or missing types
-     * produce an unconstrained schema rather than a guessed one.
+     * Build the call-mode (shaped) JSON Schema of a nested output parameter.
+     *
+     * @see #propertySchema(OutputParameterSpec, boolean)
      */
     static Map<String, Object> propertySchema(OutputParameterSpec param) {
-        Map<String, Object> schema = new LinkedHashMap<>();
-        String type = jsonType(param.getType());
+        return propertySchema(param, true);
+    }
 
+    /**
+     * Build the (nullable) JSON Schema of a nested output parameter.
+     *
+     * <p>When {@code shaped} (call mode) the schema mirrors {@code Resolver#resolveNestedProperty}:
+     * static values are strings, assembled objects list every property as {@code required}, mapped
+     * arrays describe their {@code items}, and mapped value maps describe their
+     * {@code additionalProperties}. When not shaped (steps mode) only the declared type and, for an
+     * unmapped object, its properties are described. Unknown or missing types produce an
+     * unconstrained schema rather than a guessed one.</p>
+     *
+     * @param param  the nested output parameter
+     * @param shaped whether the runtime shapes this value from its declaration (call mode)
+     * @return the JSON Schema of the parameter
+     */
+    static Map<String, Object> propertySchema(OutputParameterSpec param, boolean shaped) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+
+        if (shaped && param.getValue() != null) {
+            // Static values are resolved as Mustache templates and always emitted as text.
+            schema.put("type", "string");
+            putDescription(schema, param);
+            return schema;
+        }
+
+        String type = jsonType(param.getType());
         if (type != null) {
             schema.put("type", List.of(type, "null"));
         }
 
-        if ("object".equals(type) && param.getMapping() == null) {
-            Map<String, Object> properties = propertiesSchema(param.getProperties());
+        if (shaped) {
+            describeShape(param, type, schema);
+        } else if ("object".equals(type) && param.getMapping() == null) {
+            Map<String, Object> properties = propertiesSchema(param.getProperties(), false);
             if (!properties.isEmpty()) {
                 schema.put("properties", properties);
             }
         }
 
+        putDescription(schema, param);
+        return schema;
+    }
+
+    /**
+     * Add the call-mode structure of an object or array parameter to {@code schema}, following
+     * the branch order of {@code Resolver#resolveNestedProperty}.
+     */
+    private static void describeShape(OutputParameterSpec param, String type,
+            Map<String, Object> schema) {
+        if ("object".equals(type)) {
+            if (param.getValues() != null && param.getMapping() != null) {
+                schema.put("additionalProperties", leafSchema(param.getValues()));
+                return;
+            }
+            Map<String, Object> properties = propertiesSchema(param.getProperties(), true);
+            if (!properties.isEmpty()) {
+                schema.put("properties", properties);
+                schema.put("required", List.copyOf(properties.keySet()));
+            }
+        } else if ("array".equals(type) && param.getMapping() != null
+                && param.getItems() != null) {
+            schema.put("items", itemsSchema(param.getItems()));
+        }
+    }
+
+    /**
+     * Build the schema of a mapped array's elements, mirroring the array branch of
+     * {@code Resolver#resolveOutputMappings}: an {@code object} item with {@code properties} is
+     * always assembled as an object carrying every declared key; any other item is extracted
+     * as-is.
+     */
+    private static Map<String, Object> itemsSchema(OutputParameterSpec items) {
+        if ("object".equalsIgnoreCase(items.getType()) && items.getProperties() != null
+                && !items.getProperties().isEmpty()) {
+            Map<String, Object> properties = propertiesSchema(items.getProperties(), true);
+            Map<String, Object> schema = new LinkedHashMap<>();
+            schema.put("type", "object");
+            schema.put("properties", properties);
+            schema.put("required", List.copyOf(properties.keySet()));
+            putDescription(schema, items);
+            return schema;
+        }
+        return leafSchema(items);
+    }
+
+    /**
+     * Build the schema of a value that is extracted as-is (an array element or a value-map
+     * entry): its declared, nullable type only.
+     */
+    private static Map<String, Object> leafSchema(OutputParameterSpec param) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        String type = jsonType(param.getType());
+        if (type != null) {
+            schema.put("type", List.of(type, "null"));
+        }
+        putDescription(schema, param);
+        return schema;
+    }
+
+    private static void putDescription(Map<String, Object> schema, OutputParameterSpec param) {
         if (param.getDescription() != null) {
             schema.put("description", param.getDescription());
         }
-        return schema;
     }
 
     private static String jsonType(String ikanosType) {
