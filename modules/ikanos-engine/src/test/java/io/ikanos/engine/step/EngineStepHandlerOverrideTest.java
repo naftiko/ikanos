@@ -76,14 +76,14 @@ class EngineStepHandlerOverrideTest {
         OperationStepCallSpec step = new OperationStepCallSpec("other-step", "placeholder.greet");
         Map<String, Object> params = new HashMap<>();
 
-        OperationStepExecutor.StepExecutionResult result =
-                executor.executeSteps(Map.of(step.getName(), step), params);
+        // The normal call path targets an unreachable placeholder host, so the step fails.
+        // Since #739 that failure is reported instead of being silently ignored, which also
+        // proves the handler registered for "do-greet" was NOT used for this step.
+        OperationStepExecutor.StepFailedException error = assertThrows(
+                OperationStepExecutor.StepFailedException.class,
+                () -> executor.executeSteps(Map.of(step.getName(), step), params));
 
-        // The handler registered for "do-greet" must NOT have been invoked
-        JsonNode output = result.stepContext.getStepOutput("other-step");
-        if (output != null) {
-            assertNotEquals("handled", output.asText());
-        }
+        assertEquals("other-step", error.getStepName());
     }
 
     @Test
