@@ -6,6 +6,9 @@ info:
   description: "business-description-of-your-capability"
 capability:
   exposes:
+  - type: "control"
+    address: "localhost"
+    port: {{controlPort}}
   - type: "rest"
     namespace: "documentation"
     port: {{port}}

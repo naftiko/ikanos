@@ -14,9 +14,18 @@
 package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.control.ControlServerSpec;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,5 +67,48 @@ public class FileGeneratorTest {
 
         assertEquals("Template not found: templates/capability.unknown.mustache",
                 error.getMessage());
+    }
+
+    @Test
+    public void generateCapabilityFileShouldDeclareLocalhostControlAdapterOnDefaultPort()
+            throws Exception {
+        ControlServerSpec control = generateAndFindControlAdapter("8081");
+
+        assertNotNull(control, "Starter capability should declare a control adapter");
+        assertEquals(ControlPortMixin.DEFAULT_PORT, control.getPort());
+        assertEquals("localhost", control.getAddress());
+    }
+
+    @Test
+    public void generateCapabilityFileShouldMoveControlPortWhenBusinessPortIsDefaultControlPort()
+            throws Exception {
+        String businessPort = String.valueOf(ControlPortMixin.DEFAULT_PORT);
+
+        ControlServerSpec control = generateAndFindControlAdapter(businessPort);
+
+        assertNotNull(control, "Starter capability should declare a control adapter");
+        assertNotEquals(ControlPortMixin.DEFAULT_PORT, control.getPort(),
+                "Control port must not collide with the business adapter port");
+    }
+
+    private static ControlServerSpec generateAndFindControlAdapter(String port) throws IOException {
+        String capabilityName = "starter-" + UUID.randomUUID().toString().replace("-", "");
+        Path yaml = Paths.get(capabilityName + ".ikanos.yaml");
+        try {
+            FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML,
+                    "https://api.example.com", port);
+
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            IkanosSpec spec = mapper.readValue(yaml.toFile(), IkanosSpec.class);
+            for (ServerSpec server : spec.getCapability().getExposes()) {
+                if (server instanceof ControlServerSpec control) {
+                    return control;
+                }
+            }
+            return null;
+        } finally {
+            Files.deleteIfExists(yaml);
+        }
     }
 }

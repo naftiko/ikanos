@@ -46,6 +46,7 @@ public class FileGenerator {
         scope.put("version", VersionHelper.getSchemaVersion());
         scope.put("capabilityName", capabilityName);
         scope.put("port", port);
+        scope.put("controlPort", resolveControlPort(port));
         scope.put("baseUri", baseUri);
         scope.put("path", "{{path}}"); // Let this keyword as is.
         Path outputPath = Paths.get(outputFileName);
@@ -55,5 +56,15 @@ public class FileGenerator {
         }
         
         System.out.println("✓ File created successfully: " + outputPath.toAbsolutePath());
+    }
+
+    /**
+     * Picks the control port for the starter capability: the CLI's default control port, unless
+     * the business adapter already uses it — then the next port, so both adapters can bind.
+     * {@code ikanos health} still finds it by reading the generated file.
+     */
+    static int resolveControlPort(String businessPort) {
+        int defaultPort = ControlPortMixin.DEFAULT_PORT;
+        return String.valueOf(defaultPort).equals(businessPort.trim()) ? defaultPort + 1 : defaultPort;
     }
 }
