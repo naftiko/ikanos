@@ -14,7 +14,7 @@
 package io.ikanos.engine.aggregates;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.consumes.ConsumedResult;
 
 /**
  * Transport-neutral result of executing an aggregate flow.
@@ -23,8 +23,11 @@ import io.ikanos.engine.util.OperationStepExecutor;
  */
 public class FlowResult {
 
-    /** The last HTTP handling context (simple call or last orchestrated step). May be null in mock mode. */
-    public final OperationStepExecutor.HandlingContext lastContext;
+    /**
+     * Result of the last consumed call (simple call or last orchestrated call step). May be null
+     * in mock mode or when no call step ran.
+     */
+    public final ConsumedResult lastResult;
 
     /** Resolved step mappings output (orchestrated mode with mappings). May be null. */
     public final String mappedOutput;
@@ -32,9 +35,8 @@ public class FlowResult {
     /** Mock output built from outputParameter value fields. May be null. */
     public final JsonNode mockOutput;
 
-    FlowResult(OperationStepExecutor.HandlingContext lastContext, String mappedOutput,
-            JsonNode mockOutput) {
-        this.lastContext = lastContext;
+    FlowResult(ConsumedResult lastResult, String mappedOutput, JsonNode mockOutput) {
+        this.lastResult = lastResult;
         this.mappedOutput = mappedOutput;
         this.mockOutput = mockOutput;
     }

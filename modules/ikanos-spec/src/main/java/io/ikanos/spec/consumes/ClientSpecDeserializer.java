@@ -22,13 +22,14 @@ import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
 
 /**
- * Custom deserializer that discriminates between an imported {@link ImportedConsumesHttpSpec}
- * and a regular {@link HttpClientSpec} based on the presence of the {@code from} field.
+ * Custom deserializer for {@code consumes} entries.
  *
  * <p>Design:</p>
  * <ul>
- *   <li>{@code from} present  → {@link ImportedConsumesHttpSpec}</li>
- *   <li>{@code from} absent   → {@link HttpClientSpec}</li>
+ *   <li>{@code from} present → {@link ImportedConsumesHttpSpec}</li>
+ *   <li>otherwise, dispatch on {@code type} through {@link ClientSpecTypes}: absent or
+ *       {@code http} → {@link HttpClientSpec}; a registered type → its spec class; anything else
+ *       → a clear error naming the type and the registered ones.</li>
  * </ul>
  *
  * <p>The legacy {@code location} keyword is rejected with a migration-guidance error.
@@ -57,7 +58,14 @@ public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
             return ctxt.readTreeAsValue(node, ImportedConsumesHttpSpec.class);
         }
 
-        // Otherwise -> HttpClientSpec
-        return ctxt.readTreeAsValue(node, HttpClientSpec.class);
+        // Otherwise dispatch on 'type' (absent -> http)
+        JsonNode typeNode = node.get("type");
+        String type = typeNode != null && !typeNode.isNull() ? typeNode.asText() : null;
+        Class<? extends ClientSpec> specClass = ClientSpecTypes.resolve(type);
+        if (specClass == null) {
+            throw new IOException("Unknown consumes type '" + type + "'. Registered types: "
+                    + ClientSpecTypes.registeredTypes());
+        }
+        return ctxt.readTreeAsValue(node, specClass);
     }
 }

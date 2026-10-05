@@ -33,6 +33,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.ConsumedInvocation;
+import io.ikanos.engine.consumes.ConsumedOperationView;
+import io.ikanos.engine.consumes.http.HttpInvocation;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
@@ -44,6 +47,11 @@ import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 class OperationStepExecutorBranchTest {
+
+    private static ConsumedOperationView viewOf(HttpClientOperationSpec operation) {
+        return ConsumedOperationView.of(operation, operation.getOutputMediaType(),
+                operation.getMaxBinarySize());
+    }
 
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -86,9 +94,9 @@ class OperationStepExecutorBranchTest {
                 () -> executor.findClientRequestFor("svc", "create", Map.of()));
         assertTrue(uriError.getMessage().contains("Unresolved template parameters in URI"));
 
-        OperationStepExecutor.HandlingContext bodyContext =
+        HttpInvocation bodyContext = (HttpInvocation)
           executor.findClientRequestFor("svc", "create", Map.of("orderId", "o-1"));
-        assertEquals("", bodyContext.clientRequest.getEntity().getText());
+        assertEquals("", bodyContext.getRequest().getEntity().getText());
     }
 
     @Test
@@ -136,19 +144,19 @@ class OperationStepExecutorBranchTest {
 
         Map<String, Object> params = Map.of("v", "ok");
 
-        OperationStepExecutor.HandlingContext xml =
-                executor.findClientRequestFor("svc", "xml-op", params);
-        assertEquals(MediaType.APPLICATION_XML, xml.clientRequest.getEntity().getMediaType());
+        HttpInvocation xml =
+                (HttpInvocation) executor.findClientRequestFor("svc", "xml-op", params);
+        assertEquals(MediaType.APPLICATION_XML, xml.getRequest().getEntity().getMediaType());
 
-        OperationStepExecutor.HandlingContext form =
-                executor.findClientRequestFor("svc", "form-op", params);
+        HttpInvocation form =
+                (HttpInvocation) executor.findClientRequestFor("svc", "form-op", params);
         assertEquals(MediaType.APPLICATION_WWW_FORM,
-                form.clientRequest.getEntity().getMediaType());
+                form.getRequest().getEntity().getMediaType());
 
-        OperationStepExecutor.HandlingContext sparql =
-                executor.findClientRequestFor("svc", "sparql-op", params);
+        HttpInvocation sparql =
+                (HttpInvocation) executor.findClientRequestFor("svc", "sparql-op", params);
         assertEquals("application/sparql-query",
-                sparql.clientRequest.getEntity().getMediaType().getName());
+                sparql.getRequest().getEntity().getMediaType().getName());
     }
 
     @Test
@@ -234,7 +242,6 @@ class OperationStepExecutorBranchTest {
         JsonNode passthrough = executor.resolveStepOutput(null, raw);
         assertEquals("u-1", passthrough.path("id").asText());
 
-        OperationStepExecutor.HandlingContext ctx = new OperationStepExecutor.HandlingContext();
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
 
         OutputParameterSpec named = new OutputParameterSpec();
@@ -248,9 +255,8 @@ class OperationStepExecutorBranchTest {
 
         operation.getOutputParameters().add(named);
         operation.getOutputParameters().add(unnamed);
-        ctx.clientOperation = operation;
 
-        JsonNode projected = executor.resolveStepOutput(ctx, raw);
+        JsonNode projected = executor.resolveStepOutput(viewOf(operation), raw);
         assertEquals("u-1", projected.path("userId").asText());
         assertNull(projected.get("name"));
     }
@@ -331,7 +337,7 @@ class OperationStepExecutorBranchTest {
             }
 
             @Override
-            public HandlingContext findClientRequestFor(String clientNamespace,
+            public ConsumedInvocation findClientRequestFor(String clientNamespace,
                     String clientOpName, Map<String, Object> parameters) {
                 capturedParams = new HashMap<>(parameters);
                 return super.findClientRequestFor(clientNamespace, clientOpName, parameters);
@@ -396,7 +402,6 @@ class OperationStepExecutorBranchTest {
                 ]
                 """);
 
-        OperationStepExecutor.HandlingContext ctx = new OperationStepExecutor.HandlingContext();
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
 
         OutputParameterSpec renamed = new OutputParameterSpec();
@@ -405,9 +410,8 @@ class OperationStepExecutorBranchTest {
         renamed.setMapping("$.imo_number");
 
         operation.getOutputParameters().add(renamed);
-        ctx.clientOperation = operation;
 
-        JsonNode result = executor.resolveStepOutput(ctx, raw);
+        JsonNode result = executor.resolveStepOutput(viewOf(operation), raw);
 
         assertTrue(result.isArray(), "result must remain an array");
         assertEquals(2, result.size(), "array must keep both elements");

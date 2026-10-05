@@ -28,6 +28,8 @@ import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowResult;
+import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
@@ -37,7 +39,6 @@ import io.opentelemetry.context.Scope;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.restlet.representation.EmptyRepresentation;
 
 /**
  * Handles MCP tool calls by delegating to consumed HTTP operations.
@@ -64,7 +65,7 @@ public class ToolHandler {
     /**
      * Adapter-level {@code maxBinarySize} sized string ({@code exposes.<name>.maxBinarySize}), or
      * {@code null} when none is declared. Threaded into
-     * {@link OperationStepExecutor.HandlingContext#resolveMaxBinaryBytes(String)} so the per-op
+     * {@link io.ikanos.engine.consumes.ConsumedOperationView#maxBinaryBytes(String)} so the per-op
      * value still wins but the adapter cap overrides the engine default (§4.7 / §8.1).
      */
     private final String maxBinarySize;
@@ -232,7 +233,7 @@ public class ToolHandler {
             return executeViaAggregate(toolSpec, toolName, parameters);
         }
 
-        OperationStepExecutor.HandlingContext found;
+        ConsumedResult found;
         try {
             boolean isOrchestrated =
                     toolSpec.getSteps() != null && !toolSpec.getSteps().isEmpty();
@@ -258,7 +259,7 @@ public class ToolHandler {
                     }
                 }
 
-                return buildToolResult(toolSpec, stepResult.lastContext);
+                return buildToolResult(toolSpec, stepResult.lastResult);
             }
 
             found = stepExecutor.execute(toolSpec.getCall(), toolSpec.getSteps(), parameters,
@@ -299,7 +300,7 @@ public class ToolHandler {
                 return mappedResult(toolName, result.mappedOutput, false, source);
             }
 
-            return buildToolResult(toolSpec, result.lastContext);
+            return buildToolResult(toolSpec, result.lastResult);
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -337,10 +338,10 @@ public class ToolHandler {
     }
 
     /**
-     * Build an MCP CallToolResult from the HTTP client response.
+     * Build an MCP CallToolResult from a consumed result.
      */
     private McpSchema.CallToolResult buildToolResult(McpServerToolSpec toolSpec,
-            OperationStepExecutor.HandlingContext found) throws IOException {
+            ConsumedResult found) throws IOException {
 
         if (found == null) {
             return new McpSchema.CallToolResult(
@@ -349,16 +350,9 @@ public class ToolHandler {
                     true, null, null);
         }
 
-        if (found.clientResponse == null) {
-            return new McpSchema.CallToolResult(List
-                    .of(new McpSchema.TextContent("No response received: client response is null")),
-                    true, null, null);
-        }
-
-        // Check for error status
-        int statusCode = found.clientResponse.getStatus().getCode();
-        boolean isError = statusCode >= 400;
-        boolean hasBody = found.clientResponse.getEntity() != null && !(found.clientResponse.getEntity() instanceof EmptyRepresentation);
+        int statusCode = found.status();
+        boolean isError = found.outcome() != Outcome.SUCCESS;
+        boolean hasBody = found.hasBody();
 
         if (!isError && !hasBody) {
             return new McpSchema.CallToolResult(Collections.emptyList(),
@@ -367,7 +361,7 @@ public class ToolHandler {
             return new McpSchema.CallToolResult(
                     List.of(new McpSchema.TextContent(
                             "No response entity received (HTTP " + statusCode + " "
-                                    + found.clientResponse.getStatus().getReasonPhrase() + ")")),
+                                    + found.reason() + ")")),
                     true, null, null);
         }
 
@@ -375,20 +369,19 @@ public class ToolHandler {
         // bytes under the maxBinarySize cap and emit the MIME-appropriate MCP content block
         // (ImageContent / AudioContent / EmbeddedResource). outputParameters mappings are skipped —
         // they are nonsensical for raw bytes. See capability-binary-content.md §4.4 / §8.2.
-        if (found.isBinary()) {
+        if (found.operation().isBinary()) {
             return buildBinaryToolResult(toolSpec, found, isError);
         }
 
         // Buffer entity text before any mapping to avoid double-read issues
-        String responseText = found.clientResponse.getEntity().getText();
+        String responseText = found.text();
 
         // Apply output parameter mappings if defined, converting from the declared format
-        String outputRawFormat = found.clientOperation != null
-                ? found.clientOperation.getOutputRawFormat() : null;
-        String outputSchema = found.clientOperation != null
-                ? found.clientOperation.getOutputSchema() : null;
-        String mapped = stepExecutor.applyOutputMappings(responseText,
-                toolSpec.getOutputParameters(), outputRawFormat, outputSchema);
+        String mapped = toolSpec.getOutputParameters() != null
+                && !toolSpec.getOutputParameters().isEmpty()
+                && responseText != null && !responseText.isEmpty()
+                        ? stepExecutor.mapResult(found, toolSpec.getOutputParameters())
+                        : null;
         if (mapped != null) {
             return mappedResult(toolSpec.getName(), mapped, isError,
                     McpToolOutputSchema.Source.CALL);
@@ -411,16 +404,16 @@ public class ToolHandler {
      * exception, so the agent receives a usable diagnostic.</p>
      */
     private McpSchema.CallToolResult buildBinaryToolResult(McpServerToolSpec toolSpec,
-            OperationStepExecutor.HandlingContext found, boolean isError) {
+            ConsumedResult found, boolean isError) {
         if (toolSpec.getOutputParameters() != null && !toolSpec.getOutputParameters().isEmpty()) {
             Context.getCurrentLogger().info(
                     "Skipping outputParameters mappings for tool '" + toolSpec.getName()
-                            + "': response is binary (" + found.clientResponseMediaType + ")");
+                            + "': response is binary (" + found.mediaType() + ")");
         }
 
         byte[] bytes;
         try {
-            bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(maxBinarySize));
+            bytes = found.bytes(found.operation().maxBinaryBytes(maxBinarySize));
         } catch (OperationStepExecutor.BinarySizeExceededException e) {
             Context.getCurrentLogger().warning(
                     "Binary tool response exceeded maxBinarySize for '" + toolSpec.getName()
@@ -441,8 +434,8 @@ public class ToolHandler {
                     true, null, null);
         }
 
-        String mediaType = found.clientResponseMediaType != null
-                ? found.clientResponseMediaType
+        String mediaType = found.mediaType() != null
+                ? found.mediaType()
                 : "application/octet-stream";
         McpSchema.Content content = buildBinaryContent(toolSpec.getName(), bytes, mediaType);
         return new McpSchema.CallToolResult(List.of(content), isError, null, null);
