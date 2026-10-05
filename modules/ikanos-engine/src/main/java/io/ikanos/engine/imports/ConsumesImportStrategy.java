@@ -19,7 +19,6 @@ import java.util.List;
 
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
 
 /**
@@ -71,6 +70,7 @@ public class ConsumesImportStrategy implements ImportStrategy<ClientSpec> {
 
     @Override
     public ClientSpec deepCopy(ClientSpec inline, SourceFileLoader loader) throws IOException {
-        return loader.deepCopy(inline, HttpClientSpec.class);
+        // Copy into the entry's own class so non-HTTP consumes types survive import resolution.
+        return loader.deepCopy(inline, inline.getClass());
     }
 }

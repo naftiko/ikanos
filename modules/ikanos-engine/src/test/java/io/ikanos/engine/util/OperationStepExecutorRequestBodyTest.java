@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpInvocation;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 
@@ -57,13 +58,13 @@ class OperationStepExecutorRequestBodyTest {
                                     "line_items[0][price_data][product_data][name]": "{{name}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx = executor.findClientRequestFor("svc", "op",
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
                 Map.of("amount", "500000", "name", "Shaft & seal"));
 
         assertEquals("mode=payment"
                 + "&line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=500000"
                 + "&line_items%5B0%5D%5Bprice_data%5D%5Bproduct_data%5D%5Bname%5D=Shaft+%26+seal",
-                ctx.clientRequest.getEntity().getText());
+                ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -75,10 +76,10 @@ class OperationStepExecutorRequestBodyTest {
                                     q: "{{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "ok"));
 
-        assertEquals(MediaType.APPLICATION_WWW_FORM, ctx.clientRequest.getEntity().getMediaType());
+        assertEquals(MediaType.APPLICATION_WWW_FORM, ctx.getRequest().getEntity().getMediaType());
     }
 
     @Test
@@ -89,11 +90,11 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "grant_type=client_credentials&scope={{scope}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("scope", "read"));
 
         assertEquals("grant_type=client_credentials&scope=read",
-                ctx.clientRequest.getEntity().getText());
+                ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -106,11 +107,11 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "grant_type=client_credentials&redirect_uri=https%3A%2F%2Fapp.example.com&scope={{scope}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx = executor.findClientRequestFor("svc", "op",
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
                 Map.of("scope", "read&client_id=attacker"));
 
         assertEquals("grant_type=client_credentials&redirect_uri=https%3A%2F%2Fapp.example.com"
-                + "&scope=read%26client_id%3Dattacker", ctx.clientRequest.getEntity().getText());
+                + "&scope=read%26client_id%3Dattacker", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -121,10 +122,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "q={{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "a+b 100%"));
 
-        assertEquals("q=a%2Bb+100%25", ctx.clientRequest.getEntity().getText());
+        assertEquals("q=a%2Bb+100%25", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -136,10 +137,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "ids={{ids}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("ids", List.of("a", "b")));
 
-        assertEquals("ids=%5B%22a%22%2C%22b%22%5D", ctx.clientRequest.getEntity().getText());
+        assertEquals("ids=%5B%22a%22%2C%22b%22%5D", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -153,10 +154,10 @@ class OperationStepExecutorRequestBodyTest {
         parameters.put("v", null);
         parameters.put("other", "x");
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", parameters);
 
-        assertEquals("q=&r=1", ctx.clientRequest.getEntity().getText());
+        assertEquals("q=&r=1", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -167,10 +168,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "hello {{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "a&b=c"));
 
-        assertEquals("hello a&b=c", ctx.clientRequest.getEntity().getText());
+        assertEquals("hello a&b=c", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -181,10 +182,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "hello {{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "world"));
 
-        assertEquals("hello world", ctx.clientRequest.getEntity().getText());
+        assertEquals("hello world", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -196,10 +197,10 @@ class OperationStepExecutorRequestBodyTest {
                                     name: "{{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "ok"));
 
-        assertEquals("{\"name\":\"ok\"}", ctx.clientRequest.getEntity().getText());
+        assertEquals("{\"name\":\"ok\"}", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -210,10 +211,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: '{"name": "{{v}}"}'
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("v", "ok"));
 
-        assertEquals("{\"name\": \"ok\"}", ctx.clientRequest.getEntity().getText());
+        assertEquals("{\"name\": \"ok\"}", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -243,10 +244,10 @@ class OperationStepExecutorRequestBodyTest {
                                   data: "hello {{v}}"
                 """);
 
-        OperationStepExecutor.HandlingContext ctx =
+        HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("other", "x"));
 
-        assertEquals("hello ", ctx.clientRequest.getEntity().getText());
+        assertEquals("hello ", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -267,10 +268,10 @@ class OperationStepExecutorRequestBodyTest {
                 """);
         Map<String, Object> parameters = Map.of("v", "{{x}}");
 
-        String fromMap = mapExecutor.findClientRequestFor("svc", "op", parameters)
-                .clientRequest.getEntity().getText();
-        String fromString = stringExecutor.findClientRequestFor("svc", "op", parameters)
-                .clientRequest.getEntity().getText();
+        String fromMap = ((HttpInvocation) mapExecutor.findClientRequestFor("svc", "op", parameters))
+                .getRequest().getEntity().getText();
+        String fromString = ((HttpInvocation) stringExecutor.findClientRequestFor("svc", "op", parameters))
+                .getRequest().getEntity().getText();
 
         assertEquals("q=%7B%7Bx%7D%7D", fromMap);
         assertEquals(fromMap, fromString);
