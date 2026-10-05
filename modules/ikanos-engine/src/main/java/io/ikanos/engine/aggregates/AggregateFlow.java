@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
@@ -145,29 +146,23 @@ public class AggregateFlow {
                 String mapped = stepExecutor.resolveStepMappings(
                         spec.getMappings(), spec.getOutputParameters(), stepResult.stepContext);
                 if (mapped != null) {
-                    return new FlowResult(stepResult.lastContext, mapped, null);
+                    return new FlowResult(stepResult.lastResult, mapped, null);
                 }
             }
 
-            return new FlowResult(stepResult.lastContext, null, null);
+            return new FlowResult(stepResult.lastResult, null, null);
         }
 
         // Simple call mode
-        OperationStepExecutor.HandlingContext found =
+        ConsumedResult found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), merged,
                         "Flow '" + spec.getName() + "'");
 
         // Apply output parameter mappings if defined on the flow
         if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()
-                && found != null && found.clientResponse != null
-                && found.clientResponse.getEntity() != null) {
-            String responseText = found.clientResponse.getEntity().getText();
-            String outputRawFormat = found.clientOperation != null
-                    ? found.clientOperation.getOutputRawFormat() : null;
-            String outputSchema = found.clientOperation != null
-                    ? found.clientOperation.getOutputSchema() : null;
-            String mapped = stepExecutor.applyOutputMappings(responseText,
-                    spec.getOutputParameters(), outputRawFormat, outputSchema);
+                && found != null && found.hasBody()) {
+            String mapped = stepExecutor.mapResult(found,
+                    spec.getOutputParameters());
             if (mapped != null) {
                 return new FlowResult(found, mapped, null);
             }
