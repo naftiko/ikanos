@@ -1,9 +1,0 @@
-{
-  "name": "ci-tooling",
-  "version": "1.0.0",
-  "private": true,
-  "description": "CI/CD dependencies for schema validation",
-  "devDependencies": {
-    "ajv-cli": "^5.0.0"
-  }
-}
