@@ -14,7 +14,6 @@
 package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -87,8 +86,8 @@ public class FileGeneratorTest {
         ControlServerSpec control = generateAndFindControlAdapter(businessPort);
 
         assertNotNull(control, "Starter capability should declare a control adapter");
-        assertNotEquals(ControlPortMixin.DEFAULT_PORT, control.getPort(),
-                "Control port must not collide with the business adapter port");
+        assertEquals(ControlPortMixin.DEFAULT_PORT + 1, control.getPort(),
+                "Control port should move to the next port when the default is taken");
     }
 
     private static ControlServerSpec generateAndFindControlAdapter(String port) throws IOException {
