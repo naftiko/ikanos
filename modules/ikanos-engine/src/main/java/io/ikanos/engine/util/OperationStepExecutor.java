@@ -240,7 +240,7 @@ public class OperationStepExecutor {
                             lastResult = invocation.invoke();
                         } catch (Exception e) {
                             throw new IllegalStateException(
-                                    "Error while handling an HTTP client call", e);
+                                    "Error while handling a consumed call", e);
                         }
 
                         // #739: a non-2xx response fails the whole sequence. Without this, the
@@ -249,7 +249,9 @@ public class OperationStepExecutor {
 
                         // Store call output for lookup references when response is valid JSON.
                         // text() memoizes the body so exposers can still read or forward it.
-                        if (lastResult.hasBody()) {
+                        // Binary bodies are never JSON, and reading them as text would replace
+                        // the original bytes with a decoded string, so they are skipped.
+                        if (lastResult.hasBody() && !lastResult.operation().isBinary()) {
                             try {
                                 String responseText = lastResult.text();
                                 if (responseText != null) {
