@@ -160,8 +160,8 @@ public class ResourceRestlet extends Restlet {
                             response.setStatus(statusOf(found));
                         } catch (Exception e) {
                             sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                    "Error while handling an HTTP client call",
-                                    "Error while handling HTTP client call in call mode", e);
+                                    "Error while handling a consumed call",
+                                    "Error while handling consumed call in call mode", e);
                             return true;
                         }
 
@@ -210,7 +210,7 @@ public class ResourceRestlet extends Restlet {
                         return true;
                     } catch (RuntimeException e) {
                         sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                "Error while handling an HTTP client call",
+                                "Error while handling a consumed call",
                                 "Error while handling orchestrated steps", e);
                         return true;
                     } catch (IOException e) {
