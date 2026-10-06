@@ -16,8 +16,6 @@ package io.ikanos.engine.consumes.http;
 import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.Request;
-import org.restlet.data.ChallengeResponse;
-import org.restlet.data.ChallengeScheme;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
@@ -28,11 +26,6 @@ import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
-import io.ikanos.spec.consumes.http.AuthenticationSpec;
-import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
-import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -41,7 +34,6 @@ import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -263,109 +255,9 @@ public class HttpClientAdapter extends ClientAdapter {
      */
     public void setChallengeResponse(Request serverRequest, Request clientRequest, String targetRef,
             Map<String, Object> parameters) {
-        AuthenticationSpec authenticationSpec = getHttpClientSpec().getAuthentication();
-
-        if (authenticationSpec != null) {
-            Map<String, Object> extendedParameters = getRequestParametersWithBindings(parameters);
-            // Add authentication headers if needed
-            String type = authenticationSpec.getType();
-            ChallengeResponse challengeResponse = null;
-
-            switch (type) {
-                case "basic":
-                    BasicAuthenticationSpec basicAuth =
-                            (BasicAuthenticationSpec) authenticationSpec;
-                    challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
-                    challengeResponse.setIdentifier(
-                            Resolver.resolveMustacheTemplate(basicAuth.getUsername(), extendedParameters));
-                    challengeResponse.setSecret(Resolver
-                            .resolveMustacheTemplate(passwordOrEmpty(basicAuth.getPassword()), extendedParameters)
-                            .toCharArray());
-                    clientRequest.setChallengeResponse(challengeResponse);
-                    break;
-
-                case "digest":
-                    DigestAuthenticationSpec digestAuth =
-                            (DigestAuthenticationSpec) authenticationSpec;
-                    challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_DIGEST);
-                    challengeResponse.setIdentifier(
-                            Resolver.resolveMustacheTemplate(digestAuth.getUsername(), extendedParameters));
-                    challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                            passwordOrEmpty(digestAuth.getPassword()), extendedParameters).toCharArray());
-                    clientRequest.setChallengeResponse(challengeResponse);
-                    break;
-
-                case "bearer":
-                    BearerAuthenticationSpec bearerAuth =
-                            (BearerAuthenticationSpec) authenticationSpec;
-                    challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_OAUTH_BEARER);
-                    challengeResponse.setRawValue(
-                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), extendedParameters));
-                    clientRequest.setChallengeResponse(challengeResponse);
-                    break;
-
-                case "apikey":
-                    ApiKeyAuthenticationSpec apiKeyAuth =
-                            (ApiKeyAuthenticationSpec) authenticationSpec;
-                    String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), extendedParameters);
-                    String value =
-                            Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), extendedParameters);
-                    String placement = apiKeyAuth.getPlacement();
-
-                    if (placement == null) {
-                        throw new IllegalArgumentException(
-                                "Placement is required for apikey authentication (expected: header or query)");
-                    }
-
-                    if (placement.equals("header")) {
-                        if ("Authorization".equalsIgnoreCase(key)) {
-                            ApiKeyAuthorizationHeaderHelper.ensureRegistered();
-                            ChallengeResponse rawChallenge =
-                                    new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
-                            // setIdentifier (not setRawValue): formatResponse() short-circuits to
-                            // the raw value when it is set and never calls the registered helper,
-                            // which is what strips the technicalName + separator Restlet would
-                            // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
-                            rawChallenge.setIdentifier(value);
-                            clientRequest.setChallengeResponse(rawChallenge);
-                        } else {
-                            clientRequest.getHeaders().add(key, value);
-                        }
-                    } else if (placement.equals("query")) {
-                        String separator = targetRef.contains("?") ? "&" : "?";
-                        String newTargetRef = targetRef + separator + key + "=" + value;
-                        clientRequest.setResourceRef(newTargetRef);
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-        } else if(serverRequest != null && serverRequest.getChallengeResponse() != null) {
-            // Use existing challenge response if present
-            clientRequest.setChallengeResponse(serverRequest.getChallengeResponse());
-        }
-    }
-
-    private static String passwordOrEmpty(char[] password) {
-        return password == null ? "" : new String(password);
-    }
-
-    private Map<String, Object> getRequestParametersWithBindings(Map<String, Object> parameters) {
-        Map<String, Object> extendedParameters = new HashMap<>();
-
-        if (parameters != null) {
-            extendedParameters.putAll(parameters);
-        }
-
-        if (getCapability() != null) {
-            Map<String, Object> bindings = getCapability().getBindings();
-            if (bindings != null) {
-                extendedParameters.putAll(bindings);
-            }
-        }
-
-        return extendedParameters;
+        ConsumedAuthentication.apply(getHttpClientSpec().getAuthentication(), serverRequest,
+                clientRequest, targetRef, ConsumedAuthentication.withBindings(parameters,
+                        getCapability() != null ? getCapability().getBindings() : null));
     }
 
     public Client getHttpClient() {
