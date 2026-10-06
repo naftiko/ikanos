@@ -85,7 +85,51 @@ public class CreateCapabilityCommandTest {
         int exitCode = new CommandLine(command).execute("--name", "demo");
 
         assertEquals(1, exitCode);
-        assertTrue(err.toString().contains("--target-uri"), err.toString());
+        assertTrue(err.toString().contains("--target-uri, --port"), err.toString());
+    }
+
+    @Test
+    void executeShouldNotHintAtOptionsAlreadyGivenWhenValueIsMissing() {
+        CreateCapabilityCommand command = capturingCommand(new AtomicReference<>());
+        command.input = new ByteArrayInputStream(new byte[0]);
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        command.err = new PrintStream(err, true, StandardCharsets.UTF_8);
+
+        int exitCode = new CommandLine(command).execute("--name", "demo",
+                "--target-uri", "https://api.example.com");
+
+        assertEquals(1, exitCode);
+        assertTrue(err.toString().contains("also pass --port."), err.toString());
+        assertFalse(err.toString().contains("--name"), err.toString());
+        assertFalse(err.toString().contains("--target-uri"), err.toString());
+    }
+
+    @Test
+    void executeShouldFailWhenTargetUriOptionIsEmpty() {
+        CreateCapabilityCommand command = capturingCommand(new AtomicReference<>());
+        command.input = new ByteArrayInputStream(new byte[0]);
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        command.err = new PrintStream(err, true, StandardCharsets.UTF_8);
+
+        int exitCode = new CommandLine(command).execute("--name", "demo",
+                "--target-uri", " ", "--port", "8080");
+
+        assertEquals(1, exitCode);
+        assertTrue(err.toString().contains("targetUri cannot be empty"));
+    }
+
+    @Test
+    void executeShouldFailWhenPortOptionIsEmpty() {
+        CreateCapabilityCommand command = capturingCommand(new AtomicReference<>());
+        command.input = new ByteArrayInputStream(new byte[0]);
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        command.err = new PrintStream(err, true, StandardCharsets.UTF_8);
+
+        int exitCode = new CommandLine(command).execute("--name", "demo",
+                "--target-uri", "https://api.example.com", "--port", " ");
+
+        assertEquals(1, exitCode);
+        assertTrue(err.toString().contains("port cannot be empty"));
     }
 
     @Test

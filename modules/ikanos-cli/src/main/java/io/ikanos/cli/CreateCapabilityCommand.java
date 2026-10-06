@@ -19,6 +19,8 @@ import picocli.CommandLine.Option;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
@@ -87,8 +89,8 @@ public class CreateCapabilityCommand implements Callable<Integer> {
             return 0;
         } catch (NoSuchElementException e) {
             // A value was neither given as an option nor answered (e.g. stdin closed in a script).
-            err.println("Error: missing value. Pass --name, --target-uri and --port to create a "
-                    + "capability without prompts.");
+            err.println("Error: missing value. To create a capability without prompts, also pass "
+                    + String.join(", ", missingOptions()) + ".");
             return 1;
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
@@ -106,6 +108,24 @@ public class CreateCapabilityCommand implements Callable<Integer> {
         }
         out.print(prompt);
         return scanner.nextLine().trim();
+    }
+
+    /**
+     * Returns the options that were not given on the command line, so the error hint names only
+     * what is still needed to run without prompts.
+     */
+    List<String> missingOptions() {
+        List<String> missing = new ArrayList<>();
+        if (capabilityName == null) {
+            missing.add("--name");
+        }
+        if (targetUri == null) {
+            missing.add("--target-uri");
+        }
+        if (port == null) {
+            missing.add("--port");
+        }
+        return missing;
     }
 
 }
