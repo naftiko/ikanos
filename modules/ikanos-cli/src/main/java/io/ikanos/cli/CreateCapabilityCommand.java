@@ -14,10 +14,12 @@
 package io.ikanos.cli;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
 
@@ -25,9 +27,22 @@ import java.util.concurrent.Callable;
     name = "capability",
     mixinStandardHelpOptions = true,
     aliases = {"cap"},
-    description = "Create a new capability configuration file"
+    description = "Create a new capability configuration file. Values not given as options are "
+        + "asked for interactively."
 )
 public class CreateCapabilityCommand implements Callable<Integer> {
+
+    @Option(names = {"-n", "--name"}, paramLabel = "<name>",
+            description = "Capability name (the file is <name>.ikanos.yaml)")
+    String capabilityName;
+
+    @Option(names = {"-u", "--target-uri"}, paramLabel = "<uri>",
+            description = "Base URI of the API the capability consumes")
+    String targetUri;
+
+    @Option(names = {"-p", "--port"}, paramLabel = "<port>",
+            description = "Port to expose the capability on")
+    String port;
 
     // package-private for testing — allows injection of custom input/output streams
     InputStream input = System.in;
@@ -44,37 +59,53 @@ public class CreateCapabilityCommand implements Callable<Integer> {
     public Integer call() {
         try (Scanner scanner = new Scanner(input)) {
             // Capability name.
-            out.print("Type your capability name: ");
-            String capabilityName = scanner.nextLine().trim();
+            String capabilityName = valueOrAsk(this.capabilityName, "Type your capability name: ",
+                    scanner);
             if (capabilityName.isEmpty()) {
                 err.println("Error: capability name cannot be empty");
                 return 1;
             }
 
             // Base URI.
-            out.print("Enter the target URI: ");
-            String baseUri = scanner.nextLine().trim();
+            String baseUri = valueOrAsk(this.targetUri, "Enter the target URI: ", scanner);
             if (baseUri.isEmpty()) {
                 err.println("Error: targetUri cannot be empty");
                 return 1;
             }
 
             // Port.
-            out.print("Enter the port to expose your capability on: ");
-            String port = scanner.nextLine().trim();
+            String port = valueOrAsk(this.port, "Enter the port to expose your capability on: ",
+                    scanner);
             if (port.isEmpty()) {
                 err.println("Error: port cannot be empty");
                 return 1;
             }
-            
+
             out.println("Creating capability: " + capabilityName + " " + FileFormat.YAML + " " + baseUri + " " + port);
             generateCapabilityFile(capabilityName, baseUri, port);
-            
+
             return 0;
+        } catch (NoSuchElementException e) {
+            // A value was neither given as an option nor answered (e.g. stdin closed in a script).
+            err.println("Error: missing value. Pass --name, --target-uri and --port to create a "
+                    + "capability without prompts.");
+            return 1;
         } catch (IOException e) {
             err.println("Error: " + e.getMessage());
             return 1;
         }
+    }
+
+    /**
+     * Returns the option value when it was given on the command line; otherwise asks for it, so
+     * only the missing values are prompted.
+     */
+    String valueOrAsk(String optionValue, String prompt, Scanner scanner) {
+        if (optionValue != null) {
+            return optionValue.trim();
+        }
+        out.print(prompt);
+        return scanner.nextLine().trim();
     }
 
 }
