@@ -218,6 +218,36 @@ rules:
       field: "tags"
       function: truthy
 
+  ikanos-mcp-consumes-endpoint-https:
+    message: "A consumed MCP `endpoint` must use `https://` unless it targets localhost."
+    description: >
+      Consumed MCP servers receive tool arguments and an upstream credential on every
+      call. Plain HTTP is only acceptable for a local upstream (development, sidecar).
+    severity: error
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'mcp')].endpoint"
+      - "$.capability.consumes[?(@.type == 'mcp')].endpoint"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:|/|$))"
+
+  ikanos-mcp-consumed-tool-hints:
+    message: "Each consumed MCP tool should declare `hints`."
+    description: >
+      Consumed MCP tool hints are authored locally and never derived from the
+      upstream's annotations, which are untrusted. Declaring them makes the
+      behaviour of the composed capability explicit and reviewable.
+    severity: warn
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'mcp')].tools[*]"
+      - "$.capability.consumes[?(@.type == 'mcp')].tools[*]"
+    then:
+      field: "hints"
+      function: truthy
+
   ikanos-consumes-description:
     message: "Each `consumes` entry should have a `description` field."
     description: >
