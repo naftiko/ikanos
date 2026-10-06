@@ -267,8 +267,8 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            return errorResult("Error during HTTP client call",
-                    "Error during HTTP client call for tool '" + toolName + "'", e);
+            return errorResult("Error during consumed call",
+                    "Error during consumed call for tool '" + toolName + "'", e);
         }
 
         // Map the response to MCP CallToolResult

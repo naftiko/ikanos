@@ -20,11 +20,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.ClientSpecTypes;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 
 class ClientAdapterRegistryTest {
@@ -87,5 +89,20 @@ class ClientAdapterRegistryTest {
         assertEquals(Outcome.SUCCESS, Outcome.fromHttpStatus(204));
         assertEquals(Outcome.CLIENT_ERROR, Outcome.fromHttpStatus(404));
         assertEquals(Outcome.UPSTREAM_ERROR, Outcome.fromHttpStatus(503));
+    }
+
+    /**
+     * Spec-side ({@link ClientSpecTypes}) and engine-side ({@link ClientAdapterRegistry}) types
+     * are registered through two independent {@code META-INF/services} files. A provider that
+     * registers on one side only would make a capability parse and then fail at adapter creation,
+     * or the reverse. On this classpath both sides must expose the same set, which includes the
+     * test {@code fake} adapter.
+     */
+    @Test
+    void defaultRegistryShouldExposeSameTypesAsSpecRegistry() {
+        assertEquals(Set.copyOf(ClientSpecTypes.registeredTypes()),
+                Set.copyOf(ClientAdapterRegistry.getDefault().registeredTypes()));
+        assertTrue(ClientAdapterRegistry.getDefault().registeredTypes().contains("fake"),
+                "the test fake adapter should be discovered on both sides");
     }
 }
