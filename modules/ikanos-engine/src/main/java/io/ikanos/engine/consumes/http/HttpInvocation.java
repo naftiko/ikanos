@@ -94,6 +94,12 @@ public class HttpInvocation extends ConsumedInvocation {
         return new HttpConsumedResult(operationSpec, response);
     }
 
+    /**
+     * Kept instead of the base default on purpose: the span-status message stays {@code "HTTP 503"}
+     * (unchanged from before the carrier refactor, so existing trace queries keep matching), and no
+     * status-code attribute is written when Restlet reports no status, whereas the base default
+     * would record {@code 0}.
+     */
     @Override
     protected void annotateSpan(Span span, ConsumedResult result) {
         if (response.getStatus() != null) {

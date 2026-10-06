@@ -39,9 +39,23 @@ class ConsumedCarrierDecouplingTest {
             "HttpClientAdapter", "HttpClientOperationSpec", "HttpInvocation",
             "HttpConsumedResult", "HandlingContext");
 
+    /**
+     * Extra tokens checked in the protocol-neutral classes only. {@code ResourceRestlet} reads the
+     * Restlet entity and status through {@code RestletBackedResult} by design, so it is exempt.
+     * A bare {@code org.restlet} token is not used: these classes legitimately import
+     * {@code org.restlet.Context} (logging) and {@code org.restlet.Request} (inbound REST
+     * parameter resolution). The tokens below target the consumed-response side instead.
+     */
+    private static final List<String> FORBIDDEN_IN_NEUTRAL = List.of(
+            "RestletBackedResult", "org.restlet.Response", "org.restlet.representation");
+
     private static List<String> violations(String source) {
+        return violations(source, FORBIDDEN);
+    }
+
+    private static List<String> violations(String source, List<String> tokens) {
         List<String> found = new ArrayList<>();
-        for (String type : FORBIDDEN) {
+        for (String type : tokens) {
             if (source.contains(type)) {
                 found.add(type);
             }
@@ -61,6 +75,7 @@ class ConsumedCarrierDecouplingTest {
         String source = Files.readString(MAIN.resolve(relativePath), StandardCharsets.UTF_8);
 
         List<String> found = violations(source);
+        found.addAll(violations(source, FORBIDDEN_IN_NEUTRAL));
 
         assertTrue(found.isEmpty(), relativePath + " references " + found);
     }
