@@ -17,14 +17,35 @@ import com.networknt.schema.JsonMetaSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.NonValidationKeyword;
 import com.networknt.schema.SpecVersion.VersionFlag;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-/** Temporary networknt configuration until schema validation migrates to Polychro. */
-public final class SchemaValidatorFactory {
+/**
+ * Provides the networknt {@link JsonSchemaFactory} used to validate Ikanos capabilities.
+ *
+ * <p>This is the same networknt engine as {@code JsonSchemaFactory.getInstance(...)}: the only
+ * difference is that {@code name} is registered as an extra non-validating keyword. The Ikanos
+ * schema uses the JSON Structure {@code name} annotation instead of {@code title}, and networknt
+ * would otherwise log an "Unknown keyword name" warning on every run. No validation rule is added,
+ * removed or relaxed.
+ *
+ * <p>Temporary: remove once schema validation migrates to Polychro.
+ */
+public final class IkanosMetaSchemaFactory {
 
-    private SchemaValidatorFactory() {}
+    private static final Map<VersionFlag, JsonSchemaFactory> FACTORIES = new ConcurrentHashMap<>();
 
-    /** Creates a validator factory that recognizes the JSON Structure {@code name} annotation. */
+    private IkanosMetaSchemaFactory() {}
+
+    /**
+     * Returns a (cached) factory for the given JSON Schema version that recognizes the JSON
+     * Structure {@code name} annotation.
+     */
     public static JsonSchemaFactory getInstance(VersionFlag version) {
+        return FACTORIES.computeIfAbsent(version, IkanosMetaSchemaFactory::create);
+    }
+
+    private static JsonSchemaFactory create(VersionFlag version) {
         JsonMetaSchema standard = JsonSchemaFactory.checkVersion(version).getInstance();
         JsonMetaSchema metaSchema = JsonMetaSchema.builder(standard.getUri(), standard)
                 .addKeyword(new NonValidationKeyword("name"))

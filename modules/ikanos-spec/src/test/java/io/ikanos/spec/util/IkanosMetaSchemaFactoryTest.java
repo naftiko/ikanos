@@ -13,6 +13,8 @@
  */
 package io.ikanos.spec.util;
 
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ch.qos.logback.classic.Logger;
@@ -25,11 +27,12 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion.VersionFlag;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.slf4j.LoggerFactory;
 
-class SchemaValidatorFactoryTest {
+class IkanosMetaSchemaFactoryTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final Logger logger = (Logger) LoggerFactory.getLogger(JsonMetaSchema.class);
@@ -51,7 +54,7 @@ class SchemaValidatorFactoryTest {
     @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
     void validateShouldRecognizeNameWithoutChangingConstraints(VersionFlag version) throws Exception {
         String uri = JsonSchemaFactory.checkVersion(version).getInstance().getUri();
-        JsonSchema schema = SchemaValidatorFactory.getInstance(version).getSchema(mapper.readTree("""
+        JsonSchema schema = IkanosMetaSchemaFactory.getInstance(version).getSchema(mapper.readTree("""
             {
               "$schema": "%s",
               "name": "Example",
@@ -76,10 +79,23 @@ class SchemaValidatorFactoryTest {
     @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
     void validateShouldStillWarnWhenAnotherKeywordIsUnknown(VersionFlag version) throws Exception {
         String keyword = "unknownKeywordFor" + version;
-        SchemaValidatorFactory.getInstance(version).getSchema(mapper.readTree(
+        IkanosMetaSchemaFactory.getInstance(version).getSchema(mapper.readTree(
                 "{\"%s\":true}".formatted(keyword))).validate(mapper.readTree("{}"));
 
         assertTrue(logs.list.stream().anyMatch(event -> event.getFormattedMessage()
                 .contains("Unknown keyword " + keyword)));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
+    void getInstanceShouldReuseFactoryWhenCalledTwiceForSameVersion(VersionFlag version) {
+        assertSame(IkanosMetaSchemaFactory.getInstance(version),
+                IkanosMetaSchemaFactory.getInstance(version));
+    }
+
+    @Test
+    void getInstanceShouldReturnDistinctFactoriesWhenVersionsDiffer() {
+        assertNotSame(IkanosMetaSchemaFactory.getInstance(VersionFlag.V7),
+                IkanosMetaSchemaFactory.getInstance(VersionFlag.V202012));
     }
 }

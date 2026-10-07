@@ -31,7 +31,7 @@ class ValidateCommandIntegrationTest {
 
     @Test
     void validateShouldSucceedWithoutWarningsWhenCapabilityIsValid() throws Exception {
-        Path capability = Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml");
+        Path capability = tutorialCapabilityPath();
 
         Result result = validate(capability);
 
@@ -56,12 +56,30 @@ class ValidateCommandIntegrationTest {
         assertFalse(result.output().contains("Unknown keyword name"), result.output());
     }
 
+    /** Same resolution strategy as {@code ValidateCommandTest}, so both tests find the fixture. */
+    private Path tutorialCapabilityPath() {
+        String projectBasedir = System.getProperty("user.dir");
+        Path mavenPath = Path.of(projectBasedir, "..", "ikanos-docs", "tutorial",
+                "step-1-shipyard-mock.yml");
+        if (Files.exists(mavenPath)) {
+            return mavenPath.normalize();
+        }
+        return Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
+                .toAbsolutePath().normalize();
+    }
+
+    /** Surefire exposes the test classpath separately; fall back to the JVM's own outside Maven. */
+    private static String classpath() {
+        String surefire = System.getProperty("surefire.test.class.path");
+        return surefire != null ? surefire : System.getProperty("java.class.path");
+    }
+
     private Result validate(Path capability) throws Exception {
         Path output = tempDir.resolve("output.txt");
         // networknt remembers unknown keywords globally, so use a fresh JVM for each CLI run.
         Process process = new ProcessBuilder(
                 Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                "-cp", System.getProperty("surefire.test.class.path"),
+                "-cp", classpath(),
                 "io.ikanos.Cli", "validate", capability.toAbsolutePath().toString())
                 .redirectErrorStream(true)
                 .redirectOutput(output.toFile())
