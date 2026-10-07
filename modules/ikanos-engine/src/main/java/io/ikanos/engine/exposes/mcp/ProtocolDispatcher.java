@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandlersFactory;
@@ -33,6 +34,7 @@ import io.opentelemetry.context.Scope;
 import org.restlet.Request;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -55,9 +57,31 @@ public class ProtocolDispatcher {
     public static final String JSONRPC_VERSION = "2.0";
     public static final String MCP_PROTOCOL_VERSION = "2026-07-28";
 
+    /**
+     * Every MCP protocol version this server speaks. This is the single source of truth for
+     * version negotiation: the {@code server/discover} result, the per-request version check and
+     * every {@code UnsupportedProtocolVersionError} are built from it, so supporting a new
+     * version is a one-line change here.
+     */
+    public static final List<String> SUPPORTED_PROTOCOL_VERSIONS = List.of(MCP_PROTOCOL_VERSION);
+
     private final ObjectMapper mapper;
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
+
+    /**
+     * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
+     * {@code fieldName}, e.g. {@code supportedVersions} or {@code supported}.
+     *
+     * @param node the object to add the array to
+     * @param fieldName the name of the array field
+     * @return the created array
+     */
+    public static ArrayNode putSupportedProtocolVersions(ObjectNode node, String fieldName) {
+        ArrayNode versions = node.putArray(fieldName);
+        SUPPORTED_PROTOCOL_VERSIONS.forEach(versions::add);
+        return versions;
+    }
 
     public ProtocolDispatcher(McpServerAdapter adapter) {
         this.mapper = new ObjectMapper();

@@ -145,6 +145,30 @@ public class ProtocolDispatcherNegativeTest {
         assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION));
     }
 
+    @Test
+    public void discoveryAndVersionErrorsShouldAdvertiseTheSameSupportedVersions() throws Exception {
+        // The versions this server speaks are one fact. If server/discover, the per-request
+        // version check and the legacy initialize error ever disagree, a client gets
+        // contradictory answers depending on the path it hits (#732 review).
+        JsonNode discovered = dispatcher.dispatch(mapper.readTree(withProtocolVersion("""
+                {"jsonrpc":"2.0","id":1,"method":"server/discover"}
+                """))).responseBody().path("result").path("supportedVersions");
+        JsonNode rejectedVersion = dispatcher.dispatch(mapper.readTree("""
+                {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{
+                  "io.modelcontextprotocol/protocolVersion":"1900-01-01"}}}
+                """)).responseBody().path("error").path("data").path("supported");
+        JsonNode rejectedInitialize = dispatcher.dispatch(mapper.readTree("""
+                {"jsonrpc":"2.0","id":3,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}
+                """)).responseBody().path("error").path("data").path("supported");
+
+        assertTrue(discovered.isArray() && discovered.size() > 0,
+                "server/discover must list at least one supported version");
+        assertEquals(discovered, rejectedVersion,
+                "UnsupportedProtocolVersionError must list the same versions as server/discover");
+        assertEquals(discovered, rejectedInitialize,
+                "The legacy initialize error must list the same versions as server/discover");
+    }
+
     private String withProtocolVersion(String requestJson) throws Exception {
         ObjectNode request = (ObjectNode) mapper.readTree(requestJson);
         ObjectNode params = request.has("params") && request.get("params").isObject()

@@ -19,8 +19,6 @@ import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.UNSUPPORTED_PROTOCOL_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +28,7 @@ class LegacyInitializeHandlerTest {
 
     ObjectMapper mapper = new ObjectMapper();
     McpServerAdapter adapter = mock();
-    McpCallHandler handler = new LegacyInitializeHandler(adapter, List.of(), List.of(), List.of());
+    McpCallHandler handler = new LegacyInitializeHandler(adapter);
 
     @Test
     void handleShouldRejectWithUnsupportedProtocolVersionNamingSupportedAndRequested()

@@ -18,28 +18,27 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
-import io.ikanos.engine.exposes.mcp.model.McpHeader;
-import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
-import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 
 import java.util.List;
 
-import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION;
+import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS;
+import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.putSupportedProtocolVersions;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.UNSUPPORTED_PROTOCOL_VERSION;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 
 /**
  * Rejects the legacy {@code initialize} handshake with an {@code UnsupportedProtocolVersionError}.
  *
- * <p>The engine only speaks the modern, handshake-free {@value
- * io.ikanos.engine.exposes.mcp.ProtocolDispatcher#MCP_PROTOCOL_VERSION} revision. Per the spec's
+ * <p>The engine only speaks the modern, handshake-free revisions listed in {@link
+ * io.ikanos.engine.exposes.mcp.ProtocolDispatcher#SUPPORTED_PROTOCOL_VERSIONS}. Per the spec's
  * backward-compatibility section, a modern-only server SHOULD name the protocol versions it
  * supports in any error it returns to {@code initialize}: legacy clients have no fall-forward
  * mechanism, and the error message may be the only diagnostic they can show. The versions are
  * therefore named both in {@code error.data.supported} and in the human-readable message.</p>
  *
- * <p>Legacy clients send no MCP request headers and no {@code _meta}, so this handler must be
- * registered without required headers or the protocol-version pre-processor.</p>
+ * <p>Legacy clients send no MCP request headers and no {@code _meta}, so this handler has no
+ * required headers and no pre- or post-processors. The constructor fixes that, so it cannot be
+ * registered otherwise.</p>
  */
 public class LegacyInitializeHandler extends McpCallHandler {
 
@@ -48,10 +47,8 @@ public class LegacyInitializeHandler extends McpCallHandler {
     private static final String MESSAGE_FORMAT = "Unsupported protocol version%s: this server supports "
             + "only MCP %s, which has no initialize handshake";
 
-    public LegacyInitializeHandler(McpServerAdapter adapter, List<McpHeader> requiredHeaders,
-            List<DispatchPreProcessor> preProcessors,
-            List<DispatchPostProcessor> postProcessors) {
-        super(adapter, requiredHeaders, preProcessors, postProcessors);
+    public LegacyInitializeHandler(McpServerAdapter adapter) {
+        super(adapter, List.of(), List.of(), List.of());
     }
 
     @Override
@@ -60,11 +57,12 @@ public class LegacyInitializeHandler extends McpCallHandler {
         String requested = requestBody.path("params").path("protocolVersion").asText("");
 
         ObjectNode data = MAPPER.createObjectNode();
-        data.putArray("supported").add(MCP_PROTOCOL_VERSION);
+        putSupportedProtocolVersions(data, "supported");
         data.put("requested", requested);
 
         String message = MESSAGE_FORMAT.formatted(
-                requested.isEmpty() ? "" : " " + requested, MCP_PROTOCOL_VERSION);
+                requested.isEmpty() ? "" : " " + requested,
+                String.join(", ", SUPPORTED_PROTOCOL_VERSIONS));
         return new HandlerFailureResult(UNSUPPORTED_PROTOCOL_VERSION, buildJsonRpcError(
                 requestBody.get("id"), UNSUPPORTED_PROTOCOL_VERSION.getCode(), message, data));
     }
