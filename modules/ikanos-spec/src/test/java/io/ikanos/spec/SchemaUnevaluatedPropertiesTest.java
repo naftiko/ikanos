@@ -28,7 +28,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
-import io.ikanos.spec.util.SchemaValidatorFactory;
+import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 /**
  * Verifies that {@code unevaluatedProperties: false} on {@code MappedOutputParameter} variants
@@ -50,7 +50,7 @@ class SchemaUnevaluatedPropertiesTest {
             .getClassLoader()
             .getResourceAsStream("schemas/ikanos-schema.json");
     JsonNode schemaNode = new ObjectMapper().readTree(schemaStream);
-    schema = SchemaValidatorFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(schemaNode);
+    schema = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(schemaNode);
   }
 
   @Test
