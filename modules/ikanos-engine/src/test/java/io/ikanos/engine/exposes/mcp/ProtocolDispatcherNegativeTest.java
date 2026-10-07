@@ -29,6 +29,7 @@ import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ProtocolDispatcherNegativeTest {
 
@@ -106,6 +107,42 @@ public class ProtocolDispatcherNegativeTest {
         assertNotNull(response.path("error"));
         assertEquals(-32022, response.path("error").path("code").asInt());
         assertEquals("Unsupported protocol version", response.path("error").path("message").asText());
+    }
+
+    @Test
+    public void dispatchShouldRejectLegacyInitializeNamingTheSupportedVersions() throws Exception {
+        JsonNode response = dispatcher.dispatch(mapper.readTree("""
+                {"jsonrpc":"2.0","id":0,"method":"initialize","params":{
+                  "protocolVersion":"2025-11-25","capabilities":{},
+                  "clientInfo":{"name":"legacy-client","version":"1.0.0"}}}
+                """)).responseBody();
+
+        JsonNode error = response.path("error");
+        assertEquals(-32022, error.path("code").asInt(),
+                "#732: a legacy initialize must get UnsupportedProtocolVersionError, not "
+                        + "'Method not found'");
+        assertEquals(0, response.path("id").asInt());
+        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
+                error.path("data").path("supported").path(0).asText(),
+                "#732: the error data must list the protocol versions the server supports");
+        assertEquals("2025-11-25", error.path("data").path("requested").asText(),
+                "#732: the error data must echo the version the legacy client asked for");
+        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
+                "#732: legacy clients often surface only the message, so it must name the "
+                        + "supported version, got: " + error.path("message").asText());
+    }
+
+    @Test
+    public void dispatchShouldRejectLegacyInitializeWithoutProtocolVersion() throws Exception {
+        JsonNode response = dispatcher.dispatch(mapper.readTree("""
+                {"jsonrpc":"2.0","id":1,"method":"initialize"}
+                """)).responseBody();
+
+        JsonNode error = response.path("error");
+        assertEquals(-32022, error.path("code").asInt(),
+                "#732: an initialize without params must still get UnsupportedProtocolVersionError");
+        assertEquals("", error.path("data").path("requested").asText());
+        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION));
     }
 
     private String withProtocolVersion(String requestJson) throws Exception {

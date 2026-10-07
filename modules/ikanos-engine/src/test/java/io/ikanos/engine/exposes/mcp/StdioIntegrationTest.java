@@ -202,6 +202,32 @@ public class StdioIntegrationTest {
     }
 
     @Test
+    public void stdioShouldRejectLegacyInitializeNamingTheSupportedVersions() throws Exception {
+        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+
+        // The first line a pre-2026-07-28 stdio client writes.
+        String input = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{"
+                + "\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},"
+                + "\"clientInfo\":{\"name\":\"legacy-client\",\"version\":\"1.0.0\"}}}\n";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        new StdioJsonRpcHandler(dispatcher,
+                new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), out).run();
+
+        JsonNode response = new ObjectMapper().readTree(out.toString(StandardCharsets.UTF_8).strip());
+        JsonNode error = response.path("error");
+        assertEquals(-32022, error.path("code").asInt(),
+                "#732: stdio must answer a legacy initialize with UnsupportedProtocolVersionError");
+        assertEquals(0, response.path("id").asInt());
+        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
+                error.path("data").path("supported").path(0).asText());
+        assertEquals("2025-11-25", error.path("data").path("requested").asText());
+        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
+                "#732: the message must name the supported version");
+    }
+
+    @Test
     public void testHttpTransportDefaultWhenNotSet() throws Exception {
         // Load the original MCP capability (no transport field)
         String resourcePath = "src/test/resources/mcp/mcp-capability.yaml";
