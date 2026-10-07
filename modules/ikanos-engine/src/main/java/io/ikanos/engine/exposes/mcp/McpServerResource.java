@@ -47,7 +47,9 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
  *
  * Handles a single endpoint supporting:
  * <ul>
- * <li>POST: JSON-RPC requests (initialize, tools/list, tools/call)</li>
+ * <li>POST: JSON-RPC requests (tools/list, tools/call, server/discover, …). A legacy
+ * {@code initialize} is answered with an {@code UnsupportedProtocolVersionError} naming the
+ * supported versions.</li>
  * <li>GET: SSE stream for server-initiated messages (returns 405 - not supported)</li>
  * <li>DELETE: returns 405 - not supported, kept for backwards compatibility</li>
  * </ul>

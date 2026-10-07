@@ -23,7 +23,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -172,34 +176,28 @@ class McpServerResourceTest {
         }
     }
 
-    @Test
-    void postShouldReturnUnsupportedProtocolVersionForLegacyInitializeWithoutMcpHeaders()
-            throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            String baseUrl = baseUrlFor(adapter);
-
-            try {
-                // Exactly what a pre-2026-07-28 client (e.g. the MCP Inspector in its default
-                // "legacy" mode) sends first: no Mcp-Method / MCP-Protocol-Version headers.
-                HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create(baseUrl))
-                                .POST(HttpRequest.BodyPublishers.ofString(LEGACY_INITIALIZE))
-                                .header("Content-Type", "application/json")
-                                .header("Accept", "application/json, text/event-stream")
-                                .build(),
-                        HttpResponse.BodyHandlers.ofString());
-
-                assertLegacyInitializeRejected(response);
-            } finally {
-                adapter.stop();
-            }
-        }
+    /**
+     * The first request a pre-2026-07-28 client sends, in the three shapes reported in #732. The
+     * MCP Inspector in its default "legacy" mode sends no MCP headers; passing a modern
+     * Mcp-Method header to such a client still sends an initialize body.
+     */
+    static Stream<Arguments> legacyInitializeHeaders() {
+        return Stream.of(
+                Arguments.of("no MCP headers", new String[] {
+                        "Content-Type", "application/json",
+                        "Accept", "application/json, text/event-stream"}),
+                Arguments.of("Mcp-Method: initialize", new String[] {
+                        "Content-Type", "application/json",
+                        "Mcp-Method", "initialize"}),
+                Arguments.of("mismatched Mcp-Method: tools/list", new String[] {
+                        "Content-Type", "application/json",
+                        "Mcp-Method", "tools/list"}));
     }
 
-    @Test
-    void postShouldReturnUnsupportedProtocolVersionForLegacyInitializeWithMcpMethodHeader()
-            throws Exception {
+    @ParameterizedTest(name = "legacy initialize with {0}")
+    @MethodSource("legacyInitializeHeaders")
+    void postShouldReturnUnsupportedProtocolVersionForLegacyInitialize(String scenario,
+            String[] headers) throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
         try (HttpClient client = HttpClient.newHttpClient()) {
             String baseUrl = baseUrlFor(adapter);
@@ -208,37 +206,11 @@ class McpServerResourceTest {
                 HttpResponse<String> response = client.send(
                         HttpRequest.newBuilder(URI.create(baseUrl))
                                 .POST(HttpRequest.BodyPublishers.ofString(LEGACY_INITIALIZE))
-                                .header("Content-Type", "application/json")
-                                .header("Mcp-Method", "initialize")
+                                .headers(headers)
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
 
-                assertLegacyInitializeRejected(response);
-            } finally {
-                adapter.stop();
-            }
-        }
-    }
-
-    @Test
-    void postShouldReturnUnsupportedProtocolVersionForLegacyInitializeWithMismatchedMcpMethodHeader()
-            throws Exception {
-        McpServerAdapter adapter = startAdapterOnFreePort();
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            String baseUrl = baseUrlFor(adapter);
-
-            try {
-                // Reported in #732: passing a modern Mcp-Method header to a legacy client still
-                // sends an initialize body, which used to fail with a confusing header mismatch.
-                HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create(baseUrl))
-                                .POST(HttpRequest.BodyPublishers.ofString(LEGACY_INITIALIZE))
-                                .header("Content-Type", "application/json")
-                                .header("Mcp-Method", "tools/list")
-                                .build(),
-                        HttpResponse.BodyHandlers.ofString());
-
-                assertLegacyInitializeRejected(response);
+                assertLegacyInitializeRejected(scenario, response);
             } finally {
                 adapter.stop();
             }
@@ -399,20 +371,21 @@ class McpServerResourceTest {
                 + adapter.getMcpServerSpec().getPort() + "/";
     }
 
-    private static void assertLegacyInitializeRejected(HttpResponse<String> response)
-            throws Exception {
+    private static void assertLegacyInitializeRejected(String scenario,
+            HttpResponse<String> response) throws Exception {
         assertEquals(400, response.statusCode(),
-                "#732: a legacy initialize must be rejected with 400 Bad Request");
+                "#732 (" + scenario + "): a legacy initialize must be rejected with 400 Bad Request");
         JsonNode body = JSON.readTree(response.body());
         JsonNode error = body.path("error");
         assertEquals(-32022, error.path("code").asInt(),
-                "#732: expected UnsupportedProtocolVersionError, got: " + response.body());
+                "#732 (" + scenario + "): expected UnsupportedProtocolVersionError, got: "
+                        + response.body());
         assertEquals(0, body.path("id").asInt());
         assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
                 error.path("data").path("supported").path(0).asText());
         assertEquals("2025-11-25", error.path("data").path("requested").asText());
         assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
-                "#732: the message must name the supported version, got: "
+                "#732 (" + scenario + "): the message must name the supported version, got: "
                         + error.path("message").asText());
     }
 

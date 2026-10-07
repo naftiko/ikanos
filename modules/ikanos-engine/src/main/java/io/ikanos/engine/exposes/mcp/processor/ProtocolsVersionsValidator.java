@@ -15,12 +15,12 @@ package io.ikanos.engine.exposes.mcp.processor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.exception.ProcessorException;
 
 import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.JSONRPC_VERSION;
-import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION;
+import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS;
+import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.putSupportedProtocolVersions;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_REQUEST;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.UNSUPPORTED_PROTOCOL_VERSION;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
@@ -49,10 +49,9 @@ public class ProtocolsVersionsValidator implements DispatchPreProcessor {
                     "Invalid Request: jsonrpc must be '2.0'"));
         }
 
-        if (!MCP_PROTOCOL_VERSION.equals(bodyProtocolVersion)) {
+        if (!SUPPORTED_PROTOCOL_VERSIONS.contains(bodyProtocolVersion)) {
             ObjectNode data = mapper.createObjectNode();
-            ArrayNode supported = data.putArray("supported");
-            supported.add(MCP_PROTOCOL_VERSION);
+            putSupportedProtocolVersions(data, "supported");
             data.put("requested", bodyProtocolVersion);
             throw new ProcessorException("Unsupported protocol version %s".formatted(bodyProtocolVersion), UNSUPPORTED_PROTOCOL_VERSION,
                     buildJsonRpcError(idNode, UNSUPPORTED_PROTOCOL_VERSION.getCode(), "Unsupported protocol version", data));

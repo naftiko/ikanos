@@ -62,9 +62,8 @@ public class McpCallHandlersFactory {
                         List.of(protocolsVersionsValidator), List.of(serverDataAppender)),
                 new ServerDiscoverHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
                         List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)),
-                // Legacy clients send neither MCP headers nor _meta: no required headers and no
-                // protocol-version validation, so they reach the handler and get its diagnostic.
-                new LegacyInitializeHandler(adapter, List.of(), List.of(), List.of())
+                // Takes no headers or processors: legacy clients send neither MCP headers nor _meta.
+                new LegacyInitializeHandler(adapter)
         );
     }
 }
