@@ -633,9 +633,13 @@ public class OperationStepExecutor {
                                 } else if (data instanceof String) {
                                     // String data (text/xml/sparql, pre-encoded form, or a JSON
                                     // template) is sent as-is after Mustache resolution, never
-                                    // JSON-quoted.
-                                    resolvedBody = Resolver.resolveMustacheTemplate(
-                                            (String) data, parameters);
+                                    // JSON-quoted. In a pre-encoded form the author's literal text
+                                    // is already encoded, so only the substituted values are
+                                    // encoded: a caller value cannot add or alter form fields.
+                                    resolvedBody = Resolver.resolveMustacheTemplate((String) data,
+                                            "formUrlEncoded".equalsIgnoreCase(bodyType)
+                                                    ? formEncodedValues(parameters)
+                                                    : parameters);
                                 } else {
                                     String dataStr;
                                     try {
@@ -689,7 +693,13 @@ public class OperationStepExecutor {
      * bracketed keys such as {@code line_items[0][quantity]} are sent the way APIs like Stripe
      * expect.
      *
-     * @throws IllegalArgumentException when a value still contains an unresolved template
+     * <p>A misspelled or missing variable is not caught here: whenever {@code parameters} is
+     * non-empty, {@link Resolver#resolveMustacheTemplate} renders an unknown variable as an empty
+     * string, so the field is sent with an empty value. The check below only sees a leftover
+     * template when no parameters are available at all, or when a substituted value itself
+     * contains braces.</p>
+     *
+     * @throws IllegalArgumentException when a resolved value still contains {@code {{...}}}
      */
     static String encodeFormBody(Map<?, ?> data, Map<String, Object> parameters) {
         StringBuilder sb = new StringBuilder();
@@ -708,6 +718,38 @@ public class OperationStepExecutor {
                     .append(URLEncoder.encode(value, StandardCharsets.UTF_8));
         }
         return sb.toString();
+    }
+
+    /**
+     * Returns a copy of {@code parameters} whose values are encoded as
+     * {@code application/x-www-form-urlencoded} (UTF-8), for substitution into a pre-encoded form
+     * string. Collections and arrays are JSON-serialized first, as
+     * {@link Resolver#resolveMustacheTemplate} does (falling back to the plain string form);
+     * {@code null} values stay {@code null}.
+     */
+    Map<String, Object> formEncodedValues(Map<String, Object> parameters) {
+        if (parameters == null) {
+            return null;
+        }
+        Map<String, Object> encoded = new HashMap<>();
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            Object value = entry.getValue();
+            if (value == null) {
+                encoded.put(entry.getKey(), null);
+                continue;
+            }
+            String text = String.valueOf(value);
+            if (value instanceof java.util.Collection || value instanceof Object[]) {
+                try {
+                    text = mapper.writeValueAsString(value);
+                } catch (IOException e) {
+                    // Same fallback as Resolver: keep the plain string form.
+                    logger.debug("Form value for '{}' is not JSON-serializable", entry.getKey(), e);
+                }
+            }
+            encoded.put(entry.getKey(), URLEncoder.encode(text, StandardCharsets.UTF_8));
+        }
+        return encoded;
     }
 
     /**

@@ -84,6 +84,88 @@ public class McpFormUrlEncodedBodyIntegrationTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldUrlEncodeCallerValuesInFormStringBody() throws Exception {
+        AtomicReference<String> receivedBody = new AtomicReference<>();
+        AtomicReference<MediaType> receivedType = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, "/oauth/token", receivedBody,
+                receivedType);
+        upstream.start();
+
+        try {
+            // An MCP caller tries to add a client_id field through the scope argument.
+            Capability capability = capabilityFromYaml(tokenCapabilityYaml(port));
+            JsonNode result = callTool(capability, "get-token",
+                    "scope", "read&client_id=attacker");
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertEquals("grant_type=client_credentials&scope=read%26client_id%3Dattacker",
+                    receivedBody.get(),
+                    "The substituted value must stay one encoded field, not add a new one");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    private JsonNode callTool(Capability capability, String tool, String argName, String argValue) {
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(
+                (McpServerAdapter) capability.getServerAdapters().get(0));
+        ObjectMapper mapper = new ObjectMapper();
+
+        ObjectNode request = mapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 1);
+        request.put("method", "tools/call");
+        ObjectNode params = request.putObject("params");
+        params.put("name", tool);
+        params.putObject("arguments").put(argName, argValue);
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+
+        return dispatcher.dispatch(request).responseBody().path("result");
+    }
+
+    private String tokenCapabilityYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - namespace: auth
+                      type: http
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        token:
+                          path: "/oauth/token"
+                          operations:
+                            get-token:
+                              method: POST
+                              body:
+                                type: formUrlEncoded
+                                data: "grant_type=client_credentials&scope={{scope}}"
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: auth-tools
+                      tools:
+                        get-token:
+                          description: "Get an access token"
+                          inputParameters:
+                            scope:
+                              type: string
+                              description: "Requested scope"
+                          call: auth.get-token
+                          with:
+                            scope: auth-tools.scope
+                          outputParameters:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  mapping: "$.id"
+                """.formatted(schemaVersion, port);
+    }
+
     private JsonNode callCreateSession(int upstreamPort, String amount, String name)
             throws Exception {
         Capability capability = capabilityFromYaml(capabilityYaml(upstreamPort));
@@ -155,13 +237,18 @@ public class McpFormUrlEncodedBodyIntegrationTest {
 
     private static Component createRecordingUpstream(int port, AtomicReference<String> body,
             AtomicReference<MediaType> type) {
+        return createRecordingUpstream(port, "/checkout/sessions", body, type);
+    }
+
+    private static Component createRecordingUpstream(int port, String path,
+            AtomicReference<String> body, AtomicReference<MediaType> type) {
         Component component = new Component();
         component.getServers().add(Protocol.HTTP, port);
         component.getDefaultHost().attach(new Application() {
             @Override
             public Restlet createInboundRoot() {
                 Router router = new Router(getContext());
-                router.attach("/checkout/sessions", new Restlet() {
+                router.attach(path, new Restlet() {
                     @Override
                     public void handle(Request request, Response response) {
                         try {
