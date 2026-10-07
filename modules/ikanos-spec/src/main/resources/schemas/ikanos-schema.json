@@ -2376,7 +2376,7 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Pre-encoded form string (e.g. `grant_type=client_credentials&scope=read`)."
+              "description": "Pre-encoded form string (e.g. `grant_type=client_credentials&scope={{scope}}`). Write the literal text already encoded. Values substituted through `{{...}}` templates are URL-encoded by the framework, so a value can never add or change form fields."
             },
             {
               "type": "object",
