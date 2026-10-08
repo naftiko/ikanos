@@ -52,6 +52,7 @@ public class McpServerToolSpec {
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<McpToolHintsSpec> hints = new AtomicReference<>();
+    private final AtomicReference<McpToolUiSpec> ui = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
@@ -131,6 +132,10 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public McpToolHintsSpec getHints() { return hints.get(); }
     public void setHints(McpToolHintsSpec hints) { this.hints.set(hints); }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public McpToolUiSpec getUi() { return ui.get(); }
+    public void setUi(McpToolUiSpec ui) { this.ui.set(ui); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getRef() { return ref.get(); }

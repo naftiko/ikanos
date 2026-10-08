@@ -93,6 +93,10 @@ public class McpServerAdapter extends ServerAdapter {
         this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),
                 serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
 
+        // MCP Apps: every tool ui.resourceUri must resolve to a declared static ui:// view
+        McpAppsMetadata.validate(serverSpec.getTools().values(),
+                serverSpec.getResources().values(), resourceHandler);
+
         // Create the prompt handler (transport-agnostic)
         this.promptHandler = new PromptHandler(serverSpec.getPrompts());
 
@@ -183,7 +187,8 @@ public class McpServerAdapter extends ServerAdapter {
         return McpSchema.Tool.builder().name(toolSpec.getName())
                 .description(toolSpec.getDescription()).inputSchema(inputSchema)
                 .outputSchema(contract != null ? contract.schema() : null)
-                .annotations(annotations).build();
+                .annotations(annotations).meta(McpAppsMetadata.toolMeta(toolSpec.getUi()))
+                .build();
     }
 
     /**

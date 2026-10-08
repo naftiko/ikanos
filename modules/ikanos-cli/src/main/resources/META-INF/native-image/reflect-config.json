@@ -1420,6 +1420,30 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.ikanos.spec.exposes.mcp.McpToolUiSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiCspSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiPermissionsSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
     "name": "io.ikanos.spec.exposes.mcp.McpPromptArgumentSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
