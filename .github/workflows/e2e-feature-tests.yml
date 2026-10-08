@@ -37,7 +37,7 @@ jobs:
         run: |
           docker compose \
             -f .github/e2e/resources/docker-compose.yml \
-            up -d microcks keycloak
+            up -d microcks keycloak authgw
         env:
           COMPOSE_PROJECT_NAME: ikanos-e2e
 
@@ -61,6 +61,22 @@ jobs:
             fi
             echo "  attempt $i/36 – retrying in 5s..."; sleep 5
             [ "$i" -eq 36 ] && { docker compose -f .github/e2e/resources/docker-compose.yml logs keycloak; exit 1; }
+          done
+
+      # authgw fronts Microcks with one authenticated vhost per consumed auth
+      # type. /authgw-health is the only unauthenticated path on each vhost.
+      - name: Wait for authgw
+        run: |
+          echo "Waiting for authgw..."
+          for i in $(seq 1 24); do
+            if curl -sf http://localhost:8090/authgw-health > /dev/null \
+            && curl -sf http://localhost:8091/authgw-health > /dev/null \
+            && curl -sf http://localhost:8092/authgw-health > /dev/null \
+            && curl -sf http://localhost:8093/authgw-health > /dev/null; then
+              echo "authgw is up (8090 basic, 8091 apikey, 8092 digest, 8093 raw-authorization)"; break
+            fi
+            echo "  attempt $i/24 – retrying in 5s..."; sleep 5
+            [ "$i" -eq 24 ] && { docker compose -f .github/e2e/resources/docker-compose.yml logs authgw; exit 1; }
           done
 
       - name: Import OpenAPI specs into Microcks
