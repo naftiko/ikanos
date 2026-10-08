@@ -338,8 +338,8 @@ public class ResolverTest {
     }
 
     /**
-     * The value encoder applies to strings and numbers only. Other scalars keep their type, so a
-     * Mustache section on a {@code Boolean} is evaluated the same way with or without an encoder.
+     * The value encoder transforms what a variable tag prints, never the values sections are
+     * evaluated on: a section on a {@code Boolean} renders the same with or without an encoder.
      */
     @Test
     public void resolveMustacheTemplateWithEncoderShouldKeepBooleanSectionSemantics() {
@@ -348,9 +348,35 @@ public class ResolverTest {
 
         assertEquals(Resolver.resolveMustacheTemplate(template, params),
                 Resolver.resolveMustacheTemplate(template, params, v -> "<" + v + ">"));
-        assertEquals("v=<x>&n=<3>&b=true",
+        assertEquals("v=<x>&n=<3>&b=<true>",
                 Resolver.resolveMustacheTemplate("v={{s}}&n={{n}}&b={{b}}",
                         Map.of("s", "x", "n", 3, "b", true), v -> "<" + v + ">"));
+    }
+
+    /**
+     * The value encoder applies to every value a template prints: nested paths, unescaped tags
+     * and section items included, not only top-level parameters.
+     */
+    @Test
+    public void resolveMustacheTemplateWithEncoderShouldTransformNestedAndUnescapedValues() {
+        Map<String, Object> params = Map.of("step",
+                Map.of("v", "x", "inner", Map.of("w", "y"), "items", List.of("p", "q")));
+
+        assertEquals("a=<x>&b=<y>&c=<x>&d=<x>&<p><q>",
+                Resolver.resolveMustacheTemplate(
+                        "a={{step.v}}&b={{step.inner.w}}&c={{{step.v}}}&d={{&step.v}}"
+                                + "&{{#step.items}}{{.}}{{/step.items}}",
+                        params, v -> "<" + v + ">"));
+    }
+
+    @Test
+    public void resolveMustacheTemplateWithoutEncoderShouldRenderNestedValuesUnchanged() {
+        Map<String, Object> params = Map.of("step", Map.of("v", "x&y", "n", 2));
+
+        assertEquals("a=x&y&n=2",
+                Resolver.resolveMustacheTemplate("a={{step.v}}&n={{step.n}}", params));
+        assertEquals("a=x&y&n=2",
+                Resolver.resolveMustacheTemplate("a={{step.v}}&n={{step.n}}", params, null));
     }
 
     /**

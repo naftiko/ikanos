@@ -59,15 +59,17 @@ public class Resolver {
     }
 
     /**
-     * Same as {@link #resolveMustacheTemplate(String, Map)}, with a transformation applied to each
-     * string and number value (collections and arrays are JSON-serialized first, so they are
-     * transformed too). Other values, such as a {@code Boolean}, are left untouched so that Mustache
-     * sections on them are evaluated exactly as without a transformation. Used, for example, to
-     * percent-encode values substituted into a pre-encoded form body.
+     * Same as {@link #resolveMustacheTemplate(String, Map)}, with a transformation applied to the
+     * text of every value a variable tag renders: top-level parameters, nested paths such as
+     * {@code {{step.field}}}, unescaped tags ({@code {{{x}}}}, {@code {{&x}}}) and section items
+     * alike. Sections are evaluated on the untransformed values, so a section on a
+     * {@code Boolean} behaves exactly as without a transformation. The template's literal text is
+     * never transformed. Used, for example, to percent-encode values substituted into a
+     * pre-encoded form body.
      *
      * @param template the template string containing {{...}} placeholders
      * @param parameters map of parameter names to values for template resolution
-     * @param valueEncoder transformation of each substituted value, or {@code null} for none
+     * @param valueEncoder transformation of each rendered value, or {@code null} for none
      * @return the resolved string, or the original template if parameters is null or empty
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
@@ -93,9 +95,6 @@ public class Resolver {
                     // keep the plain value
                 }
             }
-            if (valueEncoder != null && (val instanceof String || val instanceof Number)) {
-                val = valueEncoder.apply(String.valueOf(val));
-            }
             serialized.put(entry.getKey(), val);
         }
 
@@ -103,8 +102,13 @@ public class Resolver {
         // This is desirable for HTML output, but templates here produce JSON bodies or URI strings —
         // never HTML. Without this, serialized array values like ["CREW-001"] would be rendered
         // as [&quot;CREW-001&quot;], producing invalid JSON.
-        return Mustache.compiler().escapeHTML(false).defaultValue("").compile(template)
-            .execute(serialized);
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("");
+        if (valueEncoder != null) {
+            // The formatter runs on every rendered value, whatever its path or tag, and only on
+            // rendering: sections still see the original values.
+            compiler = compiler.withFormatter(value -> valueEncoder.apply(String.valueOf(value)));
+        }
+        return compiler.compile(template).execute(serialized);
     }
 
     /**
