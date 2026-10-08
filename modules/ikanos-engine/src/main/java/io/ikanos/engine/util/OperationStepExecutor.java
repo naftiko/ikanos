@@ -1122,9 +1122,6 @@ public class OperationStepExecutor {
         }
     }
 
-    /** Longest upstream error excerpt carried by {@link StepFailedException}. */
-    static final int STEP_FAILURE_BODY_EXCERPT = 300;
-
     /**
      * Throw {@link StepFailedException} when a call step's upstream response is not 2xx.
      * A missing response or status (connection failure) counts as a failure too.
@@ -1136,34 +1133,18 @@ public class OperationStepExecutor {
         }
         int code = clientResponse != null && clientResponse.getStatus() != null
                 ? clientResponse.getStatus().getCode() : 0;
-        String excerpt = null;
-        Representation entity = clientResponse != null ? clientResponse.getEntity() : null;
-        if (entity != null) {
-            // Read only the head of the body: an error page can be arbitrarily large.
-            try (InputStream in = entity.getStream()) {
-                if (in != null) {
-                    byte[] head = in.readNBytes(STEP_FAILURE_BODY_EXCERPT + 1);
-                    String text = new String(head, 0, Math.min(head.length, STEP_FAILURE_BODY_EXCERPT),
-                            java.nio.charset.StandardCharsets.UTF_8);
-                    if (!text.isBlank()) {
-                        excerpt = head.length > STEP_FAILURE_BODY_EXCERPT ? text + "..." : text;
-                    }
-                }
-            } catch (IOException e) {
-                logger.debug("Could not read the failed step's response body", e);
-            } finally {
-                entity.release();
-            }
+        if (clientResponse != null && clientResponse.getEntity() != null) {
+            clientResponse.getEntity().release();
         }
-        throw new StepFailedException(stepName, code, excerpt);
+        throw new StepFailedException(stepName, code);
     }
 
     /**
      * Thrown when a call step in an orchestrated sequence receives a non-2xx response (or no
      * response at all). The remaining steps are not executed (#739).
      *
-     * <p>The message names the step and the HTTP status; the upstream body excerpt is kept
-     * separately so adapters can decide whether to expose it.</p>
+     * <p>The message names the step and the HTTP status. The upstream body is not carried, so
+     * adapters cannot disclose it by accident.</p>
      */
     public static class StepFailedException extends IllegalStateException {
 
@@ -1171,15 +1152,13 @@ public class OperationStepExecutor {
 
         private final String stepName;
         private final int statusCode;
-        private final transient String bodyExcerpt;
 
-        public StepFailedException(String stepName, int statusCode, String bodyExcerpt) {
+        StepFailedException(String stepName, int statusCode) {
             super(statusCode > 0
                     ? "Step '" + stepName + "' failed with HTTP " + statusCode
                     : "Step '" + stepName + "' failed: no response received");
             this.stepName = stepName;
             this.statusCode = statusCode;
-            this.bodyExcerpt = bodyExcerpt;
         }
 
         /** @return the name of the step that failed */
@@ -1190,11 +1169,6 @@ public class OperationStepExecutor {
         /** @return the upstream HTTP status, or 0 when no response was received */
         public int getStatusCode() {
             return statusCode;
-        }
-
-        /** @return the start of the upstream response body, or null */
-        public String getBodyExcerpt() {
-            return bodyExcerpt;
         }
     }
 

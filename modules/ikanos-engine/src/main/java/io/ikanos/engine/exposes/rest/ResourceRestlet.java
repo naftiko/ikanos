@@ -195,6 +195,11 @@ public class ResourceRestlet extends Restlet {
                                 return true;
                             }
                         }
+                    } catch (OperationStepExecutor.StepFailedException e) {
+                        sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
+                                "An upstream call failed",
+                                "Orchestrated step failed", e);
+                        return true;
                     } catch (IllegalArgumentException e) {
                         sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
                                 "Invalid request", "Invalid argument in orchestrated steps", e);
@@ -272,6 +277,10 @@ public class ResourceRestlet extends Restlet {
         } catch (IllegalArgumentException e) {
             sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, "Invalid request",
                     "Error in aggregate function call", e);
+            return true;
+        } catch (OperationStepExecutor.StepFailedException e) {
+            sendError(response, Status.SERVER_ERROR_BAD_GATEWAY, "An upstream call failed",
+                    "Aggregate flow step failed", e);
             return true;
         } catch (Exception e) {
             sendError(response, Status.SERVER_ERROR_INTERNAL, "Error in aggregate function call",
