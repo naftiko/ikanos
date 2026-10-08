@@ -134,8 +134,22 @@ public class ToolHandler {
     McpSchema.CallToolResult mappedResult(String toolName, String mapped, boolean isError,
             McpToolOutputSchema.Source source) {
         Object structured = isError ? null : structuredContentFor(toolName, mapped, source);
-        return new McpSchema.CallToolResult(List.of(new McpSchema.TextContent(mapped)), isError,
-                structured, null);
+        return new McpSchema.CallToolResult(List.of(textContent(mapped)), isError, structured,
+                null);
+    }
+
+    /**
+     * Build a single MCP text content block.
+     */
+    static McpSchema.TextContent textContent(String text) {
+        return McpSchema.TextContent.builder(text).build();
+    }
+
+    /**
+     * Build a tool result carrying a single text content block and no {@code structuredContent}.
+     */
+    static McpSchema.CallToolResult textResult(String text, boolean isError) {
+        return new McpSchema.CallToolResult(List.of(textContent(text)), isError, null, null);
     }
 
     /**
@@ -287,8 +301,7 @@ public class ToolHandler {
                 String json = JSON.writeValueAsString(
                         result.mockOutput != null ? result.mockOutput
                                 : JSON.createObjectNode());
-                return new McpSchema.CallToolResult(
-                        List.of(new McpSchema.TextContent(json)), false, null, null);
+                return textResult(json, false);
             }
 
             if (result.hasMappedOutput()) {
@@ -318,8 +331,7 @@ public class ToolHandler {
                 parameters);
 
         String json = JSON.writeValueAsString(mockRoot != null ? mockRoot : JSON.createObjectNode());
-        return new McpSchema.CallToolResult(
-                List.of(new McpSchema.TextContent(json)), false, null, null);
+        return textResult(json, false);
     }
 
     /**
@@ -330,10 +342,7 @@ public class ToolHandler {
     private static McpSchema.CallToolResult errorResult(String publicMessage, String logContext,
             Throwable cause) {
         String ref = ErrorReference.record(Level.WARNING, logContext, cause);
-        return new McpSchema.CallToolResult(
-                List.of(new McpSchema.TextContent(
-                        ErrorReference.withReference(publicMessage, ref))),
-                true, null, null);
+        return textResult(ErrorReference.withReference(publicMessage, ref), true);
     }
 
     /**
@@ -343,16 +352,11 @@ public class ToolHandler {
             OperationStepExecutor.HandlingContext found) throws IOException {
 
         if (found == null) {
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent(
-                            "No response received: no matching client adapter found")),
-                    true, null, null);
+            return textResult("No response received: no matching client adapter found", true);
         }
 
         if (found.clientResponse == null) {
-            return new McpSchema.CallToolResult(List
-                    .of(new McpSchema.TextContent("No response received: client response is null")),
-                    true, null, null);
+            return textResult("No response received: client response is null", true);
         }
 
         // Check for error status
@@ -364,11 +368,8 @@ public class ToolHandler {
             return new McpSchema.CallToolResult(Collections.emptyList(),
                     false, null, null);
         } else if (!hasBody) {
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent(
-                            "No response entity received (HTTP " + statusCode + " "
-                                    + found.clientResponse.getStatus().getReasonPhrase() + ")")),
-                    true, null, null);
+            return textResult("No response entity received (HTTP " + statusCode + " "
+                    + found.clientResponse.getStatus().getReasonPhrase() + ")", true);
         }
 
         // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
@@ -395,9 +396,7 @@ public class ToolHandler {
         }
 
         // Fall back to raw response
-        return new McpSchema.CallToolResult(
-                List.of(new McpSchema.TextContent(responseText != null ? responseText : "")),
-                isError, null, null);
+        return textResult(responseText != null ? responseText : "", isError);
     }
 
     /**
@@ -425,20 +424,15 @@ public class ToolHandler {
             Context.getCurrentLogger().warning(
                     "Binary tool response exceeded maxBinarySize for '" + toolSpec.getName()
                             + "': " + e);
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent(
-                            "Upstream response exceeded maxBinarySize (limit=" + e.getMaxBytes()
-                                    + " bytes)")),
-                    true, null, null);
+            return textResult("Upstream response exceeded maxBinarySize (limit="
+                    + e.getMaxBytes() + " bytes)", true);
         } catch (IOException e) {
             return errorResult("Error buffering binary response",
                     "Error buffering binary tool response for '" + toolSpec.getName() + "'", e);
         }
 
         if (bytes == null) {
-            return new McpSchema.CallToolResult(
-                    List.of(new McpSchema.TextContent("No binary response entity received")),
-                    true, null, null);
+            return textResult("No binary response entity received", true);
         }
 
         String mediaType = found.clientResponseMediaType != null
@@ -470,18 +464,18 @@ public class ToolHandler {
         String lower = mediaType.toLowerCase();
 
         if (lower.startsWith("image/")) {
-            return new McpSchema.ImageContent(null, data, mediaType);
+            return McpSchema.ImageContent.builder(data, mediaType).build();
         }
         if (lower.startsWith("audio/")) {
-            return new McpSchema.AudioContent(null, data, mediaType);
+            return McpSchema.AudioContent.builder(data, mediaType).build();
         }
 
         String capabilityName = exposeNamespace != null ? exposeNamespace : "ikanos";
         String uri = "ikanos://transient/" + capabilityName + "/" + toolName + "/"
                 + UUID.randomUUID();
         McpSchema.BlobResourceContents blob =
-                new McpSchema.BlobResourceContents(uri, mediaType, data);
-        return new McpSchema.EmbeddedResource(null, blob);
+                McpSchema.BlobResourceContents.builder(uri, data).mimeType(mediaType).build();
+        return McpSchema.EmbeddedResource.builder(blob).build();
     }
 
     /**
