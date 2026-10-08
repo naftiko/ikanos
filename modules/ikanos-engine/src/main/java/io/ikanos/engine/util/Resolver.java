@@ -55,6 +55,22 @@ public class Resolver {
      *         parameters is null or empty
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters) {
+        return resolveMustacheTemplate(template, parameters, null);
+    }
+
+    /**
+     * Same as {@link #resolveMustacheTemplate(String, Map)}, with a transformation applied to each
+     * non-null value after its string form is computed (collections and arrays JSON-serialized,
+     * other values via {@code String.valueOf}). Used, for example, to percent-encode values
+     * substituted into a pre-encoded form body.
+     *
+     * @param template the template string containing {{...}} placeholders
+     * @param parameters map of parameter names to values for template resolution
+     * @param valueEncoder transformation of each substituted value, or {@code null} for none
+     * @return the resolved string, or the original template if parameters is null or empty
+     */
+    public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
+            java.util.function.UnaryOperator<String> valueEncoder) {
         if (template == null) {
             return template;
         }
@@ -71,13 +87,15 @@ public class Resolver {
             Object val = entry.getValue();
             if (val instanceof java.util.Collection || val instanceof Object[]) {
                 try {
-                    serialized.put(entry.getKey(), jsonMapper.writeValueAsString(val));
+                    val = jsonMapper.writeValueAsString(val);
                 } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-                    serialized.put(entry.getKey(), val);
+                    // keep the plain value
                 }
-            } else {
-                serialized.put(entry.getKey(), val);
             }
+            if (valueEncoder != null && val != null) {
+                val = valueEncoder.apply(String.valueOf(val));
+            }
+            serialized.put(entry.getKey(), val);
         }
 
         // escapeHTML(false): JMustache escapes HTML entities by default (e.g. " → &quot;).
