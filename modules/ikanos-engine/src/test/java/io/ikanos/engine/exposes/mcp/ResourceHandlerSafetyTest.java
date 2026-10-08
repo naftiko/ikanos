@@ -104,10 +104,10 @@ public class ResourceHandlerSafetyTest {
             specMap.put(templateSpec.getName(), templateSpec);
             ResourceHandler handler = new ResourceHandler(null, specMap, null);
 
-            List<Map<String, String>> listed = handler.listAll();
+            List<ResourceHandler.ResourceDescriptor> listed = handler.listAll();
             assertEquals(2, listed.size());
-            assertTrue(listed.stream().anyMatch(e -> "data://docs/guide.md".equals(e.get("uri"))));
-            assertTrue(listed.stream().anyMatch(e -> "data://docs/data.json".equals(e.get("uri"))));
+            assertTrue(listed.stream().anyMatch(e -> "data://docs/guide.md".equals(e.uri())));
+            assertTrue(listed.stream().anyMatch(e -> "data://docs/data.json".equals(e.uri())));
 
             List<McpServerResourceSpec> templates = handler.listTemplates();
             assertEquals(1, templates.size());

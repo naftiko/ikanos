@@ -87,16 +87,30 @@ public class ResourceHandler {
         public final String text;
         /** Base64-encoded binary content, or {@code null} when text. */
         public final String blob;
+        /**
+         * Content-item {@code _meta} (for example MCP Apps {@code ui} metadata), or {@code null}
+         * when the resource declares none.
+         */
+        public final Map<String, Object> meta;
 
-        private ResourceContent(String uri, String mimeType, String text, String blob) {
+        private ResourceContent(String uri, String mimeType, String text, String blob,
+                Map<String, Object> meta) {
             this.uri = uri;
             this.mimeType = mimeType;
             this.text = text;
             this.blob = blob;
+            this.meta = meta;
         }
 
         public static ResourceContent text(String uri, String mimeType, String text) {
-            return new ResourceContent(uri, mimeType, text, null);
+            return new ResourceContent(uri, mimeType, text, null, null);
+        }
+
+        /**
+         * Return a copy of this content item carrying {@code meta} as its {@code _meta}.
+         */
+        public ResourceContent withMeta(Map<String, Object> meta) {
+            return new ResourceContent(uri, mimeType, text, blob, meta);
         }
 
         /**
@@ -108,8 +122,22 @@ public class ResourceHandler {
          * @param base64   the base64-encoded bytes
          */
         public static ResourceContent binary(String uri, String mimeType, String base64) {
-            return new ResourceContent(uri, mimeType, null, base64);
+            return new ResourceContent(uri, mimeType, null, base64, null);
         }
+    }
+
+    /**
+     * A concrete resource entry returned by {@link #listAll()} for {@code resources/list}.
+     *
+     * @param uri         the concrete resource URI (expanded per file for static directories)
+     * @param name        the resource name (its key in the capability)
+     * @param display     the human-readable title (falls back to {@code name})
+     * @param description the resource description
+     * @param mimeType    the declared or probed MIME type, or {@code null}
+     * @param meta        the entry {@code _meta} (for example MCP Apps {@code ui}), or {@code null}
+     */
+    public record ResourceDescriptor(String uri, String name, String display, String description,
+            String mimeType, Map<String, Object> meta) {
     }
 
     /**
@@ -126,13 +154,13 @@ public class ResourceHandler {
             if (spec.isStatic()) {
                 // Static resources: exact URI or prefix match for file listings
                 if (uriMatchesStatic(spec, uri)) {
-                    return readStatic(spec, uri);
+                    return withResourceMeta(spec, readStatic(spec, uri));
                 }
             } else {
                 // Dynamic resources: exact or template match
                 Map<String, String> templateParams = matchTemplate(spec.getUri(), uri);
                 if (templateParams != null) {
-                    return readDynamic(spec, uri, templateParams);
+                    return withResourceMeta(spec, readDynamic(spec, uri, templateParams));
                 }
             }
         }
@@ -143,24 +171,40 @@ public class ResourceHandler {
      * Enumerate all concrete resource descriptors, expanding static location directories into
      * per-file entries.
      *
-     * @return list of {uri, spec} pairs for resources/list
+     * @return one descriptor per concrete resource, for resources/list
      */
-    public List<Map<String, String>> listAll() {
-        List<Map<String, String>> result = new ArrayList<>();
+    public List<ResourceDescriptor> listAll() {
+        List<ResourceDescriptor> result = new ArrayList<>();
         for (McpServerResourceSpec spec : resourceSpecs) {
             if (spec.isStatic()) {
                 result.addAll(listStaticFiles(spec));
             } else if (!spec.isTemplate()) {
-                Map<String, String> entry = new HashMap<>();
-                entry.put("uri", spec.getUri());
-                entry.put("name", spec.getName());
-                entry.put("display", spec.getDisplay() != null ? spec.getDisplay() : spec.getName());
-                entry.put("description", spec.getDescription());
-                if (spec.getMimeType() != null) {
-                    entry.put("mimeType", spec.getMimeType());
-                }
-                result.add(entry);
+                result.add(descriptor(spec, spec.getUri(), spec.getMimeType()));
             }
+        }
+        return result;
+    }
+
+    private static ResourceDescriptor descriptor(McpServerResourceSpec spec, String uri,
+            String mimeType) {
+        return new ResourceDescriptor(uri, spec.getName(),
+                spec.getDisplay() != null ? spec.getDisplay() : spec.getName(),
+                spec.getDescription(), mimeType, McpAppsMetadata.resourceMeta(spec.getUi()));
+    }
+
+    /**
+     * Attach the resource's {@code _meta} (MCP Apps {@code ui}) to every content item. The SEP
+     * gives the content item precedence over the list entry, so both carry the same metadata.
+     */
+    private static List<ResourceContent> withResourceMeta(McpServerResourceSpec spec,
+            List<ResourceContent> contents) {
+        Map<String, Object> meta = McpAppsMetadata.resourceMeta(spec.getUi());
+        if (meta == null) {
+            return contents;
+        }
+        List<ResourceContent> result = new ArrayList<>(contents.size());
+        for (ResourceContent content : contents) {
+            result.add(content.withMeta(meta));
         }
         return result;
     }
@@ -242,8 +286,8 @@ public class ResourceHandler {
         return List.of(ResourceContent.text(requestedUri, mimeType, text));
     }
 
-    private List<Map<String, String>> listStaticFiles(McpServerResourceSpec spec) {
-        List<Map<String, String>> entries = new ArrayList<>();
+    private List<ResourceDescriptor> listStaticFiles(McpServerResourceSpec spec) {
+        List<ResourceDescriptor> entries = new ArrayList<>();
         try {
             Path baseDir = locationToPath(spec.getLocation()).toRealPath();
             Files.walk(baseDir)
@@ -254,15 +298,7 @@ public class ResourceHandler {
                         String fileUri = spec.getUri() + "/" + relative;
                         String mimeType = spec.getMimeType() != null ? spec.getMimeType()
                                 : probeMimeType(file);
-                        Map<String, String> entry = new HashMap<>();
-                        entry.put("uri", fileUri);
-                        entry.put("name", spec.getName());
-                        entry.put("display", spec.getDisplay() != null ? spec.getDisplay() : spec.getName());
-                        entry.put("description", spec.getDescription());
-                        if (mimeType != null) {
-                            entry.put("mimeType", mimeType);
-                        }
-                        entries.add(entry);
+                        entries.add(descriptor(spec, fileUri, mimeType));
                     });
         } catch (IOException e) {
             Context.getCurrentLogger().warning("Cannot list static resource directory for '" + spec.getName()
@@ -276,7 +312,7 @@ public class ResourceHandler {
         return Paths.get(URI.create(location));
     }
 
-    private static String probeMimeType(Path path) {
+    static String probeMimeType(Path path) {
         try {
             String probed = Files.probeContentType(path);
             if (probed != null) {
@@ -284,12 +320,24 @@ public class ResourceHandler {
             }
         } catch (IOException ignored) {
         }
-        String name = path.getFileName().toString().toLowerCase();
+        return mimeTypeFromExtension(path.getFileName().toString());
+    }
+
+    /**
+     * Extension-based fallback used when the platform {@code probeContentType} returns
+     * {@code null} (notably on Windows and minimal JREs). Unknown extensions map to
+     * {@code application/octet-stream}, which takes the binary path.
+     */
+    static String mimeTypeFromExtension(String fileName) {
+        String name = fileName.toLowerCase(java.util.Locale.ROOT);
         if (name.endsWith(".md")) return "text/markdown";
         if (name.endsWith(".json")) return "application/json";
         if (name.endsWith(".yaml") || name.endsWith(".yml")) return "application/yaml";
         if (name.endsWith(".txt")) return "text/plain";
         if (name.endsWith(".xml")) return "application/xml";
+        if (name.endsWith(".html") || name.endsWith(".htm")) return "text/html";
+        if (name.endsWith(".css")) return "text/css";
+        if (name.endsWith(".js") || name.endsWith(".mjs")) return "text/javascript";
         // Common binary extensions — keeps the binary branch deterministic when the platform
         // probeContentType returns null (notably on Windows / minimal JREs).
         if (name.endsWith(".png")) return "image/png";

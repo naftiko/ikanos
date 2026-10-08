@@ -47,6 +47,7 @@ public class McpServerResourceSpec {
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<String> location = new AtomicReference<>();
+    private final AtomicReference<McpResourceUiSpec> ui = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
@@ -102,6 +103,10 @@ public class McpServerResourceSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getLocation() { return location.get(); }
     public void setLocation(String location) { this.location.set(location); }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public McpResourceUiSpec getUi() { return ui.get(); }
+    public void setUi(McpResourceUiSpec ui) { this.ui.set(ui); }
 
     public boolean isStatic() { return location.get() != null; }
 
