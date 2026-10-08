@@ -587,8 +587,28 @@ jobs:
           needs.test-and-analyze.outputs.trivy_high > 0
         )
       runs-on: ubuntu-latest
+      permissions:
+        pull-requests: read
       steps:
+        - name: Detect draft pull request
+          id: draft
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            REPO: ${{ github.repository }}
+            OWNER: ${{ github.repository_owner }}
+            BRANCH: ${{ github.ref_name }}
+          run: |
+            IS_DRAFT=$(gh api -X GET "repos/$REPO/pulls" \
+              -f head="$OWNER:$BRANCH" \
+              -f state=open \
+              --jq 'length > 0 and all(.[]; .draft)') || {
+              echo "::warning::Draft detection failed, notifying anyway"
+              IS_DRAFT=false
+            }
+            echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
+
         - name: Send Slack notification
+          if: steps.draft.outputs.is_draft != 'true'
           env:
             PIPELINE_FAILED: ${{ needs.test-and-analyze.result == 'failure' || needs.integration-tests.result == 'failure' || needs.smoke-tests.result == 'failure' }}
           run: |
