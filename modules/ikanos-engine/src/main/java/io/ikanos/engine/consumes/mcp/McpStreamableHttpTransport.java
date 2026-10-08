@@ -56,6 +56,9 @@ public class McpStreamableHttpTransport {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final MediaType EVENT_STREAM = MediaType.valueOf("text/event-stream");
 
+    /** Longest body excerpt quoted in an HTTP-status error message. */
+    private static final int MAX_EXCERPT = 200;
+
     /** Writes W3C trace-context entries into a {@code _meta} object node. */
     private static final TextMapSetter<ObjectNode> META_SETTER = (carrier, key, value) -> {
         if (carrier != null && key != null && value != null) {
@@ -107,7 +110,7 @@ public class McpStreamableHttpTransport {
         try {
             request.setEntity(JSON.writeValueAsString(envelope), MediaType.APPLICATION_JSON);
         } catch (IOException e) {
-            throw new McpClientException("Cannot serialize MCP request", 500, e);
+            throw new McpClientException("Cannot serialize MCP request", e);
         }
         request.getClientInfo().getAcceptedMediaTypes()
                 .add(new Preference<>(MediaType.APPLICATION_JSON));
@@ -130,16 +133,25 @@ public class McpStreamableHttpTransport {
         try {
             body = response.getEntity() != null ? response.getEntity().getText() : null;
         } catch (IOException e) {
-            throw new McpClientException("Cannot read MCP response", 502, e);
+            throw new McpClientException("Cannot read MCP response", e);
         }
         int httpStatus = response.getStatus() != null ? response.getStatus().getCode() : 0;
+        boolean httpOk = httpStatus >= 200 && httpStatus < 300;
 
         JsonNode rpc = null;
         if (body != null && !body.isBlank()) {
             MediaType type = response.getEntity().getMediaType();
-            rpc = type != null && type.equals(EVENT_STREAM, true)
-                    ? fromEventStream(body, id)
-                    : parse(body);
+            try {
+                rpc = type != null && type.equals(EVENT_STREAM, true)
+                        ? fromEventStream(body, id)
+                        : parse(body);
+            } catch (McpClientException notJsonRpc) {
+                if (httpOk) {
+                    throw notJsonRpc;
+                }
+                // Non-2xx with a body that is not JSON-RPC (e.g. a proxy's HTML page): the HTTP
+                // status is the real cause, reported below.
+            }
         }
 
         if (rpc != null && rpc.has("error")) {
@@ -149,27 +161,38 @@ public class McpStreamableHttpTransport {
             if (code == UNSUPPORTED_PROTOCOL_VERSION) {
                 throw new McpClientException("Upstream MCP server at " + endpoint
                         + " does not support protocol " + PROTOCOL_VERSION + " (" + message
-                        + "). Only stateless upstreams are supported.", 502);
+                        + "). Only stateless upstreams are supported.");
             }
             throw new McpClientException("Upstream MCP " + method + " failed: " + code + " "
-                    + message, 502);
+                    + message);
         }
-        if (httpStatus < 200 || httpStatus >= 300) {
+        if (!httpOk) {
             throw new McpClientException("Upstream MCP server returned HTTP " + httpStatus
-                    + " for " + method, httpStatus > 0 ? httpStatus : 502);
+                    + " for " + method + excerpt(body));
         }
         if (rpc == null || !rpc.has("result")) {
             throw new McpClientException("Upstream MCP " + method
-                    + " returned no JSON-RPC result", 502);
+                    + " returned no JSON-RPC result");
         }
         return rpc.get("result");
+    }
+
+    /** A short, bounded, single-line excerpt of a response body, or an empty string. */
+    static String excerpt(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        String flat = body.strip().replaceAll("\\s+", " ");
+        return ": " + (flat.length() > MAX_EXCERPT
+                ? flat.substring(0, MAX_EXCERPT) + "..."
+                : flat);
     }
 
     private static JsonNode parse(String body) {
         try {
             return JSON.readTree(body);
         } catch (IOException e) {
-            throw new McpClientException("Upstream MCP response is not JSON", 502, e);
+            throw new McpClientException("Upstream MCP response is not JSON", e);
         }
     }
 
@@ -193,13 +216,13 @@ public class McpStreamableHttpTransport {
                 }
             }
         } catch (IOException e) {
-            throw new McpClientException("Cannot read MCP event stream", 502, e);
+            throw new McpClientException("Cannot read MCP event stream", e);
         }
         JsonNode last = matching(data, id);
         if (last != null) {
             return last;
         }
-        throw new McpClientException("Upstream MCP event stream ended without a response", 502);
+        throw new McpClientException("Upstream MCP event stream ended without a response");
     }
 
     private static JsonNode matching(StringBuilder data, long id) {
