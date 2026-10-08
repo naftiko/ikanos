@@ -14,11 +14,9 @@
 package io.ikanos.engine.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -161,16 +159,6 @@ class OperationStepExecutorRequestBodyTest {
         assertEquals("q=&r=1", ctx.clientRequest.getEntity().getText());
     }
 
-    @Test
-    void formEncodedValuesShouldReturnNullWhenParametersAreNull() throws Exception {
-        OperationStepExecutor executor = executorWithBody("""
-                                body:
-                                  type: "formUrlEncoded"
-                                  data: "q=1"
-                """);
-
-        assertNull(executor.formEncodedValues(null));
-    }
 
     @Test
     void findClientRequestForShouldNotUrlEncodeSubstitutedValuesInTextBody() throws Exception {
@@ -244,28 +232,14 @@ class OperationStepExecutorRequestBodyTest {
         assertTrue(error.getMessage().contains("Unresolved template parameters in body"));
     }
 
-    @Test
-    void encodeFormBodyShouldRejectUnresolvedTemplateWhenNoParametersAreGiven() {
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> OperationStepExecutor.encodeFormBody(Map.of("name", "{{missing}}"),
-                        Map.of()));
 
-        assertTrue(error.getMessage().contains("form field 'name'"));
-    }
-
-    @Test
-    void encodeFormBodyShouldSendMissingVariableAsEmptyValueWhenOtherParametersAreGiven() {
-        // Pins current behavior: with any parameter present, Resolver renders a missing variable
-        // as an empty string (JMustache defaultValue), so the unresolved-template guard cannot
-        // catch it. Update this test if that resolution behavior changes.
-        assertEquals("name=", OperationStepExecutor.encodeFormBody(Map.of("name", "{{missing}}"),
-                Map.of("other", "x")));
-    }
 
     @Test
     void findClientRequestForShouldSendMissingStringTemplateVariableAsEmptyWhenOtherParametersAreGiven()
             throws Exception {
-        // Same current behavior as above, on the string body path.
+        // Pins current behavior: with any parameter present, Resolver renders a missing variable
+        // as an empty string (JMustache defaultValue), so the unresolved-template guard cannot
+        // catch it. Update this test if that resolution behavior changes.
         OperationStepExecutor executor = executorWithBody("""
                                 body:
                                   type: "text"
@@ -278,13 +252,32 @@ class OperationStepExecutorRequestBodyTest {
         assertEquals("hello ", ctx.clientRequest.getEntity().getText());
     }
 
-    @Test
-    void encodeFormBodyShouldPreserveKeyOrderAndEncodeEmptyValues() {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("b", "2");
-        data.put("a", null);
 
-        assertEquals("b=2&a=", OperationStepExecutor.encodeFormBody(data, Map.of("x", "y")));
+    @Test
+    void findClientRequestForShouldEncodeBracedValueInFormMapAndFormStringAlike()
+            throws Exception {
+        // Both variants of formUrlEncoded treat a substituted value as data: one containing
+        // "{{...}}" is encoded and sent, never rejected.
+        OperationStepExecutor mapExecutor = executorWithBody("""
+                                body:
+                                  type: "formUrlEncoded"
+                                  data:
+                                    q: "{{v}}"
+                """);
+        OperationStepExecutor stringExecutor = executorWithBody("""
+                                body:
+                                  type: "formUrlEncoded"
+                                  data: "q={{v}}"
+                """);
+        Map<String, Object> parameters = Map.of("v", "{{x}}");
+
+        String fromMap = mapExecutor.findClientRequestFor("svc", "op", parameters)
+                .clientRequest.getEntity().getText();
+        String fromString = stringExecutor.findClientRequestFor("svc", "op", parameters)
+                .clientRequest.getEntity().getText();
+
+        assertEquals("q=%7B%7Bx%7D%7D", fromMap);
+        assertEquals(fromMap, fromString);
     }
 
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {

@@ -694,7 +694,7 @@ Describes request body configuration for consumed operations. `RequestBody` is a
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. MUST be `"formUrlEncoded"`. |
-| **data** | `string` | `object` | **REQUIRED**. Either a raw URL-encoded string or an object whose values are strings. |
+| **data** | `string` or `object` | **REQUIRED**. Either a pre-encoded form string (e.g. `grant_type=client_credentials&scope={{scope}}`) or an object whose values are strings. In the string form, write the literal text already URL-encoded; values substituted through `{{...}}` are URL-encoded by the framework, so a value can never add or change form fields. In the object form, keys and values are URL-encoded by the framework. In both forms a substituted value is sent as data, even if it contains `{{...}}`. |
 
 **RequestBodyMultipartForm** — Multipart form body
 
