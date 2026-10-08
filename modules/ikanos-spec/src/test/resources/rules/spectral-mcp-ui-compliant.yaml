@@ -38,3 +38,12 @@ capability:
           outputParameters:
             - type: array
               mapping: $.daily
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    mapping: $.date
+                  temperature:
+                    type: number
+                    mapping: $.temperature
