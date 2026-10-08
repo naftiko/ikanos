@@ -78,6 +78,21 @@ class FormUrlEncodedBodyTest {
     }
 
     @Test
+    void resolveShouldEvaluateBooleanSectionLikeOtherBodyTypes() {
+        // A Boolean must stay a Boolean: as the string "false" it would be truthy for Mustache.
+        String template = "a=1{{#flag}}&b=2{{/flag}}";
+        assertEquals("a=1", FormUrlEncodedBody.resolve(template, Map.of("flag", false)));
+        assertEquals("a=1&b=2", FormUrlEncodedBody.resolve(template, Map.of("flag", true)));
+    }
+
+    @Test
+    void resolveShouldEncodeNumberValues() {
+        assertEquals("amount=12.5&qty=3",
+                FormUrlEncodedBody.resolve("amount={{amount}}&qty={{qty}}",
+                        Map.of("amount", 12.5, "qty", 3)));
+    }
+
+    @Test
     void resolveShouldLeaveTemplateInPlaceWhenNoParametersAreGiven() {
         // The caller's unresolved-template guard reports it.
         assertEquals("q={{v}}", FormUrlEncodedBody.resolve("q={{v}}", Map.of()));

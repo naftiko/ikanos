@@ -60,9 +60,10 @@ public class Resolver {
 
     /**
      * Same as {@link #resolveMustacheTemplate(String, Map)}, with a transformation applied to each
-     * non-null value after its string form is computed (collections and arrays JSON-serialized,
-     * other values via {@code String.valueOf}). Used, for example, to percent-encode values
-     * substituted into a pre-encoded form body.
+     * string and number value (collections and arrays are JSON-serialized first, so they are
+     * transformed too). Other values, such as a {@code Boolean}, are left untouched so that Mustache
+     * sections on them are evaluated exactly as without a transformation. Used, for example, to
+     * percent-encode values substituted into a pre-encoded form body.
      *
      * @param template the template string containing {{...}} placeholders
      * @param parameters map of parameter names to values for template resolution
@@ -92,7 +93,7 @@ public class Resolver {
                     // keep the plain value
                 }
             }
-            if (valueEncoder != null && val != null) {
+            if (valueEncoder != null && (val instanceof String || val instanceof Number)) {
                 val = valueEncoder.apply(String.valueOf(val));
             }
             serialized.put(entry.getKey(), val);

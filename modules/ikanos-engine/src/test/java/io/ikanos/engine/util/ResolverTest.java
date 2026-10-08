@@ -338,6 +338,22 @@ public class ResolverTest {
     }
 
     /**
+     * The value encoder applies to strings and numbers only. Other scalars keep their type, so a
+     * Mustache section on a {@code Boolean} is evaluated the same way with or without an encoder.
+     */
+    @Test
+    public void resolveMustacheTemplateWithEncoderShouldKeepBooleanSectionSemantics() {
+        String template = "a=1{{#flag}}&b=2{{/flag}}";
+        Map<String, Object> params = Map.of("flag", Boolean.FALSE);
+
+        assertEquals(Resolver.resolveMustacheTemplate(template, params),
+                Resolver.resolveMustacheTemplate(template, params, v -> "<" + v + ">"));
+        assertEquals("v=<x>&n=<3>&b=true",
+                Resolver.resolveMustacheTemplate("v={{s}}&n={{n}}&b={{b}}",
+                        Map.of("s", "x", "n", 3, "b", true), v -> "<" + v + ">"));
+    }
+
+    /**
      * Regression test for #213 (escapeHTML): Mustache HTML-escaping is disabled, so non-ASCII
      * characters must pass through unchanged.
      *
