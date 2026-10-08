@@ -26,8 +26,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.restlet.Client;
 import org.restlet.Context;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
@@ -64,6 +66,9 @@ import io.opentelemetry.api.trace.Span;
 public class McpClientAdapter extends ClientAdapter {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    /** Strict reader: a text block is JSON only if the whole text is one JSON value. */
+    private static final ObjectReader STRICT_JSON =
+            JSON.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final JsonSchemaFactory SCHEMAS =
             JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
 
@@ -136,11 +141,11 @@ public class McpClientAdapter extends ClientAdapter {
         String resultType = result.path("resultType").asText("complete");
         if (!"complete".equals(resultType)) {
             throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
-                    + " requested '" + resultType + "'; not supported in v1", 502);
+                    + " requested '" + resultType + "'; not supported in v1");
         }
         if (result.path("isError").asBoolean(false)) {
             throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
-                    + " reported an error: " + firstText(result), 502);
+                    + " reported an error: " + firstText(result));
         }
 
         JsonNode structured = result.get("structuredContent");
@@ -173,7 +178,7 @@ public class McpClientAdapter extends ClientAdapter {
                 && "text".equals(content.get(0).path("type").asText())) {
             String text = content.get(0).path("text").asText("");
             try {
-                JsonNode parsed = JSON.readTree(text);
+                JsonNode parsed = STRICT_JSON.readTree(text);
                 if (parsed != null && !parsed.isMissingNode()) {
                     return new McpConsumedResult(view, parsed, text);
                 }
@@ -185,7 +190,7 @@ public class McpClientAdapter extends ClientAdapter {
         List<String> types = new ArrayList<>();
         content.forEach(block -> types.add(block.path("type").asText("?")));
         throw new McpClientException("Unsupported MCP tool result content " + types
-                + "; v1 accepts structuredContent or a single text block", 502);
+                + "; v1 accepts structuredContent or a single text block");
     }
 
     private static String firstText(JsonNode result) {
@@ -218,7 +223,7 @@ public class McpClientAdapter extends ClientAdapter {
             return;
         }
         throw new McpClientException("MCP tool " + getNamespace() + "." + toolName
-                + " returned structuredContent violating its outputSchema: " + detail, 502);
+                + " returned structuredContent violating its outputSchema: " + detail);
     }
 
     @Override
