@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.McpAppsMetadata;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -51,6 +52,11 @@ public class ServerDiscoverHandler extends McpCallHandler {
         }
         if (!adapter.getMcpServerSpec().getPrompts().isEmpty()) {
             capabilities.putObject("prompts");
+        }
+        // MCP Apps (SEP-1865): advertised when any tool links a ui:// view. Load-time validation
+        // guarantees a declared resource backs each view, so "resources" is present too.
+        if (McpAppsMetadata.anyToolDeclaresUi(adapter.getMcpServerSpec().getTools().values())) {
+            capabilities.putObject("extensions").putObject(McpAppsMetadata.EXTENSION_ID);
         }
         result.set("capabilities", capabilities);
 

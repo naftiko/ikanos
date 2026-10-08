@@ -1258,6 +1258,9 @@
         "hints": {
           "$ref": "#/$defs/McpToolHints"
         },
+        "ui": {
+          "$ref": "#/$defs/McpToolUi"
+        },
         "outputParameters": true
       },
       "required": [],
@@ -1338,6 +1341,34 @@
           "description": "If true, the tool may interact with external entities. Default: true."
         }
       },
+      "additionalProperties": false
+    },
+    "McpToolUi": {
+      "type": "object",
+      "description": "MCP Apps metadata (SEP-1865, extension io.modelcontextprotocol/ui) linking the tool to a predeclared ui:// view. Emitted as _meta.ui in tools/list.",
+      "properties": {
+        "resourceUri": {
+          "type": "string",
+          "pattern": "^ui://",
+          "description": "URI of a ui:// resource declared on this MCP server. For a static directory resource, use the expanded file URI (e.g. ui://weather/forecast/index.html)."
+        },
+        "visibility": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "model",
+              "app"
+            ]
+          },
+          "description": "Who may call the tool. Host-enforced hint, not access control. When omitted, the host default (model and app) applies."
+        }
+      },
+      "required": [
+        "resourceUri"
+      ],
       "additionalProperties": false
     },
     "McpToolInputParameter": {
@@ -1435,6 +1466,9 @@
           "format": "uri",
           "pattern": "^file:///",
           "description": "For static resources: file:/// URI pointing to a directory whose files are served as MCP resources."
+        },
+        "ui": {
+          "$ref": "#/$defs/McpResourceUi"
         }
       },
       "required": [
@@ -1502,6 +1536,75 @@
           }
         }
       ],
+      "additionalProperties": false
+    },
+    "McpResourceUi": {
+      "type": "object",
+      "description": "MCP Apps metadata (SEP-1865) for a ui:// view: security envelope and rendering preferences. Emitted as _meta.ui on both the resources/list entry and the resources/read content item. The host applies it; Ikanos does not enforce CSP.",
+      "properties": {
+        "csp": {
+          "type": "object",
+          "description": "Content Security Policy domains requested by the view. Hosts MAY restrict further but MUST NOT allow undeclared domains.",
+          "properties": {
+            "connectDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Origins the view may reach with fetch, XHR or WebSocket. Opens a data path the capability does not govern."
+            },
+            "resourceDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Origins for scripts, styles, images, fonts and media. Wildcard subdomains allowed."
+            },
+            "frameDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Origins allowed in nested iframes."
+            },
+            "baseUriDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Allowed base-uri origins."
+            }
+          },
+          "additionalProperties": false
+        },
+        "permissions": {
+          "type": "object",
+          "description": "Browser permissions requested by the view. true = requested. Emitted as empty-object presence flags.",
+          "properties": {
+            "camera": {
+              "type": "boolean"
+            },
+            "microphone": {
+              "type": "boolean"
+            },
+            "geolocation": {
+              "type": "boolean"
+            },
+            "clipboardWrite": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "domain": {
+          "type": "string",
+          "description": "Host-specific sandbox origin for the view. Passed through verbatim."
+        },
+        "prefersBorder": {
+          "type": "boolean",
+          "description": "Whether the view prefers a visible border. Host defaults vary, so set it explicitly."
+        }
+      },
       "additionalProperties": false
     },
     "McpPrompt": {
