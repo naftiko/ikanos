@@ -168,4 +168,24 @@ public class McpToolHintsIntegrationTest {
         assertTrue(noHintsTool.path("annotations").isMissingNode(),
                 "Tool without hints or label should have no annotations");
     }
+
+    @Test
+    void toolsListShouldKeepInputSchemaWireShape() throws Exception {
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+
+        JsonNode response = dispatcher.dispatch(JSON.readTree(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"%s\"}}}"
+                        .formatted(ProtocolDispatcher.MCP_PROTOCOL_VERSION))).responseBody();
+
+        JsonNode tools = response.path("result").path("tools");
+
+        assertEquals(JSON.readTree("""
+                {"type":"object",
+                 "properties":{"record-id":{"type":"string","description":"ID of the record to delete"}},
+                 "required":["record-id"]}
+                """), tools.get(1).path("inputSchema"),
+                "Tool with parameters should expose type, properties and required only");
+        assertEquals(JSON.readTree("{\"type\":\"object\"}"), tools.get(2).path("inputSchema"),
+                "Tool without parameters should expose an object schema with no properties or required");
+    }
 }

@@ -169,10 +169,16 @@ public class McpServerAdapter extends ServerAdapter {
             }
         }
 
-        // Build the input schema using McpSchema.JsonSchema
-        McpSchema.JsonSchema inputSchema = new McpSchema.JsonSchema("object",
-                schemaProperties.isEmpty() ? null : schemaProperties,
-                required.isEmpty() ? null : required, null, null, null);
+        // Build the input schema as a plain JSON Schema map (MCP Java SDK 2.x). Keys are only
+        // emitted when present, so the tools/list wire shape is unchanged.
+        Map<String, Object> inputSchema = new LinkedHashMap<>();
+        inputSchema.put("type", "object");
+        if (!schemaProperties.isEmpty()) {
+            inputSchema.put("properties", schemaProperties);
+        }
+        if (!required.isEmpty()) {
+            inputSchema.put("required", required);
+        }
 
         // Build ToolAnnotations from spec hints and label
         McpSchema.ToolAnnotations annotations = buildToolAnnotations(toolSpec);
@@ -180,8 +186,8 @@ public class McpServerAdapter extends ServerAdapter {
         // Advertise the output contract (if any) as the MCP outputSchema
         McpToolOutputSchema.Contract contract = toolHandler.getOutputContract(toolSpec.getName());
 
-        return McpSchema.Tool.builder().name(toolSpec.getName())
-                .description(toolSpec.getDescription()).inputSchema(inputSchema)
+        return McpSchema.Tool.builder(toolSpec.getName(), inputSchema)
+                .description(toolSpec.getDescription())
                 .outputSchema(contract != null ? contract.schema() : null)
                 .annotations(annotations).build();
     }
