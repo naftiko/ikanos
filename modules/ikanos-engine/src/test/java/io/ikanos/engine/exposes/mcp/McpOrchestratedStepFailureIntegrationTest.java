@@ -116,6 +116,49 @@ public class McpOrchestratedStepFailureIntegrationTest {
         }
     }
 
+    /**
+     * {@code resources/read} has no {@code isError} field: a failed step surfaces as a JSON-RPC
+     * internal error with a generic message and a reference id, without the upstream body.
+     */
+    @Test
+    public void resourceReadShouldReturnJsonRpcErrorWhenStepFails() throws Exception {
+        int port = findFreePort();
+        AtomicInteger chargeHits = new AtomicInteger();
+        Component upstream = createUpstream(port, Status.CLIENT_ERROR_NOT_FOUND,
+                Status.SUCCESS_OK, chargeHits);
+        upstream.start();
+        try {
+            JsonNode response = readPaymentResource(port);
+
+            assertTrue(response.path("result").isMissingNode(),
+                    "#739: a failing step must not produce resource contents: " + response);
+            assertEquals(-32603, response.path("error").path("code").asInt(),
+                    "expected a JSON-RPC internal error, got: " + response);
+            assertFalse(response.toString().contains(UPSTREAM_MARKER),
+                    "upstream body leaked: " + response);
+            assertEquals(0, chargeHits.get(),
+                    "#739: 'charge' must not run after 'read-part' failed");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    @Test
+    public void resourceReadShouldSucceedWhenAllStepsSucceed() throws Exception {
+        int port = findFreePort();
+        Component upstream = createUpstream(port, Status.SUCCESS_OK, Status.SUCCESS_CREATED,
+                new AtomicInteger());
+        upstream.start();
+        try {
+            JsonNode response = readPaymentResource(port);
+
+            assertTrue(response.path("error").isMissingNode(), "expected success: " + response);
+            assertEquals(1, response.path("result").path("contents").size());
+        } finally {
+            upstream.stop();
+        }
+    }
+
     private JsonNode callPay(int upstreamPort) throws Exception {
         Capability capability = capabilityFromYaml(capabilityYaml(upstreamPort));
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(
@@ -133,6 +176,24 @@ public class McpOrchestratedStepFailureIntegrationTest {
                 ProtocolDispatcher.MCP_PROTOCOL_VERSION);
 
         return dispatcher.dispatch(request).responseBody().path("result");
+    }
+
+    private JsonNode readPaymentResource(int upstreamPort) throws Exception {
+        Capability capability = capabilityFromYaml(capabilityYaml(upstreamPort));
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(
+                (McpServerAdapter) capability.getServerAdapters().get(0));
+        ObjectMapper mapper = new ObjectMapper();
+
+        ObjectNode request = mapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 2);
+        request.put("method", "resources/read");
+        ObjectNode params = request.putObject("params");
+        params.put("uri", "shop://payments/p-1");
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+
+        return dispatcher.dispatch(request).responseBody();
     }
 
     /** read-part, then charge; mappings only read read-part (the #739 shape). */
@@ -183,6 +244,25 @@ public class McpOrchestratedStepFailureIntegrationTest {
                           mappings:
                             - target: amount
                               value: "$.read-part.amount"
+                          outputParameters:
+                            amount:
+                              type: number
+                      resources:
+                        payment:
+                          uri: "shop://payments/{part_id}"
+                          description: "Read a part, then charge its amount"
+                          mimeType: application/json
+                          steps:
+                            read-part:
+                              type: call
+                              call: shop.get-part
+                              with:
+                                part_id: "{{part_id}}"
+                            charge:
+                              type: call
+                              call: shop.create-charge
+                              with:
+                                amount: "{{read-part.amount}}"
                           outputParameters:
                             amount:
                               type: number

@@ -1125,6 +1125,12 @@ public class OperationStepExecutor {
     /**
      * Throw {@link StepFailedException} when a call step's upstream response is not 2xx.
      * A missing response or status (connection failure) counts as a failure too.
+     *
+     * <p>The rule is strictly 2xx, not "below 400". The HTTP client follows redirects by default
+     * (Restlet {@code followRedirects=true}), so a 3xx only reaches this check when it was not
+     * followed: 304 Not Modified, 300 Multiple Choices, or a redirect without a usable
+     * {@code Location}. None of these carries the step output, so the sequence fails rather
+     * than letting later steps read an empty or unrelated body.</p>
      */
     static void failIfUnsuccessful(String stepName, Response clientResponse) {
         if (clientResponse != null && clientResponse.getStatus() != null
