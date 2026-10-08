@@ -209,6 +209,20 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void textBlockStartingWithJsonTokenShouldStayRawString() throws Exception {
+        for (String text : List.of("3 results found", "42 apples", "true story",
+                "null and void")) {
+            JsonNode result = JSON.createObjectNode().set("content", JSON.createArrayNode()
+                    .add(JSON.createObjectNode().put("type", "text").put("text", text)));
+
+            ConsumedResult body = McpClientAdapter.selectBody(result, ConsumedOperationView.NONE);
+
+            assertTrue(body.document().isTextual(), text);
+            assertEquals(text, body.document().asText());
+        }
+    }
+
+    @Test
     void multipleOrBinaryContentBlocksShouldFailNamingTheTypes() throws Exception {
         JsonNode result = JSON.readTree("{\"content\":[{\"type\":\"image\",\"data\":\"x\"},"
                 + "{\"type\":\"text\",\"text\":\"t\"}]}");
@@ -230,7 +244,6 @@ class McpClientAdapterTest {
                 "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
 
         assertTrue(error.getMessage().contains("boom"));
-        assertEquals(502, error.getStatus());
     }
 
     @Test
@@ -266,7 +279,27 @@ class McpClientAdapterTest {
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
                 "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
 
-        assertEquals(503, error.getStatus());
+        assertTrue(error.getMessage().contains("HTTP 503"), error.getMessage());
+    }
+
+    @Test
+    void httpErrorWithHtmlBodyShouldReportHttpStatusNotJsonFailure() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> {
+            Response r = new Response(new Request());
+            r.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
+            r.setEntity("<html><body><h1>401 Authorization Required</h1>"
+                    + "x".repeat(500) + "</body></html>", MediaType.TEXT_HTML);
+            return r;
+        };
+
+        McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
+                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+
+        assertTrue(error.getMessage().contains("HTTP 401"), error.getMessage());
+        assertTrue(error.getMessage().contains("401 Authorization Required"), error.getMessage());
+        assertFalse(error.getMessage().contains("not JSON"), error.getMessage());
+        assertTrue(error.getMessage().length() < 400, "excerpt must be bounded");
     }
 
     @Test

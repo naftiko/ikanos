@@ -14,27 +14,20 @@
 package io.ikanos.engine.consumes.mcp;
 
 /**
- * A failed exchange with an upstream MCP server, carrying the HTTP-equivalent status the
- * consumed result should report.
+ * A failed exchange with an upstream MCP server: transport, HTTP, JSON-RPC or tool-level failure.
+ *
+ * <p>Carries no status code: exposers currently report every consumed-call failure the same way,
+ * so a status here would suggest a mapping that does not exist.</p>
  */
 public class McpClientException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    private final int status;
-
-    public McpClientException(String message, int status) {
+    public McpClientException(String message) {
         super(message);
-        this.status = status;
     }
 
-    public McpClientException(String message, int status, Throwable cause) {
+    public McpClientException(String message, Throwable cause) {
         super(message, cause);
-        this.status = status;
-    }
-
-    /** @return the HTTP-equivalent status (502 for upstream protocol failures) */
-    public int getStatus() {
-        return status;
     }
 }
