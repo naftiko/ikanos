@@ -108,6 +108,218 @@ public class McpFormUrlEncodedBodyIntegrationTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldUrlEncodeNestedStepOutputInFormStringBody() throws Exception {
+        AtomicReference<String> receivedBody = new AtomicReference<>();
+        int port = findFreePort();
+        // The first step reads an object from an API; its fields are not trusted.
+        Component upstream = createLookupThenTokenUpstream(port,
+                "{\"scope\":\"read&client_id=attacker\",\"note\":\"{{secret}}\",\"count\":3}",
+                receivedBody);
+        upstream.start();
+
+        try {
+            Capability capability = capabilityFromYaml(lookupThenTokenCapabilityYaml(port));
+            JsonNode result = callTool(capability, "get-token", "user", "u1");
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertEquals("grant_type=client_credentials"
+                    + "&scope=read%26client_id%3Dattacker&note=%7B%7Bsecret%7D%7D&n=3",
+                    receivedBody.get(),
+                    "Values read from a step output must stay one encoded field each");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    @Test
+    public void handleToolCallShouldNotLetStepOutputAddFormFields() throws Exception {
+        AtomicReference<String> receivedBody = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createLookupThenTokenUpstream(port,
+                "{\"scope\":\"read&client_id=attacker\",\"note\":\"a b\",\"count\":3}",
+                receivedBody);
+        upstream.start();
+
+        try {
+            Capability capability = capabilityFromYaml(lookupThenTokenCapabilityYaml(port));
+            JsonNode result = callTool(capability, "get-token", "user", "u1");
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertEquals("grant_type=client_credentials"
+                    + "&scope=read%26client_id%3Dattacker&note=a+b&n=3",
+                    receivedBody.get());
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    @Test
+    public void handleToolCallShouldUrlEncodeObjectArgumentFieldsInFormStringBody()
+            throws Exception {
+        AtomicReference<String> receivedBody = new AtomicReference<>();
+        AtomicReference<MediaType> receivedType = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, "/oauth/token", receivedBody,
+                receivedType);
+        upstream.start();
+
+        try {
+            Capability capability = capabilityFromYaml(objectArgumentCapabilityYaml(port));
+            ObjectMapper mapper = new ObjectMapper();
+            ObjectNode filter = mapper.createObjectNode().put("scope", "read&client_id=attacker");
+            JsonNode result = callTool(capability, "get-token", "filter", filter);
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertEquals("grant_type=client_credentials&scope=read%26client_id%3Dattacker",
+                    receivedBody.get(),
+                    "A field of an object argument must stay one encoded field");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    private JsonNode callTool(Capability capability, String tool, String argName,
+            JsonNode argValue) {
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(
+                (McpServerAdapter) capability.getServerAdapters().get(0));
+        ObjectMapper mapper = new ObjectMapper();
+
+        ObjectNode request = mapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 1);
+        request.put("method", "tools/call");
+        ObjectNode params = request.putObject("params");
+        params.put("name", tool);
+        params.putObject("arguments").set(argName, argValue);
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+
+        return dispatcher.dispatch(request).responseBody().path("result");
+    }
+
+    private String objectArgumentCapabilityYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - namespace: auth
+                      type: http
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        token:
+                          path: "/oauth/token"
+                          operations:
+                            get-token:
+                              method: POST
+                              body:
+                                type: formUrlEncoded
+                                data: "grant_type=client_credentials&scope={{filter.scope}}"
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: auth-tools
+                      tools:
+                        get-token:
+                          description: "Get an access token"
+                          inputParameters:
+                            filter:
+                              type: object
+                              description: "Token request options"
+                          call: auth.get-token
+                          with:
+                            filter: auth-tools.filter
+                          outputParameters:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  mapping: "$.id"
+                """.formatted(schemaVersion, port);
+    }
+
+    private String lookupThenTokenCapabilityYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - namespace: auth
+                      type: http
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        profile:
+                          path: "/profile"
+                          operations:
+                            get-profile:
+                              method: GET
+                        token:
+                          path: "/oauth/token"
+                          operations:
+                            get-token:
+                              method: POST
+                              body:
+                                type: formUrlEncoded
+                                data: "grant_type=client_credentials&scope={{profile.scope}}&note={{profile.note}}&n={{profile.count}}"
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: auth-tools
+                      tools:
+                        get-token:
+                          description: "Get an access token for a user profile"
+                          inputParameters:
+                            user:
+                              type: string
+                              description: "User id"
+                          steps:
+                            profile:
+                              type: call
+                              call: auth.get-profile
+                            token:
+                              type: call
+                              call: auth.get-token
+                          mappings:
+                            - target: id
+                              value: "$.token.id"
+                          outputParameters:
+                            id:
+                              type: string
+                """.formatted(schemaVersion, port);
+    }
+
+    private static Component createLookupThenTokenUpstream(int port, String profileJson,
+            AtomicReference<String> tokenBody) {
+        Component component = new Component();
+        component.getServers().add(Protocol.HTTP, port);
+        component.getDefaultHost().attach(new Application() {
+            @Override
+            public Restlet createInboundRoot() {
+                Router router = new Router(getContext());
+                router.attach("/profile", new Restlet() {
+                    @Override
+                    public void handle(Request request, Response response) {
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity(profileJson, MediaType.APPLICATION_JSON);
+                    }
+                });
+                router.attach("/oauth/token", new Restlet() {
+                    @Override
+                    public void handle(Request request, Response response) {
+                        try {
+                            tokenBody.set(request.getEntity().getText());
+                        } catch (java.io.IOException e) {
+                            tokenBody.set("<unreadable: " + e.getMessage() + ">");
+                        }
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity("{\"id\":\"tok_1\"}", MediaType.APPLICATION_JSON);
+                    }
+                });
+                return router;
+            }
+        });
+        return component;
+    }
+
     private JsonNode callTool(Capability capability, String tool, String argName, String argValue) {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(
                 (McpServerAdapter) capability.getServerAdapters().get(0));
