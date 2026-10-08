@@ -34,6 +34,7 @@ functions:
   - standalone-no-imports
   - import-alias-unique
   - tunnel-identity-binds-ref
+  - mcp-ui-view-mime-type
 
 rules:
 
@@ -247,6 +248,53 @@ rules:
     then:
       field: "hints"
       function: truthy
+
+  # MCP Apps (SEP-1865) — interactive ui:// views linked from exposed MCP tools
+
+  ikanos-mcp-ui-resource-mime-type:
+    message: "{{error}}"
+    description: >
+      MCP Apps hosts only render views served as `text/html;profile=mcp-app`.
+      An exposed MCP resource whose `uri` starts with `ui://` must declare that
+      `mimeType`. The engine refuses to start when a tool's `ui.resourceUri`
+      resolves to a different type; this rule surfaces the error in the editor.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-ui-view-mime-type
+
+  ikanos-mcp-ui-tool-output-parameters:
+    message: "An MCP tool with `ui` should declare `outputParameters`."
+    description: >
+      Without `outputParameters`, the tool returns text only and advertises no
+      `outputSchema`, so its MCP Apps view receives no typed `structuredContent`
+      to render.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'mcp')].tools[?(@.ui)]"
+      - "$.exposes[?(@.type == 'mcp')].tools[?(@.ui)]"
+    then:
+      field: "outputParameters"
+      function: truthy
+
+  ikanos-mcp-ui-connect-domains-empty:
+    message: "This MCP Apps view declares `csp.connectDomains`, so it can reach origins outside the capability."
+    description: >
+      With no `connectDomains`, the view's only data path is `tools/call`
+      through this capability, its authentication and its output mappings.
+      Each connect domain opens a second path the capability does not govern.
+      Prefer calling a tool instead.
+    severity: info
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'mcp')].resources[*].ui.csp.connectDomains"
+      - "$.exposes[?(@.type == 'mcp')].resources[*].ui.csp.connectDomains"
+    then:
+      function: length
+      functionOptions:
+        max: 0
 
   ikanos-consumes-description:
     message: "Each `consumes` entry should have a `description` field."

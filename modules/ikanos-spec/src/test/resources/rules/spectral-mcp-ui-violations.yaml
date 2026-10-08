@@ -1,0 +1,41 @@
+# Spectral fixture — MCP Apps rules MUST FIRE:
+#   - ikanos-mcp-ui-resource-mime-type (ui:// resource with text/html, no profile)
+#   - ikanos-mcp-ui-tool-output-parameters (tool with ui, no outputParameters)
+#   - ikanos-mcp-ui-connect-domains-empty (view declares connectDomains)
+ikanos: "1.0.0-beta7"
+info:
+  display: "MCP Apps rules — violations"
+  description: "Fixture that violates each MCP Apps Polychro rule."
+capability:
+  consumes:
+    - type: http
+      namespace: weather-api
+      description: "Weather API."
+      baseUri: https://api.weather.test
+      resources:
+        forecast:
+          path: /v1/forecast
+          operations:
+            get-forecast:
+              method: GET
+  exposes:
+    - type: mcp
+      namespace: weather
+      port: 3001
+      resources:
+        forecast-view:
+          display: Forecast view
+          description: Interactive forecast chart.
+          uri: ui://weather/forecast
+          location: file:///opt/capabilities/weather/ui/forecast
+          mimeType: text/html
+          ui:
+            csp:
+              connectDomains:
+                - https://api.weather.test
+      tools:
+        get-forecast:
+          description: Seven-day forecast.
+          call: weather-api.get-forecast
+          ui:
+            resourceUri: ui://weather/forecast/index.html

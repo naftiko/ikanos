@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.mcp.ResourceHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
@@ -24,7 +25,6 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * The resources/list handler.
@@ -42,21 +42,24 @@ public class ResourcesListHandler extends McpCallHandler {
         ObjectNode result = MAPPER.createObjectNode();
         ArrayNode resourcesArray = result.putArray("resources");
 
-        for (Map<String, String> entry : adapter.getResourceHandler().listAll()) {
+        for (ResourceHandler.ResourceDescriptor entry : adapter.getResourceHandler().listAll()) {
             ObjectNode node = MAPPER.createObjectNode();
-            node.put("uri", entry.get("uri"));
-            node.put("name", entry.get("name"));
-            String title = entry.get("display");
+            node.put("uri", entry.uri());
+            node.put("name", entry.name());
+            String title = entry.display();
             if (title != null) {
                 node.put("title", title);
             }
-            String description = entry.get("description");
+            String description = entry.description();
             if (description != null) {
                 node.put("description", description);
             }
-            String mimeType = entry.get("mimeType");
+            String mimeType = entry.mimeType();
             if (mimeType != null) {
                 node.put("mimeType", mimeType);
+            }
+            if (entry.meta() != null) {
+                node.set("_meta", MAPPER.valueToTree(entry.meta()));
             }
             resourcesArray.add(node);
         }

@@ -165,6 +165,22 @@ public class ResourceHandlerStaticBinaryTest {
         assertTrue(ResourceHandler.isBinaryMime("   "));
     }
 
+    @Test
+    public void mimeTypeFromExtensionShouldMapWebAssetsToTextTypes() {
+        assertEquals("text/html", ResourceHandler.mimeTypeFromExtension("index.html"));
+        assertEquals("text/html", ResourceHandler.mimeTypeFromExtension("INDEX.HTM"));
+        assertEquals("text/css", ResourceHandler.mimeTypeFromExtension("app.css"));
+        assertEquals("text/javascript", ResourceHandler.mimeTypeFromExtension("app.js"));
+        assertEquals("text/javascript", ResourceHandler.mimeTypeFromExtension("app.mjs"));
+        assertFalse(ResourceHandler.isBinaryMime(ResourceHandler.mimeTypeFromExtension("index.html")),
+                "HTML must take the text path, not a base64 blob");
+    }
+
+    @Test
+    public void mimeTypeFromExtensionShouldFallBackToOctetStreamForUnknownExtension() {
+        assertEquals("application/octet-stream", ResourceHandler.mimeTypeFromExtension("blob.dat"));
+    }
+
     private static McpServerResourceSpec staticResource(String name, String uri, Path dir) {
         McpServerResourceSpec spec = new McpServerResourceSpec();
         spec.setName(name);

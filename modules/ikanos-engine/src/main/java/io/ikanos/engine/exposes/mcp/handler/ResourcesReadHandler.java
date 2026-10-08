@@ -74,6 +74,9 @@ public class ResourcesReadHandler extends McpCallHandler {
                 } else {
                     contentNode.put("text", c.text != null ? c.text : "");
                 }
+                if (c.meta != null) {
+                    contentNode.set("_meta", MAPPER.valueToTree(c.meta));
+                }
                 contentsArray.add(contentNode);
             }
 
