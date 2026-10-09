@@ -26,6 +26,7 @@ import org.restlet.Response;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
+import org.restlet.data.Status;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.representation.Representation;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -1160,11 +1161,21 @@ public class OperationStepExecutor {
         private final int statusCode;
 
         StepFailedException(String stepName, int statusCode) {
-            super(statusCode > 0
-                    ? "Step '" + stepName + "' failed with HTTP " + statusCode
-                    : "Step '" + stepName + "' failed: no response received");
+            super(message(stepName, statusCode));
             this.stepName = stepName;
             this.statusCode = statusCode;
+        }
+
+        private static String message(String stepName, int statusCode) {
+            if (statusCode <= 0) {
+                return "Step '" + stepName + "' failed: no response received";
+            }
+            // Restlet reports a connection failure with a connector code (1000-1099), not an
+            // HTTP status.
+            if (Status.isConnectorError(statusCode)) {
+                return "Step '" + stepName + "' failed: connector error " + statusCode;
+            }
+            return "Step '" + stepName + "' failed with HTTP " + statusCode;
         }
 
         /** @return the name of the step that failed */
@@ -1172,7 +1183,10 @@ public class OperationStepExecutor {
             return stepName;
         }
 
-        /** @return the upstream HTTP status, or 0 when no response was received */
+        /**
+         * @return the upstream HTTP status, a Restlet connector error code (1000-1099) when the
+         *         connection failed, or 0 when no response was received
+         */
         public int getStatusCode() {
             return statusCode;
         }

@@ -65,6 +65,8 @@ public class OperationStepExecutorFailIfUnsuccessfulTest {
                         response(Status.CONNECTOR_ERROR_CONNECTION.getCode())));
 
         assertEquals(Status.CONNECTOR_ERROR_CONNECTION.getCode(), error.getStatusCode());
+        assertEquals("Step 'step' failed: connector error "
+                + Status.CONNECTOR_ERROR_CONNECTION.getCode(), error.getMessage());
     }
 
     private static Response response(int code) {
