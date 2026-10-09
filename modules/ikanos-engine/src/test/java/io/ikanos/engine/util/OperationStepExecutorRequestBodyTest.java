@@ -159,7 +159,6 @@ class OperationStepExecutorRequestBodyTest {
         assertEquals("q=&r=1", ctx.clientRequest.getEntity().getText());
     }
 
-
     @Test
     void findClientRequestForShouldNotUrlEncodeSubstitutedValuesInTextBody() throws Exception {
         OperationStepExecutor executor = executorWithBody("""
@@ -232,8 +231,6 @@ class OperationStepExecutorRequestBodyTest {
         assertTrue(error.getMessage().contains("Unresolved template parameters in body"));
     }
 
-
-
     @Test
     void findClientRequestForShouldSendMissingStringTemplateVariableAsEmptyWhenOtherParametersAreGiven()
             throws Exception {
@@ -251,7 +248,6 @@ class OperationStepExecutorRequestBodyTest {
 
         assertEquals("hello ", ctx.clientRequest.getEntity().getText());
     }
-
 
     @Test
     void findClientRequestForShouldEncodeBracedValueInFormMapAndFormStringAlike()
