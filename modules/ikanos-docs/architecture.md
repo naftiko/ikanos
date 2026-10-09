@@ -203,7 +203,7 @@ What this path shows about the MCP adapter:
 Every adapter keeps internal detail out of its responses: an unexpected failure returns a generic message with a reference id, and the detail is logged under that id (`ErrorReference`). How the failure is reported depends on the adapter:
 
 - **MCP**: a bad argument (`IllegalArgumentException`) becomes a JSON-RPC `invalid params` error. Any other failure while running a tool becomes a tool result with `isError: true` (`ToolsCallHandler`).
-- **REST**: a bad input becomes `400`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
+- **REST**: a bad input becomes `400`, a failed upstream step (`StepFailedException`) `502`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
 
 ### Other entry points
 
@@ -246,6 +246,8 @@ In the code, the same decision is made in three places: `ToolHandler`, `Resource
 `OperationStepExecutor.executeSteps` runs the steps in declaration order. Before the normal dispatch, it checks whether a Java `StepHandler` is registered under the step's name (embedding API); if so, the handler runs instead. Otherwise it dispatches on the step's spec class: a call step goes through `findClientRequestFor` like a single call, a lookup step through `LookupExecutor`, a script step through `ScriptStepExecutor`. The step types and their fields are in the [specification](https://shipyard.naftiko.io/ikanos/spec/steps/).
 
 Each step gets its own span and step metric. Its output is added to the parameters under the step's name, which is how later steps and templates read it.
+
+A call step whose upstream response is not 2xx, or that gets no response, stops the sequence: `failIfUnsuccessful` throws a `StepFailedException` naming the step, and the remaining steps do not run. Each adapter turns that exception into its own error (see [Errors](#errors)).
 
 ### Parameters and templates
 
