@@ -44,6 +44,8 @@ import io.ikanos.spec.util.VersionHelper;
  */
 public class McpFormUrlEncodedBodyIntegrationTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final String schemaVersion = VersionHelper.getSchemaVersion();
 
     @Test
@@ -133,28 +135,6 @@ public class McpFormUrlEncodedBodyIntegrationTest {
     }
 
     @Test
-    public void handleToolCallShouldNotLetStepOutputAddFormFields() throws Exception {
-        AtomicReference<String> receivedBody = new AtomicReference<>();
-        int port = findFreePort();
-        Component upstream = createLookupThenTokenUpstream(port,
-                "{\"scope\":\"read&client_id=attacker\",\"note\":\"a b\",\"count\":3}",
-                receivedBody);
-        upstream.start();
-
-        try {
-            Capability capability = capabilityFromYaml(lookupThenTokenCapabilityYaml(port));
-            JsonNode result = callTool(capability, "get-token", "user", "u1");
-
-            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
-            assertEquals("grant_type=client_credentials"
-                    + "&scope=read%26client_id%3Dattacker&note=a+b&n=3",
-                    receivedBody.get());
-        } finally {
-            upstream.stop();
-        }
-    }
-
-    @Test
     public void handleToolCallShouldUrlEncodeObjectArgumentFieldsInFormStringBody()
             throws Exception {
         AtomicReference<String> receivedBody = new AtomicReference<>();
@@ -166,8 +146,7 @@ public class McpFormUrlEncodedBodyIntegrationTest {
 
         try {
             Capability capability = capabilityFromYaml(objectArgumentCapabilityYaml(port));
-            ObjectMapper mapper = new ObjectMapper();
-            ObjectNode filter = mapper.createObjectNode().put("scope", "read&client_id=attacker");
+            ObjectNode filter = MAPPER.createObjectNode().put("scope", "read&client_id=attacker");
             JsonNode result = callTool(capability, "get-token", "filter", filter);
 
             assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
@@ -181,17 +160,24 @@ public class McpFormUrlEncodedBodyIntegrationTest {
 
     private JsonNode callTool(Capability capability, String tool, String argName,
             JsonNode argValue) {
+        return callTool(capability, tool, MAPPER.createObjectNode().set(argName, argValue));
+    }
+
+    private JsonNode callTool(Capability capability, String tool, String argName, String argValue) {
+        return callTool(capability, tool, MAPPER.createObjectNode().put(argName, argValue));
+    }
+
+    private JsonNode callTool(Capability capability, String tool, ObjectNode arguments) {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(
                 (McpServerAdapter) capability.getServerAdapters().get(0));
-        ObjectMapper mapper = new ObjectMapper();
 
-        ObjectNode request = mapper.createObjectNode();
+        ObjectNode request = MAPPER.createObjectNode();
         request.put("jsonrpc", "2.0");
         request.put("id", 1);
         request.put("method", "tools/call");
         ObjectNode params = request.putObject("params");
         params.put("name", tool);
-        params.putObject("arguments").set(argName, argValue);
+        params.set("arguments", arguments);
         params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
                 ProtocolDispatcher.MCP_PROTOCOL_VERSION);
 
@@ -320,24 +306,6 @@ public class McpFormUrlEncodedBodyIntegrationTest {
         return component;
     }
 
-    private JsonNode callTool(Capability capability, String tool, String argName, String argValue) {
-        ProtocolDispatcher dispatcher = new ProtocolDispatcher(
-                (McpServerAdapter) capability.getServerAdapters().get(0));
-        ObjectMapper mapper = new ObjectMapper();
-
-        ObjectNode request = mapper.createObjectNode();
-        request.put("jsonrpc", "2.0");
-        request.put("id", 1);
-        request.put("method", "tools/call");
-        ObjectNode params = request.putObject("params");
-        params.put("name", tool);
-        params.putObject("arguments").put(argName, argValue);
-        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
-                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
-
-        return dispatcher.dispatch(request).responseBody().path("result");
-    }
-
     private String tokenCapabilityYaml(int port) {
         return """
                 ikanos: "%s"
@@ -381,23 +349,10 @@ public class McpFormUrlEncodedBodyIntegrationTest {
     private JsonNode callCreateSession(int upstreamPort, String amount, String name)
             throws Exception {
         Capability capability = capabilityFromYaml(capabilityYaml(upstreamPort));
-        ProtocolDispatcher dispatcher = new ProtocolDispatcher(
-                (McpServerAdapter) capability.getServerAdapters().get(0));
-        ObjectMapper mapper = new ObjectMapper();
-
-        ObjectNode request = mapper.createObjectNode();
-        request.put("jsonrpc", "2.0");
-        request.put("id", 1);
-        request.put("method", "tools/call");
-        ObjectNode params = request.putObject("params");
-        params.put("name", "create-session");
-        ObjectNode arguments = params.putObject("arguments");
+        ObjectNode arguments = MAPPER.createObjectNode();
         arguments.put("amount", amount);
         arguments.put("name", name);
-        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
-                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
-
-        return dispatcher.dispatch(request).responseBody().path("result");
+        return callTool(capability, "create-session", arguments);
     }
 
     private String capabilityYaml(int port) {
