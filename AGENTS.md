@@ -58,6 +58,7 @@ tightened wording lives there; this is a working copy so the rules are actually 
 | `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` | Ikanos JSON Schema (source of truth) |
 | `modules/ikanos-spec/src/main/resources/schemas/examples/` | Capability examples (`cir.yml`, `notion.yml`, `skill-adapter.yml`, ...) |
 | `modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml` | Polychro ruleset (cross-object consistency, quality, security) |
+| `ARCHITECTURE.md` | How the engine works: modules, startup, request path, invariants. Read it before changing engine code |
 | `modules/ikanos-docs/tutorial/` | Shipyard Track tutorial (`step-1-shipyard-` to `step-10-shipyard-`) |
 | `modules/ikanos-engine/src/test/resources/` and `modules/ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
 | `scripts/pr-check-wind.ps1` | Local pre-PR validation (Windows) |
@@ -276,6 +277,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. Key rules:
 - AGENTS.md improvements are `feat:`, not `chore:` — they add value to the agent workflow
 - Rebase on `main` before PR — linear history, no merge commits
 - One logical change per PR — keep it atomic
+- If the change adds a module or an adapter type, or changes the startup order or the request flow, update the matching section of `ARCHITECTURE.md` in the same PR
 - CI must be green (build, tests, schema validation, Trivy, Gitleaks)
 - Always read the repository templates before creating issues or PRs:
   - Issues: `.github/ISSUE_TEMPLATE/` — use the matching template and fill in all required fields

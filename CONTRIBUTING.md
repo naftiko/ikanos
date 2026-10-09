@@ -65,6 +65,7 @@ bash ./scripts/pr-check-mac-linux.sh
 
 ### 2. Develop
 
+- New to the code? Read [ARCHITECTURE.md](ARCHITECTURE.md) first: it explains the modules, the startup sequence and the path of a request. If your change adds a module or an adapter type, or changes the startup order or the request flow, update it in the same PR.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages:
 
         feat: add OAuth login
@@ -186,6 +187,7 @@ two rules:
 | `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json`              | Ikanos Specification JSON Schema (latest) |
 | `modules/ikanos-spec/src/main/resources/schemas/examples/`                       | Capability examples: `cir.yml`, `notion.yml`, `skill-adapter.yml`, `multi-consumes-*.yml`... |
 | `modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml`                  | Polychro ruleset (cross-object consistency, quality, security) |
+| `ARCHITECTURE.md`                                                                | How the engine works: modules, startup, request path, invariants |
 | `modules/ikanos-docs/tutorial/`                                                  | Step-by-step tutorial capabilities (`step-1-` to `step-10-`) |
 | `modules/ikanos-engine/src/test/resources/` and `modules/ikanos-cli/src/test/resources/` | Test fixtures (not examples) |
 | `.github/workflows/`                                                             | CI/CD pipelines |
