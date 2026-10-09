@@ -61,7 +61,9 @@ public class McpCallHandlersFactory {
                 new PromptsGetHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
                         List.of(protocolsVersionsValidator), List.of(serverDataAppender)),
                 new ServerDiscoverHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
-                        List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender))
+                        List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)),
+                // Takes no headers or processors: legacy clients send neither MCP headers nor _meta.
+                new LegacyInitializeHandler(adapter)
         );
     }
 }

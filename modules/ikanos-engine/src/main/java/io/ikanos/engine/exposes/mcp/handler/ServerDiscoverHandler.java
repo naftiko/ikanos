@@ -14,7 +14,6 @@
 package io.ikanos.engine.exposes.mcp.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
@@ -25,7 +24,7 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 
 import java.util.List;
 
-import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSION;
+import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.putSupportedProtocolVersions;
 
 /**
  * The server/discover handler.
@@ -42,8 +41,7 @@ public class ServerDiscoverHandler extends McpCallHandler {
     public HandlerResult handle(JsonNode requestBody) {
         ObjectNode result = MAPPER.createObjectNode();
 
-        ArrayNode supportedVersions = result.putArray("supportedVersions");
-        supportedVersions.add(MCP_PROTOCOL_VERSION);
+        putSupportedProtocolVersions(result, "supportedVersions");
 
         // Conditionally advertise capabilities based on what is declared in the spec
         ObjectNode capabilities = MAPPER.createObjectNode();

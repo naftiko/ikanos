@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcCodeMapper;
@@ -46,7 +47,9 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
  *
  * Handles a single endpoint supporting:
  * <ul>
- * <li>POST: JSON-RPC requests (initialize, tools/list, tools/call)</li>
+ * <li>POST: JSON-RPC requests (tools/list, tools/call, server/discover, …). A legacy
+ * {@code initialize} is answered with an {@code UnsupportedProtocolVersionError} naming the
+ * supported versions.</li>
  * <li>GET: SSE stream for server-initiated messages (returns 405 - not supported)</li>
  * <li>DELETE: returns 405 - not supported, kept for backwards compatibility</li>
  * </ul>
@@ -130,6 +133,13 @@ public class McpServerResource extends ServerResource {
     }
 
     private Optional<String> validateHeaders(Series<Header> headers, JsonNode requestBody) {
+        // A legacy initialize carries none of the 2026-07-28 headers. Let it through so the
+        // dispatcher answers with an UnsupportedProtocolVersionError naming the supported
+        // versions, instead of a header error that gives the client no hint (#732).
+        if (LegacyInitializeHandler.METHOD_NAME.equals(requestBody.path("method").asText())) {
+            return Optional.empty();
+        }
+
         // 1. Validate the presence of the mandatory headers
         // The Mcp-Method is required on all requests and allows us to get the mandatory headers for the relevant method
         String mcpMethod = McpHeader.MCP_METHOD.getHeaderValue(headers);
