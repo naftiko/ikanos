@@ -2,31 +2,9 @@
 
 This document explains how the Ikanos engine works inside: its modules, how a capability is loaded and started, and the path a request takes through the engine. It is written for contributors, people and coding agents, who need a mental model of the code before changing it.
 
-It is not a user guide. To learn how to *write* a capability, read the [specification and tutorials on Shipyard](https://shipyard.naftiko.io/ikanos/). For per-class detail, read the Javadoc and the `package-info.java` of each package: this document names the important classes and leaves the detail to them.
+It is not a user guide. What a capability author can declare, and what each feature does, is described in the [Ikanos specification on Shipyard](https://shipyard.naftiko.io/ikanos/spec/). This document covers how the engine implements it, where that code lives, and why it is built this way. For per-class detail, read the Javadoc and the `package-info.java` of each package.
 
-> **Keep this file current.** It describes modules, packages and flows, not lines of code, so it only needs an update when the architecture changes: a new module or adapter type, a new step type, a change to the startup order or to the request path. If your PR does one of those, update the matching section in the same PR.
-
-> **Work in progress.** Three open PRs change the consumes side and the step flow. When they are merged, the sections they touch are updated:
->
-> - [#780](https://github.com/naftiko/ikanos/pull/780) separates consumed-call execution from HTTP: request building moves into `HttpClientAdapter.prepare`, and `HandlingContext` is replaced. This affects [Consumes](#consumes-calling-upstream-apis), the request diagram and [Extension points](#extension-points).
-> - [#782](https://github.com/naftiko/ikanos/pull/782) adds an MCP client as a second kind of consumed adapter.
-> - [#770](https://github.com/naftiko/ikanos/pull/770) stops an orchestrated sequence when a call step gets a non-2xx response.
-
-## Contents
-
-- [The big picture](#the-big-picture)
-- [Code map](#code-map)
-- [Spec and validation](#spec-and-validation)
-- [Life of a capability: startup and shutdown](#life-of-a-capability-startup-and-shutdown)
-- [Life of a request](#life-of-a-request)
-- [Consumes: calling upstream APIs](#consumes-calling-upstream-apis)
-- [Orchestration: from parameters to a result](#orchestration-from-parameters-to-a-result)
-- [Exposes: the server adapters](#exposes-the-server-adapters)
-- [Observability](#observability)
-- [Extension points](#extension-points)
-- [Tests](#tests)
-- [Invariants and design decisions](#invariants-and-design-decisions)
-- [Where to start reading](#where-to-start-reading)
+> **Keep this file accurate.** Read the sections that cover the code you are about to change, and check them again after your change. If they are no longer true, update them in the same PR. The rule, and the changes that trigger it, are defined in [AGENTS.md](../../AGENTS.md#contribution-workflow).
 
 ## The big picture
 
@@ -91,11 +69,11 @@ flowchart BT
 
 | Module | What it owns |
 |---|---|
-| `modules/ikanos-spec` | The specification. The JSON Schema (`schemas/ikanos-schema.json`, the source of truth for the YAML format), the Polychro ruleset (`rules/ikanos-rules.yml`), the Jackson model the YAML is read into (`io.ikanos.spec`), and OpenAPI import/export (`io.ikanos.spec.openapi`). It has no runtime behaviour. |
+| `modules/ikanos-spec` | The specification. The JSON Schema (`schemas/ikanos-schema.json`, the source of truth for the YAML format), the ruleset (`rules/ikanos-rules.yml`), the Jackson model the YAML is read into (`io.ikanos.spec`), and OpenAPI import/export (`io.ikanos.spec.openapi`). It has no runtime behaviour. |
 | `modules/ikanos-engine` | The runtime. Loads a spec, builds the adapters, runs requests, and handles telemetry. Usable as a library (see [Extension points](#extension-points)). |
-| `modules/ikanos-cli` | The `ikanos` command (Picocli): `serve`, `validate`, `create`, `import`, `export`, and the control-port clients `health`, `status`, `traces`, `metrics`, `scripting`. It builds the shaded `ikanos.jar` used by the Docker image and the GraalVM native binary. |
+| `modules/ikanos-cli` | The `ikanos` command (Picocli, `io.ikanos.cli`): `serve`, `validate`, the import/export and scaffolding commands, and the clients of the control port. It builds the shaded `ikanos.jar` used by the Docker image and the GraalVM native binary. |
 | `modules/ikanos-tunnel-ziti` | An optional OpenZiti implementation of the reverse-tunnel SPI. It is discovered with `ServiceLoader` when the jar is on the classpath. |
-| `modules/ikanos-docs` | No code. Tutorial capabilities (`tutorial/`), demos, and test documentation. |
+| `modules/ikanos-docs` | No code. This document, the tutorial capabilities (`tutorial/`), demos, and test documentation. |
 | `modules/ikanos-coverage` | No code. Aggregates JaCoCo coverage across modules for the quality gate. |
 
 The JSON Schema and the ruleset are also synchronized to Crafter, the Naftiko VS Code extension, by the `synchronize-schema-and-rules` workflow. A change to either one reaches editors too.
@@ -110,11 +88,11 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.bootstrap` | `CapabilityRuntime`: what `ikanos serve` runs. Reads the file, starts telemetry, starts the capability, waits for shutdown. |
 | `io.ikanos.engine` | `Adapter`: the start/stop contract shared by all adapters. |
 | `io.ikanos.engine.consumes` | `ClientAdapter` base class. |
-| `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API, with its authentication schemes. |
+| `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API, with its authentication. |
 | `io.ikanos.engine.consumes.tunnel` | The reverse-tunnel SPI (`Tunnel`) and its bootstrap. |
 | `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`. |
 | `io.ikanos.engine.aggregates` | Reusable domain flows (`Aggregate`, `AggregateFlow`) and the load-time `ref` resolution (`AggregateRefResolver`). |
-| `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed JavaScript, Python (GraalVM) and Groovy script steps. |
+| `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed script steps. |
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
 | `io.ikanos.engine.imports` | Resolves `import` entries in `consumes`, `exposes`, `aggregates` and `binds` before anything else runs. |
 | `io.ikanos.engine.exposes` | `ServerAdapter` base class and the shared authentication filters. |
@@ -139,26 +117,25 @@ The YAML format is defined once, in `modules/ikanos-spec/src/main/resources/sche
 Validation runs **outside** the runtime:
 
 - `ikanos validate` checks a file against the JSON Schema. It builds its validator with `IkanosMetaSchemaFactory`, which teaches the schema library the Ikanos `name` keyword.
-- The ruleset runs in CI through Spectral, from the MegaLinter workflow (`.mega-linter.yml`, `.spectral.yaml`), on the tutorial, the examples and the test fixtures. Moving that check to Polychro is tracked in [#382](https://github.com/naftiko/ikanos/issues/382).
-- Crafter, the VS Code extension, receives the schema and the ruleset through the `synchronize-schema-and-rules` workflow.
+- In CI, the MegaLinter workflow (`.mega-linter.yml`, `.spectral.yaml`) runs the ruleset with Spectral on the tutorial, the examples and the test fixtures. Moving that check to Polychro is tracked in [#382](https://github.com/naftiko/ikanos/issues/382).
 
 The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHelper` reads it from the filtered `version.properties`, and `scripts/sync-schema-version.py` updates the version strings in fixtures and examples at each bump.
 
 ## Life of a capability: startup and shutdown
 
-`ikanos serve [file]` (default `ikanos.yaml`, which is also what the Docker image runs) calls `CapabilityRuntime.serve`. From there, the order matters, and the comments in `Capability`'s constructor explain why:
+`ikanos serve [file]` calls `CapabilityRuntime.serve`. From there, the order matters, and the comments in `Capability`'s constructor explain why:
 
 1. **Read the YAML** into an `IkanosSpec` with Jackson. Unknown properties are ignored, and the file is **not** validated against the JSON Schema here (see [Invariants](#invariants-and-design-decisions)).
 2. **Start telemetry** (`TelemetryBootstrap.init`), configured from the control adapter's `observability` block if there is one.
 3. **Build the `Capability`**:
     1. **Resolve imports** in a fixed order: `consumes`, then `aggregates`, then `exposes`, then `binds` (`ImportResolver`, with one `ImportStrategy` per section). After this pass every section contains only inline entries.
-    2. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` on an MCP tool or REST operation must point to a known `namespace.flow`, otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
+    2. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` must point to a known flow, otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
     3. **Find the scripting settings** on the control adapter, if any.
     4. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`.
-    5. **Resolve bindings** (`BindingResolver`): values read from a file when the binding has a `location`, otherwise from environment variables.
-    6. **Construct the server adapters**, one per `exposes` entry, by `type`: `rest`, `mcp`, `skill`, `control`. A capability must expose at least one.
-    7. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap`), waiting up to 30 seconds for them to be ready.
-    8. **Construct the client adapters**, one per `consumes` entry of type `http`, handing each its tunnel if it has one.
+    5. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
+    6. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
+    7. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
+    8. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
 4. **Start**: client adapters first, then server adapters, so nothing accepts a request before it can call upstream.
 5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then client adapters.
 
@@ -199,7 +176,7 @@ sequenceDiagram
     else tool has call or steps
         Tool->>Exec: execute(...) / executeSteps(...)
     else neither
-        Tool->>Tool: mock result from outputParameters values, no upstream call
+        Tool->>Tool: mock result, no upstream call
     end
     Exec->>Exec: build request: URI template, input parameters, body, auth
     Exec->>HCA: HandlingContext.handle() (CLIENT span, traceparent injected)
@@ -210,112 +187,96 @@ sequenceDiagram
     Tool->>Tool: convert to JSON, apply output mappings
     Tool-->>H: CallToolResult
     H-->>Disp: result
-    Disp->>Disp: post-processors (server info, cache hints)
+    Disp->>Disp: post-processors
     Disp-->>Res: JSON-RPC response
     Res-->>Client: HTTP status mapped from the JSON-RPC error code, or 200
 ```
 
-Points worth knowing:
+What this path shows about the MCP adapter:
 
-- **Transport and protocol are separate.** `McpServerResource` holds everything specific to HTTP: header checks, HTTP status codes, content types. `ProtocolDispatcher` holds the MCP protocol and is shared with the stdio transport (`StdioJsonRpcHandler`). A protocol change belongs in the dispatcher or a handler, never in a transport.
-- **One handler per JSON-RPC method.** Each method (`tools/call`, `resources/read`, `server/discover`, ...) has its own `McpCallHandler` subclass in `exposes.mcp.handler`, built once per adapter by `McpCallHandlersFactory`. The factory is the list of supported methods. Each handler declares the MCP headers it requires, its pre-processors (for example `ProtocolsVersionsValidator`) and its post-processors (for example `ServerDataAppender`).
-- **MCP 2026-07-28 only.** Every request carries the protocol version in `params._meta`, and over HTTP also in headers that must match the body. There is no `initialize` handshake. A legacy client that still sends `initialize` gets an `UnsupportedProtocolVersionError` naming the supported versions (`LegacyInitializeHandler`), so it fails with a clear reason. The versions live in one place: `ProtocolDispatcher.MCP_PROTOCOL_VERSION` and `SUPPORTED_PROTOCOL_VERSIONS`.
-- **Errors.** A bad argument (`IllegalArgumentException`) becomes a JSON-RPC `invalid params` error. Any other failure while running the tool becomes a tool result with `isError: true` and a generic message plus a reference id. The detail is only logged (see `ErrorReference`).
+- **Transport and protocol are separate.** In the MCP adapter, `McpServerResource` holds everything specific to HTTP (header checks, HTTP status codes, content types), and `ProtocolDispatcher` holds the MCP protocol, shared with the stdio transport (`StdioJsonRpcHandler`). A protocol change belongs in the dispatcher or a handler, never in a transport.
+- **One handler per JSON-RPC method.** Each method has its own `McpCallHandler` subclass in `exposes.mcp.handler`, built once per adapter by `McpCallHandlersFactory`, which is the list of supported methods. Each handler declares the MCP headers it requires, its pre-processors and its post-processors (`exposes.mcp.processor`).
+- **Protocol versions.** The supported versions are defined in one place, `ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS` (at the time of writing, 2026-07-28 only). A request with an unsupported version, including a legacy `initialize` (`LegacyInitializeHandler`), gets an explicit `UnsupportedProtocolVersionError` that names the supported versions.
+
+### Errors
+
+Every adapter keeps internal detail out of its responses: an unexpected failure returns a generic message with a reference id, and the detail is logged under that id (`ErrorReference`). How the failure is reported depends on the adapter:
+
+- **MCP**: a bad argument (`IllegalArgumentException`) becomes a JSON-RPC `invalid params` error. Any other failure while running a tool becomes a tool result with `isError: true` (`ToolsCallHandler`).
+- **REST**: a bad input becomes `400`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
 
 ### Other entry points
 
-- **MCP over stdio** (`transport: stdio`): `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
-- **REST**: `RestServerAdapter` attaches one `ResourceRestlet` per resource path. For each request, `ResourceRestlet` first looks for an operation matching the HTTP method and runs it in one of the [four execution modes](#execution-modes). Only when no operation handles the request does it fall back to `forward`, which proxies the request to a consumed API; otherwise it answers `404`. Input parameters are read from the path, query, headers and body, at server, resource and operation level, the most specific winning. In single-call mode the REST response keeps the upstream status code.
-- **Skill**: read-only. It serves skill metadata and files; it never runs a call itself. A skill's tools point either to a tool of a sibling `mcp` or `rest` adapter (`from`) or to a local instruction file (`instruction`).
+- **MCP over stdio**: `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
+- **REST**: `RestServerAdapter` attaches one `ResourceRestlet` per resource path. `ResourceRestlet` first looks for an operation matching the HTTP method and runs it (see [Execution modes](#execution-modes)). Only when no operation handles the request does it fall back to `forward`, which proxies the request to a consumed API; otherwise it answers `404`.
+- **Skill**: read-only. It serves skill metadata and files and never runs a call itself; a skill tool that runs something points to a tool of a sibling MCP or REST adapter.
 - **Control port**: engine-defined management endpoints, no orchestration.
 
 ## Consumes: calling upstream APIs
 
-Each `consumes` entry of type `http` becomes an `HttpClientAdapter`, which owns one Restlet `Client` for HTTP and HTTPS.
+Each HTTP `consumes` entry becomes an `HttpClientAdapter`, which owns one Restlet `Client` for HTTP and HTTPS.
 
 For a `call` or a call step, the request is prepared in `OperationStepExecutor.findClientRequestFor`:
 
-1. Find the client adapter by `namespace` and the operation by name.
+1. Find the client adapter by namespace and the operation by name.
 2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left.
-3. Apply input parameters (adapter level, then operation level): query, header, path, and so on.
-4. Build the body when the operation declares one: JSON by default, or form-urlencoded, XML or SPARQL. Fail if any template is left unresolved. Form bodies are encoded by `FormUrlEncodedBody`, which URL-encodes every substituted value so that a caller cannot add form fields.
-5. Set authentication and default headers, through the client adapter (`HttpClientAdapter.setChallengeResponse` and `setHeaders`). Authentication values are resolved against the request parameters **and** the capability's bindings.
+3. Apply the input parameters, adapter level first, then operation level.
+4. Build the body when the operation declares one. Fail if any template is left unresolved. Form bodies go through `FormUrlEncodedBody`, which URL-encodes every substituted value so that a caller cannot add form fields.
+5. Set authentication and default headers through the client adapter (`HttpClientAdapter.setChallengeResponse` and `setHeaders`). Authentication values are resolved against the request parameters **and** the capability's bindings.
 6. Return a `HandlingContext`: the request, the response, and the adapter and operation that produced them.
 
 `HandlingContext.handle()` sends the request inside a CLIENT span, injects W3C trace context so the upstream sees Ikanos as the parent, and records the HTTP client metrics.
 
 **The REST `forward` path is the exception.** `ResourceRestlet.handleFromForwardSpec` builds and sends its own request: it reuses the adapter's authentication and headers, but it does not go through `HandlingContext`, so a forwarded call has no CLIENT span, no injected trace context and no client metrics. This is a known gap, in scope for the audit of divergent implementations ([#667](https://github.com/naftiko/ikanos/issues/667)).
 
-**Reverse tunnels.** A `consumes` entry can declare a `tunnel` to reach a private API through an overlay network instead of the public internet. `Tunnel` is a `ServiceLoader` SPI (`io.ikanos.engine.consumes.tunnel`). `TunnelBootstrap` discovers the implementations at startup, and requests to the adapter's host are routed through the tunnel by a Jetty request listener (`TunnelAwareHttpClientHelper`). `ikanos-tunnel-ziti` is the only implementation today.
+**Reverse tunnels.** A `consumes` entry can declare a `tunnel` to reach a private API through an overlay network. `Tunnel` is a `ServiceLoader` SPI (`io.ikanos.engine.consumes.tunnel`). `TunnelBootstrap` discovers the implementations at startup, and requests to the adapter's host are routed through the tunnel by a Jetty request listener (`TunnelAwareHttpClientHelper`). `ikanos-tunnel-ziti` is an implementation of this SPI.
 
 ## Orchestration: from parameters to a result
 
 ### Execution modes
 
-Every executable unit, whether an MCP tool, a REST operation or an aggregate flow, runs in exactly one of four modes. The same decision appears in `ToolHandler`, `ResourceRestlet` and `AggregateFlow`:
+Every executable unit (an MCP tool, a REST operation, an aggregate flow) runs in one mode, chosen from what it declares: a `ref` to an aggregate flow, a single `call`, a sequence of `steps`, or none of these (a mock built from the output parameters). The [specification](https://shipyard.naftiko.io/ikanos/spec/exposes/) describes what each mode does.
 
-| The unit declares | Mode | What happens |
-|---|---|---|
-| `ref` | **Aggregate** | Delegate to the `AggregateFlow` named `namespace.flow`. The flow then runs in one of the modes below. |
-| `call` | **Single call** | One consumed operation, then output mappings. |
-| `steps` | **Orchestrated** | A sequence of steps, then optional `mappings` that assemble the final result from step outputs. |
-| none of these | **Mock** | The result is built from the `value` fields of `outputParameters`. Used to prototype a capability before wiring a real API. |
+In the code, the same decision is made in three places: `ToolHandler`, `ResourceRestlet` and `AggregateFlow`. A change to the modes therefore touches all three.
 
-**Aggregates** follow the DDD aggregate pattern: a flow is defined once and projected through several adapters. At load time, `AggregateRefResolver` copies only descriptive metadata (name, description, MCP hints derived from `semantics`) onto the adapter unit. The execution fields (`call`, `steps`, `with`, parameters, mappings) are **not** copied: at request time the adapter delegates to the `AggregateFlow`, so there is one copy of the logic.
+**Aggregates** follow the DDD aggregate pattern: a flow is defined once and projected through several adapters. At load time, `AggregateRefResolver` copies only descriptive metadata (name, description, MCP hints derived from `semantics`) onto the adapter unit. The execution fields are **not** copied: at request time the adapter delegates to the `AggregateFlow`, so there is one copy of the logic.
 
 ### Steps
 
-`OperationStepExecutor.executeSteps` runs steps in declaration order. Before the normal dispatch, it checks whether a Java `StepHandler` is registered under the step's name (embedding API); if so, the handler runs instead. Otherwise:
+`OperationStepExecutor.executeSteps` runs the steps in declaration order. Before the normal dispatch, it checks whether a Java `StepHandler` is registered under the step's name (embedding API); if so, the handler runs instead. Otherwise it dispatches on the step's spec class: a call step goes through `findClientRequestFor` like a single call, a lookup step through `LookupExecutor`, a script step through `ScriptStepExecutor`. The step types and their fields are in the [specification](https://shipyard.naftiko.io/ikanos/spec/steps/).
 
-| Step | Runs | Output |
-|---|---|---|
-| `call` | A consumed operation, with the step's `with` merged into the parameters. | The JSON response, projected through the consumed operation's `outputParameters` when it declares any. |
-| `lookup` | A match against the output of an earlier step (`LookupExecutor`), for one value or a list of values. | The matched entries, reduced to the listed fields. |
-| `script` | JavaScript, Python or Groovy in a sandbox (`ScriptStepExecutor`). The script reads a `context` binding and assigns `result`. | `result` as JSON. |
-
-Each step gets its own span and step metric. The output of a step is stored under the step's name, so later steps and templates can use `{{step-name.field}}`.
+Each step gets its own span and step metric. Its output is added to the parameters under the step's name, which is how later steps and templates read it.
 
 ### Parameters and templates
 
-A request's parameters start as the client's arguments (or the REST inputs), merged with the unit's `with` map. Each step output is added under its step name. Two value syntaxes are resolved:
-
-- **Mustache** (`{{name}}`, `{{step.field}}`), rendered by `Resolver.resolveMustacheTemplate` with JMustache.
-- **Namespace-qualified references** (`namespace.param`) in `with` maps, read directly from the parameters.
-
-Output mappings use **JSONPath** (Jayway) over the response.
+A request's parameters start as the client's arguments (or the REST inputs), merged with the unit's `with` map, and grow with each step output. Templates are rendered by `Resolver.resolveMustacheTemplate` (JMustache), and output mappings are JSONPath expressions (Jayway) applied by `Resolver`.
 
 ### Data formats
 
-Inside the engine, **all structured data is JSON**: Jackson `JsonNode` for trees, `Map`/`List` for template rendering. `Converter.convertToJson` turns an upstream response in another format into JSON at the boundary, based on the operation's `outputRawFormat`: XML, YAML, CSV, TSV, PSV, HTML, Markdown, Protobuf and Avro (the last two need an `outputSchema`). Mappings and lookups therefore only ever deal with JSON.
+Inside the engine, **all structured data is JSON**: Jackson `JsonNode` for trees, `Map`/`List` for template rendering. `Converter.convertToJson` turns an upstream response in another format into JSON at the boundary, based on the format the operation declares; the supported formats are the values of `ConversionFormat`. Mappings and lookups therefore only ever deal with JSON.
 
-**Binary** content is the exception: when an operation declares `outputRawFormat: binary`, the bytes are read with a size cap (`maxBinarySize`) and passed through without decoding.
+**Binary** content is the exception: it is read with a size cap and passed through without decoding.
 
 ### Scripting
 
-Script steps are allowed unless they are switched off with `IKANOS_SCRIPTING=false` or with `management.scripting` on the control adapter, which takes precedence. The control adapter can also limit the allowed languages and set defaults. JavaScript and Python run in a GraalVM polyglot context; Groovy runs in a `GroovyShell` restricted by a `SecureASTCustomizer`. All have a timeout.
+`ScriptStepExecutor` runs script steps in a sandbox: JavaScript and Python in a GraalVM polyglot context, Groovy in a `GroovyShell` restricted by a `SecureASTCustomizer` and `GroovySandboxExpressionChecker`. Every script runs with a timeout. Whether scripting is allowed, and for which languages, is decided in `ScriptStepExecutor` from the environment and the control adapter's settings, the control adapter taking precedence.
 
 ## Exposes: the server adapters
 
-All server adapters extend `ServerAdapter`, which owns the Restlet `Server` lifecycle and builds the **authentication chain** in front of the adapter's router (`buildServerChain`):
-
-| `authentication.type` | Filter |
-|---|---|
-| `basic`, `digest` | Restlet `ChallengeAuthenticator`, with constant-time comparison |
-| `bearer`, `apikey` | `ServerAuthenticationRestlet` |
-| `oauth2` | `OAuth2AuthenticationRestlet`. The MCP adapter uses `McpOAuth2Restlet`, which also serves the Protected Resource Metadata (RFC 9728) that MCP clients look for. |
+All server adapters extend `ServerAdapter`, which owns the Restlet `Server` lifecycle and builds the **authentication chain** in front of the adapter's router (`buildServerChain`). The filter is chosen by the authentication type: a Restlet `ChallengeAuthenticator` (with constant-time comparison), `ServerAuthenticationRestlet` or `OAuth2AuthenticationRestlet`. The MCP adapter uses `McpOAuth2Restlet`, which also serves the OAuth Protected Resource Metadata that MCP clients look for.
 
 Authentication runs **before** any protocol handling: an unauthenticated request never reaches the MCP dispatcher or a REST operation.
 
-| Adapter | Routes | Notes |
+| Adapter | Where its routes are defined | Notes |
 |---|---|---|
-| `McpServerAdapter` | One endpoint (`POST`) over HTTP, or stdio | Builds the advertised MCP tools at startup: the input schema from `inputParameters` (or from the flow for a `ref`), annotations from `hints`, and an output schema when the tool has an output contract. |
-| `RestServerAdapter` | The resource paths declared in the spec | Path templates come from the resource `path`. |
-| `SkillServerAdapter` | `/skills`, `/skills/{name}`, `.../download`, `.../contents`, `.../contents/{file}` | Validates at startup that every skill tool has exactly one of `from` or `instruction`. |
-| `ControlServerAdapter` | `/health/live`, `/health/ready`, `/status`, `/metrics`, `/traces`, `/traces/{traceId}`, `/scripting` | Each route is only attached when the matching management or observability option is on. The `ikanos health`, `status`, `traces`, `metrics` and `scripting` commands are its clients. |
+| `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`), annotations from hints, and an output schema when the tool has an output contract. |
+| `RestServerAdapter` | One route per resource path declared in the spec | |
+| `SkillServerAdapter` | Attached in `SkillServerAdapter` | Validates the skill tools at startup. |
+| `ControlServerAdapter` | Attached in `ControlServerAdapter` | Each route is only attached when the matching management or observability option is on. The `ikanos` control-port commands are its clients. |
 
 ## Observability
 
-`TelemetryBootstrap` holds the engine's single OpenTelemetry instance. It is configured by OTel environment variables (`OTEL_*`), overridden by the control adapter's `observability` block, and falls back to a **no-op** implementation when telemetry is disabled or the OTel SDK is not on the classpath. Engine code therefore always calls the telemetry API, with no `if enabled` checks.
+`TelemetryBootstrap` holds the engine's single OpenTelemetry instance. It is configured by the OTel environment variables, overridden by the control adapter's `observability` block, and falls back to a **no-op** implementation when telemetry is disabled or the OTel SDK is not on the classpath. Engine code therefore always calls the telemetry API, with no `if enabled` checks.
 
 What gets a span:
 
@@ -323,16 +284,21 @@ What gets a span:
 - **INTERNAL** spans: a tool call, an aggregate flow, each step.
 - **CLIENT** spans: each upstream call, in `HandlingContext.handle()` (except REST `forward`, see [Consumes](#consumes-calling-upstream-apis)).
 
-Trace context crosses the engine in both directions. Incoming, it is read from the MCP `params._meta` (the transport-neutral carrier in MCP 2026-07-28), falling back to the HTTP `traceparent` header. Outgoing, it is injected into upstream requests. The trace id is also put in the logging MDC and used as the `ErrorReference`, so a reference returned to a client finds both the log line and the trace (`/traces/{traceId}` on the control port).
+Incoming trace context is read per adapter:
 
-Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port's `/metrics`.
+- **MCP** reads it from the request's `params._meta` (`McpMetaTraceContextBridge`). Over HTTP it falls back to the `traceparent` header; over stdio `_meta` is the only carrier.
+- **REST** and **Skill** read the `traceparent` header (`OtelRestletBridge`).
+
+Outgoing, trace context is injected into upstream requests. The trace id is also put in the logging MDC and used as the `ErrorReference`, so a reference returned to a client finds both the log line and the trace (`/traces/{traceId}` on the control port).
+
+Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
 
 ## Extension points
 
 | To add... | Start from |
 |---|---|
 | A new kind of **exposed** adapter | Subclass `ServerAdapter`, add a `*ServerSpec` and its `type` case in `ServerSpecDeserializer` (`ikanos-spec`), and instantiate it in the `Capability` constructor. |
-| A new kind of **consumed** adapter | Subclass `ClientAdapter`, add a `*ClientSpec` and its case in `ClientSpecDeserializer`, and instantiate it in the `Capability` constructor. Today the call path (`OperationStepExecutor`, `HandlingContext`) assumes HTTP. |
+| A new kind of **consumed** adapter | Subclass `ClientAdapter`, add a `*ClientSpec` and its case in `ClientSpecDeserializer`, and instantiate it in the `Capability` constructor. The call path (`OperationStepExecutor`, `HandlingContext`) is written for HTTP, so it has to be generalized too. |
 | A new **MCP method** | A `McpCallHandler` subclass, registered in `McpCallHandlersFactory` with its required headers and processors. |
 | A new **step type** | An `OperationStep*Spec` in `ikanos-spec` (like `OperationStepCallSpec`) and a case in `OperationStepExecutor.executeSteps`. |
 | A new **data format** | A `ConversionFormat` value and a converter in `Converter`. |
@@ -350,7 +316,7 @@ Any change to the YAML format starts in `ikanos-schema.json`. The Jackson model,
 | Tutorial | The tutorial capabilities, from the engine's copy in `src/test/resources/tutorial`: the `io.ikanos.tutorial` tests call them as an MCP or REST client, and `validate-tuto-examples` serves each one with the CLI jar against Microcks mocks | `mvn test` on every PR; the workflow on PRs that change main code or a `pom.xml` |
 | End to end | `.github/e2e/resources/features/<feature>/`: a `capability.yml` and a `run.sh` each, run against the Docker image with Microcks and Keycloak | `e2e-feature-tests`, nightly and on demand |
 
-Coverage is measured by JaCoCo and aggregated across modules by `ikanos-coverage`. `mvn verify`, which the `quality-gate` workflow runs, fails below 75 % line and 65 % branch coverage. The test-writing rules (naming, unit vs integration, the bug workflow) are in `AGENTS.md`.
+Coverage is measured by JaCoCo and aggregated across modules by `ikanos-coverage`. `mvn verify`, which the `quality-gate` workflow runs, fails below the thresholds set by the `jacoco.line.min` and `jacoco.branch.min` properties in the root `pom.xml`. The test-writing rules (naming, unit vs integration, the bug workflow) are in [AGENTS.md](../../AGENTS.md).
 
 ## Invariants and design decisions
 
@@ -363,10 +329,10 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 - **JSON inside, other formats at the edge.** Conversion happens when data enters (`Converter`) and the protocol shape is built when it leaves. Binary is passed through, never decoded.
 - **Secrets stay in authentication.** The resolved `binds` are only used for authentication, on both sides: the credentials a server adapter checks (`ServerAdapter`, `ServerAuthenticationRestlet`) and the credentials a client adapter sends (`HttpClientAdapter`), plus the tunnel identity. They are not merged into the parameters used for URLs, bodies and steps.
 - **No internal detail in error responses.** Unexpected failures return a generic message and a reference id. The detail goes to the server log under that id (`ErrorReference`).
-- **Transport-agnostic protocol code.** MCP protocol logic lives in `ProtocolDispatcher` and the handlers, shared by HTTP and stdio. Transports only translate I/O.
-- **MCP 2026-07-28 only.** There is no `initialize` handshake and no fallback to older protocol versions. A legacy `initialize` is answered with an explicit error, never served.
+- **MCP protocol logic is transport-agnostic.** In the MCP adapter, protocol logic lives in `ProtocolDispatcher` and the handlers, shared by HTTP and stdio. Transports only translate I/O.
+- **Supported protocol versions have a single source of truth.** A client using an unsupported version gets an explicit error, never a silent downgrade.
 - **Telemetry is always on in code, optional at runtime.** Code always creates spans and metrics; a no-op instance makes them free when telemetry is off.
-- **Factor by default.** Mechanisms that recur across adapters (Mustache resolution, JSONPath extraction, authentication, header handling) have one shared implementation. Fix a defect in every place that shares the mechanism, not only where it was reported (see `AGENTS.md`). The audit in [#667](https://github.com/naftiko/ikanos/issues/667) looks for the places that still diverge.
+- **Factor by default.** Mechanisms that recur across adapters (Mustache resolution, JSONPath extraction, authentication, header handling) have one shared implementation. Fix a defect in every place that shares the mechanism, not only where it was reported (see [AGENTS.md](../../AGENTS.md)). The audit in [#667](https://github.com/naftiko/ikanos/issues/667) looks for the places that still diverge.
 - **Thread safety for a future hot reload.** `Capability` and the adapters hold their mutable state in `AtomicReference`s and copy-on-write lists, so a new spec could be swapped in while requests are running.
 
 ## Where to start reading
@@ -380,4 +346,4 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 | Steps | `OperationStepExecutor.executeSteps` |
 | Templates and mappings | `Resolver` |
 | The YAML format | `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` and the examples next to it |
-| Contribution rules and conventions | `CONTRIBUTING.md` and `AGENTS.md` |
+| Contribution rules and conventions | [CONTRIBUTING.md](../../CONTRIBUTING.md) and [AGENTS.md](../../AGENTS.md) |

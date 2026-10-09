@@ -21,7 +21,7 @@ Closes #<!-- issue number -->
 <!-- If this PR modifies github actions for example -->
 
 - [ ] Update Notion documentation
-- [ ] Ensure our internal technical documentation (specs, user docs, test docs) reflects the current implementation (no drift)
+- [ ] Ensure our internal technical documentation (specs, user docs, test docs, and `modules/ikanos-docs/architecture.md`, see AGENTS.md, Contribution Workflow) reflects the current implementation (no drift)
 
 ---
 
