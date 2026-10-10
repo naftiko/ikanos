@@ -30,10 +30,12 @@ flowchart LR
         ORCH[Orchestration<br/>call · steps · aggregates]
         subgraph consumes[Consumes]
             HTTP[HTTP client adapter]
+            MCPC[MCP client adapter]
         end
     end
 
     UP[(Upstream APIs)]
+    UPM[(Upstream MCP servers)]
 
     A --> MCP
     B --> REST
@@ -42,7 +44,9 @@ flowchart LR
     MCP --> ORCH
     REST --> ORCH
     ORCH --> HTTP
+    ORCH --> MCPC
     HTTP --> UP
+    MCPC --> UPM
 ```
 
 The same three ideas appear everywhere in the code:
@@ -88,7 +92,8 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.bootstrap` | `CapabilityRuntime`: what `ikanos serve` runs. Reads the file, starts telemetry, starts the capability, waits for shutdown. |
 | `io.ikanos.engine` | `Adapter`: the start/stop contract shared by all adapters. |
 | `io.ikanos.engine.consumes` | `ClientAdapter` base class, the protocol-neutral call carriers (`ConsumedInvocation`, `ConsumedResult`, `Outcome`) and the `ClientAdapterRegistry` that creates adapters by `type`. |
-| `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API, with its authentication. |
+| `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API. Also `ConsumedAuthentication`, which applies the outgoing credentials for every client adapter. |
+| `io.ikanos.engine.consumes.mcp` | `McpClientAdapter`: calls the declared tools of an upstream MCP server, through a stateless Streamable HTTP transport (`McpStreamableHttpTransport`). |
 | `io.ikanos.engine.consumes.tunnel` | The reverse-tunnel SPI (`Tunnel`) and its bootstrap. |
 | `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`. |
 | `io.ikanos.engine.aggregates` | Reusable domain flows (`Aggregate`, `AggregateFlow`) and the load-time `ref` resolution (`AggregateRefResolver`). |
@@ -136,7 +141,7 @@ The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHel
     6. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
     7. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
     8. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
-4. **Start**: client adapters first, then server adapters, so nothing accepts a request before it can call upstream.
+4. **Start**: client adapters first, then server adapters, so nothing accepts a request before it can call upstream. An MCP client adapter with `discovery: verify` lists the upstream tools here and fails startup if a declared tool or a required argument is missing.
 5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then client adapters.
 
 Two consequences for contributors:
@@ -214,7 +219,7 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 
 ## Consumes: calling upstream APIs
 
-Each `consumes` entry becomes a `ClientAdapter`, created by `ClientAdapterRegistry` from the entry's `type` (HTTP when absent). Adapter types are discovered with `ServiceLoader` (`ClientAdapterFactory`), and their spec types with `ClientSpecTypes` in `ikanos-spec`. An HTTP entry becomes an `HttpClientAdapter`, which owns one Restlet `Client` for HTTP and HTTPS.
+Each `consumes` entry becomes a `ClientAdapter`, created by `ClientAdapterRegistry` from the entry's `type` (HTTP when absent). The core `http` and `mcp` types are registered statically, so that the native CLI does not depend on `ServiceLoader`; other adapter types are discovered with `ServiceLoader` (`ClientAdapterFactory`), and their spec types with `ClientSpecTypes` in `ikanos-spec`. An HTTP entry becomes an `HttpClientAdapter` and an MCP entry an `McpClientAdapter`; each owns one Restlet `Client` for HTTP and HTTPS.
 
 For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` finds the client adapter by namespace and asks it to `prepare` the operation, which returns a `ConsumedInvocation`. For HTTP, `HttpClientAdapter.prepare`:
 
@@ -226,6 +231,8 @@ For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` finds 
 6. Return an `HttpInvocation`: the prepared request, with the adapter and operation that produced it.
 
 `ConsumedInvocation.invoke()` is a template method: it opens the CLIENT span, runs the protocol-specific `doInvoke()` inside it, annotates the span from the result, records the client metrics and closes the span, so a new adapter cannot forget to trace. `HttpInvocation` injects W3C trace context so the upstream sees Ikanos as the parent. The call returns a `ConsumedResult` (status, `Outcome`, body), which orchestration and the exposers read without knowing the protocol. A call step only feeds later steps when `ConsumedResult.isSuccessful()` (strictly 2xx).
+
+**MCP upstreams.** An `mcp` entry declares a curated subset of an upstream server's tools, keyed by the upstream tool name, so `call: <namespace>.<tool>` works like a consumed HTTP operation. `McpClientAdapter.prepare` builds the tool arguments from the declared `inputParameters` only and returns an `McpInvocation`. The transport sends one JSON-RPC `tools/call` POST per call, with no `initialize` and no session (MCP `2026-07-28`, stateless upstreams only), carries the protocol version and trace context in `params._meta` and the `Mcp-*` headers, and reads a `text/event-stream` reply only up to the matching response, with a size cap. The response document is `structuredContent`, otherwise a single text block (parsed when the whole text is JSON); `isError`, a JSON-RPC error or a non-`complete` `resultType` fail the call. Upstream descriptions and annotations are never forwarded, and an upstream `outputSchema` is compiled with external `$ref` fetching disabled.
 
 **The REST `forward` path is the exception.** `ResourceRestlet.handleFromForwardSpec` builds and sends its own request: it reuses the adapter's authentication and headers, but it does not go through `ConsumedInvocation`, so a forwarded call has no CLIENT span, no injected trace context and no client metrics. This is a known gap, in scope for the audit of divergent implementations ([#667](https://github.com/naftiko/ikanos/issues/667)).
 
@@ -300,7 +307,7 @@ Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
 | To add... | Start from |
 |---|---|
 | A new kind of **exposed** adapter | Subclass `ServerAdapter`, add a `*ServerSpec` and its `type` case in `ServerSpecDeserializer` (`ikanos-spec`), and instantiate it in the `Capability` constructor. |
-| A new kind of **consumed** adapter | Subclass `ClientAdapter` and implement `prepare` to return a `ConsumedInvocation` subclass that produces a `ConsumedResult`. Register a `ClientAdapterFactory` and a `ClientSpecType` (for the `*ClientSpec`) in `META-INF/services`. `Capability`, `OperationStepExecutor` and the exposers need no change. |
+| A new kind of **consumed** adapter | Subclass `ClientAdapter` and implement `prepare` to return a `ConsumedInvocation` subclass that produces a `ConsumedResult`. Register a `ClientAdapterFactory` and a `ClientSpecType` (for the `*ClientSpec`) in `META-INF/services`. `Capability`, `OperationStepExecutor` and the exposers need no change. `McpClientAdapter` is a worked example of a non-HTTP adapter; it is a core type, so it is registered statically instead. |
 | A new **MCP method** | A `McpCallHandler` subclass, registered in `McpCallHandlersFactory` with its required headers and processors. |
 | A new **step type** | An `OperationStep*Spec` in `ikanos-spec` (like `OperationStepCallSpec`) and a case in `OperationStepExecutor.executeSteps`. |
 | A new **data format** | A `ConversionFormat` value and a converter in `Converter`. |
@@ -329,7 +336,7 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 - **Load-time over request-time.** Imports, refs and adapter configuration are resolved and checked once at startup. Request handling assumes a consistent spec.
 - **Clients start before servers, and servers stop before clients.**
 - **JSON inside, other formats at the edge.** Conversion happens when data enters (`Converter`) and the protocol shape is built when it leaves. Binary is passed through, never decoded.
-- **Secrets stay in authentication.** The resolved `binds` are only used for authentication, on both sides: the credentials a server adapter checks (`ServerAdapter`, `ServerAuthenticationRestlet`) and the credentials a client adapter sends (`HttpClientAdapter`), plus the tunnel identity. They are not merged into the parameters used for URLs, bodies and steps.
+- **Secrets stay in authentication.** The resolved `binds` are only used for authentication, on both sides: the credentials a server adapter checks (`ServerAdapter`, `ServerAuthenticationRestlet`) and the credentials a client adapter sends (`ConsumedAuthentication`, shared by the HTTP and MCP client adapters), plus the tunnel identity. They are not merged into the parameters used for URLs, bodies and steps.
 - **No internal detail in error responses.** Unexpected failures return a generic message and a reference id. The detail goes to the server log under that id (`ErrorReference`).
 - **MCP protocol logic is transport-agnostic.** In the MCP adapter, protocol logic lives in `ProtocolDispatcher` and the handlers, shared by HTTP and stdio. Transports only translate I/O.
 - **Supported protocol versions have a single source of truth.** A client using an unsupported version gets an explicit error, never a silent downgrade.
@@ -344,7 +351,7 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 | Startup | `CapabilityRuntime.serve`, then the `Capability` constructor |
 | An MCP request | `McpServerResource.handlePost`, `ProtocolDispatcher.dispatch`, `ToolHandler.doHandleToolCall` |
 | A REST request | `ResourceRestlet.handle` |
-| How a call is built and sent | `OperationStepExecutor.findClientRequestFor`, `HttpClientAdapter.prepare` and `ConsumedInvocation.invoke` |
+| How a call is built and sent | `OperationStepExecutor.findClientRequestFor`, `HttpClientAdapter.prepare` (or `McpClientAdapter.prepare`) and `ConsumedInvocation.invoke` |
 | Steps | `OperationStepExecutor.executeSteps` |
 | Templates and mappings | `Resolver` |
 | The YAML format | `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` and the examples next to it |
