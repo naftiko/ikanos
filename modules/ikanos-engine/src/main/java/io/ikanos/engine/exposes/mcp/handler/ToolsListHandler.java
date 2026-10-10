@@ -91,6 +91,10 @@ public class ToolsListHandler extends McpCallHandler {
                 }
             }
 
+            if (tool.meta() != null && !tool.meta().isEmpty()) {
+                toolNode.set("_meta", MAPPER.valueToTree(tool.meta()));
+            }
+
             toolsArray.add(toolNode);
         }
 

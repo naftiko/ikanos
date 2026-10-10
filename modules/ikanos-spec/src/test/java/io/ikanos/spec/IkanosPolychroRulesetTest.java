@@ -326,6 +326,55 @@ public class IkanosPolychroRulesetTest {
                 + result.output());
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // MCP Apps rules (SEP-1865)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpUiResourceMimeTypeRuleShouldFireWhenViewLacksMcpAppProfile() {
+        assertRuleFires("rules/spectral-mcp-ui-violations.yaml",
+            "ikanos-mcp-ui-resource-mime-type");
+    }
+
+    @Test
+    public void mcpUiToolOutputParametersRuleShouldFireWhenUiToolHasNoOutputParameters() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-violations.yaml", "info");
+        assertTrue(result.output().contains("ikanos-mcp-ui-tool-output-parameters"),
+            "Expected lint output to reference ikanos-mcp-ui-tool-output-parameters.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpUiConnectDomainsRuleShouldFireWhenViewDeclaresConnectDomains() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-violations.yaml", "info");
+        assertTrue(result.output().contains("ikanos-mcp-ui-connect-domains-empty"),
+            "Expected lint output to reference ikanos-mcp-ui-connect-domains-empty.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpUiRulesShouldNotFireForCompliantView() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-compliant.yaml", "info");
+        assertTrue(!result.output().contains("ikanos-mcp-ui-"),
+            "Expected no MCP Apps rule findings for a compliant document.\n" + result.output());
+    }
+
+    /**
+     * Lint a fixture file under {@code src/test/resources/} reporting findings down to
+     * {@code severity}.
+     */
+    private ProcessResult lintFixtureAtSeverity(String relativePath, String severity) {
+        return runCommand(
+            "npx",
+            "@stoplight/spectral-cli",
+            "lint",
+            "src/test/resources/" + relativePath,
+            "--ruleset",
+            rulesetPath.toAbsolutePath().toString(),
+            "--fail-severity",
+            severity);
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} with the project ruleset.
      */

@@ -47,13 +47,6 @@ class ClientAdapterRegistryTest {
     }
 
     @Test
-    void registryShouldRegisterBuiltInHttpFirst() {
-        ClientAdapterRegistry registry = new ClientAdapterRegistry(List.of(factory("other")));
-
-        assertEquals(List.of("http", "other"), List.copyOf(registry.registeredTypes()));
-    }
-
-    @Test
     void registryShouldRejectDuplicateType() {
         IllegalStateException error = assertThrows(IllegalStateException.class,
                 () -> new ClientAdapterRegistry(List.of(factory("http"))));
@@ -104,5 +97,12 @@ class ClientAdapterRegistryTest {
                 Set.copyOf(ClientAdapterRegistry.getDefault().registeredTypes()));
         assertTrue(ClientAdapterRegistry.getDefault().registeredTypes().contains("fake"),
                 "the test fake adapter should be discovered on both sides");
+    }
+
+    @Test
+    void registryShouldRegisterBuiltInsFirst() {
+        ClientAdapterRegistry registry = new ClientAdapterRegistry(List.of(factory("other")));
+
+        assertEquals(List.of("http", "mcp", "other"), List.copyOf(registry.registeredTypes()));
     }
 }

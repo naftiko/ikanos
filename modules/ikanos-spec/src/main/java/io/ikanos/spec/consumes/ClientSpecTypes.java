@@ -19,12 +19,13 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
 
 /**
  * Registry of {@code consumes} types known to the spec module.
  *
- * <p>{@code http} is registered statically so that the native CLI never depends on service
- * discovery to load a capability that works today. Additional types are discovered once, lazily,
+ * <p>{@code http} and {@code mcp} are core types, registered statically so that the native CLI
+ * never depends on service discovery to load them. Additional types are discovered once, lazily,
  * through {@link ClientSpecType} providers. A provider that claims an already registered type is
  * rejected.</p>
  */
@@ -32,6 +33,9 @@ public final class ClientSpecTypes {
 
     /** The built-in consumed HTTP type. */
     public static final String HTTP = "http";
+
+    /** The built-in consumed MCP type. */
+    public static final String MCP = McpClientSpec.TYPE;
 
     private static volatile Map<String, Class<? extends ClientSpec>> registry;
 
@@ -76,6 +80,7 @@ public final class ClientSpecTypes {
     static Map<String, Class<? extends ClientSpec>> load(Iterable<ClientSpecType> providers) {
         Map<String, Class<? extends ClientSpec>> map = new LinkedHashMap<>();
         map.put(HTTP, HttpClientSpec.class);
+        map.put(MCP, McpClientSpec.class);
         for (ClientSpecType provider : providers) {
             String type = provider.type();
             if (type == null || type.isBlank()) {

@@ -812,6 +812,40 @@
     ]
   },
   {
+    "name": "io.ikanos.spec.consumes.mcp.McpClientSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.spec.consumes.mcp.McpClientToolSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.spec.consumes.mcp.McpClientToolMapDeserializer",
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
     "name": "io.ikanos.spec.OperationSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
@@ -1381,6 +1415,30 @@
   },
   {
     "name": "io.ikanos.spec.exposes.mcp.McpToolHintsSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpToolUiSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiCspSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpResourceUiPermissionsSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
