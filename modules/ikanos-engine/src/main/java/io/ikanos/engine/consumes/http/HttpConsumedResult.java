@@ -253,6 +253,13 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     }
 
     @Override
+    public void release() {
+        if (response != null && response.getEntity() != null) {
+            response.getEntity().release();
+        }
+    }
+
+    @Override
     public Status restletStatus() {
         return response != null ? response.getStatus() : null;
     }

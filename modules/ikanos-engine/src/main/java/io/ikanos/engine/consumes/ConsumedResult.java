@@ -105,4 +105,13 @@ public interface ConsumedResult {
 
     /** @return the output declarations of the operation that produced this result */
     ConsumedOperationView operation();
+
+    /**
+     * Release the upstream body without reading it, for example when a failed step discards
+     * the result. Calling it more than once, or on a result without a body, is harmless.
+     * The default does nothing, for results that hold no releasable resource.
+     */
+    default void release() {
+        // nothing to release by default
+    }
 }

@@ -31,7 +31,6 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
-import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.scripting.ScriptStepExecutor;
 import io.ikanos.engine.step.StepHandlerRegistry;
@@ -849,8 +848,8 @@ public class OperationStepExecutor {
             return;
         }
         int code = result != null ? result.status() : 0;
-        if (result instanceof RestletBackedResult restlet && restlet.restletEntity() != null) {
-            restlet.restletEntity().release();
+        if (result != null) {
+            result.release();
         }
         throw new StepFailedException(stepName, code);
     }
