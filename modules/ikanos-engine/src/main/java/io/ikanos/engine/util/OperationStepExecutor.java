@@ -27,6 +27,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.aggregates.FlowCallDepthExceededException;
+import io.ikanos.engine.aggregates.FlowInvocation;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
@@ -65,7 +68,12 @@ public class OperationStepExecutor {
     private final Capability capability;
     private final ObjectMapper mapper;
     private ScriptStepExecutor scriptExecutor;
-    private volatile String exposeNamespace;
+    /**
+     * Namespace used to resolve {@code namespace.param} references in {@code with:} when a caller
+     * does not pass one explicitly. Fixed at construction: an executor shared by several aggregate
+     * flows receives each flow's namespace as a method argument instead (#320).
+     */
+    private final String exposeNamespace;
 
     public OperationStepExecutor(Capability capability) {
         this(capability, null);
@@ -83,19 +91,6 @@ public class OperationStepExecutor {
 
     ScriptStepExecutor getScriptExecutor() {
         return scriptExecutor;
-    }
-
-    /**
-     * Override the expose namespace after construction.
-     *
-     * <p>This setter exists for {@link io.ikanos.engine.aggregates.AggregateFlow}, which
-     * shares a single {@code OperationStepExecutor} across multiple aggregate flows that may
-     * belong to different namespaces. The flow sets its own namespace before each execution.
-     * Handlers whose namespace is known at construction time should use
-     * {@link #OperationStepExecutor(Capability, String)} instead.</p>
-     */
-    public void setExposeNamespace(String exposeNamespace) {
-        this.exposeNamespace = exposeNamespace;
     }
 
     /**
@@ -164,6 +159,25 @@ public class OperationStepExecutor {
      */
     public StepExecutionResult executeSteps(Map<String, OperationStepSpec> steps,
             Map<String, Object> baseParameters) {
+        return executeSteps(steps, baseParameters, exposeNamespace);
+    }
+
+    /**
+     * Execute a sequence of orchestrated operation steps on behalf of the given namespace.
+     *
+     * <p>{@code namespace} resolves {@code namespace.param} references in each step's
+     * {@code with:} and labels step telemetry. Passing it per call, rather than storing it on
+     * the executor, keeps an executor shared by flows of different namespaces safe under
+     * concurrent and nested execution (#320).</p>
+     *
+     * @param steps the named map of operation steps to execute (insertion order is preserved)
+     * @param baseParameters the base parameters for template resolution
+     * @param namespace the namespace of the unit that owns the steps; may be {@code null}
+     * @return the result of the last executed call step (may be null) and the step context
+     * @throws IllegalArgumentException if step execution fails
+     */
+    public StepExecutionResult executeSteps(Map<String, OperationStepSpec> steps,
+            Map<String, Object> baseParameters, String namespace) {
         ConsumedResult lastResult = null;
         StepExecutionContext stepContext = new StepExecutionContext();
         Map<String, Object> runtimeParameters = new HashMap<>();
@@ -185,7 +199,7 @@ public class OperationStepExecutor {
             if (registry != null && step.getName() != null && registry.has(step.getName())) {
                 TelemetryBootstrap telemetry = TelemetryBootstrap.get();
                 Span stepSpan = telemetry.startStepCallSpan(
-                        stepIndex, "handler:" + step.getName(), exposeNamespace);
+                        stepIndex, "handler:" + step.getName(), namespace);
                 long handlerStartNanos = System.nanoTime();
                 try (Scope stepScope = stepSpan.makeCurrent()) {
                     Map<String, Object> withValues = null;
@@ -193,7 +207,7 @@ public class OperationStepExecutor {
                         withValues = callSpec.getWith();
                         if (withValues != null) {
                             Map<String, Object> resolved = new HashMap<>(withValues);
-                            mergeWithParameters(resolved, runtimeParameters, exposeNamespace);
+                            mergeWithParameters(resolved, runtimeParameters, namespace);
                             withValues = resolved;
                         }
                     }
@@ -214,7 +228,7 @@ public class OperationStepExecutor {
                     double handlerDurationSec =
                             (System.nanoTime() - handlerStartNanos) / 1_000_000_000.0;
                     telemetry.getMetrics().recordStep(
-                            "handler", exposeNamespace, handlerDurationSec);
+                            "handler", namespace, handlerDurationSec);
                     TelemetryBootstrap.endSpan(stepSpan);
                 }
                 continue;
@@ -224,7 +238,7 @@ public class OperationStepExecutor {
                 case OperationStepCallSpec callStep -> {
                     TelemetryBootstrap telemetry = TelemetryBootstrap.get();
                     Span stepSpan = telemetry
-                            .startStepCallSpan(stepIndex, callStep.getCall(), exposeNamespace);
+                            .startStepCallSpan(stepIndex, callStep.getCall(), namespace);
                     long stepStartNanos = System.nanoTime();
                     try (Scope stepScope = stepSpan.makeCurrent()) {
                         // The previous call step's result is replaced here and nothing reads it
@@ -237,7 +251,7 @@ public class OperationStepExecutor {
                         }
 
                         ConsumedInvocation invocation =
-                                executeCallStep(callStep, runtimeParameters);
+                                executeCallStep(callStep, runtimeParameters, namespace);
 
                         if (invocation == null) {
                             throw new IllegalArgumentException("Invalid call format: "
@@ -246,6 +260,12 @@ public class OperationStepExecutor {
 
                         try {
                             lastResult = invocation.invoke();
+                        } catch (StepFailedException e) {
+                            // A step failed inside a called flow: fail this step too, naming
+                            // the chain so the error says where the failure came from.
+                            throw e.calledFrom(callStep.getName(), callStep.getCall());
+                        } catch (FlowCallDepthExceededException e) {
+                            throw e;
                         } catch (Exception e) {
                             throw new IllegalStateException(
                                     "Error while handling a consumed call", e);
@@ -281,7 +301,7 @@ public class OperationStepExecutor {
                         double stepDurationSec =
                                 (System.nanoTime() - stepStartNanos) / 1_000_000_000.0;
                         telemetry.getMetrics().recordStep(
-                                "call", exposeNamespace, stepDurationSec);
+                                "call", namespace, stepDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
@@ -339,7 +359,7 @@ public class OperationStepExecutor {
                         double lookupDurationSec =
                                 (System.nanoTime() - lookupStartNanos) / 1_000_000_000.0;
                         lookupTelemetry.getMetrics().recordStep(
-                                "lookup", exposeNamespace, lookupDurationSec);
+                                "lookup", namespace, lookupDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
@@ -378,7 +398,7 @@ public class OperationStepExecutor {
                         double scriptDurationSec =
                                 (System.nanoTime() - scriptStartNanos) / 1_000_000_000.0;
                         scriptTelemetry.getMetrics().recordStep(
-                                "script", exposeNamespace, scriptDurationSec);
+                                "script", namespace, scriptDurationSec);
                         TelemetryBootstrap.endSpan(stepSpan);
                     }
                 }
@@ -433,25 +453,22 @@ public class OperationStepExecutor {
      * Execute a single call step.
      */
     private ConsumedInvocation executeCallStep(OperationStepCallSpec callStep,
-            Map<String, Object> baseParameters) {
+            Map<String, Object> baseParameters, String namespace) {
         // Merge step-level 'with' parameters with base parameters
         Map<String, Object> stepParams = new HashMap<>(baseParameters);
 
-        mergeWithParameters(callStep.getWith(), stepParams, exposeNamespace);
+        mergeWithParameters(callStep.getWith(), stepParams, namespace);
 
-        if (callStep.getCall() != null) {
-            String[] tokens = callStep.getCall().split("\\.");
-            if (tokens.length == 2) {
-                try {
-                    return findClientRequestFor(tokens[0], tokens[1], stepParams);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException(
-                            "Error resolving request parameters: " + e.getMessage(), e);
-                }
-            }
+        QualifiedName target = QualifiedName.parse(callStep.getCall());
+        if (target == null) {
+            return null;
         }
-
-        return null;
+        try {
+            return findClientRequestFor(target.namespace(), target.name(), stepParams);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Error resolving request parameters: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -542,6 +559,21 @@ public class OperationStepExecutor {
      */
     public ConsumedInvocation findClientRequestFor(ServerCallSpec call,
             Map<String, Object> requestParams) {
+        return findClientRequestFor(call, requestParams, exposeNamespace);
+    }
+
+    /**
+     * Prepare an invocation for a call specification on behalf of the given namespace.
+     *
+     * @param call          the call specification
+     * @param requestParams the resolved request parameters
+     * @param namespace     the namespace used to resolve {@code namespace.param} references in
+     *                      {@code with:}; may be {@code null}
+     * @return the prepared invocation, or {@code null} when the call is absent, malformed, or
+     *         names a namespace that neither a consumed adapter nor an aggregate declares
+     */
+    public ConsumedInvocation findClientRequestFor(ServerCallSpec call,
+            Map<String, Object> requestParams, String namespace) {
 
         if (call == null) {
             return null;
@@ -553,17 +585,13 @@ public class OperationStepExecutor {
             merged.putAll(requestParams);
         }
 
-        mergeWithParameters(call.getWith(), merged, exposeNamespace);
+        mergeWithParameters(call.getWith(), merged, namespace);
 
-        if (call.getOperation() != null) {
-            String[] tokens = call.getOperation().split("\\.");
-
-            if (tokens.length == 2) {
-                return findClientRequestFor(tokens[0], tokens[1], merged);
-            }
+        QualifiedName target = QualifiedName.parse(call.getOperation());
+        if (target == null) {
+            return null;
         }
-
-        return null;
+        return findClientRequestFor(target.namespace(), target.name(), merged);
     }
 
     /**
@@ -572,27 +600,43 @@ public class OperationStepExecutor {
      * <p>The adapter is matched on namespace only; protocol-specific request building happens in
      * {@link ClientAdapter#prepare(String, Map)}.</p>
      *
-     * @return the prepared invocation, or {@code null} when no consumed adapter declares
-     *         {@code clientNamespace}
+     * <p>When no consumed adapter declares {@code clientNamespace}, the name is looked up among
+     * aggregate flows, so a call can target another flow ({@code call: payments.charge}). The
+     * capability rejects a namespace used by both a consumed adapter and an aggregate at load
+     * time, so at most one of the two can match and the order is not a precedence rule.</p>
+     *
+     * @return the prepared invocation, or {@code null} when neither a consumed adapter nor an
+     *         aggregate declares {@code clientNamespace}
      * @throws IllegalArgumentException when the namespace exists but declares no such operation
-     *         (normally rejected at load time by {@code ConsumedReferenceValidator}), or when
-     *         templates cannot be resolved
+     *         or flow (normally rejected at load time by {@code ConsumedReferenceValidator} and
+     *         {@code FlowCallValidator}), or when templates cannot be resolved
      */
     public ConsumedInvocation findClientRequestFor(String clientNamespace, String clientOpName,
             Map<String, Object> parameters) {
-        if (capability == null || capability.getClientAdapters() == null) {
+        if (capability == null) {
             return null;
         }
 
-        for (ClientAdapter adapter : capability.getClientAdapters()) {
-            if (clientNamespace != null && clientNamespace.equals(adapter.getNamespace())) {
-                ConsumedInvocation invocation = adapter.prepare(clientOpName, parameters);
-                if (invocation == null) {
-                    throw new IllegalArgumentException("Consumed namespace '" + clientNamespace
-                            + "' has no operation '" + clientOpName + "'");
+        if (capability.getClientAdapters() != null) {
+            for (ClientAdapter adapter : capability.getClientAdapters()) {
+                if (clientNamespace != null && clientNamespace.equals(adapter.getNamespace())) {
+                    ConsumedInvocation invocation = adapter.prepare(clientOpName, parameters);
+                    if (invocation == null) {
+                        throw new IllegalArgumentException("Consumed namespace '"
+                                + clientNamespace + "' has no operation '" + clientOpName + "'");
+                    }
+                    return invocation;
                 }
-                return invocation;
             }
+        }
+
+        if (capability.hasAggregate(clientNamespace)) {
+            AggregateFlow flow = capability.findFlow(clientNamespace, clientOpName);
+            if (flow == null) {
+                throw new IllegalArgumentException("Aggregate namespace '" + clientNamespace
+                        + "' has no flow '" + clientOpName + "'");
+            }
+            return new FlowInvocation(flow, parameters);
         }
 
         return null;
@@ -617,15 +661,28 @@ public class OperationStepExecutor {
      */
     public ConsumedResult execute(ServerCallSpec call, Map<String, OperationStepSpec> steps,
             Map<String, Object> parameters, String entityLabel) throws Exception {
+        return execute(call, steps, parameters, entityLabel, exposeNamespace);
+    }
+
+    /**
+     * Execute either a simple call or a sequence of steps on behalf of the given namespace.
+     *
+     * @see #execute(ServerCallSpec, Map, Map, String)
+     * @param namespace the namespace used to resolve {@code namespace.param} references in
+     *                  {@code with:}; may be {@code null}
+     */
+    public ConsumedResult execute(ServerCallSpec call, Map<String, OperationStepSpec> steps,
+            Map<String, Object> parameters, String entityLabel, String namespace)
+            throws Exception {
         if (call != null) {
-            ConsumedInvocation found = findClientRequestFor(call, parameters);
+            ConsumedInvocation found = findClientRequestFor(call, parameters, namespace);
             if (found == null) {
                 throw new IllegalArgumentException(
                         "Invalid call for " + entityLabel + ": " + call.getOperation());
             }
             return found.invoke();
         } else if (steps != null && !steps.isEmpty()) {
-            return executeSteps(steps, parameters).lastResult;
+            return executeSteps(steps, parameters, namespace).lastResult;
         } else {
             throw new IllegalArgumentException(
                     entityLabel + " has neither call nor steps defined");
@@ -884,6 +941,27 @@ public class OperationStepExecutor {
             this.statusCode = statusCode;
         }
 
+        private StepFailedException(String stepName, int statusCode, String message,
+                StepFailedException cause) {
+            super(message, cause);
+            this.stepName = stepName;
+            this.statusCode = statusCode;
+        }
+
+        /**
+         * Wrap a failure raised inside a called flow so that it names the calling step too.
+         * The status code of the innermost failure is kept, and no upstream body is added.
+         *
+         * @param callerStep the name of the step that called the flow
+         * @param target     the qualified name of the called flow
+         * @return a new exception for the calling step, caused by this one
+         */
+        public StepFailedException calledFrom(String callerStep, String target) {
+            return new StepFailedException(callerStep, statusCode,
+                    "Step '" + callerStep + "' failed calling '" + target + "': " + getMessage(),
+                    this);
+        }
+
         private static String message(String stepName, int statusCode) {
             if (statusCode <= 0) {
                 return "Step '" + stepName + "' failed: no response received";
@@ -896,7 +974,10 @@ public class OperationStepExecutor {
             return "Step '" + stepName + "' failed with HTTP " + statusCode;
         }
 
-        /** @return the name of the step that failed */
+        /**
+         * @return the name of the step that failed; for a failure inside a called flow, the
+         *         name of the calling step (the innermost step is in the cause chain)
+         */
         public String getStepName() {
             return stepName;
         }

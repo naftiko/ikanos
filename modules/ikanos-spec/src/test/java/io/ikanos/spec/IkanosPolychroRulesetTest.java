@@ -424,6 +424,54 @@ public class IkanosPolychroRulesetTest {
                 + result.output());
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Flow composition rules (#794)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void namespacesUniqueRuleShouldFireWhenAggregateReusesConsumedNamespace() {
+        assertRuleFires("rules/spectral-flow-calls-violations.yaml", "ikanos-namespaces-unique");
+    }
+
+    @Test
+    public void namespacesUniqueRuleShouldFireWhenImportedAliasReusesAggregateNamespace() {
+        assertRuleFires("rules/spectral-namespace-alias-collision.yaml",
+            "ikanos-namespaces-unique");
+    }
+
+    @Test
+    public void flowCallTargetExistsRuleShouldFireWhenCalledFlowIsMissing() {
+        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+            "ikanos-flow-call-target-exists");
+    }
+
+    @Test
+    public void flowCallNoCycleRuleShouldFireWhenFlowsCallEachOther() {
+        assertRuleFires("rules/spectral-flow-calls-violations.yaml", "ikanos-flow-call-no-cycle");
+    }
+
+    @Test
+    public void exposesCallNotFlowRuleShouldFireWhenToolCallsAFlow() {
+        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+            "ikanos-exposes-call-not-flow");
+    }
+
+    @Test
+    public void flowCallSemanticsRuleShouldFireWhenSafeFlowCallsUnsafeOperation() {
+        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+            "ikanos-flow-call-semantics-conservative");
+    }
+
+    @Test
+    public void flowCallRulesShouldNotFireForCompliantComposition() {
+        ProcessResult result = lintFixture("rules/spectral-flow-calls-compliant.yaml");
+        String output = result.output();
+        assertTrue(!output.contains("ikanos-flow-call-")
+                && !output.contains("ikanos-exposes-call-not-flow")
+                && !output.contains("ikanos-namespaces-unique"),
+            "Expected no flow composition findings for a compliant document.\n" + output);
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

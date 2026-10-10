@@ -1,0 +1,56 @@
+ikanos: 1.0.0-beta7
+info:
+  display: Flow composition violations
+  description: Negative fixture for the flow-call rules and cross-section namespace uniqueness
+capability:
+  consumes:
+  - type: http
+    namespace: billing
+    description: Billing API
+    baseUri: https://billing.example.com
+    resources:
+      invoices:
+        path: /invoices
+        operations:
+          create-invoice:
+            method: POST
+  aggregates:
+  - namespace: billing
+    flows:
+      collide:
+        description: Same namespace as the consumed adapter
+        outputParameters:
+          id:
+            type: string
+            value: x
+  - namespace: payments
+    flows:
+      checkout:
+        description: Declares safe but calls a POST operation, and an unknown flow
+        semantics:
+          safe: true
+        steps:
+          invoice:
+            type: call
+            call: billing.create-invoice
+          missing:
+            type: call
+            call: loop.nope
+  - namespace: loop
+    flows:
+      ping:
+        description: Calls pong
+        call: loop.pong
+      pong:
+        description: Calls ping back
+        call: loop.ping
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9300
+    namespace: shop-mcp
+    description: Shop tools
+    tools:
+      checkout:
+        description: Calls a flow with call instead of ref
+        call: payments.checkout

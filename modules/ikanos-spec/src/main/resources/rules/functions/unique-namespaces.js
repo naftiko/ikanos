@@ -1,3 +1,33 @@
+/**
+ * Spectral custom function: unique-namespaces
+ *
+ * A namespace has one owner across the whole capability: root and capability
+ * `consumes`, `capability.exposes`, `capability.aggregates`, and root and
+ * capability `binds`. `call: namespace.name` resolves against both consumed
+ * adapters and aggregate flows, so a name shared by two sections would make
+ * the target ambiguous.
+ *
+ * Imported entries are checked under their effective namespace: the `as`
+ * alias, or the `import` name when there is no alias.
+ */
+function effectiveNamespace(entry) {
+  if (!entry || typeof entry !== "object") {
+    return undefined;
+  }
+  if (typeof entry.namespace === "string" && entry.namespace.length > 0) {
+    return entry.namespace;
+  }
+  if (typeof entry.from === "string") {
+    if (typeof entry.as === "string" && entry.as.length > 0) {
+      return entry.as;
+    }
+    if (typeof entry.import === "string" && entry.import.length > 0) {
+      return entry.import;
+    }
+  }
+  return undefined;
+}
+
 export default function uniqueNamespaces(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
@@ -34,7 +64,7 @@ export default function uniqueNamespaces(targetVal) {
   // Root consumes
   const rootConsumes = Array.isArray(targetVal.consumes) ? targetVal.consumes : [];
   for (let i = 0; i < rootConsumes.length; i += 1) {
-    addNamespace(["consumes", i, "namespace"], rootConsumes[i] && rootConsumes[i].namespace, "adapter");
+    addNamespace(["consumes", i, "namespace"], effectiveNamespace(rootConsumes[i]), "adapter");
   }
 
   const capability =
@@ -45,7 +75,7 @@ export default function uniqueNamespaces(targetVal) {
   for (let i = 0; i < capabilityConsumes.length; i += 1) {
     addNamespace(
       ["capability", "consumes", i, "namespace"],
-      capabilityConsumes[i] && capabilityConsumes[i].namespace,
+      effectiveNamespace(capabilityConsumes[i]),
       "adapter",
     );
   }
@@ -55,15 +85,35 @@ export default function uniqueNamespaces(targetVal) {
   for (let i = 0; i < capabilityExposes.length; i += 1) {
     addNamespace(
       ["capability", "exposes", i, "namespace"],
-      capabilityExposes[i] && capabilityExposes[i].namespace,
+      effectiveNamespace(capabilityExposes[i]),
       "adapter",
     );
+  }
+
+  // Capability aggregates (an array; older documents may use a map keyed by namespace)
+  const aggregates = capability.aggregates;
+  if (Array.isArray(aggregates)) {
+    for (let i = 0; i < aggregates.length; i += 1) {
+      addNamespace(
+        ["capability", "aggregates", i, "namespace"],
+        effectiveNamespace(aggregates[i]),
+        "adapter",
+      );
+    }
+  } else if (aggregates && typeof aggregates === "object") {
+    for (const key of Object.keys(aggregates)) {
+      addNamespace(
+        ["capability", "aggregates", key, "namespace"],
+        effectiveNamespace(aggregates[key]),
+        "adapter",
+      );
+    }
   }
 
   // Root binds
   const rootBinds = Array.isArray(targetVal.binds) ? targetVal.binds : [];
   for (let i = 0; i < rootBinds.length; i += 1) {
-    addNamespace(["binds", i, "namespace"], rootBinds[i] && rootBinds[i].namespace, "bind");
+    addNamespace(["binds", i, "namespace"], effectiveNamespace(rootBinds[i]), "bind");
   }
 
   // Capability binds
@@ -71,7 +121,7 @@ export default function uniqueNamespaces(targetVal) {
   for (let i = 0; i < capabilityBinds.length; i += 1) {
     addNamespace(
       ["capability", "binds", i, "namespace"],
-      capabilityBinds[i] && capabilityBinds[i].namespace,
+      effectiveNamespace(capabilityBinds[i]),
       "bind",
     );
   }

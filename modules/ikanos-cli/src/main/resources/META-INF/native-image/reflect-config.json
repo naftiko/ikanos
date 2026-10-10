@@ -1533,6 +1533,12 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.ikanos.spec.exposes.control.FlowManagementSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
     "name": "io.ikanos.spec.InputParameterSerializer",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true

@@ -13,6 +13,9 @@
  */
 package io.ikanos.engine.aggregates;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,19 +44,50 @@ import io.opentelemetry.context.Scope;
  */
 public class AggregateFlow {
 
+    /** Default limit on how many flows may be active on one call chain, including the first. */
+    public static final int DEFAULT_MAX_CALL_DEPTH = 8;
+
+    /**
+     * Qualified names of the flows executing on the current thread, outermost first. Flows that
+     * call flows run on the caller's thread, so this is the call chain.
+     */
+    private static final ThreadLocal<Deque<String>> CALL_CHAIN = new ThreadLocal<>();
+
     private final AggregateFlowSpec spec;
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
+    private final int maxCallDepth;
 
     AggregateFlow(AggregateFlowSpec spec, OperationStepExecutor stepExecutor,
             String namespace) {
+        this(spec, stepExecutor, namespace, DEFAULT_MAX_CALL_DEPTH);
+    }
+
+    AggregateFlow(AggregateFlowSpec spec, OperationStepExecutor stepExecutor,
+            String namespace, int maxCallDepth) {
         this.spec = spec;
         this.stepExecutor = stepExecutor;
         this.namespace = namespace;
+        this.maxCallDepth = maxCallDepth;
     }
 
     public String getName() {
         return spec.getName();
+    }
+
+    /** @return the namespace of the aggregate that owns this flow */
+    public String getNamespace() {
+        return namespace;
+    }
+
+    /** @return the qualified name of this flow, {@code namespace.flow-name} */
+    public String getRef() {
+        return namespace + "." + spec.getName();
+    }
+
+    /** @return the limit on how many flows may be active on one call chain */
+    public int getMaxCallDepth() {
+        return maxCallDepth;
     }
 
     public String getDescription() {
@@ -96,14 +130,33 @@ public class AggregateFlow {
      * <ol>
      *   <li><b>Mock</b> — no call, no steps: builds output from {@code outputParameters} values</li>
      *   <li><b>Orchestrated</b> — steps defined: runs step sequence + optional mappings</li>
-     *   <li><b>Simple call</b> — call defined: single HTTP dispatch</li>
+     *   <li><b>Simple call</b> — call defined: one consumed operation, or another flow</li>
      * </ol>
+     *
+     * <p>A flow may be called by another flow ({@code call: namespace.flow-name}). The flows
+     * active on the current thread form a call chain; when it would exceed
+     * {@link #getMaxCallDepth()}, a {@link FlowCallDepthExceededException} naming the chain is
+     * thrown before this flow runs.</p>
      *
      * @param parameters resolved input parameters (merged with adapter-level 'with')
      * @return a transport-neutral {@link FlowResult}
      */
     public FlowResult execute(Map<String, Object> parameters) throws Exception {
-        String ref = namespace + "." + spec.getName();
+        String ref = getRef();
+        Deque<String> chain = CALL_CHAIN.get();
+        if (chain == null) {
+            chain = new ArrayDeque<>();
+            CALL_CHAIN.set(chain);
+        }
+        if (chain.size() >= maxCallDepth) {
+            List<String> names = new ArrayList<>(chain);
+            names.add(ref);
+            if (chain.isEmpty()) {
+                CALL_CHAIN.remove();
+            }
+            throw new FlowCallDepthExceededException(names, maxCallDepth);
+        }
+        chain.addLast(ref);
         Span span = TelemetryBootstrap.get().startAggregateFlowSpan(ref);
         try (Scope scope = span.makeCurrent()) {
             return doExecute(parameters);
@@ -112,6 +165,10 @@ public class AggregateFlow {
             throw e;
         } finally {
             TelemetryBootstrap.endSpan(span);
+            chain.removeLast();
+            if (chain.isEmpty()) {
+                CALL_CHAIN.remove();
+            }
         }
     }
 
@@ -134,13 +191,13 @@ public class AggregateFlow {
             return new FlowResult(null, null, mockRoot);
         }
 
-        // Covers both orchestrated and simple-call paths
-        stepExecutor.setExposeNamespace(namespace);
+        // The executor is shared by every aggregate flow, so this flow's namespace is passed with
+        // each call rather than stored on the executor (#320).
 
         // Orchestrated mode
         if (isOrchestrated) {
             OperationStepExecutor.StepExecutionResult stepResult =
-                    stepExecutor.executeSteps(spec.getSteps(), merged);
+                    stepExecutor.executeSteps(spec.getSteps(), merged, namespace);
 
             if (spec.getMappings() != null && !spec.getMappings().isEmpty()) {
                 String mapped = stepExecutor.resolveStepMappings(
@@ -156,7 +213,7 @@ public class AggregateFlow {
         // Simple call mode
         ConsumedResult found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), merged,
-                        "Flow '" + spec.getName() + "'");
+                        "Flow '" + spec.getName() + "'", namespace);
 
         // Apply output parameter mappings if defined on the flow
         if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()

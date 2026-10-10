@@ -151,7 +151,7 @@ public class McpBinaryStdioIntegrationTest {
                   exposes:
                   - type: mcp
                     transport: stdio
-                    namespace: photos
+                    namespace: photos-mcp
                     tools:
                       get-photo:
                         description: Get photo bytes
