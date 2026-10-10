@@ -19,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -335,6 +338,52 @@ class McpClientAdapterTest {
         assertEquals(5, result.document().path("amount").path("total").asInt());
     }
 
+    /** Serves {@code content} once, then fails the test if anything reads past it. */
+    private static Reader openStream(String content) {
+        return new Reader() {
+            private boolean served;
+
+            @Override
+            public int read(char[] buffer, int offset, int length) throws IOException {
+                if (served) {
+                    throw new AssertionError("read past the matching event: stream kept open");
+                }
+                served = true;
+                int n = Math.min(length, content.length());
+                content.getChars(0, n, buffer, offset);
+                return n;
+            }
+
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        };
+    }
+
+    @Test
+    void eventStreamShouldStopReadingAtTheMatchingResponse() {
+        String sse = "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\n"
+                + "data: {\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{\"ok\":true}}\n\n";
+
+        JsonNode message = McpStreamableHttpTransport.fromEventStream(openStream(sse), 4,
+                McpStreamableHttpTransport.MAX_RESPONSE_CHARS);
+
+        assertTrue(message.path("result").path("ok").asBoolean());
+    }
+
+    @Test
+    void eventStreamShouldFailPastTheSizeCap() {
+        String sse = "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\n"
+                .repeat(10);
+
+        McpClientException error = assertThrows(McpClientException.class,
+                () -> McpStreamableHttpTransport.fromEventStream(new StringReader(sse), 4,
+                        100));
+
+        assertTrue(error.getMessage().contains("exceeds 100 characters"), error.getMessage());
+    }
+
     private static JsonNode upstreamTool(String json) throws Exception {
         return JSON.readTree(json);
     }
@@ -364,6 +413,91 @@ class McpClientAdapterTest {
                 () -> adapter.verify(List.of()));
 
         assertTrue(error.getMessage().contains("tool 'get-invoice' not found upstream"));
+    }
+
+    @Test
+    void verifyShouldRefuseRemoteRefInUpstreamOutputSchema() throws Exception {
+        McpClientAdapter adapter = new McpClientAdapter(null, (McpClientSpec) YAML.readValue("""
+                type: mcp
+                namespace: billing
+                endpoint: https://billing.example.com/mcp
+                tools:
+                  get-invoice:
+                    description: Retrieve one invoice
+                """, ClientSpec.class), new StubClient());
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> adapter.verify(List.of(upstreamTool("""
+                        {"name":"get-invoice","inputSchema":{"type":"object"},
+                         "outputSchema":{"$ref":"http://127.0.0.1:9/x.json"}}"""))));
+
+        assertTrue(error.getMessage().contains("failed discovery"), error.getMessage());
+        assertTrue(error.getMessage().contains("tool 'get-invoice' has an unusable outputSchema"),
+                error.getMessage());
+        assertTrue(error.getMessage().contains("not allowed"), error.getMessage());
+        assertNull(adapter.outputSchema("get-invoice"));
+    }
+
+    @Test
+    void verifyShouldResolveLocalRefInUpstreamOutputSchema() throws Exception {
+        McpClientAdapter adapter = new McpClientAdapter(null, (McpClientSpec) YAML.readValue("""
+                type: mcp
+                namespace: billing
+                endpoint: https://billing.example.com/mcp
+                tools:
+                  get-invoice:
+                    description: Retrieve one invoice
+                """, ClientSpec.class), new StubClient());
+
+        adapter.verify(List.of(upstreamTool("""
+                {"name":"get-invoice","inputSchema":{"type":"object"},
+                 "outputSchema":{"type":"object","properties":{"total":{"$ref":"#/$defs/n"}},
+                 "required":["total"],"$defs":{"n":{"type":"number"}}}}""")));
+
+        assertThrows(McpClientException.class, () -> adapter.validate("get-invoice",
+                JSON.createObjectNode().put("total", "not-a-number")));
+    }
+
+    private static Response listPage(JsonNode request, String nextCursor) {
+        String next = nextCursor == null ? "" : ",\"nextCursor\":\"" + nextCursor + "\"";
+        return json(200, rpcResult(request, "{\"tools\":[]" + next + "}"));
+    }
+
+    @Test
+    void listToolsShouldFailWhenCursorRepeats() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> listPage(req, "same");
+
+        McpClientException error = assertThrows(McpClientException.class,
+                () -> adapter(client, "").listTools());
+
+        assertTrue(error.getMessage().contains("repeated tools/list cursor 'same'"),
+                error.getMessage());
+        assertEquals(2, client.requests.size());
+    }
+
+    @Test
+    void listToolsShouldFailPastThePageCap() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> listPage(req, "c" + req.path("id").asLong());
+
+        McpClientException error = assertThrows(McpClientException.class,
+                () -> adapter(client, "").listTools());
+
+        assertTrue(error.getMessage().contains("more than " + McpClientAdapter.MAX_LIST_PAGES),
+                error.getMessage());
+        assertEquals(McpClientAdapter.MAX_LIST_PAGES, client.requests.size());
+    }
+
+    @Test
+    void listToolsShouldFollowDistinctCursorsToTheEnd() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> listPage(req, req.path("id").asLong() < 3 ? "c"
+                + req.path("id").asLong() : null);
+
+        adapter(client, "").listTools();
+
+        assertEquals(3, client.requests.size());
     }
 
     private static McpClientAdapter adapterWithSchema(String validateOutput) throws Exception {

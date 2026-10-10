@@ -18,6 +18,7 @@ import static org.restlet.data.Protocol.HTTPS;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -32,9 +33,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaException;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.uri.URIFetcher;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
@@ -60,7 +63,8 @@ import io.opentelemetry.api.trace.Span;
  *       {@code resultType} other than {@code complete} fail the call.</li>
  *   <li><b>Discovery</b> — with {@code discovery: verify}, {@link #start()} lists upstream tools,
  *       fails on a missing tool, an undeclared upstream argument, or an unmet required argument,
- *       and caches each {@code outputSchema} for validation.</li>
+ *       and caches each {@code outputSchema} for validation. Upstream schemas are untrusted: only
+ *       references inside the schema itself resolve, never a remote {@code $ref}.</li>
  * </ul>
  */
 public class McpClientAdapter extends ClientAdapter {
@@ -69,8 +73,24 @@ public class McpClientAdapter extends ClientAdapter {
     /** Strict reader: a text block is JSON only if the whole text is one JSON value. */
     private static final ObjectReader STRICT_JSON =
             JSON.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
-    private static final JsonSchemaFactory SCHEMAS =
-            JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+
+    /** Refuses every external schema fetch, so an upstream cannot make the engine request URLs. */
+    private static final URIFetcher NO_FETCH = uri -> {
+        throw new IOException("External schema reference not allowed: " + uri);
+    };
+
+    /**
+     * Schema factory for upstream {@code outputSchema}s. Every scheme the validator would fetch
+     * from ({@code http}, {@code https}, {@code ftp}, {@code file}, {@code jar},
+     * {@code classpath}, {@code resource}) is mapped to {@link #NO_FETCH}.
+     */
+    private static final JsonSchemaFactory SCHEMAS = JsonSchemaFactory
+            .builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
+            .uriFetcher(NO_FETCH, "http", "https", "ftp", "file", "jar", "classpath", "resource")
+            .build();
+
+    /** Upper bound on {@code tools/list} pages, so a misbehaving upstream cannot stall start-up. */
+    static final int MAX_LIST_PAGES = 100;
 
     private final Client client;
     private final McpStreamableHttpTransport transport;
@@ -239,13 +259,22 @@ public class McpClientAdapter extends ClientAdapter {
         client.stop();
     }
 
-    /** List all upstream tools, following {@code nextCursor}. */
+    /**
+     * List all upstream tools, following {@code nextCursor}. Stops with an error when a cursor
+     * repeats or after {@link #MAX_LIST_PAGES} pages.
+     */
     List<JsonNode> listTools() {
         List<JsonNode> tools = new ArrayList<>();
+        Set<String> seenCursors = new HashSet<>();
         String cursor = null;
+        int pages = 0;
         Map<String, Object> templates = ConsumedAuthentication.withBindings(null,
                 getCapability() != null ? getCapability().getBindings() : null);
         do {
+            if (++pages > MAX_LIST_PAGES) {
+                throw new McpClientException("Upstream MCP server " + getEndpoint()
+                        + " returned more than " + MAX_LIST_PAGES + " tools/list pages");
+            }
             ObjectNode params = JSON.createObjectNode();
             if (cursor != null) {
                 params.put("cursor", cursor);
@@ -255,6 +284,10 @@ public class McpClientAdapter extends ClientAdapter {
             JsonNode next = result.get("nextCursor");
             cursor = next != null && !next.isNull() && !next.asText().isEmpty()
                     ? next.asText() : null;
+            if (cursor != null && !seenCursors.add(cursor)) {
+                throw new McpClientException("Upstream MCP server " + getEndpoint()
+                        + " repeated tools/list cursor '" + cursor + "'");
+            }
         } while (cursor != null);
         return tools;
     }
@@ -296,7 +329,14 @@ public class McpClientAdapter extends ClientAdapter {
             warnOnHintMismatch(tool, upstream.path("annotations"));
             JsonNode outputSchema = upstream.get("outputSchema");
             if (outputSchema != null && outputSchema.isObject()) {
-                outputSchemas.put(tool.getName(), SCHEMAS.getSchema(outputSchema));
+                try {
+                    JsonSchema schema = SCHEMAS.getSchema(outputSchema);
+                    schema.initializeValidators();
+                    outputSchemas.put(tool.getName(), schema);
+                } catch (JsonSchemaException | IllegalArgumentException | IllegalStateException e) {
+                    problems.add("tool '" + tool.getName() + "' has an unusable outputSchema ("
+                            + e.getMessage() + ")");
+                }
             }
         }
         if (!problems.isEmpty()) {
