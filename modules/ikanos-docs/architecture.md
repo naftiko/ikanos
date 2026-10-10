@@ -87,7 +87,7 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos` | `Capability`: the root runtime object. Builds and holds every adapter, the aggregates and the resolved bindings. |
 | `io.ikanos.bootstrap` | `CapabilityRuntime`: what `ikanos serve` runs. Reads the file, starts telemetry, starts the capability, waits for shutdown. |
 | `io.ikanos.engine` | `Adapter`: the start/stop contract shared by all adapters. |
-| `io.ikanos.engine.consumes` | `ClientAdapter` base class. |
+| `io.ikanos.engine.consumes` | `ClientAdapter` base class, the protocol-neutral call carriers (`ConsumedInvocation`, `ConsumedResult`, `Outcome`) and the `ClientAdapterRegistry` that creates adapters by `type`. |
 | `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API, with its authentication. |
 | `io.ikanos.engine.consumes.tunnel` | The reverse-tunnel SPI (`Tunnel`) and its bootstrap. |
 | `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`. |
@@ -179,7 +179,7 @@ sequenceDiagram
         Tool->>Tool: mock result, no upstream call
     end
     Exec->>Exec: build request: URI template, input parameters, body, auth
-    Exec->>HCA: HandlingContext.handle() (CLIENT span, traceparent injected)
+    Exec->>HCA: ConsumedInvocation.invoke() (CLIENT span, traceparent injected)
     HCA->>API: HTTP request
     API-->>HCA: response
     HCA-->>Exec: response
@@ -214,20 +214,20 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 
 ## Consumes: calling upstream APIs
 
-Each HTTP `consumes` entry becomes an `HttpClientAdapter`, which owns one Restlet `Client` for HTTP and HTTPS.
+Each `consumes` entry becomes a `ClientAdapter`, created by `ClientAdapterRegistry` from the entry's `type` (HTTP when absent). Adapter types are discovered with `ServiceLoader` (`ClientAdapterFactory`), and their spec types with `ClientSpecTypes` in `ikanos-spec`. An HTTP entry becomes an `HttpClientAdapter`, which owns one Restlet `Client` for HTTP and HTTPS.
 
-For a `call` or a call step, the request is prepared in `OperationStepExecutor.findClientRequestFor`:
+For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` finds the client adapter by namespace and asks it to `prepare` the operation, which returns a `ConsumedInvocation`. For HTTP, `HttpClientAdapter.prepare`:
 
-1. Find the client adapter by namespace and the operation by name.
+1. Find the operation by name.
 2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left.
 3. Apply the input parameters, adapter level first, then operation level.
 4. Build the body when the operation declares one. Fail if any template is left unresolved. Form bodies go through `FormUrlEncodedBody`, which URL-encodes every substituted value so that a caller cannot add form fields.
 5. Set authentication and default headers through the client adapter (`HttpClientAdapter.setChallengeResponse` and `setHeaders`). Authentication values are resolved against the request parameters **and** the capability's bindings.
-6. Return a `HandlingContext`: the request, the response, and the adapter and operation that produced them.
+6. Return an `HttpInvocation`: the prepared request, with the adapter and operation that produced it.
 
-`HandlingContext.handle()` sends the request inside a CLIENT span, injects W3C trace context so the upstream sees Ikanos as the parent, and records the HTTP client metrics.
+`ConsumedInvocation.invoke()` is a template method: it opens the CLIENT span, runs the protocol-specific `doInvoke()` inside it, annotates the span from the result, records the client metrics and closes the span, so a new adapter cannot forget to trace. `HttpInvocation` injects W3C trace context so the upstream sees Ikanos as the parent. The call returns a `ConsumedResult` (status, `Outcome`, body), which orchestration and the exposers read without knowing the protocol. A call step only feeds later steps when `ConsumedResult.isSuccessful()` (strictly 2xx).
 
-**The REST `forward` path is the exception.** `ResourceRestlet.handleFromForwardSpec` builds and sends its own request: it reuses the adapter's authentication and headers, but it does not go through `HandlingContext`, so a forwarded call has no CLIENT span, no injected trace context and no client metrics. This is a known gap, in scope for the audit of divergent implementations ([#667](https://github.com/naftiko/ikanos/issues/667)).
+**The REST `forward` path is the exception.** `ResourceRestlet.handleFromForwardSpec` builds and sends its own request: it reuses the adapter's authentication and headers, but it does not go through `ConsumedInvocation`, so a forwarded call has no CLIENT span, no injected trace context and no client metrics. This is a known gap, in scope for the audit of divergent implementations ([#667](https://github.com/naftiko/ikanos/issues/667)).
 
 **Reverse tunnels.** A `consumes` entry can declare a `tunnel` to reach a private API through an overlay network. `Tunnel` is a `ServiceLoader` SPI (`io.ikanos.engine.consumes.tunnel`). `TunnelBootstrap` discovers the implementations at startup, and requests to the adapter's host are routed through the tunnel by a Jetty request listener (`TunnelAwareHttpClientHelper`). `ikanos-tunnel-ziti` is an implementation of this SPI.
 
@@ -284,7 +284,7 @@ What gets a span:
 
 - **Entry** spans: each incoming request, from `ProtocolDispatcher.dispatchWithTracing` (MCP), `ResourceRestlet` (REST) and `SkillServerResource` (Skill). The span is SERVER when Ikanos is the entry point, and INTERNAL when the caller already sent trace context, because the caller's span is then the real SERVER span (`TelemetryBootstrap.startServerSpan`).
 - **INTERNAL** spans: a tool call, an aggregate flow, each step.
-- **CLIENT** spans: each upstream call, in `HandlingContext.handle()` (except REST `forward`, see [Consumes](#consumes-calling-upstream-apis)).
+- **CLIENT** spans: each upstream call, in `ConsumedInvocation.invoke()` (except REST `forward`, see [Consumes](#consumes-calling-upstream-apis)).
 
 Incoming trace context is read per adapter:
 
@@ -300,7 +300,7 @@ Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
 | To add... | Start from |
 |---|---|
 | A new kind of **exposed** adapter | Subclass `ServerAdapter`, add a `*ServerSpec` and its `type` case in `ServerSpecDeserializer` (`ikanos-spec`), and instantiate it in the `Capability` constructor. |
-| A new kind of **consumed** adapter | Subclass `ClientAdapter`, add a `*ClientSpec` and its case in `ClientSpecDeserializer`, and instantiate it in the `Capability` constructor. The call path (`OperationStepExecutor`, `HandlingContext`) is written for HTTP, so it has to be generalized too. |
+| A new kind of **consumed** adapter | Subclass `ClientAdapter` and implement `prepare` to return a `ConsumedInvocation` subclass that produces a `ConsumedResult`. Register a `ClientAdapterFactory` and a `ClientSpecType` (for the `*ClientSpec`) in `META-INF/services`. `Capability`, `OperationStepExecutor` and the exposers need no change. |
 | A new **MCP method** | A `McpCallHandler` subclass, registered in `McpCallHandlersFactory` with its required headers and processors. |
 | A new **step type** | An `OperationStep*Spec` in `ikanos-spec` (like `OperationStepCallSpec`) and a case in `OperationStepExecutor.executeSteps`. |
 | A new **data format** | A `ConversionFormat` value and a converter in `Converter`. |
@@ -344,7 +344,7 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 | Startup | `CapabilityRuntime.serve`, then the `Capability` constructor |
 | An MCP request | `McpServerResource.handlePost`, `ProtocolDispatcher.dispatch`, `ToolHandler.doHandleToolCall` |
 | A REST request | `ResourceRestlet.handle` |
-| How a call is built and sent | `OperationStepExecutor.findClientRequestFor` and `HandlingContext.handle` |
+| How a call is built and sent | `OperationStepExecutor.findClientRequestFor`, `HttpClientAdapter.prepare` and `ConsumedInvocation.invoke` |
 | Steps | `OperationStepExecutor.executeSteps` |
 | Templates and mappings | `Resolver` |
 | The YAML format | `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` and the examples next to it |
