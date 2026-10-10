@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.http.HttpInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -68,17 +69,17 @@ public class HeaderQueryIntegrationTest {
         OperationStepExecutor executor = new OperationStepExecutor(capability);
         Map<String, Object> params = executor.resolveInputParametersFromRequest(req, serverSpec,
                 resourceSpec, serverOp);
-        OperationStepExecutor.HandlingContext handlingCtx =
-                executor.findClientRequestFor(serverOp.getCall(), params);
+        HttpInvocation handlingCtx =
+                (HttpInvocation) executor.findClientRequestFor(serverOp.getCall(), params);
 
-        assertNotNull(handlingCtx, "HandlingContext should not be null");
+        assertNotNull(handlingCtx, "Invocation should not be null");
 
-        Request clientRequest = handlingCtx.clientRequest;
+        Request clientRequest = handlingCtx.getRequest();
 
         assertNotNull(clientRequest, "Client request should be constructed");
 
         // Ensure the client adapter has expected inputParameters configured
-        HttpClientAdapter clientAdapter = handlingCtx.clientAdapter;
+        HttpClientAdapter clientAdapter = handlingCtx.getAdapter();
         assertNotNull(clientAdapter, "Client adapter should be present");
         assertFalse(clientAdapter.getHttpClientSpec().getInputParameters().isEmpty(),
                 "Client spec should have inputParameters");

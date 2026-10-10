@@ -23,12 +23,14 @@ import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ClientAdapter;
+import io.ikanos.engine.consumes.ConsumedInvocation;
+import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
-import io.ikanos.engine.util.Converter;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
@@ -46,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.representation.ByteArrayRepresentation;
+import org.restlet.representation.Representation;
 
 /**
  * Restlet that handles calls to an API resource
@@ -118,7 +121,7 @@ public class ResourceRestlet extends Restlet {
      * response to indicate a bad request and marks the context as handled.
      */
     private boolean handleFromOperationSpec(Request request, Response response) {
-        OperationStepExecutor.HandlingContext found = null;
+        ConsumedResult found = null;
 
         for (RestServerOperationSpec serverOp : getResourceSpec().getOperations().values()) {
 
@@ -139,8 +142,9 @@ public class ResourceRestlet extends Restlet {
                 }
 
                 if (serverOp.getCall() != null) {
+                    ConsumedInvocation invocation;
                     try {
-                        found = stepExecutor.findClientRequestFor(serverOp.getCall(),
+                        invocation = stepExecutor.findClientRequestFor(serverOp.getCall(),
                                 inputParameters);
                     } catch (IllegalArgumentException e) {
                         sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
@@ -149,15 +153,15 @@ public class ResourceRestlet extends Restlet {
                         return true;
                     }
 
-                    if (found != null) {
+                    if (invocation != null) {
                         try {
                             // Send the request to the target endpoint
-                            found.handle();
-                            response.setStatus(found.clientResponse.getStatus());
+                            found = invocation.invoke();
+                            response.setStatus(statusOf(found));
                         } catch (Exception e) {
                             sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                    "Error while handling an HTTP client call",
-                                    "Error while handling HTTP client call in call mode", e);
+                                    "Error while handling a consumed call",
+                                    "Error while handling consumed call in call mode", e);
                             return true;
                         }
 
@@ -180,7 +184,7 @@ public class ResourceRestlet extends Restlet {
                     try {
                         OperationStepExecutor.StepExecutionResult stepResult =
                                 stepExecutor.executeSteps(serverOp.getSteps(), inputParameters);
-                        found = stepResult.lastContext;
+                        found = stepResult.lastResult;
 
                         // Apply step output mappings if defined
                         if (serverOp.getMappings() != null
@@ -206,7 +210,7 @@ public class ResourceRestlet extends Restlet {
                         return true;
                     } catch (RuntimeException e) {
                         sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                "Error while handling an HTTP client call",
+                                "Error while handling a consumed call",
                                 "Error while handling orchestrated steps", e);
                         return true;
                     } catch (IOException e) {
@@ -218,7 +222,7 @@ public class ResourceRestlet extends Restlet {
 
                     if (found != null) {
                         // Return the response based on the last client request
-                        response.setStatus(found.clientResponse.getStatus());
+                        response.setStatus(statusOf(found));
                         sendResponse(serverOp, response, found);
                         return true;
                     } else if (canBuildMockResponse(serverOp)) {
@@ -264,9 +268,9 @@ public class ResourceRestlet extends Restlet {
                 return true;
             }
 
-            if (result.lastContext != null) {
-                response.setStatus(result.lastContext.clientResponse.getStatus());
-                sendResponse(serverOp, response, result.lastContext);
+            if (result.lastResult != null) {
+                response.setStatus(statusOf(result.lastResult));
+                sendResponse(serverOp, response, result.lastResult);
                 return true;
             }
 
@@ -389,11 +393,11 @@ public class ResourceRestlet extends Restlet {
     }
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,
-            OperationStepExecutor.HandlingContext found) {
+            ConsumedResult found) {
         // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
         // bytes with the size cap, return them with the resolved Content-Type, and skip output
         // mappings (they are nonsensical for raw bytes). See capability-binary-content.md §7.5.
-        if (found.isBinary() && sendBinaryResponse(serverOp, response, found)) {
+        if (found.operation().isBinary() && sendBinaryResponse(serverOp, response, found)) {
             return;
         }
 
@@ -405,17 +409,49 @@ public class ResourceRestlet extends Restlet {
                 if (mapped != null) {
                     response.setEntity(mapped, MediaType.APPLICATION_JSON);
                 } else {
-                    response.setEntity(found.clientResponse.getEntity());
+                    response.setEntity(rawEntityOf(found));
                 }
             } catch (Exception e) {
                 sendError(response, Status.SERVER_ERROR_INTERNAL, "Failed to map output parameters",
                         "Failed to map output parameters", e);
             }
         } else {
-            response.setEntity(found.clientResponse.getEntity());
+            response.setEntity(rawEntityOf(found));
         }
 
         response.commit();
+    }
+
+    /**
+     * Status to put on the REST response for a consumed result. A Restlet-backed result keeps the
+     * upstream status object as received; any other result maps its HTTP-equivalent code.
+     */
+    static Status statusOf(ConsumedResult result) {
+        if (result instanceof RestletBackedResult restlet && restlet.restletStatus() != null) {
+            return restlet.restletStatus();
+        }
+        return Status.valueOf(result.status());
+    }
+
+    /**
+     * Unmapped body to forward on the REST response. A Restlet-backed result forwards its entity
+     * byte for byte; any other result forwards its text with its media type.
+     */
+    static Representation rawEntityOf(ConsumedResult result) {
+        if (result instanceof RestletBackedResult restlet) {
+            return restlet.restletEntity();
+        }
+        try {
+            String text = result.text();
+            if (text == null) {
+                return null;
+            }
+            String mediaType = result.mediaType();
+            return new org.restlet.representation.StringRepresentation(text,
+                    mediaType != null ? MediaType.valueOf(mediaType) : MediaType.APPLICATION_JSON);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to read consumed result body", e);
+        }
     }
 
     /**
@@ -426,7 +462,7 @@ public class ResourceRestlet extends Restlet {
      * adapter-level {@code maxBinarySize} ({@code exposes.<name>.maxBinarySize}), otherwise the
      * engine default (§4.7). The {@code Content-Type} follows the precedence in §4.3.1: a declared
      * {@code outputMediaType} on the consumed operation wins (resolved inside
-     * {@link OperationStepExecutor.HandlingContext#readBoundedBytes(long)}); otherwise the REST
+     * {@link ConsumedResult#mediaType()}); otherwise the REST
      * response contract's declared binary media type is used; otherwise the resolved upstream type;
      * otherwise {@code application/octet-stream}. {@code outputParameters} mappings are skipped with
      * an INFO log (§4.6).</p>
@@ -435,10 +471,10 @@ public class ResourceRestlet extends Restlet {
      *         when there were no bytes to return, so the caller falls back to the text path
      */
     private boolean sendBinaryResponse(RestServerOperationSpec serverOp, Response response,
-            OperationStepExecutor.HandlingContext found) {
+            ConsumedResult found) {
         try {
-            byte[] bytes = found.readBoundedBytes(
-                    found.resolveMaxBinaryBytes(serverSpec.getMaxBinarySize()));
+            byte[] bytes = found.bytes(
+                    found.operation().maxBinaryBytes(serverSpec.getMaxBinarySize()));
             if (bytes == null) {
                 return false;
             }
@@ -448,16 +484,16 @@ public class ResourceRestlet extends Restlet {
                 Context.getCurrentLogger().info(
                         "Skipping outputParameters mappings for REST operation '"
                                 + resourceSpec.getPath() + " " + serverOp.getMethod()
-                                + "': response is binary (" + found.clientResponseMediaType + ")");
+                                + "': response is binary (" + found.mediaType() + ")");
             }
 
-            // §4.3.1: declared outputMediaType (already applied in clientResponseMediaType) wins;
+            // §4.3.1: declared outputMediaType (already applied in mediaType()) wins;
             // otherwise prefer the REST response contract's declared binary media type.
-            String mediaType = found.clientResponseMediaType;
+            String mediaType = found.mediaType();
             Optional<String> declaredRestType = serverOp.findBinaryResponseMediaType();
-            boolean hasDeclaredUpstreamType = found.clientOperation != null
-                    && found.clientOperation.getOutputMediaType() != null
-                    && !found.clientOperation.getOutputMediaType().isBlank();
+            String declaredUpstreamType = found.operation().outputMediaType();
+            boolean hasDeclaredUpstreamType = declaredUpstreamType != null
+                    && !declaredUpstreamType.isBlank();
             if (!hasDeclaredUpstreamType && declaredRestType.isPresent()) {
                 mediaType = declaredRestType.get();
             }
@@ -569,18 +605,15 @@ public class ResourceRestlet extends Restlet {
      * Handles conversion to JSON if outputRawFormat is specified.
      */
     String mapOutputParameters(RestServerOperationSpec serverOp,
-            OperationStepExecutor.HandlingContext found) throws IOException {
-        if (found == null || found.clientResponse == null
-                || found.clientResponse.getEntity() == null) {
+            ConsumedResult found) throws IOException {
+        if (found == null || !found.hasBody()) {
             return null;
         }
 
-        String outputRawFormat = found.clientOperation != null
-                ? found.clientOperation.getOutputRawFormat() : null;
-        String outputSchema = found.clientOperation != null
-                ? found.clientOperation.getOutputSchema() : null;
-        JsonNode root = Converter.convertToJson(outputRawFormat, outputSchema,
-                found.clientResponse.getEntity());
+        JsonNode root = found.document();
+        if (root == null) {
+            return null;
+        }
 
         for (OutputParameterSpec outputParameter : serverOp.getOutputParameters()) {
             if ("body".equalsIgnoreCase(inOrDefault(outputParameter))) {

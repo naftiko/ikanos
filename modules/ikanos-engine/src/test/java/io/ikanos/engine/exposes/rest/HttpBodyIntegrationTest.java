@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -75,11 +76,11 @@ public class HttpBodyIntegrationTest {
         assertEquals("Alice", params.get("userName").toString(),
                 "userName should be extracted from body");
 
-        OperationStepExecutor.HandlingContext handlingCtx =
-                executor.findClientRequestFor(serverOp.getCall(), params);
+        HttpInvocation handlingCtx =
+                (HttpInvocation) executor.findClientRequestFor(serverOp.getCall(), params);
 
-        assertNotNull(handlingCtx, "HandlingContext should not be null");
-        Request clientRequest = handlingCtx.clientRequest;
+        assertNotNull(handlingCtx, "Invocation should not be null");
+        Request clientRequest = handlingCtx.getRequest();
 
         assertNotNull(clientRequest, "Client Request should be constructed");
         assertNotNull(clientRequest.getEntity(), "Client request entity should be set");

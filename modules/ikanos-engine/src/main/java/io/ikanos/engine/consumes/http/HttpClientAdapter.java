@@ -18,6 +18,10 @@ import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
+import org.restlet.data.MediaType;
+import org.restlet.data.Method;
+import org.restlet.data.Reference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
@@ -36,6 +40,7 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +49,8 @@ import java.util.Map;
  * HTTP Client Adapter implementation
  */
 public class HttpClientAdapter extends ClientAdapter {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
      * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
@@ -146,6 +153,109 @@ public class HttpClientAdapter extends ClientAdapter {
         }
 
         return null;
+    }
+
+    /**
+     * Build a Restlet request for one consumed operation: URI templating, client- and
+     * operation-level input parameters, body, authentication and default headers.
+     *
+     * @return the prepared invocation, or {@code null} when the operation is not declared
+     * @throws IllegalArgumentException when URI or body templates cannot be resolved
+     */
+    @Override
+    public HttpInvocation prepare(String operationName, Map<String, Object> parameters) {
+        HttpClientOperationSpec clientOp = getOperationSpec(operationName);
+        if (clientOp == null) {
+            return null;
+        }
+
+        String clientResUri = getHttpClientSpec().getBaseUri()
+                + clientOp.getParentResource().getPath();
+
+        // Resolve Mustache templates
+        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters);
+
+        // Validate all templates are resolved
+        if (clientResUri.contains("{{") && clientResUri.contains("}}")) {
+            throw new IllegalArgumentException(
+                    "Unresolved template parameters in URI: " + clientResUri
+                            + ". Available parameters: "
+                            + (parameters != null ? parameters.keySet() : "none"));
+        }
+
+        Request clientRequest = new Request();
+        clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
+        clientRequest.setResourceRef(new Reference(
+                Resolver.resolveMustacheTemplate(clientResUri, parameters)));
+
+        // Apply client-level and operation-level input parameters
+        // NOTE: setResourceRef must be called first so that query params
+        // (in: query) are appended to the correct base URI, not to null.
+        Resolver.resolveInputParametersToRequest(clientRequest,
+                getHttpClientSpec().getInputParameters(), parameters);
+        Resolver.resolveInputParametersToRequest(clientRequest,
+                clientOp.getInputParameters(), parameters);
+
+        if (clientOp.getBody() != null) {
+            String resolvedBody;
+            MediaType bodyMediaType = MediaType.APPLICATION_JSON;
+
+            Object bodySpec = clientOp.getBody();
+            if (bodySpec instanceof String) {
+                // Legacy: plain Mustache template string
+                resolvedBody = Resolver.resolveMustacheTemplate((String) bodySpec, parameters);
+            } else {
+                // Structured {type, data} RequestBody object
+                @SuppressWarnings("unchecked")
+                Map<String, Object> bodyMap = (Map<String, Object>) bodySpec;
+                String bodyType = String.valueOf(bodyMap.getOrDefault("type", "json"));
+                Object data = bodyMap.get("data");
+                if ("formUrlEncoded".equalsIgnoreCase(bodyType) && data instanceof Map) {
+                    resolvedBody = FormUrlEncodedBody.encode((Map<?, ?>) data, parameters);
+                } else if (data instanceof String) {
+                    // String data (text/xml/sparql, pre-encoded form, or a JSON template) is sent
+                    // as-is after Mustache resolution, never JSON-quoted. A pre-encoded form only
+                    // encodes the substituted values (see FormUrlEncodedBody#resolve).
+                    resolvedBody = "formUrlEncoded".equalsIgnoreCase(bodyType)
+                            ? FormUrlEncodedBody.resolve((String) data, parameters)
+                            : Resolver.resolveMustacheTemplate((String) data, parameters);
+                } else {
+                    String dataStr;
+                    try {
+                        dataStr = JSON.writeValueAsString(data);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException(
+                                "Invalid structured body data for operation: "
+                                        + getHttpClientSpec().getNamespace() + "."
+                                        + operationName,
+                                e);
+                    }
+                    resolvedBody = Resolver.resolveMustacheTemplate(dataStr, parameters);
+                }
+                if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
+                    bodyMediaType = MediaType.APPLICATION_WWW_FORM;
+                } else if ("xml".equalsIgnoreCase(bodyType)) {
+                    bodyMediaType = MediaType.APPLICATION_XML;
+                } else if ("sparql".equalsIgnoreCase(bodyType)) {
+                    bodyMediaType = MediaType.valueOf("application/sparql-query");
+                }
+            }
+
+            if (resolvedBody.contains("{{") && resolvedBody.contains("}}")) {
+                throw new IllegalArgumentException(
+                        "Unresolved template parameters in body: " + resolvedBody
+                                + ". Available parameters: "
+                                + (parameters != null ? parameters.keySet() : "none"));
+            }
+
+            clientRequest.setEntity(resolvedBody, bodyMediaType);
+        }
+
+        // Set authentication and headers
+        setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
+                parameters);
+        setHeaders(clientRequest);
+        return new HttpInvocation(this, clientOp, clientRequest);
     }
 
     /**

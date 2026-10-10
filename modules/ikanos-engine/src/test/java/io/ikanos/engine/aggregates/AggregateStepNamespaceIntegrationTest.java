@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.IkanosSpec;
@@ -99,7 +100,7 @@ public class AggregateStepNamespaceIntegrationTest {
         }
 
         @Override
-        public HandlingContext findClientRequestFor(String clientNamespace, String clientOpName,
+        public ConsumedInvocation findClientRequestFor(String clientNamespace, String clientOpName,
                 Map<String, Object> parameters) {
             capturedParams = new HashMap<>(parameters);
             return super.findClientRequestFor(clientNamespace, clientOpName, parameters);

@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.engine.LogCapture;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpConsumedResult;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.IkanosSpec;
@@ -129,13 +130,12 @@ public class ResourceRestletTest {
 
     operation.getOutputParameters().add(mappedBody);
 
-    OperationStepExecutor.HandlingContext handlingContext =
-        new OperationStepExecutor.HandlingContext();
     Request clientRequest = new Request(Method.GET, "http://localhost/internal");
-    handlingContext.clientResponse = new Response(clientRequest);
-    handlingContext.clientResponse.setEntity(
+    Response clientResponse = new Response(clientRequest);
+    clientResponse.setEntity(
         "{\"user\":{\"id\":\"u-1\",\"name\":\"Alice\"}}",
         MediaType.APPLICATION_JSON);
+    HttpConsumedResult handlingContext = new HttpConsumedResult(null, clientResponse);
 
     String mapped = restlet.mapOutputParameters(operation, handlingContext);
 
@@ -199,8 +199,8 @@ public class ResourceRestletTest {
     String nullContext = restlet.mapOutputParameters(operation, null);
     assertNull(nullContext);
 
-    OperationStepExecutor.HandlingContext context = new OperationStepExecutor.HandlingContext();
-    context.clientResponse = new Response(new Request(Method.GET, "http://localhost/internal"));
+    HttpConsumedResult context = new HttpConsumedResult(null,
+        new Response(new Request(Method.GET, "http://localhost/internal")));
     String noEntity = restlet.mapOutputParameters(operation, context);
     assertNull(noEntity);
   }
@@ -291,11 +291,10 @@ public class ResourceRestletTest {
     ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
         serverSpec.getResources().values().iterator().next());
 
-    OperationStepExecutor.HandlingContext handlingContext =
-        new OperationStepExecutor.HandlingContext();
     Request clientRequest = new Request(Method.GET, "http://localhost/internal");
-    handlingContext.clientResponse = new Response(clientRequest);
-    handlingContext.clientResponse.setEntity("{\"id\":\"u-1\"}", MediaType.APPLICATION_JSON);
+    Response clientResponse = new Response(clientRequest);
+    clientResponse.setEntity("{\"id\":\"u-1\"}", MediaType.APPLICATION_JSON);
+    HttpConsumedResult handlingContext = new HttpConsumedResult(null, clientResponse);
 
     RestServerOperationSpec rawOperation = new RestServerOperationSpec();
     Response rawResponse = new Response(new Request(Method.GET, "http://localhost/test"));
@@ -315,12 +314,11 @@ public class ResourceRestletTest {
         new io.ikanos.spec.consumes.http.HttpClientOperationSpec();
     failingClientOp.setOutputRawFormat("INI");
 
-    OperationStepExecutor.HandlingContext failingContext =
-        new OperationStepExecutor.HandlingContext();
-    failingContext.clientOperation = failingClientOp;
     Request failingClientRequest = new Request(Method.GET, "http://localhost/internal");
-    failingContext.clientResponse = new Response(failingClientRequest);
-    failingContext.clientResponse.setEntity("{\"id\":\"u-1\"}", MediaType.APPLICATION_JSON);
+    Response failingClientResponse = new Response(failingClientRequest);
+    failingClientResponse.setEntity("{\"id\":\"u-1\"}", MediaType.APPLICATION_JSON);
+    HttpConsumedResult failingContext =
+        new HttpConsumedResult(failingClientOp, failingClientResponse);
 
     Response errorResponse = new Response(new Request(Method.GET, "http://localhost/test"));
     restlet.sendResponse(failingOperation, errorResponse, failingContext);
@@ -504,12 +502,10 @@ public class ResourceRestletTest {
     String xml = "<root><user><id>1</id><name>Alice</name></user>"
         + "<user><id>2</id><name>Bob</name></user></root>";
 
-    OperationStepExecutor.HandlingContext handlingContext =
-        new OperationStepExecutor.HandlingContext();
-    handlingContext.clientOperation = clientOp;
     Request clientRequest = new Request(Method.GET, "http://localhost/internal");
-    handlingContext.clientResponse = new Response(clientRequest);
-    handlingContext.clientResponse.setEntity(xml, MediaType.APPLICATION_XML);
+    Response clientResponse = new Response(clientRequest);
+    clientResponse.setEntity(xml, MediaType.APPLICATION_XML);
+    HttpConsumedResult handlingContext = new HttpConsumedResult(clientOp, clientResponse);
 
     String mapped = restlet.mapOutputParameters(operation, handlingContext);
 
