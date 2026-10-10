@@ -13,9 +13,11 @@
  */
 package io.ikanos.engine.consumes.mcp;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.io.BufferedReader;
+import java.io.FilterReader;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.restlet.Client;
@@ -24,12 +26,14 @@ import org.restlet.Response;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Preference;
+import org.restlet.representation.Representation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.BinarySize;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.opentelemetry.context.propagation.TextMapSetter;
 
@@ -39,8 +43,10 @@ import io.opentelemetry.context.propagation.TextMapSetter;
  * <p>Each call is one JSON-RPC POST: no {@code initialize}, no session id, no stream held open.
  * The request carries the protocol version and W3C trace context in {@code params._meta}, and the
  * {@code MCP-Protocol-Version}, {@code Mcp-Method} and (for named calls) {@code Mcp-Name} headers
- * the specification requires to mirror the body. A {@code text/event-stream} reply is read until
- * the JSON-RPC response matching the request id, then closed.</p>
+ * the specification requires to mirror the body. A {@code text/event-stream} reply is read
+ * incrementally, event by event, until the JSON-RPC response matching the request id; the stream
+ * is then closed without waiting for the upstream to end it. Every response body is capped at
+ * {@link #MAX_RESPONSE_CHARS} characters.</p>
  */
 public class McpStreamableHttpTransport {
 
@@ -58,6 +64,9 @@ public class McpStreamableHttpTransport {
 
     /** Longest body excerpt quoted in an HTTP-status error message. */
     private static final int MAX_EXCERPT = 200;
+
+    /** Upper bound on the characters read from one response body (the engine's 10 MiB cap). */
+    static final long MAX_RESPONSE_CHARS = BinarySize.DEFAULT_MAX_BINARY_SIZE_BYTES;
 
     /** Writes W3C trace-context entries into a {@code _meta} object node. */
     private static final TextMapSetter<ObjectNode> META_SETTER = (carrier, key, value) -> {
@@ -129,28 +138,34 @@ public class McpStreamableHttpTransport {
 
     /** Extract the JSON-RPC result, or throw with a precise message. Package-private for tests. */
     JsonNode unwrap(String method, long id, Response response) {
-        String body;
-        try {
-            body = response.getEntity() != null ? response.getEntity().getText() : null;
-        } catch (IOException e) {
-            throw new McpClientException("Cannot read MCP response", e);
-        }
         int httpStatus = response.getStatus() != null ? response.getStatus().getCode() : 0;
         boolean httpOk = httpStatus >= 200 && httpStatus < 300;
 
+        String body = null;
         JsonNode rpc = null;
-        if (body != null && !body.isBlank()) {
-            MediaType type = response.getEntity().getMediaType();
-            try {
-                rpc = type != null && type.equals(EVENT_STREAM, true)
-                        ? fromEventStream(body, id)
-                        : parse(body);
-            } catch (McpClientException notJsonRpc) {
-                if (httpOk) {
-                    throw notJsonRpc;
+        Representation entity = response.getEntity();
+        try {
+            if (entity != null) {
+                MediaType type = entity.getMediaType();
+                Reader reader = entity.getReader();
+                if (reader != null && type != null && type.equals(EVENT_STREAM, true)) {
+                    rpc = fromEventStream(reader, id, MAX_RESPONSE_CHARS);
+                } else if (reader != null) {
+                    body = readAll(reader, MAX_RESPONSE_CHARS);
+                    rpc = body.isBlank() ? null : parse(body);
                 }
-                // Non-2xx with a body that is not JSON-RPC (e.g. a proxy's HTML page): the HTTP
-                // status is the real cause, reported below.
+            }
+        } catch (IOException e) {
+            throw new McpClientException("Cannot read MCP response", e);
+        } catch (McpClientException notJsonRpc) {
+            if (httpOk) {
+                throw notJsonRpc;
+            }
+            // Non-2xx with a body that is not JSON-RPC (e.g. a proxy's HTML page): the HTTP
+            // status is the real cause, reported below.
+        } finally {
+            if (entity != null) {
+                entity.release();
             }
         }
 
@@ -196,10 +211,36 @@ public class McpStreamableHttpTransport {
         }
     }
 
-    /** Read SSE events until the JSON-RPC message whose id matches. */
+    /** Read a whole (non-streamed) body, failing once it exceeds {@code maxChars}. */
+    private static String readAll(Reader reader, long maxChars) throws IOException {
+        StringBuilder out = new StringBuilder();
+        try (Reader bounded = new BoundedReader(reader, maxChars)) {
+            char[] buffer = new char[8192];
+            int n;
+            while ((n = bounded.read(buffer)) != -1) {
+                out.append(buffer, 0, n);
+            }
+        } catch (ResponseTooLargeException e) {
+            throw new McpClientException(e.getMessage(), e);
+        }
+        return out.toString();
+    }
+
+    /** Read SSE events from a complete body until the JSON-RPC message whose id matches. */
     static JsonNode fromEventStream(String body, long id) {
+        return fromEventStream(new StringReader(body), id, MAX_RESPONSE_CHARS);
+    }
+
+    /**
+     * Read SSE events incrementally until the JSON-RPC message whose id matches, then close the
+     * reader. Package-private for tests.
+     *
+     * @throws McpClientException when the stream ends without a match, a message is not JSON, or
+     *         more than {@code maxChars} characters are read
+     */
+    static JsonNode fromEventStream(Reader source, long id, long maxChars) {
         StringBuilder data = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new StringReader(body))) {
+        try (BufferedReader reader = new BufferedReader(new BoundedReader(source, maxChars))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.isEmpty()) {
@@ -215,6 +256,8 @@ public class McpStreamableHttpTransport {
                     data.append(line.substring(5).stripLeading());
                 }
             }
+        } catch (ResponseTooLargeException e) {
+            throw new McpClientException(e.getMessage(), e);
         } catch (IOException e) {
             throw new McpClientException("Cannot read MCP event stream", e);
         }
@@ -236,5 +279,50 @@ public class McpStreamableHttpTransport {
             return message;
         }
         return null;
+    }
+
+    /** Signals that a response body went past the transport's size cap. */
+    private static final class ResponseTooLargeException extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        ResponseTooLargeException(long maxChars) {
+            super("Upstream MCP response exceeds " + maxChars + " characters");
+        }
+    }
+
+    /** A reader that fails once more than {@code maxChars} characters have been read. */
+    private static final class BoundedReader extends FilterReader {
+        private final long maxChars;
+        private long count;
+
+        BoundedReader(Reader in, long maxChars) {
+            super(in);
+            this.maxChars = maxChars;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int c = super.read();
+            if (c >= 0) {
+                count(1);
+            }
+            return c;
+        }
+
+        @Override
+        public int read(char[] buffer, int offset, int length) throws IOException {
+            int n = super.read(buffer, offset, length);
+            if (n > 0) {
+                count(n);
+            }
+            return n;
+        }
+
+        private void count(long n) throws ResponseTooLargeException {
+            count += n;
+            if (count > maxChars) {
+                throw new ResponseTooLargeException(maxChars);
+            }
+        }
     }
 }
