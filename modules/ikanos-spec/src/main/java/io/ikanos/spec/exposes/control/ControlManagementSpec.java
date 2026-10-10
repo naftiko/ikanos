@@ -36,6 +36,7 @@ public class ControlManagementSpec {
 
     private final AtomicReference<ControlLogsEndpointSpec> logs = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scripting = new AtomicReference<>();
+    private final AtomicReference<FlowManagementSpec> flows = new AtomicReference<>();
 
     public boolean isHealth() {
         return health.get();
@@ -94,6 +95,16 @@ public class ControlManagementSpec {
 
     public void setScripting(ScriptingManagementSpec scripting) {
         this.scripting.set(scripting);
+    }
+
+    /** @return the aggregate flow limits, or {@code null} when not configured */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public FlowManagementSpec getFlows() {
+        return flows.get();
+    }
+
+    public void setFlows(FlowManagementSpec flows) {
+        this.flows.set(flows);
     }
 
     /**

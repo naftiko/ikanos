@@ -29,6 +29,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.engine.aggregates.Aggregate;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
+import io.ikanos.engine.aggregates.FlowCallValidator;
 import io.ikanos.engine.step.StepHandler;
 import io.ikanos.engine.step.StepHandlerRegistry;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -40,6 +41,7 @@ import io.ikanos.engine.imports.BindsImportStrategy;
 import io.ikanos.engine.imports.ConsumesImportStrategy;
 import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
+import io.ikanos.engine.imports.NamespaceUniquenessValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedReferenceValidator;
@@ -52,9 +54,11 @@ import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.exposes.skill.SkillServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
+import io.ikanos.engine.util.QualifiedName;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
+import io.ikanos.spec.exposes.control.FlowManagementSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -128,28 +132,40 @@ public class Capability {
                     .resolveAll(spec.getCapability().getBinds(), capabilityPath);
         }
 
+        // A namespace has one owner across all sections, so `call: namespace.name` resolves to
+        // either a consumed operation or an aggregate flow, never both.
+        NamespaceUniquenessValidator.validate(spec);
+
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
         AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();
         aggregateRefResolver.resolve(spec);
 
-        // Find ScriptingManagementSpec from control adapter (if any) before building executors
+        // Validate calls between aggregate flows: known targets, no cycles, no `call:` from an
+        // exposed unit to a flow (exposed units use `ref:`).
+        FlowCallValidator.validate(spec);
+
+        // Find management settings from the control adapter (if any) before building executors
         ScriptingManagementSpec resolvedScriptingSpec = null;
+        int maxFlowCallDepth = FlowManagementSpec.DEFAULT_MAX_CALL_DEPTH;
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if (serverSpec instanceof ControlServerSpec controlSpec
-                    && controlSpec.getManagement() != null
-                    && controlSpec.getManagement().getScripting() != null) {
+                    && controlSpec.getManagement() != null) {
                 resolvedScriptingSpec = controlSpec.getManagement().getScripting();
+                if (controlSpec.getManagement().getFlows() != null) {
+                    maxFlowCallDepth = controlSpec.getManagement().getFlows().getMaxCallDepth();
+                }
                 break;
             }
         }
         this.scriptingSpec.set(resolvedScriptingSpec);
 
-        // Build runtime aggregates (must happen after imports are resolved)
+        // Build runtime aggregates (must happen after imports are resolved). The executor is
+        // shared: each flow passes its own namespace when it calls it.
         List<Aggregate> aggregateList = new CopyOnWriteArrayList<>();
         if (!spec.getCapability().getAggregates().isEmpty()) {
             OperationStepExecutor sharedExecutor = new OperationStepExecutor(this);
             for (AggregateSpec aggSpec : spec.getCapability().getAggregates().values()) {
-                aggregateList.add(new Aggregate(aggSpec, sharedExecutor));
+                aggregateList.add(new Aggregate(aggSpec, sharedExecutor, maxFlowCallDepth));
             }
         }
         this.aggregates.set(aggregateList);
@@ -269,25 +285,58 @@ public class Capability {
      * @throws IllegalArgumentException if the ref cannot be resolved
      */
     public AggregateFlow lookupFlow(String ref) {
-        int dot = ref.indexOf('.');
-        if (dot <= 0 || dot == ref.length() - 1) {
+        QualifiedName name = QualifiedName.parse(ref);
+        if (name == null) {
             throw new IllegalArgumentException(
                     "Invalid aggregate flow ref format: '" + ref
                             + "'. Expected 'namespace.flowName'");
         }
-        String namespace = ref.substring(0, dot);
-        String flowName = ref.substring(dot + 1);
+        AggregateFlow flow = findFlow(name.namespace(), name.name());
+        if (flow == null) {
+            throw new IllegalArgumentException(
+                    "Unknown aggregate flow ref: '" + ref + "'");
+        }
+        return flow;
+    }
 
-        for (Aggregate agg : aggregates.get()) {
-            if (agg.getNamespace().equals(namespace)) {
+    /**
+     * Find an aggregate flow by namespace and name.
+     *
+     * @param namespace the aggregate namespace
+     * @param flowName  the flow name
+     * @return the flow, or {@code null} when there is no such flow
+     */
+    public AggregateFlow findFlow(String namespace, String flowName) {
+        List<Aggregate> current = aggregates.get();
+        if (current == null || namespace == null) {
+            return null;
+        }
+        for (Aggregate agg : current) {
+            if (namespace.equals(agg.getNamespace())) {
                 AggregateFlow flow = agg.findFlow(flowName);
                 if (flow != null) {
                     return flow;
                 }
             }
         }
-        throw new IllegalArgumentException(
-                "Unknown aggregate flow ref: '" + ref + "'");
+        return null;
+    }
+
+    /**
+     * @param namespace a namespace
+     * @return {@code true} when an aggregate declares {@code namespace}
+     */
+    public boolean hasAggregate(String namespace) {
+        List<Aggregate> current = aggregates.get();
+        if (current == null || namespace == null) {
+            return false;
+        }
+        for (Aggregate agg : current) {
+            if (namespace.equals(agg.getNamespace())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

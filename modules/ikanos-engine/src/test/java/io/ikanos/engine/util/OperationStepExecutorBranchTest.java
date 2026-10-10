@@ -345,7 +345,6 @@ class OperationStepExecutorBranchTest {
         }
 
         CapturingExecutor executor = new CapturingExecutor(capability);
-        executor.setExposeNamespace("shipyard-tools");
 
         OperationStepCallSpec step = new OperationStepCallSpec();
         step.setType("call");
@@ -355,7 +354,8 @@ class OperationStepExecutorBranchTest {
 
         // The HTTP call will fail (no server), but parameters are captured before the call
         try {
-            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"));
+            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"),
+                    "shipyard-tools");
         } catch (RuntimeException expected) {
             // HTTP connection failure expected
         }

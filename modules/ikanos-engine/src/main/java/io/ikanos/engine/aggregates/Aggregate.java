@@ -31,10 +31,20 @@ public class Aggregate {
     private final List<AggregateFlow> flows;
 
     public Aggregate(AggregateSpec spec, OperationStepExecutor stepExecutor) {
+        this(spec, stepExecutor, AggregateFlow.DEFAULT_MAX_CALL_DEPTH);
+    }
+
+    /**
+     * @param spec         the aggregate spec
+     * @param stepExecutor the executor shared by the aggregate's flows
+     * @param maxCallDepth the limit on how many flows may be active on one call chain
+     */
+    public Aggregate(AggregateSpec spec, OperationStepExecutor stepExecutor, int maxCallDepth) {
         this.namespace = spec.getNamespace();
         this.flows = new CopyOnWriteArrayList<>();
         for (AggregateFlowSpec flowSpec : spec.getFlows().values()) {
-            this.flows.add(new AggregateFlow(flowSpec, stepExecutor, this.namespace));
+            this.flows.add(
+                    new AggregateFlow(flowSpec, stepExecutor, this.namespace, maxCallDepth));
         }
     }
 

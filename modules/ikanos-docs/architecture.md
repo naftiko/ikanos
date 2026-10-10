@@ -96,7 +96,7 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.consumes.mcp` | `McpClientAdapter`: calls the declared tools of an upstream MCP server, through a stateless Streamable HTTP transport (`McpStreamableHttpTransport`). |
 | `io.ikanos.engine.consumes.tunnel` | The reverse-tunnel SPI (`Tunnel`) and its bootstrap. |
 | `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`. |
-| `io.ikanos.engine.aggregates` | Reusable domain flows (`Aggregate`, `AggregateFlow`) and the load-time `ref` resolution (`AggregateRefResolver`). |
+| `io.ikanos.engine.aggregates` | Reusable domain flows (`Aggregate`, `AggregateFlow`), the load-time `ref` resolution (`AggregateRefResolver`), flow-to-flow calls (`FlowInvocation`, `FlowConsumedResult`) and their load-time checks (`FlowCallValidator`). |
 | `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed script steps. |
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
 | `io.ikanos.engine.imports` | Resolves `import` entries in `consumes`, `exposes`, `aggregates` and `binds` before anything else runs. |
@@ -134,20 +134,22 @@ The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHel
 2. **Start telemetry** (`TelemetryBootstrap.init`), configured from the control adapter's `observability` block if there is one.
 3. **Build the `Capability`**:
     1. **Resolve imports** in a fixed order: `consumes`, then `aggregates`, then `exposes`, then `binds` (`ImportResolver`, with one `ImportStrategy` per section). After this pass every section contains only inline entries.
-    2. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` must point to a known flow, otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
-    3. **Find the scripting settings** on the control adapter, if any.
-    4. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`.
-    5. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
-    6. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
-    7. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
-    8. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
+    2. **Check namespace uniqueness across sections** (`NamespaceUniquenessValidator`). `ImportResolver` checks each section on its own; this pass rejects a namespace declared in two of `consumes`, `exposes`, `aggregates` and `binds`, so `call: <namespace>.<name>` has a single owner.
+    3. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` must point to a known flow, otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
+    4. **Check calls between flows** (`FlowCallValidator`): a call naming an aggregate must name an existing flow, flows must not call each other in a cycle, and an exposed unit must reach a flow through `ref`, not `call`.
+    5. **Find the management settings** on the control adapter, if any: scripting, and the flow call depth limit (`management.flows.maxCallDepth`, default 8).
+    6. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`. The executor holds no per-flow state: each flow passes its own namespace with every call, so flows of different namespaces can run concurrently and call each other.
+    7. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
+    8. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
+    9. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
+    10. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
 4. **Start**: client adapters first, then server adapters, so nothing accepts a request before it can call upstream. An MCP client adapter with `discovery: verify` lists the upstream tools here and fails startup if a declared tool or a required argument is missing.
 5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then client adapters.
 
 Two consequences for contributors:
 
 - An adapter **constructor must not** call `getClientAdapters()` or `getServerAdapters()`: they are not published until the end of the `Capability` constructor. Do cross-adapter lookups at request time or in `start()`.
-- Anything that can be checked at load time (an unknown `ref`, a malformed skill tool) should fail **here**, not on the first request.
+- Anything that can be checked at load time (an unknown `ref`, a cycle between flows, a malformed skill tool) should fail **here**, not on the first request.
 
 ## Life of a request
 
@@ -221,7 +223,7 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 
 Each `consumes` entry becomes a `ClientAdapter`, created by `ClientAdapterRegistry` from the entry's `type` (HTTP when absent). The core `http` and `mcp` types are registered statically, so that the native CLI does not depend on `ServiceLoader`; other adapter types are discovered with `ServiceLoader` (`ClientAdapterFactory`), and their spec types with `ClientSpecTypes` in `ikanos-spec`. An HTTP entry becomes an `HttpClientAdapter` and an MCP entry an `McpClientAdapter`; each owns one Restlet `Client` for HTTP and HTTPS.
 
-For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` finds the client adapter by namespace and asks it to `prepare` the operation, which returns a `ConsumedInvocation`. For HTTP, `HttpClientAdapter.prepare`:
+For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` splits the target on its first dot (`QualifiedName`), finds the client adapter by namespace and asks it to `prepare` the operation, which returns a `ConsumedInvocation`. When no client adapter owns the namespace and an aggregate does, the target is a flow: the result is a `FlowInvocation` (see [Execution modes](#execution-modes)). For HTTP, `HttpClientAdapter.prepare`:
 
 1. Find the operation by name.
 2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left.
@@ -249,6 +251,8 @@ Every executable unit (an MCP tool, a REST operation, an aggregate flow) runs in
 In the code, the same decision is made in three places: `ToolHandler`, `ResourceRestlet` and `AggregateFlow`. A change to the modes therefore touches all three.
 
 **Aggregates** follow the DDD aggregate pattern: a flow is defined once and projected through several adapters. At load time, `AggregateRefResolver` copies only descriptive metadata (name, description, MCP hints derived from `semantics`) onto the adapter unit. The execution fields are **not** copied: at request time the adapter delegates to the `AggregateFlow`, so there is one copy of the logic.
+
+**Flows can call flows.** A call step or a flow-level `call:` inside an aggregate may name another flow, with the same `<namespace>.<name>` syntax as a consumed operation, so a flow and an operation are interchangeable behind a call. `FlowInvocation` is one more `ConsumedInvocation`: it runs `AggregateFlow.execute` inside the usual CLIENT span, and `FlowConsumedResult` exposes the called flow's own output (already shaped by its `outputParameters`) or passes its last consumed result through. A step failure inside the called flow propagates as a `StepFailedException` that names the calling step too. `AggregateFlow` tracks the flows active on the current thread and fails with `FlowCallDepthExceededException` beyond `management.flows.maxCallDepth`. Exposed units cannot `call` a flow; they use `ref`.
 
 ### Steps
 

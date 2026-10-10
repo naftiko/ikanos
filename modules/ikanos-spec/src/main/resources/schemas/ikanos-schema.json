@@ -935,8 +935,8 @@
         },
         "call": {
           "type": "string",
-          "description": "Reference to the consumed operation. Format: {namespace}.{operationId}.",
-          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+          "description": "Reference to a consumed operation, or to another aggregate flow. Format: {namespace}.{name}, split on the first dot: the name may contain dots and underscores (consumed MCP tools are keyed by their upstream name).",
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
         },
         "with": {
           "$ref": "#/$defs/WithInjector"
@@ -1232,7 +1232,7 @@
         "call": {
           "type": "string",
           "description": "For simple cases, the reference to the consumed operation. Format: {namespace}.{operationId}.",
-          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
         },
         "with": {
           "$ref": "#/$defs/WithInjector"
@@ -1432,7 +1432,7 @@
         "call": {
           "type": "string",
           "description": "For dynamic resources: reference to the consumed operation. Format: {namespace}.{operationId}.",
-          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
         },
         "with": {
           "$ref": "#/$defs/WithInjector"
@@ -1831,7 +1831,7 @@
         "call": {
           "type": "string",
           "description": "For simple cases, the reference to the consumed operation. Format: {namespace}.{operationId}. E.g.: notion.get-database or github.get-user",
-          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
         },
         "with": {
           "$ref": "#/$defs/WithInjector"
@@ -2398,8 +2398,8 @@
             },
             "call": {
               "type": "string",
-              "description": "Reference to the consumed operation. Format: {namespace}.{operationId}.",
-              "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
+              "description": "Reference to a consumed operation, or to another aggregate flow. Format: {namespace}.{name}, split on the first dot: the name may contain dots and underscores (consumed MCP tools are keyed by their upstream name).",
+              "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
             },
             "with": {
               "$ref": "#/$defs/WithInjector"
@@ -3117,6 +3117,9 @@
         },
         "scripting": {
           "$ref": "#/$defs/ScriptingManagementSpec"
+        },
+        "flows": {
+          "$ref": "#/$defs/FlowManagementSpec"
         }
       },
       "additionalProperties": false
@@ -3141,6 +3144,19 @@
           "maximum": 20,
           "default": 5,
           "description": "Maximum concurrent SSE subscribers for log streaming."
+        }
+      },
+      "additionalProperties": false
+    },
+    "FlowManagementSpec": {
+      "type": "object",
+      "description": "Limits on aggregate flow execution. An aggregate flow may call another flow with `call: {namespace}.{flow-name}`; cycles are rejected at load time.",
+      "properties": {
+        "maxCallDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 8,
+          "description": "Maximum number of aggregate flows active on one call chain, counting the first one. A call that would exceed it fails with an error naming the chain."
         }
       },
       "additionalProperties": false
