@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.aggregates.AggregateMapDeserializer;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;

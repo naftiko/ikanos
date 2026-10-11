@@ -17,10 +17,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
+import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.ClientSpec;
@@ -35,7 +34,7 @@ import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
  * map are synchronized {@link LinkedHashMap}s preserving YAML order. This satisfies
  * SonarQube rule {@code java:S3077}.
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class HttpClientSpec extends ClientSpec {
 
     private final AtomicReference<String> baseUri = new AtomicReference<>();

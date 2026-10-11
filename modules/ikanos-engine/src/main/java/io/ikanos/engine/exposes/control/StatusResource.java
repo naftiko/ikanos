@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.control;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -29,6 +29,7 @@ import org.restlet.resource.Get;
 import org.restlet.resource.ServerResource;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Status endpoint. Returns capability metadata, engine version, uptime, OTel status, and adapter
@@ -36,7 +37,7 @@ import java.time.Duration;
  */
 public class StatusResource extends ServerResource {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     @Get("json")
     public Representation getStatusInfo() {

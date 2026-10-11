@@ -16,9 +16,7 @@ package io.ikanos.engine.consumes.http;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.IkanosSpec;
@@ -28,6 +26,7 @@ import org.restlet.data.Method;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Non-regression test for the value field support with Mustache templates in forward spec.
@@ -43,8 +42,7 @@ public class ForwardValueFieldTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Capability file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);

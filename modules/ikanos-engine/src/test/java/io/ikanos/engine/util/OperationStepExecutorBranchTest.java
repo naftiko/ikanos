@@ -28,10 +28,8 @@ import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.representation.StringRepresentation;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
@@ -45,6 +43,7 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 class OperationStepExecutorBranchTest {
 
@@ -53,8 +52,7 @@ class OperationStepExecutorBranchTest {
                 operation.getMaxBinarySize());
     }
 
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
     private String schemaVersion;
 
     @BeforeEach
@@ -225,7 +223,7 @@ class OperationStepExecutorBranchTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
         JsonNode raw = mapper.readTree("{\"id\":\"u-1\",\"name\":\"Alice\"}");
 
         Map<String, Object> runtime = new HashMap<>();
@@ -240,7 +238,7 @@ class OperationStepExecutorBranchTest {
         assertTrue(nullRaw.isNull());
 
         JsonNode passthrough = executor.resolveStepOutput(null, raw);
-        assertEquals("u-1", passthrough.path("id").asText());
+        assertEquals("u-1", passthrough.path("id").asString());
 
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
 
@@ -257,7 +255,7 @@ class OperationStepExecutorBranchTest {
         operation.getOutputParameters().add(unnamed);
 
         JsonNode projected = executor.resolveStepOutput(viewOf(operation), raw);
-        assertEquals("u-1", projected.path("userId").asText());
+        assertEquals("u-1", projected.path("userId").asString());
         assertNull(projected.get("name"));
     }
 
@@ -394,7 +392,7 @@ class OperationStepExecutorBranchTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
         JsonNode raw = mapper.readTree("""
                 [
                   {"imo_number": "IMO-123", "vessel_name": "Star", "flag_code": "NO"},
@@ -416,16 +414,16 @@ class OperationStepExecutorBranchTest {
         assertTrue(result.isArray(), "result must remain an array");
         assertEquals(2, result.size(), "array must keep both elements");
 
-        assertEquals("IMO-123", result.get(0).path("imo-number").asText(),
+        assertEquals("IMO-123", result.get(0).path("imo-number").asString(),
                 "projected field must be present on first element");
-        assertEquals("Star", result.get(0).path("vessel_name").asText(),
+        assertEquals("Star", result.get(0).path("vessel_name").asString(),
                 "original fields must be preserved on first element");
-        assertEquals("NO", result.get(0).path("flag_code").asText(),
+        assertEquals("NO", result.get(0).path("flag_code").asString(),
                 "original fields must be preserved on first element");
 
-        assertEquals("IMO-456", result.get(1).path("imo-number").asText(),
+        assertEquals("IMO-456", result.get(1).path("imo-number").asString(),
                 "projected field must be present on second element");
-        assertEquals("Dawn", result.get(1).path("vessel_name").asText(),
+        assertEquals("Dawn", result.get(1).path("vessel_name").asString(),
                 "original fields must be preserved on second element");
     }
 
@@ -454,7 +452,7 @@ class OperationStepExecutorBranchTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
         StepExecutionContext stepContext = new StepExecutionContext();
         stepContext.storeStepOutput("voyage", mapper.readTree("""
                 {"departurePort": "Oslo", "arrivalPort": "Singapore", "status": "planned"}
@@ -474,17 +472,17 @@ class OperationStepExecutorBranchTest {
         String result = executor.resolveStepMappings(mappings, stepContext);
         JsonNode json = mapper.readTree(result);
 
-        assertEquals("planned", json.path("status").asText(),
+        assertEquals("planned", json.path("status").asString(),
                 "flat mapping must still work");
         assertTrue(json.path("route").isObject(),
                 "dot-notation must create a nested object");
-        assertEquals("Oslo", json.path("route").path("from").asText());
-        assertEquals("Singapore", json.path("route").path("to").asText());
+        assertEquals("Oslo", json.path("route").path("from").asString());
+        assertEquals("Singapore", json.path("route").path("to").asString());
         assertTrue(json.path("ship").isObject(),
                 "dot-notation must create a nested object for ship");
-        assertEquals("Northern Star", json.path("ship").path("name").asText());
-        assertEquals("cargo", json.path("ship").path("type").asText());
-        assertEquals("NO", json.path("ship").path("flag").asText());
+        assertEquals("Northern Star", json.path("ship").path("name").asString());
+        assertEquals("cargo", json.path("ship").path("type").asString());
+        assertEquals("NO", json.path("ship").path("flag").asString());
     }
 
     private static OperationStepExecutor executorFromYaml(String yaml) throws Exception {

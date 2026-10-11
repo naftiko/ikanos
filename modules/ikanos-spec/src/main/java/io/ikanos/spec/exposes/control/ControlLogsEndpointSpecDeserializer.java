@@ -13,11 +13,10 @@
  */
 package io.ikanos.spec.exposes.control;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Deserializes the {@code logs} field in {@link ControlManagementSpec}. Accepts either a boolean or
@@ -28,12 +27,11 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <li>{@code logs: {stream: true, max-subscribers: 3}} → advanced configuration</li>
  * </ul>
  */
-public class ControlLogsEndpointSpecDeserializer extends JsonDeserializer<ControlLogsEndpointSpec> {
+public class ControlLogsEndpointSpecDeserializer extends ValueDeserializer<ControlLogsEndpointSpec> {
 
     @Override
-    public ControlLogsEndpointSpec deserialize(JsonParser p, DeserializationContext ctxt)
-            throws IOException {
-        JsonNode node = p.getCodec().readTree(p);
+    public ControlLogsEndpointSpec deserialize(JsonParser p, DeserializationContext ctxt) {
+        JsonNode node = p.objectReadContext().readTree(p);
 
         if (node.isBoolean()) {
             if (node.asBoolean()) {

@@ -25,13 +25,12 @@ import org.restlet.routing.Router;
 import org.restlet.security.ChallengeAuthenticator;
 import org.restlet.security.SecretVerifier;
 import org.restlet.security.Verifier;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpOAuth2Restlet;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for the shared authentication chain wiring in {@link ServerAdapter#buildServerChain}.
@@ -272,8 +271,7 @@ class ServerAdapterAuthenticationTest {
             """;
 
     private static ServerAdapter adapterFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         Capability capability = new Capability(spec);
         return (ServerAdapter) capability.getServerAdapters().get(0);

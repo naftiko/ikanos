@@ -20,11 +20,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.util.BindingSpec;
 import io.ikanos.spec.util.BindingKeysSpec;
 import io.ikanos.spec.util.ExecutionContext;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Resolver for bindings that supports both file-based and runtime-based injection. File-based
@@ -37,8 +38,8 @@ public class BindingResolver {
     private final ObjectMapper jsonMapper;
 
     public BindingResolver() {
-        this.yamlMapper = new ObjectMapper(new YAMLFactory());
-        this.jsonMapper = new ObjectMapper();
+        this.yamlMapper = IkanosMappers.yaml();
+        this.jsonMapper = IkanosMappers.json();
     }
 
     /**
@@ -179,7 +180,7 @@ public class BindingResolver {
                 }
                 throw new IOException("JSON file does not contain an object at root level");
             }
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             throw e;
         } catch (Exception e) {
             throw new IOException("Failed to parse bind file: " + e.getMessage(), e);

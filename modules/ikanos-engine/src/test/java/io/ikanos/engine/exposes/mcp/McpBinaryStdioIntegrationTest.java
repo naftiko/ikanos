@@ -37,14 +37,12 @@ import org.restlet.data.Status;
 import org.restlet.representation.ByteArrayRepresentation;
 import org.restlet.routing.Router;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Phase 6 of the binary-content blueprint (capability-binary-content.md §11.3): proves that the
@@ -104,7 +102,7 @@ public class McpBinaryStdioIntegrationTest {
             // single tools/call line produces a single response line.
             assertEquals(1, lines.length, "expected a single tools/call response");
 
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = IkanosMappers.lenientJson();
             JsonNode callResponse = mapper.readTree(lines[0]);
             assertEquals(2, callResponse.path("id").asInt());
 
@@ -112,10 +110,10 @@ public class McpBinaryStdioIntegrationTest {
             assertEquals(Boolean.FALSE, result.path("isError").asBoolean(),
                     "tool call should succeed: " + callResponse);
             JsonNode content = result.path("content").get(0);
-            assertEquals("image", content.path("type").asText());
-            assertEquals("image/jpeg", content.path("mimeType").asText());
+            assertEquals("image", content.path("type").asString());
+            assertEquals("image/jpeg", content.path("mimeType").asString());
 
-            byte[] decoded = Base64.getDecoder().decode(content.path("data").asText());
+            byte[] decoded = Base64.getDecoder().decode(content.path("data").asString());
             assertEquals(jpeg.length, decoded.length, "round-tripped length must match");
             assertArrayEquals(jpeg, decoded, "round-tripped bytes must match exactly");
         } finally {
@@ -126,8 +124,7 @@ public class McpBinaryStdioIntegrationTest {
     // ── Helpers ───────────────────────────────────────────────────────────────────────────────
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

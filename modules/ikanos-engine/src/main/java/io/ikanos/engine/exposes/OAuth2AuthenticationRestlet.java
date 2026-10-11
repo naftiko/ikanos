@@ -33,8 +33,9 @@ import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Reference;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
@@ -46,6 +47,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Shared Restlet that implements OAuth 2.1 resource server authentication. Validates bearer tokens
@@ -57,7 +59,7 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
  */
 public class OAuth2AuthenticationRestlet extends Restlet {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private static final ChallengeScheme BEARER_SCHEME =
             ChallengeScheme.HTTP_OAUTH_BEARER;
@@ -350,9 +352,9 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             try {
                 JsonNode metadata = JSON.readTree(body);
                 if (metadata.has("jwks_uri")) {
-                    discoveredJwksUri = metadata.get("jwks_uri").asText();
+                    discoveredJwksUri = metadata.get("jwks_uri").asString();
                 }
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 Context.getCurrentLogger().log(Level.WARNING, "Failed to parse AS metadata", e);
             }
         }

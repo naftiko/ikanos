@@ -20,16 +20,18 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.core.JacksonException;
 import org.restlet.Request;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Utility class for resolving Mustache-style template strings with provided parameters.
@@ -85,13 +87,13 @@ public class Resolver {
         // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
         // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
         Map<String, Object> serialized = new HashMap<>();
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper jsonMapper = IkanosMappers.json();
         for (Map.Entry<String, Object> entry : parameters.entrySet()) {
             Object val = entry.getValue();
             if (val instanceof java.util.Collection || val instanceof Object[]) {
                 try {
                     val = jsonMapper.writeValueAsString(val);
-                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                } catch (JacksonException e) {
                     // keep the plain value
                 }
             }
@@ -177,8 +179,8 @@ public class Resolver {
                             return null;
                         }
 
-                        if (extracted.isTextual()) {
-                            return extracted.asText();
+                        if (extracted.isString()) {
+                            return extracted.asString();
                         } else {
                             return mapper.convertValue(extracted, Object.class);
                         }
@@ -189,8 +191,8 @@ public class Resolver {
                     // request fields (e.g. name: shipImo → $.shipImo).
                     if (name != null && root.has(name)) {
                         JsonNode field = root.get(name);
-                        if (field.isTextual()) {
-                            return field.asText();
+                        if (field.isString()) {
+                            return field.asString();
                         } else if (!field.isNull()) {
                             return mapper.convertValue(field, Object.class);
                         }
@@ -449,29 +451,29 @@ public class Resolver {
         JsonNodeFactory factory = JsonNodeFactory.instance;
         switch (spec.getType().toLowerCase()) {
             case "string":
-                if (node.isTextual()) {
+                if (node.isString()) {
                     return node;
                 }
                 if (node.isValueNode()) {
-                    return factory.textNode(node.asText());
+                    return factory.textNode(node.asString());
                 }
                 try {
                     return factory.textNode(mapper.writeValueAsString(node));
-                } catch (IOException e) {
+                } catch (JacksonException e) {
                     return NullNode.instance;
                 }
             case "number":
                 if (node.isNumber()) {
                     return node;
                 }
-                if (node.isTextual()) {
+                if (node.isString()) {
                     try {
                         // Validate as a decimal, then parse its canonical form as JSON so the
                         // coerced node has the same type (int, long, double...) as a number that
                         // arrived as a JSON number.
-                        String canonical = new BigDecimal(node.asText().trim()).toString();
+                        String canonical = new BigDecimal(node.asString().trim()).toString();
                         return mapper.readTree(canonical);
-                    } catch (NumberFormatException | IOException e) {
+                    } catch (NumberFormatException | JacksonException e) {
                         return NullNode.instance;
                     }
                 }
@@ -480,8 +482,8 @@ public class Resolver {
                 if (node.isBoolean()) {
                     return node;
                 }
-                if (node.isTextual()) {
-                    String text = node.asText().trim();
+                if (node.isString()) {
+                    String text = node.asString().trim();
                     if ("true".equalsIgnoreCase(text)) {
                         return factory.booleanNode(true);
                     }

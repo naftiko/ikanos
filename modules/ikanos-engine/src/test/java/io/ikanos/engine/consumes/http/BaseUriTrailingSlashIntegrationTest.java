@@ -20,11 +20,9 @@ import java.io.File;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test — non-regression for issue #184.
@@ -41,8 +39,7 @@ public class BaseUriTrailingSlashIntegrationTest {
         File fixture = new File("src/test/resources/baseuri-trailing-slash-capability.yaml");
         assertTrue(fixture.exists(), "Fixture file should exist: " + fixture.getPath());
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
 
         Exception wrapping = assertThrows(Exception.class, () -> mapper.readValue(fixture, IkanosSpec.class));
 

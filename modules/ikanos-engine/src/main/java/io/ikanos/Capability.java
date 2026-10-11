@@ -23,9 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.aggregates.Aggregate;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
@@ -64,6 +62,7 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
@@ -411,8 +410,7 @@ public class Capability {
                     throw new IllegalArgumentException(
                             "Classpath resource not found: " + resourcePath);
                 }
-                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                ObjectMapper mapper = IkanosMappers.lenientYaml();
                 this.spec = mapper.readValue(is, IkanosSpec.class);
                 this.capabilityDir = null;
             } catch (IllegalArgumentException e) {
@@ -431,8 +429,7 @@ public class Capability {
                 throw new IllegalArgumentException("File not found: " + yamlPath);
             }
             try {
-                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                ObjectMapper mapper = IkanosMappers.lenientYaml();
                 this.spec = mapper.readValue(file, IkanosSpec.class);
                 this.capabilityDir = file.getParent();
             } catch (Exception e) {

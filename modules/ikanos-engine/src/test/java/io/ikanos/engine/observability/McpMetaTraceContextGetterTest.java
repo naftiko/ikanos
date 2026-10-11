@@ -15,15 +15,16 @@ package io.ikanos.engine.observability;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class McpMetaTraceContextGetterTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = IkanosMappers.json();
 
     @Test
     void getShouldReturnMetaValue() throws Exception {

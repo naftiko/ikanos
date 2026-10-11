@@ -16,13 +16,12 @@ package io.ikanos.spec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.exposes.rest.RestServerStepSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 
 import static org.junit.jupiter.api.Assertions.*;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Test suite for enhanced description metadata serialization.
@@ -35,8 +34,8 @@ public class DescriptionMetadataRoundTripTest {
 
     @BeforeEach
     public void setUp() {
-        this.yamlMapper = new ObjectMapper(new YAMLFactory());
-        this.jsonMapper = new ObjectMapper();
+        this.yamlMapper = IkanosMappers.yaml();
+        this.jsonMapper = IkanosMappers.json();
     }
 
     @Test

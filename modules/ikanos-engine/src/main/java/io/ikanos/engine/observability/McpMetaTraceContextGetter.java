@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.observability;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,7 +50,7 @@ public class McpMetaTraceContextGetter implements TextMapGetter<JsonNode> {
             return Collections.emptyList();
         }
         List<String> names = new ArrayList<>();
-        meta.fieldNames().forEachRemaining(names::add);
+        meta.propertyNames().iterator().forEachRemaining(names::add);
         return names;
     }
 
@@ -62,7 +62,7 @@ public class McpMetaTraceContextGetter implements TextMapGetter<JsonNode> {
             return null;
         }
         JsonNode value = meta.get(key);
-        return (value == null || value.isMissingNode() || value.isNull()) ? null : value.asText();
+        return (value == null || value.isMissingNode() || value.isNull()) ? null : value.asString();
     }
 
     /**

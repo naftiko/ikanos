@@ -18,23 +18,25 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.Error;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.InputStream;
-import java.util.Set;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Validates that the bundled {@code ikanos-schema.json} (Draft 2020-12) accepts the unified
@@ -47,9 +49,9 @@ import org.junit.jupiter.api.Test;
  */
 class ImportSchemaValidationTest {
 
-    private static JsonSchema schema;
-    private static final YAMLMapper YAML = new YAMLMapper();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static Schema schema;
+    private static final YAMLMapper YAML = IkanosMappers.yaml();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @BeforeAll
@@ -59,12 +61,12 @@ class ImportSchemaValidationTest {
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode schemaNode = JSON.readTree(in);
-            JsonSchemaFactory factory = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            SchemaRegistry factory = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12);
             schema = factory.getSchema(schemaNode);
         }
     }
 
-    private Set<ValidationMessage> validateYaml(String yaml) throws Exception {
+    private List<Error> validateYaml(String yaml) throws Exception {
         JsonNode data = YAML.readTree(yaml);
         return schema.validate(data);
     }
@@ -86,7 +88,7 @@ class ImportSchemaValidationTest {
                   as: "notion-shared"
                   description: "Standard Notion adapter."
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -104,7 +106,7 @@ class ImportSchemaValidationTest {
                   import: "maritime-rest"
                   as: "fleet-maritime-rest"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -126,7 +128,7 @@ class ImportSchemaValidationTest {
                   import: "crew-resolver"
                   as: "fleet-crew-resolver"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -140,7 +142,7 @@ class ImportSchemaValidationTest {
                 import: "secrets"
                 as: "prod-secrets"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -156,7 +158,7 @@ class ImportSchemaValidationTest {
                 namespace: "shared-rest"
                 port: 3003
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -173,7 +175,7 @@ class ImportSchemaValidationTest {
                     description: "Look up a crew member by id."
                     call: "api.lookup"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -192,7 +194,7 @@ class ImportSchemaValidationTest {
                 - import: "notion"
                   as: "notion-shared"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(), "Expected validation errors for missing 'from'");
     }
 
@@ -209,7 +211,7 @@ class ImportSchemaValidationTest {
                 - from: "./shared/notion.consumes.yml"
                   as: "notion-shared"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(), "Expected validation errors for missing 'import'");
     }
 
@@ -228,10 +230,10 @@ class ImportSchemaValidationTest {
             boolean hasFrom = false;
             boolean hasImport = false;
             for (JsonNode r : required) {
-                if ("from".equals(r.asText())) {
+                if ("from".equals(r.asString())) {
                     hasFrom = true;
                 }
-                if ("import".equals(r.asText())) {
+                if ("import".equals(r.asString())) {
                     hasImport = true;
                 }
             }

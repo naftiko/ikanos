@@ -19,13 +19,14 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.core.JacksonException;
 import org.restlet.Request;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowCallDepthExceededException;
@@ -50,6 +51,7 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Executor for orchestrated operation steps.
@@ -81,7 +83,7 @@ public class OperationStepExecutor {
 
     public OperationStepExecutor(Capability capability, String exposeNamespace) {
         this.capability = capability;
-        this.mapper = new ObjectMapper();
+        this.mapper = IkanosMappers.json();
         this.exposeNamespace = exposeNamespace;
         if (capability != null && capability.getScriptingSpec() != null) {
             this.scriptExecutor = new ScriptStepExecutor();
@@ -108,7 +110,7 @@ public class OperationStepExecutor {
             if ((request.getEntity() != null) && !request.getEntity().isEmpty()) {
                 tmpRoot = mapper.readTree(request.getEntity().getReader());
             }
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             logger.debug("Request body is not valid JSON; treating as absent", e);
             tmpRoot = null;
         }
@@ -290,7 +292,7 @@ public class OperationStepExecutor {
                                     addStepOutputToParameters(runtimeParameters,
                                             callStep.getName(), stepOutput);
                                 }
-                            } catch (IOException ignoreJsonParseError) {
+                            } catch (JacksonException | IOException ignoreJsonParseError) {
                                 logger.debug("Step output is not JSON; skipping lookup index update", ignoreJsonParseError);
                             }
                         }
@@ -332,7 +334,7 @@ public class OperationStepExecutor {
                             ArrayNode resultArray = mapper.createArrayNode();
                             for (JsonNode item : lookupValueNode) {
                                 JsonNode match = LookupExecutor.executeLookup(indexData,
-                                        lookupStep.getMatch(), item.asText(),
+                                        lookupStep.getMatch(), item.asString(),
                                         lookupStep.getOutputParameters());
                                 if (match != null) {
                                     resultArray.add(match);
@@ -341,7 +343,7 @@ public class OperationStepExecutor {
                             lookupResult = resultArray.isEmpty() ? null : resultArray;
                         } else if (lookupValueNode != null) {
                             lookupResult = LookupExecutor.executeLookup(indexData,
-                                    lookupStep.getMatch(), lookupValueNode.asText(),
+                                    lookupStep.getMatch(), lookupValueNode.asString(),
                                     lookupStep.getOutputParameters());
                         } else {
                             lookupResult = LookupExecutor.executeLookup(indexData,

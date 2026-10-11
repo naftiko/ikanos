@@ -27,17 +27,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.restlet.Client;
 import org.restlet.Context;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaException;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
-import com.networknt.schema.uri.URIFetcher;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.node.ObjectNode;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaException;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+import com.networknt.schema.Error;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
@@ -48,6 +47,8 @@ import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
 import io.opentelemetry.api.trace.Span;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.core.JacksonException;
 
 /**
  * Consumed adapter for one upstream MCP server ({@code consumes: type: mcp}).
@@ -69,32 +70,26 @@ import io.opentelemetry.api.trace.Span;
  */
 public class McpClientAdapter extends ClientAdapter {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     /** Strict reader: a text block is JSON only if the whole text is one JSON value. */
     private static final ObjectReader STRICT_JSON =
             JSON.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
-    /** Refuses every external schema fetch, so an upstream cannot make the engine request URLs. */
-    private static final URIFetcher NO_FETCH = uri -> {
-        throw new IOException("External schema reference not allowed: " + uri);
-    };
-
     /**
-     * Schema factory for upstream {@code outputSchema}s. Every scheme the validator would fetch
-     * from ({@code http}, {@code https}, {@code ftp}, {@code file}, {@code jar},
-     * {@code classpath}, {@code resource}) is mapped to {@link #NO_FETCH}.
+     * Schema registry for upstream {@code outputSchema}s. Its loader blocks every IRI, whatever the
+     * scheme ({@code http}, {@code https}, {@code file}, {@code classpath}, ...), so an upstream
+     * cannot make the engine fetch or read a schema resource.
      */
-    private static final JsonSchemaFactory SCHEMAS = JsonSchemaFactory
-            .builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012))
-            .uriFetcher(NO_FETCH, "http", "https", "ftp", "file", "jar", "classpath", "resource")
-            .build();
+    private static final SchemaRegistry SCHEMAS = SchemaRegistry.withDefaultDialect(
+            SpecificationVersion.DRAFT_2020_12,
+            builder -> builder.schemaLoader(loader -> loader.block(iri -> true)));
 
     /** Upper bound on {@code tools/list} pages, so a misbehaving upstream cannot stall start-up. */
     static final int MAX_LIST_PAGES = 100;
 
     private final Client client;
     private final McpStreamableHttpTransport transport;
-    private final Map<String, JsonSchema> outputSchemas = new ConcurrentHashMap<>();
+    private final Map<String, Schema> outputSchemas = new ConcurrentHashMap<>();
 
     public McpClientAdapter(Capability capability, McpClientSpec spec) {
         this(capability, spec, new Client(List.of(HTTP, HTTPS)));
@@ -121,7 +116,7 @@ public class McpClientAdapter extends ClientAdapter {
     }
 
     /** @return the cached upstream output schema for a tool, or {@code null} */
-    JsonSchema outputSchema(String toolName) {
+    Schema outputSchema(String toolName) {
         return outputSchemas.get(toolName);
     }
 
@@ -158,7 +153,7 @@ public class McpClientAdapter extends ClientAdapter {
         params.set("arguments", arguments);
         JsonNode result = transport.call("tools/call", toolName, params, templates);
 
-        String resultType = result.path("resultType").asText("complete");
+        String resultType = result.path("resultType").asString("complete");
         if (!"complete".equals(resultType)) {
             throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
                     + " requested '" + resultType + "'; not supported in v1");
@@ -195,28 +190,28 @@ public class McpClientAdapter extends ClientAdapter {
             return new McpConsumedResult(view, null, null);
         }
         if (content.isArray() && content.size() == 1
-                && "text".equals(content.get(0).path("type").asText())) {
-            String text = content.get(0).path("text").asText("");
+                && "text".equals(content.get(0).path("type").asString())) {
+            String text = content.get(0).path("text").asString("");
             try {
                 JsonNode parsed = STRICT_JSON.readTree(text);
                 if (parsed != null && !parsed.isMissingNode()) {
                     return new McpConsumedResult(view, parsed, text);
                 }
-            } catch (IOException notJson) {
+            } catch (JacksonException notJson) {
                 // fall through to the raw string
             }
             return new McpConsumedResult(view, JSON.getNodeFactory().textNode(text), text);
         }
         List<String> types = new ArrayList<>();
-        content.forEach(block -> types.add(block.path("type").asText("?")));
+        content.forEach(block -> types.add(block.path("type").asString("?")));
         throw new McpClientException("Unsupported MCP tool result content " + types
                 + "; v1 accepts structuredContent or a single text block");
     }
 
     private static String firstText(JsonNode result) {
         for (JsonNode block : result.path("content")) {
-            if ("text".equals(block.path("type").asText())) {
-                return block.path("text").asText("");
+            if ("text".equals(block.path("type").asString())) {
+                return block.path("text").asString("");
             }
         }
         return "(no text content)";
@@ -224,17 +219,17 @@ public class McpClientAdapter extends ClientAdapter {
 
     /** Validate {@code structuredContent} against the cached upstream output schema. */
     void validate(String toolName, JsonNode structured) {
-        JsonSchema schema = outputSchemas.get(toolName);
+        Schema schema = outputSchemas.get(toolName);
         McpClientToolSpec tool = getMcpClientSpec().getTools().get(toolName);
         if (schema == null || tool == null
                 || McpClientToolSpec.VALIDATE_OFF.equals(tool.validationMode())) {
             return;
         }
-        Set<ValidationMessage> errors = schema.validate(structured);
+        List<Error> errors = schema.validate(structured);
         if (errors.isEmpty()) {
             return;
         }
-        String detail = errors.stream().map(ValidationMessage::getMessage).sorted()
+        String detail = errors.stream().map(Error::getMessage).sorted()
                 .collect(Collectors.joining("; "));
         if (McpClientToolSpec.VALIDATE_WARN.equals(tool.validationMode())) {
             Span.current().addEvent("mcp.output_schema.violation: " + detail);
@@ -282,8 +277,8 @@ public class McpClientAdapter extends ClientAdapter {
             JsonNode result = transport.call("tools/list", null, params, templates);
             result.path("tools").forEach(tools::add);
             JsonNode next = result.get("nextCursor");
-            cursor = next != null && !next.isNull() && !next.asText().isEmpty()
-                    ? next.asText() : null;
+            cursor = next != null && !next.isNull() && !next.asString().isEmpty()
+                    ? next.asString() : null;
             if (cursor != null && !seenCursors.add(cursor)) {
                 throw new McpClientException("Upstream MCP server " + getEndpoint()
                         + " repeated tools/list cursor '" + cursor + "'");
@@ -300,7 +295,7 @@ public class McpClientAdapter extends ClientAdapter {
      */
     void verify(List<JsonNode> upstreamTools) {
         Map<String, JsonNode> byName = new ConcurrentHashMap<>();
-        upstreamTools.forEach(t -> byName.put(t.path("name").asText(), t));
+        upstreamTools.forEach(t -> byName.put(t.path("name").asString(), t));
         List<String> problems = new ArrayList<>();
 
         for (McpClientToolSpec tool : getMcpClientSpec().getTools().values()) {
@@ -319,8 +314,8 @@ public class McpClientAdapter extends ClientAdapter {
                 }
             }
             for (Iterator<JsonNode> it = upstream.path("inputSchema").path("required")
-                    .elements(); it.hasNext();) {
-                String required = it.next().asText();
+                    .iterator(); it.hasNext();) {
+                String required = it.next().asString();
                 if (!declared.contains(required)) {
                     problems.add("tool '" + tool.getName() + "' does not declare required"
                             + " upstream argument '" + required + "'");
@@ -330,10 +325,10 @@ public class McpClientAdapter extends ClientAdapter {
             JsonNode outputSchema = upstream.get("outputSchema");
             if (outputSchema != null && outputSchema.isObject()) {
                 try {
-                    JsonSchema schema = SCHEMAS.getSchema(outputSchema);
+                    Schema schema = SCHEMAS.getSchema(outputSchema);
                     schema.initializeValidators();
                     outputSchemas.put(tool.getName(), schema);
-                } catch (JsonSchemaException | IllegalArgumentException | IllegalStateException e) {
+                } catch (SchemaException | IllegalArgumentException | IllegalStateException e) {
                     problems.add("tool '" + tool.getName() + "' has an unusable outputSchema ("
                             + e.getMessage() + ")");
                 }

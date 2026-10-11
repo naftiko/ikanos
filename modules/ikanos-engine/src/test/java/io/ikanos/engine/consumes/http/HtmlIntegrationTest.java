@@ -16,10 +16,8 @@ package io.ikanos.engine.consumes.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.Converter;
 import io.ikanos.spec.IkanosSpec;
@@ -30,6 +28,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /** Integration tests for HTML parsing via the converter pipeline. */
 public class HtmlIntegrationTest {
@@ -43,8 +42,7 @@ public class HtmlIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "HTML capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
@@ -67,8 +65,8 @@ public class HtmlIntegrationTest {
 
             assertEquals(1, root.get("tables").size());
             assertEquals(2, root.get("tables").get(0).size());
-            assertEquals("Widget", root.get("tables").get(0).get(0).get("Name").asText());
-            assertEquals("$99", root.get("tables").get(0).get(1).get("Price").asText());
+            assertEquals("Widget", root.get("tables").get(0).get(0).get("Name").asString());
+            assertEquals("$99", root.get("tables").get(0).get(1).get("Price").asString());
         }
     }
 }

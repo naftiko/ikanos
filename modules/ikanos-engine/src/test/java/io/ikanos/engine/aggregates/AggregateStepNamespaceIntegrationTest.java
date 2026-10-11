@@ -20,14 +20,13 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test for issue #290: namespace-qualified references in aggregate flow steps.
@@ -53,8 +52,7 @@ public class AggregateStepNamespaceIntegrationTest {
         File file = new File(path);
         assertTrue(file.exists(), "Test capability file should exist at " + path);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         spec = mapper.readValue(file, IkanosSpec.class);
         capability = new Capability(spec);
     }

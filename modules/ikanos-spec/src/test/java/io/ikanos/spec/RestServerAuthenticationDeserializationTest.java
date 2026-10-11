@@ -17,12 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class RestServerAuthenticationDeserializationTest {
 
@@ -48,8 +47,7 @@ public class RestServerAuthenticationDeserializationTest {
                             - method: GET
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
         RestServerSpec restServer = (RestServerSpec) spec.getCapability().getExposes().get(0);
@@ -85,8 +83,7 @@ public class RestServerAuthenticationDeserializationTest {
                             - method: GET
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
         RestServerSpec restServer = (RestServerSpec) spec.getCapability().getExposes().get(0);

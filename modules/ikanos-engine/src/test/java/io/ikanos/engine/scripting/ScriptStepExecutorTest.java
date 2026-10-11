@@ -19,11 +19,12 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.util.StepExecutionContext;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import static org.junit.jupiter.api.Assertions.*;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for ScriptStepExecutor.
@@ -57,7 +58,7 @@ class ScriptStepExecutorTest {
 
         assertNotNull(result);
         assertTrue(result.isObject());
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
         assertEquals(42, result.get("count").asInt());
         assertTrue(result.get("flag").asBoolean());
     }
@@ -68,9 +69,9 @@ class ScriptStepExecutorTest {
                 "filter-active", "javascript", scriptsLocationUri, "filter-active.js");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
         members.add(mapper.createObjectNode().put("login", "alice").put("id", 1).put("type", "User"));
         members.add(mapper.createObjectNode().put("login", "bot-ci").put("id", 2).put("type", "Bot"));
         members.add(mapper.createObjectNode().put("login", "bob").put("id", 3).put("type", "User"));
@@ -83,8 +84,8 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("alice", result.get(0).get("login").asText());
-        assertEquals("bob", result.get(1).get("login").asText());
+        assertEquals("alice", result.get(0).get("login").asString());
+        assertEquals("bob", result.get(1).get("login").asString());
     }
 
     @Test
@@ -93,9 +94,9 @@ class ScriptStepExecutorTest {
                 "compute-totals", "javascript", scriptsLocationUri, "compute-totals.js");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode orders = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode orders = mapper.createArrayNode();
         orders.add(mapper.createObjectNode().put("amount", 10.5));
         orders.add(mapper.createObjectNode().put("amount", 20.0));
         orders.add(mapper.createObjectNode().put("amount", 30.0));
@@ -116,9 +117,9 @@ class ScriptStepExecutorTest {
                 Map.of("threshold", "{{minStock}}"));
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode items = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode items = mapper.createArrayNode();
         items.add(mapper.createObjectNode().put("name", "Widget").put("stock", 5));
         items.add(mapper.createObjectNode().put("name", "Gadget").put("stock", 15));
         items.add(mapper.createObjectNode().put("name", "Gizmo").put("stock", 3));
@@ -132,8 +133,8 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("Widget", result.get(0).get("name").asText());
-        assertEquals("Gizmo", result.get(1).get("name").asText());
+        assertEquals("Widget", result.get(0).get("name").asString());
+        assertEquals("Gizmo", result.get(1).get("name").asString());
     }
 
     @Test
@@ -142,8 +143,8 @@ class ScriptStepExecutorTest {
                 "no-result", "javascript", scriptsLocationUri, "no-result.js");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
         stepContext.storeStepOutput("some-step",
                 mapper.createObjectNode().put("key", "value"));
 
@@ -162,9 +163,9 @@ class ScriptStepExecutorTest {
                 "active-members.js", List.of("lib/array-utils.js"), null);
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
         members.add(mapper.createObjectNode().put("login", "alice").put("id", 1).put("type", "User"));
         members.add(mapper.createObjectNode().put("login", "bot-ci").put("id", 2).put("type", "Bot"));
         members.add(mapper.createObjectNode().put("login", "bob").put("id", 3).put("type", "User"));
@@ -175,9 +176,9 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("alice", result.get(0).get("login").asText());
+        assertEquals("alice", result.get(0).get("login").asString());
         assertEquals(1, result.get(0).get("id").asInt());
-        assertEquals("bob", result.get(1).get("login").asText());
+        assertEquals("bob", result.get(1).get("login").asString());
     }
 
     // ── Groovy execution ─────────────────────────────────────────
@@ -215,9 +216,9 @@ class ScriptStepExecutorTest {
                 "enrich", "groovy", scriptsLocationUri, "enrich-products.groovy");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode products = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode products = mapper.createArrayNode();
         products.add(mapper.createObjectNode().put("name", "Widget").put("price", 100.0));
         products.add(mapper.createObjectNode().put("name", "Gadget").put("price", 50.0));
         stepContext.storeStepOutput("fetch-products", products);
@@ -227,7 +228,7 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("Widget", result.get(0).get("name").asText());
+        assertEquals("Widget", result.get(0).get("name").asString());
         assertEquals(90.0, result.get(0).get("discounted").asDouble(), 0.001);
     }
 
@@ -387,8 +388,8 @@ class ScriptStepExecutorTest {
     @Test
     void buildBindingsShouldMergeRuntimeParamsAndStepOutputs() {
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
         stepContext.storeStepOutput("step-a",
                 mapper.createObjectNode().put("field", "value"));
 
@@ -413,7 +414,7 @@ class ScriptStepExecutorTest {
 
         assertNotNull(result);
         assertTrue(result.isObject());
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
         assertEquals(42, result.get("count").asInt());
         assertTrue(result.get("flag").asBoolean());
     }
@@ -424,9 +425,9 @@ class ScriptStepExecutorTest {
                 "filter-active", "python", scriptsLocationUri, "filter-active.py");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode members = mapper.createArrayNode();
         members.add(mapper.createObjectNode().put("login", "alice").put("id", 1).put("type", "User"));
         members.add(mapper.createObjectNode().put("login", "bot-ci").put("id", 2).put("type", "Bot"));
         members.add(mapper.createObjectNode().put("login", "bob").put("id", 3).put("type", "User"));
@@ -437,8 +438,8 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("alice", result.get(0).get("login").asText());
-        assertEquals("bob", result.get(1).get("login").asText());
+        assertEquals("alice", result.get(0).get("login").asString());
+        assertEquals("bob", result.get(1).get("login").asString());
     }
 
     @Test
@@ -447,9 +448,9 @@ class ScriptStepExecutorTest {
                 "analyze", "python", scriptsLocationUri, "analyze-readings.py");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
         readings.add(mapper.createObjectNode().put("temperature", 20.0));
         readings.add(mapper.createObjectNode().put("temperature", 25.0));
         readings.add(mapper.createObjectNode().put("temperature", 30.0));
@@ -472,9 +473,9 @@ class ScriptStepExecutorTest {
                 Map.of("threshold", "{{minStock}}"));
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode items = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode items = mapper.createArrayNode();
         items.add(mapper.createObjectNode().put("name", "Widget").put("stock", 5));
         items.add(mapper.createObjectNode().put("name", "Gadget").put("stock", 15));
         items.add(mapper.createObjectNode().put("name", "Gizmo").put("stock", 3));
@@ -488,8 +489,8 @@ class ScriptStepExecutorTest {
         assertNotNull(result);
         assertTrue(result.isArray());
         assertEquals(2, result.size());
-        assertEquals("Widget", result.get(0).get("name").asText());
-        assertEquals("Gizmo", result.get(1).get("name").asText());
+        assertEquals("Widget", result.get(0).get("name").asString());
+        assertEquals("Gizmo", result.get(1).get("name").asString());
     }
 
     @Test
@@ -498,8 +499,8 @@ class ScriptStepExecutorTest {
                 "no-result", "python", scriptsLocationUri, "no-result.py");
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
         stepContext.storeStepOutput("some-step",
                 mapper.createObjectNode().put("key", "value"));
 
@@ -517,9 +518,9 @@ class ScriptStepExecutorTest {
                 "analyze-with-deps.py", List.of("lib/stats.py"), null);
 
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode readings = mapper.createArrayNode();
         readings.add(mapper.createObjectNode().put("temperature", 20.0));
         readings.add(mapper.createObjectNode().put("temperature", 25.0));
         readings.add(mapper.createObjectNode().put("temperature", 30.0));
@@ -569,7 +570,7 @@ class ScriptStepExecutorTest {
         JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
 
         assertNotNull(result);
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
     }
 
     @Test
@@ -587,7 +588,7 @@ class ScriptStepExecutorTest {
         JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
 
         assertNotNull(result);
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
     }
 
     @Test
@@ -605,7 +606,7 @@ class ScriptStepExecutorTest {
         JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
 
         assertNotNull(result);
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
     }
 
     @Test
@@ -623,7 +624,7 @@ class ScriptStepExecutorTest {
         JsonNode result = executor.execute(step, new HashMap<>(), new StepExecutionContext());
 
         assertNotNull(result);
-        assertEquals("hello", result.get("greeting").asText());
+        assertEquals("hello", result.get("greeting").asString());
     }
 
     @Test
@@ -702,9 +703,9 @@ class ScriptStepExecutorTest {
 
         // Should not throw — groovy is allowed when list is empty
         StepExecutionContext stepContext = new StepExecutionContext();
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-                new com.fasterxml.jackson.databind.ObjectMapper();
-        com.fasterxml.jackson.databind.node.ArrayNode products = mapper.createArrayNode();
+        tools.jackson.databind.ObjectMapper mapper =
+                IkanosMappers.json();
+        tools.jackson.databind.node.ArrayNode products = mapper.createArrayNode();
         products.add(mapper.createObjectNode().put("name", "Widget").put("price", 100.0));
         stepContext.storeStepOutput("fetch-products", products);
 

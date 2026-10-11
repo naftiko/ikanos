@@ -14,10 +14,10 @@
 package io.ikanos.spec;
 
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Test deserialization of nested output parameters from YAML
@@ -56,7 +56,7 @@ public class OutputParameterDeserializationTest {
               mapping: $.properties.Comments.rich_text[0].text.content
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     // Validate the top-level structure
@@ -94,7 +94,7 @@ public class OutputParameterDeserializationTest {
         value: $.id
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("userid", spec.getName(), "Name should be parsed");
@@ -111,7 +111,7 @@ public class OutputParameterDeserializationTest {
         value: "Hello, {{name}}!"
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("message", spec.getName(), "Name should be parsed");
@@ -128,7 +128,7 @@ public class OutputParameterDeserializationTest {
     spec.setType("string");
     spec.setMapping("$.id");
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     String yaml = mapper.writeValueAsString(spec);
 
     assertTrue(yaml.contains("value: \"$.id\"") || yaml.contains("value: $.id"),
@@ -159,7 +159,7 @@ public class OutputParameterDeserializationTest {
             value: "Hello, {{name}}!"
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("object", spec.getType());
@@ -196,7 +196,7 @@ public class OutputParameterDeserializationTest {
             mapping: "$.status"
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     OutputParameterSpec statusProp = spec.getProperties().stream()
@@ -220,7 +220,7 @@ public class OutputParameterDeserializationTest {
         value: "$.id"
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("userid", spec.getName());
@@ -238,7 +238,7 @@ public class OutputParameterDeserializationTest {
             value: "Hello, {{name}}!"
         """;
 
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterSpec spec = mapper.readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("object", spec.getType(), "Root type should be object");
@@ -266,13 +266,13 @@ public class OutputParameterDeserializationTest {
     //   imo-number:
     //     type: string
     //     value: "$.imo_number"
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+    ObjectMapper mapper = IkanosMappers.yaml();
     OutputParameterListOrMapDeserializer deserializer = new OutputParameterListOrMapDeserializer();
-    com.fasterxml.jackson.core.JsonParser p =
-        mapper.getFactory().createParser("{\n  \"imo-number\": {\"type\": \"string\", \"value\": \"$.imo_number\"}\n}");
+    tools.jackson.core.JsonParser p =
+        mapper.createParser("{\n  \"imo-number\": {\"type\": \"string\", \"value\": \"$.imo_number\"}\n}");
     p.nextToken();
     List<OutputParameterSpec> params =
-        deserializer.deserialize(p, mapper.getDeserializationContext());
+        deserializer.deserialize(p, mapper._deserializationContext());
 
     assertEquals(1, params.size());
     OutputParameterSpec spec = params.get(0);
@@ -301,7 +301,7 @@ public class OutputParameterDeserializationTest {
         """;
 
     OutputParameterSpec spec =
-        new ObjectMapper(new YAMLFactory()).readValue(yamlSnippet, OutputParameterSpec.class);
+        IkanosMappers.yaml().readValue(yamlSnippet, OutputParameterSpec.class);
 
     OutputParameterSpec items = spec.getItems();
     assertNotNull(items, "orchestrated items map must produce an item declaration");
@@ -323,7 +323,7 @@ public class OutputParameterDeserializationTest {
         """;
 
     OutputParameterSpec spec =
-        new ObjectMapper(new YAMLFactory()).readValue(yamlSnippet, OutputParameterSpec.class);
+        IkanosMappers.yaml().readValue(yamlSnippet, OutputParameterSpec.class);
 
     assertEquals("string", spec.getItems().getType());
     assertEquals("$.", spec.getItems().getMapping());

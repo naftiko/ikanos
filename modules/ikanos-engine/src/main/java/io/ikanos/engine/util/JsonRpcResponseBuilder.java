@@ -13,18 +13,19 @@
  */
 package io.ikanos.engine.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.JSONRPC_VERSION;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * A helper class for building Json-Rpc response bodies.
  */
 public final class JsonRpcResponseBuilder {
 
-    static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = IkanosMappers.json();
 
     private JsonRpcResponseBuilder() {
         // Hidden constructor

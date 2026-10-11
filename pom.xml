@@ -79,12 +79,10 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <restlet.version>2.7.0-m2</restlet.version>
-        <!-- Restlet 2.7.0-m2 pulls in Jetty 12.0.22 transitively, which carries
-             CVE-2025-5115, CVE-2026-2332 and CVE-2026-1605 (fixed in 12.0.33+).
-             Pinned here via jetty-bom import until Restlet bumps its own. -->
-        <jetty.version>12.0.38</jetty.version>
-        <jackson.version>2.21.5</jackson.version>
+        <restlet.version>3.0.0-m1</restlet.version>
+        <jackson.version>3.2.3</jackson.version>
+        <!-- Jackson 2 is still needed by swagger-parser, Avro and json-structure -->
+        <jackson2.version>2.21.7</jackson2.version>
         <avro.version>1.11.4</avro.version>
         <json-smart.version>2.5.2</json-smart.version>
         <junit.jupiter.version>5.12.2</junit.jupiter.version>
@@ -174,12 +172,19 @@
             <dependency>
                 <groupId>com.networknt</groupId>
                 <artifactId>json-schema-validator</artifactId>
-                <version>1.0.87</version>
+                <version>3.0.8</version>
+            </dependency>
+            <dependency>
+                <groupId>tools.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>${jackson.version}</version>
+                <version>${jackson2.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -205,13 +210,6 @@
             </dependency>
 
             <!-- Engine -->
-            <dependency>
-                <groupId>org.eclipse.jetty</groupId>
-                <artifactId>jetty-bom</artifactId>
-                <version>${jetty.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>org.restlet</groupId>
                 <artifactId>org.restlet</artifactId>
@@ -270,7 +268,7 @@
             <dependency>
                 <groupId>com.jayway.jsonpath</groupId>
                 <artifactId>json-path</artifactId>
-                <version>2.9.0</version>
+                <version>3.0.0</version>
             </dependency>
             <dependency>
                 <groupId>io.modelcontextprotocol.sdk</groupId>

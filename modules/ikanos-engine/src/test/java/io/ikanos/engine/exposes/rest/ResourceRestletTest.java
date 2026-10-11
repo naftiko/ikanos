@@ -34,10 +34,8 @@ import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.LogCapture;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpConsumedResult;
@@ -50,10 +48,11 @@ import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class ResourceRestletTest {
 
-  private static final ObjectMapper JSON = new ObjectMapper();
+  private static final ObjectMapper JSON = IkanosMappers.lenientJson();
   private static String schemaVersion;
 
   @BeforeEach
@@ -98,9 +97,9 @@ public class ResourceRestletTest {
     assertNotNull(response.getEntity());
 
     JsonNode parsedPayload = JSON.readTree(response.getEntity().getText());
-    assertEquals("ready", parsedPayload.path("status").asText());
-    assertEquals("42", parsedPayload.path("payload").path("id").asText());
-    assertEquals("active", parsedPayload.path("payload").path("tags").get(0).asText());
+    assertEquals("ready", parsedPayload.path("status").asString());
+    assertEquals("42", parsedPayload.path("payload").path("id").asString());
+    assertEquals("active", parsedPayload.path("payload").path("tags").get(0).asString());
   }
 
   @Test
@@ -140,8 +139,8 @@ public class ResourceRestletTest {
     String mapped = restlet.mapOutputParameters(operation, handlingContext);
 
     JsonNode payload = JSON.readTree(mapped);
-    assertEquals("u-1", payload.path("id").asText());
-    assertEquals("Alice", payload.path("name").asText());
+    assertEquals("u-1", payload.path("id").asString());
+    assertEquals("Alice", payload.path("name").asString());
   }
 
   @Test
@@ -232,7 +231,7 @@ public class ResourceRestletTest {
 
   @Test
   public void buildMockValueShouldHandleObjectArrayAndPrimitiveFallback() throws Exception {
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.lenientJson();
 
     OutputParameterSpec objectParam = new OutputParameterSpec();
     objectParam.setType("object");
@@ -243,7 +242,7 @@ public class ResourceRestletTest {
     objectParam.getProperties().add(field);
 
     JsonNode objectNode = Resolver.buildMockValue(objectParam, mapper, Map.of());
-    assertEquals("ok", objectNode.path("status").asText());
+    assertEquals("ok", objectNode.path("status").asString());
 
     OutputParameterSpec arrayParam = new OutputParameterSpec();
     arrayParam.setType("array");
@@ -254,7 +253,7 @@ public class ResourceRestletTest {
 
     JsonNode arrayNode = Resolver.buildMockValue(arrayParam, mapper, Map.of());
     assertTrue(arrayNode.isArray());
-    assertEquals("v", arrayNode.get(0).asText());
+    assertEquals("v", arrayNode.get(0).asString());
 
     OutputParameterSpec primitiveNoConst = new OutputParameterSpec();
     primitiveNoConst.setType("string");
@@ -427,7 +426,7 @@ public class ResourceRestletTest {
 
   @Test
   public void buildMockValueShouldResolveMustacheTemplatesInValue() throws Exception {
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.lenientJson();
 
     OutputParameterSpec param = new OutputParameterSpec();
     param.setName("greeting");
@@ -436,12 +435,11 @@ public class ResourceRestletTest {
 
     Map<String, Object> inputParameters = Map.of("name", "Alice");
     JsonNode node = Resolver.buildMockValue(param, mapper, inputParameters);
-    assertEquals("Hello, Alice!", node.asText());
+    assertEquals("Hello, Alice!", node.asString());
   }
 
   private static Capability capabilityFromYaml(String yaml) throws Exception {
-    ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    ObjectMapper mapper = IkanosMappers.lenientYaml();
     IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
     return new Capability(spec);
   }
@@ -514,10 +512,10 @@ public class ResourceRestletTest {
     JsonNode payload = JSON.readTree(mapped);
     assertTrue(payload.isArray(), "Result should be an array");
     assertEquals(2, payload.size());
-    assertEquals("1", payload.get(0).path("id").asText());
-    assertEquals("Alice", payload.get(0).path("name").asText());
-    assertEquals("2", payload.get(1).path("id").asText());
-    assertEquals("Bob", payload.get(1).path("name").asText());
+    assertEquals("1", payload.get(0).path("id").asString());
+    assertEquals("Alice", payload.get(0).path("name").asString());
+    assertEquals("2", payload.get(1).path("id").asString());
+    assertEquals("Bob", payload.get(1).path("name").asString());
   }
 
   private static final String SENSITIVE_DETAIL = "jdbc:postgresql://internal-db:5432/orders";

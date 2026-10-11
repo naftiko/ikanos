@@ -23,37 +23,39 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+import com.networknt.schema.Error;
 
 import io.ikanos.spec.util.VersionHelper;
+import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Validates the MCP Apps ({@code ui}) schema additions on exposed MCP tools and resources.
  */
 class McpAppsSchemaValidationTest {
 
-    private static final YAMLMapper YAML = new YAMLMapper();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final YAMLMapper YAML = IkanosMappers.yaml();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
-    private static JsonSchema schema;
+    private static Schema schema;
 
     @BeforeAll
     static void loadSchema() throws Exception {
         try (InputStream in = McpAppsSchemaValidationTest.class.getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
-            schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+            schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(JSON.readTree(in));
         }
     }
 
-    private static Set<ValidationMessage> validate(String toolUi, String resourceUi)
+    private static List<Error> validate(String toolUi, String resourceUi)
             throws Exception {
         String yaml = """
                 ikanos: "%s"
@@ -117,7 +119,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldAcceptToolUiAndResourceUi() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "ui://weather/forecast/index.html"
                   visibility: ["model", "app"]
@@ -127,7 +129,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectToolUiResourceUriWithoutUiScheme() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "https://weather.test/index.html"
                 """, "ui: {}");
@@ -136,7 +138,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectToolUiWithoutResourceUri() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   visibility: ["app"]
                 """, "ui: {}");
@@ -145,7 +147,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectUnknownVisibilityValue() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "ui://weather/forecast/index.html"
                   visibility: ["user"]
@@ -155,7 +157,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectEmptyVisibility() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "ui://weather/forecast/index.html"
                   visibility: []
@@ -165,7 +167,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectUnknownPermission() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "ui://weather/forecast/index.html"
                 """, """
@@ -178,7 +180,7 @@ class McpAppsSchemaValidationTest {
 
     @Test
     void schemaShouldRejectUnknownResourceUiKey() throws Exception {
-        Set<ValidationMessage> errors = validate("""
+        List<Error> errors = validate("""
                 ui:
                   resourceUri: "ui://weather/forecast/index.html"
                 """, """

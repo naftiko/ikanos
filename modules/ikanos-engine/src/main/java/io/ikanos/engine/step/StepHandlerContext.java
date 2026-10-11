@@ -14,7 +14,7 @@
 package io.ikanos.engine.step;
 
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Immutable execution context provided to a {@link StepHandler}.

@@ -16,13 +16,11 @@ package io.ikanos.engine.consumes.http;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.xml.XmlMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -30,6 +28,7 @@ import io.ikanos.spec.util.VersionHelper;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for XML parsing capabilities.
@@ -50,14 +49,13 @@ public class XmlIntegrationTest {
 
         assertTrue(file.exists(), "XML capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         // Initialize capability
         capability = new Capability(spec);
-        jsonMapper = new ObjectMapper();
-        xmlMapper = new XmlMapper();
+        jsonMapper = IkanosMappers.lenientJson();
+        xmlMapper = XmlMapper.builder().configureForJackson2().build();
         schemaVersion = VersionHelper.getSchemaVersion();
     }
 
@@ -103,18 +101,18 @@ public class XmlIntegrationTest {
 
         // Verify first user data
         JsonNode firstUser = users.get(0);
-        assertEquals("1", firstUser.get("id").asText(), "First user ID should be 1");
-        assertEquals("Alice Smith", firstUser.get("name").asText(),
+        assertEquals("1", firstUser.get("id").asString(), "First user ID should be 1");
+        assertEquals("Alice Smith", firstUser.get("name").asString(),
                 "First user name should be Alice Smith");
-        assertEquals("alice@example.com", firstUser.get("email").asText(),
+        assertEquals("alice@example.com", firstUser.get("email").asString(),
                 "First user email should be alice@example.com");
 
         // Verify second user data
         JsonNode secondUser = users.get(1);
-        assertEquals("2", secondUser.get("id").asText(), "Second user ID should be 2");
-        assertEquals("Bob Johnson", secondUser.get("name").asText(),
+        assertEquals("2", secondUser.get("id").asString(), "Second user ID should be 2");
+        assertEquals("Bob Johnson", secondUser.get("name").asString(),
                 "Second user name should be Bob Johnson");
-        assertEquals("bob@example.com", secondUser.get("email").asText(),
+        assertEquals("bob@example.com", secondUser.get("email").asString(),
                 "Second user email should be bob@example.com");
     }
 
@@ -138,9 +136,9 @@ public class XmlIntegrationTest {
         for (JsonNode user : rootUsers) {
             ObjectNode userObj = jsonMapper
                     .createObjectNode();
-            userObj.put("id", user.get("id").asText());
-            userObj.put("name", user.get("name").asText());
-            userObj.put("email", user.get("email").asText());
+            userObj.put("id", user.get("id").asString());
+            userObj.put("name", user.get("name").asString());
+            userObj.put("email", user.get("email").asString());
             resultArray.add(userObj);
         }
 

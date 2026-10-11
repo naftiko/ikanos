@@ -22,14 +22,12 @@ import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Non-regression tests for step output mapping deserialization and resolution.
@@ -75,7 +73,7 @@ public class StepOutputMappingTest {
                 .findFirst().orElseThrow();
 
         // Reserialize the tool spec to JSON and check for mappings
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper jsonMapper = IkanosMappers.lenientJson();
         JsonNode toolJson = jsonMapper.valueToTree(getShipWithCrew);
 
         assertTrue(toolJson.has("mappings"),
@@ -91,8 +89,7 @@ public class StepOutputMappingTest {
                 "src/test/resources/tutorial/step-7-shipyard-orchestrated-lookup.yml");
         assertTrue(file.exists(), "Tutorial step-7 file must exist");
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         return mapper.readValue(file, IkanosSpec.class);
     }
 }

@@ -16,12 +16,10 @@ package io.ikanos.engine.consumes.http;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.protobuf.ProtobufMapper;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -30,6 +28,7 @@ import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
 import java.io.InputStream;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for Protocol Buffer (Protobuf) parsing capabilities. Tests the decoding of
@@ -49,8 +48,7 @@ public class ProtobufIntegrationTest {
                 assertTrue(file.exists(),
                                 "ProtoBuf capability test file should exist at " + resourcePath);
 
-                ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-                mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                ObjectMapper mapper = IkanosMappers.lenientYaml();
                 IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
                 // Initialize capability
@@ -127,7 +125,7 @@ public class ProtobufIntegrationTest {
                 assertNotNull(protoStream, "Proto schema file should exist");
 
                 ProtobufSchemaLoader.std.load(protoStream);
-                ProtobufMapper mapper = new ProtobufMapper();
+                ProtobufMapper mapper = ProtobufMapper.builder().configureForJackson2().build();
                 assertNotNull(mapper, "ProtobufMapper should be initialized");
         }
 

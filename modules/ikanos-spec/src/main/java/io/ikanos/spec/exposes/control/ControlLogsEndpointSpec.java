@@ -14,7 +14,7 @@
 package io.ikanos.spec.exposes.control;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Configuration for /logs endpoints on the control port. Supports a boolean shorthand ({@code logs:

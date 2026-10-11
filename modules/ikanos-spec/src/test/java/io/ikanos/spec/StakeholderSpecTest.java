@@ -15,11 +15,10 @@ package io.ikanos.spec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link StakeholderSpec}.
@@ -63,7 +62,7 @@ public class StakeholderSpecTest {
                 email: jane@example.com
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         StakeholderSpec spec = mapper.readValue(yaml, StakeholderSpec.class);
 
         assertEquals("owner", spec.getRole());

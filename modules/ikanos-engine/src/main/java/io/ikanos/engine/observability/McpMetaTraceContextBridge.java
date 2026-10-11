@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.observability;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.opentelemetry.context.Context;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

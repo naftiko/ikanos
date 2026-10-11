@@ -16,9 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
@@ -29,6 +27,7 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP Server Adapter.
@@ -46,8 +45,7 @@ public class McpIntegrationTest {
 
         assertTrue(file.exists(), "MCP capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);

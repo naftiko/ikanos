@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.step;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Handler for a programmatically-registered orchestration step. Implementations receive the step's

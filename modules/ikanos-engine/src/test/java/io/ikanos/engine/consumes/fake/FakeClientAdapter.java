@@ -18,8 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
@@ -29,6 +29,7 @@ import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.util.OperationStepExecutor.BinarySizeExceededException;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.OperationSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Test-only consumed adapter that returns canned bodies without any network I/O and without any
@@ -40,7 +41,7 @@ import io.ikanos.spec.OperationSpec;
  */
 public class FakeClientAdapter extends ClientAdapter {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     /** Parameters of every invocation, across all fake adapters, in call order. */
     public static final List<Map<String, Object>> CALLS = new CopyOnWriteArrayList<>();

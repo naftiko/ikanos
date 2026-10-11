@@ -13,14 +13,15 @@
  */
 package io.ikanos.cli;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * CLI command that retrieves runtime status of a running capability via the control port. Connects
@@ -33,7 +34,7 @@ import org.slf4j.LoggerFactory;
 )
 public class StatusCommand implements Callable<Integer> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
     private static final Logger logger = LoggerFactory.getLogger(StatusCommand.class);
 
     @Mixin
@@ -57,32 +58,32 @@ public class StatusCommand implements Callable<Integer> {
             JsonNode adapters = root.path("adapters");
             if (adapters.isArray()) {
                 for (JsonNode adapter : adapters) {
-                    if (!"started".equals(adapter.path("state").asText())) {
+                    if (!"started".equals(adapter.path("state").asString())) {
                         allStarted = false;
                         break;
                     }
                 }
             }
 
-            String display = root.path("capability").path("display").asText("unknown");
+            String display = root.path("capability").path("display").asString("unknown");
             System.out.println(display + ": " + (allStarted ? "UP" : "DEGRADED"));
 
             // Engine
             JsonNode engine = root.path("engine");
-            System.out.println("  Engine:    " + engine.path("version").asText()
-                    + " (Java " + engine.path("java").asText()
+            System.out.println("  Engine:    " + engine.path("version").asString()
+                    + " (Java " + engine.path("java").asString()
                     + ", native: " + engine.path("native").asBoolean() + ")");
 
             // Uptime
-            String uptime = root.path("uptime").asText();
+            String uptime = root.path("uptime").asString();
             System.out.println("  Uptime:    " + formatDuration(uptime));
 
             // OTel
             JsonNode otel = root.path("otel");
-            String otelStatus = otel.path("status").asText("unknown");
+            String otelStatus = otel.path("status").asString("unknown");
             if ("active".equals(otelStatus) && otel.has("exporter")) {
-                String exporter = otel.path("exporter").asText();
-                String endpoint = otel.path("endpoint").asText("");
+                String exporter = otel.path("exporter").asString();
+                String endpoint = otel.path("endpoint").asString("");
                 System.out.println("  OTel:      active (" + exporter + " → " + endpoint + ")");
             } else {
                 System.out.println("  OTel:      " + otelStatus);
@@ -92,11 +93,11 @@ public class StatusCommand implements Callable<Integer> {
             if (adapters.isArray() && !adapters.isEmpty()) {
                 System.out.println("  Adapters:");
                 for (JsonNode adapter : adapters) {
-                    String type = adapter.path("type").asText();
+                    String type = adapter.path("type").asString();
                     int port = adapter.path("port").asInt();
-                    String state = adapter.path("state").asText();
+                    String state = adapter.path("state").asString();
                     String ns = adapter.has("namespace")
-                            ? adapter.path("namespace").asText() : type;
+                            ? adapter.path("namespace").asString() : type;
                     System.out.println("    " + ControlPortMixin.padRight(ns, 8)
                             + ":" + port + "   " + state);
                 }

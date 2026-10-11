@@ -19,11 +19,10 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Tests for {@link TunnelConfigSpec} polymorphic deserialization and
@@ -38,8 +37,8 @@ class TunnelConfigSpecTest {
 
     @BeforeEach
     void setUp() {
-        yamlMapper = new ObjectMapper(new YAMLFactory());
-        jsonMapper = new ObjectMapper();
+        yamlMapper = IkanosMappers.yaml();
+        jsonMapper = IkanosMappers.json();
     }
 
     @Test

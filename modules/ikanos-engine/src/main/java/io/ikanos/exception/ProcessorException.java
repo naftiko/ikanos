@@ -13,7 +13,7 @@
  */
 package io.ikanos.exception;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 
 /**

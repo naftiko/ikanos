@@ -14,10 +14,9 @@
 package io.ikanos.spec.exposes.control;
 
 import java.util.concurrent.atomic.AtomicReference;
-
+import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
@@ -34,7 +33,7 @@ import io.ikanos.spec.observability.ObservabilitySpec;
  * uses {@link AtomicReference#compareAndSet} to remain thread-safe. This satisfies SonarQube
  * rule {@code java:S3077}.
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class ControlServerSpec extends ServerSpec {
 
     private final AtomicReference<ControlManagementSpec> management = new AtomicReference<>();

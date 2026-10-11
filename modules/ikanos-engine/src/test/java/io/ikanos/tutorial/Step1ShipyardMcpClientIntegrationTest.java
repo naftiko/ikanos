@@ -24,7 +24,7 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * End-to-end integration test for {@code step-1-shipyard-mock.yml} exercised
@@ -97,10 +97,10 @@ public class Step1ShipyardMcpClientIntegrationTest
         JsonNode tools = json.readTree(response.body()).path("result").path("tools");
         assertTrue(tools.isArray(), "tools must be an array");
         assertEquals(1, tools.size(), "step-1 exposes exactly one tool");
-        assertEquals("get-ship", tools.get(0).path("name").asText(),
+        assertEquals("get-ship", tools.get(0).path("name").asString(),
                 "Tool name must be 'get-ship'");
         assertEquals("Retrieve a ship's details by IMO number",
-                tools.get(0).path("description").asText(),
+                tools.get(0).path("description").asString(),
                 "Tool description must match the YAML");
     }
 
@@ -130,13 +130,13 @@ public class Step1ShipyardMcpClientIntegrationTest
         assertTrue(content.isArray() && !content.isEmpty(),
                 "result.content must be a non-empty array");
 
-        JsonNode ship = json.readTree(content.get(0).path("text").asText());
+        JsonNode ship = json.readTree(content.get(0).path("text").asString());
         assertTrue(ship.isObject(), "Parsed content must be a JSON object");
-        assertEquals("IMO-9321483", ship.path("imo").asText());
-        assertEquals("Northern Star", ship.path("name").asText());
-        assertEquals("cargo", ship.path("type").asText());
-        assertEquals("NO", ship.path("flag").asText());
-        assertEquals("active", ship.path("status").asText());
+        assertEquals("IMO-9321483", ship.path("imo").asString());
+        assertEquals("Northern Star", ship.path("name").asString());
+        assertEquals("cargo", ship.path("type").asString());
+        assertEquals("NO", ship.path("flag").asString());
+        assertEquals("active", ship.path("status").asString());
     }
 
 }

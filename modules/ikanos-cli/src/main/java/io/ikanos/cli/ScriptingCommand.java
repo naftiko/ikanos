@@ -13,10 +13,10 @@
  */
 package io.ikanos.cli;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * CLI command that manages scripting governance on a running capability via the control port.
@@ -38,7 +39,7 @@ import org.slf4j.LoggerFactory;
 )
 public class ScriptingCommand implements Callable<Integer> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
     private static final Logger logger = LoggerFactory.getLogger(ScriptingCommand.class);
 
     @Mixin
@@ -91,10 +92,10 @@ public class ScriptingCommand implements Callable<Integer> {
 
         // Config
         if (root.has("defaultLocation")) {
-            System.out.println("  Location:  " + root.get("defaultLocation").asText());
+            System.out.println("  Location:  " + root.get("defaultLocation").asString());
         }
         if (root.has("defaultLanguage")) {
-            System.out.println("  Language:  " + root.get("defaultLanguage").asText());
+            System.out.println("  Language:  " + root.get("defaultLanguage").asString());
         }
         System.out.println("  Timeout:   " + root.path("timeout").asInt() + " ms");
         System.out.println("  Stmt Limit: " + root.path("statementLimit").asLong());
@@ -111,7 +112,7 @@ public class ScriptingCommand implements Callable<Integer> {
             System.out.println("    Avg Duration: "
                     + String.format(Locale.ROOT, "%.2f", stats.path("averageDurationMs").asDouble()) + " ms");
             if (stats.has("lastExecutionAt")) {
-                System.out.println("    Last Run:   " + stats.get("lastExecutionAt").asText());
+                System.out.println("    Last Run:   " + stats.get("lastExecutionAt").asString());
             }
         }
 

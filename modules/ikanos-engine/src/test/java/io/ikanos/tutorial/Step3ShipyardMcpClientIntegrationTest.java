@@ -26,7 +26,7 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import io.ikanos.spec.IkanosSpec;
 
@@ -103,8 +103,8 @@ public class Step3ShipyardMcpClientIntegrationTest
         JsonNode tools = callToolsList(http);
 
         assertEquals(2, tools.size(), "step-3 exposes exactly two tools");
-        assertEquals("list-ships", tools.get(0).path("name").asText());
-        assertEquals("get-ship",   tools.get(1).path("name").asText());
+        assertEquals("list-ships", tools.get(0).path("name").asString());
+        assertEquals("get-ship",   tools.get(1).path("name").asString());
     }
 
     @Test
@@ -116,13 +116,13 @@ public class Step3ShipyardMcpClientIntegrationTest
 
         JsonNode props = listShips.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-ships inputSchema must declare 'status'");
-        assertEquals("string", props.path("status").path("type").asText());
+        assertEquals("string", props.path("status").path("type").asString());
 
         // status is optional — must not appear in the required array
         JsonNode required = listShips.path("inputSchema").path("required");
         boolean statusRequired = false;
         for (JsonNode r : required) {
-            if ("status".equals(r.asText())) {
+            if ("status".equals(r.asString())) {
                 statusRequired = true;
                 break;
             }
@@ -139,12 +139,12 @@ public class Step3ShipyardMcpClientIntegrationTest
 
         JsonNode props = getShip.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship inputSchema must declare 'imo'");
-        assertEquals("string", props.path("imo").path("type").asText());
+        assertEquals("string", props.path("imo").path("type").asString());
 
         JsonNode required = getShip.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
-            if ("imo".equals(r.asText())) {
+            if ("imo".equals(r.asString())) {
                 imoRequired = true;
                 break;
             }
@@ -173,8 +173,8 @@ public class Step3ShipyardMcpClientIntegrationTest
         assertTrue(first.has("type"),   "Must have 'type'");
         assertTrue(first.has("flag"),   "Must have 'flag'");
         assertTrue(first.has("status"), "Must have 'status'");
-        assertFalse(first.path("imo").asText().isBlank(),  "imo must not be blank");
-        assertFalse(first.path("name").asText().isBlank(), "name must not be blank");
+        assertFalse(first.path("imo").asString().isBlank(),  "imo must not be blank");
+        assertFalse(first.path("name").asString().isBlank(), "name must not be blank");
     }
 
     // ── get-ship — with-resolved path param + bearer auth ────────────────────
@@ -193,7 +193,7 @@ public class Step3ShipyardMcpClientIntegrationTest
             assertTrue(ship.has("type"),   "Must have 'type'");
             assertTrue(ship.has("flag"),   "Must have 'flag'");
             assertTrue(ship.has("status"), "Must have 'status'");
-            assertEquals("IMO-9321483", ship.path("imo").asText(),
+            assertEquals("IMO-9321483", ship.path("imo").asString(),
                     "Returned imo must match the requested IMO number");
         }
     }

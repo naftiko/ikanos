@@ -22,7 +22,7 @@ import java.net.http.HttpClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.IkanosSpec;
 
 /**
@@ -58,11 +58,11 @@ public class Step7ShipyardMcpClientIntegrationTest
         JsonNode tools = callToolsList(http);
 
         assertEquals(5, tools.size(), "step-7 exposes exactly five tools");
-        assertEquals("list-ships",          tools.get(0).path("name").asText());
-        assertEquals("get-ship",            tools.get(1).path("name").asText());
-        assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
-        assertEquals("create-voyage",       tools.get(3).path("name").asText());
-        assertEquals("get-ship-with-crew",  tools.get(4).path("name").asText());
+        assertEquals("list-ships",          tools.get(0).path("name").asString());
+        assertEquals("get-ship",            tools.get(1).path("name").asString());
+        assertEquals("list-legacy-vessels", tools.get(2).path("name").asString());
+        assertEquals("create-voyage",       tools.get(3).path("name").asString());
+        assertEquals("get-ship-with-crew",  tools.get(4).path("name").asString());
     }
 
     @Test
@@ -73,12 +73,12 @@ public class Step7ShipyardMcpClientIntegrationTest
 
         JsonNode props = getShipWithCrew.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship-with-crew inputSchema must declare 'imo'");
-        assertEquals("string", props.path("imo").path("type").asText());
+        assertEquals("string", props.path("imo").path("type").asString());
 
         JsonNode required = getShipWithCrew.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
-            if ("imo".equals(r.asText())) {
+            if ("imo".equals(r.asString())) {
                 imoRequired = true;
                 break;
             }
@@ -103,8 +103,8 @@ public class Step7ShipyardMcpClientIntegrationTest
         assertTrue(result.has("imo"), "mapped output must have imo");
         assertTrue(result.has("name"), "mapped output must have name");
         assertTrue(result.has("status"), "mapped output must have status");
-        assertFalse(result.path("imo").asText().isBlank(), "imo must not be blank");
-        assertFalse(result.path("name").asText().isBlank(), "name must not be blank");
+        assertFalse(result.path("imo").asString().isBlank(), "imo must not be blank");
+        assertFalse(result.path("name").asString().isBlank(), "name must not be blank");
 
         // Crew field from $.resolve-crew step
         assertTrue(result.has("crew"), "mapped output must have crew");
@@ -115,6 +115,6 @@ public class Step7ShipyardMcpClientIntegrationTest
         JsonNode first = crew.get(0);
         assertTrue(first.has("fullName"), "crew entries must have fullName");
         assertTrue(first.has("role"), "crew entries must have role");
-        assertFalse(first.path("fullName").asText().isBlank(), "fullName must not be blank");
+        assertFalse(first.path("fullName").asString().isBlank(), "fullName must not be blank");
     }
 }

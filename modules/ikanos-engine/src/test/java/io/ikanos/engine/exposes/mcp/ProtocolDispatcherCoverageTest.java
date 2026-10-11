@@ -13,11 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import org.junit.jupiter.api.Test;
@@ -27,10 +25,11 @@ import java.io.File;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import io.ikanos.spec.util.IkanosMappers;
 
 class ProtocolDispatcherCoverageTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     @Test
     void dispatchShouldReturnInternalErrorWhenRequestIsNull() throws Exception {
@@ -41,8 +40,8 @@ class ProtocolDispatcherCoverageTest {
         assertNotNull(response);
         assertEquals(-32600, response.path("error").path("code").asInt());
         assertEquals("Invalid Request: request body is missing",
-                response.path("error").path("message").asText());
-        assertEquals("2.0", response.path("jsonrpc").asText());
+                response.path("error").path("message").asString());
+        assertEquals("2.0", response.path("jsonrpc").asString());
     }
 
     @Test
@@ -73,7 +72,7 @@ class ProtocolDispatcherCoverageTest {
                 """))).responseBody();
 
         assertEquals(-32602, response.path("error").path("code").asInt());
-        assertFalse(response.path("error").path("message").asText().isBlank());
+        assertFalse(response.path("error").path("message").asString().isBlank());
     }
 
     @Test
@@ -111,16 +110,15 @@ class ProtocolDispatcherCoverageTest {
                 }
                 """))).responseBody();
 
-        assertEquals("2.0", response.path("jsonrpc").asText());
+        assertEquals("2.0", response.path("jsonrpc").asString());
         assertEquals(15, response.path("id").asInt());
         assertEquals(true, response.path("result").path("isError").asBoolean());
         assertEquals("text", response.path("result").path("content").get(0).path("type")
-                        .asText());
+                        .asString());
     }
 
     private static ProtocolDispatcher dispatcherFrom(String resourcePath) throws Exception {
-        ObjectMapper yaml = new ObjectMapper(new YAMLFactory())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yaml = IkanosMappers.lenientYaml();
         IkanosSpec spec = yaml.readValue(new File(resourcePath), IkanosSpec.class);
         Capability capability = new Capability(spec);
         return new ProtocolDispatcher((McpServerAdapter) capability.getServerAdapters().get(0));

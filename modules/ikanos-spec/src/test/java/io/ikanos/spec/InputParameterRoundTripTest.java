@@ -12,11 +12,10 @@
  * the License.
  */
 package io.ikanos.spec;
-
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.*;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Test suite for InputParameterSpec round-trip serialization/deserialization.
@@ -34,8 +33,8 @@ public class InputParameterRoundTripTest {
                 const: Bearer ${token}
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
         String serialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -58,8 +57,8 @@ public class InputParameterRoundTripTest {
                 template: "{{userId}}"
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
         String serialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -88,8 +87,8 @@ public class InputParameterRoundTripTest {
                     precision: 10
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
         String serialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -129,8 +128,8 @@ public class InputParameterRoundTripTest {
                           - type: string
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
         String serialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -167,8 +166,8 @@ public class InputParameterRoundTripTest {
                 selector: $.path
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
         String serialized = jsonMapper.writerWithDefaultPrettyPrinter()

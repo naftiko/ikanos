@@ -29,10 +29,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.fake.FakeClientAdapter;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
@@ -40,6 +38,7 @@ import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Aggregate flows calling other aggregate flows with {@code type: call} (#794).
@@ -49,9 +48,8 @@ import io.modelcontextprotocol.spec.McpSchema;
  */
 class FlowCompositionTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @BeforeEach
@@ -152,7 +150,7 @@ class FlowCompositionTest {
         FlowResult result = capability.lookupFlow("payments.checkout")
                 .execute(Map.of("amount", 42));
 
-        assertEquals("pi-42", JSON.readTree(result.mappedOutput).path("payment-id").asText());
+        assertEquals("pi-42", JSON.readTree(result.mappedOutput).path("payment-id").asString());
         assertEquals(42, FakeClientAdapter.CALLS.get(0).get("amount"));
     }
 
@@ -194,7 +192,7 @@ class FlowCompositionTest {
 
         FlowResult result = capability.lookupFlow("alias.pay").execute(Map.of("amount", 3));
 
-        assertEquals("pi-3", JSON.readTree(result.mappedOutput).path("reference").asText());
+        assertEquals("pi-3", JSON.readTree(result.mappedOutput).path("reference").asString());
     }
 
     @Test
@@ -237,7 +235,7 @@ class FlowCompositionTest {
         FlowResult result = capability.lookupFlow("payments.checkout")
                 .execute(Map.of("name", "Ada"));
 
-        assertEquals("Hello, Ada!", JSON.readTree(result.mappedOutput).path("message").asText());
+        assertEquals("Hello, Ada!", JSON.readTree(result.mappedOutput).path("message").asString());
     }
 
     @Test
@@ -263,7 +261,7 @@ class FlowCompositionTest {
 
         FlowResult result = capability.lookupFlow("payments.checkout").execute(Map.of());
 
-        assertEquals("hello", JSON.readTree(result.mappedOutput).path("content").asText());
+        assertEquals("hello", JSON.readTree(result.mappedOutput).path("content").asString());
     }
 
     @Test
@@ -484,7 +482,7 @@ class FlowCompositionTest {
 
         FlowResult result = capability.lookupFlow("d2.f").execute(Map.of());
 
-        assertEquals("deep", result.mockOutput.path("id").asText());
+        assertEquals("deep", result.mockOutput.path("id").asString());
     }
 
     @Test
@@ -562,7 +560,7 @@ class FlowCompositionTest {
                 String input = "in-" + i;
                 Callable<String[]> task = () -> new String[] {input,
                         JSON.readTree(flow.execute(Map.of("input", input)).mappedOutput)
-                                .path("value").asText()};
+                                .path("value").asString()};
                 results.add(pool.submit(task));
             }
             for (Future<String[]> result : results) {
@@ -584,7 +582,7 @@ class FlowCompositionTest {
 
         assertEquals("stripe", invocation.namespace());
         JsonNode document = invocation.invoke().document();
-        assertEquals("pi-5", document.path("id").asText());
+        assertEquals("pi-5", document.path("id").asString());
     }
 
     @Test

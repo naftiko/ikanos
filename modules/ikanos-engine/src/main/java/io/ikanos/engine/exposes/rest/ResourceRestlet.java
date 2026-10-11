@@ -39,9 +39,9 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.representation.ByteArrayRepresentation;
 import org.restlet.representation.Representation;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Restlet that handles calls to an API resource
@@ -247,7 +248,7 @@ public class ResourceRestlet extends Restlet {
             FlowResult result = fn.execute(inputParameters);
 
             if (result.isMock()) {
-                ObjectMapper mapper = new ObjectMapper();
+                ObjectMapper mapper = IkanosMappers.json();
                 if (result.mockOutput != null) {
                     response.setStatus(Status.SUCCESS_OK);
                     response.setEntity(
@@ -357,7 +358,7 @@ public class ResourceRestlet extends Restlet {
     void sendMockResponse(RestServerOperationSpec serverOp, Response response,
             Map<String, Object> inputParameters) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = IkanosMappers.json();
 
             // Build a JSON response using static/templated values from outputParameters
             JsonNode mockRoot = Resolver.buildMockData(serverOp.getOutputParameters(), mapper,
@@ -617,7 +618,7 @@ public class ResourceRestlet extends Restlet {
 
         for (OutputParameterSpec outputParameter : serverOp.getOutputParameters()) {
             if ("body".equalsIgnoreCase(inOrDefault(outputParameter))) {
-                ObjectMapper mapper = new ObjectMapper();
+                ObjectMapper mapper = IkanosMappers.json();
                 JsonNode mapped =
                         Resolver.resolveExposedOutputMappings(outputParameter, root, mapper);
 

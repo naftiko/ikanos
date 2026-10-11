@@ -15,11 +15,10 @@ package io.ikanos.spec.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpPromptMessageSpec}.
@@ -58,7 +57,7 @@ public class McpPromptMessageSpecTest {
                 content: "Hello {{name}}"
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         McpPromptMessageSpec spec = mapper.readValue(yaml, McpPromptMessageSpec.class);
 
         assertEquals("user", spec.getRole());

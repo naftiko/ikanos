@@ -26,7 +26,7 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY,
+    include = JsonTypeInfo.As.EXISTING_PROPERTY,
     property = "type",
     visible = true  // Make type visible for both deserialization and serialization
 )

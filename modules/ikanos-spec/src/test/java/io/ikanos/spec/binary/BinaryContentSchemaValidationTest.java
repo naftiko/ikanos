@@ -17,23 +17,25 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.Error;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.InputStream;
-import java.util.Set;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Validates the additive binary-content schema fields introduced by Phase 0 of the
@@ -52,9 +54,9 @@ import org.junit.jupiter.api.Test;
  */
 class BinaryContentSchemaValidationTest {
 
-    private static JsonSchema schema;
-    private static final YAMLMapper YAML = new YAMLMapper();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static Schema schema;
+    private static final YAMLMapper YAML = IkanosMappers.yaml();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     @BeforeAll
@@ -64,18 +66,18 @@ class BinaryContentSchemaValidationTest {
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode schemaNode = JSON.readTree(in);
-            JsonSchemaFactory factory =
-                IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            SchemaRegistry factory =
+                IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12);
             schema = factory.getSchema(schemaNode);
         }
     }
 
-    private Set<ValidationMessage> validateYaml(String yaml) throws Exception {
+    private List<Error> validateYaml(String yaml) throws Exception {
         JsonNode data = YAML.readTree(yaml);
         return schema.validate(data);
     }
 
-    private Set<ValidationMessage> validateClasspathYaml(String resource) throws Exception {
+    private List<Error> validateClasspathYaml(String resource) throws Exception {
         try (InputStream in = BinaryContentSchemaValidationTest.class
                 .getClassLoader()
                 .getResourceAsStream(resource)) {
@@ -110,7 +112,7 @@ class BinaryContentSchemaValidationTest {
                           outputMediaType: "image/jpeg"
                           maxBinarySize: "5MiB"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -136,7 +138,7 @@ class BinaryContentSchemaValidationTest {
                           outputRawFormat: "binary"
                           maxBinarySize: "5 megabytes"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(), "Expected a validation error for a malformed maxBinarySize");
     }
 
@@ -162,7 +164,7 @@ class BinaryContentSchemaValidationTest {
                           outputRawFormat: "binary"
                           maxBinarySize: "5"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected a validation error for a unit-less maxBinarySize ('5')");
     }
@@ -190,7 +192,7 @@ class BinaryContentSchemaValidationTest {
                           method: "GET"
                           outputMediaType: "application/vnd.github.v3+json"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -225,7 +227,7 @@ class BinaryContentSchemaValidationTest {
                       outputMediaType: "image/jpeg"
                       call: "photo-library.download-photo"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -269,7 +271,7 @@ class BinaryContentSchemaValidationTest {
                                 image/jpeg:
                                   binary: true
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -309,7 +311,7 @@ class BinaryContentSchemaValidationTest {
                             mediaType: "image/jpeg"
                             description: "Original image bytes."
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -352,7 +354,7 @@ class BinaryContentSchemaValidationTest {
                                 image/jpeg:
                                   binary: true
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected a validation error when both responses and responseBinary are declared");
     }
@@ -397,7 +399,7 @@ class BinaryContentSchemaValidationTest {
                       binary: true
                       call: "photo-library.download-photo"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -406,7 +408,7 @@ class BinaryContentSchemaValidationTest {
     @Test
     @DisplayName("bundled example capability-binary-content.yml passes schema validation")
     void schemaShouldAcceptBundledBinaryContentExample() throws Exception {
-        Set<ValidationMessage> errors =
+        List<Error> errors =
             validateClasspathYaml("schemas/examples/capability-binary-content.yml");
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }

@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 
@@ -92,9 +92,9 @@ public class Step5ShipyardMcpClientIntegrationTest
         JsonNode tools = callToolsList(http);
 
         assertEquals(3, tools.size(), "step-5 exposes exactly three tools");
-        assertEquals("list-ships",          tools.get(0).path("name").asText());
-        assertEquals("get-ship",            tools.get(1).path("name").asText());
-        assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
+        assertEquals("list-ships",          tools.get(0).path("name").asString());
+        assertEquals("get-ship",            tools.get(1).path("name").asString());
+        assertEquals("list-legacy-vessels", tools.get(2).path("name").asString());
     }
 
     @Test
@@ -105,12 +105,12 @@ public class Step5ShipyardMcpClientIntegrationTest
 
         JsonNode props = listShips.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-ships inputSchema must declare 'status'");
-        assertEquals("string", props.path("status").path("type").asText());
+        assertEquals("string", props.path("status").path("type").asString());
 
         JsonNode required = listShips.path("inputSchema").path("required");
         boolean statusRequired = false;
         for (JsonNode r : required) {
-            if ("status".equals(r.asText())) {
+            if ("status".equals(r.asString())) {
                 statusRequired = true;
                 break;
             }
@@ -126,12 +126,12 @@ public class Step5ShipyardMcpClientIntegrationTest
 
         JsonNode props = getShip.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship inputSchema must declare 'imo'");
-        assertEquals("string", props.path("imo").path("type").asText());
+        assertEquals("string", props.path("imo").path("type").asString());
 
         JsonNode required = getShip.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
-            if ("imo".equals(r.asText())) {
+            if ("imo".equals(r.asString())) {
                 imoRequired = true;
                 break;
             }
@@ -147,12 +147,12 @@ public class Step5ShipyardMcpClientIntegrationTest
 
         JsonNode props = listLegacy.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-legacy-vessels inputSchema must declare 'status'");
-        assertEquals("string", props.path("status").path("type").asText());
+        assertEquals("string", props.path("status").path("type").asString());
 
         JsonNode required = listLegacy.path("inputSchema").path("required");
         boolean statusRequired = false;
         for (JsonNode r : required) {
-            if ("status".equals(r.asText())) {
+            if ("status".equals(r.asString())) {
                 statusRequired = true;
                 break;
             }
@@ -179,8 +179,8 @@ public class Step5ShipyardMcpClientIntegrationTest
         assertTrue(first.has("type"),   "Must have 'type'");
         assertTrue(first.has("flag"),   "Must have 'flag'");
         assertTrue(first.has("status"), "Must have 'status'");
-        assertFalse(first.path("imo").asText().isBlank(),  "imo must not be blank");
-        assertFalse(first.path("name").asText().isBlank(), "name must not be blank");
+        assertFalse(first.path("imo").asString().isBlank(),  "imo must not be blank");
+        assertFalse(first.path("name").asString().isBlank(), "name must not be blank");
     }
 
     // ── get-ship — registry source, nested specs object ──────────────────────
@@ -196,12 +196,12 @@ public class Step5ShipyardMcpClientIntegrationTest
 
         assertTrue(ship.isObject(), "get-ship must return a JSON object");
 
-        assertEquals("IMO-9321483", ship.path("imo").asText(),
+        assertEquals("IMO-9321483", ship.path("imo").asString(),
                 "Returned imo must match the requested IMO number");
-        assertFalse(ship.path("name").asText().isBlank(),   "name must not be blank");
-        assertFalse(ship.path("type").asText().isBlank(),   "type must not be blank");
-        assertFalse(ship.path("flag").asText().isBlank(),   "flag must not be blank");
-        assertFalse(ship.path("status").asText().isBlank(), "status must not be blank");
+        assertFalse(ship.path("name").asString().isBlank(),   "name must not be blank");
+        assertFalse(ship.path("type").asString().isBlank(),   "type must not be blank");
+        assertFalse(ship.path("flag").asString().isBlank(),   "flag must not be blank");
+        assertFalse(ship.path("status").asString().isBlank(), "status must not be blank");
 
         assertTrue(ship.has("specs"), "get-ship must include the nested 'specs' object");
         JsonNode specs = ship.path("specs");
@@ -234,7 +234,7 @@ public class Step5ShipyardMcpClientIntegrationTest
         assertTrue(first.has("type"),       "Must have 'type' (mapped from $.category)");
         assertTrue(first.has("flag"),       "Must have 'flag' (mapped from $.flagState)");
         assertTrue(first.has("status"),     "Must have 'status' (mapped from $.operationalStatus)");
-        assertFalse(first.path("vesselCode").asText().isBlank(), "vesselCode must not be blank");
-        assertFalse(first.path("name").asText().isBlank(),       "name must not be blank");
+        assertFalse(first.path("vesselCode").asString().isBlank(), "vesselCode must not be blank");
+        assertFalse(first.path("name").asString().isBlank(),       "name must not be blank");
     }
 }

@@ -13,13 +13,14 @@
  */
 package io.ikanos.cli;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * CLI command that checks health status of a running capability via the control port. Connects to
@@ -32,7 +33,7 @@ import org.slf4j.LoggerFactory;
 )
 public class HealthCommand implements Callable<Integer> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
     private static final Logger logger = LoggerFactory.getLogger(HealthCommand.class);
 
     @Mixin
@@ -45,11 +46,11 @@ public class HealthCommand implements Callable<Integer> {
         try {
             ControlPortClient.ControlPortResponse liveResponse = client.get("/health/live");
             JsonNode liveNode = MAPPER.readTree(liveResponse.body());
-            String liveStatus = liveNode.path("status").asText("UNKNOWN");
+            String liveStatus = liveNode.path("status").asString("UNKNOWN");
 
             ControlPortClient.ControlPortResponse readyResponse = client.get("/health/ready");
             JsonNode readyNode = MAPPER.readTree(readyResponse.body());
-            String readyStatus = readyNode.path("status").asText("UNKNOWN");
+            String readyStatus = readyNode.path("status").asString("UNKNOWN");
 
             System.out.println("Liveness:  " + liveStatus);
 
@@ -59,7 +60,7 @@ public class HealthCommand implements Callable<Integer> {
                 long total = 0;
                 for (JsonNode adapter : adapters) {
                     total++;
-                    if ("started".equals(adapter.path("state").asText())) {
+                    if ("started".equals(adapter.path("state").asString())) {
                         started++;
                     }
                 }
@@ -68,13 +69,13 @@ public class HealthCommand implements Callable<Integer> {
 
                 if (started < total) {
                     for (JsonNode adapter : adapters) {
-                        String type = adapter.path("type").asText();
+                        String type = adapter.path("type").asString();
                         int port = adapter.path("port").asInt();
-                        String state = adapter.path("state").asText();
+                        String state = adapter.path("state").asString();
                         String line = "  " + ControlPortMixin.padRight(type, 8)
                                 + ":" + port + "  " + state;
                         if (adapter.has("reason")) {
-                            line += " — " + adapter.path("reason").asText();
+                            line += " — " + adapter.path("reason").asString();
                         }
                         System.out.println(line);
                     }

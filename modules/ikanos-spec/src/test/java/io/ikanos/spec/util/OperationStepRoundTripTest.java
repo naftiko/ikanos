@@ -14,8 +14,8 @@
 package io.ikanos.spec.util;
 
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,8 +37,8 @@ public class OperationStepRoundTripTest {
                   page_size: 100
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         // Deserialize from YAML
         OperationStepSpec original = yamlMapper.readValue(yaml, OperationStepSpec.class);
@@ -76,8 +76,8 @@ public class OperationStepRoundTripTest {
                   - department
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         // Deserialize from YAML
         OperationStepSpec original = yamlMapper.readValue(yaml, OperationStepSpec.class);
@@ -111,8 +111,8 @@ public class OperationStepRoundTripTest {
                 call: api.get-status
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         OperationStepSpec original = yamlMapper.readValue(yaml, OperationStepSpec.class);
         String jsonSerialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -135,7 +135,7 @@ public class OperationStepRoundTripTest {
 
         OperationStepCallSpec callStep = new OperationStepCallSpec("fetch-user", "api.get-user", withMap);
 
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         // Serialize to JSON
         String jsonSerialized = jsonMapper.writerWithDefaultPrettyPrinter()
@@ -166,7 +166,7 @@ public class OperationStepRoundTripTest {
                 "$.user_id",
                 outputParams);
 
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper jsonMapper = IkanosMappers.json();
 
         // Serialize to JSON
         String jsonSerialized = jsonMapper.writerWithDefaultPrettyPrinter()

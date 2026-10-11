@@ -15,7 +15,7 @@ package io.ikanos.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.StringNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.step.StepHandler;
 
@@ -44,7 +44,7 @@ class CapabilityBuilderTest {
 
     @Test
     void stepHandlerShouldRegisterHandler() {
-        StepHandler handler = ctx -> TextNode.valueOf("test");
+        StepHandler handler = ctx -> StringNode.valueOf("test");
 
         Capability capability = Capability.builder()
                 .loadFromClasspath("/embedding/embedding-capability.yaml")

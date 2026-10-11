@@ -14,7 +14,6 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
-
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -22,9 +21,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +36,7 @@ import org.slf4j.MDC;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Non-regression tests for issue #548: during a {@code tools/call} MCP request processed through
@@ -76,8 +74,7 @@ class ObservabilityMcpHttpLayerTest {
     // ─── helpers ──────────────────────────────────────────────────────────────
 
     private Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }
@@ -180,7 +177,7 @@ class ObservabilityMcpHttpLayerTest {
         ProtocolDispatcher capturingDispatcher = new ProtocolDispatcher(adapter) {
             @Override
             public io.ikanos.engine.exposes.mcp.model.DispatchResult dispatch(
-                    com.fasterxml.jackson.databind.JsonNode root) {
+                    tools.jackson.databind.JsonNode root) {
                 // At this point we are inside the SERVER span scope created by McpServerResource
                 capturedTraceId.set(MDC.get(TelemetryBootstrap.MDC_TRACE_ID));
                 capturedSpanId.set(MDC.get(TelemetryBootstrap.MDC_SPAN_ID));

@@ -20,8 +20,9 @@ import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.module.SimpleModule;
+import io.ikanos.spec.util.IkanosMappers;
 
 class InputParameterDeserializerTest {
 
@@ -29,10 +30,11 @@ class InputParameterDeserializerTest {
 
     @BeforeEach
     void setUp() {
-        mapper = new ObjectMapper();
         SimpleModule module = new SimpleModule();
         module.addDeserializer(InputParameterSpec.class, new InputParameterDeserializer());
-        mapper.registerModule(module);
+        mapper = IkanosMappers.jsonBuilder()
+                .addModule(module)
+                .build();
     }
 
     // ── Basic scalar fields ──

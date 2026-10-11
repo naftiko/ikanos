@@ -37,15 +37,16 @@ import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.ResourceLimits;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.io.IOAccess;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.BooleanNode;
-import com.fasterxml.jackson.databind.node.DoubleNode;
-import com.fasterxml.jackson.databind.node.LongNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.BooleanNode;
+import tools.jackson.databind.node.DoubleNode;
+import tools.jackson.databind.node.LongNode;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
 import io.ikanos.engine.util.Resolver;
@@ -53,6 +54,7 @@ import io.ikanos.engine.util.SafePathResolver;
 import io.ikanos.engine.util.StepExecutionContext;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Executor for script operation steps.
@@ -98,7 +100,7 @@ public class ScriptStepExecutor {
     private static final boolean SCRIPTING_PERMITTED =
             !"false".equalsIgnoreCase(System.getenv("IKANOS_SCRIPTING"));
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = IkanosMappers.json();
     private final java.util.concurrent.atomic.AtomicReference<ScriptingManagementSpec> scriptingSpec =
             new java.util.concurrent.atomic.AtomicReference<>();
 
@@ -308,7 +310,7 @@ public class ScriptStepExecutor {
             }
             throw new IllegalArgumentException(
                     "Script step '" + scriptStep.getName() + "' failed: " + e.getMessage(), e);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException(
                     "Script step '" + scriptStep.getName()
                             + "' failed to serialize bindings: " + e.getMessage(),
@@ -544,7 +546,7 @@ public class ScriptStepExecutor {
             return DoubleNode.valueOf(value.asDouble());
         }
         if (value.isString()) {
-            return TextNode.valueOf(value.asString());
+            return StringNode.valueOf(value.asString());
         }
         if (value.hasArrayElements()) {
             ArrayNode array = mapper.createArrayNode();
@@ -570,7 +572,7 @@ public class ScriptStepExecutor {
             return obj;
         }
         // Fallback: try to convert to string
-        return TextNode.valueOf(value.toString());
+        return StringNode.valueOf(value.toString());
     }
 
 }

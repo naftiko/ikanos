@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import org.junit.jupiter.api.Test;
@@ -23,10 +23,11 @@ import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.MCP_PROTOCOL_VERSI
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.UNSUPPORTED_PROTOCOL_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import io.ikanos.spec.util.IkanosMappers;
 
 class LegacyInitializeHandlerTest {
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.json();
     McpServerAdapter adapter = mock();
     McpCallHandler handler = new LegacyInitializeHandler(adapter);
 
@@ -47,10 +48,10 @@ class LegacyInitializeHandlerTest {
         assertThat(result.rpcError()).isEqualTo(UNSUPPORTED_PROTOCOL_VERSION);
         assertThat(result.body().path("id").asInt()).isZero();
         assertThat(error.path("code").asInt()).isEqualTo(UNSUPPORTED_PROTOCOL_VERSION.getCode());
-        assertThat(error.path("data").path("supported").get(0).asText())
+        assertThat(error.path("data").path("supported").get(0).asString())
                 .isEqualTo(MCP_PROTOCOL_VERSION);
-        assertThat(error.path("data").path("requested").asText()).isEqualTo("2025-11-25");
-        assertThat(error.path("message").asText())
+        assertThat(error.path("data").path("requested").asString()).isEqualTo("2025-11-25");
+        assertThat(error.path("message").asString())
                 .contains("2025-11-25")
                 .contains(MCP_PROTOCOL_VERSION);
     }
@@ -67,9 +68,9 @@ class LegacyInitializeHandlerTest {
 
         // Then
         JsonNode error = result.body().path("error");
-        assertThat(result.body().path("id").asText()).isEqualTo("init-1");
-        assertThat(error.path("data").path("requested").asText()).isEmpty();
-        assertThat(error.path("message").asText())
+        assertThat(result.body().path("id").asString()).isEqualTo("init-1");
+        assertThat(error.path("data").path("requested").asString()).isEmpty();
+        assertThat(error.path("message").asString())
                 .startsWith("Unsupported protocol version:")
                 .contains(MCP_PROTOCOL_VERSION);
     }
