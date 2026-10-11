@@ -20,16 +20,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Schema;
+import com.networknt.schema.Error;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.InputStream;
-import java.util.Set;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +45,7 @@ import org.junit.jupiter.api.Test;
  */
 class TunnelSchemaValidationTest {
 
-    private static JsonSchema schema;
+    private static Schema schema;
     private static final YAMLMapper YAML = new YAMLMapper();
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
@@ -56,18 +57,18 @@ class TunnelSchemaValidationTest {
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
             JsonNode schemaNode = JSON.readTree(in);
-            JsonSchemaFactory factory =
-                IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            SchemaRegistry factory =
+                IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12);
             schema = factory.getSchema(schemaNode);
         }
     }
 
-    private Set<ValidationMessage> validateYaml(String yaml) throws Exception {
+    private List<Error> validateYaml(String yaml) throws Exception {
         JsonNode data = YAML.readTree(yaml);
         return schema.validate(data);
     }
 
-    private Set<ValidationMessage> validateClasspathYaml(String resource) throws Exception {
+    private List<Error> validateClasspathYaml(String resource) throws Exception {
         try (InputStream in = TunnelSchemaValidationTest.class
                 .getClassLoader()
                 .getResourceAsStream(resource)) {
@@ -110,7 +111,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -138,7 +139,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
@@ -162,14 +163,14 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
 
     @Test
     @DisplayName("bundled example reverse-tunnel-ziti.yml passes schema validation")
     void schemaShouldAcceptBundledReverseTunnelExample() throws Exception {
-        Set<ValidationMessage> errors =
+        List<Error> errors =
             validateClasspathYaml("schemas/examples/reverse-tunnel-ziti.yml");
         assertTrue(errors.isEmpty(), "Expected no validation errors, but got: " + errors);
     }
@@ -200,7 +201,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for unknown tunnel.type, but it passed.");
     }
@@ -230,7 +231,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for invalid fallback enum, but it passed.");
     }
@@ -258,7 +259,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail when tunnel.service is missing, but it passed.");
     }
@@ -286,7 +287,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail when tunnel.identity is missing, but it passed.");
     }
@@ -316,7 +317,7 @@ class TunnelSchemaValidationTest {
                         list-customers:
                           method: "GET"
             """.formatted(IKANOS);
-        Set<ValidationMessage> errors = validateYaml(yaml);
+        List<Error> errors = validateYaml(yaml);
         assertFalse(errors.isEmpty(),
             "Expected validation to fail for unknown property under tunnel, but it passed.");
     }

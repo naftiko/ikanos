@@ -33,12 +33,14 @@ import org.restlet.representation.StringRepresentation;
 import org.restlet.routing.Router;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.Error;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -125,8 +127,8 @@ class McpToolOutputSchemaDispatchTest {
             JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
             JsonNode structured = toolsCall(toolName).path("structuredContent");
 
-            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                    .getInstance(SpecVersion.VersionFlag.V202012)
+            List<Error> errors = SchemaRegistry
+                    .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(outputSchema).validate(structured);
 
             assertTrue(errors.isEmpty(),
@@ -141,8 +143,8 @@ class McpToolOutputSchemaDispatchTest {
         JsonNode outputSchema = findTool(toolsList(), "get-ship").path("outputSchema");
         JsonNode structured = toolsCall("get-ship").path("structuredContent");
 
-        java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                .getInstance(SpecVersion.VersionFlag.V202012)
+        List<Error> errors = SchemaRegistry
+                .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                 .getSchema(outputSchema).validate(structured);
 
         assertTrue(errors.isEmpty(), "sparse upstream must still conform: " + errors);
@@ -177,8 +179,8 @@ class McpToolOutputSchemaDispatchTest {
             JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
             JsonNode structured = toolsCall(toolName).path("structuredContent");
 
-            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                    .getInstance(SpecVersion.VersionFlag.V202012)
+            List<Error> errors = SchemaRegistry
+                    .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(outputSchema).validate(structured);
 
             assertTrue(errors.isEmpty(), "mistyped upstream must still conform for '" + toolName
