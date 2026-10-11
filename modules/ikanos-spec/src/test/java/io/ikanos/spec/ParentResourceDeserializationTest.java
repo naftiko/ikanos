@@ -14,11 +14,11 @@
 package io.ikanos.spec;
 
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import static org.junit.jupiter.api.Assertions.*;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Test that parentResource is properly populated by Jackson during deserialization.
@@ -39,7 +39,7 @@ public class ParentResourceDeserializationTest {
                         display: List Users
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         HttpClientSpec spec = mapper.readValue(yaml, HttpClientSpec.class);
 
         assertNotNull(spec.getResources(), "Resources should not be null");
@@ -80,7 +80,7 @@ public class ParentResourceDeserializationTest {
                         display: Delete User
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         HttpClientSpec spec = mapper.readValue(yaml, HttpClientSpec.class);
 
         HttpClientResourceSpec resource = spec.getResources().get("users");
@@ -115,7 +115,7 @@ public class ParentResourceDeserializationTest {
                         display: List Products
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         HttpClientSpec spec = mapper.readValue(yaml, HttpClientSpec.class);
 
         assertEquals(2, spec.getResources().size(), "Should have 2 resources");

@@ -24,14 +24,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for consumes imports in full capability loading.
@@ -101,8 +99,7 @@ public class ImportIntegrationTest {
         Files.writeString(capPath, capabilityYaml);
 
         // Load capability
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(capPath.toFile(), IkanosSpec.class);
 
         capability = new Capability(spec, tempDir.toString());
@@ -153,8 +150,7 @@ public class ImportIntegrationTest {
         Files.writeString(capPath, capabilityYaml);
 
         // Load capability
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(capPath.toFile(), IkanosSpec.class);
 
         capability = new Capability(spec, tempDir.toString());
@@ -206,8 +202,7 @@ public class ImportIntegrationTest {
         Files.writeString(capPath, capabilityYaml);
 
         // Load capability
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(capPath.toFile(), IkanosSpec.class);
 
         capability = new Capability(spec, tempDir.toString());
@@ -242,8 +237,7 @@ public class ImportIntegrationTest {
         Files.writeString(capPath, capabilityYaml);
 
         // Load capability
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(capPath.toFile(), IkanosSpec.class);
 
         // Should throw IOException due to missing file

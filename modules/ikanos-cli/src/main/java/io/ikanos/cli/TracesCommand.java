@@ -13,8 +13,8 @@
  */
 package io.ikanos.cli;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * CLI command that inspects recent traces from the engine's ring buffer via the control port.
@@ -44,7 +45,7 @@ import org.slf4j.LoggerFactory;
 )
 public class TracesCommand implements Callable<Integer> {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
     private static final Logger logger = LoggerFactory.getLogger(TracesCommand.class);
 
     @Mixin
@@ -107,12 +108,12 @@ public class TracesCommand implements Callable<Integer> {
                 "TRACE ID", "OPERATION", "DURATION", "STATUS", "SPANS", "TIME"));
 
         for (JsonNode trace : traces) {
-            String id = trace.path("traceId").asText();
-            String op = trace.path("operation").asText();
+            String id = trace.path("traceId").asString();
+            String op = trace.path("operation").asString();
             long durationMs = trace.path("durationMs").asLong();
-            String st = trace.path("status").asText();
+            String st = trace.path("status").asString();
             int spanCount = trace.path("spanCount").asInt();
-            String timestamp = trace.path("timestamp").asText();
+            String timestamp = trace.path("timestamp").asString();
 
             System.out.println(String.format("%-34s  %-16s  %-10s  %-6s  %-5d  %s",
                     id, op, formatDuration(durationMs), st, spanCount,
@@ -143,12 +144,12 @@ public class TracesCommand implements Callable<Integer> {
         List<SpanInfo> spanList = new ArrayList<>();
         for (JsonNode span : spans) {
             spanList.add(new SpanInfo(
-                    span.path("spanId").asText(),
-                    span.path("parentSpanId").asText(null),
-                    span.path("name").asText(),
-                    span.path("kind").asText(),
+                    span.path("spanId").asString(),
+                    span.path("parentSpanId").asString(null),
+                    span.path("name").asString(),
+                    span.path("kind").asString(),
                     span.path("durationMs").asLong(),
-                    span.path("status").asText()));
+                    span.path("status").asString()));
         }
 
         // Find roots (no parent or parent not in this trace)

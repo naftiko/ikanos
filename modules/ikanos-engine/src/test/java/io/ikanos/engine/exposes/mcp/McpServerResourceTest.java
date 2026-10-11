@@ -28,13 +28,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for the Restlet-based MCP Streamable HTTP transport (protocol revision
@@ -47,9 +46,8 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
  */
 class McpServerResourceTest {
 
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
     private static final String LEGACY_INITIALIZE = """
             {"jsonrpc":"2.0","id":0,"method":"initialize","params":{
               "protocolVersion":"2025-11-25","capabilities":{},
@@ -120,7 +118,7 @@ class McpServerResourceTest {
                 assertEquals(400, response.statusCode());
                 JsonNode body = JSON.readTree(response.body());
                 assertEquals(-32700, body.path("error").path("code").asInt());
-                assertTrue(body.path("error").path("message").asText().contains("empty body"));
+                assertTrue(body.path("error").path("message").asString().contains("empty body"));
             } finally {
                 adapter.stop();
             }
@@ -169,7 +167,7 @@ class McpServerResourceTest {
                 assertEquals(404, response.statusCode());
                 JsonNode body = JSON.readTree(response.body());
                 assertEquals(-32601, body.path("error").path("code").asInt());
-                assertFalse(body.path("error").path("message").asText().isBlank());
+                assertFalse(body.path("error").path("message").asString().isBlank());
             } finally {
                 adapter.stop();
             }
@@ -235,7 +233,7 @@ class McpServerResourceTest {
                 assertEquals(400, response.statusCode());
                 JsonNode body = JSON.readTree(response.body());
                 assertEquals(-32020, body.path("error").path("code").asInt());
-                assertTrue(body.path("error").path("message").asText().contains("Mcp-Method"));
+                assertTrue(body.path("error").path("message").asString().contains("Mcp-Method"));
             } finally {
                 adapter.stop();
             }
@@ -294,12 +292,12 @@ class McpServerResourceTest {
                         "This revision no longer mints session IDs");
 
                 JsonNode body = JSON.readTree(response.body());
-                assertEquals("2.0", body.path("jsonrpc").asText());
+                assertEquals("2.0", body.path("jsonrpc").asString());
                 assertEquals(1, body.path("id").asInt());
 
                 JsonNode supportedVersions = body.path("result").path("supportedVersions");
                 assertTrue(supportedVersions.isArray() && !supportedVersions.isEmpty());
-                assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asText());
+                assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asString());
             } finally {
                 adapter.stop();
             }
@@ -382,11 +380,11 @@ class McpServerResourceTest {
                         + response.body());
         assertEquals(0, body.path("id").asInt());
         assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
-                error.path("data").path("supported").path(0).asText());
-        assertEquals("2025-11-25", error.path("data").path("requested").asText());
-        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
+                error.path("data").path("supported").path(0).asString());
+        assertEquals("2025-11-25", error.path("data").path("requested").asString());
+        assertTrue(error.path("message").asString().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
                 "#732 (" + scenario + "): the message must name the supported version, got: "
-                        + error.path("message").asText());
+                        + error.path("message").asString());
     }
 
     private static McpServerAdapter startAdapterOnFreePort() throws Exception {

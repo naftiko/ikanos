@@ -19,40 +19,42 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
+import com.networknt.schema.Error;
 
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Keeps schema validation and runtime deserialization of {@code consumes: type: mcp} in step for
  * the enum-like {@code discovery} and {@code validateOutput} fields. YAML 1.1 reads a bare
- * {@code off} as boolean {@code false}; both paths must accept it as {@code off}.
+ * {@code off} as boolean {@code false} and YAML 1.2 as a string; both paths must accept it as
+ * {@code off}.
  */
 class McpClientSchemaValidationTest {
 
-    private static final YAMLMapper YAML = new YAMLMapper();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final YAMLMapper YAML = IkanosMappers.yaml();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
-    private static JsonSchema schema;
+    private static Schema schema;
 
     @BeforeAll
     static void loadSchema() throws Exception {
         try (InputStream in = McpClientSchemaValidationTest.class.getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
             assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
-            schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+            schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(JSON.readTree(in));
         }
     }
@@ -84,7 +86,7 @@ class McpClientSchemaValidationTest {
                 """.formatted(IKANOS, discovery, validateOutput);
     }
 
-    private static Set<ValidationMessage> validate(String yaml) throws Exception {
+    private static List<Error> validate(String yaml) throws Exception {
         JsonNode data = YAML.readTree(yaml);
         return schema.validate(data);
     }
@@ -98,9 +100,11 @@ class McpClientSchemaValidationTest {
     void bareOffShouldPassSchemaAndReadAsOffAtRuntime() throws Exception {
         String yaml = capability("off", "off");
 
-        assertTrue(YAML.readTree(yaml).at("/capability/consumes/0/discovery").isBoolean(),
-                "precondition: YAML 1.1 reads a bare off as a boolean");
-        Set<ValidationMessage> errors = validate(yaml);
+        // Jackson 3 parses YAML 1.2, where a bare off is the string "off". The setters still
+        // normalize "false" for YAML 1.1 parsers, which read it as boolean false.
+        assertEquals("off", YAML.readTree(yaml).at("/capability/consumes/0/discovery").asString(),
+                "precondition: YAML 1.2 reads a bare off as a string");
+        List<Error> errors = validate(yaml);
         assertTrue(errors.isEmpty(), "bare off must validate: " + errors);
 
         McpClientSpec spec = runtime(yaml);
@@ -114,7 +118,7 @@ class McpClientSchemaValidationTest {
     void quotedValuesShouldPassSchemaAndMatchRuntime() throws Exception {
         String yaml = capability("\"verify\"", "\"warn\"");
 
-        Set<ValidationMessage> errors = validate(yaml);
+        List<Error> errors = validate(yaml);
         assertTrue(errors.isEmpty(), "quoted values must validate: " + errors);
 
         McpClientSpec spec = runtime(yaml);
@@ -145,12 +149,12 @@ class McpClientSchemaValidationTest {
             assertNotNull(in, resource + " must be on the classpath");
             String yaml = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
 
-            Set<ValidationMessage> errors = validate(yaml);
+            List<Error> errors = validate(yaml);
             assertTrue(errors.isEmpty(), "reference example must validate: " + errors);
 
             JsonNode mcp = YAML.readTree(yaml).at("/capability/consumes/0");
-            assertEquals("mcp", mcp.path("type").asText());
-            assertTrue(mcp.path("endpoint").asText().startsWith("https://"));
+            assertEquals("mcp", mcp.path("type").asString());
+            assertTrue(mcp.path("endpoint").asString().startsWith("https://"));
             assertTrue(mcp.at("/tools/get-invoice/hints").isObject(),
                     "the consumed tool must declare hints");
         }

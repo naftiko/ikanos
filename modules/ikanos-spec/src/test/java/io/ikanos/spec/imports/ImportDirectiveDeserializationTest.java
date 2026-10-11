@@ -19,11 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.aggregates.ImportedAggregateSpec;
@@ -40,6 +36,8 @@ import io.ikanos.spec.util.VersionHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.DatabindException;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Parametrized-style tests for the unified import directive ({@code from}/{@code import}/
@@ -60,8 +58,7 @@ class ImportDirectiveDeserializationTest {
 
     @BeforeEach
     void setUp() {
-        mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper = IkanosMappers.lenientYaml();
     }
 
     // ----- consumes -----
@@ -342,8 +339,8 @@ class ImportDirectiveDeserializationTest {
             import: "myapi"
             """;
 
-        JsonMappingException ex = assertThrows(
-            JsonMappingException.class,
+        DatabindException ex = assertThrows(
+            DatabindException.class,
             () -> mapper.readValue(yaml, ClientSpec.class)
         );
         String message = ex.getMessage();

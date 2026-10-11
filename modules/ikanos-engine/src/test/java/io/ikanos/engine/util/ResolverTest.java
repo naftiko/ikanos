@@ -24,16 +24,17 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class ResolverTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     /**
      * Regression test for: nested object property without a top-level mapping (e.g. "specs") must
@@ -87,9 +88,9 @@ public class ResolverTest {
 
         assertNotNull(result);
         assertTrue(result.isObject());
-        assertEquals("IMO-9321483", result.path("imo").asText());
-        assertEquals("Northern Star", result.path("name").asText());
-        assertEquals("active", result.path("status").asText());
+        assertEquals("IMO-9321483", result.path("imo").asString());
+        assertEquals("Northern Star", result.path("name").asString());
+        assertEquals("active", result.path("status").asString());
 
         JsonNode specs = result.path("specs");
         assertFalse(specs.isMissingNode(), "specs must be present");
@@ -250,7 +251,7 @@ public class ResolverTest {
 
         JsonNode mapped = Resolver.resolveOutputMappings(rootArray, clientRoot, MAPPER);
         assertTrue(mapped.isArray());
-        assertEquals("A", mapped.get(0).get("name").asText());
+        assertEquals("A", mapped.get(0).get("name").asString());
         assertTrue(mapped.get(1).get("name").isNull());
 
         OutputParameterSpec noItemMapping = new OutputParameterSpec();
@@ -261,7 +262,7 @@ public class ResolverTest {
         noItemMapping.setItems(primitiveItem);
 
         JsonNode passthrough = Resolver.resolveOutputMappings(noItemMapping, clientRoot, MAPPER);
-        assertEquals("A", passthrough.get(0).get("name").asText());
+        assertEquals("A", passthrough.get(0).get("name").asString());
       }
 
       @Test
@@ -293,7 +294,7 @@ public class ResolverTest {
         primitive.setMapping("$.value");
 
         JsonNode primitiveValue = Resolver.resolveOutputMappings(primitive, root, MAPPER);
-        assertEquals("xyz", primitiveValue.asText());
+        assertEquals("xyz", primitiveValue.asString());
       }
 
     @Test
@@ -304,7 +305,7 @@ public class ResolverTest {
 
         Map<String, Object> params = Map.of("name", "Voyager");
         JsonNode result = Resolver.resolveOutputMappings(spec, null, MAPPER, params);
-        assertEquals("Hello, Voyager!", result.asText());
+        assertEquals("Hello, Voyager!", result.asString());
     }
 
     @Test
@@ -314,7 +315,7 @@ public class ResolverTest {
         spec.setValue("static-text");
 
         JsonNode result = Resolver.resolveOutputMappings(spec, null, MAPPER, null);
-        assertEquals("static-text", result.asText());
+        assertEquals("static-text", result.asString());
     }
 
     /**
@@ -498,7 +499,7 @@ public class ResolverTest {
         JsonNode result = Resolver.resolveOutputMappings(root, MAPPER.readTree("{}"), MAPPER,
                 Map.of("imo", "IMO-1"));
 
-        assertEquals("registry:IMO-1", result.path("source").asText());
+        assertEquals("registry:IMO-1", result.path("source").asString());
     }
 
     // ── Coercion to the declared type (exposed outputs, #772) ──────────────────────────────
@@ -537,9 +538,9 @@ public class ResolverTest {
         OutputParameterSpec string = new OutputParameterSpec("s", "string", null, null);
 
         assertEquals("42", Resolver.coerceToDeclaredType(string, MAPPER.readTree("42"), MAPPER)
-                .textValue());
+                .stringValue());
         assertEquals("{\"a\":1}", Resolver.coerceToDeclaredType(string,
-                MAPPER.readTree("{\"a\":1}"), MAPPER).textValue());
+                MAPPER.readTree("{\"a\":1}"), MAPPER).stringValue());
     }
 
     @Test
@@ -590,7 +591,7 @@ public class ResolverTest {
                 new OutputParameterSpec("tonnage", "number", null, "$.tonnage"),
                 MAPPER.readTree("{ \"tonnage\": \"42000\" }"), MAPPER);
 
-        assertTrue(result.isTextual(),
+        assertTrue(result.isString(),
                 "consumed (step) outputs keep their upstream JSON type; only exposed outputs coerce");
     }
 

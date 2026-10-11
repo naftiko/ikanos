@@ -16,9 +16,7 @@ package io.ikanos.engine.exposes.control;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
@@ -29,6 +27,7 @@ import org.restlet.routing.TemplateRoute;
 import java.io.File;
 import java.util.Set;
 import java.util.stream.Collectors;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for Control Server Adapter.
@@ -46,8 +45,7 @@ public class ControlIntegrationTest {
 
         assertTrue(file.exists(), "Control capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
@@ -115,8 +113,7 @@ public class ControlIntegrationTest {
 
     @Test
     public void routerShouldNotAttachMetricsOrTracesWhenObservabilityDisabled() throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(
                 new File("src/test/resources/control/control-observability-disabled.yaml"),
                 IkanosSpec.class);

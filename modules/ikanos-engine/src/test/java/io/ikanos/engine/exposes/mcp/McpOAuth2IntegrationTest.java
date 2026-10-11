@@ -33,11 +33,9 @@ import org.restlet.Server;
 import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -49,6 +47,7 @@ import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP OAuth 2.1 authentication. Starts a mock authorization server
@@ -57,9 +56,8 @@ import io.ikanos.spec.util.VersionHelper;
  */
 class McpOAuth2IntegrationTest {
 
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper YAML_MAPPER = IkanosMappers.lenientYaml();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     private static RSAKey rsaJWK;
     private static int mockAsPort;
@@ -235,7 +233,7 @@ class McpOAuth2IntegrationTest {
                 assertNotNull(metadata.get("authorization_servers"),
                         "Metadata should contain authorization_servers");
                 assertEquals("header",
-                        metadata.get("bearer_methods_supported").get(0).asText());
+                        metadata.get("bearer_methods_supported").get(0).asString());
             } finally {
                 adapter.stop();
             }

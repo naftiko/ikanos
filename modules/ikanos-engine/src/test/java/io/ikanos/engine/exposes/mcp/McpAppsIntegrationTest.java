@@ -25,14 +25,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP Apps (SEP-1865) support on an exposed MCP server: a capability is
@@ -45,8 +45,8 @@ class McpAppsIntegrationTest {
     private static final String VIEW_URI = "ui://weather/forecast/index.html";
     private static final String VIEW_HTML = "<!doctype html><html><body>forecast</body></html>";
 
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-    private final ObjectMapper jsonMapper = new ObjectMapper();
+    private final ObjectMapper yamlMapper = IkanosMappers.yaml();
+    private final ObjectMapper jsonMapper = IkanosMappers.json();
 
     @TempDir
     Path tempDir;
@@ -94,12 +94,12 @@ class McpAppsIntegrationTest {
         JsonNode tools = dispatch(adapter, "tools/list", "{}").path("result").path("tools");
 
         JsonNode getForecast = toolNamed(tools, "get-forecast");
-        assertEquals(VIEW_URI, getForecast.path("_meta").path("ui").path("resourceUri").asText());
+        assertEquals(VIEW_URI, getForecast.path("_meta").path("ui").path("resourceUri").asString());
         assertTrue(getForecast.path("_meta").path("ui").path("visibility").isMissingNode(),
                 "Unauthored visibility must not be emitted");
 
         JsonNode refresh = toolNamed(tools, "refresh-forecast");
-        assertEquals("app", refresh.path("_meta").path("ui").path("visibility").get(0).asText());
+        assertEquals("app", refresh.path("_meta").path("ui").path("visibility").get(0).asString());
     }
 
     @Test
@@ -122,8 +122,8 @@ class McpAppsIntegrationTest {
 
         assertEquals(1, resources.size());
         JsonNode entry = resources.get(0);
-        assertEquals(VIEW_URI, entry.path("uri").asText());
-        assertEquals("text/html;profile=mcp-app", entry.path("mimeType").asText());
+        assertEquals(VIEW_URI, entry.path("uri").asString());
+        assertEquals("text/html;profile=mcp-app", entry.path("mimeType").asString());
         assertTrue(entry.path("_meta").path("ui").path("prefersBorder").asBoolean());
         assertTrue(entry.path("_meta").path("ui").path("permissions").path("clipboardWrite")
                 .isObject(), "Requested permission is an empty-object presence flag");
@@ -136,9 +136,9 @@ class McpAppsIntegrationTest {
         JsonNode content = dispatch(adapter, "resources/read",
                 "{\"uri\":\"" + VIEW_URI + "\"}").path("result").path("contents").get(0);
 
-        assertEquals(VIEW_HTML, content.path("text").asText());
+        assertEquals(VIEW_HTML, content.path("text").asString());
         assertTrue(content.path("blob").isMissingNode());
-        assertEquals("text/html;profile=mcp-app", content.path("mimeType").asText());
+        assertEquals("text/html;profile=mcp-app", content.path("mimeType").asString());
         assertTrue(content.path("_meta").path("ui").path("prefersBorder").asBoolean());
     }
 
@@ -246,7 +246,7 @@ class McpAppsIntegrationTest {
 
     private static JsonNode toolNamed(JsonNode tools, String name) {
         for (JsonNode tool : tools) {
-            if (name.equals(tool.path("name").asText())) {
+            if (name.equals(tool.path("name").asString())) {
                 return tool;
             }
         }

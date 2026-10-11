@@ -18,8 +18,8 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.util.StepExecutionContext;
 
 class StepHandlerRegistryTest {
@@ -33,7 +33,7 @@ class StepHandlerRegistryTest {
 
     @Test
     void registerShouldStoreHandler() {
-        StepHandler handler = ctx -> TextNode.valueOf("ok");
+        StepHandler handler = ctx -> StringNode.valueOf("ok");
         registry.register("my-step", handler);
 
         assertTrue(registry.has("my-step"));
@@ -52,8 +52,8 @@ class StepHandlerRegistryTest {
 
     @Test
     void registerShouldOverwriteExistingHandler() {
-        StepHandler first = ctx -> TextNode.valueOf("first");
-        StepHandler second = ctx -> TextNode.valueOf("second");
+        StepHandler first = ctx -> StringNode.valueOf("first");
+        StepHandler second = ctx -> StringNode.valueOf("second");
 
         registry.register("step", first);
         registry.register("step", second);
@@ -63,7 +63,7 @@ class StepHandlerRegistryTest {
 
     @Test
     void unregisterShouldRemoveHandler() {
-        registry.register("step", ctx -> TextNode.valueOf("x"));
+        registry.register("step", ctx -> StringNode.valueOf("x"));
         registry.unregister("step");
 
         assertFalse(registry.has("step"));
@@ -93,7 +93,7 @@ class StepHandlerRegistryTest {
     void executeHandlerShouldDelegateToRegisteredHandler() {
         StepHandler handler = ctx -> {
             String input = (String) ctx.inputParameter("name");
-            return TextNode.valueOf("hello " + input);
+            return StringNode.valueOf("hello " + input);
         };
         registry.register("greet", handler);
 
@@ -103,7 +103,7 @@ class StepHandlerRegistryTest {
 
         JsonNode result = registry.executeHandler("greet", params, stepContext, null);
 
-        assertEquals("hello world", result.asText());
+        assertEquals("hello world", result.asString());
     }
 
     @Test

@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.control;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import java.net.URI;
 import java.util.ArrayList;
@@ -30,6 +30,7 @@ import org.restlet.resource.Put;
 import org.restlet.resource.ServerResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Control Port resource for scripting governance.
@@ -42,7 +43,7 @@ public class ScriptingResource extends ServerResource {
 
     private static final Logger logger = LoggerFactory.getLogger(ScriptingResource.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     static final Set<String> SUPPORTED_LANGUAGES =
             Set.of("javascript", "python", "groovy");
@@ -141,7 +142,7 @@ public class ScriptingResource extends ServerResource {
                 scripting.setStatementLimit(statementLimit);
             }
             if (update.has("defaultLocation")) {
-                String location = update.get("defaultLocation").asText();
+                String location = update.get("defaultLocation").asString();
                 try {
                     URI uri = URI.create(location);
                     if (!"file".equals(uri.getScheme()) || !uri.isAbsolute()) {
@@ -159,7 +160,7 @@ public class ScriptingResource extends ServerResource {
                 scripting.setDefaultLocation(location);
             }
             if (update.has("defaultLanguage")) {
-                String defaultLanguage = update.get("defaultLanguage").asText();
+                String defaultLanguage = update.get("defaultLanguage").asString();
                 if (!SUPPORTED_LANGUAGES.contains(defaultLanguage)) {
                     setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
                     return new StringRepresentation(
@@ -179,7 +180,7 @@ public class ScriptingResource extends ServerResource {
                 }
                 List<String> validated = new ArrayList<>();
                 for (JsonNode entry : langNode) {
-                    String lang = entry.asText();
+                    String lang = entry.asString();
                     if (!SUPPORTED_LANGUAGES.contains(lang)) {
                         setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
                         return new StringRepresentation(

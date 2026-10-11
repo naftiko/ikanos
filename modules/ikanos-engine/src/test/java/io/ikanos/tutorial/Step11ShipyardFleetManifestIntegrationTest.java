@@ -27,7 +27,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -109,12 +109,12 @@ public class Step11ShipyardFleetManifestIntegrationTest
         JsonNode tools = callToolsList(http);
 
         assertEquals(6, tools.size(), "step-11 MCP exposes exactly six tools");
-        assertEquals("list-ships", tools.get(0).path("name").asText());
-        assertEquals("get-ship", tools.get(1).path("name").asText());
-        assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
-        assertEquals("create-voyage", tools.get(3).path("name").asText());
-        assertEquals("get-ship-with-crew", tools.get(4).path("name").asText());
-        assertEquals("get-voyage-manifest", tools.get(5).path("name").asText());
+        assertEquals("list-ships", tools.get(0).path("name").asString());
+        assertEquals("get-ship", tools.get(1).path("name").asString());
+        assertEquals("list-legacy-vessels", tools.get(2).path("name").asString());
+        assertEquals("create-voyage", tools.get(3).path("name").asString());
+        assertEquals("get-ship-with-crew", tools.get(4).path("name").asString());
+        assertEquals("get-voyage-manifest", tools.get(5).path("name").asString());
     }
 
     @Test
@@ -125,12 +125,12 @@ public class Step11ShipyardFleetManifestIntegrationTest
 
         JsonNode props = getShipWithCrew.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship-with-crew must declare imo parameter");
-        assertEquals("string", props.path("imo").path("type").asText(), "imo must be string type");
+        assertEquals("string", props.path("imo").path("type").asString(), "imo must be string type");
 
         JsonNode required = getShipWithCrew.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
-            if ("imo".equals(r.asText())) {
+            if ("imo".equals(r.asString())) {
                 imoRequired = true;
                 break;
             }
@@ -146,12 +146,12 @@ public class Step11ShipyardFleetManifestIntegrationTest
 
         JsonNode props = getVoyageManifest.path("inputSchema").path("properties");
         assertTrue(props.has("voyageId"), "get-voyage-manifest must declare voyageId parameter");
-        assertEquals("string", props.path("voyageId").path("type").asText(), "voyageId must be string type");
+        assertEquals("string", props.path("voyageId").path("type").asString(), "voyageId must be string type");
 
         JsonNode required = getVoyageManifest.path("inputSchema").path("required");
         boolean voyageIdRequired = false;
         for (JsonNode r : required) {
-            if ("voyageId".equals(r.asText())) {
+            if ("voyageId".equals(r.asString())) {
                 voyageIdRequired = true;
                 break;
             }
@@ -174,7 +174,7 @@ public class Step11ShipyardFleetManifestIntegrationTest
             assertEquals(200, response.statusCode(), "GET /skills/voyage-ops must succeed");
 
             JsonNode detail = json.readTree(response.body());
-            assertEquals("voyage-ops", detail.path("name").asText());
+            assertEquals("voyage-ops", detail.path("name").asString());
 
             JsonNode tools = detail.path("tools");
             assertTrue(tools.isArray(), "voyage-ops detail must contain a tools array");
@@ -182,7 +182,7 @@ public class Step11ShipyardFleetManifestIntegrationTest
 
             List<String> toolNames = new ArrayList<>();
             for (JsonNode t : tools) {
-                toolNames.add(t.path("name").asText());
+                toolNames.add(t.path("name").asString());
             }
             assertTrue(toolNames.contains("create-voyage"), "voyage-ops must include create-voyage");
             assertTrue(toolNames.contains("get-voyage-manifest"), "voyage-ops must include get-voyage-manifest");

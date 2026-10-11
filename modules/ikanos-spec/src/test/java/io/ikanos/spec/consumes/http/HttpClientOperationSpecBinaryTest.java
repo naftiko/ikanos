@@ -15,13 +15,11 @@ package io.ikanos.spec.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for the binary-content fields added to {@link HttpClientOperationSpec}
@@ -35,8 +33,7 @@ public class HttpClientOperationSpecBinaryTest {
 
     @BeforeEach
     public void setUp() {
-        mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper = IkanosMappers.lenientYaml();
     }
 
     @Test

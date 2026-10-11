@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.control;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
@@ -24,6 +24,7 @@ import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Get;
 import org.restlet.resource.ServerResource;
 import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Trace inspection endpoint. Returns recent trace summaries from the ring buffer
@@ -31,7 +32,7 @@ import java.util.List;
  */
 public class TracesResource extends ServerResource {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     @Get("json")
     public Representation getTraces() {

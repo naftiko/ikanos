@@ -28,13 +28,12 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class ForwardHeaderIntegrationTest {
 
@@ -89,8 +88,7 @@ public class ForwardHeaderIntegrationTest {
                               value: \"2025-09-03\"
                     """.formatted(mockPort);
 
-            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper mapper = IkanosMappers.lenientYaml();
             IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
             Capability capability = new Capability(spec);

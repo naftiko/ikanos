@@ -17,18 +17,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
-import java.util.Set;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.Error;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Verifies that {@code unevaluatedProperties: false} on {@code MappedOutputParameter} variants
@@ -40,8 +41,8 @@ import io.ikanos.spec.util.IkanosMetaSchemaFactory;
  */
 class SchemaUnevaluatedPropertiesTest {
 
-  private static JsonSchema schema;
-  private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
+  private static Schema schema;
+  private static final ObjectMapper YAML_MAPPER = IkanosMappers.yaml();
 
   @BeforeAll
   static void loadSchema() throws Exception {
@@ -49,14 +50,14 @@ class SchemaUnevaluatedPropertiesTest {
         SchemaUnevaluatedPropertiesTest.class
             .getClassLoader()
             .getResourceAsStream("schemas/ikanos-schema.json");
-    JsonNode schemaNode = new ObjectMapper().readTree(schemaStream);
-    schema = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(schemaNode);
+    JsonNode schemaNode = IkanosMappers.json().readTree(schemaStream);
+    schema = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12).getSchema(schemaNode);
   }
 
   @Test
   void validateShouldAcceptCapabilityWithValidMappedOutputParameters() throws Exception {
     JsonNode doc = loadFixture("capabilities/capability-valid.yml");
-    Set<ValidationMessage> errors = schema.validate(doc);
+    List<Error> errors = schema.validate(doc);
     assertTrue(errors.isEmpty(),
         "Expected valid capability to pass schema validation, but got errors:\n" + errors);
   }
@@ -64,7 +65,7 @@ class SchemaUnevaluatedPropertiesTest {
   @Test
   void validateShouldRejectMappedOutputParameterWithSpuriousNameProperty() throws Exception {
     JsonNode doc = loadFixture("capabilities/capability-spurious-name.yml");
-    Set<ValidationMessage> errors = schema.validate(doc);
+    List<Error> errors = schema.validate(doc);
     assertFalse(errors.isEmpty(),
         "Expected capability with spurious 'name' on MappedOutputParameter to fail schema validation");
   }

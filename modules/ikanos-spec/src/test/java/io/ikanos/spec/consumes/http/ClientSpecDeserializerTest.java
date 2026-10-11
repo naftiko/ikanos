@@ -17,11 +17,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for ClientSpec deserialization.
@@ -33,8 +32,7 @@ public class ClientSpecDeserializerTest {
 
     @BeforeEach
     public void setUp() {
-        mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper = IkanosMappers.lenientYaml();
     }
 
     @Test
@@ -142,8 +140,8 @@ public class ClientSpecDeserializerTest {
             import: "myapi"
             """;
 
-        com.fasterxml.jackson.databind.JsonMappingException ex = assertThrows(
-            com.fasterxml.jackson.databind.JsonMappingException.class,
+        DatabindException ex = assertThrows(
+            DatabindException.class,
             () -> mapper.readValue(yaml, ClientSpec.class)
         );
         String message = ex.getMessage();

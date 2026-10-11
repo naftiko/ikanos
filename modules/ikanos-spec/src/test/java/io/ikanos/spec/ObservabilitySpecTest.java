@@ -15,12 +15,11 @@ package io.ikanos.spec;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.observability.ObservabilityExportersSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
 import io.ikanos.spec.observability.ObservabilityTracesSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for ObservabilitySpec deserialization.
@@ -134,8 +133,7 @@ class ObservabilitySpecTest {
     }
 
     private static <T> T parseYaml(String yaml, Class<T> type) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         return mapper.readValue(yaml, type);
     }
 }

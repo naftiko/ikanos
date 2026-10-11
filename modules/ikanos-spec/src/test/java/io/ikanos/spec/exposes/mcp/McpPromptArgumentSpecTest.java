@@ -17,11 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpPromptArgumentSpec}.
@@ -81,7 +80,7 @@ public class McpPromptArgumentSpecTest {
                 required: false
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         McpPromptArgumentSpec spec = mapper.readValue(yaml, McpPromptArgumentSpec.class);
 
         assertEquals("user", spec.getName());

@@ -64,12 +64,12 @@ capability:
     baseUri: http://localhost:19999
     resources:
       greet:
-        path: greet
+        path: /greet
         operations:
           greet:
             method: POST
       add:
-        path: add
+        path: /add
         operations:
           add:
             method: POST

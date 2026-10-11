@@ -15,10 +15,10 @@ package io.ikanos.spec;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.util.BindingKeysSpec;
 import io.ikanos.spec.util.BindingSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class BindingSpecTest {
 
@@ -33,7 +33,7 @@ public class BindingSpecTest {
                   api_key: API_KEY
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         BindingSpec spec = mapper.readValue(yaml, BindingSpec.class);
 
         assertNotNull(spec);
@@ -54,7 +54,7 @@ public class BindingSpecTest {
                   port: PORT
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         BindingSpec spec = mapper.readValue(yaml, BindingSpec.class);
 
         assertNotNull(spec);

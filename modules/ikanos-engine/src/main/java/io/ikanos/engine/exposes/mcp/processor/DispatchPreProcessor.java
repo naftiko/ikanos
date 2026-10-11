@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.processor;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.exception.ProcessorException;
 
 /**

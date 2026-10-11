@@ -28,8 +28,8 @@ import org.restlet.Restlet;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -39,6 +39,7 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpOAuth2Restlet} — MCP-specific OAuth 2.1 behavior including
@@ -46,7 +47,7 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
  */
 class McpOAuth2RestletTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private static RSAKey rsaJWK;
     private static RSAKey rsaPublicJWK;
@@ -79,12 +80,12 @@ class McpOAuth2RestletTest {
         String body = response.getEntity().getText();
         JsonNode metadata = JSON.readTree(body);
 
-        assertEquals("https://mcp.example.com/", metadata.get("resource").asText());
+        assertEquals("https://mcp.example.com/", metadata.get("resource").asString());
         assertEquals("https://auth.example.com",
-                metadata.get("authorization_servers").get(0).asText());
+                metadata.get("authorization_servers").get(0).asString());
         assertTrue(metadata.has("scopes_supported"));
         assertEquals(2, metadata.get("scopes_supported").size());
-        assertEquals("header", metadata.get("bearer_methods_supported").get(0).asText());
+        assertEquals("header", metadata.get("bearer_methods_supported").get(0).asString());
     }
 
     @Test

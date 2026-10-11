@@ -13,17 +13,17 @@
  */
 package io.ikanos.cli;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import picocli.CommandLine.Option;
-import java.io.IOException;
+import tools.jackson.core.JacksonException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.io.IOException;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Shared options for CLI commands that connect to a running control port. Discovery cascade:
@@ -77,8 +77,7 @@ public class ControlPortMixin {
     int discoverPortFromYaml() {
         Path cwd = Path.of(System.getProperty("user.dir"));
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(cwd, "*.{yml,yaml}")) {
-            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper mapper = IkanosMappers.lenientYaml();
             for (Path path : stream) {
                 try {
                     IkanosSpec spec = mapper.readValue(path.toFile(), IkanosSpec.class);
@@ -89,7 +88,7 @@ public class ControlPortMixin {
                             }
                         }
                     }
-                } catch (IOException ignored) {
+                } catch (JacksonException ignored) {
                     // Not a valid Ikanos YAML — skip
                 }
             }

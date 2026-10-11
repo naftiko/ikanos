@@ -117,7 +117,7 @@ The YAML format is defined once, in `modules/ikanos-spec/src/main/resources/sche
 |---|---|---|
 | JSON Schema | `schemas/ikanos-schema.json` | The source of truth for structure: which keys exist, their types, which are required. `schemas/README.md` documents it, and `schemas/examples/` holds reference capabilities. |
 | Ruleset | `rules/ikanos-rules.yml` | Checks the schema cannot express: cross-object consistency (a `call` points to a declared operation), quality and security rules. It is written in the Spectral format and is the ruleset Polychro applies. |
-| Jackson model | `io.ikanos.spec` | The `*Spec` classes the YAML is read into. Polymorphic sections are picked by custom deserializers: `ServerSpecDeserializer` by `type`, `ClientSpecDeserializer` by the presence of `from` (an import), and similar ones for parameters, steps and bindings. |
+| Jackson model | `io.ikanos.spec` | The `*Spec` classes the YAML is read into. Polymorphic sections are picked by custom deserializers: `ServerSpecDeserializer` by `type`, `ClientSpecDeserializer` by the presence of `from` (an import), and similar ones for parameters, steps and bindings. The model is read with Jackson 3; every mapper comes from `IkanosMappers`, which restores the Jackson 2 defaults the model relies on (setter-less `final` collections filled through their getters, declaration order on output, unknown properties rejected unless a loader asks for a lenient mapper). |
 
 Validation runs **outside** the runtime:
 

@@ -13,11 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +28,7 @@ import java.io.File;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class ProtocolDispatcherNegativeTest {
 
@@ -38,11 +37,10 @@ public class ProtocolDispatcherNegativeTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        mapper = new ObjectMapper();
+        mapper = IkanosMappers.lenientJson();
         String resourcePath = "src/test/resources/mcp/mcp-resources-prompts-capability.yaml";
         File file = new File(resourcePath);
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = yamlMapper.readValue(file, IkanosSpec.class);
         Capability capability = new Capability(spec);
         dispatcher = new ProtocolDispatcher((McpServerAdapter) capability.getServerAdapters().get(0));
@@ -73,7 +71,7 @@ public class ProtocolDispatcherNegativeTest {
                 """))).responseBody();
 
         assertEquals(-32602, response.path("error").path("code").asInt());
-        assertEquals("Invalid params: Unknown tool: ", response.path("error").path("message").asText());
+        assertEquals("Invalid params: Unknown tool: ", response.path("error").path("message").asString());
     }
 
     @Test
@@ -83,7 +81,7 @@ public class ProtocolDispatcherNegativeTest {
                 """))).responseBody();
 
         assertEquals(-32602, response.path("error").path("code").asInt());
-        assertEquals("Invalid params: uri is required", response.path("error").path("message").asText());
+        assertEquals("Invalid params: uri is required", response.path("error").path("message").asString());
     }
 
     @Test
@@ -94,7 +92,7 @@ public class ProtocolDispatcherNegativeTest {
 
         assertNotNull(response.path("error"));
         assertEquals(-32602, response.path("error").path("code").asInt());
-        assertEquals("Invalid params: name is required", response.path("error").path("message").asText());
+        assertEquals("Invalid params: name is required", response.path("error").path("message").asString());
     }
 
     @ParameterizedTest
@@ -106,7 +104,7 @@ public class ProtocolDispatcherNegativeTest {
 
         assertNotNull(response.path("error"));
         assertEquals(-32022, response.path("error").path("code").asInt());
-        assertEquals("Unsupported protocol version", response.path("error").path("message").asText());
+        assertEquals("Unsupported protocol version", response.path("error").path("message").asString());
     }
 
     @Test
@@ -123,13 +121,13 @@ public class ProtocolDispatcherNegativeTest {
                         + "'Method not found'");
         assertEquals(0, response.path("id").asInt());
         assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
-                error.path("data").path("supported").path(0).asText(),
+                error.path("data").path("supported").path(0).asString(),
                 "#732: the error data must list the protocol versions the server supports");
-        assertEquals("2025-11-25", error.path("data").path("requested").asText(),
+        assertEquals("2025-11-25", error.path("data").path("requested").asString(),
                 "#732: the error data must echo the version the legacy client asked for");
-        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
+        assertTrue(error.path("message").asString().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
                 "#732: legacy clients often surface only the message, so it must name the "
-                        + "supported version, got: " + error.path("message").asText());
+                        + "supported version, got: " + error.path("message").asString());
     }
 
     @Test
@@ -141,8 +139,8 @@ public class ProtocolDispatcherNegativeTest {
         JsonNode error = response.path("error");
         assertEquals(-32022, error.path("code").asInt(),
                 "#732: an initialize without params must still get UnsupportedProtocolVersionError");
-        assertEquals("", error.path("data").path("requested").asText());
-        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION));
+        assertEquals("", error.path("data").path("requested").asString());
+        assertTrue(error.path("message").asString().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION));
     }
 
     @Test

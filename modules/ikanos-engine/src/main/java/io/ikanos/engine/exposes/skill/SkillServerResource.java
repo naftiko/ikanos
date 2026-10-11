@@ -15,7 +15,7 @@ package io.ikanos.engine.exposes.skill;
 
 import java.nio.file.Path;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;
 import org.restlet.resource.ServerResource;
@@ -27,6 +27,7 @@ import io.ikanos.spec.exposes.skill.ExposedSkillSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Abstract base for all skill server handler resources.
@@ -40,7 +41,7 @@ abstract class SkillServerResource extends ServerResource {
 
     private static final MetadataService METADATA_SERVICE = new MetadataService();
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = IkanosMappers.json();
 
     public ObjectMapper getMapper() {
         return mapper;

@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
@@ -56,7 +56,7 @@ public class ToolsCallHandler extends McpCallHandler {
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: missing params"));
         }
 
-        String toolName = params.path("name").asText("");
+        String toolName = params.path("name").asString("");
         JsonNode argumentsNode = params.get("arguments");
 
         try {

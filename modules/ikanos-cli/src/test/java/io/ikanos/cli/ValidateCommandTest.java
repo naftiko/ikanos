@@ -26,7 +26,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.util.VersionHelper;
 import picocli.CommandLine;
 
@@ -67,7 +67,7 @@ public class ValidateCommandTest {
 
         JsonNode yamlNode = command.loadFile(yaml.toFile());
 
-        assertEquals("test", yamlNode.path("name").asText());
+        assertEquals("test", yamlNode.path("name").asString());
     }
 
     @Test

@@ -16,8 +16,8 @@ package io.ikanos.engine.exposes.mcp;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INTERNAL_ERROR;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import java.util.logging.Level;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.ErrorReference;
 
 /**

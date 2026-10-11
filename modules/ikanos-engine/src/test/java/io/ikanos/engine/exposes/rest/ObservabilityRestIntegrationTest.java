@@ -15,7 +15,6 @@ package io.ikanos.engine.exposes.rest;
 
 import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
 import static org.junit.jupiter.api.Assertions.*;
-
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -26,9 +25,7 @@ import io.opentelemetry.sdk.trace.data.SpanData;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +35,7 @@ import org.restlet.data.Method;
 import org.restlet.data.Status;
 
 import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests verifying that REST adapter requests produce the expected OTel span hierarchy,
@@ -65,8 +63,7 @@ public class ObservabilityRestIntegrationTest {
     }
 
     private Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

@@ -35,15 +35,14 @@ import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Ikanos-to-Ikanos composition over MCP (design doc {@code mcp-client-adapter.md} §6).
@@ -55,9 +54,8 @@ import io.modelcontextprotocol.spec.McpSchema;
  */
 class McpClientAdapterIntegrationTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 
     private Component erp;
@@ -262,7 +260,7 @@ class McpClientAdapterIntegrationTest {
         assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
         JsonNode payload = textPayload(result);
         assertEquals(125.5, payload.path("total").asDouble());
-        assertEquals("PAID", payload.path("status").asText());
+        assertEquals("PAID", payload.path("status").asString());
     }
 
     @Test
@@ -285,7 +283,7 @@ class McpClientAdapterIntegrationTest {
         McpSchema.CallToolResult result = callConsumer("greeting", Map.of());
 
         assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
-        assertEquals("hello", textPayload(result).path("greeting").asText());
+        assertEquals("hello", textPayload(result).path("greeting").asString());
     }
 
     @Test

@@ -13,23 +13,21 @@
  */
 package io.ikanos.spec;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.node.ArrayNode;
 
 /**
  * Custom serializer for OutputParameterSpec that converts nested structure definitions back to
  * YAML-compatible format.
  */
-public class OutputParameterSerializer extends JsonSerializer<OutputParameterSpec> {
+public class OutputParameterSerializer extends ValueSerializer<OutputParameterSpec> {
 
     @Override
-    public void serialize(OutputParameterSpec spec, JsonGenerator gen, SerializerProvider provider)
-            throws IOException {
+    public void serialize(OutputParameterSpec spec, JsonGenerator gen, SerializationContext provider) {
         if (spec == null) {
             gen.writeNull();
             return;

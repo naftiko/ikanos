@@ -22,13 +22,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class LookupExecutorTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     @Test
     public void executeLookupShouldProjectMatchingArrayEntry() throws Exception {
@@ -43,7 +44,7 @@ public class LookupExecutorTest {
                 List.of("id", "active", "missing"));
 
         assertNotNull(result);
-        assertEquals("u-2", result.path("id").asText());
+        assertEquals("u-2", result.path("id").asString());
         assertEquals(false, result.path("active").asBoolean());
         assertEquals(true, result.path("missing").isNull());
     }
@@ -58,8 +59,8 @@ public class LookupExecutorTest {
                 List.of("name", "team"));
 
         assertNotNull(result);
-        assertEquals("Alice", result.path("name").asText());
-        assertEquals("core", result.path("team").asText());
+        assertEquals("Alice", result.path("name").asString());
+        assertEquals("core", result.path("team").asString());
     }
 
     @Test
@@ -113,6 +114,6 @@ public class LookupExecutorTest {
         assertEquals(true, target.get("enabled"));
         assertNull(target.get("nickname"));
         assertInstanceOf(ObjectNode.class, target.get("meta"));
-        assertEquals("eu", ((JsonNode) target.get("meta")).path("region").asText());
+        assertEquals("eu", ((JsonNode) target.get("meta")).path("region").asString());
     }
 }

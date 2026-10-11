@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY, // Include the type identifier as a property in the JSON
+    include = JsonTypeInfo.As.EXISTING_PROPERTY, // The type identifier is the existing 'type' property
     property = "type" // The name of the JSON property holding the type identifier
 )
 @JsonSubTypes({

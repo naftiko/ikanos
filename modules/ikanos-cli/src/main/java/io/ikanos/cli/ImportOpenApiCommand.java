@@ -17,11 +17,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
+import java.util.function.UnaryOperator;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
@@ -33,8 +32,10 @@ import io.ikanos.spec.util.VersionHelper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 @Command(
     name = "openapi",
@@ -113,18 +114,23 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             }
 
             // Build the appropriate mapper based on format
+            UnaryOperator<JsonInclude.Value> nonEmpty =
+                    incl -> JsonInclude.Value.construct(JsonInclude.Include.NON_EMPTY,
+                            JsonInclude.Include.NON_EMPTY);
             ObjectMapper mapper;
             if ("json".equalsIgnoreCase(format)) {
-                mapper = new ObjectMapper();
-                mapper.enable(SerializationFeature.INDENT_OUTPUT);
-            } else {
-                YAMLFactory yamlFactory = YAMLFactory.builder()
-                        .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                mapper = IkanosMappers.jsonBuilder()
+                        .enable(SerializationFeature.INDENT_OUTPUT)
+                        .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                        .changeDefaultPropertyInclusion(nonEmpty)
                         .build();
-                mapper = new ObjectMapper(yamlFactory);
+            } else {
+                mapper = IkanosMappers.yamlBuilder()
+                        .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+                        .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                        .changeDefaultPropertyInclusion(nonEmpty)
+                        .build();
             }
-            mapper.setDefaultPropertyInclusion(JsonInclude.Include.NON_EMPTY);
-            mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
             // Wrap in a IkanosSpec document
             IkanosSpec spec = new IkanosSpec();

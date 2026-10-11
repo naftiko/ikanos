@@ -14,7 +14,7 @@
 package io.ikanos.spec.consumes;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Base Consumed Adapter Specification Element

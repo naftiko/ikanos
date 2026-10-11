@@ -16,9 +16,9 @@ package io.ikanos.engine.util;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Executor for lookup step operations.
@@ -66,7 +66,7 @@ public class LookupExecutor {
     private static JsonNode lookupInArray(JsonNode arrayNode, String matchField, 
             String lookupValue, List<String> outputFields) {
         
-        Iterator<JsonNode> elements = arrayNode.elements();
+        Iterator<JsonNode> elements = arrayNode.values().iterator();
         while (elements.hasNext()) {
             JsonNode entry = elements.next();
 
@@ -75,7 +75,7 @@ public class LookupExecutor {
 
                 // Compare match field value with lookup value
                 if (matchNodeValue != null && 
-                    lookupValue.equals(matchNodeValue.asText())) {
+                    lookupValue.equals(matchNodeValue.asString())) {
                     
                     // Found a match - extract specified fields
                     return extractFields(entry, outputFields);
@@ -95,7 +95,7 @@ public class LookupExecutor {
         JsonNode matchNodeValue = objNode.get(matchField);
 
         if (matchNodeValue != null && 
-            lookupValue.equals(matchNodeValue.asText())) {
+            lookupValue.equals(matchNodeValue.asString())) {
             
             return extractFields(objNode, outputFields);
         }
@@ -139,15 +139,15 @@ public class LookupExecutor {
             return;
         }
 
-        Iterator<String> fieldNames = result.fieldNames();
+        Iterator<String> fieldNames = result.propertyNames().iterator();
         while (fieldNames.hasNext()) {
             String fieldName = fieldNames.next();
             JsonNode fieldValue = result.get(fieldName);
             
             if (fieldValue.isNull()) {
                 targetMap.put(fieldName, null);
-            } else if (fieldValue.isTextual()) {
-                targetMap.put(fieldName, fieldValue.asText());
+            } else if (fieldValue.isString()) {
+                targetMap.put(fieldName, fieldValue.asString());
             } else if (fieldValue.isNumber()) {
                 targetMap.put(fieldName, fieldValue.numberValue());
             } else if (fieldValue.isBoolean()) {

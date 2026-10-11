@@ -15,15 +15,14 @@ package io.ikanos.engine.exposes.control;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.observability.ObservabilitySpec;
 import io.ikanos.spec.observability.ObservabilityTracesLocalSpec;
 import io.ikanos.spec.exposes.control.ControlLogsEndpointSpec;
 import io.ikanos.spec.exposes.control.ControlManagementSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for control port spec deserialization.
@@ -244,8 +243,7 @@ public class ControlServerSpecTest {
     }
 
     private static <T> T parseYaml(String yaml, Class<T> type) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         return mapper.readValue(yaml, type);
     }
 }

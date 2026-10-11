@@ -30,14 +30,13 @@ import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test proving the REST adapter honors {@code outputRawFormat} declared on the consumed
@@ -47,7 +46,7 @@ import io.ikanos.spec.util.VersionHelper;
  */
 public class RestXmlOutputFormatIntegrationTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
     private String schemaVersion;
 
     @BeforeEach
@@ -120,10 +119,10 @@ public class RestXmlOutputFormatIntegrationTest {
             JsonNode payload = JSON.readTree(response.getEntity().getText());
             assertTrue(payload.isArray(), "Mapped response should be a JSON array");
             assertEquals(2, payload.size(), "Should contain 2 vessels");
-            assertEquals("V001", payload.get(0).path("code").asText());
-            assertEquals("Sea Eagle", payload.get(0).path("name").asText());
-            assertEquals("V002", payload.get(1).path("code").asText());
-            assertEquals("Harbor Star", payload.get(1).path("name").asText());
+            assertEquals("V001", payload.get(0).path("code").asString());
+            assertEquals("Sea Eagle", payload.get(0).path("name").asString());
+            assertEquals("V002", payload.get(1).path("code").asString());
+            assertEquals("Harbor Star", payload.get(1).path("name").asString());
         } finally {
             upstream.stop();
         }
@@ -164,8 +163,7 @@ public class RestXmlOutputFormatIntegrationTest {
     }
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

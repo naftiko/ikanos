@@ -16,9 +16,7 @@ package io.ikanos.spec.openapi;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -26,6 +24,7 @@ import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.InfoSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests: load Ikanos capability YAMLs, export to OAS, and validate.
@@ -45,8 +44,7 @@ public class OasExportIntegrationTest {
         
         IkanosSpec spec;
         if (capFile != null) {
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
             spec = yamlMapper.readValue(capFile, IkanosSpec.class);
         } else {
             // Build minimal spec programmatically as fallback
@@ -72,8 +70,7 @@ public class OasExportIntegrationTest {
         IkanosSpec spec;
         
         if (capFile != null) {
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
             spec = yamlMapper.readValue(capFile, IkanosSpec.class);
         } else {
             spec = new IkanosSpec();

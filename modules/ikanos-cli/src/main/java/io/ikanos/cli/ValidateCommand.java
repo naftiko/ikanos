@@ -16,13 +16,12 @@ package io.ikanos.cli;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import java.io.File;
@@ -31,9 +30,10 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Set;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 @Command(
     name = "validate",
@@ -69,22 +69,22 @@ public class ValidateCommand implements Callable<Integer> {
                 System.err.println("Error: Schema " + schemaFileName + " is not supported");
                 return 1;
             }
-            JsonNode schemaNode = new ObjectMapper().readTree(schemaInputStream);
+            JsonNode schemaNode = IkanosMappers.json().readTree(schemaInputStream);
 
             // Create JSON Schema validator. Read version from $schema of file.
-            JsonSchemaFactory factory;
+            SchemaRegistry factory;
             JsonNode schemaField = schemaNode.get("$schema");
-            if (schemaField != null && schemaField.asText().contains("2020-12")) {
-                factory = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
-            } else if (schemaField != null && schemaField.asText().contains("2019-09")) {
-                factory = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V201909);
+            if (schemaField != null && schemaField.asString().contains("2020-12")) {
+                factory = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12);
+            } else if (schemaField != null && schemaField.asString().contains("2019-09")) {
+                factory = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2019_09);
             } else {
-                factory = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
+                factory = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_7);
             }
-            JsonSchema schema = factory.getSchema(schemaNode);
+            Schema schema = factory.getSchema(schemaNode);
             
             // Validate.
-            Set<ValidationMessage> errors = schema.validate(dataNode);
+            List<com.networknt.schema.Error> errors = schema.validate(dataNode);
             
             // Display validation result.
             if (errors.isEmpty()) {
@@ -98,15 +98,15 @@ public class ValidateCommand implements Callable<Integer> {
                 System.err.println("\nErrors found:");
                 
                 int errorCount = 1;
-                for (ValidationMessage error : errors) {
+                for (com.networknt.schema.Error error : errors) {
                     System.err.println("\n  [" + errorCount + "] " + error.getMessage());
-                    System.err.println("      Path: " + error.getPath());
+                    System.err.println("      Path: " + error.getInstanceLocation());
                     errorCount++;
                 }
                 return 1;
             }
             
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             System.err.println("Error reading file: " + e.getMessage());
             return 1;
         } catch (Exception e) {
@@ -122,7 +122,7 @@ public class ValidateCommand implements Callable<Integer> {
         
         if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
             // Parse YAML
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            ObjectMapper yamlMapper = IkanosMappers.yaml();
             return yamlMapper.readTree(file);
         } else {
             throw new IllegalArgumentException(

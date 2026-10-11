@@ -13,12 +13,10 @@
  */
 package io.ikanos.spec.aggregates;
 
-import java.io.IOException;
-
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer that discriminates between an imported {@link ImportedAggregateSpec}
@@ -35,10 +33,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  * {@code ClientSpec} / {@code HttpClientSpec} pattern). Part of Phase 1 of the unified import
  * mechanism — see {@code blueprints/unified-import-mechanism.md}.</p>
  */
-public class AggregateSpecDeserializer extends JsonDeserializer<AggregateSpec> {
+public class AggregateSpecDeserializer extends ValueDeserializer<AggregateSpec> {
 
     @Override
-    public AggregateSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public AggregateSpec deserialize(JsonParser p, DeserializationContext ctxt) {
         JsonNode node = ctxt.readTree(p);
 
         if (node.has("from")) {

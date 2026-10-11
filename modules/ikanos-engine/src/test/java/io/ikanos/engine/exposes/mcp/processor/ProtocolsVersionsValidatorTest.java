@@ -13,16 +13,17 @@
  */
 package io.ikanos.engine.exposes.mcp.processor;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.exception.ProcessorException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 class ProtocolsVersionsValidatorTest {
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.json();
     DispatchPreProcessor processor = new ProtocolsVersionsValidator(mapper);
 
     @Test

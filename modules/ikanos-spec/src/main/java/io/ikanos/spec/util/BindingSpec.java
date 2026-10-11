@@ -15,7 +15,7 @@ package io.ikanos.spec.util;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * Binding Specification Element.

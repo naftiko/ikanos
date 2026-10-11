@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.exposes.mcp.handler.PromptsGetHandler;
 import io.ikanos.engine.exposes.mcp.handler.ResourcesReadHandler;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
@@ -83,7 +83,7 @@ public enum McpHeader {
         for (String pathPart : getPath(methodName)) {
             node = node.path(pathPart);
         }
-        return node.asText();
+        return node.asString();
     }
 
     protected List<String> getPath(String methodName) {

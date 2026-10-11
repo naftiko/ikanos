@@ -64,7 +64,7 @@ public class AggregateFlowTest {
         assertTrue(result.isMock(), "Should be mock mode");
         assertNotNull(result.mockOutput, "Mock output should not be null");
 
-        String outputValue = result.mockOutput.get("voyage-id").asText();
+        String outputValue = result.mockOutput.get("voyage-id").asString();
         assertEquals("VOY-2026-042", outputValue,
                 "Namespace-qualified 'with' should resolve to caller's argument, "
                         + "not the literal 'shipyard.voyage-id'");

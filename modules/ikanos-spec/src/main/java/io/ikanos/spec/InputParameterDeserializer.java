@@ -13,64 +13,60 @@
  */
 package io.ikanos.spec;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer for InputParameterSpec that handles nested structure definitions including
  * properties, items, and values in a polymorphic manner.
  */
-public class InputParameterDeserializer extends JsonDeserializer<InputParameterSpec> {
+public class InputParameterDeserializer extends ValueDeserializer<InputParameterSpec> {
 
     @Override
-    public InputParameterSpec deserialize(JsonParser parser, DeserializationContext cxt)
-            throws IOException, JsonProcessingException {
-        JsonNode node = parser.getCodec().readTree(parser);
+    public InputParameterSpec deserialize(JsonParser parser, DeserializationContext cxt) {
+        JsonNode node = parser.objectReadContext().readTree(parser);
         return deserializeNode(node, cxt);
     }
 
     /**
      * Recursively deserialize a JsonNode into InputParameterSpec.
      */
-    private InputParameterSpec deserializeNode(JsonNode node, DeserializationContext cxt)
-            throws IOException {
+    private InputParameterSpec deserializeNode(JsonNode node, DeserializationContext cxt) {
         InputParameterSpec spec = new InputParameterSpec();
 
         if (node.has("name")) {
-            spec.setName(node.get("name").asText());
+            spec.setName(node.get("name").asString());
         }
 
         if (node.has("type")) {
-            spec.setType(node.get("type").asText());
+            spec.setType(node.get("type").asString());
         }
 
         if (node.has("in")) {
-            spec.setIn(node.get("in").asText());
+            spec.setIn(node.get("in").asString());
         }
 
         if (node.has("template")) {
-            spec.setTemplate(node.get("template").asText());
+            spec.setTemplate(node.get("template").asString());
         }
 
         if (node.has("const")) {
-            spec.setConstant(node.get("const").asText());
+            spec.setConstant(node.get("const").asString());
         }
 
         if (node.has("value")) {
-            spec.setValue(node.get("value").asText());
+            spec.setValue(node.get("value").asString());
         }
 
         if (node.has("selector")) {
-            spec.setSelector(node.get("selector").asText());
+            spec.setSelector(node.get("selector").asString());
         }
 
         if (node.has("description")) {
-            spec.setDescription(node.get("description").asText());
+            spec.setDescription(node.get("description").asString());
         }
 
         // Handle nested "items" array for array types
@@ -123,7 +119,7 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
             if (requiredNode.isBoolean()) {
                 spec.setRequired(requiredNode.asBoolean());
             } else if (requiredNode.isArray()) {
-                requiredNode.forEach(item -> spec.getRequired().add(item.asText()));
+                requiredNode.forEach(item -> spec.getRequired().add(item.asString()));
             }
         }
 
@@ -131,7 +127,7 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
         if (node.has("enum")) {
             JsonNode enumNode = node.get("enum");
             if (enumNode.isArray()) {
-                enumNode.forEach(item -> spec.getEnumeration().add(item.asText()));
+                enumNode.forEach(item -> spec.getEnumeration().add(item.asString()));
             }
         }
 
@@ -145,19 +141,19 @@ public class InputParameterDeserializer extends JsonDeserializer<InputParameterS
         }
 
         if (node.has("maxLength")) {
-            spec.setMaxLength(node.get("maxLength").asText());
+            spec.setMaxLength(node.get("maxLength").asString());
         }
 
         if (node.has("contentEncoding")) {
-            spec.setContentEncoding(node.get("contentEncoding").asText());
+            spec.setContentEncoding(node.get("contentEncoding").asString());
         }
 
         if (node.has("contentCompression")) {
-            spec.setContentCompression(node.get("contentCompression").asText());
+            spec.setContentCompression(node.get("contentCompression").asString());
         }
 
         if (node.has("contentMediaType")) {
-            spec.setContentMediaType(node.get("contentMediaType").asText());
+            spec.setContentMediaType(node.get("contentMediaType").asString());
         }
 
         return spec;

@@ -14,8 +14,7 @@
 package io.ikanos.spec.util;
 
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class OperationStepScriptDeserializationTest {
 
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper yamlMapper = IkanosMappers.yaml();
 
     @Test
     void scriptStepShouldDeserializeWithAllProperties() throws Exception {

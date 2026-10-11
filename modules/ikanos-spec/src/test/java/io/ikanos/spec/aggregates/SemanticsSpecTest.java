@@ -15,11 +15,10 @@ package io.ikanos.spec.aggregates;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link SemanticsSpec}.
@@ -64,7 +63,7 @@ public class SemanticsSpecTest {
                 cacheable: false
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         SemanticsSpec spec = mapper.readValue(yaml, SemanticsSpec.class);
 
         assertEquals(Boolean.TRUE, spec.getSafe());

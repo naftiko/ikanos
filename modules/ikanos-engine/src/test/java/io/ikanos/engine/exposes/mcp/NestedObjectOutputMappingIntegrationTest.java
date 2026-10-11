@@ -20,15 +20,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Non-regression test for nested object output mapping.
@@ -42,7 +41,7 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
  */
 public class NestedObjectOutputMappingIntegrationTest {
 
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+    private static final ObjectMapper JSON_MAPPER = IkanosMappers.lenientJson();
 
     private McpServerToolSpec toolSpec;
     private OperationStepExecutor stepExecutor;
@@ -53,8 +52,7 @@ public class NestedObjectOutputMappingIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Test fixture not found: " + resourcePath);
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = yamlMapper.readValue(file, IkanosSpec.class);
 
         Capability capability = new Capability(spec);
@@ -103,9 +101,9 @@ public class NestedObjectOutputMappingIntegrationTest {
         assertNotNull(result, "mapped result must not be null");
 
         JsonNode node = JSON_MAPPER.readTree(result);
-        assertEquals("IMO-9321483", node.path("imo").asText());
-        assertEquals("Northern Star", node.path("name").asText());
-        assertEquals("active", node.path("status").asText());
+        assertEquals("IMO-9321483", node.path("imo").asString());
+        assertEquals("Northern Star", node.path("name").asString());
+        assertEquals("active", node.path("status").asString());
 
         JsonNode specs = node.path("specs");
         assertFalse(specs.isNull(), "specs must not be null");

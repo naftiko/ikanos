@@ -27,15 +27,17 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Preference;
 import org.restlet.representation.Representation;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BinarySize;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.opentelemetry.context.propagation.TextMapSetter;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.core.JacksonException;
 
 /**
  * Stateless MCP {@code 2026-07-28} Streamable HTTP transport over the Restlet client stack.
@@ -59,7 +61,7 @@ public class McpStreamableHttpTransport {
     /** JSON-RPC error code for an unsupported protocol version. */
     public static final int UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final MediaType EVENT_STREAM = MediaType.valueOf("text/event-stream");
 
     /** Longest body excerpt quoted in an HTTP-status error message. */
@@ -104,7 +106,7 @@ public class McpStreamableHttpTransport {
     public JsonNode call(String method, String name, ObjectNode params,
             Map<String, Object> templates) {
         long id = ids.incrementAndGet();
-        ObjectNode meta = params.with("_meta");
+        ObjectNode meta = params.withObjectProperty("_meta");
         meta.put(META_PROTOCOL_VERSION, PROTOCOL_VERSION);
         TelemetryBootstrap.get().getOpenTelemetry().getPropagators().getTextMapPropagator()
                 .inject(OtelRestletBridge.currentContext(), meta, META_SETTER);
@@ -118,7 +120,7 @@ public class McpStreamableHttpTransport {
         Request request = new Request(Method.POST, endpoint);
         try {
             request.setEntity(JSON.writeValueAsString(envelope), MediaType.APPLICATION_JSON);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new McpClientException("Cannot serialize MCP request", e);
         }
         request.getClientInfo().getAcceptedMediaTypes()
@@ -172,7 +174,7 @@ public class McpStreamableHttpTransport {
         if (isJsonRpcError(rpc)) {
             JsonNode error = rpc.get("error");
             int code = error.path("code").asInt();
-            String message = error.path("message").asText("");
+            String message = error.path("message").asString("");
             if (code == UNSUPPORTED_PROTOCOL_VERSION) {
                 throw new McpClientException("Upstream MCP server at " + endpoint
                         + " does not support protocol " + PROTOCOL_VERSION + " (" + message
@@ -219,7 +221,7 @@ public class McpStreamableHttpTransport {
     private static JsonNode parse(String body) {
         try {
             return JSON.readTree(body);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new McpClientException("Upstream MCP response is not JSON", e);
         }
     }

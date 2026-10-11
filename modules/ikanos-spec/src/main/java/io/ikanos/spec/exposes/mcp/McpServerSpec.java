@@ -16,10 +16,9 @@ package io.ikanos.spec.exposes.mcp;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
+import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.exposes.ServerSpec;
 
 /**
@@ -33,7 +32,7 @@ import io.ikanos.spec.exposes.ServerSpec;
  * </ul>
  * Tools, resources, and prompts are keyed by their name (kebab-case identifier).</p>
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class McpServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

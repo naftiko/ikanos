@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
@@ -26,6 +26,7 @@ import java.util.List;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_METHOD;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_NAME;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_PROTOCOL_VERSION;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * A factory class for creating {@link McpCallHandler}s.
@@ -40,7 +41,7 @@ public class McpCallHandlersFactory {
         Integer ttlMs = adapter.getMcpServerSpec().getTtlMs();
         String cacheScope = adapter.getMcpServerSpec().getCacheScope();
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
         DispatchPostProcessor cacheDataAppender = new CacheDataAppender(ttlMs, cacheScope);
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);

@@ -14,7 +14,7 @@
 package io.ikanos.engine.consumes;
 
 import java.io.IOException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Protocol-neutral result of one consumed invocation.

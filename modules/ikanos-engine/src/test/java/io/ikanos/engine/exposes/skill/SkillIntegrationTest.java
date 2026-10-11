@@ -24,14 +24,13 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for the Skill Server Adapter.
@@ -46,7 +45,7 @@ public class SkillIntegrationTest {
 
     private static Capability capability;
     private static SkillServerAdapter skillAdapter;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
     private static String schemaVersion;
 
     @BeforeAll
@@ -54,8 +53,7 @@ public class SkillIntegrationTest {
         File file = new File("src/test/resources/skill-capability.yaml");
         assertTrue(file.exists(), "Skill capability fixture should exist");
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);

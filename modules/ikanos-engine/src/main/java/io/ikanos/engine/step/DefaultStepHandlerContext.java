@@ -15,7 +15,7 @@ package io.ikanos.engine.step;
 
 import java.util.Collections;
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Default immutable implementation of {@link StepHandlerContext}.

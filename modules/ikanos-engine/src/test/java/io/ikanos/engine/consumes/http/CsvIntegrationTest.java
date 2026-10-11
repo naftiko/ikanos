@@ -16,19 +16,18 @@ package io.ikanos.engine.consumes.http;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvSchema;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.csv.CsvMapper;
+import tools.jackson.dataformat.csv.CsvSchema;
+import tools.jackson.databind.node.ArrayNode;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import java.io.File;
 import java.io.InputStream;
-import com.fasterxml.jackson.databind.MappingIterator;
+import tools.jackson.databind.MappingIterator;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class CsvIntegrationTest {
 
@@ -45,14 +44,13 @@ public class CsvIntegrationTest {
 
         assertTrue(file.exists(), "CSV capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         // Initialize capability
         capability = new Capability(spec);
-        jsonMapper = new ObjectMapper();
-        csvMapper = new CsvMapper();
+        jsonMapper = IkanosMappers.lenientJson();
+        csvMapper = CsvMapper.builder().configureForJackson2().build();
         schemaVersion = VersionHelper.getSchemaVersion();
     }
 
@@ -81,10 +79,10 @@ public class CsvIntegrationTest {
         assertEquals(3, arr.size(), "Should have 3 users");
 
         JsonNode first = arr.get(0);
-        assertEquals("1", first.get("id").asText(), "First user ID should be 1");
-        assertEquals("Alice Smith", first.get("name").asText(),
+        assertEquals("1", first.get("id").asString(), "First user ID should be 1");
+        assertEquals("Alice Smith", first.get("name").asString(),
                 "First user name should be Alice Smith");
-        assertEquals("alice@example.com", first.get("email").asText(),
+        assertEquals("alice@example.com", first.get("email").asString(),
                 "First user email should be alice@example.com");
     }
 }

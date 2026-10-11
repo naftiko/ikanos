@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.consumes.http.tunnel;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
@@ -34,7 +35,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY,
+    include = JsonTypeInfo.As.EXISTING_PROPERTY,
     property = "type"
 )
 @JsonSubTypes({
@@ -48,6 +49,7 @@ public abstract class TunnelConfigSpec {
         this(null);
     }
 
+    @JsonCreator
     protected TunnelConfigSpec(String type) {
         this.type = type;
     }

@@ -13,16 +13,17 @@
  */
 package io.ikanos.engine.exposes.mcp.processor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.exception.ProcessorException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.ikanos.spec.util.IkanosMappers;
 
 class CacheDataAppenderTest {
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.json();
     DispatchPostProcessor processor = new CacheDataAppender(300, "public");
 
     @Test
@@ -36,6 +37,6 @@ class CacheDataAppenderTest {
 
         // Then
         assertThat(response.path("result").path("ttlMs").asInt()).isEqualTo(300);
-        assertThat(response.path("result").path("cacheScope").asText()).isEqualTo("public");
+        assertThat(response.path("result").path("cacheScope").asString()).isEqualTo("public");
     }
 }

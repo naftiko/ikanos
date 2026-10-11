@@ -16,11 +16,10 @@ package io.ikanos.spec.exposes.control;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link ControlLogsEndpointSpec} and {@link ControlLogsEndpointSpecDeserializer}.
@@ -59,7 +58,7 @@ public class ControlLogsEndpointSpecTest {
     public void deserializerShouldEnableAllEndpointsWhenYamlValueIsTrue() throws Exception {
         String yaml = "logs: true\n";
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         ControlManagementSpec parent = mapper.readValue(yaml, ControlManagementSpec.class);
         ControlLogsEndpointSpec logs = parent.getLogs();
 
@@ -72,7 +71,7 @@ public class ControlLogsEndpointSpecTest {
     public void deserializerShouldDisableAllEndpointsWhenYamlValueIsFalse() throws Exception {
         String yaml = "logs: false\n";
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         ControlManagementSpec parent = mapper.readValue(yaml, ControlManagementSpec.class);
         ControlLogsEndpointSpec logs = parent.getLogs();
 
@@ -89,7 +88,7 @@ public class ControlLogsEndpointSpecTest {
                   max-subscribers: 3
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         ControlManagementSpec parent = mapper.readValue(yaml, ControlManagementSpec.class);
         ControlLogsEndpointSpec logs = parent.getLogs();
 
@@ -105,7 +104,7 @@ public class ControlLogsEndpointSpecTest {
                   stream: true
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         ControlManagementSpec parent = mapper.readValue(yaml, ControlManagementSpec.class);
         ControlLogsEndpointSpec logs = parent.getLogs();
 

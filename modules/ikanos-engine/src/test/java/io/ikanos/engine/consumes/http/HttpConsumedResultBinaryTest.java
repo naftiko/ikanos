@@ -248,7 +248,7 @@ public class HttpConsumedResultBinaryTest {
         response.setEntity("<root><id>7</id></root>", MediaType.APPLICATION_XML);
         HttpConsumedResult result = resultWith(op("xml", null), response);
 
-        assertEquals("7", result.document().path("id").asText());
+        assertEquals("7", result.document().path("id").asString());
     }
 
     @Test

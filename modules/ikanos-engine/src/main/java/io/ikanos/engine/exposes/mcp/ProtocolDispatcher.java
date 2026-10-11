@@ -13,10 +13,10 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandlersFactory;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
@@ -43,6 +43,7 @@ import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_REQUEST;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.METHOD_NOT_FOUND;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import static org.restlet.Context.getCurrentLogger;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Transport-agnostic MCP JSON-RPC protocol dispatcher.
@@ -84,7 +85,7 @@ public class ProtocolDispatcher {
     }
 
     public ProtocolDispatcher(McpServerAdapter adapter) {
-        this.mapper = new ObjectMapper();
+        this.mapper = IkanosMappers.json();
         this.capabilityName = resolveCapabilityName(adapter);
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
             mcpHandlers.put(handler.getMethodName(), handler);
@@ -118,7 +119,7 @@ public class ProtocolDispatcher {
 
         try {
             JsonNode idNode = request.get("id");
-            String rpcMethod = request.path("method").asText("");
+            String rpcMethod = request.path("method").asString("");
 
             McpCallHandler callHandler = mcpHandlers.get(rpcMethod);
             if (callHandler != null) {
@@ -182,7 +183,7 @@ public class ProtocolDispatcher {
                     "Invalid Request: request body is missing"), INVALID_REQUEST);
         }
 
-        String rpcMethod = request.path("method").asText("");
+        String rpcMethod = request.path("method").asString("");
         Context extractedContext = (httpRequest != null)
                 ? McpMetaTraceContextBridge.extractContext(request, httpRequest)
                 : McpMetaTraceContextBridge.extractContext(request);

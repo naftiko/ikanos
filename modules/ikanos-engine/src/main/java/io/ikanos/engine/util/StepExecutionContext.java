@@ -16,7 +16,7 @@ package io.ikanos.engine.util;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Execution context for orchestrated operation steps.

@@ -17,15 +17,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class OutputMappingExtensionTest {
 
-    private ObjectMapper mapper = new ObjectMapper();
+    private ObjectMapper mapper = IkanosMappers.json();
 
     private JsonNode invokeBuild(OutputParameterSpec spec, JsonNode root) throws Exception {
         return Resolver.resolveOutputMappings(spec, root, mapper);
@@ -38,8 +39,8 @@ public class OutputMappingExtensionTest {
         spec.setValue("CONST_VAL");
 
         JsonNode result = invokeBuild(spec, mapper.readTree("{}"));
-        assertTrue(result.isTextual());
-        assertEquals("CONST_VAL", result.asText());
+        assertTrue(result.isString());
+        assertEquals("CONST_VAL", result.asString());
     }
 
     @Test
@@ -101,10 +102,10 @@ public class OutputMappingExtensionTest {
         JsonNode mapped = invokeBuild(rootSpec, root);
         assertTrue(mapped.isArray());
         assertEquals(2, mapped.size());
-        assertEquals("Alice", mapped.get(0).get("name").asText());
-        assertEquals("Acme", mapped.get(0).get("company").asText());
-        assertEquals("Bob", mapped.get(1).get("name").asText());
-        assertEquals("BetaCo", mapped.get(1).get("company").asText());
+        assertEquals("Alice", mapped.get(0).get("name").asString());
+        assertEquals("Acme", mapped.get(0).get("company").asString());
+        assertEquals("Bob", mapped.get(1).get("name").asString());
+        assertEquals("BetaCo", mapped.get(1).get("company").asString());
     }
 
     @Test
@@ -138,7 +139,7 @@ public class OutputMappingExtensionTest {
         spec.setMaxLength("5");
 
         JsonNode mapped = invokeBuild(spec, root);
-        assertTrue(mapped.isTextual());
-        assertEquals("abcde", mapped.asText());
+        assertTrue(mapped.isString());
+        assertEquals("abcde", mapped.asString());
     }
 }

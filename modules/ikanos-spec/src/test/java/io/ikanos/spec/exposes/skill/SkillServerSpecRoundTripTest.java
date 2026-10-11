@@ -18,12 +18,11 @@ import java.io.File;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Round-trip tests for {@link SkillServerSpec} — YAML deserialization, field validation, and
@@ -40,8 +39,7 @@ public class SkillServerSpecRoundTripTest {
         File file = new File("src/test/resources/skill-capability.yaml");
         assertTrue(file.exists(), "Skill capability test file should exist");
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec = mapper.readValue(file, IkanosSpec.class);
 
         schemaVersion = VersionHelper.getSchemaVersion();
@@ -146,7 +144,7 @@ public class SkillServerSpecRoundTripTest {
 
     @Test
     public void testJsonRoundTrip() throws Exception {
-        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectMapper jsonMapper = IkanosMappers.lenientJson();
 
         // Serialize SkillServerSpec to JSON
         String json = jsonMapper.writeValueAsString(skillSpec);
