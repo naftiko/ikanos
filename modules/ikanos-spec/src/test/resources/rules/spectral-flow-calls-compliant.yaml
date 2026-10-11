@@ -15,7 +15,8 @@ capability:
           get-forecast:
             method: GET
   aggregates:
-  - namespace: vendor
+  - display: vendor flows
+    namespace: vendor
     flows:
       forecast:
         description: Vendor shim, safe because it only reads
@@ -30,7 +31,8 @@ capability:
             summary:
               type: string
               mapping: $.summary
-  - namespace: weather
+  - display: weather flows
+    namespace: weather
     flows:
       get-forecast:
         description: Vendor-neutral flow calling the shim
