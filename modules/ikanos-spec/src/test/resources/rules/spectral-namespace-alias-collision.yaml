@@ -8,7 +8,8 @@ capability:
     import: weather-api
     as: forecast
   aggregates:
-  - namespace: forecast
+  - display: forecast flows
+    namespace: forecast
     flows:
       get:
         description: Same namespace as the imported alias

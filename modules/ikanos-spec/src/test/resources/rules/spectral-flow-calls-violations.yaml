@@ -15,7 +15,8 @@ capability:
           create-invoice:
             method: POST
   aggregates:
-  - namespace: billing
+  - display: billing flows
+    namespace: billing
     flows:
       collide:
         description: Same namespace as the consumed adapter
@@ -23,7 +24,8 @@ capability:
           id:
             type: string
             value: x
-  - namespace: payments
+  - display: payments flows
+    namespace: payments
     flows:
       checkout:
         description: Declares safe but calls a POST operation, and an unknown flow
@@ -36,7 +38,8 @@ capability:
           missing:
             type: call
             call: loop.nope
-  - namespace: loop
+  - display: loop flows
+    namespace: loop
     flows:
       ping:
         description: Calls pong
