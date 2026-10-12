@@ -1,5 +1,5 @@
 # shared/registry-consumes.yaml (final — added get-voyage + cargo resource)
-ikanos: "1.0.0-beta7"
+ikanos: "1.0.0-beta8"
 consumes:
 - namespace: registry
   type: http
