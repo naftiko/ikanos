@@ -49,6 +49,15 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      # Temporary workaround: ubuntu-latest now ships Maven 3.10.0, which breaks
+      # central-publishing-maven-plugin (bundle uploaded without .pom files).
+      # Remove once the plugin supports Maven 3.10.
+      # See https://github.com/actions/runner-images/issues/14904
+      - name: Pin Maven 3.9.16
+        uses: stCarolas/setup-maven@12eb41b233df95d49b0c11fc1b5bc8312e5d4ce0 # v5.1
+        with:
+          maven-version: 3.9.16
+
       - name: Configure Maven Central
         run: bash ./scripts/builder.sh config_maven_central
         env:
