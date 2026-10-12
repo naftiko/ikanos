@@ -4,6 +4,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional image tag to publish (e.g. v1.0.0-beta7). Leave empty to publish only sha-<commit>."
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -35,11 +41,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Tags are only used here to compute the OCI labels (e.g. org.opencontainers.image.version),
+      # so a manual run with a version input gets the same labels as a tag push.
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/ikanos
+          tags: |
+            type=ref,event=tag
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }},priority=1000
+            type=sha,prefix=sha-
 
       - name: Set platform tag suffix
         id: platform
@@ -133,6 +145,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # Tag rules:
+      #  - tag push (v*)            -> sha-<commit>, <git tag>, latest
+      #  - manual run with version  -> sha-<commit>, <version input>, latest
+      #  - manual run without input -> sha-<commit>, latest
       - name: Extract metadata (tags)
         id: meta
         uses: docker/metadata-action@v6
@@ -142,8 +158,9 @@ jobs:
             docker.io/naftiko/ikanos
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=latest
             type=ref,event=tag
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }},priority=1000
+            type=raw,value=latest
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
