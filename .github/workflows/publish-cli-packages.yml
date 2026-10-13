@@ -479,7 +479,7 @@ jobs:
 
           STATUS=000
           if [ "$LISTENING" -eq 1 ]; then
-            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+            STATUS=$(curl -s -o serve-https-outbound.body -w '%{http_code}' --max-time 15 \
               "http://127.0.0.1:$HTTPS_PORT/status" || echo 000)
           fi
 
@@ -487,6 +487,7 @@ jobs:
 
           echo "----- serve-https-outbound.log -----"; cat serve-https-outbound.log
           echo "----- HTTP status: $STATUS -----"
+          echo "----- response body -----"; head -c 500 serve-https-outbound.body 2>/dev/null || true; echo
 
           if grep -E "SSLHandshakeException|NoSuchAlgorithmException|ProviderException|NoClassDefFoundError|ClassNotFoundException" serve-https-outbound.log; then
             echo "FAIL: jlink module set is missing a crypto/outbound-HTTPS module"
@@ -495,6 +496,13 @@ jobs:
           if [ "$LISTENING" -ne 1 ]; then
             echo "FAIL: exposed REST port $HTTPS_PORT never started listening"
             exit 1
+          fi
+          # 403/429 is GitHub's unauthenticated rate limit (60 requests/hour per IP, often
+          # exhausted on shared macOS runners). Getting it back still proves the TLS
+          # handshake succeeded, which is all this step guards.
+          if [ "$STATUS" = "403" ] || [ "$STATUS" = "429" ]; then
+            echo "PASS: TLS handshake succeeded; api.github.com answered $STATUS (rate limit), not a jlink issue"
+            exit 0
           fi
           if [ "$STATUS" != "200" ]; then
             echo "FAIL: outbound HTTPS call returned status $STATUS, expected 200 — jlink image likely missing a TLS/crypto module (jdk.crypto.ec, jdk.crypto.cryptoki, jdk.security.jgss)"
@@ -525,12 +533,15 @@ jobs:
           }
 
           $status = 0
+          $body = ""
           if ($listening) {
             try {
               $response = Invoke-WebRequest -UseBasicParsing -TimeoutSec 15 "http://127.0.0.1:$HTTPS_PORT/status"
               $status = $response.StatusCode
+              $body = $response.Content
             } catch {
               if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+              if ($_.ErrorDetails) { $body = $_.ErrorDetails.Message }
             }
           }
 
@@ -540,6 +551,8 @@ jobs:
           Get-Content serve-https-outbound.log -ErrorAction SilentlyContinue
           Get-Content serve-https-outbound-err.log -ErrorAction SilentlyContinue
           Write-Host "----- HTTP status: $status -----"
+          Write-Host "----- response body -----"
+          if ($body) { Write-Host ($body.Substring(0, [Math]::Min(500, $body.Length))) }
 
           $combined = (Get-Content serve-https-outbound.log, serve-https-outbound-err.log -ErrorAction SilentlyContinue | Out-String)
           if ($combined -match "SSLHandshakeException|NoSuchAlgorithmException|ProviderException|NoClassDefFoundError|ClassNotFoundException") {
@@ -549,6 +562,11 @@ jobs:
           if (-not $listening) {
             Write-Error "FAIL: exposed REST port $HTTPS_PORT never started listening"
             exit 1
+          }
+          # 403/429 is GitHub's unauthenticated rate limit; the TLS handshake still succeeded.
+          if ($status -eq 403 -or $status -eq 429) {
+            Write-Host "PASS: TLS handshake succeeded; api.github.com answered $status (rate limit), not a jlink issue"
+            exit 0
           }
           if ($status -ne 200) {
             Write-Error "FAIL: outbound HTTPS call returned status $status, expected 200 — jlink image likely missing a TLS/crypto module (jdk.crypto.ec, jdk.crypto.cryptoki, jdk.security.jgss)"
