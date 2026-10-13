@@ -45,7 +45,7 @@ import io.ikanos.spec.util.IkanosMappers;
  *
  * <p>The underlying cause: {@link TelemetryBootstrap#populateMdc} was never invoked within the
  * SERVER span scope, so {@code %X{trace_id}} / {@code %X{span_id}} stayed empty. The
- * {@code OpenTelemetryAppender} in {@code logback.xml} only forwards log events to the OTel
+ * {@code OpenTelemetryAppender} in the runtime {@code logback.xml} (now owned by {@code ikanos-cli}, #801) only forwards log events to the OTel
  * pipeline — it does not populate MDC keys for pattern interpolation. As a result, both fields
  * were always empty regardless of whether a span existed.</p>
  */
