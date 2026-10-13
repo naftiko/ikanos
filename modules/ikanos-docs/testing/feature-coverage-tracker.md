@@ -6,7 +6,7 @@ notion_last_sync: 2026-06-26T13:25:14Z
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
-**Last updated**: 2026-08-12
+**Last updated**: 2026-10-13
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 design doc = 1 feature.
 
@@ -172,6 +172,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 37 | Extensions in `ClientCapabilities` / `ServerCapabilities` | PARTIAL | NONE | 1 / 2 | Server half shipped: `ServerDiscoverHandler` emits a `capabilities.extensions` map, populated with `io.modelcontextprotocol/ui` when any tool declares `ui` (`McpAppsIntegrationTest`, in-process dispatch, no booted server). Client half not implemented: no inbound `_meta["io.modelcontextprotocol/clientCapabilities"]` is parsed or negotiated (MCP Apps design doc phase 2, issue [#787](https://github.com/naftiko/ikanos/issues/787)). |
 | 38 | Support for custom headers (consumed/exposed, beyond the fixed MCP header set) | NOT_IMPL | — | no dedicated design doc | Not implemented as a first-class mechanism. Consumed side: arbitrary headers work today only via `inputParameters` with `in: header` (`HttpClientAdapter.setHeaders`) — no dedicated "custom headers" block. Exposed side: `McpHeader` is a closed enum of protocol-reserved headers and `ForwardConfig.trustedHeaders` only allowlists forwarding, neither lets a spec author declare arbitrary custom headers on responses. Base-spec primitive, no design doc of its own. |
 | 39 | MCP Apps (`ui://` views, `_meta.ui`, SEP-1865) | PARTIAL | NONE | 1 / 3 | Phase 1 shipped: tool `ui` (`resourceUri`, `visibility`) → `_meta.ui` in `tools/list`, resource `ui` (CSP, permissions, `domain`, `prefersBorder`) → `_meta.ui` in `resources/list` and `resources/read`, `extensions` advertisement, load-time view validation. `McpAppsIntegrationTest` asserts every emission through in-process dispatch; no booted server or host renders a view. Phase 2 (client-capability filtering of app-only tools) and phase 3 (tutorial, demo) pending. Issue [#787](https://github.com/naftiko/ikanos/issues/787). |
+| 40 | MCP client adapter (`consumes: type: mcp`, stateless Streamable HTTP, `tools/call`) | PARTIAL | JVM | 2 / 4 | Phases 0 (publish `outputSchema` / `structuredContent`, PR [#773](https://github.com/naftiko/ikanos/pull/773)) and 1 shipped: `McpClientAdapter` with body selection, `discovery: verify`, output validation, trace propagation, and the `ikanos-mcp-consumes-endpoint-https` / `ikanos-mcp-consumed-tool-hints` Polychro rules. `McpClientAdapterIntegrationTest` boots a publisher capability and a consumer capability on free ports and drives an Ikanos-to-Ikanos composition over real HTTP, in-process on the JVM. Reference capability: `schemas/examples/capability-mcp-client.yml`. Phase 2 (`ikanos import mcp`) and phase 3 (legacy stateful upstreams, `resources/read`, binary content) pending. Design doc: `mcp-client-adapter.md`, issue [#781](https://github.com/naftiko/ikanos/issues/781). |
 
 > **Note on the `Phases` column.** A numeric count `delivered / total` is the *delivered / total*
 > phases declared in the design doc's roadmap; ranges (e.g. `0–1 / 4`) mean a phase is partially

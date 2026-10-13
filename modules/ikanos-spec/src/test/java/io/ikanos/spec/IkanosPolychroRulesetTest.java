@@ -381,6 +381,49 @@ public class IkanosPolychroRulesetTest {
             "Expected no MCP Apps rule findings for a compliant document.\n" + result.output());
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Consumed MCP rules (consumes type: mcp)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpConsumesEndpointHttpsRuleShouldFireForRemoteHttpAndUserinfoBypass() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-consumes-violations.yaml");
+        assertTrue(result.exitCode() != 0,
+            "Expected consumed MCP violations to fail linting.\n" + result.output());
+        // One finding per offending endpoint: http://example.com and the two userinfo URLs
+        // whose real host is evil.com.
+        long findings = result.output().lines()
+            .filter(line -> line.contains("ikanos-mcp-consumes-endpoint-https"))
+            .count();
+        assertEquals(3, findings,
+            "Expected ikanos-mcp-consumes-endpoint-https on all three endpoints.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpConsumedToolHintsRuleShouldFireWhenConsumedToolHasNoHints() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-consumes-violations.yaml",
+            "warn");
+        long findings = result.output().lines()
+            .filter(line -> line.contains("ikanos-mcp-consumed-tool-hints"))
+            .count();
+        assertEquals(1, findings,
+            "Expected ikanos-mcp-consumed-tool-hints on the one tool without hints.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpConsumesRulesShouldNotFireForHttpsOrLoopbackWithHints() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-consumes-compliant.yaml",
+            "info");
+        assertTrue(!result.output().contains("ikanos-mcp-consumes-endpoint-https"),
+            "Expected no endpoint findings for HTTPS and loopback endpoints.\n"
+                + result.output());
+        assertTrue(!result.output().contains("ikanos-mcp-consumed-tool-hints"),
+            "Expected no hints findings when every consumed tool declares hints.\n"
+                + result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

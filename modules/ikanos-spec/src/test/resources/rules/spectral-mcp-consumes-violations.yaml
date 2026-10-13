@@ -1,0 +1,42 @@
+# Spectral fixture — consumed MCP rules MUST FIRE:
+#   - ikanos-mcp-consumes-endpoint-https, three times:
+#       plain HTTP to a remote host, and two userinfo bypasses whose real host is evil.com
+#   - ikanos-mcp-consumed-tool-hints (tool without hints)
+ikanos: "1.0.0-beta8"
+info:
+  display: "Consumed MCP rules — violations"
+  description: "Fixture that violates each consumed MCP Polychro rule."
+capability:
+  consumes:
+    - type: mcp
+      namespace: remote-plain
+      description: "Remote MCP server over plain HTTP."
+      endpoint: http://example.com/mcp
+      tools:
+        get-invoice:
+          description: Retrieve one invoice
+    - type: mcp
+      namespace: userinfo-localhost
+      description: "Userinfo bypass, the real host is evil.com."
+      endpoint: http://localhost:pw@evil.com/mcp
+      tools:
+        get-invoice:
+          description: Retrieve one invoice
+          hints: { readOnly: true }
+    - type: mcp
+      namespace: userinfo-loopback
+      description: "Userinfo bypass, the real host is evil.com."
+      endpoint: http://127.0.0.1:x@evil.com/mcp
+      tools:
+        get-invoice:
+          description: Retrieve one invoice
+          hints: { readOnly: true }
+  exposes:
+    - type: mcp
+      namespace: billing-mcp
+      port: 3001
+      tools:
+        get-invoice:
+          description: Retrieve one invoice
+          hints: { readOnly: true }
+          call: remote-plain.get-invoice

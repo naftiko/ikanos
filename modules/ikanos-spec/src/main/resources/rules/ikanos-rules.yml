@@ -232,7 +232,7 @@ rules:
     then:
       function: pattern
       functionOptions:
-        match: "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:|/|$))"
+        match: "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?(/|$))"
 
   ikanos-mcp-consumed-tool-hints:
     message: "Each consumed MCP tool should declare `hints`."

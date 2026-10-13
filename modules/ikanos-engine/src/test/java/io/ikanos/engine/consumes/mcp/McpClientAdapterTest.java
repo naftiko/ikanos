@@ -306,6 +306,23 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void httpErrorWithNonJsonRpcJsonBodyShouldReportHttpStatus() throws Exception {
+        for (String body : List.of("{\"error\":\"invalid_token\"}",
+                "{\"error\":\"unauthorized\",\"error_description\":\"Token expired\"}")) {
+            StubClient client = new StubClient();
+            client.answer = req -> json(401, body);
+
+            McpClientException error = assertThrows(McpClientException.class,
+                    () -> adapter(client, "").prepare("get-invoice", Map.of("invoice-id", "1"))
+                            .invoke());
+
+            assertTrue(error.getMessage().contains("HTTP 401"), error.getMessage());
+            assertTrue(error.getMessage().contains(body), error.getMessage());
+            assertFalse(error.getMessage().contains("failed: 0"), error.getMessage());
+        }
+    }
+
+    @Test
     void eventStreamShouldYieldTheResponseMatchingTheRequestId() {
         String sse = """
                 event: message
