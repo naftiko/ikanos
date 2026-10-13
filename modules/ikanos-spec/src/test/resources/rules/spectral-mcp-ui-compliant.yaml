@@ -1,6 +1,6 @@
 # Spectral fixture — MCP Apps rules MUST NOT FIRE:
 #   ui:// view with the mcp-app profile, no connectDomains, tool with outputParameters.
-ikanos: "1.0.0-beta7"
+ikanos: "1.0.0-beta8"
 info:
   display: "MCP Apps rules — compliant"
   description: "Fixture that satisfies every MCP Apps Polychro rule."
