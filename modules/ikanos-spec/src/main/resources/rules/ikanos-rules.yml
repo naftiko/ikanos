@@ -470,12 +470,13 @@ rules:
       import directive from another file. Applies to standalone source files
       (root-level 'exposes' array) and to inline entries under
       'capability.exposes' that declare a 'type' (i.e. local definitions,
-      not import entries — which have 'from' instead).
+      not import entries — which have 'from' instead). Control adapters are
+      skipped: the schema does not allow a 'namespace' on them.
     severity: error
     recommended: true
     given:
-      - "$.exposes[*]"
-      - "$.capability.exposes[?(@.type)]"
+      - "$.exposes[?(@.type != 'control')]"
+      - "$.capability.exposes[?(@.type && @.type != 'control')]"
     then:
       field: "namespace"
       function: truthy

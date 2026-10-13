@@ -257,6 +257,15 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void exposesNamespaceRequiredRuleShouldNotFireForControlExpose() {
+        ProcessResult result = lintFixture(
+            "imports/capability-exposes-control-without-namespace.yaml");
+        assertTrue(!result.output().contains("ikanos-exposes-namespace-required"),
+            "Expected no ikanos-exposes-namespace-required error for a control adapter.\n"
+                + result.output());
+    }
+
+    @Test
     public void aggregatesNamespaceRequiredRuleShouldFireForStandaloneAggregateMissingNamespace() {
         assertRuleFires("imports/aggregates-namespace-missing.yaml",
             "ikanos-aggregates-namespace-required");
