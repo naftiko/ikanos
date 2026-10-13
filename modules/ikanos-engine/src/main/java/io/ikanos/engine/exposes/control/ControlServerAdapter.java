@@ -80,9 +80,13 @@ public class ControlServerAdapter extends ServerAdapter {
         if (isTracesEnabled(observability)) {
             router.attach("/traces", TracesResource.class);
             router.attach("/traces/{traceId}", TracesResource.class);
-            // Wire the span processor so completed spans flow into the ring buffer
-            TelemetryBootstrap.get().registerSpanProcessor(
-                    new TraceCapturingSpanProcessor(traceRingBuffer));
+            // Wire the span processor so completed spans flow into the ring buffer. It implements
+            // the SDK SpanProcessor, so only build it when the optional SDK is active (#800);
+            // TracesResource already answers when it is not.
+            TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+            if (telemetry.isSdkActive()) {
+                telemetry.registerSpanProcessor(new TraceCapturingSpanProcessor(traceRingBuffer));
+            }
         }
 
         Restlet chain = buildServerChain(this.router);
