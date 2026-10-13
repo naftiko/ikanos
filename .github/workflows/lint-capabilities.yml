@@ -1,0 +1,54 @@
+name: Lint Ikanos Capabilities
+
+on:
+  push:
+    paths:
+      - 'modules/ikanos-spec/src/main/resources/schemas/**'
+      - 'modules/ikanos-spec/src/main/resources/rules/**'
+      - 'modules/ikanos-docs/tutorial/**'
+      - 'modules/ikanos-spec/src/test/resources/**'
+      - 'modules/ikanos-engine/src/test/resources/**'
+      - 'scripts/lint-capabilities.sh'
+      - '.github/workflows/lint-capabilities.yml'
+  pull_request:
+    paths:
+      - 'modules/ikanos-spec/src/main/resources/schemas/**'
+      - 'modules/ikanos-spec/src/main/resources/rules/**'
+      - 'modules/ikanos-docs/tutorial/**'
+      - 'modules/ikanos-spec/src/test/resources/**'
+      - 'modules/ikanos-engine/src/test/resources/**'
+      - 'scripts/lint-capabilities.sh'
+      - '.github/workflows/lint-capabilities.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POLYCHRO_VERSION: 1.0.0-beta7
+
+jobs:
+  lint:
+    name: Polychro
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Polychro CLI is downloaded from its release and checked against the
+      # published checksum. The CLI is used directly rather than the Polychro
+      # GitHub Action, so --schema and --ruleset are always passed as flags.
+      - name: Install Polychro
+        run: |
+          base="https://github.com/naftiko/polychro/releases/download/v${POLYCHRO_VERSION}"
+          mkdir -p "$RUNNER_TEMP/polychro"
+          cd "$RUNNER_TEMP/polychro"
+          curl -fsSL -o polychro-cli-linux-amd64 "$base/polychro-cli-linux-amd64"
+          curl -fsSL -o polychro-cli-linux-amd64.sha256 "$base/polychro-cli-linux-amd64.sha256"
+          sha256sum -c polychro-cli-linux-amd64.sha256
+          chmod +x polychro-cli-linux-amd64
+          echo "POLYCHRO=$RUNNER_TEMP/polychro/polychro-cli-linux-amd64" >> "$GITHUB_ENV"
+
+      - name: Lint capabilities (schema + ruleset)
+        run: |
+          "$POLYCHRO" --version
+          scripts/lint-capabilities.sh

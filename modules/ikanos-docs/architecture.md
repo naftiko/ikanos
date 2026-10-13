@@ -117,7 +117,7 @@ The YAML format is defined once, in `modules/ikanos-spec/src/main/resources/sche
 Validation runs **outside** the runtime:
 
 - `ikanos validate` checks a file against the JSON Schema. It builds its validator with `IkanosMetaSchemaFactory`, which teaches the schema library the Ikanos `name` keyword.
-- In CI, the MegaLinter workflow (`.mega-linter.yml`, `.spectral.yaml`) runs the ruleset with Spectral on the tutorial, the examples and the test fixtures. Moving that check to Polychro is tracked in [#382](https://github.com/naftiko/ikanos/issues/382).
+- In CI, the `Lint Ikanos Capabilities` workflow runs `scripts/lint-capabilities.sh`, which checks the tutorial, the examples and the test fixtures with Polychro against both the JSON Schema and the ruleset. Run the same script locally with `POLYCHRO=/path/to/polychro scripts/lint-capabilities.sh`.
 
 The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHelper` reads it from the filtered `version.properties`, and `scripts/sync-schema-version.py` updates the version strings in fixtures and examples at each bump.
 
