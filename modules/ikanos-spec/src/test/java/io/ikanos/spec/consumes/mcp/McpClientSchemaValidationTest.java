@@ -136,4 +136,23 @@ class McpClientSchemaValidationTest {
         assertFalse(validate(capability("\"sometimes\"", "\"fail\"")).isEmpty());
         assertFalse(validate(capability("\"verify\"", "\"maybe\"")).isEmpty());
     }
+
+    @Test
+    void referenceExampleShouldValidateAgainstSchema() throws Exception {
+        String resource = "schemas/examples/capability-mcp-client.yml";
+        try (InputStream in = McpClientSchemaValidationTest.class.getClassLoader()
+                .getResourceAsStream(resource)) {
+            assertNotNull(in, resource + " must be on the classpath");
+            String yaml = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+            Set<ValidationMessage> errors = validate(yaml);
+            assertTrue(errors.isEmpty(), "reference example must validate: " + errors);
+
+            JsonNode mcp = YAML.readTree(yaml).at("/capability/consumes/0");
+            assertEquals("mcp", mcp.path("type").asText());
+            assertTrue(mcp.path("endpoint").asText().startsWith("https://"));
+            assertTrue(mcp.at("/tools/get-invoice/hints").isObject(),
+                    "the consumed tool must declare hints");
+        }
+    }
 }

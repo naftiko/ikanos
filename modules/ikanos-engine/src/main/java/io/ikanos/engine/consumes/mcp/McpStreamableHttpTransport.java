@@ -169,7 +169,7 @@ public class McpStreamableHttpTransport {
             }
         }
 
-        if (rpc != null && rpc.has("error")) {
+        if (isJsonRpcError(rpc)) {
             JsonNode error = rpc.get("error");
             int code = error.path("code").asInt();
             String message = error.path("message").asText("");
@@ -190,6 +190,19 @@ public class McpStreamableHttpTransport {
                     + " returned no JSON-RPC result");
         }
         return rpc.get("result");
+    }
+
+    /**
+     * Whether {@code rpc} carries a JSON-RPC error object with a numeric {@code code}. Gateways
+     * and OAuth proxies often answer a non-2xx with {@code {"error":"invalid_token"}}; a string
+     * {@code error} is not a JSON-RPC error, so the HTTP status is reported instead.
+     */
+    private static boolean isJsonRpcError(JsonNode rpc) {
+        if (rpc == null) {
+            return false;
+        }
+        JsonNode error = rpc.get("error");
+        return error != null && error.isObject() && error.path("code").isIntegralNumber();
     }
 
     /** A short, bounded, single-line excerpt of a response body, or an empty string. */
