@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,8 @@ import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -64,6 +67,7 @@ class FakeAdapterAcceptanceTest {
     @BeforeEach
     void setUp() throws Exception {
         FakeClientAdapter.CALLS.clear();
+        FakeClientAdapter.RELEASED.clear();
         capability = capabilityFromYaml(capabilityYaml());
     }
 
@@ -322,5 +326,98 @@ class FakeAdapterAcceptanceTest {
 
         assertTrue(error.getMessage().contains("Unknown consumes type 'carrier-pigeon'"),
                 "error should name the unknown type: " + error.getMessage());
+    }
+
+    @Test
+    void binaryCallStepFollowedByAnotherCallStepShouldBeReleased() {
+        OperationStepExecutor executor = new OperationStepExecutor(capability);
+        Map<String, OperationStepSpec> steps = new LinkedHashMap<>();
+        steps.put("avatar", new OperationStepCallSpec("avatar", "canned.get-avatar"));
+        steps.put("teams", new OperationStepCallSpec("teams", "canned.list-teams"));
+
+        OperationStepExecutor.StepExecutionResult result = executor.executeSteps(steps, Map.of());
+
+        assertEquals(List.of("get-avatar"), FakeClientAdapter.RELEASED,
+                "the skipped binary body must be released; the last result must stay open");
+        assertEquals("list-teams", result.lastResult.operation().name());
+    }
+
+    @Test
+    void restOperationCallingUnknownOperationShouldFailAtLoad() {
+        String yaml = replaceOnce(capabilityYaml(),
+                "name: get-missing\n              call: canned.get-missing",
+                "name: get-missing\n              call: canned.nope");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capabilityFromYaml(yaml));
+
+        assertEquals("Consumed namespace 'canned' has no operation 'nope' (called from REST "
+                + "operation 'GET /missing' in 'people-rest')", error.getMessage());
+    }
+
+    @Test
+    void mcpToolCallingUnknownOperationShouldFailAtLoad() {
+        String yaml = replaceOnce(capabilityYaml(),
+                "description: Always 404\n          call: canned.get-missing",
+                "description: Always 404\n          call: canned.nope");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capabilityFromYaml(yaml));
+
+        assertEquals("Consumed namespace 'canned' has no operation 'nope' (called from MCP "
+                + "tool 'get-missing' in 'people-mcp')", error.getMessage());
+    }
+
+    @Test
+    void aggregateStepCallingUnknownOperationShouldFailAtLoad() {
+        String yaml = replaceOnce(capabilityYaml(), "call: canned.list-teams",
+                "call: canned.nope");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capabilityFromYaml(yaml));
+
+        assertEquals("Consumed namespace 'canned' has no operation 'nope' (called from "
+                + "aggregate 'people' flow 'user-with-team' step 'teams')", error.getMessage());
+    }
+
+    @Test
+    void forwardToNonHttpConsumedAdapterShouldFailAtLoad() {
+        String yaml = withForwardResource("canned");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capabilityFromYaml(yaml));
+
+        assertEquals("Forward target namespace 'canned' of REST resource '/proxy' in "
+                + "'people-rest' is a consumed adapter of type 'fake'. Forward mode needs a "
+                + "consumed adapter of type 'http'.", error.getMessage());
+    }
+
+    @Test
+    void forwardToUndeclaredNamespaceShouldFailAtLoad() {
+        String yaml = withForwardResource("elsewhere");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capabilityFromYaml(yaml));
+
+        assertEquals("Forward target namespace 'elsewhere' of REST resource '/proxy' in "
+                + "'people-rest' is not a consumed namespace. Forward mode needs a consumed "
+                + "adapter of type 'http'.", error.getMessage());
+    }
+
+    private static String withForwardResource(String targetNamespace) {
+        return replaceOnce(capabilityYaml(), "        - path: /missing\n",
+                "        - path: /proxy\n"
+                        + "          name: proxy\n"
+                        + "          forward:\n"
+                        + "            targetNamespace: " + targetNamespace + "\n"
+                        + "        - path: /missing\n");
+    }
+
+    /** Replace exactly one occurrence, failing loudly if the fixture anchor drifted. */
+    private static String replaceOnce(String source, String target, String replacement) {
+        int first = source.indexOf(target);
+        assertTrue(first >= 0 && source.indexOf(target, first + 1) < 0,
+                "fixture anchor must occur exactly once: " + target);
+        return source.replace(target, replacement);
     }
 }

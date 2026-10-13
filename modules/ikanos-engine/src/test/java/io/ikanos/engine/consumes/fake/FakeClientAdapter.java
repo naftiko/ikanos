@@ -45,6 +45,9 @@ public class FakeClientAdapter extends ClientAdapter {
     /** Parameters of every invocation, across all fake adapters, in call order. */
     public static final List<Map<String, Object>> CALLS = new CopyOnWriteArrayList<>();
 
+    /** Operation names of every result whose {@link ConsumedResult#release()} was called. */
+    public static final List<String> RELEASED = new CopyOnWriteArrayList<>();
+
     public FakeClientAdapter(Capability capability, FakeClientSpec spec) {
         super(capability, spec);
     }
@@ -90,6 +93,11 @@ public class FakeClientAdapter extends ClientAdapter {
                 return new FakeResult(view, status, body, mediaType);
             }
         };
+    }
+
+    @Override
+    public boolean declaresOperation(String operationName) {
+        return fakeSpec().getOperations().containsKey(operationName);
     }
 
     @Override
@@ -166,6 +174,11 @@ public class FakeClientAdapter extends ClientAdapter {
         @Override
         public ConsumedOperationView operation() {
             return operation;
+        }
+
+        @Override
+        public void release() {
+            RELEASED.add(operation.name());
         }
     }
 }

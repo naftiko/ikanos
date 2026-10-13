@@ -155,6 +155,11 @@ public class HttpClientAdapter extends ClientAdapter {
         return null;
     }
 
+    @Override
+    public boolean declaresOperation(String operationName) {
+        return getOperationSpec(operationName) != null;
+    }
+
     /**
      * Build a Restlet request for one consumed operation: URI templating, client- and
      * operation-level input parameters, body, authentication and default headers.

@@ -77,4 +77,20 @@ public abstract class ClientAdapter extends Adapter {
     public abstract ConsumedInvocation prepare(String operationName,
             Map<String, Object> parameters);
 
+    /**
+     * Whether this adapter declares an operation with the given name. Used at load time to
+     * reject a {@code call:} that names an operation the consumed namespace does not declare,
+     * instead of failing on the first request.
+     *
+     * <p>The default returns {@code true}: an adapter that cannot enumerate its operations is
+     * not checked at load time, and an unknown operation still fails in
+     * {@link #prepare(String, Map)}.</p>
+     *
+     * @param operationName the operation name as written after the namespace in {@code call:}
+     * @return {@code false} only when the adapter knows it declares no such operation
+     */
+    public boolean declaresOperation(String operationName) {
+        return true;
+    }
+
 }

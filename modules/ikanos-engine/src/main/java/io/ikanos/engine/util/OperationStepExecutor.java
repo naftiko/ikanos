@@ -227,6 +227,15 @@ public class OperationStepExecutor {
                             .startStepCallSpan(stepIndex, callStep.getCall(), exposeNamespace);
                     long stepStartNanos = System.nanoTime();
                     try (Scope stepScope = stepSpan.makeCurrent()) {
+                        // The previous call step's result is replaced here and nothing reads it
+                        // afterwards: its JSON output, if any, is already in the step context.
+                        // A binary body was never read, so release it explicitly rather than
+                        // leaving the upstream entity open. Harmless for an already-read body.
+                        if (lastResult != null) {
+                            lastResult.release();
+                            lastResult = null;
+                        }
+
                         ConsumedInvocation invocation =
                                 executeCallStep(callStep, runtimeParameters);
 
@@ -565,8 +574,9 @@ public class OperationStepExecutor {
      *
      * @return the prepared invocation, or {@code null} when no consumed adapter declares
      *         {@code clientNamespace}
-     * @throws IllegalArgumentException when the namespace exists but declares no such operation,
-     *         or when templates cannot be resolved
+     * @throws IllegalArgumentException when the namespace exists but declares no such operation
+     *         (normally rejected at load time by {@code ConsumedReferenceValidator}), or when
+     *         templates cannot be resolved
      */
     public ConsumedInvocation findClientRequestFor(String clientNamespace, String clientOpName,
             Map<String, Object> parameters) {
