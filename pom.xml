@@ -532,7 +532,9 @@
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>true</autoPublish>
-                            <waitUntil>published</waitUntil>
+                            <!-- validated only: publication is triggered by autoPublish but not awaited.
+                                 Check the deployment status on https://central.sonatype.com/publishing/deployments -->
+                            <waitUntil>validated</waitUntil>
                         </configuration>
                     </plugin>
                     <plugin>
