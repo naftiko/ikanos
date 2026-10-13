@@ -76,7 +76,6 @@ jobs:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          MAVEN_OPTS: "-Dcentral.publishing.waitUntil=validated"
 
       - name: Cleanup
         if: always()
