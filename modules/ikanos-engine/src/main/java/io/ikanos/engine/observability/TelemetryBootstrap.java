@@ -58,6 +58,12 @@ public class TelemetryBootstrap {
      */
     public static final String MDC_SPAN_ID = "span_id";
 
+    /**
+     * SLF4J MDC key for the agent behind the current MCP request, when the adapter's
+     * {@code trust} block resolves one (issue #483).
+     */
+    public static final String MDC_AGENT_ID = "agent_id";
+
     public static final AttributeKey<String> ATTR_ADAPTER_TYPE = AttributeKey.stringKey("ikanos.adapter.type");
     public static final AttributeKey<String> ATTR_CAPABILITY = AttributeKey.stringKey("ikanos.capability");
     public static final AttributeKey<String> ATTR_OPERATION_ID = AttributeKey.stringKey("ikanos.operation.id");
@@ -71,6 +77,8 @@ public class TelemetryBootstrap {
     public static final AttributeKey<String> ATTR_HTTP_URL = AttributeKey.stringKey("url.full");
     public static final AttributeKey<Long> ATTR_HTTP_STATUS_CODE = AttributeKey.longKey("http.response.status_code");
     public static final AttributeKey<String> ATTR_AGGREGATE_REF = AttributeKey.stringKey("ikanos.aggregate.ref");
+    public static final AttributeKey<String> ATTR_AGENT_ID = AttributeKey.stringKey("ikanos.agent.id");
+    public static final AttributeKey<String> ATTR_AGENT_ID_SOURCE = AttributeKey.stringKey("ikanos.agent.id.source");
 
     private static final TelemetryBootstrap NOOP = new TelemetryBootstrap(OpenTelemetry.noop());
 
@@ -432,6 +440,22 @@ public class TelemetryBootstrap {
     }
 
     /**
+     * Records the agent behind the current request on {@code span} ({@link #ATTR_AGENT_ID},
+     * {@link #ATTR_AGENT_ID_SOURCE}) and in the MDC ({@link #MDC_AGENT_ID}). Cleared by
+     * {@link #clearMdc()}.
+     */
+    public static void recordAgentIdentity(Span span, String agentId, String source) {
+        if (agentId == null) return;
+        if (span != null) {
+            span.setAttribute(ATTR_AGENT_ID, agentId);
+            if (source != null) {
+                span.setAttribute(ATTR_AGENT_ID_SOURCE, source);
+            }
+        }
+        MDC.put(MDC_AGENT_ID, agentId);
+    }
+
+    /**
      * Populates the SLF4J MDC with {@code trace_id} and {@code span_id} from the given span so
      * that Logback pattern tokens {@code %X{trace_id}} and {@code %X{span_id}} are non-empty in
      * log lines emitted during the span's lifetime.
@@ -457,5 +481,6 @@ public class TelemetryBootstrap {
     public static void clearMdc() {
         MDC.remove(MDC_TRACE_ID);
         MDC.remove(MDC_SPAN_ID);
+        MDC.remove(MDC_AGENT_ID);
     }
 }

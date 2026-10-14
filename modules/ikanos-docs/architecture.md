@@ -282,6 +282,14 @@ All server adapters extend `ServerAdapter`, which owns the Restlet `Server` life
 
 Authentication runs **before** any protocol handling: an unauthenticated request never reaches the MCP dispatcher or a REST operation.
 
+**Agent identity (MCP over HTTP).** The MCP adapter's optional `trust` block says how it learns which agent is calling, so the identity can be recorded ([#483](https://github.com/naftiko/ikanos/issues/483)). `AgentIdentityResolver` runs once per request, in `ProtocolDispatcher.dispatchWithTracing`:
+
+- no block, or `mode: none`: no identity.
+- `forwarded`: the gateway's header (`agentIdentityHeader`, else the `sub` of `claimsHeader`), only when the direct peer address (`ClientInfo.getAddress()`, never `X-Forwarded-For`) is in `trustedNetworks` (`CidrRange`). From any other peer the headers are ignored and a warning is logged.
+- `verify`: the `sub` (else `client_id`) of the token that `OAuth2AuthenticationRestlet` validated. It hands the claims over in the `VALIDATED_CLAIMS_ATTRIBUTE` request attribute, so the token is not parsed twice.
+
+The identity is for audit only: it never authorizes a request and is never forwarded to consumed APIs. Stdio has no peer or headers, so the schema does not allow `trust` there.
+
 | Adapter | Where its routes are defined | Notes |
 |---|---|---|
 | `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`), annotations from hints, and an output schema when the tool has an output contract. |
@@ -305,6 +313,8 @@ Incoming trace context is read per adapter:
 - **REST** and **Skill** read the `traceparent` header (`OtelRestletBridge`).
 
 Outgoing, trace context is injected into upstream requests. The trace id is also put in the logging MDC and used as the `ErrorReference`, so a reference returned to a client finds both the log line and the trace (`/traces/{traceId}` on the control port).
+
+When the MCP adapter resolves an agent identity (see [Exposes](#exposes-the-server-adapters)), it is set on the entry span (`ikanos.agent.id`, `ikanos.agent.id.source`) and in the MDC (`agent_id`), so traces and logs show which agent made the call.
 
 Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
 

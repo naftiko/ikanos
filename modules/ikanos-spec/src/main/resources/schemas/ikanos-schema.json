@@ -1127,6 +1127,10 @@
           "$ref": "#/$defs/Authentication",
           "description": "Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Use `oauth2` for standards-compliant MCP authorization servers."
         },
+        "trust": {
+          "$ref": "#/$defs/McpTrust",
+          "description": "How this adapter learns which agent is calling, to record it on traces and logs. Omitted means mode `none`. Not allowed with `transport: stdio`."
+        },
         "tools": {
           "type": "object",
           "propertyNames": {
@@ -1177,8 +1181,17 @@
             "transport"
           ],
           "not": {
-            "required": [
-              "port"
+            "anyOf": [
+              {
+                "required": [
+                  "port"
+                ]
+              },
+              {
+                "required": [
+                  "trust"
+                ]
+              }
             ]
           }
         },
@@ -1191,6 +1204,132 @@
           "required": [
             "port"
           ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "trust": {
+                "properties": {
+                  "mode": {
+                    "const": "verify"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
+            },
+            "required": [
+              "trust"
+            ]
+          },
+          "then": {
+            "properties": {
+              "authentication": {
+                "properties": {
+                  "type": {
+                    "const": "oauth2"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "authentication"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "McpTrust": {
+      "type": "object",
+      "description": "Agent identity trust for an HTTP MCP adapter. The identity is recorded on traces and logs for audit only: it never authorizes a request and is never forwarded to consumed APIs.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "forwarded",
+            "verify",
+            "none"
+          ],
+          "description": "`forwarded`: read the identity from a header set by a trusted gateway, only when the direct peer address is in `trustedNetworks`. `verify`: take the identity from the token validated by `authentication: oauth2` (required). `none`: do not record an agent identity."
+        },
+        "agentIdentityHeader": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]+$",
+          "description": "Header carrying the agent identity, e.g. `X-Agent-Id`. `forwarded` mode only."
+        },
+        "trustedNetworks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f:.]+/[0-9]{1,3}$",
+            "description": "An IPv4 or IPv6 network in CIDR notation, e.g. `10.0.0.0/8` or `fd00::/8`."
+          },
+          "minItems": 1,
+          "description": "Networks whose direct peers may set forwarded identity headers. `X-Forwarded-For` is never used for this check. `forwarded` mode only."
+        },
+        "claimsHeader": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]+$",
+          "description": "Header carrying base64-encoded JWT claims (JSON) from the gateway. Its `sub` is used when `agentIdentityHeader` is absent from the request. Read as data only, never validated as a token. `forwarded` mode only."
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "forwarded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "trustedNetworks"
+            ],
+            "anyOf": [
+              {
+                "required": [
+                  "agentIdentityHeader"
+                ]
+              },
+              {
+                "required": [
+                  "claimsHeader"
+                ]
+              }
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "agentIdentityHeader"
+                  ]
+                },
+                {
+                  "required": [
+                    "trustedNetworks"
+                  ]
+                },
+                {
+                  "required": [
+                    "claimsHeader"
+                  ]
+                }
+              ]
+            }
+          }
         }
       ],
       "additionalProperties": false

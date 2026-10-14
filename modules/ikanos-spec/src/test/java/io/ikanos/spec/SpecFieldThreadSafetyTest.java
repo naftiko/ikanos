@@ -38,6 +38,7 @@ import io.ikanos.spec.exposes.control.ControlManagementSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerStepSpec;
@@ -90,6 +91,7 @@ class SpecFieldThreadSafetyTest {
                 ControlManagementSpec.class,
                 McpServerResourceSpec.class,
                 McpServerToolSpec.class,
+                McpTrustSpec.class,
                 RestServerResourceSpec.class,
                 RestServerOperationSpec.class,
                 RestServerStepSpec.class,

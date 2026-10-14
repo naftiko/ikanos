@@ -2,18 +2,20 @@
   <!-- Forwards log events (with their MDC attributes) to the OTel log pipeline.
        This appender does NOT populate the MDC: TelemetryBootstrap.populateMdc() is what makes
        %X{trace_id} and %X{span_id} in the pattern below non-empty (see issue #548).
+       agent_id is set when an MCP adapter's `trust` block resolves the calling agent (issue #483);
+       the console pattern prints it only when present.
        See: https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/logback/logback-appender-1.0 -->
   <appender name="OpenTelemetry"
             class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
     <captureExperimentalAttributes>false</captureExperimentalAttributes>
     <!-- Least-privilege: export only the correlation keys we own, never arbitrary third-party
          MDC data that embedding applications may set (issue #548 review). -->
-    <captureMdcAttributes>trace_id,span_id</captureMdcAttributes>
+    <captureMdcAttributes>trace_id,span_id,agent_id</captureMdcAttributes>
   </appender>
 
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-      <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - traceId=%X{trace_id} spanId=%X{span_id} - %msg%n</pattern>
+      <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - traceId=%X{trace_id} spanId=%X{span_id}%replace( agentId=%X{agent_id}){' agentId=$', ''} - %msg%n</pattern>
     </encoder>
   </appender>
   <root level="INFO">

@@ -91,6 +91,44 @@ class OAuth2AuthenticationRestletTest {
     }
 
     @Test
+    void handleShouldExposeValidatedClaimsToTheNextRestlet() throws Exception {
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec(), new TrackingRestlet());
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp")
+                .subject("agent-42")
+                .expirationTime(futureDate())
+                .build());
+
+        Request request = bearerRequest(token);
+        restlet.handle(request, new Response(request));
+
+        Object claims = request.getAttributes().get(
+                OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
+        assertTrue(claims instanceof JWTClaimsSet, "Validated claims should be on the request");
+        assertEquals("agent-42", ((JWTClaimsSet) claims).getSubject());
+    }
+
+    @Test
+    void handleShouldNotExposeClaimsOfARejectedToken() throws Exception {
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec());
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://gateway.example.com")
+                .subject("agent-42")
+                .expirationTime(futureDate())
+                .build());
+
+        Request request = bearerRequest(token);
+        restlet.handle(request, new Response(request));
+
+        assertFalse(request.getAttributes().containsKey(
+                OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE));
+    }
+
+    @Test
     void handleShouldRejectExpiredJwt() throws Exception {
         OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec());
 
