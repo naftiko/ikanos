@@ -14,6 +14,7 @@
 package io.ikanos.spec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -257,10 +258,18 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void exposesNamespaceRequiredRuleShouldNotFireForControlExpose() {
+    public void exposesNamespaceRequiredRuleShouldNotFireForStandaloneControlExpose() {
+        ProcessResult result = lintFixture("imports/exposes-control-without-namespace.yaml");
+        assertFalse(result.output().contains("ikanos-exposes-namespace-required"),
+            "Expected no ikanos-exposes-namespace-required error for a standalone control "
+                + "adapter.\n" + result.output());
+    }
+
+    @Test
+    public void exposesNamespaceRequiredRuleShouldNotFireForCapabilityControlExpose() {
         ProcessResult result = lintFixture(
             "imports/capability-exposes-control-without-namespace.yaml");
-        assertTrue(!result.output().contains("ikanos-exposes-namespace-required"),
+        assertFalse(result.output().contains("ikanos-exposes-namespace-required"),
             "Expected no ikanos-exposes-namespace-required error for a control adapter.\n"
                 + result.output());
     }
