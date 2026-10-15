@@ -77,8 +77,12 @@ public class TelemetryBootstrap {
     public static final AttributeKey<String> ATTR_HTTP_URL = AttributeKey.stringKey("url.full");
     public static final AttributeKey<Long> ATTR_HTTP_STATUS_CODE = AttributeKey.longKey("http.response.status_code");
     public static final AttributeKey<String> ATTR_AGGREGATE_REF = AttributeKey.stringKey("ikanos.aggregate.ref");
-    public static final AttributeKey<String> ATTR_AGENT_ID = AttributeKey.stringKey("ikanos.agent.id");
+    /** The calling agent, following the OpenTelemetry GenAI semantic conventions (issue #483). */
+    public static final AttributeKey<String> ATTR_AGENT_ID = AttributeKey.stringKey("gen_ai.agent.id");
+    /** How the agent id was obtained: {@code forwarded} (asserted) or {@code verified} (token). */
     public static final AttributeKey<String> ATTR_AGENT_ID_SOURCE = AttributeKey.stringKey("ikanos.agent.id.source");
+    /** Who presented the agent's token (RFC 8693 {@code act}), e.g. a token-exchanging gateway. */
+    public static final AttributeKey<String> ATTR_AGENT_ACTOR_ID = AttributeKey.stringKey("ikanos.agent.actor.id");
 
     private static final TelemetryBootstrap NOOP = new TelemetryBootstrap(OpenTelemetry.noop());
 
@@ -441,15 +445,19 @@ public class TelemetryBootstrap {
 
     /**
      * Records the agent behind the current request on {@code span} ({@link #ATTR_AGENT_ID},
-     * {@link #ATTR_AGENT_ID_SOURCE}) and in the MDC ({@link #MDC_AGENT_ID}). Cleared by
-     * {@link #clearMdc()}.
+     * {@link #ATTR_AGENT_ID_SOURCE}, and {@link #ATTR_AGENT_ACTOR_ID} when an actor is known) and
+     * in the MDC ({@link #MDC_AGENT_ID}). Cleared by {@link #clearMdc()}.
      */
-    public static void recordAgentIdentity(Span span, String agentId, String source) {
+    public static void recordAgentIdentity(Span span, String agentId, String source,
+            String actorId) {
         if (agentId == null) return;
         if (span != null) {
             span.setAttribute(ATTR_AGENT_ID, agentId);
             if (source != null) {
                 span.setAttribute(ATTR_AGENT_ID_SOURCE, source);
+            }
+            if (actorId != null) {
+                span.setAttribute(ATTR_AGENT_ACTOR_ID, actorId);
             }
         }
         MDC.put(MDC_AGENT_ID, agentId);

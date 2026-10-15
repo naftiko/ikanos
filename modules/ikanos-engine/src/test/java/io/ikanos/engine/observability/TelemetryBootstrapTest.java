@@ -516,4 +516,41 @@ public class TelemetryBootstrapTest {
                 "Late-registered processor should receive spans");
         assertEquals("rest.request", lateExporter.getFinishedSpanItems().get(0).getName());
     }
+
+    // ── Agent identity (issue #483) ──
+
+    @Test
+    void agentIdAttributeShouldFollowTheOtelGenAiConvention() {
+        assertEquals("gen_ai.agent.id", TelemetryBootstrap.ATTR_AGENT_ID.getKey());
+    }
+
+    @Test
+    void recordAgentIdentityShouldSetIdSourceAndActorOnSpan() {
+        initWithInMemoryExporter();
+        Span span = TelemetryBootstrap.get().startServerSpan("mcp", "tools/call",
+                null, null, "my-capability");
+        TelemetryBootstrap.recordAgentIdentity(span, "agent-42", "verified", "gateway-1");
+        span.end();
+        TelemetryBootstrap.clearMdc();
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertEquals("agent-42", stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGENT_ID));
+        assertEquals("verified",
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGENT_ID_SOURCE));
+        assertEquals("gateway-1",
+            stringAttribute(data.getAttributes(), TelemetryBootstrap.ATTR_AGENT_ACTOR_ID));
+    }
+
+    @Test
+    void recordAgentIdentityShouldLeaveActorUnsetWhenAbsent() {
+        initWithInMemoryExporter();
+        Span span = TelemetryBootstrap.get().startServerSpan("mcp", "tools/call",
+                null, null, "my-capability");
+        TelemetryBootstrap.recordAgentIdentity(span, "agent-42", "forwarded", null);
+        span.end();
+        TelemetryBootstrap.clearMdc();
+
+        assertNull(stringAttribute(exporter.getFinishedSpanItems().get(0).getAttributes(),
+            TelemetryBootstrap.ATTR_AGENT_ACTOR_ID));
+    }
 }

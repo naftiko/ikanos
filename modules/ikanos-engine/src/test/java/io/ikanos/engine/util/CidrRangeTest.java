@@ -97,4 +97,20 @@ class CidrRangeTest {
     void parseShouldRejectNull() {
         assertThrows(IllegalArgumentException.class, () -> CidrRange.parse(null));
     }
+
+    @Test
+    void containsShouldReadAnIpv4MappedNetworkPrefixAsIpv6Bits() {
+        CidrRange range = CidrRange.parse("::ffff:10.0.0.0/104");
+        assertTrue(range.contains("10.1.2.3"));
+        assertTrue(range.contains("::ffff:10.200.0.1"));
+        assertFalse(range.contains("11.0.0.1"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"::ffff:0.0.0.0/0", "::ffff:10.0.0.0/8", "::ffff:10.0.0.0/95"})
+    void parseShouldRejectIpv4MappedNetworkShorterThanTheMappedPrefix(String cidr) {
+        // Folding these into an IPv4 range would trust far more than written: /0 would be
+        // every IPv4 peer (issue #483 review).
+        assertThrows(IllegalArgumentException.class, () -> CidrRange.parse(cidr));
+    }
 }

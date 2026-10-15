@@ -1,0 +1,28 @@
+---
+# Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
+#
+# ::ffff:0.0.0.0/96 is every IPv4 peer, written as IPv4-mapped IPv6.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "MCP trust — every IPv4-mapped address trusted"
+  description: "Fixture for the MCP trust network rules (issue #483)."
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 3001
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["::ffff:0.0.0.0/96"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

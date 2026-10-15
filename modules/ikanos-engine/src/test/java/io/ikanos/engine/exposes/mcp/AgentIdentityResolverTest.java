@@ -17,11 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.data.Method;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -33,7 +33,6 @@ class AgentIdentityResolverTest {
     private static McpTrustSpec forwarded() {
         McpTrustSpec trust = new McpTrustSpec(McpTrustSpec.MODE_FORWARDED);
         trust.setAgentIdentityHeader("X-Agent-Id");
-        trust.setClaimsHeader("X-Forwarded-Claims");
         trust.setTrustedNetworks(List.of("10.0.0.0/8"));
         return trust;
     }
@@ -42,11 +41,6 @@ class AgentIdentityResolverTest {
         Request request = new Request(Method.POST, "http://localhost/mcp");
         request.getClientInfo().setAddress(peer);
         return request;
-    }
-
-    private static String encodedClaims(String json) {
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -94,26 +88,60 @@ class AgentIdentityResolverTest {
     }
 
     @Test
-    void resolveShouldFallBackToClaimsSubjectWhenHeaderIsAbsent() {
-        Request request = request("10.0.3.7");
-        request.getHeaders().add("X-Forwarded-Claims",
-                encodedClaims("{\"sub\":\"agent-7\",\"team\":\"support\"}"));
-        assertEquals("agent-7",
-                new AgentIdentityResolver(forwarded()).resolve(request).orElseThrow().id());
-    }
-
-    @Test
-    void resolveShouldPreferIdentityHeaderOverClaims() {
-        Request request = request("10.0.3.7");
+    void resolveShouldTrustIpv4MappedIpv6PeerInsideAnIpv4Network() {
+        Request request = request("::ffff:10.0.3.7");
         request.getHeaders().add("X-Agent-Id", "agent-42");
-        request.getHeaders().add("X-Forwarded-Claims", encodedClaims("{\"sub\":\"agent-7\"}"));
         assertEquals("agent-42",
                 new AgentIdentityResolver(forwarded()).resolve(request).orElseThrow().id());
     }
 
     @Test
+    void resolveShouldIgnoreIdentityHeaderSentMoreThanOnce() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42");
+        request.getHeaders().add("X-Agent-Id", "admin");
+        assertTrue(new AgentIdentityResolver(forwarded()).resolve(request).isEmpty(),
+                "Two identity headers mean the gateway did not overwrite the client's one");
+    }
+
+    @Test
+    void resolveShouldIgnoreIdentityHeaderSentMoreThanOnceInAnyCase() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42");
+        request.getHeaders().add("x-agent-id", "admin");
+        assertTrue(new AgentIdentityResolver(forwarded()).resolve(request).isEmpty());
+    }
+
+    @Test
     void resolveShouldReturnEmptyWhenTrustedPeerSendsNoIdentity() {
         assertTrue(new AgentIdentityResolver(forwarded()).resolve(request("10.0.3.7")).isEmpty());
+    }
+
+    @Test
+    void resolveShouldDropIdentityWithCarriageReturnLineFeed() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42\r\nX-Injected: forged");
+        assertTrue(new AgentIdentityResolver(forwarded()).resolve(request).isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"agent 42", "agent\"42", "agent<42>", "ag\u00e9nt", "agent;42",
+            "agent,admin", "agent\\42"})
+    void resolveShouldDropIdentityWithCharactersOutsideTheAllowlist(String value) {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", value);
+        assertTrue(new AgentIdentityResolver(forwarded()).resolve(request).isEmpty(),
+                "Expected '" + value + "' to be rejected");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"spiffe://cluster.local/ns/support/sa/bot",
+            "bot@support.example.com", "agent_42.v2", "a:b+c=d~e-f"})
+    void resolveShouldAcceptIdentityMadeOfAllowedCharacters(String value) {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", value);
+        assertEquals(value,
+                new AgentIdentityResolver(forwarded()).resolve(request).orElseThrow().id());
     }
 
     @Test
@@ -146,6 +174,28 @@ class AgentIdentityResolverTest {
     }
 
     @Test
+    void resolveShouldRecordTokenActorInVerifyMode() {
+        Request request = request("85.12.4.9");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().subject("agent-42")
+                        .claim("act", java.util.Map.of("sub", "gateway-1")).build());
+        AgentIdentity identity =
+                new AgentIdentityResolver(new McpTrustSpec(McpTrustSpec.MODE_VERIFY))
+                        .resolve(request).orElseThrow();
+        assertEquals("agent-42", identity.id());
+        assertEquals("gateway-1", identity.actor());
+    }
+
+    @Test
+    void resolveShouldIgnoreActClaimThatIsNotAnObjectWithSubject() {
+        Request request = request("85.12.4.9");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().subject("agent-42").claim("act", "gateway-1").build());
+        assertNull(new AgentIdentityResolver(new McpTrustSpec(McpTrustSpec.MODE_VERIFY))
+                .resolve(request).orElseThrow().actor());
+    }
+
+    @Test
     void resolveShouldIgnoreHeadersInVerifyMode() {
         Request request = request("10.0.3.7");
         request.getHeaders().add("X-Agent-Id", "agent-42");
@@ -169,9 +219,8 @@ class AgentIdentityResolverTest {
     }
 
     @Test
-    void subjectFromClaimsShouldReturnNullOnMalformedPayload() {
-        assertNull(AgentIdentityResolver.subjectFromClaims("%%%not-base64%%%"));
-        assertNull(AgentIdentityResolver.subjectFromClaims(encodedClaims("[1,2,3]")));
-        assertNull(AgentIdentityResolver.subjectFromClaims(encodedClaims("{\"sub\":42}")));
+    void sanitizeShouldKeepValueAtTheLengthLimit() {
+        String value = "a".repeat(AgentIdentityResolver.MAX_IDENTITY_LENGTH);
+        assertEquals(value, AgentIdentityResolver.sanitize(value));
     }
 }

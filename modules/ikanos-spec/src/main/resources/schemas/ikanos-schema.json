@@ -1257,27 +1257,22 @@
             "verify",
             "none"
           ],
-          "description": "`forwarded`: read the identity from a header set by a trusted gateway, only when the direct peer address is in `trustedNetworks`. `verify`: take the identity from the token validated by `authentication: oauth2` (required). `none`: do not record an agent identity."
+          "description": "`forwarded`: the gateway in front of this adapter is the authentication boundary. The identity is read from `agentIdentityHeader`, and a direct peer outside `trustedNetworks` is refused with HTTP 403 before any MCP handling. There is no mixed mode: for direct, gateway-free access, expose a separate MCP adapter with its own `authentication` and `trust`. Pair `forwarded` with `authentication` so the gateway itself is also authenticated (recommended). `verify`: take the identity from the token validated by `authentication: oauth2` (required). `none`: do not record an agent identity (same as omitting `trust`)."
         },
         "agentIdentityHeader": {
           "type": "string",
           "pattern": "^[A-Za-z0-9-]+$",
-          "description": "Header carrying the agent identity, e.g. `X-Agent-Id`. `forwarded` mode only."
+          "description": "Header carrying the agent identity, e.g. `X-Agent-Id`. The gateway MUST overwrite or remove any value of this header sent by the agent: Ikanos cannot tell a value the gateway set from one it passed through. A value that is sent more than once, is longer than 256 characters, or contains characters other than letters, digits and `. _ ~ : @ / + = -` is ignored. `forwarded` mode only."
         },
         "trustedNetworks": {
           "type": "array",
           "items": {
             "type": "string",
             "pattern": "^[0-9A-Fa-f:.]+/[0-9]{1,3}$",
-            "description": "An IPv4 or IPv6 network in CIDR notation, e.g. `10.0.0.0/8` or `fd00::/8`."
+            "description": "An IPv4 or IPv6 network in CIDR notation, e.g. `10.20.0.0/16` or `fd00:10::/48`. Keep it to the gateway's own addresses: the Polychro rules warn on very broad networks and on loopback when the adapter listens beyond loopback."
           },
           "minItems": 1,
-          "description": "Networks whose direct peers may set forwarded identity headers. `X-Forwarded-For` is never used for this check. `forwarded` mode only."
-        },
-        "claimsHeader": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9-]+$",
-          "description": "Header carrying base64-encoded JWT claims (JSON) from the gateway. Its `sub` is used when `agentIdentityHeader` is absent from the request. Read as data only, never validated as a token. `forwarded` mode only."
+          "description": "Networks of the gateway. Only direct peers in these networks are served; `X-Forwarded-For` is never used for this check. `forwarded` mode only."
         }
       },
       "required": [
@@ -1294,19 +1289,8 @@
           },
           "then": {
             "required": [
-              "trustedNetworks"
-            ],
-            "anyOf": [
-              {
-                "required": [
-                  "agentIdentityHeader"
-                ]
-              },
-              {
-                "required": [
-                  "claimsHeader"
-                ]
-              }
+              "trustedNetworks",
+              "agentIdentityHeader"
             ]
           },
           "else": {
@@ -1320,11 +1304,6 @@
                 {
                   "required": [
                     "trustedNetworks"
-                  ]
-                },
-                {
-                  "required": [
-                    "claimsHeader"
                   ]
                 }
               ]

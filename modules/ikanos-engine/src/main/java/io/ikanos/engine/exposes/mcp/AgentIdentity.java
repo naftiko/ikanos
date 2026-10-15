@@ -19,9 +19,15 @@ package io.ikanos.engine.exposes.mcp;
  * @param id the agent identifier, e.g. {@code agent-42}.
  * @param source how it was obtained: {@link #SOURCE_FORWARDED} (asserted by a trusted gateway)
  *        or {@link #SOURCE_VERIFIED} (taken from a validated token).
+ * @param actor who presented the token on the agent's behalf (the {@code sub} of an RFC 8693
+ *        {@code act} claim, e.g. a gateway that exchanged the token), or {@code null}.
  */
-public record AgentIdentity(String id, String source) {
+public record AgentIdentity(String id, String source, String actor) {
 
     public static final String SOURCE_FORWARDED = "forwarded";
     public static final String SOURCE_VERIFIED = "verified";
+
+    public AgentIdentity(String id, String source) {
+        this(id, source, null);
+    }
 }

@@ -60,12 +60,23 @@ public final class CidrRange {
         if (!prefix.matches("\\d{1,3}")) {
             throw new IllegalArgumentException("Invalid CIDR '" + cidr + "': bad prefix length");
         }
-        byte[] address = parseLiteral(cidr.substring(0, slash));
+        String literal = cidr.substring(0, slash);
+        byte[] address = parseLiteral(literal);
         if (address == null) {
             throw new IllegalArgumentException(
                     "Invalid CIDR '" + cidr + "': not an IPv4 or IPv6 address literal");
         }
         int prefixLength = Integer.parseInt(prefix);
+        if (address.length == 4 && literal.indexOf(':') >= 0) {
+            // IPv4-mapped IPv6 (::ffff:a.b.c.d) is folded to 4 bytes, but its prefix counts the
+            // 128 IPv6 bits: only /96 to /128 stay inside the mapped range. Reading /0 as an
+            // IPv4 /0 would trust every IPv4 peer.
+            if (prefixLength < 96 || prefixLength > 128) {
+                throw new IllegalArgumentException("Invalid CIDR '" + cidr
+                        + "': an IPv4-mapped network needs a prefix length of 96 to 128");
+            }
+            prefixLength -= 96;
+        }
         if (prefixLength > address.length * 8) {
             throw new IllegalArgumentException("Invalid CIDR '" + cidr + "': prefix length "
                     + prefixLength + " exceeds " + (address.length * 8));

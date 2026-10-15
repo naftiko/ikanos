@@ -24,9 +24,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * on traces and logs. When the block is omitted, the mode is {@code none}.
  *
  * <ul>
- * <li>{@code forwarded}: read the identity from {@code agentIdentityHeader} (or the {@code sub}
- * claim of {@code claimsHeader}), only when the direct peer address is in
- * {@code trustedNetworks}.</li>
+ * <li>{@code forwarded}: read the identity from {@code agentIdentityHeader}, set by a gateway
+ * that is the authentication boundary. A direct peer outside {@code trustedNetworks} is refused
+ * with HTTP 403.</li>
  * <li>{@code verify}: take the identity from the token validated by the adapter's
  * {@code authentication: oauth2} block.</li>
  * <li>{@code none}: do not record an agent identity.</li>
@@ -48,9 +48,6 @@ public class McpTrustSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<List<String>> trustedNetworks = new AtomicReference<>();
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private final AtomicReference<String> claimsHeader = new AtomicReference<>();
 
     public McpTrustSpec() {}
 
@@ -84,13 +81,5 @@ public class McpTrustSpec {
 
     public void setTrustedNetworks(List<String> trustedNetworks) {
         this.trustedNetworks.set(trustedNetworks != null ? List.copyOf(trustedNetworks) : null);
-    }
-
-    public String getClaimsHeader() {
-        return claimsHeader.get();
-    }
-
-    public void setClaimsHeader(String claimsHeader) {
-        this.claimsHeader.set(claimsHeader);
     }
 }

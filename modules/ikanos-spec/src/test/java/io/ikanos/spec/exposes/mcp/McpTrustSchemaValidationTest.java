@@ -16,15 +16,15 @@ package io.ikanos.spec.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.InputStream;
-import java.util.Set;
+import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import com.networknt.schema.Error;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SpecificationVersion;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 import io.ikanos.spec.util.VersionHelper;
 
@@ -34,15 +34,15 @@ import io.ikanos.spec.util.VersionHelper;
 class McpTrustSchemaValidationTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
-    private static JsonSchema schema;
+    private static final YAMLMapper YAML_MAPPER = IkanosMappers.yaml();
+    private static Schema schema;
 
     @BeforeAll
     static void loadSchema() throws Exception {
         InputStream schemaStream = McpTrustSchemaValidationTest.class.getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json");
-        JsonNode schemaNode = new ObjectMapper().readTree(schemaStream);
-        schema = IkanosMetaSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+        JsonNode schemaNode = IkanosMappers.json().readTree(schemaStream);
+        schema = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12)
                 .getSchema(schemaNode);
     }
 
@@ -70,11 +70,36 @@ class McpTrustSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldAcceptForwardedWithClaimsHeaderOnly() throws Exception {
-        assertValid(capability("    port: 3001", """
+    void schemaShouldRejectClaimsHeaderBecauseUnsignedClaimsAreNotSupported() throws Exception {
+        assertInvalid(capability("    port: 3001", """
+                    trust:
+                      mode: forwarded
+                      agentIdentityHeader: X-Agent-Id
+                      claimsHeader: X-Forwarded-Claims
+                      trustedNetworks: ["10.0.0.0/8"]
+                """));
+    }
+
+    @Test
+    void schemaShouldRejectForwardedWithClaimsHeaderOnly() throws Exception {
+        assertInvalid(capability("    port: 3001", """
                     trust:
                       mode: forwarded
                       claimsHeader: X-Forwarded-Claims
+                      trustedNetworks: ["10.0.0.0/8"]
+                """));
+    }
+
+    @Test
+    void schemaShouldAcceptForwardedTogetherWithAuthentication() throws Exception {
+        assertValid(capability("    port: 3001", """
+                    authentication:
+                      type: oauth2
+                      authorizationServerUri: "https://auth.example.com"
+                      resource: "https://mcp.example.com"
+                    trust:
+                      mode: forwarded
+                      agentIdentityHeader: X-Agent-Id
                       trustedNetworks: ["10.0.0.0/8"]
                 """));
     }
@@ -89,7 +114,7 @@ class McpTrustSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldRejectForwardedWithoutAnyIdentityHeader() throws Exception {
+    void schemaShouldRejectForwardedWithoutAgentIdentityHeader() throws Exception {
         assertInvalid(capability("    port: 3001", """
                     trust:
                       mode: forwarded
@@ -162,12 +187,12 @@ class McpTrustSchemaValidationTest {
     }
 
     private static void assertValid(String yaml) throws Exception {
-        Set<ValidationMessage> errors = schema.validate(YAML_MAPPER.readTree(yaml));
+        List<Error> errors = schema.validate(YAML_MAPPER.readTree(yaml));
         assertTrue(errors.isEmpty(), "Expected valid capability, got:\n" + errors + "\n" + yaml);
     }
 
     private static void assertInvalid(String yaml) throws Exception {
-        Set<ValidationMessage> errors = schema.validate(YAML_MAPPER.readTree(yaml));
+        List<Error> errors = schema.validate(YAML_MAPPER.readTree(yaml));
         assertFalse(errors.isEmpty(), "Expected schema errors for:\n" + yaml);
     }
 }

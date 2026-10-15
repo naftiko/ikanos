@@ -1,0 +1,28 @@
+---
+# Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
+#
+# 0.0.0.0/0 and ::/0 trust every peer, so any caller can set the identity header.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "MCP trust — every address trusted"
+  description: "Fixture for the MCP trust network rules (issue #483)."
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 3001
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["0.0.0.0/0", "::/0"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

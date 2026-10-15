@@ -1,0 +1,28 @@
+---
+# Spectral fixture — neither MCP trust network rule may fire.
+#
+# Scoped private ranges on an adapter listening beyond loopback.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "MCP trust — scoped networks"
+  description: "Fixture for the MCP trust network rules (issue #483)."
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 3001
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["10.20.0.0/16", "fd00:10::/48"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

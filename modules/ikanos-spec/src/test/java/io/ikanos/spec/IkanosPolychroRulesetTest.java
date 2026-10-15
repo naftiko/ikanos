@@ -349,6 +349,74 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // MCP trust rules (#483)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpTrustNetworkTooBroadRuleShouldFireWhenEveryAddressIsTrusted() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-trust-broad-network.yaml");
+        assertTrue(result.output().contains("ikanos-mcp-trust-network-too-broad"),
+            "Expected 0.0.0.0/0 and ::/0 in trustedNetworks to be flagged (#483).\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpTrustNetworkTooBroadRuleShouldNotFireOnScopedNetworks() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-trust-networks-scoped.yaml");
+        assertTrue(!result.output().contains("ikanos-mcp-trust-network-too-broad"),
+            "Expected scoped private networks not to be flagged.\n" + result.output());
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldFireWhenAdapterListensBeyondLoopback() {
+        ProcessResult result =
+            lintFixture("rules/spectral-mcp-trust-loopback-public-address.yaml");
+        assertTrue(result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
+            "Expected trusted loopback peers on a 0.0.0.0 adapter to be flagged (#483).\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldNotFireWhenAdapterListensOnLoopback() {
+        ProcessResult result =
+            lintFixture("rules/spectral-mcp-trust-loopback-local-address.yaml");
+        assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
+            "Expected trusted loopback peers on a loopback adapter not to be flagged.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldNotFireOnScopedNetworks() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-trust-networks-scoped.yaml");
+        assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
+            "Expected scoped private networks not to be flagged.\n" + result.output());
+    }
+
+    @Test
+    public void mcpTrustNetworkTooBroadRuleShouldFireOnTheIpv6WholeAddressSpace() {
+        assertWarnsOn("rules/spectral-mcp-trust-ipv6-broad.yaml",
+            "ikanos-mcp-trust-network-too-broad", "'::/0'");
+    }
+
+    @Test
+    public void mcpTrustNetworkTooBroadRuleShouldFireOnIpv4MappedWholeIpv4Space() {
+        assertWarnsOn("rules/spectral-mcp-trust-ipv4-mapped-broad.yaml",
+            "ikanos-mcp-trust-network-too-broad", "'::ffff:0.0.0.0/96'");
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldFireOnIpv6LoopbackWhenAdapterListensOnAllIpv6() {
+        assertWarnsOn("rules/spectral-mcp-trust-ipv6-loopback-public.yaml",
+            "ikanos-mcp-trust-loopback-on-public-address", "'::1/128'");
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldFireOnLoopbackRangeWithout127001() {
+        assertWarnsOn("rules/spectral-mcp-trust-loopback-range-public.yaml",
+            "ikanos-mcp-trust-loopback-on-public-address", "'127.1.0.0/16'");
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // MCP Apps rules (SEP-1865)
     // ────────────────────────────────────────────────────────────────
 
@@ -486,6 +554,18 @@ public class IkanosPolychroRulesetTest {
             rulesetPath.toAbsolutePath().toString(),
             "--fail-severity",
             severity);
+    }
+
+    /**
+     * Assert that linting a fixture reports {@code ruleId} on the trusted network {@code entry}
+     * (quoted as it appears in the rule message).
+     */
+    private void assertWarnsOn(String fixturePath, String ruleId, String entry) {
+        ProcessResult result = lintFixture(fixturePath);
+        assertTrue(result.output().lines()
+                .anyMatch(line -> line.contains(ruleId) && line.contains(entry)),
+            "Expected " + ruleId + " on " + entry + " in '" + fixturePath + "'.\n"
+                + result.output());
     }
 
     /**

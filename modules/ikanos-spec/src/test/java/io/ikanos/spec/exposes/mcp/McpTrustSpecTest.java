@@ -18,17 +18,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 class McpTrustSpecTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper YAML_MAPPER = IkanosMappers.lenientYaml();
 
     @Test
     void getTrustShouldBeNullWhenBlockIsOmitted() throws Exception {
@@ -43,13 +41,11 @@ class McpTrustSpecTest {
                       mode: forwarded
                       agentIdentityHeader: X-Agent-Id
                       trustedNetworks: ["10.0.0.0/8", "fd00::/8"]
-                      claimsHeader: X-Forwarded-Claims
                 """);
         McpTrustSpec trust = mcp.getTrust();
         assertEquals(McpTrustSpec.MODE_FORWARDED, trust.getMode());
         assertEquals("X-Agent-Id", trust.getAgentIdentityHeader());
         assertEquals(List.of("10.0.0.0/8", "fd00::/8"), trust.getTrustedNetworks());
-        assertEquals("X-Forwarded-Claims", trust.getClaimsHeader());
     }
 
     @Test

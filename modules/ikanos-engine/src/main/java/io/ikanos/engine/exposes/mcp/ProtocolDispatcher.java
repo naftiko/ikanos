@@ -85,6 +85,11 @@ public class ProtocolDispatcher {
         return versions;
     }
 
+    /** @return the resolver for this adapter's {@code trust} block. */
+    AgentIdentityResolver getIdentityResolver() {
+        return identityResolver;
+    }
+
     public ProtocolDispatcher(McpServerAdapter adapter) {
         this.mapper = IkanosMappers.json();
         this.capabilityName = resolveCapabilityName(adapter);
@@ -196,7 +201,8 @@ public class ProtocolDispatcher {
         try (Scope scope = span.makeCurrent()) {
             TelemetryBootstrap.populateMdc(span);
             identityResolver.resolve(httpRequest).ifPresent(identity ->
-                    TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source()));
+                    TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
+                            identity.actor()));
             return dispatch(request);
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);

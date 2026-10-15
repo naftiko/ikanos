@@ -120,6 +120,11 @@ public class McpServerAdapter extends ServerAdapter {
         router.attachDefault(McpServerResource.class);
 
         Restlet chain = buildServerChain(router);
+        AgentIdentityResolver identityResolver = dispatcher.getIdentityResolver();
+        if (identityResolver.isForwarded()) {
+            // The gateway is the authentication boundary: refuse other peers before anything else.
+            chain = new TrustedPeerFilter(context, identityResolver, chain);
+        }
 
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
         initServer(address, serverSpec.getPort(), chain);
