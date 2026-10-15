@@ -243,8 +243,10 @@ jobs:
           IKANOS_VERSION="v0.0.0-local-ci" \
           IKANOS_BASE_URL="http://127.0.0.1:8931" \
             sh docs/install.sh
+          # Only bin goes on PATH, like the rc file line. IKANOS_HOME is not
+          # exported, so the next steps run the wrapper as a new shell would
+          # and check that it remembers its custom install root (#805).
           echo "$RUNNER_TEMP/ikanos-home/bin" >> "$GITHUB_PATH"
-          echo "IKANOS_HOME=$RUNNER_TEMP/ikanos-home" >> "$GITHUB_ENV"
 
       - name: Install via install.ps1 (real script, mock release endpoint) (Windows)
         if: runner.os == 'Windows'
@@ -266,8 +268,9 @@ jobs:
             $env:IKANOS_BASE_URL = "http://127.0.0.1:8931"
             & .\docs\install.ps1
 
+            # Only bin goes on PATH. IKANOS_HOME is not exported, so the next
+            # steps check that ikanos.cmd remembers its custom install root (#805).
             Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\ikanos-home\bin"
-            Add-Content -Path $env:GITHUB_ENV -Value "IKANOS_HOME=$env:RUNNER_TEMP\ikanos-home"
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
