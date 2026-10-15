@@ -260,6 +260,8 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void exposesNamespaceRequiredRuleShouldNotFireForStandaloneControlExpose() {
         ProcessResult result = lintFixture("imports/exposes-control-without-namespace.yaml");
+        assertEquals(0, result.exitCode(),
+            "Expected the fixture to lint cleanly.\n" + result.output());
         assertFalse(result.output().contains("ikanos-exposes-namespace-required"),
             "Expected no ikanos-exposes-namespace-required error for a standalone control "
                 + "adapter.\n" + result.output());
@@ -269,6 +271,8 @@ public class IkanosPolychroRulesetTest {
     public void exposesNamespaceRequiredRuleShouldNotFireForCapabilityControlExpose() {
         ProcessResult result = lintFixture(
             "imports/capability-exposes-control-without-namespace.yaml");
+        assertEquals(0, result.exitCode(),
+            "Expected the fixture to lint cleanly.\n" + result.output());
         assertFalse(result.output().contains("ikanos-exposes-namespace-required"),
             "Expected no ikanos-exposes-namespace-required error for a control adapter.\n"
                 + result.output());
