@@ -13,10 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -193,10 +192,7 @@ public class ToolHandlerBinaryTest {
         Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
         upstream.start();
 
-        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) ((org.restlet.ext.slf4j.Slf4jLogger) org.restlet.Context.getCurrentLogger()).getSlf4jLogger();
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        logger.addAppender(appender);
+        LogCapture logs = new LogCapture();
 
         try {
             ToolHandler handler =
@@ -212,13 +208,12 @@ public class ToolHandlerBinaryTest {
             assertEquals("image/jpeg", image.mimeType());
             assertEquals(Base64.getEncoder().encodeToString(JPEG_BYTES), image.data());
 
-            assertTrue(appender.list.stream().anyMatch(m ->
-                    m != null && m.getFormattedMessage().contains("Skipping outputParameters mappings for tool 'get-photo'")),
-                    "expected an INFO log that outputParameters were skipped, got: " + appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
+            assertTrue(logs.messages().stream().anyMatch(m ->
+                    m.contains("Skipping outputParameters mappings for tool 'get-photo'")),
+                    "expected an INFO log that outputParameters were skipped, got: " + logs.messages());
         } finally {
             upstream.stop();
-            logger.detachAppender(appender);
-            appender.stop();
+            logs.close();
         }
     }
 

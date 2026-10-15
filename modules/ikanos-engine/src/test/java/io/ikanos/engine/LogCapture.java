@@ -37,9 +37,15 @@ public final class LogCapture implements AutoCloseable {
         logger.addAppender(appender);
     }
 
-    /** Events captured so far. */
+    /**
+     * A copy of the events captured so far. Another thread (e.g. a server left running by an
+     * earlier test) may log while a test reads, so the copy is taken under the appender's lock:
+     * {@code AppenderBase.doAppend} is synchronized on the appender (issue #816).
+     */
     public List<ILoggingEvent> events() {
-        return appender.list;
+        synchronized (appender) {
+            return List.copyOf(appender.list);
+        }
     }
 
     /**
@@ -47,7 +53,7 @@ public final class LogCapture implements AutoCloseable {
      * class and message, if any. Lets a test assert on everything a single log entry carries.
      */
     public List<String> messages() {
-        return appender.list.stream().map(LogCapture::describe).toList();
+        return events().stream().map(LogCapture::describe).toList();
     }
 
     private static String describe(ILoggingEvent event) {
