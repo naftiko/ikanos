@@ -320,6 +320,14 @@ Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
 | A new **tunnel transport** | Implement `Tunnel` in its own module and register it in `META-INF/services/io.ikanos.engine.consumes.tunnel.Tunnel`, like `ikanos-tunnel-ziti`. |
 | Custom Java logic, when **embedding** the engine | `Capability.builder()` with a `StepHandler` registered by step name. The handler replaces the step of that name. |
 
+**Embedding in a Spring Boot 4.1 application: pin `json-path` `3.0.0`.** Output mappings (`Converter.jsonPathExtract`) use the `Jackson3JsonNodeJsonProvider` and `Jackson3MappingProvider` classes, which only exist in `com.jayway.jsonpath:json-path` `3.0.0` and later. Spring Boot 4.1's dependency management sets `json-path` to `2.10.0` and wins over the engine's transitive version, so every tool, operation or flow with a `mapping:` fails at runtime with `NoClassDefFoundError: com/jayway/jsonpath/spi/json/Jackson3JsonNodeJsonProvider`. Building the capability still succeeds; the first call fails. Applications that embed the engine on Spring Boot 4.1 must pin the version:
+
+- Maven, with `spring-boot-starter-parent`: set the `<json-path.version>3.0.0</json-path.version>` property.
+- Maven, with the `spring-boot-dependencies` BOM imported: declare `com.jayway.jsonpath:json-path:3.0.0` directly in `<dependencyManagement>`. Direct entries win over imported BOMs; a property does not reach an imported BOM.
+- Gradle: `ext['json-path.version'] = '3.0.0'` with the Spring dependency-management plugin, or a `strictly('3.0.0')` constraint.
+
+The Jackson 3 (`tools.jackson` `3.1.x`) and `json-schema-validator` (`3.0.1`) versions that Spring Boot 4.1 manages work with the engine; only `json-path` needs the pin.
+
 Any change to the YAML format starts in `ikanos-schema.json`. The Jackson model, the ruleset, the examples and the tutorials follow, and the schema is the reference when they disagree.
 
 ## Tests
