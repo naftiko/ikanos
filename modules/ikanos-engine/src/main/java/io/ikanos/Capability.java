@@ -41,7 +41,8 @@ import io.ikanos.engine.imports.ConsumesImportStrategy;
 import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.SourceFileLoader;
-import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.ClientAdapterRegistry;
+import io.ikanos.engine.consumes.ConsumedReferenceValidator;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -53,7 +54,6 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -206,9 +206,23 @@ public class Capability {
                 this.bindings.get());
 
         for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
-            if ("http".equals(clientSpec.getType())) {
-                clientList.add(new HttpClientAdapter(this, (HttpClientSpec) clientSpec, tunnels));
+            clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec, tunnels));
+        }
+
+        // Check call and forward references against the consumed adapters now that they exist,
+        // so a spec mistake fails at load time rather than on the first request. Tunnels were
+        // already started above; close them if the capability is rejected.
+        try {
+            ConsumedReferenceValidator.validate(spec.getCapability(), clientList);
+        } catch (IllegalArgumentException e) {
+            for (Tunnel tunnel : tunnels.values()) {
+                try {
+                    tunnel.close();
+                } catch (Exception closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
             }
+            throw e;
         }
 
         this.clientAdapters.set(clientList);

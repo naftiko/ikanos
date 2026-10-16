@@ -36,6 +36,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpConsumedResult;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -148,8 +149,9 @@ public class OperationStepExecutorIntegrationTest {
             assertEquals("u-2", result.stepContext.getStepOutput("find-user").path("id").asText());
             assertEquals("eu",
                     result.stepContext.getStepOutput("fetch-profile").path("region").asText());
-            assertNotNull(result.lastContext);
-            assertTrue(result.lastContext.clientRequest.getResourceRef().toString().endsWith("/echo/eu"));
+            assertNotNull(result.lastResult);
+            assertTrue(((HttpConsumedResult) result.lastResult).getRequest().getResourceRef()
+                    .toString().endsWith("/echo/eu"));
         } finally {
           server.stop();
         }

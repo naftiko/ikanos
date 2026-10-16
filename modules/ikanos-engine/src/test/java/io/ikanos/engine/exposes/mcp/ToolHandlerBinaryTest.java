@@ -223,6 +223,29 @@ public class ToolHandlerBinaryTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldPreserveBinaryBytesWhenLastStepIsBinaryCall()
+            throws Exception {
+        int port = findFreePort();
+        Component upstream = createBinaryServer(port, JPEG_BYTES, MediaType.IMAGE_JPEG);
+        upstream.start();
+
+        try {
+            ToolHandler handler = handlerFromYaml(binaryStepsToolCapabilityYaml(port));
+            McpSchema.CallToolResult result =
+                    handler.handleToolCall("get-photo", Map.of("id", "p-1"));
+
+            // JPEG bytes (0xFF, 0xD8, ...) are not valid UTF-8: reading the step output as text
+            // before serving it would replace them and break this equality.
+            assertEquals(Boolean.FALSE, result.isError());
+            McpSchema.ImageContent image =
+                    assertInstanceOf(McpSchema.ImageContent.class, result.content().get(0));
+            assertEquals(Base64.getEncoder().encodeToString(JPEG_BYTES), image.data());
+        } finally {
+            upstream.stop();
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────────────────────
 
     private ToolHandler handlerFromYaml(String yaml) throws Exception {
@@ -319,6 +342,42 @@ public class ToolHandlerBinaryTest {
                           caption:
                             type: string
                             mapping: "$.caption"
+                """.formatted(schemaVersion, port);
+    }
+
+    /** Same binary upstream, reached through a {@code steps:} call instead of {@code call:}. */
+    private String binaryStepsToolCapabilityYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                  - namespace: photos
+                    type: http
+                    baseUri: http://localhost:%d
+                    resources:
+                      photoBytes:
+                        path: /photos/binary
+                        operations:
+                          download:
+                            method: GET
+                            outputRawFormat: binary
+                  exposes:
+                  - type: mcp
+                    transport: http
+                    port: 0
+                    namespace: photos
+                    tools:
+                      get-photo:
+                        description: Get photo bytes through a step
+                        inputParameters:
+                          id:
+                            type: string
+                            description: Photo id
+                            required: true
+                        steps:
+                          fetch:
+                            type: call
+                            call: photos.download
                 """.formatted(schemaVersion, port);
     }
 

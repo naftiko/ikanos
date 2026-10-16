@@ -13,15 +13,19 @@
  */
 package io.ikanos.engine.consumes;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.Adapter;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
 
 /**
  * Client Adapter implementation.
+ *
+ * <p>Every consumed adapter, whatever its protocol, is reached from steps and exposers through
+ * {@link #prepare(String, Map)}, which returns a protocol-neutral {@link ConsumedInvocation}. See
+ * {@code design-docs/consumed-invocation-carrier.md}.</p>
  *
  * <h2>Thread safety</h2>
  * The {@code capability} and {@code spec} references are held in {@link AtomicReference}s so
@@ -51,8 +55,42 @@ public abstract class ClientAdapter extends Adapter {
         return spec.get();
     }
 
-    public void setSpec(HttpClientSpec spec) {
+    public void setSpec(ClientSpec spec) {
         this.spec.set(spec);
+    }
+
+    /** @return the namespace declared on this adapter's spec, or {@code null} */
+    public String getNamespace() {
+        ClientSpec current = spec.get();
+        return current != null ? current.getNamespace() : null;
+    }
+
+    /**
+     * Build an invocation for one declared operation. Nothing is sent until
+     * {@link ConsumedInvocation#invoke()}.
+     *
+     * @param operationName the operation name as declared under this adapter
+     * @param parameters    resolved parameters available for template substitution
+     * @return the invocation, or {@code null} when this adapter declares no such operation
+     * @throws IllegalArgumentException when templates cannot be resolved
+     */
+    public abstract ConsumedInvocation prepare(String operationName,
+            Map<String, Object> parameters);
+
+    /**
+     * Whether this adapter declares an operation with the given name. Used at load time to
+     * reject a {@code call:} that names an operation the consumed namespace does not declare,
+     * instead of failing on the first request.
+     *
+     * <p>The default returns {@code true}: an adapter that cannot enumerate its operations is
+     * not checked at load time, and an unknown operation still fails in
+     * {@link #prepare(String, Map)}.</p>
+     *
+     * @param operationName the operation name as written after the namespace in {@code call:}
+     * @return {@code false} only when the adapter knows it declares no such operation
+     */
+    public boolean declaresOperation(String operationName) {
+        return true;
     }
 
 }

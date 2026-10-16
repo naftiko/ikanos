@@ -29,6 +29,7 @@ import org.restlet.Context;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
@@ -56,7 +57,7 @@ public class ResourceHandler {
     /**
      * Adapter-level {@code maxBinarySize} sized string ({@code exposes.<name>.maxBinarySize}), or
      * {@code null} when none is declared. Threaded into
-     * {@link OperationStepExecutor.HandlingContext#resolveMaxBinaryBytes(String)} (dynamic
+     * {@link io.ikanos.engine.consumes.ConsumedOperationView#maxBinaryBytes(String)} (dynamic
      * resources) and {@link BinarySize#parseOrDefault(String)} (static files) so the per-op value
      * still wins but the adapter cap overrides the engine default (§4.7 / §8.1).
      */
@@ -353,7 +354,7 @@ public class ResourceHandler {
         Map<String, Object> parameters = new HashMap<>(templateParams);
         OperationStepExecutor.mergeWithParameters(spec.getWith(), parameters, namespace);
 
-        OperationStepExecutor.HandlingContext found =
+        ConsumedResult found =
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), parameters,
                         "Resource '" + spec.getName() + "'");
 
@@ -361,7 +362,7 @@ public class ResourceHandler {
         // bytes under the maxBinarySize cap and return a BlobResourceContents (base64) instead of
         // text. outputParameters mappings are skipped — they are nonsensical for raw bytes.
         // See capability-binary-content.md §4.5 / §8.3.
-        if (found != null && found.isBinary()) {
+        if (found != null && found.operation().isBinary()) {
             return readBinaryDynamic(spec, uri, found);
         }
 
@@ -371,24 +372,20 @@ public class ResourceHandler {
     }
 
     private String extractContent(McpServerResourceSpec spec,
-            OperationStepExecutor.HandlingContext found) throws IOException {
+            ConsumedResult found) throws IOException {
 
-        if (found == null || found.clientResponse == null
-                || found.clientResponse.getEntity() == null) {
+        if (found == null || !found.hasBody()) {
             return "";
         }
 
-        String responseText = found.clientResponse.getEntity().getText();
+        String responseText = found.text();
         if (responseText == null) {
             return "";
         }
 
-        String outputRawFormat = found.clientOperation != null
-                ? found.clientOperation.getOutputRawFormat() : null;
-        String outputSchema = found.clientOperation != null
-                ? found.clientOperation.getOutputSchema() : null;
-        String mapped = stepExecutor.applyOutputMappings(responseText,
-                spec.getOutputParameters(), outputRawFormat, outputSchema);
+        String mapped = responseText.isEmpty()
+                ? null
+                : stepExecutor.mapResult(found, spec.getOutputParameters());
         return mapped != null ? mapped : responseText;
     }
 
@@ -402,21 +399,21 @@ public class ResourceHandler {
      * {@code outputParameters} mappings are skipped with an INFO log (§4.6).</p>
      */
     private List<ResourceContent> readBinaryDynamic(McpServerResourceSpec spec, String uri,
-            OperationStepExecutor.HandlingContext found) throws IOException {
+            ConsumedResult found) throws IOException {
         if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()) {
             Context.getCurrentLogger().info(
                     "Skipping outputParameters mappings for resource '" + spec.getName()
-                            + "': response is binary (" + found.clientResponseMediaType + ")");
+                            + "': response is binary (" + found.mediaType() + ")");
         }
 
-        byte[] bytes = found.readBoundedBytes(found.resolveMaxBinaryBytes(maxBinarySize));
+        byte[] bytes = found.bytes(found.operation().maxBinaryBytes(maxBinarySize));
         if (bytes == null) {
             // No entity to return — degrade to an empty blob rather than throwing.
             bytes = new byte[0];
         }
 
         String mimeType = spec.getMimeType() != null ? spec.getMimeType()
-                : found.clientResponseMediaType != null ? found.clientResponseMediaType
+                : found.mediaType() != null ? found.mediaType()
                         : "application/octet-stream";
         String base64 = Base64.getEncoder().encodeToString(bytes);
         return List.of(ResourceContent.binary(uri, mimeType, base64));
