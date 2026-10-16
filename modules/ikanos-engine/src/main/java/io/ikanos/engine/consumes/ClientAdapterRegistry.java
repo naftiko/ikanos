@@ -20,16 +20,18 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.mcp.McpClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
 
 /**
  * Registry of {@link ClientAdapterFactory} instances, keyed by {@code consumes} {@code type}.
  *
  * <p>Replaces the literal {@code "http".equals(type)} branch that used to live in
- * {@link Capability}. The built-in {@code http} factory is registered statically, so the native
- * CLI never depends on service discovery for capabilities that work today. Optional factories are
+ * {@link Capability}. The core {@code http} and {@code mcp} factories are registered
+ * statically, so the native CLI never depends on service discovery for them. Optional factories are
  * discovered once with {@link ServiceLoader}, following the {@code ikanos-tunnel-ziti} precedent.
  * </p>
  */
@@ -49,6 +51,20 @@ public final class ClientAdapterRegistry {
         }
     };
 
+    /** Built-in factory for {@code type: mcp}. */
+    static final ClientAdapterFactory MCP = new ClientAdapterFactory() {
+        @Override
+        public String type() {
+            return McpClientSpec.TYPE;
+        }
+
+        @Override
+        public ClientAdapter create(Capability capability, ClientSpec spec,
+                Map<String, Tunnel> tunnels) {
+            return new McpClientAdapter(capability, (McpClientSpec) spec);
+        }
+    };
+
     private static volatile ClientAdapterRegistry defaultRegistry;
 
     private final Map<String, ClientAdapterFactory> factories;
@@ -56,6 +72,7 @@ public final class ClientAdapterRegistry {
     ClientAdapterRegistry(Iterable<ClientAdapterFactory> discovered) {
         Map<String, ClientAdapterFactory> map = new LinkedHashMap<>();
         map.put(HTTP.type(), HTTP);
+        map.put(MCP.type(), MCP);
         for (ClientAdapterFactory factory : discovered) {
             String type = factory.type();
             if (type == null || type.isBlank()) {

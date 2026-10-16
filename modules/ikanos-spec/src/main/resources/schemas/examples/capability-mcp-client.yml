@@ -1,0 +1,118 @@
+# MCP client example — phase 1 of the mcp-client-adapter design doc.
+#
+# An enterprise capability consumes a vendor's published `billing` MCP
+# capability (`consumes: type: mcp`), composes its `get-invoice` tool with an
+# internal CRM API in an aggregate flow, and re-exposes the result as its own
+# MCP tool. The consumed tool key is the upstream tool name.
+#
+# Only stateless upstreams (MCP protocol 2026-07-28, no `initialize` and no
+# `Mcp-Session-Id`) are supported in phase 1. Consumed tool `hints` are
+# authored locally and never derived from the upstream's annotations.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "Collections — MCP client example"
+  description: "Compose a vendor MCP tool with an internal CRM API and re-expose the result."
+
+binds:
+  - namespace: "secrets"
+    description: "Credentials for the vendor billing MCP server and the internal CRM."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      VENDOR_BILLING_TOKEN: "vendor-billing-token"
+      CRM_TOKEN: "crm-bearer-token"
+
+capability:
+  consumes:
+    - type: "mcp"
+      namespace: "billing"
+      description: "Vendor billing capability, published over MCP Streamable HTTP."
+      endpoint: "https://billing.vendor.example/mcp"
+      authentication:
+        type: "bearer"
+        token: "{{secrets.VENDOR_BILLING_TOKEN}}"
+      discovery: "verify"
+      tools:
+        get-invoice:
+          description: "Retrieve one invoice."
+          hints:
+            readOnly: true
+            idempotent: true
+          inputParameters:
+            invoice-id:
+              type: "string"
+              description: "Invoice identifier."
+          outputParameters:
+            total:
+              type: "number"
+              value: "$.amount.total"
+            status:
+              type: "string"
+              value: "$.status"
+
+    - type: "http"
+      namespace: "crm"
+      description: "Customer Relationship Management API."
+      baseUri: "https://crm.internal.example/api"
+      authentication:
+        type: "bearer"
+        token: "{{secrets.CRM_TOKEN}}"
+      resources:
+        accounts:
+          description: "Customer accounts."
+          path: "/accounts/{{account-id}}"
+          operations:
+            get-account:
+              method: "GET"
+              description: "Retrieve one account."
+              inputParameters:
+                account-id:
+                  in: "path"
+
+  aggregates:
+    - display: "Collections"
+      namespace: "collections"
+      flows:
+        account-exposure:
+          description: "Invoice status and account owner for one customer."
+          inputParameters:
+            invoice-id:
+              type: "string"
+              description: "Invoice identifier."
+            account-id:
+              type: "string"
+              description: "CRM account identifier."
+          steps:
+            inv:
+              type: "call"
+              call: "billing.get-invoice"
+              with:
+                invoice-id: "collections.invoice-id"
+            acct:
+              type: "call"
+              call: "crm.get-account"
+              with:
+                account-id: "collections.account-id"
+          mappings:
+            - target: "total"
+              value: "$.inv.total"
+            - target: "status"
+              value: "$.inv.status"
+            - target: "owner"
+              value: "$.acct.owner"
+          outputParameters:
+            total:
+              type: "number"
+            status:
+              type: "string"
+            owner:
+              type: "string"
+
+  exposes:
+    - type: "mcp"
+      namespace: "collections-mcp"
+      port: 3001
+      tools:
+        account-exposure:
+          description: "Invoice status and account owner for one customer."
+          ref: "collections.account-exposure"
