@@ -1,0 +1,69 @@
+ikanos: 1.0.0-beta8
+info:
+  display: Flow composition compliant
+  description: Positive fixture for the flow-call rules
+capability:
+  consumes:
+  - type: http
+    namespace: weather-api
+    description: Weather API
+    baseUri: https://weather.example.com
+    resources:
+      forecasts:
+        path: /forecast
+        operations:
+          get-forecast:
+            method: GET
+  - from: ./shared/registry.consumes.yml
+    import: registry
+  aggregates:
+  - display: vendor flows
+    namespace: vendor
+    flows:
+      ship:
+        description: Safe flow calling an imported operation, out of reach of the lint
+        semantics:
+          safe: true
+          idempotent: true
+        call: registry.get-ship
+      forecast:
+        description: Vendor shim, safe because it only reads
+        semantics:
+          safe: true
+          idempotent: true
+        call: weather-api.get-forecast
+        outputParameters:
+        - type: object
+          mapping: $
+          properties:
+            summary:
+              type: string
+              mapping: $.summary
+  - display: weather flows
+    namespace: weather
+    flows:
+      get-forecast:
+        description: Vendor-neutral flow calling the shim
+        semantics:
+          safe: true
+          idempotent: true
+        steps:
+          forecast:
+            type: call
+            call: vendor.forecast
+        mappings:
+        - target: summary
+          value: $.forecast.summary
+        outputParameters:
+          summary:
+            type: string
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9301
+    namespace: weather-mcp
+    description: Weather tools
+    tools:
+      get-forecast:
+        description: Get the forecast
+        ref: weather.get-forecast

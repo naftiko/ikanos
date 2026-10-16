@@ -168,7 +168,7 @@ public class RestBinaryResponseIntegrationTest {
                     - type: "rest"
                       address: "localhost"
                       port: 0
-                      namespace: "photos"
+                      namespace: "photos-rest"
                       resources:
                         - path: "/photos/image"
                           name: "photo-image"
@@ -204,7 +204,7 @@ public class RestBinaryResponseIntegrationTest {
                     - type: "rest"
                       address: "localhost"
                       port: 0
-                      namespace: "photos"
+                      namespace: "photos-rest"
                       resources:
                         - path: "/photos/image"
                           name: "photo-image"

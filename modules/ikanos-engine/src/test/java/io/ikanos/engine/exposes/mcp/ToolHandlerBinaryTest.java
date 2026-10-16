@@ -290,7 +290,7 @@ public class ToolHandlerBinaryTest {
                   - type: mcp
                     transport: http
                     port: 0
-                    namespace: photos
+                    namespace: photos-mcp
                     tools:
                       get-photo:
                         description: Get photo bytes
@@ -328,7 +328,7 @@ public class ToolHandlerBinaryTest {
                   - type: mcp
                     transport: http
                     port: 0
-                    namespace: photos
+                    namespace: photos-mcp
                     tools:
                       get-photo:
                         description: Get photo bytes
@@ -365,7 +365,7 @@ public class ToolHandlerBinaryTest {
                   - type: mcp
                     transport: http
                     port: 0
-                    namespace: photos
+                    namespace: photos-mcp
                     tools:
                       get-photo:
                         description: Get photo bytes through a step

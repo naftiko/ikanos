@@ -35,6 +35,7 @@ functions:
   - import-alias-unique
   - tunnel-identity-binds-ref
   - mcp-ui-view-mime-type
+  - flow-calls
 
 rules:
 
@@ -43,13 +44,16 @@ rules:
   # ────────────────────────────────────────────────────────────────
 
   ikanos-namespaces-unique:
-    message: "Namespaces must be globally unique across all adapters and bindings."
+    message: "Namespaces must be globally unique across all adapters, aggregates and bindings."
     description: >
       The same namespace must not be reused across root `consumes`,
-      `capability.consumes`, `capability.exposes`, root `binds`,
-      and `capability.binds`.
+      `capability.consumes`, `capability.exposes`, `capability.aggregates`,
+      root `binds`, and `capability.binds`. Imported entries are checked under
+      their effective namespace (the `as` alias, or the `import` name).
       This prevents ambiguous routing, reference resolution, and
-      variable resolution.
+      variable resolution: `call: namespace.name` resolves against both
+      consumed adapters and aggregate flows. The engine enforces the same
+      rule at startup.
     severity: error
     recommended: true
     given: "$"
@@ -148,6 +152,66 @@ rules:
     given: "$"
     then:
       function: aggregate-semantics-consistency
+
+  ikanos-flow-call-target-exists:
+    message: "A call to an aggregate flow must name an existing flow."
+    description: >
+      A `call` step or a flow-level `call:` may target another aggregate flow
+      (`call: namespace.flow-name`). When the namespace is an aggregate, the
+      flow must exist in it. The engine rejects the capability at startup
+      otherwise.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: flow-calls
+      functionOptions:
+        check: targets
+
+  ikanos-flow-call-no-cycle:
+    message: "Aggregate flows must not call each other in a cycle."
+    description: >
+      Flows that call flows form a graph that must be acyclic. The engine
+      rejects a cycle at startup and names it.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: flow-calls
+      functionOptions:
+        check: cycles
+
+  ikanos-exposes-call-not-flow:
+    message: "Exposed MCP tools, MCP resources and REST operations must use `ref`, not `call`, to reach an aggregate flow."
+    description: >
+      `ref` derives the exposed unit's description, MCP hints, and input and
+      output schemas from the flow. A `call:` to a flow would bypass all of
+      that, so the engine rejects it at startup.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: flow-calls
+      functionOptions:
+        check: exposes
+
+  ikanos-flow-call-semantics-conservative:
+    message: "A flow's semantics must not be less conservative than the targets it calls."
+    description: >
+      A flow that declares `safe: true` or `idempotent: true` must only call
+      targets that are too: other flows (by their effective semantics),
+      consumed MCP tools (by their local `hints`), or consumed HTTP operations
+      (by their method, per RFC 9110). Otherwise the flow would publish
+      read-only or idempotent MCP hints that do not hold. Calls into an
+      imported consumes namespace are not checked: the imported document is
+      out of reach of a single-document lint.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: flow-calls
+      functionOptions:
+        check: semantics
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

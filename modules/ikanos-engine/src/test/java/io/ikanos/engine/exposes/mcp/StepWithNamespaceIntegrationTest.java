@@ -72,7 +72,6 @@ public class StepWithNamespaceIntegrationTest {
     @Test
     public void stepWithShouldResolveNamespaceQualifiedReferences() {
         CapturingStepExecutor executor = new CapturingStepExecutor(capability);
-        executor.setExposeNamespace(mcpSpec.getNamespace());
 
         OperationStepCallSpec step = new OperationStepCallSpec();
         step.setType("call");
@@ -81,7 +80,8 @@ public class StepWithNamespaceIntegrationTest {
         step.setWith(Map.of("voyageId", "shipyard-tools.voyageId"));
 
         try {
-            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"));
+            executor.executeSteps(Map.of(step.getName(), step), Map.of("voyageId", "VOY-2026-042"),
+                    mcpSpec.getNamespace());
         } catch (RuntimeException expected) {
             // HTTP connection failure expected — no server running on port 19999
         }

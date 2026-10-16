@@ -1,0 +1,29 @@
+ikanos: 1.0.0-beta8
+info:
+  display: Imported alias namespace collision
+  description: Negative fixture - an imported consumes alias reuses an aggregate namespace
+capability:
+  consumes:
+  - from: ./shared/weather.consumes.yml
+    import: weather-api
+    as: forecast
+  aggregates:
+  - display: forecast flows
+    namespace: forecast
+    flows:
+      get:
+        description: Same namespace as the imported alias
+        outputParameters:
+          id:
+            type: string
+            value: x
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9302
+    namespace: forecast-mcp
+    description: Forecast tools
+    tools:
+      get:
+        description: Get the forecast
+        ref: forecast.get
