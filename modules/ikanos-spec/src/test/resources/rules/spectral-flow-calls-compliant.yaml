@@ -14,10 +14,18 @@ capability:
         operations:
           get-forecast:
             method: GET
+  - from: ./shared/registry.consumes.yml
+    import: registry
   aggregates:
   - display: vendor flows
     namespace: vendor
     flows:
+      ship:
+        description: Safe flow calling an imported operation, out of reach of the lint
+        semantics:
+          safe: true
+          idempotent: true
+        call: registry.get-ship
       forecast:
         description: Vendor shim, safe because it only reads
         semantics:

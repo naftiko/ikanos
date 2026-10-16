@@ -15,7 +15,10 @@
  *                  it calls: another flow (its effective semantics), a consumed
  *                  MCP tool (its local `hints`), or a consumed HTTP operation
  *                  (its method, per RFC 9110). A target without a declaration
- *                  counts as neither safe nor idempotent.
+ *                  counts as neither safe nor idempotent. A target in an
+ *                  imported consumes namespace (`import:` / `as:`) is skipped:
+ *                  its operations live in another document, out of reach of a
+ *                  single-document lint.
  *
  * Call targets are split on the first dot: consumed MCP tools are keyed by
  * their upstream name, which may contain dots.
@@ -116,8 +119,13 @@ function buildModel(capability) {
 
   const mcpTools = new Map(); // "ns.tool" -> hints
   const httpOperations = new Map(); // "ns.op" -> method
+  const importedNamespaces = new Set(); // effective namespace of each consumes import
   for (const c of entries(capability.consumes)) {
     const consumed = c.value;
+    if (consumed && typeof consumed.import === "string") {
+      importedNamespaces.add(typeof consumed.as === "string" ? consumed.as : consumed.import);
+      continue;
+    }
     if (!consumed || typeof consumed.namespace !== "string") {
       continue;
     }
@@ -138,7 +146,7 @@ function buildModel(capability) {
     }
   }
 
-  return { flows, aggregateNamespaces, mcpTools, httpOperations };
+  return { flows, aggregateNamespaces, mcpTools, httpOperations, importedNamespaces };
 }
 
 function checkTargets(model) {
@@ -281,6 +289,10 @@ function checkSemantics(model) {
   function effectiveTarget(ref, field, visiting) {
     if (model.flows.has(ref)) {
       return effectiveFlow(ref, field, visiting);
+    }
+    const target = split(ref);
+    if (target && model.importedNamespaces.has(target.namespace)) {
+      return true; // defined in an imported document: cannot be checked here
     }
     if (model.mcpTools.has(ref)) {
       const hints = model.mcpTools.get(ref) || {};
