@@ -14,11 +14,13 @@
 package io.ikanos.engine.exposes.control;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -36,6 +38,7 @@ import io.ikanos.spec.util.IkanosMappers;
 public class ControlIntegrationTest {
 
     private Capability capability;
+    private IkanosSpec spec;
     private String schemaVersion;
 
     @BeforeEach
@@ -48,8 +51,15 @@ public class ControlIntegrationTest {
         ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
+        this.spec = spec;
+        TelemetryBootstrap.reset(); // start from noop whatever earlier test classes left
         capability = new Capability(spec);
         schemaVersion = VersionHelper.getSchemaVersion();
+    }
+
+    @AfterEach
+    public void tearDown() {
+        TelemetryBootstrap.reset();
     }
 
     @Test
@@ -132,5 +142,30 @@ public class ControlIntegrationTest {
                 "/traces should not be attached when observability.enabled=false");
         assertFalse(patterns.contains("/traces/{traceId}"),
                 "/traces/{traceId} should not be attached when observability.enabled=false");
+    }
+
+    @Test
+    public void controlAdapterShouldCaptureSpansWhenSdkActive() throws Exception {
+        // #800 guards the span processor wiring on isSdkActive(); make sure it still wires it.
+        TelemetryBootstrap.init("test-service");
+        Capability withSdk = new Capability(spec);
+        ControlServerAdapter adapter = (ControlServerAdapter) withSdk.getServerAdapters().get(0);
+
+        TelemetryBootstrap.get().startServerSpan("rest", "op").end();
+
+        assertEquals(1, adapter.getTraceRingBuffer().getSize(),
+                "Completed root spans should reach the control port trace buffer when the SDK"
+                        + " is active");
+    }
+
+    @Test
+    public void controlAdapterShouldNotCaptureSpansInNoopMode() {
+        ControlServerAdapter adapter =
+                (ControlServerAdapter) capability.getServerAdapters().get(0);
+
+        TelemetryBootstrap.get().startServerSpan("rest", "op").end();
+
+        assertEquals(0, adapter.getTraceRingBuffer().getSize(),
+                "Without the SDK no span processor is wired, so the trace buffer stays empty");
     }
 }
