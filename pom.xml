@@ -84,7 +84,7 @@
              CVE-2025-5115, CVE-2026-2332 and CVE-2026-1605 (fixed in 12.0.33+).
              Pinned here via jetty-bom import until Restlet bumps its own. -->
         <jetty.version>12.0.38</jetty.version>
-        <jackson.version>2.21.5</jackson.version>
+        <jackson.version>2.21.7</jackson.version>
         <avro.version>1.11.4</avro.version>
         <json-smart.version>2.5.2</json-smart.version>
         <junit.jupiter.version>5.12.2</junit.jupiter.version>
@@ -96,6 +96,7 @@
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
         <openziti.version>0.33.1</openziti.version>
+        <bouncycastle.version>1.85</bouncycastle.version>
         <revision>1.0.0-beta8-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
@@ -145,6 +146,23 @@
                 <groupId>org.openziti</groupId>
                 <artifactId>ziti</artifactId>
                 <version>${openziti.version}</version>
+            </dependency>
+
+            <!-- BouncyCastle is pulled transitively by GraalPy (1.78.1) and OpenZiti (1.83) -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
 
             <!-- CLI -->
