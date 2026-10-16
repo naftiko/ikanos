@@ -80,7 +80,6 @@ jobs:
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/ikanos@${{ steps.build.outputs.digest }}
           severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
           exit-code: '1'
           format: 'table'
           output: trivy-results-${{ steps.platform.outputs.suffix }}.txt
