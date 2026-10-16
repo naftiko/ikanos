@@ -68,17 +68,23 @@ annotate() {
     | "::\(if .severity == "error" then "error" else "warning" end) file=\($f),line=\(.range.startLine // 1)::[\(.code)] \(.message)"' <<<"$2"
 }
 
+# Polychro's stderr is kept apart so stdout stays clean for jq, and is shown
+# only when Polychro itself fails.
+err=$(mktemp) || exit 1
+trap 'rm -f "$err"' EXIT
+
 files=0; failed=0; errors=0; warnings=0
 for f in $FILES; do
   files=$((files + 1))
   # --schema and --ruleset are passed as flags on purpose, never through
   # --config: Polychro ignores them when --config is set (naftiko/polychro#98).
-  out=$("$POLYCHRO" lint --format json --schema "$SCHEMA" --ruleset "$RULESET" "$f" 2>/dev/null)
+  out=$("$POLYCHRO" lint --format json --schema "$SCHEMA" --ruleset "$RULESET" "$f" 2>"$err")
   code=$?
   # Polychro exits 0 (clean), 1 (warnings only) or 2 (errors). Anything else,
   # or output that is not JSON, means Polychro itself failed: never treat that as clean.
   if [ "$code" -gt 2 ] || ! jq -e 'type == "array"' >/dev/null 2>&1 <<<"$out"; then
     echo "FAIL  $f (Polychro exited with $code)"
+    sed 's/^/      /' "$err"
     failed=$((failed + 1))
     continue
   fi

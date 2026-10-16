@@ -33,10 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The job never pushes: do not leave the token in .git/config for later steps.
+          persist-credentials: false
 
-      # The Polychro CLI is downloaded from its release and checked against the
-      # published checksum. The CLI is used directly rather than the Polychro
-      # GitHub Action, so --schema and --ruleset are always passed as flags.
+      # The Polychro CLI is downloaded from its release, pinned to a version. The
+      # checksum comes from the same release, so it catches a corrupted download,
+      # not a compromised release. The CLI is used directly rather than the
+      # Polychro GitHub Action, so --schema and --ruleset are always passed as flags.
       - name: Install Polychro
         run: |
           base="https://github.com/naftiko/polychro/releases/download/v${POLYCHRO_VERSION}"

@@ -1,2 +1,0 @@
-extends:
-  - ./modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml
