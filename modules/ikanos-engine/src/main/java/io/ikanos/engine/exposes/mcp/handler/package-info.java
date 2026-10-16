@@ -15,7 +15,7 @@
  * tool/resource/prompt name) and holds the ordered lists of
  * {@link io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor}s and
  * {@link io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor}s that run respectively
- * before and after {@link io.ikanos.engine.exposes.mcp.handler.McpCallHandler#handle(com.fasterxml.jackson.databind.JsonNode)}
+ * before and after {@link io.ikanos.engine.exposes.mcp.handler.McpCallHandler#handle(tools.jackson.databind.JsonNode)}
  * — for example protocol-version validation, response caching directives, and server metadata
  * enrichment.</p>
  *

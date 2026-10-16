@@ -15,9 +15,8 @@ package io.ikanos.spec.exposes.skill;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Deserialization tests for {@link SkillToolSpec} and {@link SkillToolFromSpec} — verifying the
@@ -25,8 +24,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  */
 public class SkillToolSpecDeserializationTest {
 
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
 
     @Test
     public void testDerivedToolFromVariant() throws Exception {

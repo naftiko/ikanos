@@ -23,10 +23,8 @@ import org.restlet.Response;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
@@ -34,6 +32,7 @@ import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test proving that a single aggregate flow mock can be reused unchanged by
@@ -41,7 +40,7 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
  */
 public class AggregateSharedMockIntegrationTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     @Test
     void aggregateMockShouldReturnSamePayloadForMcpAndRest() throws Exception {
@@ -60,7 +59,7 @@ public class AggregateSharedMockIntegrationTest {
                 "MCP tools/call should not fail for aggregate mock ref");
 
         JsonNode mcpPayload = JSON.readTree(mcpResponse.path("result").path("content")
-                .get(0).path("text").asText());
+                .get(0).path("text").asString());
 
         RestServerAdapter restAdapter = (RestServerAdapter) capability.getServerAdapters().get(1);
         RestServerSpec restSpec = (RestServerSpec) restAdapter.getSpec();
@@ -82,16 +81,15 @@ public class AggregateSharedMockIntegrationTest {
         assertEquals(Status.SUCCESS_OK, response.getStatus());
         JsonNode restPayload = JSON.readTree(response.getEntity().getText());
 
-        assertEquals("Hello, Nina!", mcpPayload.path("message").asText());
-        assertEquals("aggregate-mock", mcpPayload.path("source").asText());
+        assertEquals("Hello, Nina!", mcpPayload.path("message").asString());
+        assertEquals("aggregate-mock", mcpPayload.path("source").asString());
         assertEquals(mcpPayload, restPayload,
                 "MCP and REST should share the same aggregate mock output");
     }
 
     private Capability loadCapability(String path) throws Exception {
         File file = new File(path);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
         return new Capability(spec);
     }

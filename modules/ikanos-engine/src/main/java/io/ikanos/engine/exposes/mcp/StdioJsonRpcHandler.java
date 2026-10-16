@@ -24,9 +24,9 @@ import java.util.logging.Level;
 
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import org.restlet.Context;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.PARSE_ERROR;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
@@ -93,7 +93,7 @@ public class StdioJsonRpcHandler implements Runnable {
                         output.println(json);
                         output.flush();
                     }
-                } catch (JsonProcessingException e) {
+                } catch (JacksonException e) {
                     Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
 
 
@@ -103,13 +103,13 @@ public class StdioJsonRpcHandler implements Runnable {
                     try {
                         output.println(dispatcher.getMapper().writeValueAsString(errorResponse));
                         output.flush();
-                    } catch (JsonProcessingException ex) {
+                    } catch (JacksonException ex) {
                         Context.getCurrentLogger().log(Level.SEVERE, "Error serializing error response", ex);
                         // Cannot serialize the error response — nothing more we can do
                     }
                 }
             }
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             if (running) {
                 System.err.println("MCP stdio error: " + e.getMessage());
                 Context.getCurrentLogger().log(Level.SEVERE, "MCP stdio error", e);

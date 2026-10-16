@@ -14,9 +14,9 @@
 package io.ikanos.spec.consumes.http;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.consumes.ClientSpec;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * A globally imported consumed HTTP adapter reference.
@@ -29,7 +29,7 @@ import io.ikanos.spec.consumes.ClientSpec;
  * {@code aggregates}, and {@code binds}: {@code from} / {@code import} / {@code as} /
  * {@code description}. See {@code blueprints/unified-import-mechanism.md}.</p>
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class ImportedConsumesHttpSpec extends ClientSpec {
 
     @JsonProperty("from")

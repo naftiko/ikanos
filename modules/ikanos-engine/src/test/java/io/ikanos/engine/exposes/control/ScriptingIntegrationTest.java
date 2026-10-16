@@ -16,10 +16,8 @@ package io.ikanos.engine.exposes.control;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
@@ -35,6 +33,7 @@ import org.restlet.routing.TemplateRoute;
 import java.io.File;
 import java.util.Set;
 import java.util.stream.Collectors;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for scripting governance on the Control Port.
@@ -44,7 +43,7 @@ public class ScriptingIntegrationTest {
 
     private Capability capability;
     private ControlServerAdapter adapter;
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+    private static final ObjectMapper JSON_MAPPER = IkanosMappers.lenientJson();
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -52,8 +51,7 @@ public class ScriptingIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Scripting capability test file should exist");
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
@@ -91,8 +89,7 @@ public class ScriptingIntegrationTest {
 
     @Test
     public void routerShouldNotAttachScriptingWhenNotConfigured() throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(
                 new File("src/test/resources/control/control-capability.yaml"),
                 IkanosSpec.class);
@@ -122,8 +119,8 @@ public class ScriptingIntegrationTest {
         JsonNode json = JSON_MAPPER.readTree(body);
 
         assertTrue(json.get("enabled").asBoolean());
-        assertEquals("file:///app/scripts", json.get("defaultLocation").asText());
-        assertEquals("javascript", json.get("defaultLanguage").asText());
+        assertEquals("file:///app/scripts", json.get("defaultLocation").asString());
+        assertEquals("javascript", json.get("defaultLanguage").asString());
         assertEquals(3000, json.get("timeout").asInt());
         assertEquals(50000, json.get("statementLimit").asLong());
         assertTrue(json.has("allowedLanguages"));
@@ -197,7 +194,7 @@ public class ScriptingIntegrationTest {
 
         String body = putResponse.getEntity().getText();
         JsonNode json = JSON_MAPPER.readTree(body);
-        assertEquals("file:///new/path", json.get("defaultLocation").asText());
+        assertEquals("file:///new/path", json.get("defaultLocation").asString());
     }
 
     @Test
@@ -213,7 +210,7 @@ public class ScriptingIntegrationTest {
 
         String body = putResponse.getEntity().getText();
         JsonNode json = JSON_MAPPER.readTree(body);
-        assertEquals("python", json.get("defaultLanguage").asText());
+        assertEquals("python", json.get("defaultLanguage").asString());
     }
 
     @Test
@@ -232,8 +229,8 @@ public class ScriptingIntegrationTest {
         JsonNode json = JSON_MAPPER.readTree(body);
         assertTrue(json.has("allowedLanguages"));
         assertEquals(2, json.get("allowedLanguages").size());
-        assertEquals("javascript", json.get("allowedLanguages").get(0).asText());
-        assertEquals("python", json.get("allowedLanguages").get(1).asText());
+        assertEquals("javascript", json.get("allowedLanguages").get(0).asString());
+        assertEquals("python", json.get("allowedLanguages").get(1).asString());
     }
 
     // ── Runtime effect ───────────────────────────────────────────
@@ -275,8 +272,7 @@ public class ScriptingIntegrationTest {
 
     @Test
     public void capabilityShouldHaveNullScriptingSpecWhenNotConfigured() throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(
                 new File("src/test/resources/control/control-capability.yaml"),
                 IkanosSpec.class);

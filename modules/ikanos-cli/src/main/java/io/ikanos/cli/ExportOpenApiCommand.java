@@ -17,9 +17,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.models.SpecVersion;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.openapi.OasExportBuilder;
@@ -30,6 +28,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.ikanos.spec.util.IkanosMappers;
 
 @Command(
     name = "openapi",
@@ -65,8 +64,7 @@ public class ExportOpenApiCommand implements Callable<Integer> {
                 return 1;
             }
 
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-            yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
             IkanosSpec IkanosSpec = yamlMapper.readValue(capabilityFile, IkanosSpec.class);
 
             // Validate and parse spec version

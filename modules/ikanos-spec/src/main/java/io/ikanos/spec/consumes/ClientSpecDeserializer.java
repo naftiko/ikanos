@@ -13,13 +13,13 @@
  */
 package io.ikanos.spec.consumes;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer for {@code consumes} entries.
@@ -36,10 +36,10 @@ import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
  * This is part of Phase 1 of the unified import mechanism — see
  * {@code blueprints/unified-import-mechanism.md}.</p>
  */
-public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
+public class ClientSpecDeserializer extends ValueDeserializer<ClientSpec> {
 
     @Override
-    public ClientSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public ClientSpec deserialize(JsonParser p, DeserializationContext ctxt) {
         JsonNode node = ctxt.readTree(p);
 
         // Reject the legacy 'location' keyword on import entries with a clear migration message.
@@ -47,10 +47,8 @@ public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
         // 'baseUri' (which is mandatory on an inline HttpClientSpec). We avoid rejecting valid
         // inline adapter specs that happen to use 'location' as a parameter name elsewhere.
         if (node.has("location") && node.has("import") && !node.has("baseUri")) {
-            throw new IOException(
-                "Import keyword 'location' is no longer supported on 'consumes' entries; "
-                    + "use 'from' instead. See blueprints/unified-import-mechanism.md."
-            );
+            throw DatabindException.from(p, "Import keyword 'location' is no longer supported on 'consumes' entries; "
+                    + "use 'from' instead. See blueprints/unified-import-mechanism.md.");
         }
 
         // If 'from' field is present -> ImportedConsumesHttpSpec
@@ -60,10 +58,10 @@ public class ClientSpecDeserializer extends JsonDeserializer<ClientSpec> {
 
         // Otherwise dispatch on 'type' (absent -> http)
         JsonNode typeNode = node.get("type");
-        String type = typeNode != null && !typeNode.isNull() ? typeNode.asText() : null;
+        String type = typeNode != null && !typeNode.isNull() ? typeNode.asString() : null;
         Class<? extends ClientSpec> specClass = ClientSpecTypes.resolve(type);
         if (specClass == null) {
-            throw new IOException("Unknown consumes type '" + type + "'. Registered types: "
+            throw DatabindException.from(p, "Unknown consumes type '" + type + "'. Registered types: "
                     + ClientSpecTypes.registeredTypes());
         }
         return ctxt.readTreeAsValue(node, specClass);

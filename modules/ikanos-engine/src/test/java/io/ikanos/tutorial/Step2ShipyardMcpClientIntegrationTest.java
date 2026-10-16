@@ -22,7 +22,7 @@ import java.net.http.HttpClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 
 
@@ -71,8 +71,8 @@ public class Step2ShipyardMcpClientIntegrationTest
         assertEquals(2, tools.size(), "step-2 exposes exactly two tools");
 
         // Preserve order: list-ships first, get-ship second
-        assertEquals("list-ships", tools.get(0).path("name").asText());
-        assertEquals("get-ship",   tools.get(1).path("name").asText());
+        assertEquals("list-ships", tools.get(0).path("name").asString());
+        assertEquals("get-ship",   tools.get(1).path("name").asString());
     }
 
     @Test
@@ -84,13 +84,13 @@ public class Step2ShipyardMcpClientIntegrationTest
 
         JsonNode props = listShips.path("inputSchema").path("properties");
         assertTrue(props.has("status"), "list-ships inputSchema must declare 'status'");
-        assertEquals("string", props.path("status").path("type").asText());
+        assertEquals("string", props.path("status").path("type").asString());
 
         // status is optional — required array must not contain it
         JsonNode required = listShips.path("inputSchema").path("required");
         boolean statusRequired = false;
         for (JsonNode r : required) {
-            if ("status".equals(r.asText())) {
+            if ("status".equals(r.asString())) {
                 statusRequired = true;
                 break;
             }
@@ -107,12 +107,12 @@ public class Step2ShipyardMcpClientIntegrationTest
 
         JsonNode props = getShip.path("inputSchema").path("properties");
         assertTrue(props.has("imo"), "get-ship inputSchema must declare 'imo'");
-        assertEquals("string", props.path("imo").path("type").asText());
+        assertEquals("string", props.path("imo").path("type").asString());
 
         JsonNode required = getShip.path("inputSchema").path("required");
         boolean imoRequired = false;
         for (JsonNode r : required) {
-            if ("imo".equals(r.asText())) {
+            if ("imo".equals(r.asString())) {
                 imoRequired = true;
                 break;
             }
@@ -140,8 +140,8 @@ public class Step2ShipyardMcpClientIntegrationTest
         assertTrue(first.has("type"),   "Must have 'type'");
         assertTrue(first.has("flag"),   "Must have 'flag'");
         assertTrue(first.has("status"), "Must have 'status'");
-        assertFalse(first.path("imo").asText().isBlank(),  "imo must not be blank");
-        assertFalse(first.path("name").asText().isBlank(), "name must not be blank");
+        assertFalse(first.path("imo").asString().isBlank(),  "imo must not be blank");
+        assertFalse(first.path("name").asString().isBlank(), "name must not be blank");
     }
 
     @Test
@@ -158,7 +158,7 @@ public class Step2ShipyardMcpClientIntegrationTest
 
         // Every ship returned by the mock must have status=active
         for (JsonNode ship : ships) {
-            assertEquals("active", ship.path("status").asText(),
+            assertEquals("active", ship.path("status").asString(),
                     "All ships in an active-filtered response must have status 'active'");
         }
     }
@@ -183,7 +183,7 @@ public class Step2ShipyardMcpClientIntegrationTest
         assertTrue(ship.has("status"), "Must have 'status'");
 
         // The mock returns the record for the requested IMO
-        assertEquals("IMO-9321483", ship.path("imo").asText(),
+        assertEquals("IMO-9321483", ship.path("imo").asString(),
                 "Returned imo must match the requested IMO number");
     }
 

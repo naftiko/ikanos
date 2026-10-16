@@ -24,15 +24,14 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Regression test for #339: MCP tools calling operations with outputRawFormat: xml
@@ -107,23 +106,22 @@ public class McpXmlOutputIntegrationTest {
             assertFalse(result.content().isEmpty(), "Result content should not be empty");
 
             String text = ((McpSchema.TextContent) result.content().get(0)).text();
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = IkanosMappers.lenientJson();
             JsonNode mapped = mapper.readTree(text);
 
             assertTrue(mapped.isArray(), "Mapped result should be an array");
             assertEquals(2, mapped.size(), "Should contain two vessels");
-            assertEquals("V001", mapped.get(0).path("vesselCode").asText());
-            assertEquals("Sea Eagle", mapped.get(0).path("name").asText());
-            assertEquals("V002", mapped.get(1).path("vesselCode").asText());
-            assertEquals("Ocean Star", mapped.get(1).path("name").asText());
+            assertEquals("V001", mapped.get(0).path("vesselCode").asString());
+            assertEquals("Sea Eagle", mapped.get(0).path("name").asString());
+            assertEquals("V002", mapped.get(1).path("vesselCode").asString());
+            assertEquals("Ocean Star", mapped.get(1).path("name").asString());
         } finally {
             server.stop();
         }
     }
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

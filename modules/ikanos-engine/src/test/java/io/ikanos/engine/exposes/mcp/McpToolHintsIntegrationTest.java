@@ -16,10 +16,8 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
@@ -27,6 +25,7 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 import java.io.File;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP tool hints (ToolAnnotations) support. Validates YAML deserialization,
@@ -34,7 +33,7 @@ import java.io.File;
  */
 public class McpToolHintsIntegrationTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     private Capability capability;
     private McpServerAdapter adapter;
@@ -45,8 +44,7 @@ public class McpToolHintsIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "MCP hints capability test file should exist");
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
@@ -138,12 +136,12 @@ public class McpToolHintsIntegrationTest {
 
         // read-data tool: has label + readOnly + openWorld hints
         JsonNode readTool = tools.get(0);
-        assertEquals("read-data", readTool.path("name").asText());
-        assertEquals("Read Data", readTool.path("title").asText());
+        assertEquals("read-data", readTool.path("name").asString());
+        assertEquals("Read Data", readTool.path("title").asString());
 
         JsonNode readAnnotations = readTool.path("annotations");
         assertFalse(readAnnotations.isMissingNode(), "read-data should have annotations");
-        assertEquals("Read Data", readAnnotations.path("title").asText());
+        assertEquals("Read Data", readAnnotations.path("title").asString());
         assertEquals(true, readAnnotations.path("readOnlyHint").asBoolean());
         assertEquals(true, readAnnotations.path("openWorldHint").asBoolean());
         assertTrue(readAnnotations.path("destructiveHint").isMissingNode(),
@@ -151,7 +149,7 @@ public class McpToolHintsIntegrationTest {
 
         // delete-record tool: no label, full hints
         JsonNode deleteTool = tools.get(1);
-        assertEquals("delete-record", deleteTool.path("name").asText());
+        assertEquals("delete-record", deleteTool.path("name").asString());
 
         JsonNode deleteAnnotations = deleteTool.path("annotations");
         assertFalse(deleteAnnotations.isMissingNode());
@@ -164,7 +162,7 @@ public class McpToolHintsIntegrationTest {
 
         // no-hints-tool: no annotations at all
         JsonNode noHintsTool = tools.get(2);
-        assertEquals("no-hints-tool", noHintsTool.path("name").asText());
+        assertEquals("no-hints-tool", noHintsTool.path("name").asString());
         assertTrue(noHintsTool.path("annotations").isMissingNode(),
                 "Tool without hints or label should have no annotations");
     }

@@ -19,8 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.node.IntNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.IntNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public class McpErrorsTest {
 
@@ -31,7 +31,7 @@ public class McpErrorsTest {
         ObjectNode envelope = McpErrors.internalError(IntNode.valueOf(7),
                 "Error processing request", new IllegalStateException(SENSITIVE_DETAIL));
 
-        String message = envelope.path("error").path("message").asText();
+        String message = envelope.path("error").path("message").asString();
         assertEquals(-32603, envelope.path("error").path("code").asInt());
         assertEquals(7, envelope.path("id").asInt());
         assertTrue(message.startsWith("Internal error (reference: "), message);
@@ -47,7 +47,7 @@ public class McpErrorsTest {
             ObjectNode envelope = McpErrors.internalError(null,
                     "Error processing request", new IllegalStateException(SENSITIVE_DETAIL));
 
-            String message = envelope.path("error").path("message").asText();
+            String message = envelope.path("error").path("message").asString();
             String id = message.substring(message.indexOf("reference: ") + "reference: ".length(),
                     message.length() - 1);
             List<String> lines = logs.messages();

@@ -28,15 +28,14 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 class ResourceHandlerDynamicTest {
     private String schemaVersion;
@@ -123,8 +122,7 @@ class ResourceHandlerDynamicTest {
     }
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

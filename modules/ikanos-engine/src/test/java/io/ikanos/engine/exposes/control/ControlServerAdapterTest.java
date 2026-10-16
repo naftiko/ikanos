@@ -16,9 +16,7 @@ package io.ikanos.engine.exposes.control;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
@@ -28,6 +26,7 @@ import io.ikanos.spec.observability.ObservabilityTracesSpec;
 import io.ikanos.spec.observability.ObservabilityTracesLocalSpec;
 
 import java.io.File;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for ControlServerAdapter helper methods — isMetricsEnabled, isTracesEnabled.
@@ -39,8 +38,7 @@ public class ControlServerAdapterTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(
                 new File("src/test/resources/control/control-capability.yaml"),
                 IkanosSpec.class);

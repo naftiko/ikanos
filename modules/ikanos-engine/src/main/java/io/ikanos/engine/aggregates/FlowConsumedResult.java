@@ -16,13 +16,14 @@ package io.ikanos.engine.aggregates;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * The result of calling an aggregate flow from a step, seen through {@link ConsumedResult}.
@@ -41,7 +42,7 @@ import io.ikanos.spec.OutputParameterSpec;
  */
 public class FlowConsumedResult implements ConsumedResult {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String JSON_MEDIA_TYPE = "application/json";
 
     private final AggregateFlow flow;

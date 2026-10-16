@@ -24,7 +24,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.IkanosSpec;
 
 
@@ -61,11 +61,11 @@ public class Step6ShipyardMcpClientIntegrationTest
         JsonNode tools = callToolsList(http);
 
         assertEquals(5, tools.size(), "step-6 exposes exactly five tools");
-        assertEquals("list-ships",          tools.get(0).path("name").asText());
-        assertEquals("get-ship",            tools.get(1).path("name").asText());
-        assertEquals("list-legacy-vessels", tools.get(2).path("name").asText());
-        assertEquals("create-voyage",       tools.get(3).path("name").asText());
-        assertEquals("refresh-crew",       tools.get(4).path("name").asText());
+        assertEquals("list-ships",          tools.get(0).path("name").asString());
+        assertEquals("get-ship",            tools.get(1).path("name").asString());
+        assertEquals("list-legacy-vessels", tools.get(2).path("name").asString());
+        assertEquals("create-voyage",       tools.get(3).path("name").asString());
+        assertEquals("refresh-crew",       tools.get(4).path("name").asString());
     }
 
     @Test
@@ -82,8 +82,8 @@ public class Step6ShipyardMcpClientIntegrationTest
         assertTrue(props.has("arrivalDate"), "create-voyage inputSchema must declare 'arrivalDate'");
         assertTrue(props.has("crewIds"), "create-voyage inputSchema must declare 'crewIds'");
         assertTrue(props.has("cargoIds"), "create-voyage inputSchema must declare 'cargoIds'");
-        assertEquals("array", props.path("crewIds").path("type").asText());
-        assertEquals("array", props.path("cargoIds").path("type").asText());
+        assertEquals("array", props.path("crewIds").path("type").asString());
+        assertEquals("array", props.path("cargoIds").path("type").asString());
 
         JsonNode required = createVoyage.path("inputSchema").path("required");
         boolean shipImoRequired = false;
@@ -95,7 +95,7 @@ public class Step6ShipyardMcpClientIntegrationTest
         boolean cargoIdsRequired = false;
 
         for (JsonNode r : required) {
-            String val = r.asText();
+            String val = r.asString();
             if ("shipImo".equals(val)) {
                 shipImoRequired = true;
             } else if ("departurePort".equals(val)) {
@@ -140,23 +140,23 @@ public class Step6ShipyardMcpClientIntegrationTest
                 """);
 
         assertTrue(voyage.isObject(), "create-voyage must return a JSON object");
-        assertFalse(voyage.path("voyageId").asText().isBlank(), "voyageId must not be blank");
-        assertEquals("IMO-9321483", voyage.path("shipImo").asText(), "shipImo must match request");
+        assertFalse(voyage.path("voyageId").asString().isBlank(), "voyageId must not be blank");
+        assertEquals("IMO-9321483", voyage.path("shipImo").asString(), "shipImo must match request");
 
         JsonNode route = voyage.path("route");
         assertTrue(route.isObject(), "route must be an object");
-        assertEquals("Oslo", route.path("from").asText(), "route.from must map from departurePort");
-        assertEquals("Singapore", route.path("to").asText(), "route.to must map from arrivalPort");
+        assertEquals("Oslo", route.path("from").asString(), "route.from must map from departurePort");
+        assertEquals("Singapore", route.path("to").asString(), "route.to must map from arrivalPort");
 
         JsonNode dates = voyage.path("dates");
         assertTrue(dates.isObject(), "dates must be an object");
-        assertEquals("2026-04-10", dates.path("departure").asText(), "dates.departure must map");
-        assertEquals("2026-05-02", dates.path("arrival").asText(), "dates.arrival must map");
+        assertEquals("2026-04-10", dates.path("departure").asString(), "dates.departure must map");
+        assertEquals("2026-05-02", dates.path("arrival").asString(), "dates.arrival must map");
 
         assertTrue(voyage.path("crewIds").isArray(), "crewIds must be an array");
         assertFalse(voyage.path("crewIds").isEmpty(), "crewIds must not be empty");
         assertTrue(voyage.path("cargoIds").isArray(), "cargoIds must be an array");
-        assertFalse(voyage.path("status").asText().isBlank(), "status must not be blank");
+        assertFalse(voyage.path("status").asString().isBlank(), "status must not be blank");
     }
 
     @Test

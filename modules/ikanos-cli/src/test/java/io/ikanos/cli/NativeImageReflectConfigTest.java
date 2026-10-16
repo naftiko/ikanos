@@ -14,7 +14,6 @@
 package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.*;
-
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -32,10 +31,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Validates that the GraalVM native-image reflect-config.json contains all classes
@@ -49,7 +49,7 @@ public class NativeImageReflectConfigTest {
 
     @BeforeAll
     static void loadReflectConfig() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         try (InputStream is = NativeImageReflectConfigTest.class.getClassLoader()
                 .getResourceAsStream("META-INF/native-image/reflect-config.json")) {
             assertNotNull(is, "reflect-config.json must be on the classpath");
@@ -117,7 +117,7 @@ public class NativeImageReflectConfigTest {
     }
 
     /**
-     * Dynamically discovers every {@link JsonDeserializer} subclass in the
+     * Dynamically discovers every {@link ValueDeserializer} subclass in the
      * {@code io.ikanos.spec} package tree and asserts that each one is registered
      * in {@code reflect-config.json}.
      *
@@ -144,7 +144,7 @@ public class NativeImageReflectConfigTest {
 
     /**
      * Scans the classpath for all classes in {@code packageName} (and sub-packages)
-     * that are assignable to {@link JsonDeserializer}, using only the JDK class loader
+     * that are assignable to {@link ValueDeserializer}, using only the JDK class loader
      * and NIO — no third-party scanning library required.
      *
      * <p>Works for both exploded directories (IDE / {@code mvn test}) and JAR files
@@ -206,9 +206,9 @@ public class NativeImageReflectConfigTest {
                 }
                 try {
                     Class<?> cls = cl.loadClass(className);
-                    if (JsonDeserializer.class.isAssignableFrom(cls)
-                            && cls != JsonDeserializer.class
-                            && cls != JsonDeserializer.None.class) {
+                    if (ValueDeserializer.class.isAssignableFrom(cls)
+                            && cls != ValueDeserializer.class
+                            && cls != ValueDeserializer.None.class) {
                         result.add(className);
                     }
                 } catch (ClassNotFoundException | NoClassDefFoundError ignored) {

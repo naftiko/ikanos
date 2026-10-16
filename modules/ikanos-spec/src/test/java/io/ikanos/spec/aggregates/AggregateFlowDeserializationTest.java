@@ -15,11 +15,11 @@ package io.ikanos.spec.aggregates;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Non-regression tests for the {@code flows:} rename (#463).
@@ -31,7 +31,9 @@ import org.junit.jupiter.api.Test;
 class AggregateFlowDeserializationTest {
 
     private static final ObjectMapper MAPPER =
-            new ObjectMapper(new YAMLFactory()).findAndRegisterModules();
+            IkanosMappers.yamlBuilder()
+                    .findAndAddModules()
+                    .build();
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 

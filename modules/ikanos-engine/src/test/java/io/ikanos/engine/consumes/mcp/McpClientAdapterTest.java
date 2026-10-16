@@ -33,14 +33,14 @@ import org.restlet.Response;
 import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpClientAdapter}: request shape on the wire, response body selection,
@@ -49,8 +49,8 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
  */
 class McpClientAdapterTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
+    private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final ObjectMapper YAML = IkanosMappers.yaml();
 
     /** Restlet client stub: records requests, answers with a scripted response. */
     static final class StubClient extends Client {
@@ -161,13 +161,13 @@ class McpClientAdapterTest {
 
         Request request = client.requests.get(0);
         JsonNode body = JSON.readTree(client.bodies.get(0));
-        assertEquals("tools/call", body.path("method").asText());
-        assertEquals("get-invoice", body.path("params").path("name").asText());
-        assertEquals("INV-1", body.path("params").path("arguments").path("invoice-id").asText());
+        assertEquals("tools/call", body.path("method").asString());
+        assertEquals("get-invoice", body.path("params").path("name").asString());
+        assertEquals("INV-1", body.path("params").path("arguments").path("invoice-id").asString());
         assertFalse(body.path("params").path("arguments").has("undeclared"));
         assertFalse(body.path("params").path("arguments").has("locale"));
         assertEquals(McpStreamableHttpTransport.PROTOCOL_VERSION, body.path("params")
-                .path("_meta").path(McpStreamableHttpTransport.META_PROTOCOL_VERSION).asText());
+                .path("_meta").path(McpStreamableHttpTransport.META_PROTOCOL_VERSION).asString());
         assertEquals("tools/call", request.getHeaders().getFirstValue("Mcp-Method", true));
         assertEquals("get-invoice", request.getHeaders().getFirstValue("Mcp-Name", true));
         assertEquals(McpStreamableHttpTransport.PROTOCOL_VERSION,
@@ -207,7 +207,7 @@ class McpClientAdapterTest {
 
         ConsumedResult body = McpClientAdapter.selectBody(result, ConsumedOperationView.NONE);
 
-        assertEquals("plain words", body.document().asText());
+        assertEquals("plain words", body.document().asString());
         assertEquals("plain words", body.text());
     }
 
@@ -220,8 +220,8 @@ class McpClientAdapterTest {
 
             ConsumedResult body = McpClientAdapter.selectBody(result, ConsumedOperationView.NONE);
 
-            assertTrue(body.document().isTextual(), text);
-            assertEquals(text, body.document().asText());
+            assertTrue(body.document().isString(), text);
+            assertEquals(text, body.document().asString());
         }
     }
 

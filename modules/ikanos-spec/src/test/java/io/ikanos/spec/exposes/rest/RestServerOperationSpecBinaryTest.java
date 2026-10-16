@@ -16,16 +16,14 @@ package io.ikanos.spec.exposes.rest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for the REST binary response contract on {@link RestServerOperationSpec}
@@ -38,8 +36,7 @@ public class RestServerOperationSpecBinaryTest {
 
     @BeforeEach
     public void setUp() {
-        mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper = IkanosMappers.lenientYaml();
     }
 
     @Test

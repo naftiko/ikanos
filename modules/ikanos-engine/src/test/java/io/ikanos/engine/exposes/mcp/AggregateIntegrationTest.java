@@ -15,16 +15,15 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import java.io.File;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for aggregate flow ref resolution and semantics-to-hints derivation
@@ -32,13 +31,12 @@ import java.io.File;
  */
 public class AggregateIntegrationTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     private Capability loadCapability(String path) throws Exception {
         File file = new File(path);
         assertTrue(file.exists(), "Test file should exist: " + path);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
         return new Capability(spec);
     }
@@ -204,7 +202,7 @@ public class AggregateIntegrationTest {
         assertEquals(2, tools.size());
 
         JsonNode forecastTool = tools.get(0);
-        assertEquals("get-forecast", forecastTool.path("name").asText());
+        assertEquals("get-forecast", forecastTool.path("name").asString());
 
         JsonNode annotations = forecastTool.path("annotations");
         assertFalse(annotations.isMissingNode(), "Should have annotations from derived hints");

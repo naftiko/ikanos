@@ -20,15 +20,14 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test for issue #290: namespace-qualified references in step-level WithInjector.
@@ -51,8 +50,7 @@ public class StepWithNamespaceIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "Test capability file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
         capability = new Capability(spec);
 

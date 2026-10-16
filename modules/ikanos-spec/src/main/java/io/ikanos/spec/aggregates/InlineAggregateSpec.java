@@ -13,8 +13,8 @@
  */
 package io.ikanos.spec.aggregates;
 
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Marker subclass of {@link AggregateSpec} used purely as a Jackson deserialization target
@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  * <p>The runtime, ruleset, and API only ever observe instances of the public {@link AggregateSpec}
  * type; this subclass adds no fields and no behavior.</p>
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class InlineAggregateSpec extends AggregateSpec {
 
     public InlineAggregateSpec() {

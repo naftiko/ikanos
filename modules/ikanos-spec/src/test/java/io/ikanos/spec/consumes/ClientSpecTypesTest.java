@@ -21,13 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 class ClientSpecTypesTest {
 
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
+    private static final ObjectMapper YAML = IkanosMappers.yaml();
 
     private static ClientSpecType provider(String type, Class<? extends ClientSpec> specClass) {
         return new ClientSpecType() {

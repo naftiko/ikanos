@@ -20,14 +20,13 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP Server Adapter with stdio transport.
@@ -45,8 +44,7 @@ public class StdioIntegrationTest {
         assertTrue(file.exists(),
                 "MCP stdio capability test file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
@@ -98,7 +96,7 @@ public class StdioIntegrationTest {
 
         // Simulate a server/discover request via the protocol dispatcher
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
 
         String discoverRequest = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
                 + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
@@ -108,14 +106,14 @@ public class StdioIntegrationTest {
         JsonNode response = dispatcher.dispatch(request).responseBody();
 
         assertNotNull(response, "server/discover should return a response");
-        assertEquals("2.0", response.path("jsonrpc").asText());
+        assertEquals("2.0", response.path("jsonrpc").asString());
         assertEquals(1, response.path("id").asInt());
 
         JsonNode result = response.get("result");
         assertNotNull(result, "Should have a result");
         JsonNode supportedVersions = result.path("supportedVersions");
         assertTrue(supportedVersions.isArray() && supportedVersions.size() > 0);
-        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asText());
+        assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION, supportedVersions.get(0).asString());
     }
 
     @Test
@@ -123,7 +121,7 @@ public class StdioIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
 
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
 
         String listRequest = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\","
                 + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
@@ -135,7 +133,7 @@ public class StdioIntegrationTest {
         JsonNode tools = response.path("result").path("tools");
         assertTrue(tools.isArray(), "tools should be an array");
         assertEquals(1, tools.size(), "Should list one tool");
-        assertEquals("query-database", tools.get(0).path("name").asText());
+        assertEquals("query-database", tools.get(0).path("name").asString());
     }
 
     @Test
@@ -143,7 +141,7 @@ public class StdioIntegrationTest {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
 
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
 
         // A request without a matching protocolVersion in _meta must be rejected —
         // the initialize/notifications/initialized handshake no longer exists in 2026-07-28,
@@ -186,19 +184,19 @@ public class StdioIntegrationTest {
         assertEquals(2, lines.length,
                 "Should have 2 response lines (server/discover, tools/list)");
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.lenientJson();
 
         // Verify server/discover response
         JsonNode discoverResponse = mapper.readTree(lines[0]);
         assertEquals(1, discoverResponse.path("id").asInt());
         assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
-                discoverResponse.path("result").path("supportedVersions").get(0).asText());
+                discoverResponse.path("result").path("supportedVersions").get(0).asString());
 
         // Verify tools/list response
         JsonNode toolsResponse = mapper.readTree(lines[1]);
         assertEquals(2, toolsResponse.path("id").asInt());
         assertEquals("query-database",
-                toolsResponse.path("result").path("tools").get(0).path("name").asText());
+                toolsResponse.path("result").path("tools").get(0).path("name").asString());
     }
 
     @Test
@@ -215,15 +213,15 @@ public class StdioIntegrationTest {
         new StdioJsonRpcHandler(dispatcher,
                 new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), out).run();
 
-        JsonNode response = new ObjectMapper().readTree(out.toString(StandardCharsets.UTF_8).strip());
+        JsonNode response = IkanosMappers.lenientJson().readTree(out.toString(StandardCharsets.UTF_8).strip());
         JsonNode error = response.path("error");
         assertEquals(-32022, error.path("code").asInt(),
                 "#732: stdio must answer a legacy initialize with UnsupportedProtocolVersionError");
         assertEquals(0, response.path("id").asInt());
         assertEquals(ProtocolDispatcher.MCP_PROTOCOL_VERSION,
-                error.path("data").path("supported").path(0).asText());
-        assertEquals("2025-11-25", error.path("data").path("requested").asText());
-        assertTrue(error.path("message").asText().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
+                error.path("data").path("supported").path(0).asString());
+        assertEquals("2025-11-25", error.path("data").path("requested").asString());
+        assertTrue(error.path("message").asString().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
                 "#732: the message must name the supported version");
     }
 
@@ -234,8 +232,7 @@ public class StdioIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists());
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         Capability httpCapability = new Capability(spec);

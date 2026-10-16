@@ -13,10 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
@@ -33,7 +32,7 @@ import org.restlet.resource.Get;
 import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
 import org.restlet.util.Series;
-
+import tools.jackson.core.JacksonException;
 import java.util.Optional;
 import java.util.logging.Level;
 
@@ -99,7 +98,7 @@ public class McpServerResource extends ServerResource {
                 setStatus(Status.SUCCESS_ACCEPTED);
                 return new StringRepresentation("");
             }
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             getLogger().log(Level.SEVERE, "Error processing request", e);
             setStatusCode(PARSE_ERROR);
             ObjectNode error = buildJsonRpcError(null, PARSE_ERROR.getCode(),
@@ -136,7 +135,7 @@ public class McpServerResource extends ServerResource {
         // A legacy initialize carries none of the 2026-07-28 headers. Let it through so the
         // dispatcher answers with an UnsupportedProtocolVersionError naming the supported
         // versions, instead of a header error that gives the client no hint (#732).
-        if (LegacyInitializeHandler.METHOD_NAME.equals(requestBody.path("method").asText())) {
+        if (LegacyInitializeHandler.METHOD_NAME.equals(requestBody.path("method").asString())) {
             return Optional.empty();
         }
 
@@ -199,8 +198,7 @@ public class McpServerResource extends ServerResource {
         return (ProtocolDispatcher) getContext().getAttributes().get("dispatcher");
     }
 
-    private Representation toJsonRepresentation(ObjectMapper mapper, ObjectNode body)
-            throws JsonProcessingException {
+    private Representation toJsonRepresentation(ObjectMapper mapper, ObjectNode body) {
         String json = mapper.writeValueAsString(body);
         return new StringRepresentation(json, MediaType.APPLICATION_JSON);
     }

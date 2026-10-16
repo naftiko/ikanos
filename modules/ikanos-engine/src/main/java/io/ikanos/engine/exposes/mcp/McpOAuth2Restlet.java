@@ -21,13 +21,14 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.nimbusds.jose.jwk.JWKSet;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * MCP-specific OAuth 2.1 Restlet that extends {@link OAuth2AuthenticationRestlet} with
@@ -39,7 +40,7 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
  */
 public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private final String metadataPath;
     private final String metadataUri;
@@ -121,7 +122,7 @@ public class McpOAuth2Restlet extends OAuth2AuthenticationRestlet {
 
         try {
             return JSON.writeValueAsString(metadata);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize Protected Resource Metadata", e);
         }
     }

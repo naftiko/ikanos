@@ -20,15 +20,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
 import io.ikanos.spec.consumes.http.tunnel.ZitiTunnelConfigSpec;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Tests for the optional {@code tunnel} field on {@link HttpClientSpec}.
@@ -42,8 +41,8 @@ class HttpClientSpecTunnelTest {
 
     @BeforeEach
     void setUp() {
-        yamlMapper = new ObjectMapper(new YAMLFactory());
-        jsonMapper = new ObjectMapper();
+        yamlMapper = IkanosMappers.yaml();
+        jsonMapper = IkanosMappers.json();
     }
 
     @Test

@@ -22,15 +22,15 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Deserialization tests for the MCP Apps {@code ui} blocks on tools and resources.
  */
 class McpAppsUiSpecTest {
 
-    private final ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper yaml = IkanosMappers.yaml();
 
     @Test
     void toolSpecShouldDeserializeUiResourceUriAndVisibility() throws Exception {

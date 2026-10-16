@@ -13,7 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.model;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * A record representing a successful handler's result.

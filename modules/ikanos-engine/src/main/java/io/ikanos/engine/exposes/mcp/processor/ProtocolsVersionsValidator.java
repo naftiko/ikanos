@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.mcp.processor;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.exception.ProcessorException;
 
 import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.JSONRPC_VERSION;
@@ -38,10 +38,10 @@ public class ProtocolsVersionsValidator implements DispatchPreProcessor {
 
     @Override
     public void apply(JsonNode request) throws ProcessorException {
-        String jsonrpc = request.path("jsonrpc").asText("");
+        String jsonrpc = request.path("jsonrpc").asString("");
         JsonNode idNode = request.get("id");
         String bodyProtocolVersion = request.path("params").path("_meta")
-                .path("io.modelcontextprotocol/protocolVersion").asText("");
+                .path("io.modelcontextprotocol/protocolVersion").asString("");
 
         if (!JSONRPC_VERSION.equals(jsonrpc)) {
             throw new ProcessorException("Invalid Request: jsonrpc must be '2.0', got %s".formatted(jsonrpc),

@@ -15,11 +15,10 @@ package io.ikanos.spec.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpToolHintsSpec}.
@@ -70,7 +69,7 @@ public class McpToolHintsSpecTest {
                 openWorld: false
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         McpToolHintsSpec spec = mapper.readValue(yaml, McpToolHintsSpec.class);
 
         assertEquals(Boolean.TRUE, spec.getReadOnly());

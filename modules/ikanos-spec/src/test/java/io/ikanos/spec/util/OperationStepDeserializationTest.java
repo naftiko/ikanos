@@ -12,10 +12,8 @@
  * the License.
  */
 package io.ikanos.spec.util;
-
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -34,7 +32,7 @@ public class OperationStepDeserializationTest {
                   database_id: "$this.sample.database_id"
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
         OperationStepSpec step = yamlMapper.readValue(yaml, OperationStepSpec.class);
 
         assertNotNull(step, "Step should not be null");
@@ -56,7 +54,7 @@ public class OperationStepDeserializationTest {
                 call: api.list-items
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
         OperationStepSpec step = yamlMapper.readValue(yaml, OperationStepSpec.class);
 
         assertInstanceOf(OperationStepCallSpec.class, step);
@@ -80,7 +78,7 @@ public class OperationStepDeserializationTest {
                   - fullName
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
         OperationStepSpec step = yamlMapper.readValue(yaml, OperationStepSpec.class);
 
         assertNotNull(step, "Step should not be null");
@@ -110,7 +108,7 @@ public class OperationStepDeserializationTest {
                   - role_name
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
         OperationStepSpec step = yamlMapper.readValue(yaml, OperationStepSpec.class);
 
         assertInstanceOf(OperationStepLookupSpec.class, step);

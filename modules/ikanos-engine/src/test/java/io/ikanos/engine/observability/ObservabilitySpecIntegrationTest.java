@@ -15,9 +15,7 @@ package io.ikanos.engine.observability;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
@@ -25,6 +23,7 @@ import io.ikanos.spec.exposes.ServerSpec;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for spec-driven observability configuration. Loads full YAML capability
@@ -103,8 +102,7 @@ class ObservabilitySpecIntegrationTest {
     }
 
     private static IkanosSpec loadFixture(String resourcePath) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         try (InputStream is = ObservabilitySpecIntegrationTest.class.getClassLoader()
                 .getResourceAsStream(resourcePath)) {
             assertNotNull(is, "Fixture not found: " + resourcePath);

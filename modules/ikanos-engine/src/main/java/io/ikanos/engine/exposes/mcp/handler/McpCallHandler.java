@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
@@ -22,13 +22,14 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 
 import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * A common base class for all MCP handlers.
  */
 public abstract class McpCallHandler {
 
-    protected final ObjectMapper MAPPER = new ObjectMapper();
+    protected final ObjectMapper MAPPER = IkanosMappers.json();
     protected final McpServerAdapter adapter;
     private final List<McpHeader> requiredHeaders;
     private final List<DispatchPreProcessor> preProcessors;

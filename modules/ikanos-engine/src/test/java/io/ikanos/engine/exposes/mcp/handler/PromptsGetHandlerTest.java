@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import org.junit.jupiter.api.Test;
@@ -24,10 +24,11 @@ import java.util.List;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_PARAMS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import io.ikanos.spec.util.IkanosMappers;
 
 class PromptsGetHandlerTest {
 
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = IkanosMappers.json();
     McpServerAdapter adapter = mock();
     McpCallHandler handler = new PromptsGetHandler(adapter, List.of(), List.of(), List.of());
 

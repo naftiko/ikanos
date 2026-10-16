@@ -17,9 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -38,6 +36,7 @@ import org.restlet.Response;
 import org.restlet.data.Method;
 import org.restlet.representation.Representation;
 import org.slf4j.MDC;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Regression test for issue #548 (review completeness, PR #553).
@@ -77,8 +76,7 @@ class ObservabilitySkillHttpLayerTest {
     // ─── helpers ──────────────────────────────────────────────────────────────
 
     private Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

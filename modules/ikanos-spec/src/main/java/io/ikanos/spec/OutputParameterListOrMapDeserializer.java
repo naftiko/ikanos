@@ -13,15 +13,15 @@
  */
 package io.ikanos.spec;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.IOException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Jackson deserializer for {@code outputParameters} that accepts both forms:
@@ -34,13 +34,12 @@ import java.util.List;
  * Always returns {@code List<OutputParameterSpec>} to preserve backward compatibility with all
  * callers.
  */
-public class OutputParameterListOrMapDeserializer extends JsonDeserializer<List<OutputParameterSpec>> {
+public class OutputParameterListOrMapDeserializer extends ValueDeserializer<List<OutputParameterSpec>> {
 
     private final OutputParameterDeserializer itemDeserializer = new OutputParameterDeserializer();
 
     @Override
-    public List<OutputParameterSpec> deserialize(JsonParser p, DeserializationContext ctxt)
-            throws IOException {
+    public List<OutputParameterSpec> deserialize(JsonParser p, DeserializationContext ctxt) {
         List<OutputParameterSpec> result = new ArrayList<>();
         if (p.currentToken() == JsonToken.START_ARRAY) {
             // Legacy / Mapped / Mock / Consumed: array form
@@ -49,7 +48,7 @@ public class OutputParameterListOrMapDeserializer extends JsonDeserializer<List<
             }
         } else if (p.currentToken() == JsonToken.START_OBJECT) {
             // Orchestrated / Consumed: map form — key becomes name
-            JsonNode node = p.getCodec().readTree(p);
+            JsonNode node = p.objectReadContext().readTree(p);
             node.properties().forEach(entry -> {
                 try {
                     // Inject the map key as "name" into the node so that
@@ -59,14 +58,14 @@ public class OutputParameterListOrMapDeserializer extends JsonDeserializer<List<
                     if (valueNode.isObject() && !valueNode.has("name")) {
                         ((ObjectNode) valueNode).put("name", entry.getKey());
                     }
-                    JsonParser itemParser = valueNode.traverse(p.getCodec());
+                    JsonParser itemParser = valueNode.traverse(p.objectReadContext());
                     itemParser.nextToken();
                     OutputParameterSpec spec = itemDeserializer.deserialize(itemParser, ctxt);
                     if (spec.getName() == null) {
                         spec.setName(entry.getKey());
                     }
                     result.add(spec);
-                } catch (IOException e) {
+                } catch (JacksonException e) {
                     throw new IllegalStateException(
                             "Error deserializing outputParameter: " + entry.getKey(), e);
                 }

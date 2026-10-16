@@ -13,9 +13,9 @@
  */
 package io.ikanos.engine.exposes.control;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -28,6 +28,7 @@ import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Get;
 import org.restlet.resource.ServerResource;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Readiness probe. Returns {@code 200} when all business adapters are started,
@@ -35,7 +36,7 @@ import org.restlet.resource.ServerResource;
  */
 public class HealthReadyResource extends ServerResource {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     @Get("json")
     public Representation getReady() {

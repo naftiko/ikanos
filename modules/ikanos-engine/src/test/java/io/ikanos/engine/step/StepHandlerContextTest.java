@@ -17,9 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.IntNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.IntNode;
 
 class StepHandlerContextTest {
 
@@ -36,11 +36,11 @@ class StepHandlerContextTest {
     @Test
     void stepOutputsShouldBeAccessible() {
         Map<String, JsonNode> outputs = new HashMap<>();
-        outputs.put("step1", TextNode.valueOf("output1"));
+        outputs.put("step1", StringNode.valueOf("output1"));
 
         StepHandlerContext ctx = new DefaultStepHandlerContext(null, outputs, null);
 
-        assertEquals("output1", ctx.stepOutputs().get("step1").asText());
+        assertEquals("output1", ctx.stepOutputs().get("step1").asString());
     }
 
     @Test
@@ -80,12 +80,12 @@ class StepHandlerContextTest {
     @Test
     void stepOutputsShouldBeImmutable() {
         Map<String, JsonNode> outputs = new HashMap<>();
-        outputs.put("step1", TextNode.valueOf("x"));
+        outputs.put("step1", StringNode.valueOf("x"));
 
         StepHandlerContext ctx = new DefaultStepHandlerContext(null, outputs, null);
 
         assertThrows(UnsupportedOperationException.class,
-                () -> ctx.stepOutputs().put("new", TextNode.valueOf("y")));
+                () -> ctx.stepOutputs().put("new", StringNode.valueOf("y")));
     }
 
     @Test

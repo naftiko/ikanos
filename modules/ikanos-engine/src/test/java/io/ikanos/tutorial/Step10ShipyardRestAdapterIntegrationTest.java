@@ -29,7 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -157,23 +157,23 @@ public class Step10ShipyardRestAdapterIntegrationTest
 
         JsonNode voyage = json.readTree(response.body());
         assertTrue(voyage.isObject(), "POST /voyages must return a JSON object");
-        assertFalse(voyage.path("voyageId").asText().isBlank(), "voyageId must not be blank");
-        assertEquals("IMO-9321483", voyage.path("shipImo").asText(), "shipImo must match request");
+        assertFalse(voyage.path("voyageId").asString().isBlank(), "voyageId must not be blank");
+        assertEquals("IMO-9321483", voyage.path("shipImo").asString(), "shipImo must match request");
 
         JsonNode route = voyage.path("route");
         assertTrue(route.isObject(), "route must be an object");
-        assertEquals("Oslo", route.path("from").asText(), "route.from must map from departurePort");
-        assertEquals("Singapore", route.path("to").asText(), "route.to must map from arrivalPort");
+        assertEquals("Oslo", route.path("from").asString(), "route.from must map from departurePort");
+        assertEquals("Singapore", route.path("to").asString(), "route.to must map from arrivalPort");
 
         JsonNode dates = voyage.path("dates");
         assertTrue(dates.isObject(), "dates must be an object");
-        assertEquals("2026-04-10", dates.path("departure").asText(), "dates.departure must map");
-        assertEquals("2026-05-02", dates.path("arrival").asText(), "dates.arrival must map");
+        assertEquals("2026-04-10", dates.path("departure").asString(), "dates.departure must map");
+        assertEquals("2026-05-02", dates.path("arrival").asString(), "dates.arrival must map");
 
         assertTrue(voyage.path("crewIds").isArray(), "crewIds must be an array");
         assertFalse(voyage.path("crewIds").isEmpty(), "crewIds must not be empty");
         assertTrue(voyage.path("cargoIds").isArray(), "cargoIds must be an array");
-        assertFalse(voyage.path("status").asText().isBlank(), "status must not be blank");
+        assertFalse(voyage.path("status").asString().isBlank(), "status must not be blank");
     }
 
     @Test
@@ -195,7 +195,7 @@ public class Step10ShipyardRestAdapterIntegrationTest
 
             List<String> names = new ArrayList<>();
             for (JsonNode s : catalog.path("skills")) {
-                names.add(s.path("name").asText());
+                names.add(s.path("name").asString());
             }
             assertTrue(names.contains("fleet-ops"), "catalog must include fleet-ops");
             assertTrue(names.contains("voyage-ops"), "catalog must include voyage-ops");
@@ -219,18 +219,18 @@ public class Step10ShipyardRestAdapterIntegrationTest
             assertEquals(200, response.statusCode(), "GET /skills/fleet-ops must succeed");
 
             JsonNode detail = json.readTree(response.body());
-            assertEquals("fleet-ops", detail.path("name").asText());
+            assertEquals("fleet-ops", detail.path("name").asString());
 
             JsonNode tools = detail.path("tools");
             assertTrue(tools.isArray(), "fleet-ops detail must contain a tools array");
             assertEquals(4, tools.size(), "fleet-ops must expose 4 tools in step-10");
 
             for (JsonNode t : tools) {
-                assertEquals("derived", t.path("type").asText(), "fleet-ops tools should be derived");
+                assertEquals("derived", t.path("type").asString(), "fleet-ops tools should be derived");
                 JsonNode inv = t.path("invocationRef");
-                assertEquals("shipyard-tools", inv.path("targetNamespace").asText());
-                assertEquals("mcp", inv.path("mode").asText());
-                assertFalse(inv.path("action").asText().isBlank(), "invocation action must be present");
+                assertEquals("shipyard-tools", inv.path("targetNamespace").asString());
+                assertEquals("mcp", inv.path("mode").asString());
+                assertFalse(inv.path("action").asString().isBlank(), "invocation action must be present");
             }
         } finally {
             skillAdapter.stop();

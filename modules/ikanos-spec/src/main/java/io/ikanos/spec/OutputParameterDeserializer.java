@@ -13,47 +13,43 @@
  */
 package io.ikanos.spec;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer for OutputParameterSpec that handles nested structure definitions including
  * properties, items, and values in a polymorphic manner.
  */
-public class OutputParameterDeserializer extends JsonDeserializer<OutputParameterSpec> {
+public class OutputParameterDeserializer extends ValueDeserializer<OutputParameterSpec> {
 
     @Override
-    public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt)
-            throws IOException, JsonProcessingException {
-        JsonNode node = p.getCodec().readTree(p);
+    public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt) {
+        JsonNode node = p.objectReadContext().readTree(p);
         return deserializeNode(node, ctxt);
     }
 
     /**
      * Recursively deserialize a JsonNode into OutputParameterSpec.
      */
-    private OutputParameterSpec deserializeNode(JsonNode node, DeserializationContext ctxt)
-            throws IOException {
+    private OutputParameterSpec deserializeNode(JsonNode node, DeserializationContext ctxt) {
         OutputParameterSpec spec = new OutputParameterSpec();
 
         if (node.has("name")) {
-            spec.setName(node.get("name").asText());
+            spec.setName(node.get("name").asString());
         }
 
         if (node.has("type")) {
-            spec.setType(node.get("type").asText());
+            spec.setType(node.get("type").asString());
         }
 
         if (node.has("mapping")) {
-            spec.setMapping(node.get("mapping").asText());
+            spec.setMapping(node.get("mapping").asString());
         }
 
         if (node.has("value")) {
-            String rawValue = node.get("value").asText();
+            String rawValue = node.get("value").asString();
             String trimmedValue = rawValue != null ? rawValue.trim() : "";
 
             // ConsumedOutputParameter uses "value" for JsonPath extraction (name + value
@@ -67,15 +63,15 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
         }
 
         if (node.has("const")) {
-            spec.setConstant(node.get("const").asText());
+            spec.setConstant(node.get("const").asString());
         }
 
         if (node.has("selector")) {
-            spec.setSelector(node.get("selector").asText());
+            spec.setSelector(node.get("selector").asString());
         }
 
         if (node.has("description")) {
-            spec.setDescription(node.get("description").asText());
+            spec.setDescription(node.get("description").asString());
         }
 
         // Handle nested "items" array for array types
@@ -127,7 +123,7 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
         if (node.has("required")) {
             JsonNode requiredNode = node.get("required");
             if (requiredNode.isArray()) {
-                requiredNode.forEach(item -> spec.getRequired().add(item.asText()));
+                requiredNode.forEach(item -> spec.getRequired().add(item.asString()));
             }
         }
 
@@ -135,7 +131,7 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
         if (node.has("enum")) {
             JsonNode enumNode = node.get("enum");
             if (enumNode.isArray()) {
-                enumNode.forEach(item -> spec.getEnumeration().add(item.asText()));
+                enumNode.forEach(item -> spec.getEnumeration().add(item.asString()));
             }
         }
 
@@ -149,19 +145,19 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
         }
 
         if (node.has("maxLength")) {
-            spec.setMaxLength(node.get("maxLength").asText());
+            spec.setMaxLength(node.get("maxLength").asString());
         }
 
         if (node.has("contentEncoding")) {
-            spec.setContentEncoding(node.get("contentEncoding").asText());
+            spec.setContentEncoding(node.get("contentEncoding").asString());
         }
 
         if (node.has("contentCompression")) {
-            spec.setContentCompression(node.get("contentCompression").asText());
+            spec.setContentCompression(node.get("contentCompression").asString());
         }
 
         if (node.has("contentMediaType")) {
-            spec.setContentMediaType(node.get("contentMediaType").asText());
+            spec.setContentMediaType(node.get("contentMediaType").asString());
         }
 
         return spec;
@@ -181,7 +177,7 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
             return false;
         }
         JsonNode type = itemsNode.get("type");
-        if (type != null && type.isTextual()) {
+        if (type != null && type.isString()) {
             return false;
         }
         for (JsonNode entry : itemsNode) {
@@ -197,7 +193,7 @@ public class OutputParameterDeserializer extends JsonDeserializer<OutputParamete
      * {@code properties} are the named entries.
      */
     private OutputParameterSpec deserializeOrchestratedItems(JsonNode itemsNode,
-            DeserializationContext ctxt) throws IOException {
+            DeserializationContext ctxt) {
         OutputParameterSpec itemsSpec = new OutputParameterSpec();
         itemsSpec.setType("object");
         var fields = itemsNode.properties().iterator();

@@ -17,13 +17,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.io.StringWriter;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 class InputParameterSerializerTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = IkanosMappers.json();
 
     @Test
     void serializeShouldWriteAllSupportedFieldsAndNestedStructures() throws Exception {
@@ -68,27 +69,27 @@ class InputParameterSerializerTest {
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(spec));
 
-        assertEquals("payload", json.get("name").asText());
-        assertEquals("object", json.get("type").asText());
-        assertEquals("body", json.get("in").asText());
-        assertEquals("{{payload}}", json.get("template").asText());
-        assertEquals("fixed", json.get("const").asText());
-        assertEquals("{{name}}", json.get("value").asText());
-        assertEquals("$.payload", json.get("selector").asText());
-        assertEquals("request payload", json.get("description").asText());
+        assertEquals("payload", json.get("name").asString());
+        assertEquals("object", json.get("type").asString());
+        assertEquals("body", json.get("in").asString());
+        assertEquals("{{payload}}", json.get("template").asString());
+        assertEquals("fixed", json.get("const").asString());
+        assertEquals("{{name}}", json.get("value").asString());
+        assertEquals("$.payload", json.get("selector").asString());
+        assertEquals("request payload", json.get("description").asString());
         assertEquals(4, json.get("precision").asInt());
         assertEquals(2, json.get("scale").asInt());
-        assertEquals("128", json.get("maxLength").asText());
-        assertEquals("utf-8", json.get("contentEncoding").asText());
-        assertEquals("gzip", json.get("contentCompression").asText());
-        assertEquals("application/json", json.get("contentMediaType").asText());
-        assertEquals("A", json.get("enum").get(0).asText());
-        assertEquals("id", json.get("required").get(0).asText());
-        assertEquals("example", json.get("examples").get(0).asText());
-        assertEquals("one", json.get("tuple").get(0).asText());
-        assertEquals("item", json.get("items").get(0).get("name").asText());
-        assertEquals("value", json.get("values").get("name").asText());
-        assertEquals("string", json.get("properties").get("customerId").get("type").asText());
+        assertEquals("128", json.get("maxLength").asString());
+        assertEquals("utf-8", json.get("contentEncoding").asString());
+        assertEquals("gzip", json.get("contentCompression").asString());
+        assertEquals("application/json", json.get("contentMediaType").asString());
+        assertEquals("A", json.get("enum").get(0).asString());
+        assertEquals("id", json.get("required").get(0).asString());
+        assertEquals("example", json.get("examples").get(0).asString());
+        assertEquals("one", json.get("tuple").get(0).asString());
+        assertEquals("item", json.get("items").get(0).get("name").asString());
+        assertEquals("value", json.get("values").get("name").asString());
+        assertEquals("string", json.get("properties").get("customerId").get("type").asString());
         assertFalse(json.get("properties").has("null"));
         assertFalse(json.get("properties").get("customerId").has("name"));
     }
@@ -97,9 +98,9 @@ class InputParameterSerializerTest {
     void serializeShouldWriteNullWhenSpecIsNull() throws Exception {
         InputParameterSerializer serializer = new InputParameterSerializer();
         StringWriter writer = new StringWriter();
-        JsonGenerator generator = objectMapper.getFactory().createGenerator(writer);
+        JsonGenerator generator = objectMapper.createGenerator(writer);
 
-        serializer.serialize(null, generator, objectMapper.getSerializerProvider());
+        serializer.serialize(null, generator, objectMapper._serializationContext());
         generator.flush();
 
         assertEquals("null", writer.toString());
@@ -151,25 +152,25 @@ class InputParameterSerializerTest {
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(root));
         JsonNode meta = json.path("properties").path("meta");
 
-        assertEquals("object", meta.path("type").asText());
-        assertEquals("query", meta.path("in").asText());
-        assertEquals("{{x}}", meta.path("template").asText());
-        assertEquals("c", meta.path("const").asText());
-        assertEquals("v", meta.path("value").asText());
-        assertEquals("$.meta", meta.path("selector").asText());
-        assertEquals("meta desc", meta.path("description").asText());
+        assertEquals("object", meta.path("type").asString());
+        assertEquals("query", meta.path("in").asString());
+        assertEquals("{{x}}", meta.path("template").asString());
+        assertEquals("c", meta.path("const").asString());
+        assertEquals("v", meta.path("value").asString());
+        assertEquals("$.meta", meta.path("selector").asString());
+        assertEquals("meta desc", meta.path("description").asString());
         assertEquals(1, meta.path("precision").asInt());
         assertEquals(2, meta.path("scale").asInt());
-        assertEquals("3", meta.path("maxLength").asText());
-        assertEquals("enc", meta.path("contentEncoding").asText());
-        assertEquals("zip", meta.path("contentCompression").asText());
-        assertEquals("application/json", meta.path("contentMediaType").asText());
-        assertEquals("E", meta.path("enum").get(0).asText());
-        assertEquals("id", meta.path("required").get(0).asText());
-        assertEquals("ex", meta.path("examples").get(0).asText());
-        assertEquals("t", meta.path("tuple").get(0).asText());
-        assertEquals("item", meta.path("items").get(0).path("name").asText());
-        assertEquals("val", meta.path("values").path("name").asText());
-        assertEquals("string", meta.path("properties").path("child").path("type").asText());
+        assertEquals("3", meta.path("maxLength").asString());
+        assertEquals("enc", meta.path("contentEncoding").asString());
+        assertEquals("zip", meta.path("contentCompression").asString());
+        assertEquals("application/json", meta.path("contentMediaType").asString());
+        assertEquals("E", meta.path("enum").get(0).asString());
+        assertEquals("id", meta.path("required").get(0).asString());
+        assertEquals("ex", meta.path("examples").get(0).asString());
+        assertEquals("t", meta.path("tuple").get(0).asString());
+        assertEquals("item", meta.path("items").get(0).path("name").asString());
+        assertEquals("val", meta.path("values").path("name").asString());
+        assertEquals("string", meta.path("properties").path("child").path("type").asString());
     }
 }

@@ -31,17 +31,18 @@ import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import tools.jackson.databind.JsonNode;
+import java.util.List;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.Error;
+import com.networknt.schema.SpecificationVersion;
+
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * End-to-end tests for MCP tool {@code outputSchema} ({@code tools/list}) and
@@ -50,7 +51,7 @@ import io.ikanos.spec.util.VersionHelper;
  */
 class McpToolOutputSchemaDispatchTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     private static final String SHIP_JSON = """
             {
@@ -92,14 +93,14 @@ class McpToolOutputSchemaDispatchTest {
         JsonNode tool = findTool(toolsList(), "get-ship");
 
         JsonNode outputSchema = tool.path("outputSchema");
-        assertEquals("object", outputSchema.path("type").asText());
+        assertEquals("object", outputSchema.path("type").asString());
         JsonNode properties = outputSchema.path("properties");
-        assertEquals("string", properties.path("imo").path("type").get(0).asText());
-        assertEquals("number", properties.path("tonnage").path("type").get(0).asText());
+        assertEquals("string", properties.path("imo").path("type").get(0).asString());
+        assertEquals("number", properties.path("tonnage").path("type").get(0).asString());
         assertEquals("number",
                 properties.path("specs").path("properties").path("length").path("type").get(0)
-                        .asText());
-        assertEquals("array", properties.path("crew").path("type").get(0).asText());
+                        .asString());
+        assertEquals("array", properties.path("crew").path("type").get(0).asString());
     }
 
     @Test
@@ -108,13 +109,13 @@ class McpToolOutputSchemaDispatchTest {
                 .path("properties");
 
         assertEquals("string", properties.path("crew").path("items").path("properties")
-                .path("name").path("type").get(0).asText());
+                .path("name").path("type").get(0).asString());
         assertEquals("string",
-                properties.path("crewIds").path("items").path("type").get(0).asText());
+                properties.path("crewIds").path("items").path("type").get(0).asString());
         assertEquals("string", properties.path("ports").path("additionalProperties")
-                .path("type").get(0).asText());
+                .path("type").get(0).asString());
         assertEquals("number", properties.path("dimensions").path("properties")
-                .path("length").path("type").get(0).asText());
+                .path("length").path("type").get(0).asString());
         assertTrue(findTool(toolsList(), "get-ship").path("outputSchema").path("required")
                 .isArray());
     }
@@ -125,8 +126,8 @@ class McpToolOutputSchemaDispatchTest {
             JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
             JsonNode structured = toolsCall(toolName).path("structuredContent");
 
-            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                    .getInstance(SpecVersion.VersionFlag.V202012)
+            List<Error> errors = SchemaRegistry
+                    .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(outputSchema).validate(structured);
 
             assertTrue(errors.isEmpty(),
@@ -141,8 +142,8 @@ class McpToolOutputSchemaDispatchTest {
         JsonNode outputSchema = findTool(toolsList(), "get-ship").path("outputSchema");
         JsonNode structured = toolsCall("get-ship").path("structuredContent");
 
-        java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                .getInstance(SpecVersion.VersionFlag.V202012)
+        List<Error> errors = SchemaRegistry
+                .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                 .getSchema(outputSchema).validate(structured);
 
         assertTrue(errors.isEmpty(), "sparse upstream must still conform: " + errors);
@@ -177,8 +178,8 @@ class McpToolOutputSchemaDispatchTest {
             JsonNode outputSchema = findTool(toolsList(), toolName).path("outputSchema");
             JsonNode structured = toolsCall(toolName).path("structuredContent");
 
-            java.util.Set<ValidationMessage> errors = JsonSchemaFactory
-                    .getInstance(SpecVersion.VersionFlag.V202012)
+            List<Error> errors = SchemaRegistry
+                    .withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
                     .getSchema(outputSchema).validate(structured);
 
             assertTrue(errors.isEmpty(), "mistyped upstream must still conform for '" + toolName
@@ -197,7 +198,7 @@ class McpToolOutputSchemaDispatchTest {
         assertEquals(JSON.readTree("[\"length\",\"beam\"]"),
                 properties.path("specs").path("required"));
         assertEquals("string", properties.path("crew").path("items").path("properties")
-                .path("full_name").path("type").get(0).asText());
+                .path("full_name").path("type").get(0).asString());
         assertEquals(JSON.readTree("[\"full_name\",\"rank\"]"),
                 properties.path("crew").path("items").path("required"));
     }
@@ -237,17 +238,17 @@ class McpToolOutputSchemaDispatchTest {
 
         assertFalse(result.path("isError").asBoolean());
         JsonNode structured = result.path("structuredContent");
-        assertEquals("IMO-9321483", structured.path("imo").asText());
+        assertEquals("IMO-9321483", structured.path("imo").asString());
         assertEquals(42000, structured.path("tonnage").asInt());
         assertEquals(229, structured.path("specs").path("length").asInt());
         assertEquals(2, structured.path("crew").size());
-        assertEquals("Ada", structured.path("crew").get(0).path("name").asText());
+        assertEquals("Ada", structured.path("crew").get(0).path("name").asString());
         assertTrue(structured.path("crew").get(0).path("full_name").isMissingNode(),
                 "nested array items must be shaped, not passed through raw");
-        assertEquals("Oslo", structured.path("ports").path("NOOSL").asText());
+        assertEquals("Oslo", structured.path("ports").path("NOOSL").asString());
         assertEquals(229, structured.path("dimensions").path("length").asInt());
 
-        JsonNode text = JSON.readTree(result.path("content").get(0).path("text").asText());
+        JsonNode text = JSON.readTree(result.path("content").get(0).path("text").asString());
         assertEquals(structured, text,
                 "the text block must carry the same JSON for clients without structuredContent");
     }
@@ -258,7 +259,7 @@ class McpToolOutputSchemaDispatchTest {
 
         assertFalse(result.path("isError").asBoolean());
         assertTrue(result.path("structuredContent").isMissingNode());
-        assertEquals("text", result.path("content").get(0).path("type").asText());
+        assertEquals("text", result.path("content").get(0).path("type").asString());
     }
 
     @Test
@@ -272,9 +273,9 @@ class McpToolOutputSchemaDispatchTest {
     void toolsListShouldAdvertiseOutputSchemaForOrchestratedTool() throws Exception {
         JsonNode outputSchema = findTool(toolsList(), "ship-name").path("outputSchema");
 
-        assertEquals("object", outputSchema.path("type").asText());
+        assertEquals("object", outputSchema.path("type").asString());
         assertEquals("string",
-                outputSchema.path("properties").path("name").path("type").get(0).asText());
+                outputSchema.path("properties").path("name").path("type").get(0).asString());
     }
 
     @Test
@@ -282,16 +283,16 @@ class McpToolOutputSchemaDispatchTest {
         JsonNode result = toolsCall("ship-name");
 
         assertFalse(result.path("isError").asBoolean());
-        assertEquals("Northern Star", result.path("structuredContent").path("name").asText());
+        assertEquals("Northern Star", result.path("structuredContent").path("name").asString());
     }
 
     @Test
     void toolsListShouldAdvertiseOutputSchemaInheritedFromAggregateFlow() throws Exception {
         JsonNode outputSchema = findTool(toolsList(), "get-ship-ref").path("outputSchema");
 
-        assertEquals("object", outputSchema.path("type").asText());
+        assertEquals("object", outputSchema.path("type").asString());
         assertEquals("string",
-                outputSchema.path("properties").path("imo").path("type").get(0).asText());
+                outputSchema.path("properties").path("imo").path("type").get(0).asString());
     }
 
     @Test
@@ -299,7 +300,7 @@ class McpToolOutputSchemaDispatchTest {
         JsonNode result = toolsCall("get-ship-ref");
 
         assertFalse(result.path("isError").asBoolean());
-        assertEquals("IMO-9321483", result.path("structuredContent").path("imo").asText());
+        assertEquals("IMO-9321483", result.path("structuredContent").path("imo").asString());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────────────────
@@ -323,8 +324,7 @@ class McpToolOutputSchemaDispatchTest {
     }
 
     private ProtocolDispatcher dispatcher() throws Exception {
-        ObjectMapper yaml = new ObjectMapper(new YAMLFactory())
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yaml = IkanosMappers.lenientYaml();
         IkanosSpec spec = yaml.readValue(capabilityYaml(), IkanosSpec.class);
         Capability capability = new Capability(spec);
         return new ProtocolDispatcher((McpServerAdapter) capability.getServerAdapters().get(0));
@@ -332,7 +332,7 @@ class McpToolOutputSchemaDispatchTest {
 
     private static JsonNode findTool(JsonNode tools, String name) {
         for (JsonNode tool : tools) {
-            if (name.equals(tool.path("name").asText())) {
+            if (name.equals(tool.path("name").asString())) {
                 return tool;
             }
         }

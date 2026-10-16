@@ -17,8 +17,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.OperationSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 
@@ -38,7 +38,7 @@ import io.ikanos.spec.consumes.ClientSpec;
  *       get-user: '{"id":"u-1"}'
  * </pre>
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class FakeClientSpec extends ClientSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)

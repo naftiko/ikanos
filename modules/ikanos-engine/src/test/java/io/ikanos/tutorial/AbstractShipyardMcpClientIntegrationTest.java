@@ -30,16 +30,13 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import io.github.microcks.testcontainers.MicrocksContainer;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
@@ -51,6 +48,7 @@ import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.BindingSpec;
 import org.junit.jupiter.api.BeforeAll;
 import org.testcontainers.utility.DockerImageName;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Shared infrastructure for Shipyard tutorial MCP client integration tests.
@@ -73,7 +71,7 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
 
     protected McpServerAdapter adapter;
     protected String serverUrl;
-    protected final ObjectMapper json = new ObjectMapper();
+    protected final ObjectMapper json = IkanosMappers.lenientJson();
     protected String mcpServerToken;
     private static final MicrocksContainer microcks = new MicrocksContainer(DockerImageName.parse(System.getProperty("microcks.image")))
             .withMainArtifacts("openapi/naftiko-shipyard-legacy-dockyard-api.yaml", "openapi/naftiko-shipyard-maritime-registry-api.yaml");
@@ -103,15 +101,14 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         File file = new File(capabilityFile);
         assertTrue(file.exists(), "Tutorial capability file must exist at " + capabilityFile);
 
-        ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
-        yaml.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yaml = IkanosMappers.lenientYaml();
         IkanosSpec spec = yaml.readValue(file, IkanosSpec.class);
         normalizeTutorialSharedLocations(spec);
         return spec;
     }
 
     protected void useMcpServerToken(String secretsFile) throws Exception {
-        ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yaml = IkanosMappers.lenientYaml();
         Map<?, ?> secrets = yaml.readValue(new File(secretsFile), Map.class);
         Object token = secrets.get("mcp-server-token");
         assertTrue(token instanceof String && !((String) token).isBlank(),
@@ -204,7 +201,7 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         assertThat(content.isEmpty()).overridingErrorMessage(() -> "Expecting result.content to be %s, actual content: %s".formatted(contentExpected ?
                 "non-empty" : "empty", content.toPrettyString())).isEqualTo(!contentExpected);
 
-        return contentExpected ? Optional.of(json.readTree(content.get(0).path("text").asText())) : Optional.empty();
+        return contentExpected ? Optional.of(json.readTree(content.get(0).path("text").asString())) : Optional.empty();
     }
 
     protected HttpRequest buildPost(String body) {
@@ -231,12 +228,12 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
 
         try {
             JsonNode request = json.readTree(enrichedBody);
-            String rpcMethod = request.path("method").asText("");
+            String rpcMethod = request.path("method").asString("");
             if (!rpcMethod.isEmpty()) {
                 builder.header("Mcp-Method", rpcMethod);
             }
-            String toolOrPromptName = request.path("params").path("name").asText(null);
-            String resourceUri = request.path("params").path("uri").asText(null);
+            String toolOrPromptName = request.path("params").path("name").asString(null);
+            String resourceUri = request.path("params").path("uri").asString(null);
             if (toolOrPromptName != null) {
                 builder.header("Mcp-Name", toolOrPromptName);
             } else if (resourceUri != null) {
@@ -255,11 +252,11 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
      */
     private String withProtocolVersionMeta(String requestJson) {
         try {
-            com.fasterxml.jackson.databind.node.ObjectNode request =
-                    (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(requestJson);
-            com.fasterxml.jackson.databind.node.ObjectNode params =
+            tools.jackson.databind.node.ObjectNode request =
+                    (tools.jackson.databind.node.ObjectNode) json.readTree(requestJson);
+            tools.jackson.databind.node.ObjectNode params =
                     request.has("params") && request.get("params").isObject()
-                            ? (com.fasterxml.jackson.databind.node.ObjectNode) request.get("params")
+                            ? (tools.jackson.databind.node.ObjectNode) request.get("params")
                             : request.putObject("params");
             params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
             return json.writeValueAsString(request);

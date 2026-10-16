@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp.processor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
@@ -28,10 +28,11 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import io.ikanos.spec.util.IkanosMappers;
 
 class ServerDataAppenderTest {
 
-    static ObjectMapper mapper = new ObjectMapper();
+    static ObjectMapper mapper = IkanosMappers.json();
     static InfoSpec info = mock(InfoSpec.class);
     static IkanosSpec spec = mock(IkanosSpec.class);
     static Capability capability = mock(Capability.class);
@@ -59,10 +60,10 @@ class ServerDataAppenderTest {
         processor.apply(response);
 
         // Then
-        assertThat(response.path("jsonrpc").asText()).isEqualTo(ProtocolDispatcher.JSONRPC_VERSION);
+        assertThat(response.path("jsonrpc").asString()).isEqualTo(ProtocolDispatcher.JSONRPC_VERSION);
         assertThat(response.path("result").path("_meta").path("io.modelcontextprotocol/serverInfo")
-                .path("name").asText()).isEqualTo("ikanos");
+                .path("name").asString()).isEqualTo("ikanos");
         assertThat(response.path("result").path("_meta").path("io.modelcontextprotocol/serverInfo")
-                .path("version").asText()).isEqualTo("1.0.0");
+                .path("version").asString()).isEqualTo("1.0.0");
     }
 }

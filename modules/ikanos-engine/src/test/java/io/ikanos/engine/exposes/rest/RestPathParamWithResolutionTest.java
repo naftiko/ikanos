@@ -31,14 +31,13 @@ import org.restlet.data.Status;
 import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Regression test: REST adapter must resolve Mustache templates in 'with' parameters
@@ -121,8 +120,7 @@ public class RestPathParamWithResolutionTest {
                                       in: path
                     """.formatted(schemaVersion, mockPort);
 
-            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper mapper = IkanosMappers.lenientYaml();
             IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
 
             Capability capability = new Capability(spec);

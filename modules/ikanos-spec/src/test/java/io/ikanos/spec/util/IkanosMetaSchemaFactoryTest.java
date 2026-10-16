@@ -20,11 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonMetaSchema;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion.VersionFlag;
+import tools.jackson.databind.ObjectMapper;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SpecificationVersion;
+import com.networknt.schema.keyword.UnknownKeywordFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,8 +33,8 @@ import org.slf4j.LoggerFactory;
 
 class IkanosMetaSchemaFactoryTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final Logger logger = (Logger) LoggerFactory.getLogger(JsonMetaSchema.class);
+    private final ObjectMapper mapper = IkanosMappers.json();
+    private final Logger logger = (Logger) LoggerFactory.getLogger(UnknownKeywordFactory.class);
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
 
     @BeforeEach
@@ -51,10 +50,10 @@ class IkanosMetaSchemaFactoryTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
-    void validateShouldRecognizeNameWithoutChangingConstraints(VersionFlag version) throws Exception {
-        String uri = JsonSchemaFactory.checkVersion(version).getInstance().getUri();
-        JsonSchema schema = IkanosMetaSchemaFactory.getInstance(version).getSchema(mapper.readTree("""
+    @EnumSource(value = SpecificationVersion.class, names = {"DRAFT_7", "DRAFT_2019_09", "DRAFT_2020_12"})
+    void validateShouldRecognizeNameWithoutChangingConstraints(SpecificationVersion version) throws Exception {
+        String uri = version.getDialectId();
+        Schema schema = IkanosMetaSchemaFactory.getInstance(version).getSchema(mapper.readTree("""
             {
               "$schema": "%s",
               "name": "Example",
@@ -67,17 +66,17 @@ class IkanosMetaSchemaFactoryTest {
 
         assertTrue(schema.validate(mapper.readTree("{\"value\":\"ok\"}")).isEmpty());
         assertTrue(schema.validate(mapper.readTree("{}")).stream()
-                .anyMatch(error -> error.getType().equals("required")));
+                .anyMatch(error -> error.getKeyword().equals("required")));
         assertTrue(schema.validate(mapper.readTree("{\"value\":42}")).stream()
-                .anyMatch(error -> error.getType().equals("type")));
+                .anyMatch(error -> error.getKeyword().equals("type")));
         assertTrue(schema.validate(mapper.readTree("{\"value\":\"ok\",\"name\":\"extra\"}")).stream()
-                .anyMatch(error -> error.getType().equals("additionalProperties")));
+                .anyMatch(error -> error.getKeyword().equals("additionalProperties")));
         assertTrue(logs.list.isEmpty(), () -> "Unexpected schema diagnostics: " + logs.list);
     }
 
     @ParameterizedTest
-    @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
-    void validateShouldStillWarnWhenAnotherKeywordIsUnknown(VersionFlag version) throws Exception {
+    @EnumSource(value = SpecificationVersion.class, names = {"DRAFT_7", "DRAFT_2019_09", "DRAFT_2020_12"})
+    void validateShouldStillWarnWhenAnotherKeywordIsUnknown(SpecificationVersion version) throws Exception {
         String keyword = "unknownKeywordFor" + version;
         IkanosMetaSchemaFactory.getInstance(version).getSchema(mapper.readTree(
                 "{\"%s\":true}".formatted(keyword))).validate(mapper.readTree("{}"));
@@ -87,15 +86,15 @@ class IkanosMetaSchemaFactoryTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = VersionFlag.class, names = {"V7", "V201909", "V202012"})
-    void getInstanceShouldReuseFactoryWhenCalledTwiceForSameVersion(VersionFlag version) {
+    @EnumSource(value = SpecificationVersion.class, names = {"DRAFT_7", "DRAFT_2019_09", "DRAFT_2020_12"})
+    void getInstanceShouldReuseFactoryWhenCalledTwiceForSameVersion(SpecificationVersion version) {
         assertSame(IkanosMetaSchemaFactory.getInstance(version),
                 IkanosMetaSchemaFactory.getInstance(version));
     }
 
     @Test
     void getInstanceShouldReturnDistinctFactoriesWhenVersionsDiffer() {
-        assertNotSame(IkanosMetaSchemaFactory.getInstance(VersionFlag.V7),
-                IkanosMetaSchemaFactory.getInstance(VersionFlag.V202012));
+        assertNotSame(IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_7),
+                IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12));
     }
 }

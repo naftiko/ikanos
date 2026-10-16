@@ -13,22 +13,22 @@
  */
 package io.ikanos.engine.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
-import com.fasterxml.jackson.dataformat.avro.AvroMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvSchema;
-import com.fasterxml.jackson.databind.MappingIterator;
+import tools.jackson.core.JacksonException;
+import tools.jackson.dataformat.xml.XmlMapper;
+import tools.jackson.dataformat.protobuf.ProtobufMapper;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
+import tools.jackson.dataformat.avro.AvroMapper;
+import tools.jackson.dataformat.csv.CsvMapper;
+import tools.jackson.dataformat.csv.CsvSchema;
+import tools.jackson.databind.MappingIterator;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
@@ -39,8 +39,8 @@ import org.apache.avro.generic.GenericRecord;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
-import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
-import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import com.jayway.jsonpath.spi.json.Jackson3JsonNodeJsonProvider;
+import com.jayway.jsonpath.spi.mapper.Jackson3MappingProvider;
 import io.ikanos.spec.OutputParameterSpec;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,6 +68,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Utility class for converting between different data formats (XML, YAML, CSV, Protocol Buffer,
@@ -113,7 +114,7 @@ public class Converter {
             case PSV -> Converter.convertDelimitedToJson(entity.getReader(), '|');
             case HTML -> Converter.convertHtmlToJson(entity.getReader(), schema);
             case MARKDOWN -> Converter.convertMarkdownToJson(entity.getReader(), schema);
-            case JSON -> new ObjectMapper().readTree(entity.getReader());
+            case JSON -> IkanosMappers.json().readTree(entity.getReader());
         };
     }
 
@@ -154,7 +155,7 @@ public class Converter {
             case PROTOBUF, AVRO -> throw new IOException(fmt.display
                     + " format cannot be converted from a text string; "
                     + "use the Representation-based overload instead");
-            case JSON -> new ObjectMapper().readTree(text);
+            case JSON -> IkanosMappers.json().readTree(text);
         };
     }
 
@@ -166,7 +167,7 @@ public class Converter {
      * @throws IOException if XML parsing fails
      */
     public static JsonNode convertXmlToJson(Reader xmlReader) throws IOException {
-        XmlMapper xmlMapper = new XmlMapper();
+        XmlMapper xmlMapper = XmlMapper.builder().configureForJackson2().build();
         return xmlMapper.readTree(xmlReader);
     }
 
@@ -179,7 +180,7 @@ public class Converter {
      * @throws IOException if YAML parsing fails
      */
     public static JsonNode convertYamlToJson(Reader yamlReader) throws IOException {
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
         return yamlMapper.readTree(yamlReader);
     }
 
@@ -196,13 +197,13 @@ public class Converter {
      */
     public static JsonNode convertDelimitedToJson(Reader reader, char separator)
             throws IOException {
-        CsvMapper csvMapper = new CsvMapper();
+        CsvMapper csvMapper = CsvMapper.builder().configureForJackson2().build();
         CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(separator);
 
         MappingIterator<JsonNode> it =
                 csvMapper.readerFor(JsonNode.class).with(schema).readValues(reader);
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         ArrayNode arr = mapper.createArrayNode();
 
         while (it.hasNext()) {
@@ -235,7 +236,7 @@ public class Converter {
      */
     public static JsonNode convertHtmlToJson(Reader htmlReader, String cssSelector)
             throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         ObjectNode result = mapper.createObjectNode();
         ArrayNode tables = mapper.createArrayNode();
 
@@ -280,7 +281,7 @@ public class Converter {
      */
     public static JsonNode convertMarkdownToJson(Reader markdownReader, String sectionFilter)
             throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         ObjectNode result = mapper.createObjectNode();
 
         String markdown = readFully(markdownReader).replace("\r\n", "\n");
@@ -327,9 +328,9 @@ public class Converter {
             ProtobufSchema schema = ProtobufSchemaLoader.std.load(schemaInputStream);
 
             // Create a ProtobufMapper with the schema and deserialize the binary data to JsonNode
-            ProtobufMapper mapper = new ProtobufMapper();
+            ProtobufMapper mapper = ProtobufMapper.builder().configureForJackson2().build();
             return mapper.readerFor(JsonNode.class).with(schema).readValue(protoBufInputStream);
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             throw new IOException("Failed to deserialize Protocol Buffer: " + e.getMessage(), e);
         }
     }
@@ -368,9 +369,9 @@ public class Converter {
             GenericRecord record = datumReader.read(null, decoder);
 
             // Convert GenericRecord to JsonNode using AvroMapper
-            AvroMapper mapper = new AvroMapper();
+            AvroMapper mapper = AvroMapper.builder().configureForJackson2().build();
             return mapper.valueToTree(record);
-        } catch (IOException e) {
+        } catch (JacksonException | IOException e) {
             throw new IOException("Failed to deserialize Avro data: " + e.getMessage(), e);
         }
     }
@@ -410,12 +411,12 @@ public class Converter {
         }
 
         String maxLength = spec.getMaxLength();
-        if (maxLength != null && node.isTextual()) {
+        if (maxLength != null && node.isString()) {
             try {
                 int max = Integer.parseInt(maxLength);
-                String s = node.asText();
+                String s = node.asString();
                 if (s.length() > max) {
-                    return new ObjectMapper().getNodeFactory().textNode(s.substring(0, max));
+                    return IkanosMappers.json().getNodeFactory().textNode(s.substring(0, max));
                 }
             } catch (NumberFormatException nfe) {
                 // ignore invalid maxLength
@@ -445,10 +446,10 @@ public class Converter {
         }
 
         try {
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = IkanosMappers.json();
             Configuration config =
-                    Configuration.builder().jsonProvider(new JacksonJsonNodeJsonProvider(mapper))
-                            .mappingProvider(new JacksonMappingProvider(mapper)).build();
+                    Configuration.builder().jsonProvider(new Jackson3JsonNodeJsonProvider(mapper))
+                            .mappingProvider(new Jackson3MappingProvider(mapper)).build();
             return JsonPath.using(config).parse(root).read(m, JsonNode.class);
         } catch (PathNotFoundException pnfe) {
             return NullNode.instance;
@@ -460,10 +461,10 @@ public class Converter {
 
                 if (!fixedMapping.equals(m)) {
                     try {
-                        ObjectMapper mapper = new ObjectMapper();
+                        ObjectMapper mapper = IkanosMappers.json();
                         Configuration config = Configuration.builder()
-                                .jsonProvider(new JacksonJsonNodeJsonProvider(mapper))
-                                .mappingProvider(new JacksonMappingProvider(mapper)).build();
+                                .jsonProvider(new Jackson3JsonNodeJsonProvider(mapper))
+                                .mappingProvider(new Jackson3MappingProvider(mapper)).build();
                         return JsonPath.using(config).parse(root).read(fixedMapping,
                                 JsonNode.class);
                     } catch (Exception e2) {
@@ -740,7 +741,7 @@ public class Converter {
                 body = markdown.substring(endIndex + 5);
 
                 if (!yamlBlock.isBlank()) {
-                    JsonNode parsed = new ObjectMapper(new YAMLFactory()).readTree(yamlBlock);
+                    JsonNode parsed = IkanosMappers.yaml().readTree(yamlBlock);
                     if (parsed != null && parsed.isObject()) {
                         frontMatter = (ObjectNode) parsed;
                     }

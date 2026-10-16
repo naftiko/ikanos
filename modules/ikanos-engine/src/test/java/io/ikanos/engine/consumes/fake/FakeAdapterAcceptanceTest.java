@@ -30,10 +30,8 @@ import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
@@ -46,6 +44,7 @@ import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Acceptance test for the consumed invocation carrier ({@code consumed-invocation-carrier.md} §9).
@@ -58,9 +57,8 @@ import io.modelcontextprotocol.spec.McpSchema;
  */
 class FakeAdapterAcceptanceTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
 
     private Capability capability;
 
@@ -239,8 +237,8 @@ class FakeAdapterAcceptanceTest {
         assertFalse(Boolean.TRUE.equals(result.isError()));
         JsonNode payload = JSON.readTree(
                 ((McpSchema.TextContent) result.content().get(0)).text());
-        assertEquals("u-7", payload.path("id").asText());
-        assertEquals("Core", payload.path("team").asText());
+        assertEquals("u-7", payload.path("id").asString());
+        assertEquals("Core", payload.path("team").asString());
         assertEquals("u-7", FakeClientAdapter.CALLS.get(0).get("userId"));
     }
 
@@ -282,7 +280,7 @@ class FakeAdapterAcceptanceTest {
                 mcp().getResourceHandler().read("people://users/u-9");
 
         assertEquals(1, contents.size());
-        assertEquals("u-9", JSON.readTree(contents.get(0).text).path("id").asText());
+        assertEquals("u-9", JSON.readTree(contents.get(0).text).path("id").asString());
     }
 
     @Test
@@ -290,7 +288,7 @@ class FakeAdapterAcceptanceTest {
         Response response = restGet("/users");
 
         assertEquals(Status.SUCCESS_OK, response.getStatus());
-        assertEquals("u-rest", JSON.readTree(response.getEntity().getText()).path("id").asText());
+        assertEquals("u-rest", JSON.readTree(response.getEntity().getText()).path("id").asString());
     }
 
     @Test

@@ -16,9 +16,7 @@ package io.ikanos.bootstrap;
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
@@ -28,6 +26,7 @@ import io.ikanos.spec.observability.ObservabilitySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class CapabilityRuntime {
 
@@ -59,8 +58,7 @@ public class CapabilityRuntime {
 
         logger.info("Reading configuration from: {}", file.getAbsolutePath());
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         String serviceName = "ikanos";

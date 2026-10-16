@@ -19,8 +19,8 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -34,6 +34,7 @@ import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Runtime-executable wrapper around an {@link AggregateFlowSpec}.
@@ -186,7 +187,7 @@ public class AggregateFlow {
 
         // Mock mode
         if (!hasCall && !isOrchestrated) {
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = IkanosMappers.json();
             JsonNode mockRoot = Resolver.buildMockData(spec.getOutputParameters(), mapper, merged);
             return new FlowResult(null, null, mockRoot);
         }

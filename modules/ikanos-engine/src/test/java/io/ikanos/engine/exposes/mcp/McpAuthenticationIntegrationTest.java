@@ -24,13 +24,12 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP server authentication. Validates end-to-end HTTP behavior with bearer
@@ -38,9 +37,8 @@ import io.ikanos.spec.util.VersionHelper;
  */
 class McpAuthenticationIntegrationTest {
 
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper YAML_MAPPER = IkanosMappers.lenientYaml();
+    private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
     @Test
     void bearerAuthShouldRejectRequestWithoutToken() throws Exception {

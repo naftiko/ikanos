@@ -14,8 +14,8 @@
 package io.ikanos.engine.exposes.skill;
 
 import java.util.Map;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.restlet.ext.jackson.JacksonRepresentation;
 import org.restlet.data.Status;
 import org.restlet.representation.Representation;

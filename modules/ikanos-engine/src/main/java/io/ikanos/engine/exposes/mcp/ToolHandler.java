@@ -36,9 +36,11 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Handles MCP tool calls by delegating to consumed HTTP operations.
@@ -49,7 +51,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class ToolHandler {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
@@ -169,7 +171,7 @@ public class ToolHandler {
                 return null;
             }
             return JSON.convertValue(node, new TypeReference<Map<String, Object>>() {});
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (JacksonException | IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.FINE,
                     "Mapped output of tool '" + toolName + "' is not a JSON object", e);
             return null;

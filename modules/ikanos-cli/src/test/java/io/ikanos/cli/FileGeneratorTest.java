@@ -17,9 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
@@ -31,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class FileGeneratorTest {
 
@@ -97,8 +96,7 @@ public class FileGeneratorTest {
             FileGenerator.generateCapabilityFile(capabilityName, FileFormat.YAML,
                     "https://api.example.com", port);
 
-            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            ObjectMapper mapper = IkanosMappers.lenientYaml();
             IkanosSpec spec = mapper.readValue(yaml.toFile(), IkanosSpec.class);
             for (ServerSpec server : spec.getCapability().getExposes()) {
                 if (server instanceof ControlServerSpec control) {

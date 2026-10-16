@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.observability;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
@@ -29,6 +29,7 @@ import org.restlet.data.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for {@link McpMetaTraceContextBridge} — W3C trace context extraction from
@@ -39,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 public class McpMetaTraceContextBridgeTest {
 
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = IkanosMappers.json();
     private OpenTelemetrySdk sdk;
 
     @BeforeEach

@@ -15,12 +15,13 @@ package io.ikanos.engine.consumes.mcp;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.util.OperationStepExecutor.BinarySizeExceededException;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * {@link ConsumedResult} for one successful MCP {@code tools/call}.
@@ -32,7 +33,7 @@ import io.ikanos.engine.util.OperationStepExecutor.BinarySizeExceededException;
  */
 final class McpConsumedResult implements ConsumedResult {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private final ConsumedOperationView operation;
     private final JsonNode document;
@@ -66,7 +67,7 @@ final class McpConsumedResult implements ConsumedResult {
 
     @Override
     public String mediaType() {
-        return document != null && !document.isTextual() ? "application/json" : "text/plain";
+        return document != null && !document.isString() ? "application/json" : "text/plain";
     }
 
     @Override

@@ -13,11 +13,12 @@
  */
 package io.ikanos.spec.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
+import tools.jackson.core.JacksonException;
 
 public class VersionHelper {
     private static final String ENGINE_VERSION;
@@ -44,13 +45,13 @@ public class VersionHelper {
             if (schemaStream == null) {
                 throw new ExceptionInInitializerError("Could not find schemas/ikanos-schema.json on classpath");
             }
-            JsonNode root = new ObjectMapper().readTree(schemaStream);
+            JsonNode root = IkanosMappers.json().readTree(schemaStream);
             JsonNode constNode = root.path("properties").path("ikanos").path("const");
             if (constNode.isMissingNode()) {
                 throw new ExceptionInInitializerError("Could not find properties.ikanos.const in ikanos-schema.json");
             }
-            SCHEMA_VERSION = constNode.asText();
-        } catch (IOException e) {
+            SCHEMA_VERSION = constNode.asString();
+        } catch (JacksonException | IOException e) {
             throw new ExceptionInInitializerError("Could not load ikanos-schema.json: " + e.getMessage());
         }
     }

@@ -28,10 +28,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.restlet.data.MediaType;
 import org.restlet.representation.StringRepresentation;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.NullNode;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class ConverterTest {
 
@@ -110,20 +111,20 @@ public class ConverterTest {
         truncatedSpec.setMaxLength("5");
 
         JsonNode truncated = Converter.applyMaxLengthIfNeeded(truncatedSpec,
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree("\"abcdefgh\""));
-        assertEquals("abcde", truncated.asText());
+                IkanosMappers.json().readTree("\"abcdefgh\""));
+        assertEquals("abcde", truncated.asString());
 
         OutputParameterSpec invalidSpec = new OutputParameterSpec();
         invalidSpec.setMaxLength("abc");
 
         JsonNode untouched = Converter.applyMaxLengthIfNeeded(invalidSpec,
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree("\"abcdefgh\""));
-        assertEquals("abcdefgh", untouched.asText());
+                IkanosMappers.json().readTree("\"abcdefgh\""));
+        assertEquals("abcdefgh", untouched.asString());
     }
 
     @Test
     public void jsonPathExtractShouldSupportMissingPathsAndPropertiesWithSpaces() throws Exception {
-        JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree("""
+        JsonNode root = IkanosMappers.json().readTree("""
                 {
                   "user details": {
                     "contact email": "alice@example.com"
@@ -135,7 +136,7 @@ public class ConverterTest {
                 "$['user details']['contact email']");
         JsonNode missing = Converter.jsonPathExtract(root, "$.missing.field");
 
-        assertEquals("alice@example.com", value.asText());
+        assertEquals("alice@example.com", value.asString());
         assertEquals(true, missing.isNull());
         assertEquals("$.['user details'].email",
                 Converter.fixJsonPathWithSpaces("$.user details.email"));
@@ -166,7 +167,7 @@ public class ConverterTest {
         JsonNode markdownRoot = Converter.convertMarkdownToJson(new StringReader(markdown));
 
         assertEquals(htmlRoot.get("tables"), markdownRoot.get("tables"));
-        assertEquals("$42", htmlRoot.get("tables").get(0).get(0).get("Price").asText());
+        assertEquals("$42", htmlRoot.get("tables").get(0).get(0).get("Price").asString());
     }
 
     @Test
@@ -187,7 +188,7 @@ public class ConverterTest {
         JsonNode root = Converter.convertHtmlToJson(new StringReader(html), "table.products");
 
         assertEquals(1, root.get("tables").size());
-        assertEquals("Kept", root.get("tables").get(0).get(0).get("Name").asText());
+        assertEquals("Kept", root.get("tables").get(0).get(0).get("Name").asString());
     }
 
     @Test
@@ -208,12 +209,12 @@ public class ConverterTest {
 
         JsonNode root = Converter.convertMarkdownToJson(new StringReader(markdown));
 
-        assertEquals("Release Notes", root.get("frontMatter").get("title").asText());
-        assertEquals("2.1.0", root.get("frontMatter").get("version").asText());
-        assertEquals("GA", root.get("tables").get(0).get(0).get("Status").asText());
-        assertEquals("Overview", root.get("sections").get(0).get("heading").asText());
+        assertEquals("Release Notes", root.get("frontMatter").get("title").asString());
+        assertEquals("2.1.0", root.get("frontMatter").get("version").asString());
+        assertEquals("GA", root.get("tables").get(0).get(0).get("Status").asString());
+        assertEquals("Overview", root.get("sections").get(0).get("heading").asString());
         assertEquals("This release introduces new features.",
-                root.get("sections").get(0).get("content").asText());
+                root.get("sections").get(0).get("content").asString());
     }
 
     @Test
@@ -228,8 +229,8 @@ public class ConverterTest {
         JsonNode htmlRoot = Converter.convertToJson("html", null, htmlEntity);
         JsonNode markdownRoot = Converter.convertToJson("markdown", null, markdownEntity);
 
-        assertEquals("Alice", htmlRoot.get("tables").get(0).get(0).get("Name").asText());
-        assertEquals("Alice", markdownRoot.get("tables").get(0).get(0).get("Name").asText());
+        assertEquals("Alice", htmlRoot.get("tables").get(0).get(0).get("Name").asString());
+        assertEquals("Alice", markdownRoot.get("tables").get(0).get(0).get("Name").asString());
     }
 
     @Test
@@ -238,10 +239,10 @@ public class ConverterTest {
         JsonNode root = Converter.convertDelimitedToJson(new StringReader(tsv), '\t');
 
         assertEquals(2, root.size());
-        assertEquals("1", root.get(0).get("id").asText());
-        assertEquals("Alice Smith", root.get(0).get("name").asText());
-        assertEquals("alice@example.com", root.get(0).get("email").asText());
-        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+        assertEquals("1", root.get(0).get("id").asString());
+        assertEquals("Alice Smith", root.get(0).get("name").asString());
+        assertEquals("alice@example.com", root.get(0).get("email").asString());
+        assertEquals("Bob Johnson", root.get(1).get("name").asString());
     }
 
     @Test
@@ -250,9 +251,9 @@ public class ConverterTest {
         JsonNode root = Converter.convertDelimitedToJson(new StringReader(psv), '|');
 
         assertEquals(2, root.size());
-        assertEquals("1", root.get(0).get("id").asText());
-        assertEquals("Alice Smith", root.get(0).get("name").asText());
-        assertEquals("Bob Johnson", root.get(1).get("name").asText());
+        assertEquals("1", root.get(0).get("id").asString());
+        assertEquals("Alice Smith", root.get(0).get("name").asString());
+        assertEquals("Bob Johnson", root.get(1).get("name").asString());
     }
 
     @Test
@@ -265,8 +266,8 @@ public class ConverterTest {
         JsonNode tsvRoot = Converter.convertToJson("tsv", null, tsvEntity);
         JsonNode psvRoot = Converter.convertToJson("psv", null, psvEntity);
 
-        assertEquals("Alice", tsvRoot.get(0).get("name").asText());
-        assertEquals("Alice", psvRoot.get(0).get("name").asText());
+        assertEquals("Alice", tsvRoot.get(0).get("name").asString());
+        assertEquals("Alice", psvRoot.get(0).get("name").asString());
     }
 
     @Test
@@ -275,7 +276,7 @@ public class ConverterTest {
         JsonNode root = Converter.convertCsvToJson(new StringReader(csv));
 
         assertEquals(1, root.size());
-        assertEquals("Alice", root.get(0).get("name").asText());
+        assertEquals("Alice", root.get(0).get("name").asString());
     }
 
     @Test
@@ -285,7 +286,7 @@ public class ConverterTest {
 
         JsonNode root = Converter.convertToJson(null, null, entity);
 
-        assertEquals("ok", root.get("status").asText());
+        assertEquals("ok", root.get("status").asString());
     }
 
     @Test
@@ -296,7 +297,7 @@ public class ConverterTest {
 
         JsonNode root = Converter.convertToJson("JSON", null, entity);
 
-        assertEquals("ok", root.get("status").asText());
+        assertEquals("ok", root.get("status").asString());
         assertEquals(2, root.get("count").asInt());
     }
 
@@ -305,20 +306,20 @@ public class ConverterTest {
         StringRepresentation xmlEntity =
                 new StringRepresentation("<root><name>Alice</name></root>", MediaType.APPLICATION_XML);
         JsonNode xml = Converter.convertToJson("XML", null, xmlEntity);
-        assertEquals("Alice", xml.get("name").asText());
+        assertEquals("Alice", xml.get("name").asString());
 
         StringRepresentation yamlEntity = new StringRepresentation("name: Alice\nage: 42\n",
                 MediaType.valueOf("application/yaml"));
         JsonNode yaml = Converter.convertToJson("YAML", null, yamlEntity);
-        assertEquals("Alice", yaml.get("name").asText());
+        assertEquals("Alice", yaml.get("name").asString());
         assertEquals(42, yaml.get("age").asInt());
 
         StringRepresentation csvEntity =
                 new StringRepresentation("name,age\nAlice,42\nBob,39\n", MediaType.TEXT_CSV);
         JsonNode csv = Converter.convertToJson("CSV", null, csvEntity);
         assertTrue(csv.isArray());
-        assertEquals("Alice", csv.get(0).get("name").asText());
-        assertEquals("39", csv.get(1).get("age").asText());
+        assertEquals("Alice", csv.get(0).get("name").asString());
+        assertEquals("39", csv.get(1).get("age").asString());
     }
 
     @Test
@@ -351,7 +352,7 @@ public class ConverterTest {
 
     @Test
     public void jsonPathExtractShouldHandleRootSelectorsAndEmptyMapping() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         JsonNode root = mapper.readTree("{\"a\":1}");
 
         assertEquals(root, Converter.jsonPathExtract(root, "$"));
@@ -363,7 +364,7 @@ public class ConverterTest {
 
     @Test
     public void applyMaxLengthIfNeededShouldHandleNullSpecAndNonTextualValues() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = IkanosMappers.json();
         JsonNode numberNode = mapper.readTree("123");
         JsonNode textNode = mapper.readTree("\"hello\"");
 
@@ -393,7 +394,7 @@ public class ConverterTest {
         JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
 
         assertEquals(1, root.get("tables").get(0).size());
-        assertEquals("Gadget", root.get("tables").get(0).get(0).get("Name").asText());
+        assertEquals("Gadget", root.get("tables").get(0).get(0).get("Name").asString());
     }
 
     @Test
@@ -412,8 +413,8 @@ public class ConverterTest {
         JsonNode root = Converter.convertMarkdownToJson(new StringReader(markdown), "API");
 
         assertEquals(2, root.get("sections").size());
-        assertEquals("API Reference", root.get("sections").get(0).get("heading").asText());
-        assertEquals("API Usage", root.get("sections").get(1).get("heading").asText());
+        assertEquals("API Reference", root.get("sections").get(0).get("heading").asString());
+        assertEquals("API Usage", root.get("sections").get(1).get("heading").asString());
     }
 
     @Test

@@ -16,11 +16,9 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.IkanosSpec;
@@ -32,6 +30,7 @@ import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
 import java.util.Map;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests for MCP Server Adapter with resources and prompts support.
@@ -52,13 +51,12 @@ public class ResourcesPromptsIntegrationTest {
         assertTrue(file.exists(),
                 "MCP resources/prompts capability test file should exist at " + resourcePath);
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = yamlMapper.readValue(file, IkanosSpec.class);
 
         capability = new Capability(spec);
         adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
-        jsonMapper = new ObjectMapper();
+        jsonMapper = IkanosMappers.lenientJson();
         schemaVersion = VersionHelper.getSchemaVersion();
     }
 
@@ -293,8 +291,8 @@ public class ResourcesPromptsIntegrationTest {
         assertTrue(tools.isArray() && tools.size() > 0, "Should have at least one tool");
 
         JsonNode tool = tools.get(0);
-        assertEquals("query-database", tool.path("name").asText());
-        assertEquals("Query Database", tool.path("title").asText(),
+        assertEquals("query-database", tool.path("name").asString());
+        assertEquals("Query Database", tool.path("title").asString(),
                 "title field should be present from label");
     }
 
@@ -313,11 +311,11 @@ public class ResourcesPromptsIntegrationTest {
         // database-schema (non-template) should be in the list
         boolean found = false;
         for (JsonNode r : resources) {
-            if ("data://databases/pre-release/schema".equals(r.path("uri").asText())) {
+            if ("data://databases/pre-release/schema".equals(r.path("uri").asString())) {
                 found = true;
-                assertEquals("database-schema", r.path("name").asText());
-                assertEquals("Database Schema", r.path("title").asText());
-                assertEquals("application/json", r.path("mimeType").asText());
+                assertEquals("database-schema", r.path("name").asString());
+                assertEquals("Database Schema", r.path("title").asString());
+                assertEquals("application/json", r.path("mimeType").asString());
             }
         }
         assertTrue(found, "database-schema resource should appear in resources/list");
@@ -332,7 +330,7 @@ public class ResourcesPromptsIntegrationTest {
 
         JsonNode resources = response.path("result").path("resources");
         for (JsonNode r : resources) {
-            assertFalse(r.path("uri").asText().contains("{"),
+            assertFalse(r.path("uri").asString().contains("{"),
                     "resources/list should not include template URIs");
         }
     }
@@ -352,10 +350,10 @@ public class ResourcesPromptsIntegrationTest {
                 "Should have at least one resource template");
 
         JsonNode tmpl = templates.get(0);
-        assertEquals("data://users/{userId}/profile", tmpl.path("uriTemplate").asText(),
+        assertEquals("data://users/{userId}/profile", tmpl.path("uriTemplate").asString(),
                 "uriTemplate should carry the raw URI with {param}");
-        assertEquals("user-profile", tmpl.path("name").asText());
-        assertEquals("User Profile", tmpl.path("title").asText());
+        assertEquals("user-profile", tmpl.path("name").asString());
+        assertEquals("User Profile", tmpl.path("title").asString());
     }
 
     // ── MCP protocol: prompts/list ────────────────────────────────────────────────────────────────
@@ -382,19 +380,19 @@ public class ResourcesPromptsIntegrationTest {
         JsonNode prompts = response.path("result").path("prompts");
         JsonNode outreach = null;
         for (JsonNode p : prompts) {
-            if ("participant-outreach".equals(p.path("name").asText())) {
+            if ("participant-outreach".equals(p.path("name").asString())) {
                 outreach = p;
             }
         }
         assertNotNull(outreach, "participant-outreach should be in prompts list");
-        assertEquals("Participant Outreach", outreach.path("title").asText());
+        assertEquals("Participant Outreach", outreach.path("title").asString());
 
         JsonNode args = outreach.path("arguments");
         assertTrue(args.isArray() && args.size() == 2, "Should have 2 arguments");
 
         boolean foundParticipant = false;
         for (JsonNode arg : args) {
-            if ("participant_name".equals(arg.path("name").asText())) {
+            if ("participant_name".equals(arg.path("name").asString())) {
                 foundParticipant = true;
                 assertTrue(arg.path("required").asBoolean(), "participant_name should be required");
             }
@@ -447,10 +445,10 @@ public class ResourcesPromptsIntegrationTest {
         assertTrue(messages.isArray() && messages.size() == 1, "Should have 1 rendered message");
 
         JsonNode msg = messages.get(0);
-        assertEquals("user", msg.path("role").asText());
+        assertEquals("user", msg.path("role").asString());
 
         JsonNode content = msg.path("content");
-        String text = content.path("text").asText();
+        String text = content.path("text").asString();
         assertTrue(text.contains("Alice"), "Rendered message should contain participant_name");
         assertTrue(text.contains("ikanos"), "Rendered message should contain product_name");
         assertFalse(text.contains("{{"), "No unrendered placeholders should remain");
@@ -478,11 +476,11 @@ public class ResourcesPromptsIntegrationTest {
         JsonNode messages = response.path("result").path("messages");
         assertEquals(3, messages.size(), "Should have 3 rendered messages");
 
-        assertEquals("user", messages.get(0).path("role").asText());
-        assertEquals("assistant", messages.get(1).path("role").asText());
-        assertEquals("user", messages.get(2).path("role").asText());
+        assertEquals("user", messages.get(0).path("role").asString());
+        assertEquals("assistant", messages.get(1).path("role").asString());
+        assertEquals("user", messages.get(2).path("role").asString());
 
-        String firstText = messages.get(0).path("content").path("text").asText();
+        String firstText = messages.get(0).path("content").path("text").asString();
         assertTrue(firstText.contains("bullet-points"), "format placeholder should be substituted");
         assertTrue(firstText.contains("item1, item2, item3"), "data placeholder should be substituted");
     }
@@ -507,7 +505,7 @@ public class ResourcesPromptsIntegrationTest {
 
         assertNull(response.get("error"), "Missing optional arg should not cause an error");
         JsonNode messages = response.path("result").path("messages");
-        String firstText = messages.get(0).path("content").path("text").asText();
+        String firstText = messages.get(0).path("content").path("text").asString();
         // {{format}} should remain since it was not provided
         assertTrue(firstText.contains("{{format}}"),
                 "Unresolved optional placeholder should remain as-is");

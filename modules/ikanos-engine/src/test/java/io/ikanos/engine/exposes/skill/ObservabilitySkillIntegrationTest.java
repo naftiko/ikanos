@@ -15,7 +15,6 @@ package io.ikanos.engine.exposes.skill;
 
 import static io.ikanos.engine.observability.OtelTestFixtures.stringAttribute;
 import static org.junit.jupiter.api.Assertions.*;
-
 import io.ikanos.Capability;
 import io.ikanos.engine.observability.OtelTestFixtures;
 import io.ikanos.engine.observability.OtelNullSafety;
@@ -26,9 +25,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.ikanos.spec.IkanosSpec;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -39,6 +36,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration tests verifying that Skill adapter requests produce the expected OTel server spans,
@@ -65,8 +63,7 @@ public class ObservabilitySkillIntegrationTest {
         File file = new File("src/test/resources/skill-capability.yaml");
         assertTrue(file.exists());
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
         // Override the port to avoid conflict with other tests

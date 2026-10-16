@@ -32,9 +32,8 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpConsumedResult;
 import io.ikanos.spec.IkanosSpec;
@@ -46,6 +45,7 @@ import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.engine.util.OperationStepExecutor.StepFailedException;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class OperationStepExecutorIntegrationTest {
     private String schemaVersion;
@@ -146,9 +146,9 @@ public class OperationStepExecutorIntegrationTest {
                     operationSpec.getSteps(),
                     Map.of("targetEmail", "bob@example.com", "requestingUserId", "u-1"));
 
-            assertEquals("u-2", result.stepContext.getStepOutput("find-user").path("id").asText());
+            assertEquals("u-2", result.stepContext.getStepOutput("find-user").path("id").asString());
             assertEquals("eu",
-                    result.stepContext.getStepOutput("fetch-profile").path("region").asText());
+                    result.stepContext.getStepOutput("fetch-profile").path("region").asString());
             assertNotNull(result.lastResult);
             assertTrue(((HttpConsumedResult) result.lastResult).getRequest().getResourceRef()
                     .toString().endsWith("/echo/eu"));
@@ -277,7 +277,7 @@ public class OperationStepExecutorIntegrationTest {
         spec.setMapping("$.vessel.vesselCode");
 
         // Bug #339: this throws JsonParseException instead of converting XML first
-        assertThrows(com.fasterxml.jackson.core.JsonParseException.class,
+        assertThrows(StreamReadException.class,
                 () -> executor.applyOutputMappings(xmlResponse, List.of(spec)));
     }
 
@@ -543,8 +543,7 @@ public class OperationStepExecutorIntegrationTest {
     }
 
     private static Capability capabilityFromYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(yaml, IkanosSpec.class);
         return new Capability(spec);
     }

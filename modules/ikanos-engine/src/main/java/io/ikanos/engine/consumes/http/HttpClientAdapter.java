@@ -19,7 +19,7 @@ import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
@@ -36,13 +36,15 @@ import java.net.URISyntaxException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.core.JacksonException;
 
 /**
  * HTTP Client Adapter implementation
  */
 public class HttpClientAdapter extends ClientAdapter {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     /**
      * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
@@ -220,7 +222,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     String dataStr;
                     try {
                         dataStr = JSON.writeValueAsString(data);
-                    } catch (IOException e) {
+                    } catch (JacksonException e) {
                         throw new IllegalArgumentException(
                                 "Invalid structured body data for operation: "
                                         + getHttpClientSpec().getNamespace() + "."

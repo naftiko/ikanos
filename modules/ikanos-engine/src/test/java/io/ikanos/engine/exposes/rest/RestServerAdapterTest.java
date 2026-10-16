@@ -13,9 +13,7 @@
  */
 package io.ikanos.engine.exposes.rest;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -25,6 +23,7 @@ import org.restlet.Restlet;
 import org.restlet.security.ChallengeAuthenticator;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class RestServerAdapterTest {
   private String schemaVersion;
@@ -93,8 +92,7 @@ public class RestServerAdapterTest {
     }
 
     private static IkanosSpec parseYaml(String yaml) throws Exception {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         return mapper.readValue(yaml, IkanosSpec.class);
     }
 }

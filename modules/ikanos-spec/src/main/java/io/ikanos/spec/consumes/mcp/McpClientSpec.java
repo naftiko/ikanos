@@ -18,8 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 
@@ -34,7 +34,7 @@ import io.ikanos.spec.consumes.http.AuthenticationSpec;
  * Scalar fields are held in {@link AtomicReference}s and the tools map is synchronized, matching
  * {@code HttpClientSpec} (SonarQube {@code java:S3077}).
  */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class McpClientSpec extends ClientSpec {
 
     /** Value of {@code type} for this spec. */

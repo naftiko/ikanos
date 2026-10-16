@@ -13,12 +13,10 @@
  */
 package io.ikanos.spec.util;
 
-import java.io.IOException;
-
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer that discriminates between an imported {@link ImportedBindingSpec}
@@ -36,10 +34,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <p>Part of Phase 1 of the unified import mechanism — see
  * {@code blueprints/unified-import-mechanism.md}.</p>
  */
-public class BindingSpecDeserializer extends JsonDeserializer<BindingSpec> {
+public class BindingSpecDeserializer extends ValueDeserializer<BindingSpec> {
 
     @Override
-    public BindingSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public BindingSpec deserialize(JsonParser p, DeserializationContext ctxt) {
         JsonNode node = ctxt.readTree(p);
 
         if (node.has("from")) {

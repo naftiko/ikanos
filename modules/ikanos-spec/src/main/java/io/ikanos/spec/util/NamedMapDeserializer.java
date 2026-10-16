@@ -13,15 +13,14 @@
  */
 package io.ikanos.spec.util;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
-
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Generic deserializer that converts a JSON/YAML named-object map
@@ -44,7 +43,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * @param <T> the type of each named entity
  */
-public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
+public class NamedMapDeserializer<T> extends ValueDeserializer<Map<String, T>> {
 
     private final Class<T> type;
     private final BiConsumer<T, String> nameSetter;
@@ -70,9 +69,8 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
     }
 
     @Override
-    public Map<String, T> deserialize(JsonParser parser, DeserializationContext ctx)
-            throws IOException {
-        JsonNode root = parser.getCodec().readTree(parser);
+    public Map<String, T> deserialize(JsonParser parser, DeserializationContext ctx) {
+        JsonNode root = parser.objectReadContext().readTree(parser);
         Map<String, T> result = new LinkedHashMap<>();
         if (root == null || root.isNull()) {
             return result;
@@ -84,7 +82,7 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
             // also injected back via nameSetter so that getName() returns consistently.
             for (JsonNode itemNode : root) {
                 JsonNode nameNode = itemNode.get(keyField);
-                String key = nameNode != null && !nameNode.isNull() ? nameNode.asText() : null;
+                String key = nameNode != null && !nameNode.isNull() ? nameNode.asString() : null;
                 try {
                     T value = ctx.readTreeAsValue(itemNode, type);
                     if (key != null) {
@@ -95,7 +93,7 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
                         String generatedKey = type.getSimpleName() + "-" + result.size();
                         result.put(generatedKey, value);
                     }
-                } catch (IOException e) {
+                } catch (JacksonException e) {
                     throw new IllegalStateException(
                             "Failed to deserialize list item of '"
                                     + type.getSimpleName() + "'", e);
@@ -110,7 +108,7 @@ public class NamedMapDeserializer<T> extends JsonDeserializer<Map<String, T>> {
                 T value = ctx.readTreeAsValue(valueNode, type);
                 nameSetter.accept(value, key);
                 result.put(key, value);
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 throw new IllegalStateException(
                         "Failed to deserialize '" + type.getSimpleName() + "' entry '" + key + "'", e);
             }

@@ -15,11 +15,9 @@ package io.ikanos.spec.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Unit tests for {@link StepOutputMappingSpec}.
@@ -58,7 +56,7 @@ public class StepOutputMappingSpecTest {
                 value: "{{step1.status}}"
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         StepOutputMappingSpec spec = mapper.readValue(yaml, StepOutputMappingSpec.class);
 
         assertEquals("statusCode", spec.getTarget());

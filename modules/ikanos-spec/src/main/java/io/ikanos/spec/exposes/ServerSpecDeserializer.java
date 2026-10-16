@@ -13,15 +13,15 @@
  */
 package io.ikanos.spec.exposes;
 
-import java.io.IOException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ValueDeserializer;
 
 /**
  * Custom deserializer that dispatches to the correct {@link ServerSpec} subclass.
@@ -33,10 +33,10 @@ import io.ikanos.spec.exposes.skill.SkillServerSpec;
  *       {@code control}) to the matching inline subclass.</li>
  * </ol>
  */
-public class ServerSpecDeserializer extends JsonDeserializer<ServerSpec> {
+public class ServerSpecDeserializer extends ValueDeserializer<ServerSpec> {
 
     @Override
-    public ServerSpec deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public ServerSpec deserialize(JsonParser p, DeserializationContext ctxt) {
         JsonNode node = ctxt.readTree(p);
 
         // Import discriminant: presence of 'from' on a list entry.
@@ -44,14 +44,14 @@ public class ServerSpecDeserializer extends JsonDeserializer<ServerSpec> {
             return ctxt.readTreeAsValue(node, ImportedExposesSpec.class);
         }
 
-        String type = node.path("type").asText(null);
+        String type = node.path("type").asString(null);
 
         return switch (type) {
             case "rest" -> ctxt.readTreeAsValue(node, RestServerSpec.class);
             case "mcp" -> ctxt.readTreeAsValue(node, McpServerSpec.class);
             case "skill" -> ctxt.readTreeAsValue(node, SkillServerSpec.class);
             case "control" -> ctxt.readTreeAsValue(node, ControlServerSpec.class);
-            default -> throw new IOException("Unknown server spec type: '" + type + "'");
+            default -> throw DatabindException.from(p, "Unknown server spec type: '" + type + "'");
         };
     }
 }

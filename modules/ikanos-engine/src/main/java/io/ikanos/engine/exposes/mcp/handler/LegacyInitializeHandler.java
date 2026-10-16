@@ -13,8 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -54,7 +54,7 @@ public class LegacyInitializeHandler extends McpCallHandler {
     @Override
     public HandlerResult handle(JsonNode requestBody) {
         // Legacy clients declare their version in params.protocolVersion, not in _meta.
-        String requested = requestBody.path("params").path("protocolVersion").asText("");
+        String requested = requestBody.path("params").path("protocolVersion").asString("");
 
         ObjectNode data = MAPPER.createObjectNode();
         putSupportedProtocolVersions(data, "supported");

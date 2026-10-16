@@ -16,13 +16,13 @@ package io.ikanos.spec.exposes.skill;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.exposes.ServerSpec;
 
 /** Skill Server Specification Element. */
-@JsonDeserialize(using = JsonDeserializer.None.class)
+@JsonDeserialize(using = ValueDeserializer.None.class)
 public class SkillServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

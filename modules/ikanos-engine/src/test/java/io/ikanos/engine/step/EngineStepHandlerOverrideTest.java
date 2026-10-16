@@ -18,14 +18,15 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Integration test that verifies step handlers override normal step execution in the engine.
@@ -38,7 +39,7 @@ class EngineStepHandlerOverrideTest {
                 .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> {
                     String name = (String) ctx.inputParameter("name");
-                    ObjectMapper m = new ObjectMapper();
+                    ObjectMapper m = IkanosMappers.json();
                     ObjectNode result = m.createObjectNode();
                     result.put("message", "Hello, " + name + "!");
                     return result;
@@ -57,14 +58,14 @@ class EngineStepHandlerOverrideTest {
 
         JsonNode output = result.stepContext.getStepOutput("do-greet");
         assertNotNull(output);
-        assertEquals("Hello, World!", output.get("message").asText());
+        assertEquals("Hello, World!", output.get("message").asString());
     }
 
     @Test
     void stepWithoutRegisteredHandlerShouldFollowNormalPath() {
         Capability capability = Capability.builder()
                 .loadFromClasspath("/embedding/embedding-capability.yaml")
-                .stepHandler("do-greet", ctx -> TextNode.valueOf("handled"))
+                .stepHandler("do-greet", ctx -> StringNode.valueOf("handled"))
                 .build();
 
         assertFalse(capability.getStepHandlerRegistry().has("other-step"));
@@ -108,9 +109,9 @@ class EngineStepHandlerOverrideTest {
     void multipleHandlersShouldExecuteIndependently() {
         Capability capability = Capability.builder()
                 .loadFromClasspath("/embedding/embedding-capability.yaml")
-                .stepHandler("do-greet", ctx -> TextNode.valueOf("greeted"))
+                .stepHandler("do-greet", ctx -> StringNode.valueOf("greeted"))
                 .stepHandler("add", ctx -> {
-                    ObjectMapper m = new ObjectMapper();
+                    ObjectMapper m = IkanosMappers.json();
                     ObjectNode node = m.createObjectNode();
                     node.put("result", 42);
                     return node;
@@ -129,7 +130,7 @@ class EngineStepHandlerOverrideTest {
         OperationStepExecutor.StepExecutionResult result =
                 executor.executeSteps(steps1, params);
 
-        assertEquals("greeted", result.stepContext.getStepOutput("do-greet").asText());
+        assertEquals("greeted", result.stepContext.getStepOutput("do-greet").asString());
         assertEquals(42, result.stepContext.getStepOutput("add").get("result").asInt());
     }
 
@@ -138,7 +139,7 @@ class EngineStepHandlerOverrideTest {
         Capability capability = Capability.builder()
                 .loadFromClasspath("/embedding/embedding-capability.yaml")
                 .stepHandler("do-greet", ctx -> {
-                    ObjectMapper m = new ObjectMapper();
+                    ObjectMapper m = IkanosMappers.json();
                     ObjectNode node = m.createObjectNode();
                     node.put("message", "Hello");
                     return node;
@@ -146,9 +147,9 @@ class EngineStepHandlerOverrideTest {
                 .stepHandler("add", ctx -> {
                     // Verify we can access output from the previous step
                     JsonNode prev = ctx.stepOutput("do-greet");
-                    ObjectMapper m = new ObjectMapper();
+                    ObjectMapper m = IkanosMappers.json();
                     ObjectNode node = m.createObjectNode();
-                    node.put("combined", prev.get("message").asText() + " World");
+                    node.put("combined", prev.get("message").asString() + " World");
                     return node;
                 })
                 .build();
@@ -165,7 +166,7 @@ class EngineStepHandlerOverrideTest {
                 executor.executeSteps(steps2, new HashMap<>());
 
         assertEquals("Hello World",
-                result.stepContext.getStepOutput("add").get("combined").asText());
+                result.stepContext.getStepOutput("add").get("combined").asString());
     }
 }
 

@@ -18,11 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link McpServerPromptSpec}.
@@ -85,7 +84,7 @@ public class McpServerPromptSpecTest {
                     content: "Hello {{user}}"
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         McpServerPromptSpec spec = mapper.readValue(yaml, McpServerPromptSpec.class);
 
         assertEquals("greet", spec.getName());
@@ -106,7 +105,7 @@ public class McpServerPromptSpecTest {
                 location: file:///prompts/greet.md
                 """;
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = IkanosMappers.yaml();
         McpServerPromptSpec spec = mapper.readValue(yaml, McpServerPromptSpec.class);
 
         assertEquals("greet", spec.getName());

@@ -16,9 +16,7 @@ package io.ikanos.engine.exposes.rest;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpInvocation;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -31,6 +29,7 @@ import org.restlet.data.Method;
 import org.restlet.data.MediaType;
 import java.io.File;
 import java.util.Map;
+import io.ikanos.spec.util.IkanosMappers;
 
 public class HttpBodyIntegrationTest {
 
@@ -44,8 +43,7 @@ public class HttpBodyIntegrationTest {
         File file = new File(resourcePath);
         assertTrue(file.exists(), "HTTP body capability file should exist at " + resourcePath);
 
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec =
                 mapper.readValue(file, IkanosSpec.class);
 
