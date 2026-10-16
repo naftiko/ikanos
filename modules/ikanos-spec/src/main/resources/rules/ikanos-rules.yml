@@ -202,7 +202,9 @@ rules:
       targets that are too: other flows (by their effective semantics),
       consumed MCP tools (by their local `hints`), or consumed HTTP operations
       (by their method, per RFC 9110). Otherwise the flow would publish
-      read-only or idempotent MCP hints that do not hold.
+      read-only or idempotent MCP hints that do not hold. Calls into an
+      imported consumes namespace are not checked: the imported document is
+      out of reach of a single-document lint.
     severity: error
     recommended: true
     given: "$"
