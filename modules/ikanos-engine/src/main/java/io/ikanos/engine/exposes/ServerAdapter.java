@@ -57,6 +57,10 @@ public abstract class ServerAdapter extends Adapter {
 
         // TODO: Make idle timeout configurable
         this.server.getContext().getParameters().add("socketTimeout", "12000");
+        // The client address is always the direct peer. With "true", Restlet would take it from
+        // the caller-controlled X-Forwarded-For header, which would defeat the MCP
+        // trustedNetworks check (issue #483).
+        this.server.getContext().getParameters().add("useForwardedForHeader", "false");
 
         this.server.setNext(handler);
     }

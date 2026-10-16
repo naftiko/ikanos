@@ -68,6 +68,7 @@ public class ProtocolDispatcher {
     private final ObjectMapper mapper;
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
+    private final AgentIdentityResolver identityResolver;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -83,9 +84,16 @@ public class ProtocolDispatcher {
         return versions;
     }
 
+    /** @return the resolver for this adapter's {@code trust} block. */
+    AgentIdentityResolver getIdentityResolver() {
+        return identityResolver;
+    }
+
     public ProtocolDispatcher(McpServerAdapter adapter) {
         this.mapper = new ObjectMapper();
         this.capabilityName = resolveCapabilityName(adapter);
+        this.identityResolver = new AgentIdentityResolver(
+                adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
             mcpHandlers.put(handler.getMethodName(), handler);
         }
@@ -191,6 +199,9 @@ public class ProtocolDispatcher {
                 extractedContext, null, capabilityName);
         try (Scope scope = span.makeCurrent()) {
             TelemetryBootstrap.populateMdc(span);
+            identityResolver.resolve(httpRequest).ifPresent(identity ->
+                    TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
+                            identity.actor()));
             return dispatch(request);
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);

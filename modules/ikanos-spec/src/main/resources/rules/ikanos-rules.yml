@@ -34,6 +34,7 @@ functions:
   - standalone-no-imports
   - import-alias-unique
   - tunnel-identity-binds-ref
+  - mcp-trust-networks
 
 rules:
 
@@ -326,6 +327,41 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "example\\.com"
+
+  ikanos-mcp-trust-network-too-broad:
+    message: "{{error}}"
+    description: >
+      In `trust: forwarded` mode, any direct peer in `trustedNetworks` can set the
+      agent identity header. A network wider than an IPv4 /8 or an IPv6 /16
+      (0.0.0.0/0 and ::/0 included) trusts far more than the gateway: in Kubernetes
+      even 10.0.0.0/8 means every pod. List the gateway's own addresses, and pair
+      `forwarded` with `authentication` so the gateway is authenticated too.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'mcp' && @.trust)]"
+      - "$.exposes[?(@.type == 'mcp' && @.trust)]"
+    then:
+      function: mcp-trust-networks
+      functionOptions:
+        check: broad
+
+  ikanos-mcp-trust-loopback-on-public-address:
+    message: "{{error}}"
+    description: >
+      In `trust: forwarded` mode, trusting loopback (127.0.0.0/8, ::1) on an adapter
+      that listens beyond loopback lets any co-located process or sidecar set the
+      agent identity header. Trust loopback only when the adapter itself listens on
+      loopback.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'mcp' && @.trust)]"
+      - "$.exposes[?(@.type == 'mcp' && @.trust)]"
+    then:
+      function: mcp-trust-networks
+      functionOptions:
+        check: loopback
 
   # ────────────────────────────────────────────────────────────────
   # 4. CONTROL PORT

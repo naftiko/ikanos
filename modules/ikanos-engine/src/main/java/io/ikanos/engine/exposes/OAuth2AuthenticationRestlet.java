@@ -62,6 +62,13 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     private static final ChallengeScheme BEARER_SCHEME =
             ChallengeScheme.HTTP_OAUTH_BEARER;
 
+    /**
+     * Request attribute holding the {@link JWTClaimsSet} of a token that passed validation. Set
+     * just before the request is handed to the next restlet, so downstream code can read who the
+     * caller is (for example MCP {@code trust: verify}) without parsing the token again.
+     */
+    public static final String VALIDATED_CLAIMS_ATTRIBUTE = "io.ikanos.oauth2.validatedClaims";
+
     static final long JWKS_CACHE_TTL_MS = 5 * 60 * 1000L;
     static final long JWKS_MIN_REFRESH_MS = 30 * 1000L;
 
@@ -156,6 +163,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             return;
         }
 
+        request.getAttributes().put(VALIDATED_CLAIMS_ATTRIBUTE, claims);
         next.handle(request, response);
     }
 

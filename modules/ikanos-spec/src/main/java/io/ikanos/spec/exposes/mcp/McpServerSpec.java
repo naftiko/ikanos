@@ -16,6 +16,7 @@ package io.ikanos.spec.exposes.mcp;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -53,6 +54,9 @@ public class McpServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String cacheScope;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpTrustSpec> trust = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
@@ -134,6 +138,17 @@ public class McpServerSpec extends ServerSpec {
 
     public void setCacheScope(String cacheScope) {
         this.cacheScope = cacheScope;
+    }
+
+    /**
+     * @return the declared {@code trust} block, or {@code null} when omitted (mode {@code none}).
+     */
+    public McpTrustSpec getTrust() {
+        return trust.get();
+    }
+
+    public void setTrust(McpTrustSpec trust) {
+        this.trust.set(trust);
     }
 
     public Map<String, McpServerToolSpec> getTools() {

@@ -1,0 +1,29 @@
+---
+# Spectral fixture — ikanos-mcp-trust-loopback-on-public-address MUST FIRE.
+#
+# The adapter listens beyond loopback but trusts loopback peers, so a co-located
+# process or sidecar could set the identity header.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "MCP trust — loopback trusted on a public address"
+  description: "Fixture for the MCP trust network rules (issue #483)."
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 3001
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["127.0.0.0/8", "::1/128"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

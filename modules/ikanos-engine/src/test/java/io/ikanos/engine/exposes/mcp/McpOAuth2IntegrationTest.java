@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,6 +24,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Date;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -47,8 +49,13 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.Capability;
+import io.ikanos.engine.observability.OtelTestFixtures;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.data.SpanData;
 
 /**
  * Integration tests for MCP OAuth 2.1 authentication. Starts a mock authorization server
@@ -312,6 +319,269 @@ class McpOAuth2IntegrationTest {
                 """.formatted(VersionHelper.getSchemaVersion(), port, mockAsPort, resourceUri);
 
         return startAdapter(yaml);
+    }
+
+    @Test
+    void verifyTrustShouldRecordValidatedTokenSubjectOnSpan() throws Exception {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        TelemetryBootstrap.init(OpenTelemetrySdk.builder()
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
+                .build());
+        try {
+            McpServerAdapter adapter = startOAuth2ServerWithTrust("verify");
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                String resourceUri =
+                        "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
+                String token = signedJwt(new JWTClaimsSet.Builder()
+                        .issuer("http://127.0.0.1:" + mockAsPort)
+                        .audience(resourceUri)
+                        .subject("agent-42")
+                        .expirationTime(new Date(System.currentTimeMillis() + 300_000))
+                        .claim("scope", "tools:read")
+                        .build());
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "server/discover")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-Agent-Id", "spoofed-agent")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode(), response.body());
+            } finally {
+                adapter.stop();
+            }
+            SpanData span = exporter.getFinishedSpanItems().stream()
+                    .filter(s -> s.getName().equals("mcp.request"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Missing mcp.request span"));
+            assertEquals("agent-42", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ID));
+            assertEquals("verified", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ID_SOURCE));
+        } finally {
+            TelemetryBootstrap.reset();
+        }
+    }
+
+    @Test
+    void verifyTrustShouldRecordTokenActorOnSpan() throws Exception {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        TelemetryBootstrap.init(OpenTelemetrySdk.builder()
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
+                .build());
+        try {
+            McpServerAdapter adapter = startOAuth2ServerWithTrust("verify");
+            try {
+                HttpResponse<String> response = sendDiscover(adapter, tokenFor(adapter,
+                        new JWTClaimsSet.Builder().subject("agent-42")
+                                .claim("act", Map.of("sub", "gateway-1"))));
+                assertEquals(200, response.statusCode(), response.body());
+            } finally {
+                adapter.stop();
+            }
+            SpanData span = mcpRequestSpan(exporter);
+            assertEquals("agent-42", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ID));
+            assertEquals("gateway-1", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ACTOR_ID));
+        } finally {
+            TelemetryBootstrap.reset();
+        }
+    }
+
+    @Test
+    void verifyTrustShouldNeverForwardTheValidatedTokenToConsumedApis() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2Server("""
+                    trust:
+                      mode: "verify"
+                    """, upstream);
+            String token;
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                token = tokenFor(adapter, new JWTClaimsSet.Builder().subject("agent-42"));
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                                .POST(HttpRequest.BodyPublishers.ofString(orderStatusCallBody()))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "tools/call")
+                                .header("Mcp-Name", "order-status")
+                                .header("Authorization", "Bearer " + token)
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode(), response.body());
+                assertTrue(response.body().contains("shipped"), response.body());
+            } finally {
+                adapter.stop();
+            }
+            assertEquals(1, upstream.requests().size());
+            Map<String, String> upstreamHeaders = upstream.requests().get(0);
+            assertFalse(upstreamHeaders.containsKey("Authorization"),
+                    "The agent's token must not be passed through: " + upstreamHeaders);
+            assertFalse(upstreamHeaders.values().stream().anyMatch(v -> v.contains(token)),
+                    "No upstream header may carry the agent's token: " + upstreamHeaders);
+        }
+    }
+
+    @Test
+    void forwardedTrustShouldWorkTogetherWithOAuth2Authentication() throws Exception {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        TelemetryBootstrap.init(OpenTelemetrySdk.builder()
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter))
+                .build());
+        try {
+            McpServerAdapter adapter = startOAuth2Server(FORWARDED_FROM_LOOPBACK, null);
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                String token = tokenFor(adapter, new JWTClaimsSet.Builder().subject("gateway"));
+                HttpResponse<String> response = client.send(
+                        discoverRequest(adapter).header("Authorization", "Bearer " + token)
+                                .header("X-Agent-Id", "agent-42").build(),
+                        HttpResponse.BodyHandlers.ofString());
+                assertEquals(200, response.statusCode(), response.body());
+            } finally {
+                adapter.stop();
+            }
+            SpanData span = mcpRequestSpan(exporter);
+            assertEquals("agent-42", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ID));
+            assertEquals("forwarded", OtelTestFixtures.stringAttribute(span.getAttributes(),
+                    TelemetryBootstrap.ATTR_AGENT_ID_SOURCE));
+        } finally {
+            TelemetryBootstrap.reset();
+        }
+    }
+
+    @Test
+    void forwardedTrustWithOAuth2ShouldStillRejectTrustedPeerWithoutToken() throws Exception {
+        McpServerAdapter adapter = startOAuth2Server(FORWARDED_FROM_LOOPBACK, null);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpResponse<String> response = client.send(
+                    discoverRequest(adapter).header("X-Agent-Id", "agent-42").build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(401, response.statusCode(), response.body());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void forwardedTrustWithOAuth2ShouldRefuseUntrustedPeerEvenWithValidToken() throws Exception {
+        McpServerAdapter adapter = startOAuth2Server("""
+                trust:
+                  mode: "forwarded"
+                  agentIdentityHeader: "X-Agent-Id"
+                  trustedNetworks: ["10.0.0.0/8"]
+                """, null);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String token = tokenFor(adapter, new JWTClaimsSet.Builder().subject("gateway"));
+            HttpResponse<String> response = client.send(
+                    discoverRequest(adapter).header("Authorization", "Bearer " + token).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, response.statusCode(), response.body());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    private static final String FORWARDED_FROM_LOOPBACK = """
+            trust:
+              mode: "forwarded"
+              agentIdentityHeader: "X-Agent-Id"
+              trustedNetworks: ["127.0.0.0/8", "::1/128"]
+            """;
+
+    private String tokenFor(McpServerAdapter adapter, JWTClaimsSet.Builder claims)
+            throws Exception {
+        String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
+        return signedJwt(claims
+                .issuer("http://127.0.0.1:" + mockAsPort)
+                .audience(resourceUri)
+                .expirationTime(new Date(System.currentTimeMillis() + 300_000))
+                .claim("scope", "tools:read")
+                .build());
+    }
+
+    private static HttpRequest.Builder discoverRequest(McpServerAdapter adapter) {
+        return HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                .header("Content-Type", "application/json")
+                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                .header("Mcp-Method", "server/discover");
+    }
+
+    private static HttpResponse<String> sendDiscover(McpServerAdapter adapter, String token)
+            throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(discoverRequest(adapter)
+                    .header("Authorization", "Bearer " + token).build(),
+                    HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    private static SpanData mcpRequestSpan(InMemorySpanExporter exporter) {
+        return exporter.getFinishedSpanItems().stream()
+                .filter(s -> s.getName().equals("mcp.request"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Missing mcp.request span"));
+    }
+
+    private static String orderStatusCallBody() {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"order-status\",\"arguments\":{},"
+                + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
+    }
+
+    /**
+     * Starts an OAuth2-protected MCP adapter with the given {@code trust} block (written at zero
+     * indentation; it is placed under the adapter here). With an
+     * {@code upstream}, it exposes the {@code order-status} tool calling that stub; otherwise a
+     * constant tool.
+     */
+    private McpServerAdapter startOAuth2Server(String trustBlock, RecordingUpstream upstream)
+            throws Exception {
+        int port = findFreePort();
+        String resourceUri = "http://127.0.0.1:" + port + "/mcp";
+        String tools = upstream != null ? RecordingUpstream.orderStatusToolYaml() : """
+                      tools:
+                        - name: "test-tool"
+                          description: "A test tool"
+                          outputParameters:
+                            - type: "string"
+                              value: "ok"
+                """;
+        String consumes = upstream != null ? upstream.consumesYaml() : "  consumes: []\n";
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "OAuth2 MCP Test"
+                  description: "OAuth2 trust integration test"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "oauth2-test-mcp"
+                      description: "OAuth2 protected MCP server recording the caller"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:%d"
+                        resource: "%s"
+                        scopes:
+                          - "tools:read"
+                %s%s%s""".formatted(VersionHelper.getSchemaVersion(), port, mockAsPort,
+                resourceUri, trustBlock.indent(6), tools, consumes);
+        return startAdapter(yaml);
+    }
+
+    private McpServerAdapter startOAuth2ServerWithTrust(String mode) throws Exception {
+        return startOAuth2Server("""
+                trust:
+                  mode: "%s"
+                """.formatted(mode), null);
     }
 
     private McpServerAdapter startOAuth2ServerWithScopes() throws Exception {
