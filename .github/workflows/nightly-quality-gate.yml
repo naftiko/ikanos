@@ -274,89 +274,47 @@ jobs:
           path: sonar-report/
           retention-days: 14
 
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln,misconfig'
-          format: 'json'
-          output: 'trivy-report.json'
-          exit-code: '0'
+      - name: Generate SBOM (CycloneDX)
+        id: sbom
+        if: always()
+        run: mvn -B org.cyclonedx:cyclonedx-maven-plugin:2.9.2:makeAggregateBom -DoutputFormat=json -DoutputName=bom --no-transfer-progress
 
-      - name: Publish Trivy summary
+      - name: CVE scan
+        id: cve
+        if: always() && steps.sbom.outcome == 'success'
+        uses: naftiko/.github/.github/actions/cve-scan@68459debbaafdba1ef3b9c7111544c0e43ff2b59 # naftiko/.github#6
+        with:
+          scan-type: sbom
+          scan-ref: target/bom.json
+          min-packages: "160"  # ~80% of the 204 packages measured on 2026-10-16
+          misconfig-severity: HIGH,CRITICAL
+          misconfig-ref: deployment/Dockerfile
+
+      - name: Count findings
         id: trivy-summary
         if: always()
+        env:
+          VULN_CRITICAL: ${{ steps.cve.outputs.critical }}
+          VULN_HIGH: ${{ steps.cve.outputs.high }}
+          MISCONFIG_CRITICAL: ${{ steps.cve.outputs.misconfig-critical }}
+          MISCONFIG_HIGH: ${{ steps.cve.outputs.misconfig-high }}
+          CVE_OUTCOME: ${{ steps.cve.outcome }}
         run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Trivy Security Scan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ ! -f trivy-report.json ]; then
-            echo "> No report found." >> $GITHUB_STEP_SUMMARY
-            cat > /tmp/trivy_metrics.env << EOF
-          TRIVY_CRITICAL=0
-          TRIVY_HIGH=0
-          TRIVY_MEDIUM=0
-          TRIVY_LOW=0
-          EOF
-            echo "trivy_critical=0" >> "$GITHUB_OUTPUT"
-            echo "trivy_high=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          CRITICAL=$(grep -o '"Severity":"CRITICAL"' trivy-report.json | wc -l | tr -d ' ')
-          HIGH=$(grep -o '"Severity":"HIGH"' trivy-report.json | wc -l | tr -d ' ')
-          MEDIUM=$(grep -o '"Severity":"MEDIUM"' trivy-report.json | wc -l | tr -d ' ')
-          LOW=$(grep -o '"Severity":"LOW"' trivy-report.json | wc -l | tr -d ' ')
-
-          [ "$CRITICAL" -gt 0 ] && STATUS="❌ ${CRITICAL} critical issue(s)" \
-            || { [ "$HIGH" -gt 0 ] && STATUS="⚠️ ${HIGH} high issue(s)" || STATUS="✅ No critical or high issues"; }
-
-          echo "**${STATUS}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Critical | ${CRITICAL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| High     | ${HIGH} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Medium   | ${MEDIUM} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Low      | ${LOW} |" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "<details><summary>Critical/High vulnerability findings (counts above also include misconfig findings)</summary>" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Package | Vulnerability ID | Severity | Installed | Fixed |" >> $GITHUB_STEP_SUMMARY
-            echo "|---------|-------------------|----------|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-            jq -r '
-              [.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL" or .Severity=="HIGH")]
-              | sort_by(if .Severity=="CRITICAL" then 0 else 1 end)
-              | .[]
-              | "| \(.PkgName) | \(.VulnerabilityID) | \(.Severity) | \(.InstalledVersion) | \(if (.FixedVersion // "") == "" then "n/a" else .FixedVersion end) |"
-            ' trivy-report.json >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "</details>" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          cat > /tmp/trivy_metrics.env << EOF
-          TRIVY_CRITICAL=$CRITICAL
-          TRIVY_HIGH=$HIGH
-          TRIVY_MEDIUM=$MEDIUM
-          TRIVY_LOW=$LOW
-          EOF
-
+          CRITICAL=$(( ${VULN_CRITICAL:-0} + ${MISCONFIG_CRITICAL:-0} ))
+          HIGH=$(( ${VULN_HIGH:-0} + ${MISCONFIG_HIGH:-0} ))
+          # The counters are 0 when the gate fails on something other than findings (empty or
+          # partial scan, Trivy error, skipped scan): the outcome lets the badge say so.
+          {
+            echo "TRIVY_CRITICAL=$CRITICAL"
+            echo "TRIVY_HIGH=$HIGH"
+            echo "TRIVY_OUTCOME=${CVE_OUTCOME}"
+          } > /tmp/trivy_metrics.env
           echo "trivy_critical=$CRITICAL" >> "$GITHUB_OUTPUT"
           echo "trivy_high=$HIGH" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: trivy-report
-          path: trivy-report.json
-          retention-days: 14
-
+      # `if: always()` on the steps below: a failing CVE gate must not skip them.
       - name: Install Gitleaks
+        if: always()
         run: |
           mkdir -p /tmp/gitleaks-install
           wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -O /tmp/gitleaks-install/gitleaks.tar.gz
@@ -366,6 +324,7 @@ jobs:
           gitleaks version
  
       - name: Run Gitleaks scan
+        if: always()
         run: |
           gitleaks dir . \
             --config .github/workflows/.gitleaks.toml \
@@ -419,7 +378,8 @@ jobs:
           path: gitleaks-report.json
           retention-days: 14
 
-      - name: Metrics summary 
+      - name: Metrics summary
+        if: always()
         run: |
           source /tmp/sonar_metrics.env 2>/dev/null || true
           source /tmp/trivy_metrics.env 2>/dev/null || true
@@ -500,6 +460,8 @@ jobs:
             TRIVY_MSG="${CRIT} critical"; TRIVY_COLOR="red"
           elif [ "$HIGH_CNT" -gt 0 ]; then
             TRIVY_MSG="${HIGH_CNT} high"; TRIVY_COLOR="orange"
+          elif [ "${TRIVY_OUTCOME:-unknown}" != "success" ]; then
+            TRIVY_MSG="scan failed"; TRIVY_COLOR="red"
           else
             TRIVY_MSG="clean"; TRIVY_COLOR="brightgreen"
           fi
@@ -578,18 +540,18 @@ jobs:
         - test-and-analyze
         - integration-tests
         - smoke-tests
+      # The CVE gate fails test-and-analyze, so `failure` covers findings and infrastructure errors.
       if: |
         always() && !startsWith(github.ref_name, 'dependabot/') && (
           needs.test-and-analyze.result == 'failure' ||
           needs.integration-tests.result == 'failure' ||
-          needs.smoke-tests.result == 'failure' ||
-          needs.test-and-analyze.outputs.trivy_critical > 0 ||
-          needs.test-and-analyze.outputs.trivy_high > 0
+          needs.smoke-tests.result == 'failure'
         )
       runs-on: ubuntu-latest
       permissions:
         pull-requests: read
       steps:
+        # Drafts are still tested nightly, but their failures no longer alert Slack.
         - name: Detect draft pull request
           id: draft
           env:
@@ -610,12 +572,13 @@ jobs:
         - name: Send Slack notification
           if: steps.draft.outputs.is_draft != 'true'
           env:
-            PIPELINE_FAILED: ${{ needs.test-and-analyze.result == 'failure' || needs.integration-tests.result == 'failure' || needs.smoke-tests.result == 'failure' }}
+            TRIVY_CRITICAL: ${{ needs.test-and-analyze.outputs.trivy_critical }}
+            TRIVY_HIGH: ${{ needs.test-and-analyze.outputs.trivy_high }}
           run: |
-            if [ "$PIPELINE_FAILED" = "true" ]; then
-              TEXT="❌ *Nightly Quality Gate failed*"
+            if [ "${TRIVY_CRITICAL:-0}" -gt 0 ] || [ "${TRIVY_HIGH:-0}" -gt 0 ]; then
+              TEXT="❌ *Nightly Quality Gate: security findings*"
             else
-              TEXT="⚠️ *Nightly Quality Gate: vulnerabilities found on an otherwise green run*"
+              TEXT="❌ *Nightly Quality Gate failed*"
             fi
 
             curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
