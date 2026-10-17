@@ -59,7 +59,16 @@ _wait_for_mcp() {
       -H "Authorization: Bearer $TOKEN" \
       -H "MCP-Protocol-Version: $MCP_VERSION" \
       -H "Mcp-Method: tools/list" \
-      -d "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"tools/list\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"$MCP_VERSION\"}}}" \
+      -d '{
+        "jsonrpc":"2.0",
+        "id":0,
+        "method":"tools/list",
+        "params": {
+          "_meta": {
+            "io.modelcontextprotocol/protocolVersion": "'"$MCP_VERSION"'"
+          }
+        }
+      }' \
       2>/dev/null || true)
     if echo "$RESP" | jq -e '.result.tools' > /dev/null 2>&1; then
       echo "  MCP server is ready on port $PORT"; return 0
@@ -210,6 +219,41 @@ run_auth_test() {
     PASSED=$((PASSED + 1))
   else
     echo "  FAIL ✗ — expected HTTP $EXPECTED_STATUS, got $HTTP_STATUS"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# run_mcp_expect_error NAME TOOL PORT ARGS TOKEN
+# Calls tools/call and asserts the call came back as an error.
+#
+# Use for negative paths where the *upstream* is expected to reject the
+# credentials Ikanos sends. The MCP surface itself still authenticates fine, so
+# the failure has to surface inside the JSON-RPC response (result.isError, or a
+# top-level error) rather than as an HTTP status on the MCP port
+run_mcp_expect_error() {
+  local NAME="$1" TOOL="$2" PORT="$3" ARGS="$4" TOKEN="$5"
+
+  echo ""
+  echo "  Test: $NAME  (type: mcp, expecting an error, tool: $TOOL, port: $PORT)"
+
+  # See run_mcp_test for why `|| true` is required here.
+  local RESPONSE IS_ERROR
+  RESPONSE=$(curl -s "http://localhost:$PORT" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "MCP-Protocol-Version: $MCP_PROTOCOL_VERSION" \
+    -H "Mcp-Method: tools/call" \
+    -H "Mcp-Name: $TOOL" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS,\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"$MCP_PROTOCOL_VERSION\"}}}" || true)
+
+  IS_ERROR=$(echo "$RESPONSE" | jq -r '.result.isError // false')
+
+  if [ "$IS_ERROR" = "true" ] || echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+    echo "  PASS ✓ — $NAME (upstream rejection surfaced as an error)"
+    PASSED=$((PASSED + 1))
+  else
+    echo "  FAIL ✗ — expected an error, got a successful result"
+    echo "    Response: $(echo "$RESPONSE" | jq -c '.result // .')"
     FAILED=$((FAILED + 1))
   fi
 }
