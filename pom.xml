@@ -94,6 +94,7 @@
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
         <openziti.version>0.33.1</openziti.version>
+        <bouncycastle.version>1.85</bouncycastle.version>
         <revision>1.0.0-beta8-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
@@ -143,6 +144,23 @@
                 <groupId>org.openziti</groupId>
                 <artifactId>ziti</artifactId>
                 <version>${openziti.version}</version>
+            </dependency>
+
+            <!-- BouncyCastle is pulled transitively by GraalPy (1.78.1) and OpenZiti (1.83) -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
 
             <!-- CLI -->

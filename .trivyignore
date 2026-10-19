@@ -1,0 +1,3 @@
+# Dockerfile misconfiguration (not a CVE): the image runs as root, no USER in deployment/Dockerfile
+# DS-0002  # accepted: image runs as root (no USER in deployment/Dockerfile), non-root user to be added in a separate image change, revisit on 2026-12-15
+DS-0002
