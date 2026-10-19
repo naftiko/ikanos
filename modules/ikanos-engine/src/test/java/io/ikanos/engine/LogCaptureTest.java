@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,11 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 
 class LogCaptureTest {
+
+    /** Reads after which the background writer stops, in the concurrency test. */
+    private static final int READS = 100;
+    /** Upper bound on the background writer's lines, whatever the reader's pace. */
+    private static final int MAX_LINES = 50_000;
 
     @Test
     void messagesShouldDescribeCapturedEvents() {
@@ -66,6 +72,11 @@ class LogCaptureTest {
     /**
      * Issue #816: reading captured logs while another thread (e.g. a server left running by an
      * earlier test) logs to the same logger must not throw ConcurrentModificationException.
+     *
+     * <p>Both sides are bounded: each read copies the whole capture, so an unbounded writer
+     * makes the test quadratic in time and memory. The writer keeps logging until the reader
+     * has done {@link #READS} reads (or {@link #MAX_LINES} lines are written), and the reader
+     * keeps reading until the writer is done, so every read overlaps the writes.
      */
     @Test
     void readingShouldBeSafeWhileAnotherThreadLogs() throws Exception {
@@ -73,36 +84,44 @@ class LogCaptureTest {
         ch.qos.logback.classic.Logger backend =
                 (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(logger.getName());
         boolean additive = backend.isAdditive();
-        // Keep the flood of background lines out of the console and the test report.
+        // Keep the background lines out of the console and the test report.
         backend.setAdditive(false);
-        AtomicBoolean running = new AtomicBoolean(true);
+        AtomicInteger readsDone = new AtomicInteger();
+        AtomicBoolean writing = new AtomicBoolean(true);
         CountDownLatch started = new CountDownLatch(1);
         try (LogCapture logs = new LogCapture()) {
             Thread writer = new Thread(() -> {
                 started.countDown();
-                while (running.get()) {
-                    logger.warning("background");
+                try {
+                    for (int line = 0; line < MAX_LINES && readsDone.get() < READS
+                            && writing.get(); line++) {
+                        logger.warning("background");
+                    }
+                } finally {
+                    writing.set(false);
                 }
             }, "log-capture-writer");
             writer.setDaemon(true);
             writer.start();
             try {
                 assertTrue(started.await(5, TimeUnit.SECONDS));
-                long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500);
                 assertDoesNotThrow(() -> {
-                    while (System.nanoTime() < deadline) {
+                    while (writing.get()) {
                         logs.messages();
                         logs.events().stream().filter(e -> e.getThrowableProxy() != null)
                                 .count();
+                        readsDone.incrementAndGet();
                     }
                 });
-                // Without this, the test would also pass if the writer never logged.
-                assertTrue(logs.messages().contains("background"),
-                        "the background thread never logged, so nothing was tested");
             } finally {
-                running.set(false);
+                writing.set(false);
                 writer.join(5_000);
             }
+            // Without these, the test would also pass if the writer never logged, or if no
+            // read happened while it was logging.
+            assertTrue(logs.messages().contains("background"),
+                    "the background thread never logged, so nothing was tested");
+            assertTrue(readsDone.get() > 0, "no read overlapped the background logging");
         } finally {
             backend.setAdditive(additive);
         }
