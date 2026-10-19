@@ -15,12 +15,14 @@ package io.ikanos.engine;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
 import org.restlet.Context;
@@ -33,7 +35,7 @@ class LogCaptureTest {
     void messagesShouldDescribeCapturedEvents() {
         try (LogCapture logs = new LogCapture()) {
             Context.getCurrentLogger().warning("first");
-            Context.getCurrentLogger().log(java.util.logging.Level.SEVERE, "second",
+            Context.getCurrentLogger().log(Level.SEVERE, "second",
                     new IllegalStateException("boom"));
             List<String> lines = logs.messages();
             assertTrue(lines.contains("first"), lines.toString());
@@ -45,11 +47,18 @@ class LogCaptureTest {
     @Test
     void eventsShouldReturnASnapshotThatLaterLogsDoNotChange() {
         try (LogCapture logs = new LogCapture()) {
-            Context.getCurrentLogger().warning("before");
+            // Another thread may log to the same logger at any time (issue #816), so assert on
+            // what this test logs and on sizes relative to the snapshot, never on exact counts.
+            Context.getCurrentLogger().warning("snapshot-before");
             List<ILoggingEvent> snapshot = logs.events();
-            Context.getCurrentLogger().warning("after");
-            assertEquals(1, snapshot.size());
-            assertEquals(2, logs.events().size());
+            int sizeAtSnapshot = snapshot.size();
+            Context.getCurrentLogger().warning("snapshot-after");
+
+            assertEquals(sizeAtSnapshot, snapshot.size());
+            assertTrue(formatted(snapshot).contains("snapshot-before"), snapshot.toString());
+            assertFalse(formatted(snapshot).contains("snapshot-after"), snapshot.toString());
+            assertTrue(logs.events().size() > sizeAtSnapshot);
+            assertTrue(logs.messages().contains("snapshot-after"), logs.messages().toString());
             assertThrows(UnsupportedOperationException.class, () -> snapshot.clear());
         }
     }
@@ -87,6 +96,9 @@ class LogCaptureTest {
                                 .count();
                     }
                 });
+                // Without this, the test would also pass if the writer never logged.
+                assertTrue(logs.messages().contains("background"),
+                        "the background thread never logged, so nothing was tested");
             } finally {
                 running.set(false);
                 writer.join(5_000);
@@ -94,5 +106,9 @@ class LogCaptureTest {
         } finally {
             backend.setAdditive(additive);
         }
+    }
+
+    private static List<String> formatted(List<ILoggingEvent> events) {
+        return events.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 }
