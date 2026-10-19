@@ -205,3 +205,79 @@ jobs:
             echo "FAIL: exposed REST port $REST_PORT never started listening — HTTP connector did not boot (#581)"
             exit 1
           fi
+
+      # --- Control port served over real HTTP (#608) ---------------------------
+      # The serve guard above only TCP-probes the REST port. #594 bound its socket
+      # and then dropped every request, which a TCP probe cannot see, so this step
+      # sends real requests to every control route and checks the answers. It
+      # serves its own copy of the fixture on other ports, so it never talks to a
+      # server left over from the previous step.
+      - name: Native regression — control port (real HTTP requests)
+        shell: bash
+        run: |
+          BIN="./bin/${{ matrix.artifact_name }}"
+          FIXTURE="$RUNNER_TEMP/control-port.ikanos.yaml"
+          sed -e 's/port: 9610$/port: 9710/' -e 's/port: 9612$/port: 9712/' -e 's/port: 9619$/port: 9719/' \
+            modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml > "$FIXTURE"
+          grep -q "port: 9719" "$FIXTURE" || { echo "FAIL: could not move the fixture's control port"; exit 1; }
+          BASE="http://127.0.0.1:9719"
+          "$BIN" serve "$FIXTURE" > serve-control.log 2>&1 &
+          SERVE_PID=$!
+
+          fail() {
+            echo "FAIL: $*"
+            kill "$SERVE_PID" 2>/dev/null || true
+            echo "----- serve-control.log -----"; cat serve-control.log
+            exit 1
+          }
+          # get PATH: sets STATUS and BODY. curl is the external HTTP client.
+          get() {
+            : > body.txt
+            STATUS=$(curl -s -o body.txt -w '%{http_code}' --max-time 5 "$BASE$1" || true)
+            BODY=$(cat body.txt)
+          }
+
+          STATUS=000
+          for _ in $(seq 1 30); do
+            get /health/live
+            [ "$STATUS" = "200" ] && break
+            kill -0 "$SERVE_PID" 2>/dev/null || fail "serve exited before the control port answered"
+            sleep 1
+          done
+          [ "$STATUS" = "200" ] || fail "GET /health/live never answered 200 (last: '$STATUS'): native HTTP serve regression (#594)"
+          [ "$BODY" = '{"status":"UP"}' ] || fail "unexpected /health/live body: $BODY"
+
+          get /health/ready
+          [ "$STATUS" = "200" ] || fail "GET /health/ready returned $STATUS: $BODY"
+          case "$BODY" in *'"status":"UP"'*) ;; *) fail "unexpected /health/ready body: $BODY" ;; esac
+
+          get /status
+          [ "$STATUS" = "200" ] || fail "GET /status returned $STATUS: $BODY"
+          case "$BODY" in *'"native":true'*) ;; *) fail "/status does not report a native engine: $BODY" ;; esac
+          case "$BODY" in
+            *'"otel":{"status":"active"}'*) OTEL=active ;;
+            *'"otel":{"status":"inactive"}'*) OTEL=inactive ;;
+            *) fail "/status has no OpenTelemetry status: $BODY" ;;
+          esac
+          echo "OpenTelemetry in the native binary: $OTEL"
+
+          # /metrics and /traces must agree with what /status reports.
+          get /metrics; METRICS_STATUS=$STATUS; METRICS_BODY=$BODY
+          get /traces; TRACES_STATUS=$STATUS; TRACES_BODY=$BODY
+          if [ "$OTEL" = "active" ]; then
+            [ "$METRICS_STATUS" = "200" ] || fail "GET /metrics returned $METRICS_STATUS with OpenTelemetry active: $METRICS_BODY"
+            case "$METRICS_BODY" in *ikanos_capability_active*) ;; *) fail "/metrics lacks ikanos_capability_active: $METRICS_BODY" ;; esac
+            [ "$TRACES_STATUS" = "200" ] || fail "GET /traces returned $TRACES_STATUS with OpenTelemetry active: $TRACES_BODY"
+            case "$TRACES_BODY" in *'"traces":'*) ;; *) fail "unexpected /traces body: $TRACES_BODY" ;; esac
+          else
+            [ "$METRICS_STATUS" = "503" ] || fail "GET /metrics returned $METRICS_STATUS with OpenTelemetry inactive, expected 503"
+            [ "$TRACES_STATUS" = "503" ] || fail "GET /traces returned $TRACES_STATUS with OpenTelemetry inactive, expected 503"
+          fi
+
+          kill "$SERVE_PID" 2>/dev/null || true
+          echo "----- serve-control.log -----"; cat serve-control.log
+          if grep -E "ClassNotFoundException|NoSuchMethodException|ExceptionInInitializerError|No available server connector" serve-control.log; then
+            echo "FAIL: native reflection regression on the control port (#608)"
+            exit 1
+          fi
+          echo "Control port answered every route over real HTTP."
