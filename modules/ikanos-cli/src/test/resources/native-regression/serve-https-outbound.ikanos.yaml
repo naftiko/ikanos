@@ -4,7 +4,9 @@ info:
   description: >
     Minimal REST capability whose single operation forwards to a `consumes: http`
     backend reachable only over HTTPS (a real, always-on public endpoint —
-    https://api.github.com). This exists to guard the jlink module set computed
+    https://www.iana.org, chosen because it is a static file with no
+    per-IP API rate limit, unlike api.github.com which answered 403 to
+    shared macOS runners, see #824). This exists to guard the jlink module set computed
     in publish-cli-packages.yml via `jdeps --print-module-deps`: that set is
     derived only from the two other native-regression fixtures
     (serve-http.ikanos.yaml, serve-rest-mock.ikanos.yaml), neither of which
@@ -19,15 +21,15 @@ info:
 capability:
   consumes:
   - type: http
-    namespace: github-api
-    baseUri: https://api.github.com
+    namespace: iana
+    baseUri: https://www.iana.org
     resources:
-      get-zen:
-        path: /zen
+      get-robots:
+        path: /robots.txt
         operations:
-          get-zen:
+          get-robots:
             method: GET
-            display: Get Zen
+            display: Get Robots
   exposes:
     - type: rest
       address: localhost
@@ -42,4 +44,4 @@ capability:
             get-status:
               method: GET
               display: Get Status
-              call: github-api.get-zen
+              call: iana.get-robots

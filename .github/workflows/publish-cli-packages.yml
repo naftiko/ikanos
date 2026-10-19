@@ -505,7 +505,7 @@ jobs:
             exit 0
           fi
           if [ "$STATUS" != "200" ]; then
-            echo "FAIL: outbound HTTPS call returned status $STATUS, expected 200 — jlink image likely missing a TLS/crypto module (jdk.crypto.ec, jdk.crypto.cryptoki, jdk.security.jgss)"
+            echo "FAIL: outbound HTTPS call returned status $STATUS, expected 200 — no TLS/crypto exception in the log, so this is the backend's response (rate limit, outage), not a missing jlink module"
             exit 1
           fi
           echo "PASS: jlink package completed a real outbound HTTPS call"
@@ -569,7 +569,7 @@ jobs:
             exit 0
           }
           if ($status -ne 200) {
-            Write-Error "FAIL: outbound HTTPS call returned status $status, expected 200 — jlink image likely missing a TLS/crypto module (jdk.crypto.ec, jdk.crypto.cryptoki, jdk.security.jgss)"
+            Write-Error "FAIL: outbound HTTPS call returned status $status, expected 200 — no TLS/crypto exception in the log, so this is the backend's response (rate limit, outage), not a missing jlink module"
             exit 1
           }
           Write-Host "PASS: jlink package completed a real outbound HTTPS call"
