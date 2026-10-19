@@ -146,7 +146,7 @@ esac
 # wrapper and the PATH line must not depend on the directory the installer
 # was run from.
 mkdir -p "$IKANOS_HOME"
-IKANOS_HOME=$(CDPATH= cd -- "$IKANOS_HOME" && pwd) \
+IKANOS_HOME=$(CDPATH='' cd -- "$IKANOS_HOME" && pwd) \
   || fail "Cannot use IKANOS_HOME: $IKANOS_HOME"
 install_dir="$IKANOS_HOME/versions/$version_dir"
 rm -rf "$install_dir"
@@ -193,10 +193,14 @@ detect_rc_file() {
 }
 
 rc_file=$(detect_rc_file)
+# bin_dir is single-quoted, like in the wrapper, so the shell never expands $
+# or ` from the path at startup. fish escapes \ and ' inside single quotes.
 if [ "$rc_file" = "$HOME/.config/fish/config.fish" ]; then
-  path_line="set -gx PATH \"$bin_dir\" \$PATH"
+  quoted_bin=$(printf '%s' "$bin_dir" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g")
+  path_line="set -gx PATH '$quoted_bin' \$PATH"
 else
-  path_line="export PATH=\"$bin_dir:\$PATH\""
+  quoted_bin=$(printf '%s' "$bin_dir" | sed "s/'/'\\\\''/g")
+  path_line="export PATH='$quoted_bin':\"\$PATH\""
 fi
 
 if [ "$IKANOS_NO_MODIFY_RC" = "1" ]; then
@@ -218,10 +222,12 @@ else
     if [ "$existing_path_line" = "$path_line" ]; then
       info "PATH already configured in $rc_file"
     else
-      info "Updating ikanos PATH entry in $rc_file (IKANOS_HOME changed)"
+      info "Updating ikanos PATH entry in $rc_file"
       tmp_rc=$(mktemp)
-      awk -v m="$marker" -v me="$marker_end" -v newline="$path_line" '
-        $0==m {print; print newline; inblock=1; next}
+      # The new line goes through the environment: awk -v would turn the
+      # backslashes of a fish-escaped path into escape sequences.
+      ikanos_path_line="$path_line" awk -v m="$marker" -v me="$marker_end" '
+        $0==m {print; print ENVIRON["ikanos_path_line"]; inblock=1; next}
         $0==me {print; inblock=0; next}
         inblock {next}
         {print}

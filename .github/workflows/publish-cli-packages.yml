@@ -238,7 +238,8 @@ jobs:
             sleep 0.5
           done
 
-          IKANOS_HOME="$RUNNER_TEMP/ikanos-home" \
+          # A space in the install root, so quoting is exercised for real.
+          IKANOS_HOME="$RUNNER_TEMP/ikanos home" \
           IKANOS_NO_MODIFY_RC=1 \
           IKANOS_VERSION="v0.0.0-local-ci" \
           IKANOS_BASE_URL="http://127.0.0.1:8931" \
@@ -246,7 +247,7 @@ jobs:
           # Only bin goes on PATH, like the rc file line. IKANOS_HOME is not
           # exported, so the next steps run the wrapper as a new shell would
           # and check that it remembers its custom install root (#805).
-          echo "$RUNNER_TEMP/ikanos-home/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/ikanos home/bin" >> "$GITHUB_PATH"
 
       - name: Install via install.ps1 (real script, mock release endpoint) (Windows)
         if: runner.os == 'Windows'
@@ -262,15 +263,18 @@ jobs:
               } catch { Start-Sleep -Milliseconds 500 }
             }
 
-            $env:IKANOS_HOME = "$env:RUNNER_TEMP\ikanos-home"
+            # A space and a non-ASCII character in the install root: cmd.exe
+            # reads ikanos.cmd in the OEM code page, so this catches a wrapper
+            # that would garble such a path (like an accented user name).
+            $env:IKANOS_HOME = "$env:RUNNER_TEMP\ikanos h$([char]0x00F4)me"
             $env:IKANOS_NO_MODIFY_PATH = "1"
             $env:IKANOS_VERSION = "v0.0.0-local-ci"
             $env:IKANOS_BASE_URL = "http://127.0.0.1:8931"
             & .\docs\install.ps1
 
             # Only bin goes on PATH. IKANOS_HOME is not exported, so the next
-            # steps check that ikanos.cmd remembers its custom install root (#805).
-            Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\ikanos-home\bin"
+            # steps check that ikanos.cmd finds its custom install root (#805).
+            Add-Content -Path $env:GITHUB_PATH -Value "$env:IKANOS_HOME\bin"
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
