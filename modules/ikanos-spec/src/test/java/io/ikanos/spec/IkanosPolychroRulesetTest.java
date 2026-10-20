@@ -386,6 +386,19 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void mcpTrustLoopbackRuleShouldFireWhenAddressIsAHostnameStartingWith127() {
+        assertWarnsOn("rules/spectral-mcp-trust-loopback-hostname-127-prefix.yaml",
+            "ikanos-mcp-trust-loopback-on-public-address", "'127.0.0.1/32'");
+    }
+
+    @Test
+    public void mcpTrustLoopbackRuleShouldNotFireWhenAdapterListensOnExpandedIpv6Loopback() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-trust-loopback-expanded-ipv6.yaml");
+        assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
+            "Expected 0:0:0:0:0:0:0:1 to be read as loopback.\n" + result.output());
+    }
+
+    @Test
     public void mcpTrustLoopbackRuleShouldNotFireOnScopedNetworks() {
         ProcessResult result = lintFixture("rules/spectral-mcp-trust-networks-scoped.yaml");
         assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),

@@ -1,0 +1,29 @@
+---
+# Spectral fixture — ikanos-mcp-trust-loopback-on-public-address MUST FIRE.
+#
+# The address starts with "127." but is a hostname, not a loopback literal, so the adapter may
+# listen beyond loopback while loopback peers are trusted.
+ikanos: "1.0.0-beta8"
+
+info:
+  display: "MCP trust — loopback on a 127-prefixed hostname"
+  description: "Fixture for the MCP trust network rules (issue #483)."
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "127.example.com"
+      port: 3001
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["127.0.0.1/32"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

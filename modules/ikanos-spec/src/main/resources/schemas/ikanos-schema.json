@@ -1257,12 +1257,12 @@
             "verify",
             "none"
           ],
-          "description": "`forwarded`: the gateway in front of this adapter is the authentication boundary. The identity is read from `agentIdentityHeader`, and a direct peer outside `trustedNetworks` is refused with HTTP 403 before any MCP handling. There is no mixed mode: for direct, gateway-free access, expose a separate MCP adapter with its own `authentication` and `trust`. Pair `forwarded` with `authentication` so the gateway itself is also authenticated (recommended). `verify`: take the identity from the token validated by `authentication: oauth2` (required). `none`: do not record an agent identity (same as omitting `trust`)."
+          "description": "`forwarded`: the gateway in front of this adapter is the authentication boundary. The identity is read from `agentIdentityHeader`, and a direct peer outside `trustedNetworks` is refused with HTTP 403 before any MCP handling. There is no mixed mode: for direct, gateway-free access, expose a separate MCP adapter with its own `authentication` and `trust`. Pair `forwarded` with `authentication` so the gateway itself is also authenticated (recommended). `verify`: take the identity from the token validated by `authentication: oauth2` (required). The `sub` claim is used, else `client_id`; a value that breaks the `agentIdentityHeader` length or character rules is ignored with a warning, as with a subject containing spaces. `none`: do not record an agent identity (same as omitting `trust`)."
         },
         "agentIdentityHeader": {
           "type": "string",
           "pattern": "^[A-Za-z0-9-]+$",
-          "description": "Header carrying the agent identity, e.g. `X-Agent-Id`. The gateway MUST overwrite or remove any value of this header sent by the agent: Ikanos cannot tell a value the gateway set from one it passed through. A value that is sent more than once, is longer than 256 characters, or contains characters other than letters, digits and `. _ ~ : @ / + = -` is ignored. `forwarded` mode only."
+          "description": "Header carrying the agent identity, e.g. `X-Agent-Id`. The gateway MUST overwrite or remove any value of this header sent by the agent: Ikanos cannot tell a value the gateway set from one it passed through. A value that is sent more than once, is longer than 256 characters, or contains characters other than letters, digits and `. _ ~ : @ / + = | -` (no spaces, quotes, commas or semicolons) is ignored, with a rate-limited warning that never includes the value. `forwarded` mode only."
         },
         "trustedNetworks": {
           "type": "array",
@@ -1272,7 +1272,7 @@
             "description": "An IPv4 or IPv6 network in CIDR notation, e.g. `10.20.0.0/16` or `fd00:10::/48`. Keep it to the gateway's own addresses: the Polychro rules warn on very broad networks and on loopback when the adapter listens beyond loopback."
           },
           "minItems": 1,
-          "description": "Networks of the gateway. Only direct peers in these networks are served; `X-Forwarded-For` is never used for this check. `forwarded` mode only."
+          "description": "Networks of the gateway. Only direct peers in these networks are served; `X-Forwarded-For` is never used for this check. Every other peer gets HTTP 403 on every path of this adapter, including health probes (for example Kubernetes liveness and readiness probes) and, with `authentication: oauth2`, `/.well-known/oauth-protected-resource`: add the probes' source network here, or probe the control port instead. `forwarded` mode only."
         }
       },
       "required": [

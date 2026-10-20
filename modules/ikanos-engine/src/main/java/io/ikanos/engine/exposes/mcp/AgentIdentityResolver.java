@@ -17,7 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
+import java.util.logging.Level;
 import java.util.regex.Pattern;
+import org.restlet.Context;
 import org.restlet.Request;
 import com.nimbusds.jwt.JWTClaimsSet;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
@@ -41,7 +44,9 @@ import io.ikanos.spec.exposes.mcp.McpTrustSpec;
  *
  * A value that is blank, longer than {@link #MAX_IDENTITY_LENGTH}, made of characters outside
  * {@link #IDENTITY_PATTERN}, or sent in more than one header is ignored rather than cleaned up.
- * Resolved per request. The identity is for audit only: it never authorizes anything.
+ * Except for a blank value, ignoring one logs a {@link RateLimitedWarning} naming where it came
+ * from and why, never the value itself, so a misconfigured gateway or identity provider can be
+ * spotted. Resolved per request. The identity is for audit only: it never authorizes anything.
  */
 public class AgentIdentityResolver {
 
@@ -49,20 +54,31 @@ public class AgentIdentityResolver {
     static final int MAX_IDENTITY_LENGTH = 256;
 
     /**
-     * Characters an identity may contain: enough for ids, emails and SPIFFE URIs, and nothing that
-     * can split a log line, a header or a list (no whitespace, quotes, commas or semicolons).
+     * Characters an identity may contain: enough for ids, emails, SPIFFE URIs and provider-prefixed
+     * subjects such as Auth0's {@code google-oauth2|123}, and nothing that can split a log line, a
+     * header or a list (no whitespace, quotes, commas or semicolons).
      */
-    static final Pattern IDENTITY_PATTERN = Pattern.compile("[A-Za-z0-9._~:@/+=-]+");
+    static final Pattern IDENTITY_PATTERN = Pattern.compile("[A-Za-z0-9._~:@/+=|-]+");
 
     private final String mode;
     private final String identityHeader;
     private final List<CidrRange> trustedNetworks;
+    private final RateLimitedWarning ignoredIdentityWarning;
 
     /**
      * @param trust the adapter's trust block, or {@code null} for mode {@code none}.
      * @throws IllegalArgumentException when a trusted network is not a valid CIDR.
      */
     public AgentIdentityResolver(McpTrustSpec trust) {
+        this(trust, new RateLimitedWarning());
+    }
+
+    AgentIdentityResolver(McpTrustSpec trust, LongSupplier clock) {
+        this(trust, new RateLimitedWarning(clock));
+    }
+
+    private AgentIdentityResolver(McpTrustSpec trust, RateLimitedWarning ignoredIdentityWarning) {
+        this.ignoredIdentityWarning = ignoredIdentityWarning;
         this.mode = trust != null ? trust.getMode() : McpTrustSpec.MODE_NONE;
         this.identityHeader = trust != null ? trust.getAgentIdentityHeader() : null;
         List<CidrRange> networks = new ArrayList<>();
@@ -107,7 +123,7 @@ public class AgentIdentityResolver {
         if (!isTrustedPeer(peer)) {
             return Optional.empty();
         }
-        String id = sanitize(singleHeader(request, identityHeader));
+        String id = accept(singleHeader(request, identityHeader), "header " + identityHeader);
         return id != null ? Optional.of(new AgentIdentity(id, AgentIdentity.SOURCE_FORWARDED))
                 : Optional.empty();
     }
@@ -118,10 +134,10 @@ public class AgentIdentityResolver {
         if (!(claims instanceof JWTClaimsSet claimsSet)) {
             return Optional.empty();
         }
-        String id = sanitize(claimsSet.getSubject());
+        String id = accept(claimsSet.getSubject(), "token claim sub");
         if (id == null) {
             Object clientId = claimsSet.getClaim("client_id");
-            id = sanitize(clientId instanceof String value ? value : null);
+            id = accept(clientId instanceof String value ? value : null, "token claim client_id");
         }
         return id != null
                 ? Optional.of(new AgentIdentity(id, AgentIdentity.SOURCE_VERIFIED,
@@ -147,25 +163,62 @@ public class AgentIdentityResolver {
      *         log lines).
      */
     static String sanitize(String value) {
+        if (value == null || value.trim().isEmpty() || rejectionOf(value) != null) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    /**
+     * @return why {@code value} cannot be recorded, or {@code null} when it can, or when it is
+     *         absent or blank (nothing was sent, so there is nothing to report).
+     */
+    static String rejectionOf(String value) {
         if (value == null) {
             return null;
         }
         String trimmed = value.trim();
-        if (trimmed.isEmpty() || trimmed.length() > MAX_IDENTITY_LENGTH
-                || !IDENTITY_PATTERN.matcher(trimmed).matches()) {
-            return null;
+        if (trimmed.length() > MAX_IDENTITY_LENGTH) {
+            return "longer than " + MAX_IDENTITY_LENGTH + " characters";
         }
-        return trimmed;
+        if (!trimmed.isEmpty() && !IDENTITY_PATTERN.matcher(trimmed).matches()) {
+            return "contains characters other than letters, digits and . _ ~ : @ / + = | -";
+        }
+        return null;
+    }
+
+    /**
+     * @return the sanitized {@code value}, warning when a value was sent but has to be ignored.
+     */
+    private String accept(String value, String source) {
+        String rejection = rejectionOf(value);
+        if (rejection != null) {
+            warnIgnored(source, rejection);
+        }
+        return sanitize(value);
+    }
+
+    /**
+     * Logs why an identity was ignored, at most once per {@link RateLimitedWarning#INTERVAL_MILLIS}.
+     * Never logs the value: in {@code forwarded} mode the agent may have written it.
+     */
+    private void warnIgnored(String source, String reason) {
+        long dropped = ignoredIdentityWarning.acquire();
+        if (dropped >= 0) {
+            Context.getCurrentLogger().log(Level.WARNING,
+                    "Ignored agent identity from " + source + " (trust: " + mode + "): " + reason
+                            + "; " + dropped + " more ignored identities since the last warning");
+        }
     }
 
     /**
      * @return the {@code sub} of the token's RFC 8693 {@code act} claim, or {@code null} when it
      *         is absent or not an object with a valid {@code sub}.
      */
-    static String actorOf(JWTClaimsSet claims) {
+    private String actorOf(JWTClaimsSet claims) {
         Object act = claims.getClaim("act");
         if (act instanceof Map<?, ?> actor && actor.get("sub") instanceof String sub) {
-            return sanitize(sub);
+            return accept(sub, "token claim act.sub");
         }
         return null;
     }
@@ -174,11 +227,14 @@ public class AgentIdentityResolver {
      * @return the header's value, or {@code null} when it is absent or sent more than once (a
      *         second copy means the gateway passed the agent's own value through).
      */
-    private static String singleHeader(Request request, String name) {
+    private String singleHeader(Request request, String name) {
         if (name == null || request.getHeaders() == null) {
             return null;
         }
         String[] values = request.getHeaders().getValuesArray(name, true);
+        if (values.length > 1) {
+            warnIgnored("header " + name, "sent " + values.length + " times");
+        }
         return values.length == 1 ? values[0] : null;
     }
 }

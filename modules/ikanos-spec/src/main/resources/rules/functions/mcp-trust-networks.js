@@ -53,13 +53,31 @@ export default function mcpTrustNetworks(adapter, options, context) {
   return results;
 }
 
-/** An omitted address defaults to localhost in the engine. */
+/**
+ * An omitted address defaults to localhost in the engine. Other values count as loopback only
+ * when they are a full IPv4 literal in 127.0.0.0/8 or an IPv6 literal equal to ::1 (in any
+ * spelling, IPv4-mapped 127.x.x.x included); a hostname such as 127.example.com does not.
+ */
 function isLoopbackAddress(address) {
   if (address === undefined || address === null) {
     return true;
   }
   const value = String(address).replace(/^\[|\]$/g, "").toLowerCase();
-  return value === "localhost" || value === "::1" || /^127\./.test(value);
+  if (value === "localhost") {
+    return true;
+  }
+  if (!value.includes(":")) {
+    const v4 = ipv4Bits(value);
+    return v4 !== null && samePrefix(v4, ipv4Bits("127.0.0.0"), 8);
+  }
+  const v6 = ipv6Bits(value);
+  if (v6 === null) {
+    return false;
+  }
+  if (isIpv4Mapped(v6)) {
+    return samePrefix(v6.slice(96), ipv4Bits("127.0.0.0"), 8);
+  }
+  return samePrefix(v6, ipv6Bits("::1"), 128);
 }
 
 function isTooBroad(network) {

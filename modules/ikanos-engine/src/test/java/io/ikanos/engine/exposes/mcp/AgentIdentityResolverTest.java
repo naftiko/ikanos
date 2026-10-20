@@ -14,17 +14,20 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.data.Method;
 import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 
@@ -136,7 +139,7 @@ class AgentIdentityResolverTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"spiffe://cluster.local/ns/support/sa/bot",
-            "bot@support.example.com", "agent_42.v2", "a:b+c=d~e-f"})
+            "bot@support.example.com", "agent_42.v2", "a:b+c=d~e-f", "google-oauth2|1234567890"})
     void resolveShouldAcceptIdentityMadeOfAllowedCharacters(String value) {
         Request request = request("10.0.3.7");
         request.getHeaders().add("X-Agent-Id", value);
@@ -161,6 +164,16 @@ class AgentIdentityResolverTest {
                         .resolve(request);
         assertEquals(new AgentIdentity("agent-42", AgentIdentity.SOURCE_VERIFIED),
                 identity.orElseThrow());
+    }
+
+    @Test
+    void resolveShouldAcceptProviderPrefixedSubjectInVerifyMode() {
+        Request request = request("85.12.4.9");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().subject("auth0|5f7c8ec7c33c6c004bbafe82").build());
+        assertEquals("auth0|5f7c8ec7c33c6c004bbafe82",
+                new AgentIdentityResolver(new McpTrustSpec(McpTrustSpec.MODE_VERIFY))
+                        .resolve(request).orElseThrow().id());
     }
 
     @Test
@@ -222,5 +235,91 @@ class AgentIdentityResolverTest {
     void sanitizeShouldKeepValueAtTheLengthLimit() {
         String value = "a".repeat(AgentIdentityResolver.MAX_IDENTITY_LENGTH);
         assertEquals(value, AgentIdentityResolver.sanitize(value));
+    }
+
+    @Test
+    void resolveShouldWarnWithoutTheValueWhenAnIdentityIsIgnored() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent 42 secret-token");
+        try (LogCapture logs = new LogCapture()) {
+            assertTrue(new AgentIdentityResolver(forwarded()).resolve(request).isEmpty());
+            List<String> warnings = ignoredIdentityWarnings(logs);
+            assertEquals(1, warnings.size(), logs.messages().toString());
+            assertTrue(warnings.get(0).contains("header X-Agent-Id (trust: forwarded)"),
+                    warnings.get(0));
+            assertTrue(warnings.get(0).contains("contains characters other than"), warnings.get(0));
+            assertFalse(warnings.get(0).contains("secret-token"),
+                    "The ignored value must never be logged: " + warnings.get(0));
+        }
+    }
+
+    @Test
+    void resolveShouldWarnWhenTheIdentityHeaderIsSentMoreThanOnce() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42");
+        request.getHeaders().add("X-Agent-Id", "admin");
+        try (LogCapture logs = new LogCapture()) {
+            new AgentIdentityResolver(forwarded()).resolve(request);
+            List<String> warnings = ignoredIdentityWarnings(logs);
+            assertEquals(1, warnings.size(), logs.messages().toString());
+            assertTrue(warnings.get(0).contains("sent 2 times"), warnings.get(0));
+            assertFalse(warnings.get(0).contains("admin"), warnings.get(0));
+        }
+    }
+
+    @Test
+    void resolveShouldWarnWhenTheTokenSubjectIsIgnoredInVerifyMode() {
+        Request request = request("85.12.4.9");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder()
+                        .subject("a".repeat(AgentIdentityResolver.MAX_IDENTITY_LENGTH + 1))
+                        .build());
+        try (LogCapture logs = new LogCapture()) {
+            assertTrue(new AgentIdentityResolver(new McpTrustSpec(McpTrustSpec.MODE_VERIFY))
+                    .resolve(request).isEmpty());
+            List<String> warnings = ignoredIdentityWarnings(logs);
+            assertEquals(1, warnings.size(), logs.messages().toString());
+            assertTrue(warnings.get(0).contains("token claim sub (trust: verify)"),
+                    warnings.get(0));
+            assertTrue(warnings.get(0).contains("longer than 256 characters"), warnings.get(0));
+        }
+    }
+
+    @Test
+    void resolveShouldNotWarnWhenNoIdentityIsSent() {
+        Request blank = request("10.0.3.7");
+        blank.getHeaders().add("X-Agent-Id", "  ");
+        try (LogCapture logs = new LogCapture()) {
+            AgentIdentityResolver resolver = new AgentIdentityResolver(forwarded());
+            resolver.resolve(request("10.0.3.7"));
+            resolver.resolve(blank);
+            assertTrue(ignoredIdentityWarnings(logs).isEmpty(), logs.messages().toString());
+        }
+    }
+
+    @Test
+    void resolveShouldWarnAtMostOncePerIntervalAndCountTheOthers() {
+        AtomicLong clock = new AtomicLong();
+        AgentIdentityResolver resolver = new AgentIdentityResolver(forwarded(), clock::get);
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent 42");
+        try (LogCapture logs = new LogCapture()) {
+            resolver.resolve(request);
+            clock.set(1_000);
+            resolver.resolve(request);
+            resolver.resolve(request);
+            assertEquals(1, ignoredIdentityWarnings(logs).size(), logs.messages().toString());
+
+            clock.set(RateLimitedWarning.INTERVAL_MILLIS);
+            resolver.resolve(request);
+            List<String> warnings = ignoredIdentityWarnings(logs);
+            assertEquals(2, warnings.size(), logs.messages().toString());
+            assertTrue(warnings.get(1).contains("; 2 more ignored identities"), warnings.get(1));
+        }
+    }
+
+    private static List<String> ignoredIdentityWarnings(LogCapture logs) {
+        return logs.messages().stream().filter(m -> m.startsWith("Ignored agent identity"))
+                .toList();
     }
 }
