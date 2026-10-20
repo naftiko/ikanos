@@ -307,7 +307,7 @@ public class OutputParameterDeserializationTest {
     assertNotNull(items, "orchestrated items map must produce an item declaration");
     assertEquals("object", items.getType());
     assertEquals(List.of("fullName", "type"),
-        items.getProperties().stream().map(OutputParameterSpec::getName).toList(),
+        items.getProperties().stream().map(parameter -> parameter.getName()).toList(),
         "a property named 'type' must not be mistaken for the item's own type");
     assertEquals("string", items.getProperties().get(1).getType());
   }

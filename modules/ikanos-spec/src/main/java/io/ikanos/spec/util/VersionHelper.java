@@ -14,7 +14,6 @@
 package io.ikanos.spec.util;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;

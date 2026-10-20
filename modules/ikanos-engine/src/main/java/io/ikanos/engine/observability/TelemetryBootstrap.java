@@ -452,12 +452,12 @@ public class TelemetryBootstrap {
             String actorId) {
         if (agentId == null) return;
         if (span != null) {
-            span.setAttribute(ATTR_AGENT_ID, agentId);
+            span.setAttribute(nonNullStringKey(ATTR_AGENT_ID), agentId);
             if (source != null) {
-                span.setAttribute(ATTR_AGENT_ID_SOURCE, source);
+                span.setAttribute(nonNullStringKey(ATTR_AGENT_ID_SOURCE), source);
             }
             if (actorId != null) {
-                span.setAttribute(ATTR_AGENT_ACTOR_ID, actorId);
+                span.setAttribute(nonNullStringKey(ATTR_AGENT_ACTOR_ID), actorId);
             }
         }
         MDC.put(MDC_AGENT_ID, agentId);

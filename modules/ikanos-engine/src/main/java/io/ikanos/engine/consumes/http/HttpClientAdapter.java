@@ -33,7 +33,6 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import io.ikanos.spec.util.IkanosMappers;

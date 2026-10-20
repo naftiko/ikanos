@@ -55,7 +55,7 @@ public abstract class ServerAdapter extends Adapter {
         this.server = new Server(Protocol.HTTP, address, port);
         this.server.setContext(new Context());
 
-        // TODO: Make idle timeout configurable
+        // Configurable idle timeout is tracked in https://github.com/naftiko/ikanos/issues/835.
         this.server.getContext().getParameters().add("socketTimeout", "12000");
         // The client address is always the direct peer. With "true", Restlet would take it from
         // the caller-controlled X-Forwarded-For header, which would defeat the MCP

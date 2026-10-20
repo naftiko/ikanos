@@ -314,7 +314,7 @@ public class Resolver {
         // value takes precedence — used for static/mock values
         if (spec.getValue() != null) {
             String resolved = resolveMustacheTemplate(spec.getValue(), parameters);
-            return mapper.getNodeFactory().textNode(resolved);
+            return mapper.getNodeFactory().stringNode(resolved);
         }
 
         if ("array".equalsIgnoreCase(type)) {
@@ -455,10 +455,10 @@ public class Resolver {
                     return node;
                 }
                 if (node.isValueNode()) {
-                    return factory.textNode(node.asString());
+                    return factory.stringNode(node.asString());
                 }
                 try {
-                    return factory.textNode(mapper.writeValueAsString(node));
+                    return factory.stringNode(mapper.writeValueAsString(node));
                 } catch (JacksonException e) {
                     return NullNode.instance;
                 }
@@ -630,7 +630,7 @@ public class Resolver {
 
         if (param.getValue() != null) {
             String resolved = resolveMustacheTemplate(param.getValue(), parameters);
-            return mapper.getNodeFactory().textNode(resolved);
+            return mapper.getNodeFactory().stringNode(resolved);
         }
 
         String type = param.getType();
@@ -718,4 +718,3 @@ public class Resolver {
         return coerce ? coerceToDeclaredType(prop, val, mapper) : val;
     }
 }
-

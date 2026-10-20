@@ -128,6 +128,6 @@ class LogCaptureTest {
     }
 
     private static List<String> formatted(List<ILoggingEvent> events) {
-        return events.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return events.stream().map(event -> event.getFormattedMessage()).toList();
     }
 }

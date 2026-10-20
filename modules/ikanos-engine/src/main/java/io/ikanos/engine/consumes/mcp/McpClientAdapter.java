@@ -16,7 +16,6 @@ package io.ikanos.engine.consumes.mcp;
 import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -200,7 +199,7 @@ public class McpClientAdapter extends ClientAdapter {
             } catch (JacksonException notJson) {
                 // fall through to the raw string
             }
-            return new McpConsumedResult(view, JSON.getNodeFactory().textNode(text), text);
+            return new McpConsumedResult(view, JSON.getNodeFactory().stringNode(text), text);
         }
         List<String> types = new ArrayList<>();
         content.forEach(block -> types.add(block.path("type").asString("?")));
@@ -229,7 +228,7 @@ public class McpClientAdapter extends ClientAdapter {
         if (errors.isEmpty()) {
             return;
         }
-        String detail = errors.stream().map(Error::getMessage).sorted()
+        String detail = errors.stream().map(error -> error.getMessage()).sorted()
                 .collect(Collectors.joining("; "));
         if (McpClientToolSpec.VALIDATE_WARN.equals(tool.validationMode())) {
             Span.current().addEvent("mcp.output_schema.violation: " + detail);
@@ -306,7 +305,7 @@ public class McpClientAdapter extends ClientAdapter {
             }
             JsonNode inputProps = upstream.path("inputSchema").path("properties");
             List<String> declared = tool.getInputParameters().stream()
-                    .map(InputParameterSpec::getName).toList();
+                    .map(parameter -> parameter.getName()).toList();
             for (String name : declared) {
                 if (inputProps.isObject() && !inputProps.has(name)) {
                     problems.add("tool '" + tool.getName() + "' declares argument '" + name

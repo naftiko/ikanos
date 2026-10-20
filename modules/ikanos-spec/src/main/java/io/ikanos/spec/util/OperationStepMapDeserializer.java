@@ -21,6 +21,6 @@ package io.ikanos.spec.util;
  */
 public class OperationStepMapDeserializer extends NamedMapDeserializer<OperationStepSpec> {
     public OperationStepMapDeserializer() {
-        super(OperationStepSpec.class, OperationStepSpec::setName);
+        super(OperationStepSpec.class, (spec, name) -> spec.setName(name));
     }
 }

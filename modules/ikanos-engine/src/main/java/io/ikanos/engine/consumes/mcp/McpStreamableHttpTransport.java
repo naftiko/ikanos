@@ -30,6 +30,7 @@ import org.restlet.representation.Representation;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import javax.annotation.Nonnull;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -71,6 +72,7 @@ public class McpStreamableHttpTransport {
     static final long MAX_RESPONSE_CHARS = BinarySize.DEFAULT_MAX_BINARY_SIZE_BYTES;
 
     /** Writes W3C trace-context entries into a {@code _meta} object node. */
+    @Nonnull
     private static final TextMapSetter<ObjectNode> META_SETTER = (carrier, key, value) -> {
         if (carrier != null && key != null && value != null) {
             carrier.put(key, value);
@@ -171,7 +173,7 @@ public class McpStreamableHttpTransport {
             }
         }
 
-        if (isJsonRpcError(rpc)) {
+        if (rpc != null && isJsonRpcError(rpc)) {
             JsonNode error = rpc.get("error");
             int code = error.path("code").asInt();
             String message = error.path("message").asString("");

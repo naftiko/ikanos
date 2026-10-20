@@ -416,7 +416,7 @@ public class Converter {
                 int max = Integer.parseInt(maxLength);
                 String s = node.asString();
                 if (s.length() > max) {
-                    return IkanosMappers.json().getNodeFactory().textNode(s.substring(0, max));
+                    return IkanosMappers.json().getNodeFactory().stringNode(s.substring(0, max));
                 }
             } catch (NumberFormatException nfe) {
                 // ignore invalid maxLength

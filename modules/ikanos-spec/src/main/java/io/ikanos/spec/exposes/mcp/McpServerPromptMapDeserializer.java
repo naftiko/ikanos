@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ExposesMcp.prompts} named-object map. */
 public class McpServerPromptMapDeserializer extends NamedMapDeserializer<McpServerPromptSpec> {
     public McpServerPromptMapDeserializer() {
-        super(McpServerPromptSpec.class, McpServerPromptSpec::setName);
+        super(McpServerPromptSpec.class, (spec, name) -> spec.setName(name));
     }
 }

@@ -18,6 +18,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 /** Deserializer for {@code ExposedResource.operations} named-object map. */
 public class RestServerOperationMapDeserializer extends NamedMapDeserializer<RestServerOperationSpec> {
     public RestServerOperationMapDeserializer() {
-        super(RestServerOperationSpec.class, RestServerOperationSpec::setName);
+        super(RestServerOperationSpec.class, (spec, name) -> spec.setName(name));
     }
 }

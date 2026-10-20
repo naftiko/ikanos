@@ -73,6 +73,7 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     protected String serverUrl;
     protected final ObjectMapper json = IkanosMappers.lenientJson();
     protected String mcpServerToken;
+    @SuppressWarnings("resource")
     private static final MicrocksContainer microcks = new MicrocksContainer(DockerImageName.parse(System.getProperty("microcks.image")))
             .withMainArtifacts("openapi/naftiko-shipyard-legacy-dockyard-api.yaml", "openapi/naftiko-shipyard-maritime-registry-api.yaml");
 

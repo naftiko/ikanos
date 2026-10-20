@@ -30,6 +30,6 @@ import io.ikanos.spec.util.NamedMapDeserializer;
 public class InputParameterMapDeserializer extends NamedMapDeserializer<InputParameterSpec> {
 
     public InputParameterMapDeserializer() {
-        super(InputParameterSpec.class, InputParameterSpec::setName);
+        super(InputParameterSpec.class, (spec, name) -> spec.setName(name));
     }
 }
