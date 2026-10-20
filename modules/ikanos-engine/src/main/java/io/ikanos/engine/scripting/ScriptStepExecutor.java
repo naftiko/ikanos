@@ -105,9 +105,9 @@ public class ScriptStepExecutor {
             new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
-     * Called by the capability loader when a capability containing script steps is being
-     * initialized — before any request is served. The Control Port {@code scripting.enabled}
-     * overrides the environment variable when set.
+     * Called by the operation step executor each time a script step runs, so that toggling
+     * scripting at runtime through the Control Port takes effect immediately. The Control Port
+     * {@code scripting.enabled} overrides the environment variable when set.
      */
     public static void requireScriptingPermitted(String stepName,
             ScriptingManagementSpec scriptingSpec) {
