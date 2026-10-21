@@ -37,7 +37,7 @@ import tools.jackson.databind.JsonNode;
  * <pre>{@code
  *   NamedMapDeserializer<MySpec> d = new NamedMapDeserializer<>(
  *       MySpec.class,
- *       MySpec::setName
+ *       (spec, name) -> spec.setName(name)
  *   );
  * }</pre>
  *
@@ -51,7 +51,7 @@ public class NamedMapDeserializer<T> extends ValueDeserializer<Map<String, T>> {
 
     /**
      * @param type       the class of each map value
-     * @param nameSetter method reference that injects the map key as the entity name
+     * @param nameSetter callback that injects the map key as the entity name
      */
     public NamedMapDeserializer(Class<T> type, BiConsumer<T, String> nameSetter) {
         this(type, nameSetter, "name");
@@ -59,7 +59,7 @@ public class NamedMapDeserializer<T> extends ValueDeserializer<Map<String, T>> {
 
     /**
      * @param type       the class of each map value
-     * @param nameSetter method reference that injects the map key as the entity name
+     * @param nameSetter callback that injects the map key as the entity name
      * @param keyField   the JSON field name used as the map key when deserializing an array
      */
     public NamedMapDeserializer(Class<T> type, BiConsumer<T, String> nameSetter, String keyField) {
