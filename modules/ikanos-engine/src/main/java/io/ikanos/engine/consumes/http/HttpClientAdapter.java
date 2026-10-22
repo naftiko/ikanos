@@ -258,25 +258,32 @@ public class HttpClientAdapter extends ClientAdapter {
 
             Object bodySpec = clientOp.getBody();
             if (bodySpec instanceof String) {
-                // Legacy: plain Mustache template string
+                // Legacy: plain Mustache template string, sent as application/json, so caller
+                // values are JSON-encoded and cannot change the document's structure.
                 rejectUnresolved("body", (String) bodySpec, parameters);
-                resolvedBody = Resolver.resolveMustacheTemplate((String) bodySpec, parameters);
+                resolvedBody = Resolver.resolveJsonTemplate((String) bodySpec, parameters);
             } else {
                 // Structured {type, data} RequestBody object
                 @SuppressWarnings("unchecked")
                 Map<String, Object> bodyMap = (Map<String, Object>) bodySpec;
                 String bodyType = String.valueOf(bodyMap.getOrDefault("type", "json"));
+                boolean jsonBody = "json".equalsIgnoreCase(bodyType);
                 Object data = bodyMap.get("data");
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType) && data instanceof Map) {
                     resolvedBody = FormUrlEncodedBody.encode((Map<?, ?>) data, parameters);
                 } else if (data instanceof String) {
                     // String data (text/xml/sparql, pre-encoded form, or a JSON template) is sent
                     // as-is after Mustache resolution, never JSON-quoted. A pre-encoded form only
-                    // encodes the substituted values (see FormUrlEncodedBody#resolve).
+                    // encodes the substituted values (see FormUrlEncodedBody#resolve), and a JSON
+                    // template JSON-encodes them (see Resolver#resolveJsonTemplate).
                     rejectUnresolved("body", (String) data, parameters);
-                    resolvedBody = "formUrlEncoded".equalsIgnoreCase(bodyType)
-                            ? FormUrlEncodedBody.resolve((String) data, parameters)
-                            : Resolver.resolveMustacheTemplate((String) data, parameters);
+                    if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
+                        resolvedBody = FormUrlEncodedBody.resolve((String) data, parameters);
+                    } else if (jsonBody) {
+                        resolvedBody = Resolver.resolveJsonTemplate((String) data, parameters);
+                    } else {
+                        resolvedBody = Resolver.resolveMustacheTemplate((String) data, parameters);
+                    }
                 } else {
                     String dataStr;
                     try {
@@ -288,8 +295,9 @@ public class HttpClientAdapter extends ClientAdapter {
                                         + operationName,
                                 e);
                     }
+                    // Structured data is always serialized as JSON, whatever the declared type.
                     rejectUnresolved("body", dataStr, parameters);
-                    resolvedBody = Resolver.resolveMustacheTemplate(dataStr, parameters);
+                    resolvedBody = Resolver.resolveJsonTemplate(dataStr, parameters);
                 }
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
                     bodyMediaType = MediaType.APPLICATION_WWW_FORM;

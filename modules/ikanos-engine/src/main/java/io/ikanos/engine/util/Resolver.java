@@ -432,6 +432,95 @@ public class Resolver {
     }
 
     /**
+     * Render a template that produces a JSON document (a {@code type: json} request body), so that
+     * substituted values cannot change the document's structure.
+     *
+     * <ul>
+     * <li>A string value is JSON-escaped (quotes, backslashes, control characters) and written
+     * without surrounding quotes, so the template keeps quoting it: {@code "{{v}}"} stays one JSON
+     * string whatever {@code v} contains.</li>
+     * <li>A map, list or array value is written as JSON ({@code {{props}}} becomes
+     * {@code {"tokens":5}}), with every nested string escaped.</li>
+     * <li>Numbers and booleans are written as is; NaN and infinities are written as
+     * {@code null}.</li>
+     * </ul>
+     *
+     * <p>Template authors must still quote string placeholders. An unquoted {@code {{v}}} where
+     * {@code v} is a caller string cannot add a member (its quotes are escaped), but it can still
+     * inject JSON syntax such as {@code true}, {@code [..]} or {@code {..}} in place of the value,
+     * or make the document invalid. Leave a placeholder unquoted only when the parameter is
+     * declared as a number, boolean, object or array.</p>
+     *
+     * <p>Sections behave as in {@link #resolveMustacheTemplate(String, Map)}: a section over a list
+     * renders once, as an "if present" guard. This applies to top-level parameters and to nested
+     * values such as step outputs ({@code {{step.field}}}).</p>
+     *
+     * @param template the JSON template containing {{...}} placeholders
+     * @param parameters map of parameter names to values for template resolution
+     * @return the rendered JSON text, or the original template if parameters is null or empty
+     */
+    public static String resolveJsonTemplate(String template, Map<String, Object> parameters) {
+        if (template == null) {
+            return template;
+        }
+
+        if (parameters == null || parameters.isEmpty()) {
+            return template;
+        }
+
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        Map<String, Object> wrapped = new HashMap<>();
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            wrapped.put(entry.getKey(), wrapJsonCollections(entry.getValue()));
+        }
+
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("")
+                .withFormatter(value -> toJsonFragment(value, jsonMapper));
+        return compileTemplate(compiler, template).execute(wrapped);
+    }
+
+    /**
+     * Wrap top-level lists and arrays so a section over them is a single "if present" guard
+     * instead of a loop over the elements. Maps stay maps, so {@code {{step.field}}} still works.
+     * Inside such a section, {@code {{.}}} refers to the whole list and is written as JSON.
+     */
+    private static Object wrapJsonCollections(Object value) {
+        if (value instanceof java.util.Collection || value instanceof Object[]) {
+            return new JsonValue(value);
+        }
+        return value;
+    }
+
+    /**
+     * Text written for one substituted value in a JSON template.
+     */
+    static String toJsonFragment(Object value, ObjectMapper jsonMapper) {
+        Object raw = value instanceof JsonValue json ? json.value() : value;
+        if (raw instanceof CharSequence || raw instanceof Character) {
+            String quoted = jsonMapper.writeValueAsString(raw.toString());
+            return quoted.substring(1, quoted.length() - 1);
+        }
+        if (raw instanceof Boolean) {
+            return String.valueOf(raw);
+        }
+        if (raw instanceof Number number) {
+            // NaN and infinities are not valid JSON numbers.
+            if ((number instanceof Double d && !Double.isFinite(d))
+                    || (number instanceof Float f && !Float.isFinite(f))) {
+                return "null";
+            }
+            return String.valueOf(raw);
+        }
+        return jsonMapper.writeValueAsString(raw);
+    }
+
+    /**
+     * A list or array parameter of a JSON template. Truthy for a section, rendered as JSON.
+     */
+    private record JsonValue(Object value) {
+    }
+
+    /**
      * Resolve a single InputParameterSpec from a request, extracting the value based on the
      * parameter location (path, query, header, environment, or body).
      * 

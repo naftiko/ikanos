@@ -231,6 +231,40 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveJsonTemplateShouldEscapeValueInUnescapedTag() {
+        // GHSA-6359-rp48-m9j6: {{{v}}} and {{&v}} must not be a way around the JSON escaping.
+        String injected = "x\",\"b\":1,\"c\":\"";
+        assertEquals("{\"a\":\"x\\\",\\\"b\\\":1,\\\"c\\\":\\\"\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{{v}}}\"}", Map.of("v", injected)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldEscapeNestedValueInsideSection() {
+        Map<String, Object> step = Map.of("k", "x\",\"b\":1,\"c\":\"");
+        assertEquals("{\"a\":\"x\\\",\\\"b\\\":1,\\\"c\\\":\\\"\"}",
+            Resolver.resolveJsonTemplate("{{#step}}{\"a\":\"{{k}}\"}{{/step}}",
+                Map.of("step", step)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldQuoteCharacterValueLikeAString() {
+        assertEquals("{\"a\":\"q\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{c}}\"}", Map.of("c", 'q')));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldWriteNonFiniteNumberAsNull() {
+        assertEquals("{\"a\":null}",
+            Resolver.resolveJsonTemplate("{\"a\":{{n}}}", Map.of("n", Double.NaN)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldRenderMissingVariableAsEmptyWhenParametersAreGiven() {
+        assertEquals("{\"a\":\"\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{missing}}\"}", Map.of("other", "x")));
+      }
+
+      @Test
       public void resolveInputParameterFromRequestShouldHandlePathQueryHeaderAndBody() throws Exception {
         Request request = new Request(Method.GET, "https://example.com/search?q=ships");
         request.getAttributes().put("shipId", "IMO-1");
