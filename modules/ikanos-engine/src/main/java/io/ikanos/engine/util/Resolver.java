@@ -40,6 +40,15 @@ public class Resolver {
 
     private static final Logger logger = LoggerFactory.getLogger(Resolver.class);
 
+    /**
+     * JMustache default value used when there are no parameters at all: JMustache replaces
+     * {@code {{name}}} in a default value with the missing variable's name, so a missing variable
+     * is rendered back as {@code {{name}}}. Unescaped and spaced forms ({@code {{{x}}}},
+     * {@code {{&x}}}, {@code {{ x }}}) are normalised to {@code {{x}}}; the result always keeps
+     * its braces, which is what unresolved-template guards check.
+     */
+    private static final String UNRESOLVED_VARIABLE = "{{{{name}}}}";
+
     private Resolver() {
         // Utility class, no instantiation
     }
@@ -47,14 +56,18 @@ public class Resolver {
     /**
      * Resolve Mustache-style templates in a string using provided parameters. Replaces
      * {{paramName}} with the corresponding parameter value from the map using JMustache.
-     * 
-     * Missing variables will remain as {{paramName}} in the output. Null parameter values are
-     * replaced with empty strings.
-     * 
+     *
+     * <p>Sections are always rendered: {@code {{#x}}...{{/x}}} disappears and
+     * {@code {{^x}}...{{/x}}} is kept when {@code x} is absent, even when {@code parameters} is
+     * null or empty. A bare variable that is missing renders as an empty string when other
+     * parameters are present. When there are no parameters at all, it is rendered back as
+     * {@code {{name}}} (unescaped and spaced forms are normalised to that form), so callers can
+     * still detect a template that could not be resolved; a string that is not a valid template
+     * is then returned unchanged.</p>
+     *
      * @param template The template string containing {{...}} placeholders
-     * @param parameters Map of parameter names to values for template resolution
-     * @return The template string with all placeholders resolved, or the original template if
-     *         parameters is null or empty
+     * @param parameters Map of parameter names to values for template resolution, may be null
+     * @return The rendered template, or {@code null} if {@code template} is null
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters) {
         return resolveMustacheTemplate(template, parameters, null);
@@ -67,12 +80,13 @@ public class Resolver {
      * alike. Sections are evaluated on the untransformed values, so a section on a
      * {@code Boolean} behaves exactly as without a transformation. The template's literal text is
      * never transformed. Used, for example, to percent-encode values substituted into a
-     * pre-encoded form body.
+     * pre-encoded form body. The transformation is not applied when there are no parameters,
+     * since no caller value is substituted then.
      *
      * @param template the template string containing {{...}} placeholders
-     * @param parameters map of parameter names to values for template resolution
+     * @param parameters map of parameter names to values for template resolution, may be null
      * @param valueEncoder transformation of each rendered value, or {@code null} for none
-     * @return the resolved string, or the original template if parameters is null or empty
+     * @return the rendered template, or {@code null} if {@code template} is null
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
             java.util.function.UnaryOperator<String> valueEncoder) {
@@ -80,35 +94,54 @@ public class Resolver {
             return template;
         }
 
-        if (parameters == null || parameters.isEmpty()) {
-            return template;
-        }
+        boolean noParameters = parameters == null || parameters.isEmpty();
 
         // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
         // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
         Map<String, Object> serialized = new HashMap<>();
         ObjectMapper jsonMapper = IkanosMappers.json();
-        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
-            Object val = entry.getValue();
-            if (val instanceof java.util.Collection || val instanceof Object[]) {
-                try {
-                    val = jsonMapper.writeValueAsString(val);
-                } catch (JacksonException e) {
-                    // keep the plain value
+        if (!noParameters) {
+            for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+                Object val = entry.getValue();
+                if (val instanceof java.util.Collection || val instanceof Object[]) {
+                    try {
+                        val = jsonMapper.writeValueAsString(val);
+                    } catch (JacksonException e) {
+                        // keep the plain value
+                    }
                 }
+                serialized.put(entry.getKey(), val);
             }
-            serialized.put(entry.getKey(), val);
         }
 
         // escapeHTML(false): JMustache escapes HTML entities by default (e.g. " → &quot;).
         // This is desirable for HTML output, but templates here produce JSON bodies or URI strings —
         // never HTML. Without this, serialized array values like ["CREW-001"] would be rendered
         // as [&quot;CREW-001&quot;], producing invalid JSON.
-        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("");
-        if (valueEncoder != null) {
+        //
+        // With no parameters at all, sections are still rendered (so an optional part over an
+        // absent key disappears, #847), but a bare missing variable is written back as its own
+        // {{name}}: callers rely on that leftover to reject a missing required value, and an
+        // exposes-side credential template must never collapse to an empty string.
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
+                .defaultValue(noParameters ? UNRESOLVED_VARIABLE : "");
+        if (valueEncoder != null && !noParameters) {
             // The formatter runs on every rendered value, whatever its path or tag, and only on
             // rendering: sections still see the original values.
             compiler = compiler.withFormatter(value -> valueEncoder.apply(String.valueOf(value)));
+        }
+        if (noParameters) {
+            // Nothing can be substituted: a string that is not a valid template (for example a
+            // static credential containing "{{}}") is returned as-is, as it was before #847.
+            try {
+                return compiler.compile(template).execute(serialized);
+            } catch (RuntimeException e) {
+                // Log the exception type only: JMustache messages quote tag names, which could
+                // echo part of a static credential.
+                logger.debug("Template is not valid Mustache ({}); returning it unchanged",
+                        e.getClass().getSimpleName());
+                return template;
+            }
         }
         return compiler.compile(template).execute(serialized);
     }

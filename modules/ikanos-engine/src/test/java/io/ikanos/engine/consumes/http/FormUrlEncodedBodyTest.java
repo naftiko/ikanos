@@ -195,4 +195,12 @@ class FormUrlEncodedBodyTest {
         // The caller's unresolved-template guard reports it.
         assertEquals("q={{v}}", FormUrlEncodedBody.resolve("q={{v}}", Map.of()));
     }
+
+    @Test
+    void resolveShouldNotEncodeLeftoverTemplateWhenNoParametersAreGiven() {
+        // #847: sections render with no parameters, but a leftover bare variable must keep its
+        // braces; percent-encoding it would hide it from the unresolved-template guard.
+        assertEquals("a=1&q={{v}}",
+                FormUrlEncodedBody.resolve("a=1{{#x}}&x={{x}}{{/x}}&q={{v}}", Map.of()));
+    }
 }

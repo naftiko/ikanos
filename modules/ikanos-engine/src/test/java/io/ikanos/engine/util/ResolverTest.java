@@ -113,6 +113,56 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveMustacheTemplateShouldDropAbsentSectionsWhenParameterMapIsEmpty() {
+        assertEquals("{\"a\":1}",
+            Resolver.resolveMustacheTemplate("{\"a\":1{{#x}},\"x\":{{x}}{{/x}}}", Map.of()),
+            "#847: a section over an absent key must render nothing, even with no parameters");
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldDropAbsentSectionsWhenParametersAreNull() {
+        assertEquals("/things",
+            Resolver.resolveMustacheTemplate("/things{{#status}}?status={{status}}{{/status}}",
+                null),
+            "#847: a null parameter map must render like an empty one");
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldRenderInvertedSectionWhenParameterMapIsEmpty() {
+        assertEquals("none", Resolver.resolveMustacheTemplate("{{^x}}none{{/x}}", Map.of()),
+            "#847: an inverted section over an absent key must render its content");
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepMissingVariableWhenParameterMapIsEmpty() {
+        // A bare variable with no parameter at all stays literal, so the callers' unresolved-
+        // template guards still reject a missing required value, and an exposes-side credential
+        // template such as {{TOKEN}} never collapses to an empty string.
+        assertEquals("/orders/{{orderId}}",
+            Resolver.resolveMustacheTemplate("/orders/{{orderId}}", Map.of()));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepMissingVariableWhenParametersAreNull() {
+        assertEquals("/orders/{{orderId}}",
+            Resolver.resolveMustacheTemplate("/orders/{{orderId}}", null));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepDottedVariableWhenParameterMapIsEmpty() {
+        // The binding form used by credentials must not collapse to an empty string either.
+        assertEquals("{{secrets.TOKEN}}",
+            Resolver.resolveMustacheTemplate("{{secrets.TOKEN}}", Map.of()));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldReturnMalformedTemplateWhenParameterMapIsEmpty() {
+        // With no parameters there is nothing to substitute; a string that is not a valid
+        // template (e.g. a static credential containing "{{}}") is returned as-is, as before #847.
+        assertEquals("pa{{}}ss", Resolver.resolveMustacheTemplate("pa{{}}ss", Map.of()));
+      }
+
+      @Test
       public void resolveInputParameterFromRequestShouldHandlePathQueryHeaderAndBody() throws Exception {
         Request request = new Request(Method.GET, "https://example.com/search?q=ships");
         request.getAttributes().put("shipId", "IMO-1");

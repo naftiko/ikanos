@@ -24,9 +24,9 @@ import io.ikanos.engine.util.Resolver;
  * <p>Both forms of {@code data} treat substituted values the same way: a value coming from a
  * {@code {{...}}} template is caller data, always percent-encoded (UTF-8) and never interpreted,
  * even when it itself contains braces. An unresolved template is rejected only when no parameters
- * are available, the one case where {@link Resolver#resolveMustacheTemplate} leaves templates in
- * place. With any parameter present, a misspelled or missing variable is rendered as an empty
- * value (JMustache {@code defaultValue("")}).</p>
+ * are available, the one case where {@link Resolver#resolveMustacheTemplate} leaves a missing
+ * variable in place (sections are still rendered). With any parameter present, a misspelled or
+ * missing variable is rendered as an empty value (JMustache {@code defaultValue("")}).</p>
  */
 public final class FormUrlEncodedBody {
 
