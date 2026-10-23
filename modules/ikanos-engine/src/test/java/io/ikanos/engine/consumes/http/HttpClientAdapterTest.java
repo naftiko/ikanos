@@ -20,6 +20,8 @@ import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
+import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
@@ -453,6 +455,77 @@ public class HttpClientAdapterTest {
                 """.formatted(VersionHelper.getSchemaVersion());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
+    @Test
+    public void prepareShouldPercentEncodeSlashesAndDotSegmentsInPathParameter() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        HttpInvocation invocation = adapter.prepare("trash-page",
+                new java.util.HashMap<>(Map.of("page_id", "x/../../databases/DB-ID")));
+
+        assertEquals("https://api.example.com/v1/pages/x%2F..%2F..%2Fdatabases%2FDB-ID",
+                invocation.getRequest().getResourceRef().toString(),
+                "A path parameter must stay one path segment (GHSA-rvg4-2rxw-mc64): '/' and '..'"
+                        + " in a value must not reach another endpoint");
+    }
+
+    @Test
+    public void prepareShouldPercentEncodeQueryAndFragmentDelimitersInPathParameter() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        HttpInvocation invocation = adapter.prepare("trash-page",
+                new java.util.HashMap<>(Map.of("page_id", "U?x=1#frag")));
+
+        assertEquals("https://api.example.com/v1/pages/U%3Fx=1%23frag",
+                invocation.getRequest().getResourceRef().toString(),
+                "'?' and '#' in a path parameter must not start a query string or a fragment");
+    }
+
+    @Test
+    public void prepareShouldPercentEncodePercentSpaceAndNonAsciiInPathParameter() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        HttpInvocation invocation = adapter.prepare("trash-page",
+                new java.util.HashMap<>(Map.of("page_id", "a%2Fb c\u00e9")));
+
+        assertEquals("https://api.example.com/v1/pages/a%252Fb%20c%C3%A9",
+                invocation.getRequest().getResourceRef().toString(),
+                "An already-encoded '%2F' must not be decoded into a '/' by the upstream");
+    }
+
+    @Test
+    public void prepareShouldKeepUnreservedAndSubDelimiterCharactersInPathParameter() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        HttpInvocation invocation = adapter.prepare("trash-page",
+                new java.util.HashMap<>(Map.of("page_id", "Ab0-._~!$&'()*+,;=:@")));
+
+        assertEquals("https://api.example.com/v1/pages/Ab0-._~!$&'()*+,;=:@",
+                invocation.getRequest().getResourceRef().toString(),
+                "Characters allowed in a path segment (RFC 3986 pchar) must be sent unchanged");
+    }
+
+    @Test
+    public void prepareShouldKeepTemplateLiteralPathAndBaseUriUnencoded() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        HttpInvocation invocation = adapter.prepare("trash-page",
+                new java.util.HashMap<>(Map.of("page_id", "p1")));
+
+        assertEquals("https://api.example.com/v1/pages/p1",
+                invocation.getRequest().getResourceRef().toString());
+    }
+
+    private HttpClientAdapter pagesAdapter() {
+        HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
+        HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",
+                "page", null);
+        HttpClientOperationSpec operation =
+                new HttpClientOperationSpec(resource, "PATCH", "trash-page", null);
+        resource.setOperations(new java.util.LinkedHashMap<>(Map.of("trash-page", operation)));
+        spec.getResources().put("page", resource);
+        return new HttpClientAdapter(getMockCapability(Map.of()), spec);
     }
 
     private Capability getMockCapability(Map<String, Object> bindings) {

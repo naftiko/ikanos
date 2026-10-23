@@ -234,8 +234,13 @@ public class HttpClientAdapter extends ClientAdapter {
                 + clientOp.getParentResource().getPath();
         rejectUnresolved("URI", clientResUri, parameters);
 
-        // Resolve Mustache templates
-        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters);
+        // Resolve Mustache templates. Each substituted value is marked, then percent-encoded by
+        // position, so a caller value stays one path segment or one query value
+        // (GHSA-rvg4-2rxw-mc64).
+        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters,
+                PathSegmentEncoder::mark);
+
+        clientResUri = PathSegmentEncoder.encodeMarkedValues(clientResUri);
 
         Request clientRequest = new Request();
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
