@@ -113,6 +113,59 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveMustacheTemplateShouldKeepLiteralBraceBeforeSectionTag() {
+        // #848: "{" + "{{#v}}" must not be read as a triple-mustache tag.
+        assertEquals("{x}", Resolver.resolveMustacheTemplate("{{{#v}}x{{/v}}}", Map.of("v", "1")));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepLiteralBraceBeforeInvertedSectionTag() {
+        assertEquals("{\"invoice\":{\"none\":true}}",
+            Resolver.resolveMustacheTemplate("{\"invoice\":{{{^p}}\"none\":true{{/p}}}}",
+                Map.of("other", "x")));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepLiteralBraceWhenParameterMapIsEmpty() {
+        assertEquals("{\"invoice\":{}}",
+            Resolver.resolveMustacheTemplate("{\"invoice\":{{{#p}}\"p\":\"{{p}}\"{{/p}}}}",
+                Map.of()),
+            "#848 with #847: the brace is kept and the absent section dropped");
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldNotEncodeLiteralBraceBeforeSectionTag() {
+        // The literal brace is template text, so a value encoder must not touch it.
+        assertEquals("{[x]}", Resolver.resolveMustacheTemplate("{{{#v}}{{v}}{{/v}}}",
+            Map.of("v", "x"), value -> "[" + value + "]"));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepLiteralBraceWhenParameterHasHelperLikeName() {
+        // No parameter can hide the literal brace.
+        assertEquals("{1}", Resolver.resolveMustacheTemplate("{{{#x}}1{{/x}}}",
+            Map.of("x", true, "__ikanos_lb", "zz")));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepTwoLiteralBracesBeforeSectionTag() {
+        assertEquals("{{1", Resolver.resolveMustacheTemplate("{{{{#x}}1{{/x}}",
+            Map.of("x", true)));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldKeepUnescapedVariableTag() {
+        assertEquals("a<b", Resolver.resolveMustacheTemplate("{{{v}}}", Map.of("v", "a<b")));
+      }
+
+      @Test
+      public void resolveMustacheTemplateShouldNotRewriteBracesWhenTemplateSetsDelimiters() {
+        // Under author-set delimiters, "{{{#x}}" is plain text and must be kept as is.
+        assertEquals("{{{#x}} X", Resolver.resolveMustacheTemplate("{{=<% %>=}}{{{#x}} <%x%>",
+            Map.of("x", "X")));
+      }
+
+      @Test
       public void resolveMustacheTemplateShouldDropAbsentSectionsWhenParameterMapIsEmpty() {
         assertEquals("{\"a\":1}",
             Resolver.resolveMustacheTemplate("{\"a\":1{{#x}},\"x\":{{x}}{{/x}}}", Map.of()),
