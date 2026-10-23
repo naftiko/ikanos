@@ -195,10 +195,9 @@ public class HttpClientAdapter extends ClientAdapter {
         Resolver.resolveInputParametersToRequest(clientRequest,
                 clientOp.getInputParameters(), parameters);
 
-        Object multipartData = multipartData(clientOp.getBody());
+        List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
-            MultipartFormBody multipart = MultipartFormBody.build((List<?>) multipartData,
-                    parameters);
+            MultipartFormBody multipart = MultipartFormBody.build(multipartData, parameters);
             clientRequest.setEntity(
                     new ByteArrayRepresentation(multipart.bytes(), multipart.mediaType()));
         } else if (clientOp.getBody() != null) {
@@ -268,17 +267,17 @@ public class HttpClientAdapter extends ClientAdapter {
      * body. A {@code multipartForm} body whose {@code data} is not a list is rejected, rather than
      * sent as JSON.
      */
-    static Object multipartData(Object bodySpec) {
+    static List<?> multipartData(Object bodySpec) {
         if (!(bodySpec instanceof Map<?, ?> bodyMap)
                 || !"multipartForm".equalsIgnoreCase(String.valueOf(bodyMap.get("type")))) {
             return null;
         }
         Object data = bodyMap.get("data");
-        if (!(data instanceof List<?>)) {
+        if (!(data instanceof List<?> parts)) {
             throw new IllegalArgumentException(
                     "A multipartForm body requires a list of parts in 'data'");
         }
-        return data;
+        return parts;
     }
 
     /**

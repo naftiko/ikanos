@@ -76,7 +76,9 @@ public final class MultipartFormBody {
             byte[] content;
             if ("base64".equalsIgnoreCase(String.valueOf(spec.get("encoding")))) {
                 try {
-                    content = Base64.getMimeDecoder().decode(value == null ? "" : value);
+                    // Strip whitespace so line-wrapped input decodes; reject anything else.
+                    content = Base64.getDecoder()
+                            .decode(value == null ? "" : value.replaceAll("\\s", ""));
                 } catch (IllegalArgumentException e) {
                     throw new IllegalArgumentException(
                             "Invalid base64 value in multipartForm part '" + name + "'", e);
