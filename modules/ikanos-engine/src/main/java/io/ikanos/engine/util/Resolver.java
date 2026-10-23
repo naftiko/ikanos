@@ -96,27 +96,46 @@ public class Resolver {
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
             java.util.function.UnaryOperator<String> valueEncoder) {
+        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
+        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        return render(template, parameters, val -> {
+            if (val instanceof java.util.Collection || val instanceof Object[]) {
+                try {
+                    return jsonMapper.writeValueAsString(val);
+                } catch (JacksonException e) {
+                    // keep the plain value
+                }
+            }
+            return val;
+        }, valueEncoder == null ? null
+                : value -> valueEncoder.apply(String.valueOf(value)));
+    }
+
+    /**
+     * Shared rendering behind {@link #resolveMustacheTemplate(String, Map, java.util.function.UnaryOperator)}
+     * and {@link #resolveJsonTemplate(String, Map)}, so both follow the same rules for sections,
+     * missing variables and empty parameter maps.
+     *
+     * @param template the template string containing {{...}} placeholders
+     * @param parameters map of parameter names to values, may be null
+     * @param prepare transformation of each top-level parameter value before rendering
+     * @param formatter text written for each rendered value, or {@code null} for
+     *        {@code String.valueOf}; never applied when there are no parameters
+     * @return the rendered template, or {@code null} if {@code template} is null
+     */
+    private static String render(String template, Map<String, Object> parameters,
+            java.util.function.UnaryOperator<Object> prepare, Mustache.Formatter formatter) {
         if (template == null) {
             return template;
         }
 
         boolean noParameters = parameters == null || parameters.isEmpty();
 
-        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
-        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
         Map<String, Object> serialized = new HashMap<>();
-        ObjectMapper jsonMapper = IkanosMappers.json();
         if (!noParameters) {
             for (Map.Entry<String, Object> entry : parameters.entrySet()) {
-                Object val = entry.getValue();
-                if (val instanceof java.util.Collection || val instanceof Object[]) {
-                    try {
-                        val = jsonMapper.writeValueAsString(val);
-                    } catch (JacksonException e) {
-                        // keep the plain value
-                    }
-                }
-                serialized.put(entry.getKey(), val);
+                serialized.put(entry.getKey(), prepare.apply(entry.getValue()));
             }
         }
 
@@ -131,10 +150,10 @@ public class Resolver {
         // Required-value checks do not read this leftover: they call missingVariables(...).
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
                 .defaultValue(noParameters ? UNRESOLVED_VARIABLE : "");
-        if (valueEncoder != null && !noParameters) {
+        if (formatter != null && !noParameters) {
             // The formatter runs on every rendered value, whatever its path or tag, and only on
             // rendering: sections still see the original values.
-            compiler = compiler.withFormatter(value -> valueEncoder.apply(String.valueOf(value)));
+            compiler = compiler.withFormatter(formatter);
         }
         if (noParameters) {
             // Nothing can be substituted: a string that is not a valid template (for example a
@@ -451,32 +470,20 @@ public class Resolver {
      * or make the document invalid. Leave a placeholder unquoted only when the parameter is
      * declared as a number, boolean, object or array.</p>
      *
-     * <p>Sections behave as in {@link #resolveMustacheTemplate(String, Map)}: a section over a list
-     * renders once, as an "if present" guard. This applies to top-level parameters and to nested
-     * values such as step outputs ({@code {{step.field}}}).</p>
+     * <p>The escaping applies to every rendered value, including nested values such as step
+     * outputs ({@code {{step.field}}}). Sections and missing variables behave as in
+     * {@link #resolveMustacheTemplate(String, Map)}, including when there are no parameters at
+     * all. A section over a top-level list or array renders once, as an "if present" guard; a list
+     * nested in a map ({@code {{#step.items}}}) is still iterated, as before.</p>
      *
      * @param template the JSON template containing {{...}} placeholders
-     * @param parameters map of parameter names to values for template resolution
-     * @return the rendered JSON text, or the original template if parameters is null or empty
+     * @param parameters map of parameter names to values for template resolution, may be null
+     * @return the rendered JSON text, or {@code null} if {@code template} is null
      */
     public static String resolveJsonTemplate(String template, Map<String, Object> parameters) {
-        if (template == null) {
-            return template;
-        }
-
-        if (parameters == null || parameters.isEmpty()) {
-            return template;
-        }
-
         ObjectMapper jsonMapper = IkanosMappers.json();
-        Map<String, Object> wrapped = new HashMap<>();
-        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
-            wrapped.put(entry.getKey(), wrapJsonCollections(entry.getValue()));
-        }
-
-        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("")
-                .withFormatter(value -> toJsonFragment(value, jsonMapper));
-        return compileTemplate(compiler, template).execute(wrapped);
+        return render(template, parameters, Resolver::wrapJsonCollections,
+                value -> toJsonFragment(value, jsonMapper));
     }
 
     /**

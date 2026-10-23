@@ -512,6 +512,86 @@ class OperationStepExecutorRequestBodyTest {
         assertTrue(error.getMessage().contains("svc.op body"), error.getMessage());
     }
 
+    @Test
+    void findClientRequestForShouldDropAbsentSectionInJsonTemplateWhenNoParametersAreGiven()
+            throws Exception {
+        // #847 applies to JSON bodies too: an optional part over an absent key disappears.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"a":1{{#note}},"note":"{{note}}"{{/note}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of());
+
+        assertEquals("{\"a\":1}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRejectUnresolvedJsonTemplateWhenNoParametersAreGiven()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":"{{v}}"}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of()));
+
+        assertTrue(error.getMessage().contains("Unresolved template parameters in body"));
+    }
+
+    @Test
+    void findClientRequestForShouldRejectInvalidRenderedJsonBody() throws Exception {
+        // An unquoted string placeholder cannot add a member, but it can break the document:
+        // fail before sending instead of letting the upstream reject it.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":{{v}}}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of("v", "not json")));
+
+        assertTrue(error.getMessage().contains("Rendered JSON body is not valid JSON"));
+        assertTrue(!error.getMessage().contains("not json"),
+                "the rendered body must not be echoed in the error");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectRenderedJsonBodyWithTrailingContent() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"n":{{v}}}'
+                """);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of("v", "1} {\"x\":2")));
+    }
+
+    @Test
+    void findClientRequestForShouldJsonEscapeValueInStructuredDataOfNonJsonType()
+            throws Exception {
+        // Structured data is serialized as JSON whatever the declared type, so its values are
+        // JSON-encoded even when the body is declared as xml or text.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "xml"
+                                  data:
+                                    name: "{{v}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("v", "x\",\"admin\":true"));
+
+        assertEquals("{\"name\":\"x\\\",\\\"admin\\\":true\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {
         String yaml = """
                 ikanos: "%s"

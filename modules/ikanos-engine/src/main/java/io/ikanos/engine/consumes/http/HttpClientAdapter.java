@@ -20,6 +20,8 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import org.restlet.representation.ByteArrayRepresentation;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
@@ -255,6 +257,7 @@ public class HttpClientAdapter extends ClientAdapter {
         } else if (clientOp.getBody() != null) {
             String resolvedBody;
             MediaType bodyMediaType = MediaType.APPLICATION_JSON;
+            boolean renderedAsJson = true;
 
             Object bodySpec = clientOp.getBody();
             if (bodySpec instanceof String) {
@@ -270,8 +273,10 @@ public class HttpClientAdapter extends ClientAdapter {
                 boolean jsonBody = "json".equalsIgnoreCase(bodyType);
                 Object data = bodyMap.get("data");
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType) && data instanceof Map) {
+                    renderedAsJson = false;
                     resolvedBody = FormUrlEncodedBody.encode((Map<?, ?>) data, parameters);
                 } else if (data instanceof String) {
+                    renderedAsJson = jsonBody;
                     // String data (text/xml/sparql, pre-encoded form, or a JSON template) is sent
                     // as-is after Mustache resolution, never JSON-quoted. A pre-encoded form only
                     // encodes the substituted values (see FormUrlEncodedBody#resolve), and a JSON
@@ -295,7 +300,8 @@ public class HttpClientAdapter extends ClientAdapter {
                                         + operationName,
                                 e);
                     }
-                    // Structured data is always serialized as JSON, whatever the declared type.
+                    // Structured data is always serialized as JSON, whatever the declared type, so
+                    // its values are JSON-encoded for xml, text or sparql bodies too.
                     rejectUnresolved("body", dataStr, parameters);
                     resolvedBody = Resolver.resolveJsonTemplate(dataStr, parameters);
                 }
@@ -306,6 +312,10 @@ public class HttpClientAdapter extends ClientAdapter {
                 } else if ("sparql".equalsIgnoreCase(bodyType)) {
                     bodyMediaType = MediaType.valueOf("application/sparql-query");
                 }
+            }
+
+            if (renderedAsJson) {
+                requireValidJson(resolvedBody, operationName);
             }
 
             clientRequest.setEntity(resolvedBody, bodyMediaType);
@@ -389,6 +399,31 @@ public class HttpClientAdapter extends ClientAdapter {
                     "A multipartForm body requires a list of parts in 'data'");
         }
         return parts;
+    }
+
+    /**
+     * Fail closed when a rendered JSON body is not a single valid JSON document, for example when
+     * an unquoted placeholder received a value that breaks the syntax. A blank body (a template
+     * that rendered to nothing) is left alone, as before. The body itself is not echoed, since it
+     * may carry caller data or credentials.
+     */
+    private void requireValidJson(String body, String operationName) {
+        if (body.isBlank()) {
+            return;
+        }
+        boolean valid;
+        try {
+            JsonNode parsed = JSON.readerFor(JsonNode.class)
+                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(body);
+            valid = parsed != null && !parsed.isMissingNode();
+        } catch (JacksonException e) {
+            valid = false;
+        }
+        if (!valid) {
+            throw new IllegalArgumentException("Rendered JSON body is not valid JSON for operation: "
+                    + getHttpClientSpec().getNamespace() + "." + operationName
+                    + ". Check that string placeholders are quoted in the body template.");
+        }
     }
 
     /**

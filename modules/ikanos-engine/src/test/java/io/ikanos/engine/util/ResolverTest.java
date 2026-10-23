@@ -231,6 +231,18 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveJsonTemplateShouldDropAbsentSectionWhenParameterMapIsEmpty() {
+        assertEquals("{\"a\":1}",
+            Resolver.resolveJsonTemplate("{\"a\":1{{#x}},\"x\":\"{{x}}\"{{/x}}}", Map.of()),
+            "#847: JSON bodies must render sections even with no parameters");
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldKeepMissingVariableWhenParametersAreNull() {
+        assertEquals("{\"a\":\"{{x}}\"}", Resolver.resolveJsonTemplate("{\"a\":\"{{x}}\"}", null));
+      }
+
+      @Test
       public void resolveJsonTemplateShouldEscapeValueInUnescapedTag() {
         // GHSA-6359-rp48-m9j6: {{{v}}} and {{&v}} must not be a way around the JSON escaping.
         String injected = "x\",\"b\":1,\"c\":\"";
