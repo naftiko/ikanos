@@ -169,22 +169,14 @@ public class HttpClientAdapter extends ClientAdapter {
 
         String clientResUri = getHttpClientSpec().getBaseUri()
                 + clientOp.getParentResource().getPath();
+        rejectUnresolved("URI", clientResUri, parameters);
 
         // Resolve Mustache templates
         clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters);
 
-        // Validate all templates are resolved
-        if (clientResUri.contains("{{") && clientResUri.contains("}}")) {
-            throw new IllegalArgumentException(
-                    "Unresolved template parameters in URI: " + clientResUri
-                            + ". Available parameters: "
-                            + (parameters != null ? parameters.keySet() : "none"));
-        }
-
         Request clientRequest = new Request();
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
-        clientRequest.setResourceRef(new Reference(
-                Resolver.resolveMustacheTemplate(clientResUri, parameters)));
+        clientRequest.setResourceRef(new Reference(clientResUri));
 
         // Apply client-level and operation-level input parameters
         // NOTE: setResourceRef must be called first so that query params
@@ -201,6 +193,7 @@ public class HttpClientAdapter extends ClientAdapter {
             Object bodySpec = clientOp.getBody();
             if (bodySpec instanceof String) {
                 // Legacy: plain Mustache template string
+                rejectUnresolved("body", (String) bodySpec, parameters);
                 resolvedBody = Resolver.resolveMustacheTemplate((String) bodySpec, parameters);
             } else {
                 // Structured {type, data} RequestBody object
@@ -214,6 +207,7 @@ public class HttpClientAdapter extends ClientAdapter {
                     // String data (text/xml/sparql, pre-encoded form, or a JSON template) is sent
                     // as-is after Mustache resolution, never JSON-quoted. A pre-encoded form only
                     // encodes the substituted values (see FormUrlEncodedBody#resolve).
+                    rejectUnresolved("body", (String) data, parameters);
                     resolvedBody = "formUrlEncoded".equalsIgnoreCase(bodyType)
                             ? FormUrlEncodedBody.resolve((String) data, parameters)
                             : Resolver.resolveMustacheTemplate((String) data, parameters);
@@ -228,6 +222,7 @@ public class HttpClientAdapter extends ClientAdapter {
                                         + operationName,
                                 e);
                     }
+                    rejectUnresolved("body", dataStr, parameters);
                     resolvedBody = Resolver.resolveMustacheTemplate(dataStr, parameters);
                 }
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
@@ -239,13 +234,6 @@ public class HttpClientAdapter extends ClientAdapter {
                 }
             }
 
-            if (resolvedBody.contains("{{") && resolvedBody.contains("}}")) {
-                throw new IllegalArgumentException(
-                        "Unresolved template parameters in body: " + resolvedBody
-                                + ". Available parameters: "
-                                + (parameters != null ? parameters.keySet() : "none"));
-            }
-
             clientRequest.setEntity(resolvedBody, bodyMediaType);
         }
 
@@ -254,6 +242,27 @@ public class HttpClientAdapter extends ClientAdapter {
                 parameters);
         setHeaders(clientRequest);
         return new HttpInvocation(this, clientOp, clientRequest);
+    }
+
+    /**
+     * Rejects a URI or body template that uses a variable the request cannot provide (#858).
+     *
+     * <p>Rendering only leaves a variable unresolved when there are no parameters at all; with any
+     * parameter present, a missing one renders as an empty string. So the check only applies then,
+     * and it inspects the template, not the rendered output: a caller value that itself contains
+     * {@code {{...}}} is data and is sent as is. The message names the missing variables and does
+     * not echo the template or any value.</p>
+     */
+    static void rejectUnresolved(String where, String template,
+            Map<String, Object> parameters) {
+        if (parameters != null && !parameters.isEmpty()) {
+            return;
+        }
+        List<String> missing = Resolver.missingVariables(template, parameters);
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Unresolved template parameters in " + where + ": " + missing);
+        }
     }
 
     /**

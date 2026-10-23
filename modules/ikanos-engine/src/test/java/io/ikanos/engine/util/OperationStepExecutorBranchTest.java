@@ -98,6 +98,42 @@ class OperationStepExecutorBranchTest {
     }
 
     @Test
+    void findClientRequestForShouldSendCallerTextContainingBracesInPathParameter()
+            throws Exception {
+        OperationStepExecutor executor = executorFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/x"
+                          operations:
+                            - method: "GET"
+                              name: "x"
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        - path: "/search/{{term}}"
+                          name: "search"
+                          operations:
+                            - method: "GET"
+                              name: "find"
+                """.formatted(schemaVersion));
+
+        HttpInvocation context = (HttpInvocation)
+                executor.findClientRequestFor("svc", "find", Map.of("term", "{{x}}"));
+
+        assertTrue(context.getRequest().getResourceRef().toString()
+                .startsWith("https://api.example.com/search/"),
+                "#858: braces in a caller value must not be reported as an unresolved template");
+    }
+
+    @Test
     void findClientRequestForShouldSetStructuredBodyMediaTypes() throws Exception {
         OperationStepExecutor executor = executorFromYaml("""
                 ikanos: "%s"

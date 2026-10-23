@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
@@ -290,6 +291,53 @@ class OperationStepExecutorRequestBodyTest {
 
         assertEquals("{\"invoice\":{\"payment_status\":\"succeeded\"}}",
                 ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldSendCallerTextContainingBracesInJsonBody() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"text":"{{text}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("text", "Use {{name}} in the template"));
+
+        assertEquals("{\"text\":\"Use {{name}} in the template\"}",
+                ctx.getRequest().getEntity().getText(),
+                "#858: braces in a caller value are data, not an unresolved template");
+    }
+
+    @Test
+    void findClientRequestForShouldSendCallerTextContainingBracesInTextBody() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "text"
+                                  data: "Note: {{text}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("text", "{{#x}}a{{/x}} {{{y}}}"));
+
+        assertEquals("Note: {{#x}}a{{/x}} {{{y}}}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldNotEchoRenderedBodyWhenTemplateIsUnresolved() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "text"
+                                  data: "secret-literal {{v}}"
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of()));
+
+        assertFalse(error.getMessage().contains("secret-literal"),
+                "#858: the error must name the missing variables, not echo the body: "
+                        + error.getMessage());
+        assertTrue(error.getMessage().contains("v"), error.getMessage());
     }
 
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {
