@@ -52,7 +52,7 @@ class OrchestratedPassThroughOutputSchemaTest {
   @Test
   void validateShouldAcceptOrchestratedObjectOutputWithoutProperties() throws Exception {
     List<Error> errors = schema.validate(capability("""
-        properties:
+        page-properties:
           type: "object"
         """));
     assertTrue(errors.isEmpty(), "#859: an open object output must be valid, got:\n" + errors);
@@ -61,7 +61,7 @@ class OrchestratedPassThroughOutputSchemaTest {
   @Test
   void validateShouldAcceptOrchestratedArrayOutputWithoutItems() throws Exception {
     List<Error> errors = schema.validate(capability("""
-        properties:
+        page-properties:
           type: "array"
         """));
     assertTrue(errors.isEmpty(), "#859: an open array output must be valid, got:\n" + errors);
@@ -70,7 +70,7 @@ class OrchestratedPassThroughOutputSchemaTest {
   @Test
   void validateShouldStillAcceptOrchestratedObjectOutputWithProperties() throws Exception {
     List<Error> errors = schema.validate(capability("""
-        properties:
+        page-properties:
           type: "object"
           properties:
             id:
@@ -82,7 +82,7 @@ class OrchestratedPassThroughOutputSchemaTest {
   @Test
   void validateShouldRejectOrchestratedArrayOutputWithEmptyItems() throws Exception {
     List<Error> errors = schema.validate(capability("""
-        properties:
+        page-properties:
           type: "array"
           items: {}
         """));
@@ -92,7 +92,7 @@ class OrchestratedPassThroughOutputSchemaTest {
   @Test
   void validateShouldRejectUnknownPropertyOnOrchestratedObjectOutput() throws Exception {
     List<Error> errors = schema.validate(capability("""
-        properties:
+        page-properties:
           type: "object"
           mapping: "$.page.properties"
         """));
@@ -134,7 +134,7 @@ class OrchestratedPassThroughOutputSchemaTest {
                       with:
                         page_id: "{{page_id}}"
                   mappings:
-                    - target: "properties"
+                    - target: "page-properties"
                       value: "$.page.properties"
                   outputParameters:
         %s""".formatted(VersionHelper.getSchemaVersion(), outputParameter.indent(12));
