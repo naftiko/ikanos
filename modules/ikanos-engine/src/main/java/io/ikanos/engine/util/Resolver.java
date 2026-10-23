@@ -342,19 +342,78 @@ public class Resolver {
                     parameters.put(spec.getName(), val);
                 }
 
+                String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
+                        ? spec.getWireName() : spec.getName();
                 if ("header".equalsIgnoreCase(in)) {
-                    clientRequest.getHeaders().set(spec.getName(), val.toString());
+                    clientRequest.getHeaders().set(wireName, val.toString());
                 } else if ("query".equalsIgnoreCase(in)) {
                     String old = clientRequest.getResourceRef().toString();
-                    String separator = old.contains("?") ? "&" : "?";
-                    String newRef = old + separator + spec.getName() + "="
-                            + java.net.URLEncoder.encode(val.toString(), "UTF-8");
-                    clientRequest.setResourceRef(newRef);
+                    StringBuilder ref = new StringBuilder(old);
+                    char separator = old.contains("?") ? '&' : '?';
+                    String encodedName = java.net.URLEncoder.encode(wireName, "UTF-8");
+                    for (String value : queryValues(spec, val)) {
+                        ref.append(separator).append(encodedName).append('=')
+                                .append(java.net.URLEncoder.encode(value, "UTF-8"));
+                        separator = '&';
+                    }
+                    clientRequest.setResourceRef(ref.toString());
                 }
             } catch (IOException | RuntimeException e) {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    /**
+     * The values of one query parameter, serialized as in OpenAPI (#851). A scalar gives one
+     * value. A list, array or JSON array is serialized by {@code style}: {@code form} with
+     * {@code explode} (the default) gives one value per element, so the parameter is repeated;
+     * {@code form} without {@code explode} joins the elements with commas; {@code spaceDelimited}
+     * and {@code pipeDelimited} join them with a space or {@code |}. An empty list gives no value,
+     * so the parameter is left out.
+     */
+    static List<String> queryValues(InputParameterSpec spec, Object value) {
+        List<String> elements = listElements(value);
+        if (elements == null) {
+            return List.of(value.toString());
+        }
+        if (elements.isEmpty()) {
+            return List.of();
+        }
+        String style = spec.getStyle() == null ? "form" : spec.getStyle();
+        switch (style) {
+            case "spaceDelimited":
+                return List.of(String.join(" ", elements));
+            case "pipeDelimited":
+                return List.of(String.join("|", elements));
+            default:
+                return Boolean.FALSE.equals(spec.getExplode())
+                        ? List.of(String.join(",", elements))
+                        : elements;
+        }
+    }
+
+    /** The elements of a list-like value as text, or {@code null} for a scalar. */
+    private static List<String> listElements(Object value) {
+        Iterable<?> items;
+        if (value instanceof java.util.Collection<?> collection) {
+            items = collection;
+        } else if (value instanceof Object[] array) {
+            items = java.util.Arrays.asList(array);
+        } else if (value instanceof ArrayNode array) {
+            items = array;
+        } else {
+            return null;
+        }
+        List<String> elements = new java.util.ArrayList<>();
+        for (Object item : items) {
+            if (item instanceof JsonNode node) {
+                elements.add(node.isValueNode() ? node.asString() : node.toString());
+            } else if (item != null) {
+                elements.add(item.toString());
+            }
+        }
+        return elements;
     }
 
     /**
