@@ -181,6 +181,49 @@ public class InputParameterRoundTripTest {
         assertEquals("$.path", roundTrip.getSelector(), "Selector mismatch");
     }
 
+    @Test
+    public void testMcpToolInputSchemaFieldsRoundTrip() throws Exception {
+        String yaml = """
+                name: customer
+                type: object
+                description: Customer
+                required: false
+                properties:
+                  page_size:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                  ratio:
+                    type: number
+                    maximum: 0.5
+                  issued_after:
+                    type: string
+                    format: date
+                requiredProperties: [page_size]
+                additionalProperties: false
+                """;
+
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
+
+        InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
+        String serialized = jsonMapper.writeValueAsString(original);
+        InputParameterSpec roundTrip = jsonMapper.readValue(serialized, InputParameterSpec.class);
+
+        assertFalse(roundTrip.isRequired(), "Parameter-level required mismatch");
+        assertEquals(java.util.List.of("page_size"), roundTrip.getRequired(),
+                "Required properties mismatch");
+        assertEquals(Boolean.FALSE, roundTrip.getAdditionalProperties());
+        InputParameterSpec pageSize = findPropertyByName(roundTrip.getProperties(), "page_size");
+        assertEquals(1, pageSize.getMinimum().intValue());
+        assertEquals(100, pageSize.getMaximum().intValue());
+        InputParameterSpec ratio = findPropertyByName(roundTrip.getProperties(), "ratio");
+        assertEquals(0.5, ratio.getMaximum().doubleValue());
+        InputParameterSpec issuedAfter =
+                findPropertyByName(roundTrip.getProperties(), "issued_after");
+        assertEquals("date", issuedAfter.getFormat());
+    }
+
     private static InputParameterSpec findPropertyByName(
             java.util.List<InputParameterSpec> properties, String name) {
         for (InputParameterSpec prop : properties) {

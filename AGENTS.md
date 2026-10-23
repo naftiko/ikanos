@@ -250,7 +250,7 @@ When designing or modifying a Capability:
 - Set a type property for `inputParameter` in a rest consumes bloc
 - Use an `integer` type instead of a `number` type for `outputParameters` in a mcp exposes bloc
 - Bind two `exposes` adapters (e.g. `skill` and `rest`) to the same port
-- Use `items:` or nested `type:` on `McpToolInputParameter` for array-typed parameters — only `name`, `type`, `description`, and `required` are allowed
+- Describe an array or object MCP tool input in prose or as a JSON string — declare `items`, `properties` and `requiredProperties` on `McpToolInputParameter` instead (a bounded JSON Schema subset, also `enum`, `format`, `minimum`, `maximum`, `additionalProperties`); the parameter-level `required` stays a boolean, while inside `items`/`properties` `required` is the list of required property names
 - Use YAML list syntax (`- type: object`) for `items` in `MappedOutputParameterArray` — `items` is a single `MappedOutputParameter` object, not an array
 - Use snake_case identifiers where the schema expects `IdentifierKebab` (e.g. `match`, `name`, `namespace`) — use kebab-case
 - Use `operation` instead of `call` in steps — `operation` is not a valid property in `OperationStepCall`, only `call` is
