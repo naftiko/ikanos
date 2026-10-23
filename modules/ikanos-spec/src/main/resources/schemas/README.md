@@ -794,6 +794,9 @@ Used in consumed resources and operations.
 | **name** | `string` | **REQUIRED**. Parameter name. MUST match pattern `^[a-zA-Z0-9-*]+$`. |
 | **in** | `string` | **REQUIRED**. Parameter location. Valid values: `"query"`, `"header"`, `"path"`, `"cookie"`, `"body"`. |
 | **value** | `string` | Value or JSONPath reference. |
+| **wireName** | `string` | Name sent on the wire when it differs from the key, e.g. `status[]` for APIs that read list filters with the Rails/PHP `name[]` convention. The key stays the name used in templates and `with:`. |
+| **style** | `string` | How a list value is serialized in a query parameter, as in OpenAPI: `form` (default), `spaceDelimited` or `pipeDelimited`. Scalars are not affected. |
+| **explode** | `boolean` | For `form` style: `true` (default) sends one parameter per list element; `false` sends one comma-separated value. |
 
 **Rules:**
 
@@ -802,6 +805,7 @@ Used in consumed resources and operations.
 - The `in` field MUST be one of: `"query"`, `"header"`, `"path"`, `"cookie"`, `"body"`.
 - A unique parameter is defined by the combination of `name` and `in`.
 - No additional properties are allowed.
+- **List values in a query parameter.** A list argument (for example an MCP `array` input) is serialized by `style` and `explode`: `["a","b"]` becomes `status[]=a&status[]=b` with `wireName: "status[]"` and the defaults, `ids=a,b` with `explode: false`, `tags=a%20b` with `spaceDelimited`, `tags=a|b` with `pipeDelimited`. An empty list leaves the parameter out.
 
 **ConsumedInputParameter Example:**
 
@@ -810,6 +814,9 @@ Used in consumed resources and operations.
   in: path
 - name: page
   in: query
+- name: status
+  in: query
+  wireName: "status[]"   # ["active","pending"] -> status[]=active&status[]=pending
 - name: Authorization
   in: header
   value: "Bearer token"

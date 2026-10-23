@@ -42,6 +42,25 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
      */
     private volatile String value;
 
+    /**
+     * Name sent on the wire when it differs from the map key, for example {@code status[]} for
+     * APIs that read list filters with the Rails/PHP {@code name[]} convention (#851). The key
+     * stays the parameter name used in templates and {@code with:}.
+     */
+    private volatile String wireName;
+
+    /**
+     * How a list value is serialized in a query parameter, as in OpenAPI: {@code form} (default),
+     * {@code spaceDelimited} or {@code pipeDelimited}.
+     */
+    private volatile String style;
+
+    /**
+     * For {@code form} style: {@code true} (default) repeats the parameter once per element,
+     * {@code false} sends one comma-separated value. {@code null} means the default.
+     */
+    private volatile Boolean explode;
+
     public InputParameterSpec() {
         super();
     }
@@ -92,6 +111,30 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    public String getWireName() {
+        return wireName;
+    }
+
+    public void setWireName(String wireName) {
+        this.wireName = wireName;
+    }
+
+    public String getStyle() {
+        return style;
+    }
+
+    public void setStyle(String style) {
+        this.style = style;
+    }
+
+    public Boolean getExplode() {
+        return explode;
+    }
+
+    public void setExplode(Boolean explode) {
+        this.explode = explode;
     }
 
 }
