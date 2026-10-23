@@ -147,6 +147,26 @@ public class Resolver {
     }
 
     /**
+     * Compiles a template the way {@link #resolveMustacheTemplate(String, Map)} does, without
+     * rendering it, and reports why it cannot be parsed (#849).
+     *
+     * @param template the template, may be null
+     * @return {@code null} when the template compiles (or is null), otherwise the parser message,
+     *         which names the offending tag and line but not the surrounding template text
+     */
+    public static String templateError(String template) {
+        if (template == null || !template.contains("{{")) {
+            return null;
+        }
+        try {
+            Mustache.compiler().escapeHTML(false).compile(template);
+            return null;
+        } catch (RuntimeException e) {
+            return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        }
+    }
+
+    /**
      * Resolve a single InputParameterSpec from a request, extracting the value based on the
      * parameter location (path, query, header, environment, or body).
      * 
