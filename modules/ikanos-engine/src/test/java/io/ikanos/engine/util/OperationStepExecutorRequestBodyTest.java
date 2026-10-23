@@ -275,6 +275,23 @@ class OperationStepExecutorRequestBodyTest {
         assertEquals(fromMap, fromString);
     }
 
+    @Test
+    void findClientRequestForShouldKeepLiteralBraceBeforeOptionalMemberSection() throws Exception {
+        // #848: the Lago update-invoice body, where the object opens right before an optional
+        // member, used to fail with "Invalid triple-mustache tag".
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "text"
+                                  data: '{"invoice":{{{#status}}"payment_status":"{{status}}"{{/status}}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("status", "succeeded"));
+
+        assertEquals("{\"invoice\":{\"payment_status\":\"succeeded\"}}",
+                ctx.getRequest().getEntity().getText());
+    }
+
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {
         String yaml = """
                 ikanos: "%s"
