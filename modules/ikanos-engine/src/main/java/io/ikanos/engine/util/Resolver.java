@@ -134,7 +134,7 @@ public class Resolver {
             // Nothing can be substituted: a string that is not a valid template (for example a
             // static credential containing "{{}}") is returned as-is, as it was before #847.
             try {
-                return compiler.compile(template).execute(serialized);
+                return compiler.compile(protectLiteralBraces(template)).execute(serialized);
             } catch (RuntimeException e) {
                 // Log the exception type only: JMustache messages quote tag names, which could
                 // echo part of a static credential.
@@ -143,7 +143,36 @@ public class Resolver {
                 return template;
             }
         }
-        return compiler.compile(template).execute(serialized);
+        return compiler.compile(protectLiteralBraces(template)).execute(serialized);
+    }
+
+    /**
+     * Matches a literal "{" written before a section, inverted-section, close or comment tag
+     * ({@code {{{#x}}}, {@code {{{^x}}}, {@code {{{/x}}}, {@code {{{!x}}}), including each brace
+     * of a run such as {@code {{{{#x}}}. JMustache would otherwise read the brace and the tag as
+     * the start of a triple-mustache tag.
+     */
+    private static final java.util.regex.Pattern BRACE_BEFORE_TAG =
+            java.util.regex.Pattern.compile("\\{(?=\\{*\\{\\{[#^/!])");
+
+    /**
+     * A literal "{" written with a temporary switch of delimiters: plain template text that needs
+     * nothing from the render context, so no parameter can hide it and no value formatter sees it.
+     */
+    private static final String LITERAL_BRACE = "{{=<% %>=}}{<%={{ }}=%>";
+
+    /**
+     * Rewrite every literal "{" written right before a section, inverted-section, close or comment
+     * tag as {@link #LITERAL_BRACE} (#848). Unescaped variable tags ({@code {{{x}}}}) are left as
+     * they are. A template that sets its own delimiters ({@code {{=...=}}}) is left unchanged:
+     * the rewrite assumes the default {@code {{ }}} delimiters.
+     */
+    static String protectLiteralBraces(String template) {
+        if (template == null || !template.contains("{{{") || template.contains("{{=")) {
+            return template;
+        }
+        return BRACE_BEFORE_TAG.matcher(template)
+                .replaceAll(java.util.regex.Matcher.quoteReplacement(LITERAL_BRACE));
     }
 
     /**
