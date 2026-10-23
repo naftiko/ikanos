@@ -1524,6 +1524,37 @@
           "type": "boolean",
           "description": "Whether the parameter is required. Defaults to true.",
           "default": true
+        },
+        "enum": {
+          "$ref": "#/$defs/McpToolInputEnum"
+        },
+        "format": {
+          "type": "string",
+          "description": "JSON Schema format hint for agents (e.g. date, date-time, email, uri, uuid). Not enforced by Ikanos."
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Inclusive lower bound for a number or integer parameter."
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Inclusive upper bound for a number or integer parameter."
+        },
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchema",
+          "description": "Schema of each element of an array parameter."
+        },
+        "properties": {
+          "$ref": "#/$defs/McpToolInputProperties",
+          "description": "Properties of an object parameter."
+        },
+        "requiredProperties": {
+          "$ref": "#/$defs/McpToolInputRequiredList",
+          "description": "Names of the object parameter's properties that are required. Emitted as `required` inside the parameter's schema; the parameter-level `required` stays a boolean."
+        },
+        "additionalProperties": {
+          "type": "boolean",
+          "description": "Whether an object parameter accepts properties beyond `properties`."
         }
       },
       "required": [
@@ -1531,6 +1562,78 @@
         "description"
       ],
       "additionalProperties": false
+    },
+    "McpToolInputSchema": {
+      "type": "object",
+      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "array",
+            "object"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "$ref": "#/$defs/McpToolInputEnum"
+        },
+        "format": {
+          "type": "string"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchema"
+        },
+        "properties": {
+          "$ref": "#/$defs/McpToolInputProperties"
+        },
+        "required": {
+          "$ref": "#/$defs/McpToolInputRequiredList"
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "McpToolInputProperties": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/McpToolInputSchema"
+      }
+    },
+    "McpToolInputRequiredList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "McpToolInputEnum": {
+      "type": "array",
+      "description": "Allowed values, written as strings. For a number, integer or boolean parameter, each value is emitted with that type.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
     },
     "McpResource": {
       "type": "object",
