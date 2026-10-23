@@ -76,7 +76,8 @@ class LogCaptureTest {
      * <p>Both sides are bounded: each read copies the whole capture, so an unbounded writer
      * makes the test quadratic in time and memory. The writer keeps logging until the reader
      * has done {@link #READS} reads (or {@link #MAX_LINES} lines are written), and the reader
-     * keeps reading until the writer is done, so every read overlaps the writes.
+     * keeps reading until the writer is done, so every read overlaps the writes. The reader
+     * only starts once the writer has logged its first line (issue #854).
      */
     @Test
     void readingShouldBeSafeWhileAnotherThreadLogs() throws Exception {
@@ -88,12 +89,16 @@ class LogCaptureTest {
         backend.setAdditive(false);
         AtomicInteger readsDone = new AtomicInteger();
         AtomicBoolean writing = new AtomicBoolean(true);
-        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch firstLineLogged = new CountDownLatch(1);
         try (LogCapture logs = new LogCapture()) {
             Thread writer = new Thread(() -> {
-                started.countDown();
                 try {
-                    for (int line = 0; line < MAX_LINES && readsDone.get() < READS
+                    // Issue #854: log once before releasing the reader. Until a line is
+                    // captured each read copies an empty list, so the reader could reach
+                    // READS before the writer's first line, ending its loop before it logged.
+                    logger.warning("background");
+                    firstLineLogged.countDown();
+                    for (int line = 1; line < MAX_LINES && readsDone.get() < READS
                             && writing.get(); line++) {
                         logger.warning("background");
                     }
@@ -104,7 +109,8 @@ class LogCaptureTest {
             writer.setDaemon(true);
             writer.start();
             try {
-                assertTrue(started.await(5, TimeUnit.SECONDS));
+                assertTrue(firstLineLogged.await(5, TimeUnit.SECONDS),
+                        "the background thread did not log its first line");
                 assertDoesNotThrow(() -> {
                     while (writing.get()) {
                         logs.messages();
