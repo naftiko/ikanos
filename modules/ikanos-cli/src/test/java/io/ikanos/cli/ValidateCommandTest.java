@@ -137,6 +137,41 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenConsumedTemplateCannotBeParsed() {
+        Path yaml = tempDir.resolve("bad-template.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            create:
+                              method: "POST"
+                              body:
+                                type: "json"
+                                data: '{"a":1{{#x}},"x":"{{x}}"}'
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      tools:
+                        create:
+                          description: "Create an item"
+                          call: "svc.create"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#849: a template the engine cannot parse must fail validate");
+        assertTrue(errCapture.toString().contains("svc.create"), errCapture.toString());
+    }
+
+    @Test
     public void callShouldSucceedForValidCapabilityYaml() {
         Path yaml = tutorialCapabilityPath();
 

@@ -22,6 +22,8 @@ import tools.jackson.databind.ObjectMapper;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
+import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import java.io.File;
@@ -85,9 +87,13 @@ public class ValidateCommand implements Callable<Integer> {
             
             // Validate.
             List<com.networknt.schema.Error> errors = schema.validate(dataNode);
-            
+
+            // Compile consumed templates the way the engine renders them (#849), only once the
+            // document matches the schema, so the spec can be read.
+            List<String> templateErrors = errors.isEmpty() ? templateErrors(dataNode) : List.of();
+
             // Display validation result.
-            if (errors.isEmpty()) {
+            if (errors.isEmpty() && templateErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -101,6 +107,11 @@ public class ValidateCommand implements Callable<Integer> {
                 for (com.networknt.schema.Error error : errors) {
                     System.err.println("\n  [" + errorCount + "] " + error.getMessage());
                     System.err.println("      Path: " + error.getInstanceLocation());
+                    errorCount++;
+                }
+                for (String error : templateErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid consumed template: "
+                            + error);
                     errorCount++;
                 }
                 return 1;
@@ -117,6 +128,15 @@ public class ValidateCommand implements Callable<Integer> {
         }
     }
     
+    /**
+     * Template errors of the consumed HTTP adapters, read from the YAML tree (#849). Imported
+     * adapters are not resolved here; they are checked when the capability loads.
+     */
+    List<String> templateErrors(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        return ConsumedTemplateValidator.findErrors(spec);
+    }
+
     JsonNode loadFile(File file) throws IOException {
         String fileName = file.getName().toLowerCase();
         
