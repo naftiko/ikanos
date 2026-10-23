@@ -337,7 +337,22 @@ class OperationStepExecutorRequestBodyTest {
         assertFalse(error.getMessage().contains("secret-literal"),
                 "#858: the error must name the missing variables, not echo the body: "
                         + error.getMessage());
-        assertTrue(error.getMessage().contains("v"), error.getMessage());
+        assertTrue(error.getMessage().contains("[v]"), error.getMessage());
+    }
+
+    @Test
+    void findClientRequestForShouldSendMalformedTemplateAsIsWhenThereAreNoParameters()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "text"
+                                  data: "{{#a}}unclosed"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op", Map.of());
+
+        assertEquals("{{#a}}unclosed", ctx.getRequest().getEntity().getText(),
+                "#858: a malformed template is an authoring error and is sent unchanged");
     }
 
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {

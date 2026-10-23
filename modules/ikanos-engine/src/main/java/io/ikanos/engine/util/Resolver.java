@@ -209,6 +209,13 @@ public class Resolver {
      * first segment is checked. Checking the template, rather than scanning the rendered output
      * for leftover braces, lets a caller value contain {@code {{...}}} as plain data.
      *
+     * <p>An invalid template (for example {@code {{#a}}unclosed}) yields an empty list. This is
+     * deliberate: a malformed template is an authoring error, not caller data. With parameters,
+     * rendering it fails on its own; with no parameters at all,
+     * {@link #resolveMustacheTemplate(String, Map)} returns it unchanged, so it is sent as is
+     * rather than rejected (the same rule that keeps a static credential containing
+     * {@code {{}}} intact).</p>
+     *
      * @param template the Mustache template, may be null
      * @param parameters the parameters the template is rendered with, may be null
      * @return the missing variable names, or an empty list (also for an invalid template, which
