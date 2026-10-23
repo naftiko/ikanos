@@ -648,6 +648,39 @@ public class ResolverTest {
     // ── Steps-mode shaping (#772) ──────────────────────────────────────────────────────────
 
     @Test
+    public void shapeStepOutputShouldPassOpenObjectThroughUnchanged() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree(
+                "{ \"properties\": { \"Status\": { \"select\": { \"name\": \"Done\" } }, \"Due date\": null } }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(
+                List.of(new OutputParameterSpec("properties", "object", null, null)), assembled,
+                MAPPER);
+
+        assertEquals(assembled, shaped, "#859: an object output without properties is returned as is");
+    }
+
+    @Test
+    public void shapeStepOutputShouldPassOpenArrayThroughUnchanged() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"tags\": [ 1, \"a\", { \"b\": true } ] }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(
+                List.of(new OutputParameterSpec("tags", "array", null, null)), assembled, MAPPER);
+
+        assertEquals(assembled, shaped, "#859: an array output without items is returned as is");
+    }
+
+    @Test
+    public void shapeStepOutputShouldNullOpenObjectWhenValueIsNotAnObject() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"properties\": \"text\" }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(
+                List.of(new OutputParameterSpec("properties", "object", null, null)), assembled,
+                MAPPER);
+
+        assertEquals(MAPPER.readTree("{ \"properties\": null }"), shaped);
+    }
+
+    @Test
     public void shapeStepOutputShouldNullFillUnresolvedDeclaredParameters() throws Exception {
         ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"voyageId\": \"V-1\" }");
 
