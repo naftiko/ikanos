@@ -27,6 +27,11 @@ import java.nio.charset.StandardCharsets;
  * {@code %2F} cannot be decoded into a {@code /} by the upstream. Only substituted values are
  * encoded: the literal text of {@code baseUri} and of the resource {@code path} is the capability
  * author's and is sent as declared.</p>
+ *
+ * <p>A path segment made only of substituted values must not be empty, {@code .} or {@code ..}:
+ * the upstream would resolve such a segment to another endpoint ({@code /users/../posts} is
+ * {@code /posts}), and encoding the dots is not enough since {@code %2E} may be decoded back.
+ * Such a URI is rejected.</p>
  */
 final class PathSegmentEncoder {
 
@@ -55,6 +60,9 @@ final class PathSegmentEncoder {
      * {@code ?} is encoded as a path segment, a value after it as a query component (which also
      * encodes {@code &}, {@code =}, {@code +} and {@code ;}, so it cannot add a parameter).
      * Literal template text is kept as is.
+     *
+     * @throws IllegalArgumentException when a path segment made only of substituted values is
+     *         empty, {@code .} or {@code ..}
      */
     static String encodeMarkedValues(String rendered) {
         if (rendered == null || rendered.indexOf(VALUE_START) < 0) {
@@ -62,6 +70,9 @@ final class PathSegmentEncoder {
         }
         StringBuilder out = new StringBuilder(rendered.length() + 16);
         boolean inQuery = false;
+        int segmentStart = 0;
+        boolean segmentHasLiteral = false;
+        boolean segmentHasValue = false;
         int i = 0;
         while (i < rendered.length()) {
             char c = rendered.charAt(i);
@@ -72,8 +83,17 @@ final class PathSegmentEncoder {
                 }
                 String value = rendered.substring(i + 1, end);
                 out.append(inQuery ? encodeQueryComponent(value) : encode(value));
+                segmentHasValue = true;
                 i = end + 1;
             } else {
+                if (!inQuery && (c == '/' || c == '?')) {
+                    requireSafeSegment(out, segmentStart, segmentHasLiteral, segmentHasValue);
+                    segmentStart = out.length() + 1;
+                    segmentHasLiteral = false;
+                    segmentHasValue = false;
+                } else if (c != VALUE_END) {
+                    segmentHasLiteral = true;
+                }
                 if (c == '?') {
                     inQuery = true;
                 }
@@ -83,7 +103,26 @@ final class PathSegmentEncoder {
                 i++;
             }
         }
+        if (!inQuery) {
+            requireSafeSegment(out, segmentStart, segmentHasLiteral, segmentHasValue);
+        }
         return out.toString();
+    }
+
+    /**
+     * Rejects a path segment that substituted values alone turned into a dot-segment or an empty
+     * segment. A segment with literal text is the capability author's and is left alone.
+     */
+    private static void requireSafeSegment(StringBuilder out, int segmentStart,
+            boolean segmentHasLiteral, boolean segmentHasValue) {
+        if (!segmentHasValue || segmentHasLiteral) {
+            return;
+        }
+        String segment = out.substring(segmentStart);
+        if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
+            throw new IllegalArgumentException(
+                    "A path parameter value must not be empty, '.' or '..'");
+        }
     }
 
     static String encode(String value) {

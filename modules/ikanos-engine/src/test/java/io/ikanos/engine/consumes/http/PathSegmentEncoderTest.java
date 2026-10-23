@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import io.ikanos.engine.util.Resolver;
@@ -65,6 +66,46 @@ public class PathSegmentEncoderTest {
 
         assertEquals("/pages/x%2F..%2Fadminy", PathSegmentEncoder.encodeMarkedValues(rendered),
                 "A caller value must not be able to close its own marker");
+    }
+
+    @Test
+    public void encodeMarkedValuesShouldRejectDotSegmentValuesInPathPosition() {
+        for (String value : new String[] {"..", "."}) {
+            String rendered = Resolver.resolveMustacheTemplate("/users/{{uid}}/posts/{{pid}}",
+                    Map.of("uid", value, "pid", "P1"), PathSegmentEncoder::mark);
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> PathSegmentEncoder.encodeMarkedValues(rendered),
+                    "'" + value + "' as a whole path segment is a dot-segment: the upstream would"
+                            + " resolve it to another endpoint, and '%2E' may be decoded back");
+        }
+    }
+
+    @Test
+    public void encodeMarkedValuesShouldRejectEmptyValueFillingPathSegment() {
+        String rendered = Resolver.resolveMustacheTemplate("/users/{{uid}}/posts/{{pid}}",
+                Map.of("uid", "", "pid", "P1"), PathSegmentEncoder::mark);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> PathSegmentEncoder.encodeMarkedValues(rendered),
+                "An empty segment ('//') can be collapsed by the upstream into another endpoint");
+    }
+
+    @Test
+    public void encodeMarkedValuesShouldAcceptDotsAndEmptyValuesInsideLargerSegment() {
+        String rendered = Resolver.resolveMustacheTemplate("/files/{{name}}.{{ext}}/v{{rev}}",
+                Map.of("name", "..", "ext", "json", "rev", ""), PathSegmentEncoder::mark);
+
+        assertEquals("/files/...json/v", PathSegmentEncoder.encodeMarkedValues(rendered),
+                "Only a segment made entirely of a dot-segment or nothing is rejected");
+    }
+
+    @Test
+    public void encodeMarkedValuesShouldAcceptDotsAndEmptyValuesInQueryPosition() {
+        String rendered = Resolver.resolveMustacheTemplate("/things/{{id}}?a={{a}}&b={{b}}",
+                Map.of("id", "t1", "a", "..", "b", ""), PathSegmentEncoder::mark);
+
+        assertEquals("/things/t1?a=..&b=", PathSegmentEncoder.encodeMarkedValues(rendered));
     }
 
     @Test

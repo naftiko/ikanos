@@ -507,6 +507,26 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void prepareShouldRejectDotSegmentPathParameter() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("trash-page",
+                        new java.util.HashMap<>(Map.of("page_id", ".."))),
+                "A page_id of '..' must not reach the parent of /pages");
+    }
+
+    @Test
+    public void prepareShouldRejectMissingPathParameterWhenOtherArgumentsArePresent() {
+        HttpClientAdapter adapter = pagesAdapter();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("trash-page",
+                        new java.util.HashMap<>(Map.of("other", "x"))),
+                "A missing page_id must not send the request to /pages/");
+    }
+
+    @Test
     public void prepareShouldKeepTemplateLiteralPathAndBaseUriUnencoded() {
         HttpClientAdapter adapter = pagesAdapter();
 
