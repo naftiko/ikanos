@@ -128,9 +128,11 @@ class OperationStepExecutorBranchTest {
         HttpInvocation context = (HttpInvocation)
                 executor.findClientRequestFor("svc", "find", Map.of("term", "{{x}}"));
 
-        assertTrue(context.getRequest().getResourceRef().toString()
-                .startsWith("https://api.example.com/search/"),
+        String uri = context.getRequest().getResourceRef().toString();
+        assertTrue(uri.startsWith("https://api.example.com/search/"),
                 "#858: braces in a caller value must not be reported as an unresolved template");
+        assertTrue(uri.endsWith("/search/{{x}}"),
+                "#858: the caller value must be sent, not dropped: " + uri);
     }
 
     @Test
