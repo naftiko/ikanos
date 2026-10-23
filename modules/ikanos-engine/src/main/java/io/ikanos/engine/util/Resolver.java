@@ -527,6 +527,157 @@ public class Resolver {
     private record JsonValue(Object value) {
     }
 
+    /** A string that is exactly one variable tag, e.g. {@code "{{name}}"} or {@code "{{a.b}}"}. */
+    private static final java.util.regex.Pattern SINGLE_PLACEHOLDER =
+            java.util.regex.Pattern.compile("^\\{\\{\\s*([A-Za-z0-9_.\\-]+)\\s*\\}\\}$");
+
+    /**
+     * Build a JSON body from structured {@code data} (a YAML object or array), #850.
+     *
+     * <ul>
+     * <li>A string that is exactly one placeholder ({@code "{{x}}"}, {@code "{{step.field}}"})
+     * becomes the value of {@code x} with its JSON type: string, number, boolean, object or
+     * array. When {@code x} is absent or null, the member (or array element) is left out.</li>
+     * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly
+     * (quotes and backslashes included) and each substituted value is inserted as text, a list,
+     * map or array value as its JSON text.</li>
+     * <li>Numbers, booleans, null and nested objects or arrays are kept, recursively.</li>
+     * <li>Placeholders in object keys are resolved the same way as interpolated strings.</li>
+     * </ul>
+     *
+     * @param data the structured body data, as read from the capability
+     * @param parameters the request parameters, may be null
+     * @return the JSON node to send
+     */
+    public static JsonNode resolveJsonData(Object data, Map<String, Object> parameters) {
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        JsonNode resolved = resolveJsonDataNode(data, parameters, jsonMapper);
+        return resolved != null ? resolved : NullNode.instance;
+    }
+
+    /**
+     * @return the resolved node, or {@code null} when the value is a placeholder for an absent
+     *         parameter and must be left out
+     */
+    private static JsonNode resolveJsonDataNode(Object data, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        if (data instanceof Map<?, ?> map) {
+            ObjectNode object = jsonMapper.createObjectNode();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                JsonNode value = resolveJsonDataNode(entry.getValue(), parameters, jsonMapper);
+                if (value != null) {
+                    object.set(resolveJsonKey(String.valueOf(entry.getKey()), parameters,
+                            jsonMapper), value);
+                }
+            }
+            return object;
+        }
+        if (data instanceof java.util.Collection<?> items) {
+            ArrayNode array = jsonMapper.createArrayNode();
+            for (Object item : items) {
+                JsonNode value = resolveJsonDataNode(item, parameters, jsonMapper);
+                if (value != null) {
+                    array.add(value);
+                }
+            }
+            return array;
+        }
+        if (data instanceof String text) {
+            java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
+            if (single.matches()) {
+                Object value = lookupPath(parameters, single.group(1));
+                return value == null ? null : toJsonNode(value, jsonMapper);
+            }
+            if (text.contains("{{")) {
+                return jsonMapper.getNodeFactory().stringNode(
+                        renderAsJsonStringContent(text, parameters, jsonMapper));
+            }
+            return jsonMapper.getNodeFactory().stringNode(text);
+        }
+        return jsonMapper.valueToTree(data);
+    }
+
+    /**
+     * Resolve placeholders in an object key of structured data; the key always stays a string.
+     */
+    private static String resolveJsonKey(String key, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        return key.contains("{{") ? renderAsJsonStringContent(key, parameters, jsonMapper) : key;
+    }
+
+    /**
+     * Render a template whose result is the content of one JSON string. The template text is
+     * first written as a JSON string literal, so its own quotes and backslashes are escaped like
+     * the substituted values, then the rendered literal is read back as a plain string.
+     */
+    private static String renderAsJsonStringContent(String text, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        String quoted = jsonMapper.writeValueAsString(text);
+        String rendered = renderInsideJsonString(quoted, parameters, jsonMapper);
+        return jsonMapper.readValue(rendered, String.class);
+    }
+
+    /**
+     * Render a template that is the body of one JSON string literal: every substituted value is
+     * escaped as string content, a list, map or array value as the escaped text of its JSON.
+     */
+    private static String renderInsideJsonString(String quotedTemplate,
+            Map<String, Object> parameters, ObjectMapper jsonMapper) {
+        if (parameters == null || parameters.isEmpty()) {
+            return quotedTemplate;
+        }
+        Map<String, Object> wrapped = new HashMap<>();
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            wrapped.put(entry.getKey(), wrapJsonCollections(entry.getValue()));
+        }
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("")
+                .withFormatter(value -> {
+                    Object raw = value instanceof JsonValue json ? json.value() : value;
+                    String text = raw instanceof Map<?, ?> || raw instanceof java.util.Collection<?>
+                            || raw instanceof Object[]
+                                    ? jsonMapper.writeValueAsString(raw)
+                                    : String.valueOf(raw);
+                    String quoted = jsonMapper.writeValueAsString(text);
+                    return quoted.substring(1, quoted.length() - 1);
+                });
+        return compiler.compile(quotedTemplate).execute(wrapped);
+    }
+
+    /**
+     * Look up a dotted path ({@code a.b.c}) as Mustache does: the whole name first, then each
+     * segment through nested maps.
+     */
+    private static Object lookupPath(Map<String, Object> parameters, String path) {
+        if (parameters == null) {
+            return null;
+        }
+        if (parameters.containsKey(path)) {
+            return parameters.get(path);
+        }
+        Object current = parameters;
+        for (String segment : path.split("\\.")) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(segment);
+        }
+        return current;
+    }
+
+    /**
+     * Convert a parameter value to a JSON node, keeping its type. Non-finite numbers become null.
+     */
+    private static JsonNode toJsonNode(Object value, ObjectMapper jsonMapper) {
+        if ((value instanceof Double d && !Double.isFinite(d))
+                || (value instanceof Float f && !Float.isFinite(f))) {
+            return NullNode.instance;
+        }
+        if (value instanceof Character c) {
+            return jsonMapper.getNodeFactory().stringNode(c.toString());
+        }
+        return jsonMapper.valueToTree(value);
+    }
+
     /**
      * Resolve a single InputParameterSpec from a request, extracting the value based on the
      * parameter location (path, query, header, environment, or body).

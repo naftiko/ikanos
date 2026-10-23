@@ -290,9 +290,11 @@ public class HttpClientAdapter extends ClientAdapter {
                         resolvedBody = Resolver.resolveMustacheTemplate((String) data, parameters);
                     }
                 } else {
-                    String dataStr;
+                    // Structured data (a YAML object or array): build the JSON tree directly, so
+                    // an absent placeholder member is left out and values keep their JSON type.
                     try {
-                        dataStr = JSON.writeValueAsString(data);
+                        resolvedBody = JSON.writeValueAsString(
+                                Resolver.resolveJsonData(data, parameters));
                     } catch (JacksonException e) {
                         throw new IllegalArgumentException(
                                 "Invalid structured body data for operation: "
@@ -300,10 +302,6 @@ public class HttpClientAdapter extends ClientAdapter {
                                         + operationName,
                                 e);
                     }
-                    // Structured data is always serialized as JSON, whatever the declared type, so
-                    // its values are JSON-encoded for xml, text or sparql bodies too.
-                    rejectUnresolved("body", dataStr, parameters);
-                    resolvedBody = Resolver.resolveJsonTemplate(dataStr, parameters);
                 }
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
                     bodyMediaType = MediaType.APPLICATION_WWW_FORM;

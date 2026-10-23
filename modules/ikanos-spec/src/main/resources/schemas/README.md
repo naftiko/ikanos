@@ -752,6 +752,21 @@ body:
   data: '{"key": "value"}'
 ```
 
+**JSON body with placeholders (object):** a value that is exactly one placeholder takes the
+parameter's JSON type (string, number, boolean, object, array) and is left out when the
+parameter is absent. Any other string stays a JSON string, with substituted values inserted
+as text. In a string template, substituted values are JSON-encoded; quote string placeholders.
+
+```yaml
+body:
+  type: json
+  data:
+    code: "{{code}}"                    # left out when code is not provided
+    pay_in_advance: "{{pay_in_advance}}"  # a boolean stays a boolean; false is kept
+    charges: "{{charges}}"              # an array stays an array
+    label: "Plan {{code}}"              # always a string
+```
+
 **Text body:**
 
 ```yaml
