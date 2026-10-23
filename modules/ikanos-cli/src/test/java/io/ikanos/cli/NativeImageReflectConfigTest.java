@@ -63,7 +63,7 @@ public class NativeImageReflectConfigTest {
                     .map(e -> e.name)
                     .collect(Collectors.toSet());
             entriesByName = entries.stream()
-                    .collect(Collectors.toMap(e -> e.name, e -> e, (a, b) -> a));
+                    .collect(Collectors.toMap(e -> e.name, e -> e));
         }
     }
 
@@ -187,13 +187,18 @@ public class NativeImageReflectConfigTest {
      * inner class is excluded because it is not a real deserializer.</p>
      */
     static List<String> findJsonDeserializerSubclasses(String packageName) throws Exception {
-        return findSubclasses(packageName, ValueDeserializer.class);
+        return findSubclasses(packageName, ValueDeserializer.class).stream()
+                .filter(c -> !c.equals(ValueDeserializer.None.class.getName()))
+                .toList();
     }
 
     /**
      * Scans the classpath for all classes in {@code packageName} (and sub-packages) that are
-     * assignable to {@code baseType}, excluding {@code baseType} itself and the
-     * {@code ValueDeserializer.None} sentinel.
+     * assignable to {@code baseType}, excluding {@code baseType} itself.
+     *
+     * <p>Limitation: nested classes (class files whose name contains {@code $}) are skipped, so a
+     * nested {@code ServerResource} or deserializer is never checked. Keep them top-level, or
+     * extend this scan.</p>
      */
     static List<String> findSubclasses(String packageName, Class<?> baseType) throws Exception {
         String packagePath = packageName.replace('.', '/');
@@ -250,9 +255,7 @@ public class NativeImageReflectConfigTest {
                 }
                 try {
                     Class<?> cls = cl.loadClass(className);
-                    if (baseType.isAssignableFrom(cls)
-                            && cls != baseType
-                            && cls != ValueDeserializer.None.class) {
+                    if (baseType.isAssignableFrom(cls) && cls != baseType) {
                         result.add(className);
                     }
                 } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
