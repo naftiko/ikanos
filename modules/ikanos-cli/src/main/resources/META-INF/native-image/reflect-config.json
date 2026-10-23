@@ -1409,6 +1409,71 @@
     ]
   },
   {
+    "name": "io.ikanos.engine.exposes.control.HealthLiveResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.control.HealthReadyResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.control.MetricsResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.control.ScriptingResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.control.StatusResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.control.TracesResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.mcp.McpServerResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.CatalogResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.ContentsResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.DetailResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.DownloadResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.FileResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "io.ikanos.engine.exposes.skill.SkillServerResource",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
     "queryAllPublicMethods": true,
     "methods": [

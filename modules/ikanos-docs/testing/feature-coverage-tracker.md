@@ -200,6 +200,7 @@ the **launch path** changes from in-process JVM to native image.
 
 - **Aggregates** (#9): `step-9-shipyard-aggregates.yml` exists — needs a launched test (start with JVM-level `Step9…` to reach parity, then a NATIVE variant).
 - **Control port** (#14): done in [#608](https://github.com/naftiko/ikanos/issues/608), see row #14. The same pattern (a copy of the fixture on its own ports, real requests with `curl`) fits the MCP and Skill ports below.
+  Its first native run found [#855](https://github.com/naftiko/ikanos/issues/855): Restlet creates every routed `ServerResource` by reflection, and none of the engine's (control, MCP, skill) were in `reflect-config.json`, so the native binary answered 404 on all of their routes. They are registered now, and `NativeImageReflectConfigTest` fails if a `ServerResource` subclass of `io.ikanos.engine` is missing. Native MCP and Skill smokes would still catch other gaps.
 - **OTel** (#15): launch a capability with a control port; assert `/metrics` returns Prometheus data and `/traces` returns the ring buffer; OTLP export against an in-process collector for enrichment.
 - **Reverse tunnel** (#16): Ziti needs a live controller — not feasible in a plain test. First step: a contract test through a stubbed `TunnelTransport`; true NATIVE e2e requires a Ziti sandbox (CI/nightly only).
 - **MCP auth** (#17): launch an MCP adapter with `authentication: bearer`/`oauth2`; drive with/without a valid token; assert 401 / 200.

@@ -36,16 +36,20 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.util.IkanosMappers;
+import org.restlet.resource.ServerResource;
 
 /**
  * Validates that the GraalVM native-image reflect-config.json contains all classes
- * required for Jackson serialization in the import openapi command.
+ * required for Jackson serialization in the import openapi command, and the Restlet
+ * server resources that the HTTP adapters instantiate by reflection.
  */
 public class NativeImageReflectConfigTest {
 
     private static final String SPEC_PACKAGE = "io.ikanos.spec";
+    private static final String ENGINE_PACKAGE = "io.ikanos.engine";
 
     private static Set<String> registeredClasses;
+    private static Map<String, ReflectEntry> entriesByName;
 
     @BeforeAll
     static void loadReflectConfig() throws Exception {
@@ -58,6 +62,8 @@ public class NativeImageReflectConfigTest {
             registeredClasses = entries.stream()
                     .map(e -> e.name)
                     .collect(Collectors.toSet());
+            entriesByName = entries.stream()
+                    .collect(Collectors.toMap(e -> e.name, e -> e, (a, b) -> a));
         }
     }
 
@@ -143,6 +149,35 @@ public class NativeImageReflectConfigTest {
     }
 
     /**
+     * Restlet's {@code Finder} creates every routed {@link ServerResource} per request with
+     * {@code getDeclaredConstructor().newInstance()}, and {@code AnnotationUtils} finds the
+     * {@code @Get}/{@code @Post} handlers with {@code getDeclaredMethods()}. In a native image a
+     * class missing from {@code reflect-config.json} makes {@code Finder} answer 404 on every
+     * route, while the JVM works fine (#855). Abstract bases are included, since their declared
+     * methods are scanned too.
+     */
+    @Test
+    void reflectConfigShouldRegisterAllEngineServerResourcesForNativeMode() throws Exception {
+        List<String> resourceClasses = findSubclasses(ENGINE_PACKAGE, ServerResource.class);
+        assertFalse(resourceClasses.isEmpty(),
+                "Classpath scan found no ServerResource subclasses in " + ENGINE_PACKAGE
+                        + " — the scan logic may be broken");
+
+        List<String> missing = resourceClasses.stream()
+                .filter(c -> {
+                    ReflectEntry e = entriesByName.get(c);
+                    return e == null || !e.allDeclaredConstructors || !e.allDeclaredMethods;
+                })
+                .sorted()
+                .toList();
+
+        assertTrue(missing.isEmpty(),
+                "reflect-config.json must register these ServerResource subclasses with "
+                        + "allDeclaredConstructors and allDeclaredMethods, or the native binary "
+                        + "answers 404 on their routes: " + missing);
+    }
+
+    /**
      * Scans the classpath for all classes in {@code packageName} (and sub-packages)
      * that are assignable to {@link ValueDeserializer}, using only the JDK class loader
      * and NIO — no third-party scanning library required.
@@ -152,6 +187,15 @@ public class NativeImageReflectConfigTest {
      * inner class is excluded because it is not a real deserializer.</p>
      */
     static List<String> findJsonDeserializerSubclasses(String packageName) throws Exception {
+        return findSubclasses(packageName, ValueDeserializer.class);
+    }
+
+    /**
+     * Scans the classpath for all classes in {@code packageName} (and sub-packages) that are
+     * assignable to {@code baseType}, excluding {@code baseType} itself and the
+     * {@code ValueDeserializer.None} sentinel.
+     */
+    static List<String> findSubclasses(String packageName, Class<?> baseType) throws Exception {
         String packagePath = packageName.replace('.', '/');
         ClassLoader cl = NativeImageReflectConfigTest.class.getClassLoader();
         List<String> result = new ArrayList<>();
@@ -166,19 +210,19 @@ public class NativeImageReflectConfigTest {
                 URI jarUri = URI.create(parts[0]);
                 try (FileSystem fs = FileSystems.newFileSystem(jarUri, Map.of())) {
                     Path root = fs.getPath(packagePath);
-                    collectDeserializers(root, packageName, cl, result);
+                    collectSubclasses(root, packageName, baseType, cl, result);
                 }
             } else {
                 // exploded directory on the file system
                 Path root = Path.of(uri);
-                collectDeserializers(root, packageName, cl, result);
+                collectSubclasses(root, packageName, baseType, cl, result);
             }
         }
         return result;
     }
 
-    private static void collectDeserializers(
-            Path root, String packageName, ClassLoader cl, List<String> result) throws Exception {
+    private static void collectSubclasses(Path root, String packageName, Class<?> baseType,
+            ClassLoader cl, List<String> result) throws Exception {
         if (!Files.exists(root)) {
             return;
         }
@@ -206,8 +250,8 @@ public class NativeImageReflectConfigTest {
                 }
                 try {
                     Class<?> cls = cl.loadClass(className);
-                    if (ValueDeserializer.class.isAssignableFrom(cls)
-                            && cls != ValueDeserializer.class
+                    if (baseType.isAssignableFrom(cls)
+                            && cls != baseType
                             && cls != ValueDeserializer.None.class) {
                         result.add(className);
                     }
@@ -224,5 +268,7 @@ public class NativeImageReflectConfigTest {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class ReflectEntry {
         public String name;
+        public boolean allDeclaredConstructors;
+        public boolean allDeclaredMethods;
     }
 }
