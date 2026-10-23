@@ -203,6 +203,21 @@ class McpToolOutputSchemaTest {
     }
 
     @Test
+    void forStepsShouldDescribeOpenObjectOutputWithoutProperties() {
+        StepOutputMappingSpec mapping = new StepOutputMappingSpec();
+        mapping.setTarget("properties");
+        mapping.setValue("$.page.properties");
+
+        Map<String, Object> schema = McpToolOutputSchema.forSteps(
+                List.of(scalar("properties", "object", null)), List.of(mapping));
+
+        Map<String, Object> property = property(properties(schema), "properties");
+        assertEquals(List.of("object", "null"), property.get("type"),
+                "#859: an object output without properties is any object");
+        assertFalse(property.containsKey("properties"));
+    }
+
+    @Test
     void forStepsShouldDescribeNamedOutputParameters() {
         StepOutputMappingSpec mapping = new StepOutputMappingSpec();
         mapping.setTarget("voyageId");

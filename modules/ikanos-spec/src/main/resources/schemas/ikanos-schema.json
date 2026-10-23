@@ -589,6 +589,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterArray": {
+      "description": "Orchestrated array output. With `items`, each element is shaped by it. Without `items`, the mapped array is returned as is (any elements).",
       "allOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterBase"
@@ -605,15 +606,13 @@
               },
               "minProperties": 1
             }
-          },
-          "required": [
-            "items"
-          ]
+          }
         }
       ],
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterObject": {
+      "description": "Orchestrated object output. With `properties`, every declared property is present and shaped. Without `properties`, the mapped object is returned as is (any keys), for objects whose keys are data, such as user-defined field names.",
       "allOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterBase"
@@ -629,10 +628,7 @@
                 "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
-          },
-          "required": [
-            "properties"
-          ]
+          }
         }
       ],
       "unevaluatedProperties": false
