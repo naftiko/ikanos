@@ -226,7 +226,7 @@ Each `consumes` entry becomes a `ClientAdapter`, created by `ClientAdapterRegist
 For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` splits the target on its first dot (`QualifiedName`), finds the client adapter by namespace and asks it to `prepare` the operation, which returns a `ConsumedInvocation`. When no client adapter owns the namespace and an aggregate does, the target is a flow: the result is a `FlowInvocation` (see [Execution modes](#execution-modes)). For HTTP, `HttpClientAdapter.prepare`:
 
 1. Find the operation by name.
-2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left.
+2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left. The `baseUri` itself was already resolved once, when the adapter was built, against the capability bindings only (`HttpClientAdapter.resolveBaseUri`): a placeholder in it can never be filled from call parameters, and an unbound one fails the capability at load time. Tunnel routing and `forward` use the same resolved value.
 3. Apply the input parameters, adapter level first, then operation level.
 4. Build the body when the operation declares one. Fail if any template is left unresolved. Form bodies go through `FormUrlEncodedBody`, which URL-encodes every substituted value so that a caller cannot add form fields.
 5. Set authentication and default headers through the client adapter (`HttpClientAdapter.setChallengeResponse` and `setHeaders`). Authentication values are resolved against the request parameters **and** the capability's bindings.

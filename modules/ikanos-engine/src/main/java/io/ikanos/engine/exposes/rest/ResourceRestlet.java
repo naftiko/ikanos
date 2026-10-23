@@ -539,7 +539,7 @@ public class ResourceRestlet extends Restlet {
                         // Prepare the HTTP client request
                         String path = (String) request.getAttributes().get("path");
                         String normalizedPath = (path == null || path.isEmpty()) ? "" : "/" + path;
-                        String targetRef = httpAdapter.getHttpClientSpec().getBaseUri()
+                        String targetRef = httpAdapter.getBaseUri()
                                 + normalizedPath;
                         Request clientRequest = new Request(request.getMethod(), targetRef);
                         clientRequest.setEntity(request.getEntity());
