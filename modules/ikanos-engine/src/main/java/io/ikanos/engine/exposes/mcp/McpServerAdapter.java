@@ -28,7 +28,6 @@ import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -148,10 +147,6 @@ public class McpServerAdapter extends ServerAdapter {
      * tool's inputSchema.
      */
     private McpSchema.Tool buildMcpTool(McpServerToolSpec toolSpec) {
-        // Build JSON Schema properties from input parameters
-        Map<String, Object> schemaProperties = new LinkedHashMap<>();
-        List<String> required = new ArrayList<>();
-
         // Resolve inputParameters: prefer tool-level, fall back to aggregate flow
         List<InputParameterSpec> inputParams = toolSpec.getInputParameters();
         if ((inputParams == null || inputParams.isEmpty()) && toolSpec.getRef() != null) {
@@ -159,35 +154,7 @@ public class McpServerAdapter extends ServerAdapter {
             inputParams = fn.getInputParameters();
         }
 
-        if (inputParams != null) {
-            for (InputParameterSpec param : inputParams) {
-                Map<String, Object> property = new HashMap<>();
-                property.put("type", param.getType() != null ? param.getType() : "string");
-
-                if (param.getDescription() != null) {
-                    property.put("description", param.getDescription());
-                }
-
-                Context.getCurrentLogger().log(Level.INFO,
-                        "Adding parameter to schema: " + param.getName());
-                schemaProperties.put(param.getName(), property);
-
-                if (param.isRequired()) {
-                    required.add(param.getName());
-                }
-            }
-        }
-
-        // Build the input schema as a plain JSON Schema map (MCP Java SDK 2.x). Keys are only
-        // emitted when present, so the tools/list wire shape is unchanged.
-        Map<String, Object> inputSchema = new LinkedHashMap<>();
-        inputSchema.put("type", "object");
-        if (!schemaProperties.isEmpty()) {
-            inputSchema.put("properties", schemaProperties);
-        }
-        if (!required.isEmpty()) {
-            inputSchema.put("required", required);
-        }
+        Map<String, Object> inputSchema = McpToolInputSchema.forParameters(inputParams);
 
         // Build ToolAnnotations from spec hints and label
         McpSchema.ToolAnnotations annotations = buildToolAnnotations(toolSpec);

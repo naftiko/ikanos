@@ -13,7 +13,10 @@
  */
 package io.ikanos.spec;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.SerializationContext;
@@ -109,13 +112,9 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
             }
         }
 
-        // Serialize required array
-        if (!spec.getRequired().isEmpty()) {
-            ArrayNode requiredArray = node.putArray("required");
-            for (String val : spec.getRequired()) {
-                requiredArray.add(val);
-            }
-        }
+        writeSchemaHints(spec, node);
+
+        writeRequired(spec, node);
 
         // Serialize examples array
         if (!spec.getExamples().isEmpty()) {
@@ -224,12 +223,9 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
             }
         }
 
-        if (!spec.getRequired().isEmpty()) {
-            ArrayNode requiredArray = node.putArray("required");
-            for (String val : spec.getRequired()) {
-                requiredArray.add(val);
-            }
-        }
+        writeSchemaHints(spec, node);
+
+        writeRequired(spec, node);
 
         if (!spec.getExamples().isEmpty()) {
             ArrayNode examplesArray = node.putArray("examples");
@@ -265,6 +261,57 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
                 }
             }
         }
+    }
+
+    /**
+     * Write the required-property list as {@code required}, as before. When the parameter itself is
+     * optional, write {@code required: false} and move the list to {@code requiredProperties}, since
+     * one key cannot hold both.
+     */
+    private void writeRequired(InputParameterSpec spec, ObjectNode node) {
+        if (spec.getRequired().isEmpty()) {
+            return;
+        }
+        if (!spec.isRequired()) {
+            node.put("required", false);
+        }
+        ArrayNode requiredArray =
+                node.putArray(spec.isRequired() ? "required" : "requiredProperties");
+        for (String val : spec.getRequired()) {
+            requiredArray.add(val);
+        }
+    }
+
+    /**
+     * Write the MCP tool input schema hints ({@code format}, {@code minimum}, {@code maximum},
+     * {@code additionalProperties}).
+     */
+    private void writeSchemaHints(InputParameterSpec spec, ObjectNode node) {
+        if (spec.getFormat() != null) {
+            node.put("format", spec.getFormat());
+        }
+        if (spec.getMinimum() != null) {
+            node.set("minimum", numberNode(spec.getMinimum()));
+        }
+        if (spec.getMaximum() != null) {
+            node.set("maximum", numberNode(spec.getMaximum()));
+        }
+        if (spec.getAdditionalProperties() != null) {
+            node.put("additionalProperties", spec.getAdditionalProperties());
+        }
+    }
+
+    private static JsonNode numberNode(Number value) {
+        if (value instanceof BigDecimal decimal) {
+            return JsonNodeFactory.instance.numberNode(decimal);
+        }
+        if (value instanceof BigInteger integer) {
+            return JsonNodeFactory.instance.numberNode(integer);
+        }
+        if (value instanceof Double || value instanceof Float) {
+            return JsonNodeFactory.instance.numberNode(value.doubleValue());
+        }
+        return JsonNodeFactory.instance.numberNode(value.longValue());
     }
 
 }

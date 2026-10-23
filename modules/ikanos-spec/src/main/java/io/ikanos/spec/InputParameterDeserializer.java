@@ -131,6 +131,27 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             }
         }
 
+        // MCP tool input schemas: object-level required list, format and bounds
+        if (node.has("requiredProperties") && node.get("requiredProperties").isArray()) {
+            node.get("requiredProperties").forEach(item -> spec.getRequired().add(item.asString()));
+        }
+
+        if (node.has("format")) {
+            spec.setFormat(node.get("format").asString());
+        }
+
+        if (node.has("minimum") && node.get("minimum").isNumber()) {
+            spec.setMinimum(node.get("minimum").numberValue());
+        }
+
+        if (node.has("maximum") && node.get("maximum").isNumber()) {
+            spec.setMaximum(node.get("maximum").numberValue());
+        }
+
+        if (node.has("additionalProperties") && node.get("additionalProperties").isBoolean()) {
+            spec.setAdditionalProperties(node.get("additionalProperties").asBoolean());
+        }
+
         // Handle numeric properties
         if (node.has("precision")) {
             spec.setPrecision(node.get("precision").asInt());

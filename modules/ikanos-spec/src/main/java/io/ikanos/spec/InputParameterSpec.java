@@ -42,6 +42,14 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
      */
     private volatile String value;
 
+    private volatile String format;
+
+    private volatile Number minimum;
+
+    private volatile Number maximum;
+
+    private volatile Boolean additionalProperties;
+
     public InputParameterSpec() {
         super();
     }
@@ -92,6 +100,39 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    /** @return the JSON Schema {@code format} hint advertised to MCP clients, or {@code null} */
+    public String getFormat() {
+        return format;
+    }
+
+    public void setFormat(String format) {
+        this.format = format;
+    }
+
+    public Number getMinimum() {
+        return minimum;
+    }
+
+    public void setMinimum(Number minimum) {
+        this.minimum = minimum;
+    }
+
+    public Number getMaximum() {
+        return maximum;
+    }
+
+    public void setMaximum(Number maximum) {
+        this.maximum = maximum;
+    }
+
+    public Boolean getAdditionalProperties() {
+        return additionalProperties;
+    }
+
+    public void setAdditionalProperties(Boolean additionalProperties) {
+        this.additionalProperties = additionalProperties;
     }
 
 }
