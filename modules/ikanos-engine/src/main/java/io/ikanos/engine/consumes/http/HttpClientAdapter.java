@@ -33,8 +33,11 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
 
@@ -54,8 +57,13 @@ public class HttpClientAdapter extends ClientAdapter {
     static final String TUNNEL_AWARE_HELPER_CLASS_NAME =
             "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper";
 
+    private static final Pattern PLACEHOLDER =
+            Pattern.compile("\\{\\{\\{?\\s*([^{}#^/!&>=]+?)\\s*\\}?\\}\\}");
+
     private final Client httpClient;
 
+    /** {@code baseUri} after binding resolution; never resolved from call parameters. */
+    private final String baseUri;
     public HttpClientAdapter(Capability capability, HttpClientSpec spec) {
         this(capability, spec, Map.of());
     }
@@ -77,12 +85,14 @@ public class HttpClientAdapter extends ClientAdapter {
     public HttpClientAdapter(
             Capability capability, HttpClientSpec spec, Map<String, Tunnel> tunnels) {
         super(capability, spec);
+        this.baseUri = resolveBaseUri(spec.getNamespace(), spec.getBaseUri(),
+                capability != null ? capability.getBindings() : null);
         Tunnel tunnel = selectTunnel(spec, tunnels);
         if (tunnel == null) {
             this.httpClient = new Client(HTTP, HTTPS);
         } else {
             TunnelRouteTable routes = new TunnelRouteTable();
-            routes.register(extractHost(spec), tunnel);
+            routes.register(extractHost(this.baseUri), tunnel);
             Context restletContext = new Context();
             restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
             this.httpClient = new Client(
@@ -106,7 +116,13 @@ public class HttpClientAdapter extends ClientAdapter {
      * for use as the {@link TunnelRouteTable} key.
      */
     static String extractHost(HttpClientSpec spec) {
-        String baseUri = spec.getBaseUri();
+        return extractHost(spec.getBaseUri());
+    }
+
+    /**
+     * Extracts the host of a resolved {@code baseUri} for use as the {@link TunnelRouteTable} key.
+     */
+    static String extractHost(String baseUri) {
         if (baseUri == null || baseUri.isBlank()) {
             throw new IllegalArgumentException(
                     "ConsumesHttp.baseUri is required when tunnel is configured");
@@ -127,6 +143,58 @@ public class HttpClientAdapter extends ClientAdapter {
 
     public HttpClientSpec getHttpClientSpec() {
         return (HttpClientSpec) getSpec();
+    }
+
+    /**
+     * @return the {@code baseUri} with its binding placeholders resolved at load time
+     */
+    public String getBaseUri() {
+        return baseUri;
+    }
+
+    /**
+     * Resolve {@code baseUri} against the capability bindings, once, when the adapter is built.
+     * Call parameters are never used, so a caller cannot choose the upstream host (SSRF). Bound
+     * values are substituted as written, without URL encoding, since a binding may hold a whole
+     * URL.
+     *
+     * @throws IllegalArgumentException when a placeholder is not bound, or when the resolved value
+     *     is not an absolute http(s) URI with a host. The resolved value is not echoed, as it may
+     *     come from a secret store.
+     */
+    static String resolveBaseUri(String namespace, String baseUri, Map<String, Object> bindings) {
+        if (baseUri == null || !baseUri.contains("{{")) {
+            return baseUri;
+        }
+        Map<String, Object> scope = bindings != null ? bindings : Map.of();
+        String resolved = Resolver.resolveMustacheTemplate(baseUri, scope);
+        List<String> missing = new ArrayList<>();
+        Matcher placeholder = PLACEHOLDER.matcher(baseUri);
+        while (placeholder.find()) {
+            String name = placeholder.group(1).trim();
+            if (!scope.containsKey(name) && !missing.contains(name)) {
+                missing.add(name);
+            }
+        }
+        if (!missing.isEmpty() || resolved.contains("{{")) {
+            throw new IllegalArgumentException("consumes '" + namespace
+                    + "' baseUri references unbound variables " + missing
+                    + ". Declare them in a binds entry.");
+        }
+        try {
+            URI uri = new URI(resolved);
+            String scheme = uri.getScheme();
+            if (scheme == null
+                    || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                    || uri.getHost() == null || uri.getHost().isEmpty()) {
+                throw new IllegalArgumentException("consumes '" + namespace
+                        + "' baseUri must resolve to an absolute http(s) URI with a host");
+            }
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("consumes '" + namespace
+                    + "' baseUri does not resolve to a valid URI");
+        }
+        return resolved;
     }
 
     /**
@@ -167,7 +235,7 @@ public class HttpClientAdapter extends ClientAdapter {
             return null;
         }
 
-        String clientResUri = getHttpClientSpec().getBaseUri()
+        String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
 
         // Resolve Mustache templates

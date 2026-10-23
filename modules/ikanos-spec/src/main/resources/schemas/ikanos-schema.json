@@ -2116,8 +2116,8 @@
         },
         "baseUri": {
           "type": "string",
-          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here \u2014 use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`.",
-          "pattern": "^https?://[^/]+(/[^{]*)?$"
+          "description": "Root URL of the upstream API (scheme + host + optional base path). No path parameters allowed here \u2014 use `ConsumedHttpResource.path` for per-resource segments. Example: `https://api.notion.com/v1`. Placeholders (`https://{{HOST}}/v1`, or a whole value such as `{{API_URL}}`) are resolved once at load time from `binds`, never from call parameters; an unbound placeholder fails the capability at startup.",
+          "pattern": "^(https?://[^/]+(/[^{]*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$"
         },
         "inputParameters": {
           "type": "object",
