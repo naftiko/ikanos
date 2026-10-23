@@ -414,7 +414,7 @@ Describes a client adapter for consuming external APIs.
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. Type of consumer. Valid values: `"http"`. |
 | **namespace** | `string` | Path suffix used for routing from exposes. MUST match pattern `^[a-zA-Z0-9-]+$`. |
-| **baseUri** | `string` | **REQUIRED**. Base URI for the consumed API. Must be a valid http(s) URL (no `path` placeholder in the schema). |
+| **baseUri** | `string` | **REQUIRED**. Base URI for the consumed API. Must be a valid http(s) URL (no `path` placeholder in the schema). May use binding placeholders, see §3.7.3. |
 | **authentication** | Authentication Object | Authentication configuration. Defaults to `"inherit"`. |
 | **description** | `string` | **REQUIRED**. A description of the consumed API. The more meaningful it is, the easier for agent discovery. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters applied to all operations in this consumed API. |
@@ -434,6 +434,25 @@ Describes a client adapter for consuming external APIs.
 The `baseUri` field MUST be a valid `http://` or `https://` URL, and may optionally include a base path.
 
 Example: `https://api.github.com` or `https://api.github.com/v3`
+
+The host, or the whole value, may come from a binding, so one capability can target several environments (US/EU cloud, self-hosted):
+
+```yaml
+binds:
+  - namespace: "lago-env"
+    keys:
+      LAGO_API_URL: "LAGO_API_URL"   # e.g. https://api.eu.getlago.com/api/v1
+capability:
+  consumes:
+    - type: http
+      namespace: lago
+      baseUri: "{{LAGO_API_URL}}"    # or "https://{{LAGO_HOST}}/api/v1"
+```
+
+- Placeholders are resolved **once, at load time, from `binds` only**. Call parameters are never used, so a caller cannot redirect requests to another host, even with an argument of the same name.
+- Bound values are substituted as written (not URL-encoded).
+- The resolved value MUST be an absolute `http://` or `https://` URI with a host. An unbound placeholder or an invalid result fails the capability at startup; the error names the variables, never the resolved value.
+- Placeholders are not allowed in the base path (`https://api.test/{{x}}`); use `ConsumedHttpResource.path` for per-call segments.
 
 #### 3.7.4 Consumes Object Example
 
