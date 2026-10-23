@@ -2862,7 +2862,7 @@
         },
         "value": {
           "type": "string",
-          "description": "Content of this part. For file parts, this is the base64-encoded or raw file content."
+          "description": "Content of this part, Mustache-rendered. Sent as UTF-8 text, or as decoded bytes when `encoding` is `base64`."
         },
         "filename": {
           "type": "string",
@@ -2871,6 +2871,11 @@
         "contentType": {
           "type": "string",
           "description": "MIME type for this part (e.g. `image/png`, `application/pdf`). Required when uploading a file."
+        },
+        "encoding": {
+          "type": "string",
+          "enum": ["base64"],
+          "description": "How `value` is encoded. With `base64`, the part is sent as the decoded bytes of the rendered `value`, so a binary file can be passed as a base64 string. Without it, `value` is sent as UTF-8 text."
         }
       },
       "required": [
