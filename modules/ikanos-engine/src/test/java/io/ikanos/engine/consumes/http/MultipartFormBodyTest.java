@@ -69,6 +69,35 @@ public class MultipartFormBodyTest {
     }
 
     @Test
+    public void buildShouldRejectTextThatWasNotBase64Encoded() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(
+                        List.of(part("file", "{{data}}", "x.txt", null, "base64")),
+                        params("data", "hello world!")));
+        assertTrue(ex.getMessage().contains("'file'"), ex.getMessage());
+    }
+
+    @Test
+    public void buildShouldDecodeLineWrappedBase64() {
+        byte[] raw = new byte[100];
+        for (int i = 0; i < raw.length; i++) {
+            raw[i] = (byte) i;
+        }
+        String wrapped = java.util.Base64.getMimeEncoder().encodeToString(raw);
+        assertTrue(wrapped.contains("\r\n"), "Precondition: input must be line-wrapped");
+
+        MultipartFormBody body = MultipartFormBody.build(List.of(
+                part("file", "{{data}}", "x.bin", "application/octet-stream", "base64")),
+                params("data", wrapped));
+
+        byte[] bytes = body.bytes();
+        byte[] marker = "Content-Type: application/octet-stream\r\n\r\n"
+                .getBytes(StandardCharsets.US_ASCII);
+        int start = indexOf(bytes, marker) + marker.length;
+        assertArrayEquals(raw, java.util.Arrays.copyOfRange(bytes, start, start + raw.length));
+    }
+
+    @Test
     public void buildShouldEscapeQuotesAndLineBreaksInHeaderValues() {
         MultipartFormBody body = MultipartFormBody.build(List.of(
                 part("file", "x", "{{name}}", "text/plain", null)),
