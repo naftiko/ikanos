@@ -229,6 +229,96 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveInputParametersToRequestShouldRepeatExplodedArrayQueryParameter() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/subscriptions");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("status", List.of("active", "pending"));
+
+        InputParameterSpec status = new InputParameterSpec();
+        status.setName("status");
+        status.setIn("query");
+        status.setWireName("status[]");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(status), parameters);
+
+        assertEquals("https://api.example.com/subscriptions"
+                + "?status%5B%5D=active&status%5B%5D=pending",
+            clientRequest.getResourceRef().toString(),
+            "#851: a list is sent as a repeated parameter (style form, explode true by default)");
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldJoinNonExplodedArrayQueryParameter() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("ids", List.of("a,1", "b"));
+
+        InputParameterSpec ids = new InputParameterSpec();
+        ids.setName("ids");
+        ids.setIn("query");
+        ids.setExplode(Boolean.FALSE);
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(ids), parameters);
+
+        assertEquals("https://api.example.com/items?ids=a%2C1%2Cb",
+            clientRequest.getResourceRef().toString());
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldJoinDelimitedArrayQueryParameter() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("tags", List.of("x", "y"));
+        parameters.put("codes", List.of(1, 2));
+
+        InputParameterSpec tags = new InputParameterSpec();
+        tags.setName("tags");
+        tags.setIn("query");
+        tags.setStyle("pipeDelimited");
+        InputParameterSpec codes = new InputParameterSpec();
+        codes.setName("codes");
+        codes.setIn("query");
+        codes.setStyle("spaceDelimited");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(tags, codes), parameters);
+
+        assertEquals("https://api.example.com/items?tags=x%7Cy&codes=1+2",
+            clientRequest.getResourceRef().toString());
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldUseWireNameForScalarQueryParameter() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("page_size", 10);
+
+        InputParameterSpec size = new InputParameterSpec();
+        size.setName("page_size");
+        size.setIn("query");
+        size.setWireName("page[size]");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(size), parameters);
+
+        assertEquals("https://api.example.com/items?page%5Bsize%5D=10",
+            clientRequest.getResourceRef().toString());
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldSkipEmptyArrayQueryParameter() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("status", List.of());
+
+        InputParameterSpec status = new InputParameterSpec();
+        status.setName("status");
+        status.setIn("query");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(status), parameters);
+
+        assertEquals("https://api.example.com/items", clientRequest.getResourceRef().toString());
+      }
+
+      @Test
       public void resolveInputParametersToRequestShouldApplyHeaderQueryAndTemplateResolution() {
         Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
         Map<String, Object> parameters = new HashMap<>();

@@ -61,6 +61,18 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setValue(node.get("value").asString());
         }
 
+        if (node.has("wireName")) {
+            spec.setWireName(node.get("wireName").asString());
+        }
+
+        if (node.has("style")) {
+            spec.setStyle(node.get("style").asString());
+        }
+
+        if (node.has("explode")) {
+            spec.setExplode(node.get("explode").asBoolean());
+        }
+
         if (node.has("selector")) {
             spec.setSelector(node.get("selector").asString());
         }
