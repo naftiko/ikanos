@@ -285,9 +285,27 @@ public class OasImportConverter {
 
     InputParameterSpec convertInputParameter(Parameter param) {
         InputParameterSpec spec = new InputParameterSpec();
-        spec.setName(param.getName());
+        String name = param.getName();
+        if (name != null && name.endsWith("[]") && name.length() > 2) {
+            // A Rails/PHP list filter: the key must be a valid parameter name, the wire name
+            // keeps the brackets (#851).
+            spec.setName(name.substring(0, name.length() - 2));
+            spec.setWireName(name);
+        } else {
+            spec.setName(name);
+        }
         if (param.getIn() != null) {
             spec.setIn(param.getIn());
+        }
+        if ("query".equals(param.getIn()) && param.getStyle() != null) {
+            String style = param.getStyle().toString();
+            if ("form".equals(style) || "spaceDelimited".equals(style)
+                    || "pipeDelimited".equals(style)) {
+                spec.setStyle(style);
+            }
+        }
+        if ("query".equals(param.getIn()) && param.getExplode() != null) {
+            spec.setExplode(param.getExplode());
         }
         if (param.getSchema() != null && resolveSchemaType(param.getSchema()) != null) {
             spec.setType(mapSchemaType(resolveSchemaType(param.getSchema())));

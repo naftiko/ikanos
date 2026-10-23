@@ -227,7 +227,7 @@ For a `call` or a call step, `OperationStepExecutor.findClientRequestFor` splits
 
 1. Find the operation by name.
 2. Resolve `baseUri` + resource `path` as a Mustache template. Fail if any `{{...}}` is left.
-3. Apply the input parameters, adapter level first, then operation level.
+3. Apply the input parameters, adapter level first, then operation level. Header and query parameters are sent under `wireName` when set. A list value in a query parameter is serialized by `style` and `explode` (`Resolver.queryValues`): one parameter per element, or one comma-, space- or pipe-delimited value; an empty list omits the parameter.
 4. Build the body when the operation declares one. Fail if any template is left unresolved. Form bodies go through `FormUrlEncodedBody`, which URL-encodes every substituted value so that a caller cannot add form fields.
 5. Set authentication and default headers through the client adapter (`HttpClientAdapter.setChallengeResponse` and `setHeaders`). Authentication values are resolved against the request parameters **and** the capability's bindings.
 6. Return an `HttpInvocation`: the prepared request, with the adapter and operation that produced it.

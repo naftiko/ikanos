@@ -261,6 +261,21 @@
         "value": {
           "type": "string",
           "description": "Value of the parameter. Can be a static value or an expression resolved from the execution context (e.g. $this.namespace.param)"
+        },
+        "wireName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name sent on the wire when it differs from the parameter key, e.g. `status[]` for APIs that read list filters with the Rails/PHP `name[]` convention. The key stays the name used in templates and `with:`."
+        },
+        "style": {
+          "type": "string",
+          "enum": ["form", "spaceDelimited", "pipeDelimited"],
+          "default": "form",
+          "description": "How a list value is serialized in a query parameter, as in OpenAPI. `form` repeats the parameter or joins with commas (see `explode`); `spaceDelimited` and `pipeDelimited` join the elements with a space or `|`. Scalars are not affected."
+        },
+        "explode": {
+          "type": "boolean",
+          "description": "For `form` style: `true` (default) sends one parameter per list element (`status[]=a&status[]=b`); `false` sends one comma-separated value (`ids=a,b`)."
         }
       },
       "required": [

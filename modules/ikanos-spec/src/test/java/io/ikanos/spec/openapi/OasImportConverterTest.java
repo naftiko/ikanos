@@ -62,6 +62,40 @@ public class OasImportConverterTest {
     }
 
     @Test
+    void convertInputParameterShouldCopyStyleAndExplodeOfArrayQueryParameter() {
+        Parameter param = new Parameter().name("tags").in("query")
+                .schema(new ArraySchema().items(new StringSchema()))
+                .style(Parameter.StyleEnum.PIPEDELIMITED).explode(false);
+
+        InputParameterSpec spec = converter.convertInputParameter(param);
+
+        assertEquals("pipeDelimited", spec.getStyle(), "#851");
+        assertEquals(Boolean.FALSE, spec.getExplode());
+    }
+
+    @Test
+    void convertInputParameterShouldKeepBracketedNameAsWireName() {
+        Parameter param = new Parameter().name("status[]").in("query")
+                .schema(new ArraySchema().items(new StringSchema()));
+
+        InputParameterSpec spec = converter.convertInputParameter(param);
+
+        assertEquals("status", spec.getName(), "The key must be a valid parameter name");
+        assertEquals("status[]", spec.getWireName());
+    }
+
+    @Test
+    void convertInputParameterShouldNotSetStyleWhenSourceHasNone() {
+        Parameter param = new Parameter().name("q").in("query").schema(new StringSchema());
+
+        InputParameterSpec spec = converter.convertInputParameter(param);
+
+        assertNull(spec.getStyle());
+        assertNull(spec.getExplode());
+        assertNull(spec.getWireName());
+    }
+
+    @Test
     void convertShouldRejectNullOpenApi() {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> converter.convert(null));
