@@ -612,7 +612,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterObject": {
-      "description": "Orchestrated object output. With `properties`, every declared property is present and shaped. Without `properties`, the mapped object is returned as is (any keys), for objects whose keys are data, such as user-defined field names.",
+      "description": "Orchestrated object output. With `properties`, every declared property is present and shaped; other keys are kept as is. Without `properties`, the mapped object is returned as is (any keys), for objects whose keys are data, such as user-defined field names.",
       "allOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterBase"
