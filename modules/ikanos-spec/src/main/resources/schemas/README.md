@@ -963,7 +963,7 @@ Used in **orchestrated mode** exposed operations. Declares an output by `name` a
 
 - **`string`**, **`number`**, **`boolean`** (scalar): only `name` and `type`
 - **`array`**: optional `items` (recursive OrchestratedOutputParameter without `name`). Without `items`, the mapped array is returned as is.
-- **`object`**: optional `properties` (map of name → recursive OrchestratedOutputParameter without `name`). Without `properties`, the mapped object is returned as is, whatever its keys. Use it for objects whose keys are data, such as user-defined field names.
+- **`object`**: optional `properties` (map of name → recursive OrchestratedOutputParameter without `name`). With `properties`, every declared property is present and shaped; other keys are kept as is. Without `properties`, the mapped object is returned as is, whatever its keys. Use it for objects whose keys are data, such as user-defined field names.
 
 **Rules:**
 
