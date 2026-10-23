@@ -47,9 +47,9 @@ public final class FormUrlEncodedBody {
         for (Map.Entry<?, ?> entry : data.entrySet()) {
             String key = String.valueOf(entry.getKey());
             String raw = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
-            if (noParameters && hasTemplate(raw)) {
+            if (noParameters && !Resolver.missingVariables(raw, parameters).isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Unresolved template parameters in form field '" + key + "': " + raw);
+                        "Unresolved template parameters in form field '" + key + "'");
             }
             String value = Resolver.resolveMustacheTemplate(raw, parameters);
             if (sb.length() > 0) {
@@ -73,9 +73,5 @@ public final class FormUrlEncodedBody {
 
     static String encodeValue(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private static boolean hasTemplate(String value) {
-        return value.contains("{{") && value.contains("}}");
     }
 }

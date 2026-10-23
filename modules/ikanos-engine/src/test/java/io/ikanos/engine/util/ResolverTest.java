@@ -261,6 +261,46 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveInputParametersToRequestShouldSendCallerQueryValueContainingBraces() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("search", "{{name}}");
+
+        InputParameterSpec query = new InputParameterSpec();
+        query.setName("search");
+        query.setIn("query");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(query), parameters);
+
+        assertTrue(clientRequest.getResourceRef().toString().contains("search=%7B%7Bname%7D%7D"),
+            "#858: a caller value with braces is data and must be sent: "
+                + clientRequest.getResourceRef());
+      }
+
+      @Test
+      public void missingVariablesShouldListTopLevelVariablesAbsentFromParameters() {
+        assertEquals(List.of("id", "q"), Resolver.missingVariables(
+            "/items/{{id}}?q={{q}}&v={{version}}", Map.of("version", "1")));
+      }
+
+      @Test
+      public void missingVariablesShouldIgnoreVariablesInsideSections() {
+        assertEquals(List.of(), Resolver.missingVariables(
+            "{\"a\":1{{#x}},\"x\":\"{{x}}\"{{/x}}{{^y}},\"y\":0{{/y}}}", Map.of()));
+      }
+
+      @Test
+      public void missingVariablesShouldCheckFirstSegmentOfDottedVariables() {
+        assertEquals(List.of("step"),
+            Resolver.missingVariables("{{step.id}} {{other.id}}", Map.of("other", Map.of())));
+      }
+
+      @Test
+      public void missingVariablesShouldReturnEmptyListForInvalidTemplate() {
+        assertEquals(List.of(), Resolver.missingVariables("{{#a}}unclosed", Map.of()));
+      }
+
+      @Test
       public void resolveOutputMappingsShouldHandleNullAndInvalidArrayRoots() throws Exception {
         JsonNode clientRoot = MAPPER.readTree("{\"data\":{\"id\":1}}\n");
 
