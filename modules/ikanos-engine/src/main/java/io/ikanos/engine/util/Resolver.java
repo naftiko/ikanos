@@ -147,6 +147,61 @@ public class Resolver {
     }
 
     /**
+     * Lists the top-level variables of a template that have no value in {@code parameters}, in
+     * template order (#858). Variables inside a section or an inverted section are not listed:
+     * they are optional by construction. For a dotted variable ({@code {{step.id}}}) only the
+     * first segment is checked. Checking the template, rather than scanning the rendered output
+     * for leftover braces, lets a caller value contain {@code {{...}}} as plain data.
+     *
+     * @param template the Mustache template, may be null
+     * @param parameters the parameters the template is rendered with, may be null
+     * @return the missing variable names, or an empty list (also for an invalid template, which
+     *         rendering reports on its own)
+     */
+    public static List<String> missingVariables(String template, Map<String, Object> parameters) {
+        if (template == null || !template.contains("{{")) {
+            return List.of();
+        }
+        java.util.Set<String> missing = new java.util.LinkedHashSet<>();
+        try {
+            Mustache.compiler().compile(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    String first = name.split("\\.", 2)[0].trim();
+                    if (!first.isEmpty() && !".".equals(name.trim())
+                            && (parameters == null || parameters.get(first) == null)) {
+                        missing.add(first);
+                    }
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    return false;
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return List.of();
+        }
+        return List.copyOf(missing);
+    }
+
+    /**
      * Resolve a single InputParameterSpec from a request, extracting the value based on the
      * parameter location (path, query, header, environment, or body).
      * 
@@ -263,12 +318,18 @@ public class Resolver {
             try {
                 String in = spec.getIn() == null ? "body" : spec.getIn();
                 Object val = null;
+                String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
 
-                if (spec.getValue() != null) {
-                    // Resolve Mustache templates in value, allowing dynamic parameter resolution
-                    val = Resolver.resolveMustacheTemplate(spec.getValue(), parameters);
-                } else if (spec.getTemplate() != null) {
-                    val = Resolver.resolveMustacheTemplate(spec.getTemplate(), parameters);
+                if (template != null) {
+                    boolean noParameters = parameters == null || parameters.isEmpty();
+                    if (noParameters && !missingVariables(template, parameters).isEmpty()) {
+                        // Nothing can be substituted: omit the parameter, so an optional one is
+                        // not sent with its raw template text. The check is on the template, not
+                        // on the rendered value, so a caller value that itself contains "{{" is
+                        // still sent (#858).
+                        continue;
+                    }
+                    val = Resolver.resolveMustacheTemplate(template, parameters);
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
                 } else if ("environment".equalsIgnoreCase(in)) {
@@ -276,11 +337,6 @@ public class Resolver {
                 }
 
                 if (val == null) {
-                    continue;
-                } else if (val instanceof String && ((String) val).contains("{{")) {
-                    // Value still contains unresolved Mustache placeholders — the parameter
-                    // was not actually provided by the caller. Omit it from the request so
-                    // that optional parameters are not sent with their raw template text.
                     continue;
                 } else if (parameters != null) {
                     parameters.put(spec.getName(), val);
