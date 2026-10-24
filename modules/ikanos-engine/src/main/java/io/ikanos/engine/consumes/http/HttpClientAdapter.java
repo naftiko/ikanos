@@ -19,6 +19,7 @@ import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
+import org.restlet.representation.ByteArrayRepresentation;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
@@ -194,7 +195,12 @@ public class HttpClientAdapter extends ClientAdapter {
         Resolver.resolveInputParametersToRequest(clientRequest,
                 clientOp.getInputParameters(), parameters);
 
-        if (clientOp.getBody() != null) {
+        List<?> multipartData = multipartData(clientOp.getBody());
+        if (multipartData != null) {
+            MultipartFormBody multipart = MultipartFormBody.build(multipartData, parameters);
+            clientRequest.setEntity(
+                    new ByteArrayRepresentation(multipart.bytes(), multipart.mediaType()));
+        } else if (clientOp.getBody() != null) {
             String resolvedBody;
             MediaType bodyMediaType = MediaType.APPLICATION_JSON;
 
@@ -254,6 +260,24 @@ public class HttpClientAdapter extends ClientAdapter {
                 parameters);
         setHeaders(clientRequest);
         return new HttpInvocation(this, clientOp, clientRequest);
+    }
+
+    /**
+     * Returns the parts list of a {@code type: multipartForm} body, or {@code null} for any other
+     * body. A {@code multipartForm} body whose {@code data} is not a list is rejected, rather than
+     * sent as JSON.
+     */
+    static List<?> multipartData(Object bodySpec) {
+        if (!(bodySpec instanceof Map<?, ?> bodyMap)
+                || !"multipartForm".equalsIgnoreCase(String.valueOf(bodyMap.get("type")))) {
+            return null;
+        }
+        Object data = bodyMap.get("data");
+        if (!(data instanceof List<?> parts)) {
+            throw new IllegalArgumentException(
+                    "A multipartForm body requires a list of parts in 'data'");
+        }
+        return parts;
     }
 
     /**

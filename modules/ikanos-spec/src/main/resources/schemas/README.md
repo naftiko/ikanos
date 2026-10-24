@@ -701,7 +701,7 @@ Describes request body configuration for consumed operations. `RequestBody` is a
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. MUST be `"multipartForm"`. |
-| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required), `filename` (optional), `contentType` (optional). |
+| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required, Mustache-rendered), `filename` (optional), `contentType` (optional), `encoding` (optional, `base64`: the part is sent as the decoded bytes of `value`). Sent as `multipart/form-data` with a generated boundary. |
 
 **RequestBodyRaw** — Raw string body
 
@@ -757,9 +757,10 @@ body:
   type: multipartForm
   data:
     - name: "file"
-      value: "base64content..."
+      value: "{{content}}"
       filename: "document.pdf"
       contentType: "application/pdf"
+      encoding: "base64"
     - name: "description"
       value: "My uploaded file"
 ```
