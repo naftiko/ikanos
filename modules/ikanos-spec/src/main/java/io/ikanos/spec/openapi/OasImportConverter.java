@@ -14,9 +14,11 @@
 package io.ikanos.spec.openapi;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -48,7 +50,12 @@ public class OasImportConverter {
 
     private static final int MAX_DEPTH = 10;
 
-    /** Key pattern of {@code inputParameters} in the Ikanos schema. */
+    static final String PLACEHOLDER_BASE_URI = "https://api.example.com";
+
+    /** Same constraint as {@code ConsumesHttp.baseUri} in {@code ikanos-schema.json}. */
+    static final Pattern ABSOLUTE_HTTP_URL = Pattern.compile("^https?://[^/]+(/[^{]*)?$");
+
+    /** Same constraint as the {@code inputParameters} keys in {@code ikanos-schema.json}. */
     static final Pattern PARAMETER_NAME = Pattern.compile("^[a-zA-Z0-9-_*]+$");
 
     private static final Pattern INVALID_KEY_CHARS = Pattern.compile("[^a-zA-Z0-9_*-]+");
@@ -116,11 +123,17 @@ public class OasImportConverter {
                 if (url.endsWith("/")) {
                     url = url.substring(0, url.length() - 1);
                 }
-                return url;
+                if (ABSOLUTE_HTTP_URL.matcher(url).matches()) {
+                    return url;
+                }
+                warnings.add("Server URL '" + url + "' is not an absolute http(s) URL; using "
+                        + "placeholder baseUri '" + PLACEHOLDER_BASE_URI + "'");
+                return PLACEHOLDER_BASE_URI;
             }
         }
-        warnings.add("No servers defined; using placeholder baseUri 'https://api.example.com'");
-        return "https://api.example.com";
+        warnings.add("No servers defined; using placeholder baseUri '" + PLACEHOLDER_BASE_URI
+                + "'");
+        return PLACEHOLDER_BASE_URI;
     }
 
     AuthenticationSpec deriveAuthentication(OpenAPI openApi, List<String> warnings) {
@@ -144,6 +157,11 @@ public class OasImportConverter {
 
         switch (scheme.getType()) {
             case APIKEY:
+                if (scheme.getIn() == SecurityScheme.In.COOKIE) {
+                    warnings.add("Security scheme '" + first.getKey() + "' places the API key "
+                            + "in a cookie, which is not supported; configure it manually");
+                    return null;
+                }
                 ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
                 apiKey.setKey(scheme.getName());
                 apiKey.setValue("{{API_KEY}}");
@@ -200,11 +218,19 @@ public class OasImportConverter {
             addOperation(grouped, path, "PUT", pathItem.getPut());
             addOperation(grouped, path, "DELETE", pathItem.getDelete());
             addOperation(grouped, path, "PATCH", pathItem.getPatch());
-            addOperation(grouped, path, "HEAD", pathItem.getHead());
-            addOperation(grouped, path, "OPTIONS", pathItem.getOptions());
+            warnUnsupportedOperation(path, "HEAD", pathItem.getHead(), warnings);
+            warnUnsupportedOperation(path, "OPTIONS", pathItem.getOptions(), warnings);
         }
 
         return grouped;
+    }
+
+    private void warnUnsupportedOperation(String path, String method, Operation operation,
+            List<String> warnings) {
+        if (operation != null) {
+            warnings.add("Skipped " + method + " " + path
+                    + ": consumed operations support GET, POST, PUT, PATCH and DELETE only");
+        }
     }
 
     private void addOperation(Map<String, List<OperationEntry>> grouped,
@@ -274,7 +300,7 @@ public class OasImportConverter {
             List<InputParameterSpec> bodyParams =
                     convertRequestBody(operation.getRequestBody(), warnings);
             for (InputParameterSpec bp : bodyParams) {
-                inputMap.put(bp.getName(), bp);
+                putInputIfKeyable(inputMap, bp, name, warnings);
             }
         }
 
@@ -286,10 +312,43 @@ public class OasImportConverter {
         List<OutputParameterSpec> outputParams =
                 convertOutputParameters(operation.getResponses(), warnings);
         if (outputParams != null) {
-            opSpec.getOutputParameters().addAll(outputParams);
+            opSpec.getOutputParameters().addAll(
+                    dropDuplicateOutputNames(outputParams, name, warnings));
         }
 
         return opSpec;
+    }
+
+    private void putInputIfKeyable(Map<String, InputParameterSpec> inputMap,
+            InputParameterSpec param, String operationName, List<String> warnings) {
+        if (param.getName() == null || !PARAMETER_NAME.matcher(param.getName()).matches()) {
+            warnings.add("Skipped parameter '" + param.getName() + "' of operation '"
+                    + operationName + "': parameter names must match "
+                    + PARAMETER_NAME.pattern());
+            return;
+        }
+        inputMap.put(param.getName(), param);
+    }
+
+    /**
+     * Keep the first output for each name: output names become map keys in the written
+     * document, so two properties that kebab-case to the same name (e.g. {@code total_count}
+     * and {@code totalCount}) cannot both be kept.
+     */
+    List<OutputParameterSpec> dropDuplicateOutputNames(List<OutputParameterSpec> outputs,
+            String operationName, List<String> warnings) {
+        Set<String> seen = new HashSet<>();
+        List<OutputParameterSpec> unique = new ArrayList<>();
+        for (OutputParameterSpec output : outputs) {
+            if (output.getName() != null && !seen.add(output.getName())) {
+                warnings.add("Skipped output '" + output.getName() + "' (" + output.getMapping()
+                        + ") of operation '" + operationName
+                        + "': another output already has this name");
+                continue;
+            }
+            unique.add(output);
+        }
+        return unique;
     }
 
     String deriveOperationName(String path, String method, Operation operation) {

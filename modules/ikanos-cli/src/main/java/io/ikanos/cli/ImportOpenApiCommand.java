@@ -17,18 +17,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
-import java.util.function.UnaryOperator;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
-import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.openapi.OasImportConverter;
 import io.ikanos.spec.openapi.OasImportResult;
-import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.spec.openapi.OasImportWriter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -114,34 +112,25 @@ public class ImportOpenApiCommand implements Callable<Integer> {
             }
 
             // Build the appropriate mapper based on format
-            UnaryOperator<JsonInclude.Value> nonEmpty =
-                    incl -> JsonInclude.Value.construct(JsonInclude.Include.NON_EMPTY,
-                            JsonInclude.Include.NON_EMPTY);
             ObjectMapper mapper;
             if ("json".equalsIgnoreCase(format)) {
                 mapper = IkanosMappers.jsonBuilder()
                         .enable(SerializationFeature.INDENT_OUTPUT)
-                        .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                        .changeDefaultPropertyInclusion(nonEmpty)
                         .build();
             } else {
                 mapper = IkanosMappers.yamlBuilder()
                         .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
-                        .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                        .changeDefaultPropertyInclusion(nonEmpty)
                         .build();
             }
 
-            // Wrap in a IkanosSpec document
-            IkanosSpec spec = new IkanosSpec();
-            spec.setIkanos(VersionHelper.getSchemaVersion());
-            spec.getConsumes().add(httpClient);
+            // Build the document in the shape required by ikanos-schema.json (#871)
+            JsonNode document = new OasImportWriter().toDocument(httpClient);
 
             Path path = Paths.get(outputPath);
             if ("json".equalsIgnoreCase(format)) {
-                mapper.writeValue(path.toFile(), spec);
+                mapper.writeValue(path.toFile(), document);
             } else {
-                String yaml = mapper.writeValueAsString(spec);
+                String yaml = mapper.writeValueAsString(document);
                 // Add modeline header to be sure the file will be recognized by Naftiko VS Code extension
                 Files.writeString(path, "# @ikanos\n---\n" + yaml);
             }

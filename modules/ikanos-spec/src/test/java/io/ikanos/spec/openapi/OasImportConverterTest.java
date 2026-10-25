@@ -244,6 +244,86 @@ public class OasImportConverterTest {
     }
 
     @Test
+    void convertShouldUsePlaceholderBaseUriWhenServerUrlIsRelative() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        openApi.setServers(List.of(server("/api/v3")));
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertEquals("https://api.example.com", result.getHttpClient().getBaseUri(),
+                "#871: baseUri must be an absolute http(s) URL to be schema-valid");
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("/api/v3")),
+                "Expected a warning naming the relative server URL: " + result.getWarnings());
+    }
+
+    @Test
+    void convertShouldSkipHeadAndOptionsOperationsWithWarning() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        PathItem item = new PathItem();
+        item.setGet(operation("listPets", "List pets", null));
+        item.setHead(operation("headPets", "Check pets", null));
+        item.setOptions(operation("optionsPets", "Pet options", null));
+        Paths paths = new Paths();
+        paths.addPathItem("/pets", item);
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        HttpClientResourceSpec resource = firstResource(result);
+        assertEquals(List.of("list-pets"), List.copyOf(resource.getOperations().keySet()),
+                "#871: HEAD and OPTIONS are not allowed by ConsumedHttpOperation.method");
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("HEAD /pets")),
+                "Expected a HEAD warning: " + result.getWarnings());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("OPTIONS /pets")),
+                "Expected an OPTIONS warning: " + result.getWarnings());
+    }
+
+    @Test
+    void convertShouldSkipParametersWithNamesTheSchemaCannotKey() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Operation op = operation("listPets", "List pets", null);
+        op.setParameters(List.of(
+                parameter("page[size]", "query", "integer", false),
+                parameter("limit", "query", "integer", false)));
+        Paths paths = new Paths();
+        paths.addPathItem("/pets", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs = firstOperation(firstResource(result)).getInputParameters();
+        assertEquals(List.of("limit"), inputs.stream().map(InputParameterSpec::getName).toList(),
+                "#871: inputParameters keys must match ^[a-zA-Z0-9-_*]+$");
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("page[size]")),
+                "Expected a warning naming the skipped parameter: " + result.getWarnings());
+    }
+
+    @Test
+    void convertShouldKeepFirstOutputWhenKebabCaseNamesCollide() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Operation op = operation("countPets", "Count pets", null);
+        Schema<Object> body = new ObjectSchema();
+        body.addProperty("total_count", new IntegerSchema());
+        body.addProperty("totalCount", new IntegerSchema());
+        op.setResponses(new ApiResponses().addApiResponse("200", new ApiResponse()
+                .description("OK")
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(body)))));
+        Paths paths = new Paths();
+        paths.addPathItem("/pets/count", pathItem("GET", op));
+        openApi.setPaths(paths);
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<OutputParameterSpec> outputs = firstOperation(firstResource(result))
+                .getOutputParameters();
+        assertEquals(1, outputs.size(), "#871: output names are map keys and must be unique");
+        assertEquals("$.total_count", outputs.get(0).getMapping());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("total-count")),
+                "Expected a collision warning: " + result.getWarnings());
+    }
+
+    @Test
     void convertShouldUsePlaceholderBaseUriWhenNoServers() {
         OpenAPI openApi = minimalOpenApi("Test");
         openApi.setServers(null);
@@ -585,6 +665,24 @@ public class OasImportConverterTest {
                 (ApiKeyAuthenticationSpec) result.getHttpClient().getAuthentication();
         assertEquals("X-API-Key", apiKey.getKey());
         assertEquals("header", apiKey.getPlacement());
+    }
+
+    @Test
+    void convertShouldIgnoreCookieApiKeyWithWarning() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Components components = new Components();
+        components.addSecuritySchemes("session", new SecurityScheme()
+                .type(SecurityScheme.Type.APIKEY)
+                .name("SESSION")
+                .in(SecurityScheme.In.COOKIE));
+        openApi.setComponents(components);
+
+        OasImportResult result = converter.convert(openApi);
+
+        assertNull(result.getHttpClient().getAuthentication(),
+                "#871: AuthApiKey.placement only allows header or query");
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("cookie")),
+                "Expected a cookie warning: " + result.getWarnings());
     }
 
     @Test
@@ -1239,7 +1337,10 @@ public class OasImportConverterTest {
     }
 
     @Test
-    void convertShouldGroupHeadAndOptionsOperations() {
+    void convertShouldNotImportHeadAndOptionsOperations() {
+        // Previously asserted that HEAD and OPTIONS were imported, but ConsumedHttpOperation.method
+        // only allows GET, POST, PUT, PATCH and DELETE, so the written file failed validation
+        // (#871). They are now skipped with a warning.
         OpenAPI openApi = minimalOpenApi("Test");
         Paths paths = new Paths();
 
@@ -1252,8 +1353,11 @@ public class OasImportConverterTest {
 
         OasImportResult result = converter.convert(openApi);
 
-        assertEquals(1, result.getHttpClient().getResources().size());
-        assertEquals(2, firstResource(result).getOperations().size());
+        assertTrue(result.getHttpClient().getResources().isEmpty(),
+                "#871: a resource without operations is not schema-valid");
+        assertEquals(2, result.getWarnings().stream()
+                .filter(w -> w.startsWith("Skipped HEAD") || w.startsWith("Skipped OPTIONS"))
+                .count());
     }
 
     @Test
