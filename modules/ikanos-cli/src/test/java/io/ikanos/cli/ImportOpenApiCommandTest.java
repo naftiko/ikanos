@@ -15,19 +15,156 @@ package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SpecificationVersion;
 import picocli.CommandLine;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.Cli;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 public class ImportOpenApiCommandTest {
 
+    /**
+     * OpenAPI 3.0 document exercising every shape the importer converts: query, path and header
+     * parameters, a JSON body, nested object and array response properties, a top-level array
+     * response, and a security scheme.
+     */
+    private static final String RICH_OAS_30 = """
+            openapi: "3.0.3"
+            info:
+              title: "Rich API"
+              version: "1.0.0"
+            servers:
+              - url: "https://api.rich.io/v1"
+            components:
+              securitySchemes:
+                bearerAuth:
+                  type: http
+                  scheme: bearer
+            paths:
+              /pets:
+                get:
+                  operationId: listPets
+                  summary: List pets
+                  description: Returns every pet.
+                  parameters:
+                    - name: limit
+                      in: query
+                      required: false
+                      description: Maximum number of pets.
+                      schema:
+                        type: integer
+                    - name: X-Request-Id
+                      in: header
+                      schema:
+                        type: string
+                  responses:
+                    "200":
+                      description: OK
+                      content:
+                        application/json:
+                          schema:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                post:
+                  operationId: createPet
+                  summary: Create a pet
+                  requestBody:
+                    required: true
+                    content:
+                      application/json:
+                        schema:
+                          type: object
+                          required: [name]
+                          properties:
+                            name:
+                              type: string
+                            tag:
+                              type: string
+                  responses:
+                    "201":
+                      description: Created
+              /pets/{petId}:
+                get:
+                  operationId: showPetById
+                  summary: Show a pet
+                  parameters:
+                    - name: petId
+                      in: path
+                      required: true
+                      schema:
+                        type: string
+                  responses:
+                    "200":
+                      description: OK
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              owner:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                              tags:
+                                type: array
+                                items:
+                                  type: string
+            """;
+
+    private static Schema schema;
+
     @TempDir
     Path tempDir;
+
+    @BeforeAll
+    static void loadSchema() throws Exception {
+        try (InputStream in = ImportOpenApiCommandTest.class.getClassLoader()
+                .getResourceAsStream("schemas/ikanos-schema.json")) {
+            assertNotNull(in, "schemas/ikanos-schema.json must be on the test classpath");
+            JsonNode schemaNode = IkanosMappers.json().readTree(in);
+            schema = IkanosMetaSchemaFactory.getInstance(SpecificationVersion.DRAFT_2020_12)
+                    .getSchema(schemaNode);
+        }
+    }
+
+    private static List<String> schemaErrors(JsonNode document) {
+        return schema.validate(document).stream()
+                .map(e -> e.getInstanceLocation() + ": " + e.getMessage())
+                .toList();
+    }
+
+    private Path importToYaml(String oasContent, String baseName) throws Exception {
+        Path oasFile = tempDir.resolve(baseName + ".yaml");
+        Files.writeString(oasFile, oasContent);
+        Path output = tempDir.resolve(baseName + "-consumes.yml");
+        int exitCode = new CommandLine(new Cli()).execute("import", "openapi",
+                oasFile.toString(), "-o", output.toString());
+        assertEquals(0, exitCode, "Import should succeed");
+        return output;
+    }
 
     @Test
     void importShouldSucceedWithValidOpenApiFile() throws Exception {
@@ -422,6 +559,121 @@ public class ImportOpenApiCommandTest {
         assertEquals(0, exitCode);
         String content = Files.readString(output);
         assertTrue(content.contains("my-override-namespace"));
+    }
+
+    @Test
+    void importShouldWriteSchemaValidYamlForEveryConvertedShape() throws Exception {
+        Path output = importToYaml(RICH_OAS_30, "rich");
+
+        List<String> errors = schemaErrors(IkanosMappers.yaml().readTree(output.toFile()));
+
+        assertTrue(errors.isEmpty(),
+                "#871: imported YAML must pass ikanos validate, but got: " + errors);
+    }
+
+    @Test
+    void importShouldWriteSchemaValidJsonForEveryConvertedShape() throws Exception {
+        Path oasFile = tempDir.resolve("rich.yaml");
+        Files.writeString(oasFile, RICH_OAS_30);
+        Path output = tempDir.resolve("rich-consumes.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("import", "openapi",
+                oasFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        List<String> errors = schemaErrors(IkanosMappers.json().readTree(output.toFile()));
+        assertTrue(errors.isEmpty(),
+                "#871: imported JSON must be schema-valid, but got: " + errors);
+    }
+
+    @Test
+    void importShouldWriteSchemaValidYamlForSwagger20FixtureWithRefDefinitions()
+            throws Exception {
+        Path oasFile = Path.of("src/test/resources/openapi/petstore-swagger2-full.json");
+        Path output = tempDir.resolve("petstore-full.yml");
+
+        int exitCode = new CommandLine(new Cli()).execute("import", "openapi",
+                oasFile.toAbsolutePath().toString(), "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        List<String> errors = schemaErrors(IkanosMappers.yaml().readTree(output.toFile()));
+        assertTrue(errors.isEmpty(),
+                "#871: imported Swagger 2.0 fixture must be schema-valid, but got: " + errors);
+    }
+
+    @Test
+    void importShouldKeyParametersByNameWithoutRepeatingNames() throws Exception {
+        JsonNode adapter = IkanosMappers.yaml()
+                .readTree(importToYaml(RICH_OAS_30, "rich").toFile())
+                .path("consumes").path(0);
+
+        JsonNode pets = adapter.path("resources").path("pets");
+        assertFalse(pets.has("name"), "#871: the resource map key is the name");
+        JsonNode listPets = pets.path("operations").path("list-pets");
+        assertFalse(listPets.has("name"), "#871: the operation map key is the name");
+
+        JsonNode inputs = listPets.path("inputParameters");
+        assertTrue(inputs.isObject(), "#871: inputParameters must be a map keyed by name");
+        assertEquals("query", inputs.path("limit").path("in").asString());
+        assertEquals("header", inputs.path("X-Request-Id").path("in").asString());
+        assertFalse(inputs.path("limit").has("name"));
+
+        JsonNode body = adapter.path("resources").path("pets").path("operations")
+                .path("create-pet").path("inputParameters");
+        assertEquals("body", body.path("name").path("in").asString());
+        assertEquals("body", body.path("tag").path("in").asString());
+    }
+
+    @Test
+    void importShouldWriteConsumedOutputParametersAsTypedJsonPathMap() throws Exception {
+        JsonNode outputs = IkanosMappers.yaml()
+                .readTree(importToYaml(RICH_OAS_30, "rich").toFile())
+                .path("consumes").path(0).path("resources").path("pets-pet-id")
+                .path("operations").path("show-pet-by-id").path("outputParameters");
+
+        assertTrue(outputs.isObject(), "#871: outputParameters must be a map keyed by name");
+        assertEquals("number", outputs.path("id").path("type").asString());
+        assertEquals("$.id", outputs.path("id").path("value").asString());
+        assertEquals("object", outputs.path("owner").path("type").asString());
+        assertEquals("$.owner", outputs.path("owner").path("value").asString());
+        assertFalse(outputs.path("owner").has("properties"),
+                "#871: ConsumedOutputParameter only allows type and value");
+        assertEquals("array", outputs.path("tags").path("type").asString());
+        assertEquals("$.tags[*]", outputs.path("tags").path("value").asString());
+        assertFalse(outputs.path("tags").has("items"),
+                "#871: ConsumedOutputParameter only allows type and value");
+    }
+
+    @Test
+    void importShouldWriteAuthenticationWithoutYamlTypeTags() throws Exception {
+        Path output = importToYaml(RICH_OAS_30, "rich");
+
+        String content = Files.readString(output);
+        assertFalse(content.contains("!<"), "#871: no YAML type tag in the output");
+        JsonNode auth = IkanosMappers.yaml().readTree(output.toFile())
+                .path("consumes").path(0).path("authentication");
+        assertEquals("bearer", auth.path("type").asString());
+        assertEquals("{{BEARER_TOKEN}}", auth.path("token").asString());
+    }
+
+    @Test
+    void importedYamlShouldLoadBackIntoTheSpecModel() throws Exception {
+        Path output = importToYaml(RICH_OAS_30, "rich");
+
+        IkanosSpec spec = IkanosMappers.yaml().readValue(output.toFile(), IkanosSpec.class);
+
+        HttpClientSpec adapter = (HttpClientSpec) spec.getConsumes().get(0);
+        assertEquals("rich-api", adapter.getNamespace());
+        HttpClientOperationSpec showPet = adapter.getResources().get("pets-pet-id")
+                .getOperations().get("show-pet-by-id");
+        assertEquals("show-pet-by-id", showPet.getName());
+        InputParameterSpec petId = showPet.getInputParameters().get(0);
+        assertEquals("petId", petId.getName());
+        assertEquals("path", petId.getIn());
+        OutputParameterSpec id = showPet.getOutputParameters().stream()
+                .filter(p -> "id".equals(p.getName())).findFirst().orElseThrow();
+        assertEquals("$.id", id.getMapping(),
+                "#871: a reloaded consumed output must keep its JsonPath as the mapping");
     }
 
 }

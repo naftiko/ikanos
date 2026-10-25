@@ -1,0 +1,50 @@
+openapi: "3.0.3"
+info:
+  title: "Edge Cases API"
+  version: "1.0.0"
+servers:
+  - url: "/api/v3"
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      name: SESSION
+      in: cookie
+paths:
+  /items:
+    get:
+      operationId: listItems
+      summary: List items
+      parameters:
+        - name: page[size]
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count:
+                    type: integer
+                  totalCount:
+                    type: integer
+    head:
+      operationId: headItems
+      summary: Check items
+      responses:
+        "200":
+          description: OK
+    options:
+      operationId: optionsItems
+      summary: Item options
+      responses:
+        "200":
+          description: OK
