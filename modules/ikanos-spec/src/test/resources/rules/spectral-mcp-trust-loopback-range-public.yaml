@@ -2,7 +2,7 @@
 # Spectral fixture — ikanos-mcp-trust-loopback-on-public-address MUST FIRE.
 #
 # 127.1.0.0/16 is inside 127.0.0.0/8 but does not contain 127.0.0.1.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — loopback range on a public address"

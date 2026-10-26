@@ -2,7 +2,7 @@
 # Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
 #
 # 0.0.0.0/0 and ::/0 trust every peer, so any caller can set the identity header.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — every address trusted"

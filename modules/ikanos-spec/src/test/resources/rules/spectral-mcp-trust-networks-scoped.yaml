@@ -2,7 +2,7 @@
 # Spectral fixture — neither MCP trust network rule may fire.
 #
 # Scoped private ranges on an adapter listening beyond loopback.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — scoped networks"

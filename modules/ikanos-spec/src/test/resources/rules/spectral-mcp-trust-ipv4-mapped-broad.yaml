@@ -2,7 +2,7 @@
 # Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
 #
 # ::ffff:0.0.0.0/96 is every IPv4 peer, written as IPv4-mapped IPv6.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — every IPv4-mapped address trusted"
