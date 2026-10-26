@@ -95,7 +95,7 @@
         <groovy.version>4.0.24</groovy.version>
         <openziti.version>0.33.1</openziti.version>
         <bouncycastle.version>1.85</bouncycastle.version>
-        <revision>1.0.0-beta8-SNAPSHOT</revision>
+        <revision>1.0.0-beta8</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
           Each module's BUNDLE LINE / BRANCH coverage must stay >= these floors.
