@@ -505,6 +505,57 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveInputParametersToRequestShouldTakeEnvironmentParameterFromEnvironmentOnly() {
+        // GHSA-23xc-9c84-r6qv: a caller value with the same name must not replace it.
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("PATH", "caller-value");
+
+        InputParameterSpec path = new InputParameterSpec();
+        path.setName("PATH");
+        path.setIn("environment");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(path), parameters);
+
+        assertEquals(System.getenv("PATH"), parameters.get("PATH"));
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldDropCallerValueForUnsetEnvironmentParameter() {
+        String unset = "IKANOS_TEST_UNSET_" + java.util.UUID.randomUUID().toString()
+            .replace("-", "");
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(unset, "caller-value");
+
+        InputParameterSpec variable = new InputParameterSpec();
+        variable.setName(unset);
+        variable.setIn("environment");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(variable), parameters);
+
+        assertFalse(parameters.containsKey(unset),
+            "templates must not use a caller value in place of an unset environment variable");
+      }
+
+      @Test
+      public void applyEnvironmentParametersShouldFailWhenCallerValueCannotBeReplaced() {
+        // Fail closed: a map that cannot be updated must not leave the caller's value in place.
+        InputParameterSpec path = new InputParameterSpec();
+        path.setName("PATH");
+        path.setIn("environment");
+
+        assertThrows(UnsupportedOperationException.class,
+            () -> Resolver.applyEnvironmentParameters(List.of(path),
+                Map.of("PATH", "caller-value")));
+        assertThrows(UnsupportedOperationException.class,
+            () -> Resolver.resolveInputParametersToRequest(
+                new Request(Method.GET, "https://api.example.com/items"), List.of(path),
+                Map.of("PATH", "caller-value")),
+            "the request builder must not swallow the failure either");
+      }
+
+      @Test
       public void resolveInputParametersToRequestShouldApplyHeaderQueryAndTemplateResolution() {
         Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
         Map<String, Object> parameters = new HashMap<>();

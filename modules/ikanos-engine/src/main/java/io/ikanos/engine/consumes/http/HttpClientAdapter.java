@@ -219,6 +219,11 @@ public class HttpClientAdapter extends ClientAdapter {
             return null;
         }
 
+        // The operator's environment values replace any caller value of the same name before the
+        // URI is resolved, not after (GHSA-23xc-9c84-r6qv)
+        Resolver.applyEnvironmentParameters(getHttpClientSpec().getInputParameters(), parameters);
+        Resolver.applyEnvironmentParameters(clientOp.getInputParameters(), parameters);
+
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
         rejectUnresolved("URI", clientResUri, parameters);

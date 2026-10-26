@@ -14,7 +14,6 @@
 package io.ikanos.engine.exposes.mcp;
 
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
@@ -169,12 +168,8 @@ public class McpServerAdapter extends ServerAdapter {
      * tool's inputSchema.
      */
     private McpSchema.Tool buildMcpTool(McpServerToolSpec toolSpec) {
-        // Resolve inputParameters: prefer tool-level, fall back to aggregate flow
-        List<InputParameterSpec> inputParams = toolSpec.getInputParameters();
-        if ((inputParams == null || inputParams.isEmpty()) && toolSpec.getRef() != null) {
-            AggregateFlow fn = getCapability().lookupFlow(toolSpec.getRef());
-            inputParams = fn.getInputParameters();
-        }
+        // The same input parameters as tools/call: tool-level, else the aggregate flow's
+        List<InputParameterSpec> inputParams = toolHandler.getInputParameters(toolSpec.getName());
 
         Map<String, Object> inputSchema = McpToolInputSchema.forParameters(inputParams);
 

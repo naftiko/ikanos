@@ -529,13 +529,42 @@ public class Resolver {
 
 
     /**
+     * Write the operator's {@code in: environment} parameters into {@code parameters}, before any
+     * URI, body or authentication template is rendered (GHSA-23xc-9c84-r6qv). A parameter without
+     * {@code value} or {@code template} takes the environment variable of its name; when the
+     * variable is unset, a caller value with the same name is removed, so that no template uses it
+     * instead.
+     *
+     * <p>Nothing is caught here: a map that cannot be updated fails the call rather than leave a
+     * caller value in place.</p>
+     */
+    public static void applyEnvironmentParameters(List<InputParameterSpec> specs,
+            Map<String, Object> parameters) {
+        if (specs == null || parameters == null) {
+            return;
+        }
+        for (InputParameterSpec spec : specs) {
+            if (!"environment".equalsIgnoreCase(spec.getIn()) || spec.getValue() != null
+                    || spec.getTemplate() != null) {
+                continue;
+            }
+            String value = System.getenv(spec.getName());
+            if (value != null) {
+                parameters.put(spec.getName(), value);
+            } else {
+                parameters.remove(spec.getName());
+            }
+        }
+    }
+
+    /**
      * Apply a list of input parameter specs to a client request (headers and query params).
      * 
      * Resolution priority for parameter values:
      * 1. 'value' field - resolved with Mustache template syntax ({{paramName}}) for dynamic resolution
      * 2. 'template' field - resolved with Mustache syntax
-     * 3. Parameters map - direct lookup by parameter name
-     * 4. Environment variables - for 'environment' location
+     * 3. Environment variables - for 'environment' location, never the parameters map
+     * 4. Parameters map - direct lookup by parameter name
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
@@ -555,6 +584,7 @@ public class Resolver {
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
         }
+        applyEnvironmentParameters(specs, parameters);
         Set<String> supplied = parameters == null ? Set.of()
                 : new HashSet<>(parameters.keySet());
 
@@ -575,10 +605,11 @@ public class Resolver {
                     }
                     // A whole-value placeholder keeps the parameter's type (#880)
                     val = Resolver.resolveValue(template, parameters);
+                } else if ("environment".equalsIgnoreCase(in)) {
+                    // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
+                    val = System.getenv(spec.getName());
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
-                } else if ("environment".equalsIgnoreCase(in)) {
-                    val = System.getenv(spec.getName());
                 }
 
                 if (val == null) {
