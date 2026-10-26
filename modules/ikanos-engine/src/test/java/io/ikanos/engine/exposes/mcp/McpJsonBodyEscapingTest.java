@@ -15,6 +15,8 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -90,7 +92,34 @@ public class McpJsonBodyEscapingTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldRejectObjectArgumentForStringParameterInStructuredBody()
+            throws Exception {
+        AtomicReference<String> receivedBody = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, receivedBody);
+        upstream.start();
+
+        try {
+            ObjectNode arguments = MAPPER.createObjectNode();
+            arguments.putObject("email").put("$ne", "");
+            JsonNode response = callToolResponse(
+                    capabilityFromYaml(structuredCapabilityYaml(port)), "find-user", arguments);
+
+            assertTrue(response.has("error") || response.path("result").path("isError")
+                    .asBoolean(), "the call must fail: " + response);
+            assertNull(receivedBody.get(),
+                    "an object for a string parameter must not reach the upstream as an object");
+        } finally {
+            upstream.stop();
+        }
+    }
+
     private JsonNode callTool(Capability capability, String tool, ObjectNode arguments) {
+        return callToolResponse(capability, tool, arguments).path("result");
+    }
+
+    private JsonNode callToolResponse(Capability capability, String tool, ObjectNode arguments) {
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(
                 (McpServerAdapter) capability.getServerAdapters().get(0));
 
@@ -104,7 +133,40 @@ public class McpJsonBodyEscapingTest {
         params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
                 ProtocolDispatcher.MCP_PROTOCOL_VERSION);
 
-        return dispatcher.dispatch(request).responseBody().path("result");
+        return dispatcher.dispatch(request).responseBody();
+    }
+
+    private String structuredCapabilityYaml(int port) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - namespace: upstream
+                      type: http
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        users:
+                          path: "/users"
+                          operations:
+                            create-user:
+                              method: POST
+                              body:
+                                type: json
+                                data:
+                                  email: "{{email}}"
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: demo
+                      tools:
+                        find-user:
+                          description: "Find a user"
+                          inputParameters:
+                            email:
+                              type: string
+                              description: "User email"
+                          call: upstream.create-user
+                """.formatted(schemaVersion, port);
     }
 
     private String capabilityYaml(int port) {

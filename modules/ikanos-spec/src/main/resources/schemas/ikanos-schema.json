@@ -303,7 +303,7 @@
         },
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter.",
+          "description": "The expected data type of the parameter. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
           "enum": [
             "string",
             "number",
@@ -1610,7 +1610,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter.",
+          "description": "The expected data type of the parameter. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
           "enum": [
             "string",
             "number",

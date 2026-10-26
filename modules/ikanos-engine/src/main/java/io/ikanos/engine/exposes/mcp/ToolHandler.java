@@ -254,6 +254,9 @@ public class ToolHandler {
         // operator provides, such as an environment parameter.
         arguments = declaredArguments(toolName, arguments);
 
+        // Check the arguments against their declared types before any template sees them.
+        arguments = checkArgumentTypes(toolSpec, arguments);
+
         // Merge arguments with tool-level 'with' parameters.
         // 'with' values are Mustache templates resolved against the tool arguments,
         // allowing parameter renaming (e.g. imo → imo_number).
@@ -353,6 +356,35 @@ public class ToolHandler {
     /**
      * Execute a tool call by delegating to its referenced aggregate flow.
      */
+    /**
+     * Check each argument against the declared type of its input parameter (tool-level, or the
+     * aggregate flow's when the tool declares none), the same way the REST adapter does. A
+     * structured JSON body keeps a placeholder's JSON type, so an object passed for a string
+     * parameter would otherwise reach the upstream as an object (GHSA-6359-rp48-m9j6).
+     *
+     * @return the arguments to use, with numbers and booleans written as text for a declared
+     *         {@code string}
+     * @throws IllegalArgumentException when an argument does not match its declared type
+     */
+    private Map<String, Object> checkArgumentTypes(McpServerToolSpec toolSpec,
+            Map<String, Object> arguments) {
+        List<InputParameterSpec> declared = toolSpec.getInputParameters();
+        if ((declared == null || declared.isEmpty()) && toolSpec.getRef() != null) {
+            declared = capability.lookupFlow(toolSpec.getRef()).getInputParameters();
+        }
+        if (arguments == null || declared == null || declared.isEmpty()) {
+            return arguments;
+        }
+        Map<String, Object> checked = new HashMap<>(arguments);
+        for (InputParameterSpec param : declared) {
+            if (checked.containsKey(param.getName())) {
+                checked.put(param.getName(),
+                        Resolver.requireDeclaredInputType(param, checked.get(param.getName())));
+            }
+        }
+        return checked;
+    }
+
     private McpSchema.CallToolResult executeViaAggregate(McpServerToolSpec toolSpec,
             String toolName, Map<String, Object> parameters) throws Exception {
         try {

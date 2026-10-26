@@ -699,6 +699,104 @@ public class Resolver {
      */
     public static Object resolveInputParameterFromRequest(InputParameterSpec spec, Request request,
             JsonNode root, ObjectMapper mapper) {
+        return requireDeclaredInputType(spec,
+                resolveUncheckedInputParameterFromRequest(spec, request, root, mapper));
+    }
+
+    /**
+     * Check a caller value against the declared {@code type} of an exposed input parameter. A
+     * structured JSON body sends a placeholder's value with its JSON type, so without this check
+     * a caller could send an object, an array or a boolean where the capability declares a string
+     * (GHSA-6359-rp48-m9j6).
+     *
+     * <ul>
+     * <li>A string is accepted for every type: path, query and header values are always
+     * strings, and a string stays a JSON string.</li>
+     * <li>{@code string}: a number or boolean is written as text; an object or array is
+     * rejected.</li>
+     * <li>{@code number}: a number is accepted; {@code integer}: a number without a fractional
+     * part. {@code boolean}, {@code object}, {@code array}: a value of that type.</li>
+     * <li>A null value, and a parameter with no declared or an unknown type, are left
+     * unchanged.</li>
+     * </ul>
+     *
+     * @param spec the declared parameter, may be null
+     * @param value the caller value, may be null
+     * @return the value to use: unchanged, or written as text for a declared {@code string}
+     * @throws IllegalArgumentException when the value does not match the declared type; the
+     *         message names the parameter but not the value, which is caller data
+     */
+    public static Object requireDeclaredInputType(InputParameterSpec spec, Object value) {
+        if (spec == null || spec.getType() == null || value == null) {
+            return value;
+        }
+        String kind = jsonKindOf(value);
+        if ("string".equals(kind) || kind == null) {
+            return value;
+        }
+        String type = spec.getType().toLowerCase();
+        boolean matches = switch (type) {
+            case "string" -> "number".equals(kind) || "boolean".equals(kind);
+            case "number" -> "number".equals(kind);
+            case "integer" -> "number".equals(kind) && isIntegral(value);
+            case "boolean", "object", "array" -> type.equals(kind);
+            default -> true;
+        };
+        if (!matches) {
+            throw new IllegalArgumentException("Input parameter '" + spec.getName()
+                    + "' does not match its declared type '" + spec.getType() + "'");
+        }
+        if ("string".equals(type)) {
+            return value instanceof JsonNode node ? node.asString() : String.valueOf(value);
+        }
+        return value;
+    }
+
+    /**
+     * @return the JSON type of a caller value ({@code string}, {@code number}, {@code boolean},
+     *         {@code object} or {@code array}), or {@code null} when it has none
+     */
+    private static String jsonKindOf(Object value) {
+        if (value instanceof JsonNode node) {
+            if (node.isString()) {
+                return "string";
+            } else if (node.isNumber()) {
+                return "number";
+            } else if (node.isBoolean()) {
+                return "boolean";
+            } else if (node.isObject()) {
+                return "object";
+            } else if (node.isArray()) {
+                return "array";
+            }
+            return null;
+        }
+        if (value instanceof CharSequence || value instanceof Character) {
+            return "string";
+        } else if (value instanceof Number) {
+            return "number";
+        } else if (value instanceof Boolean) {
+            return "boolean";
+        } else if (value instanceof Map<?, ?>) {
+            return "object";
+        } else if (value instanceof java.util.Collection<?> || value instanceof Object[]) {
+            return "array";
+        }
+        return null;
+    }
+
+    private static boolean isIntegral(Object value) {
+        Number number = value instanceof JsonNode node ? node.numberValue() : (Number) value;
+        try {
+            return new BigDecimal(number.toString()).stripTrailingZeros().scale() <= 0;
+        } catch (NumberFormatException e) {
+            // NaN or an infinity
+            return false;
+        }
+    }
+
+    private static Object resolveUncheckedInputParameterFromRequest(InputParameterSpec spec,
+            Request request, JsonNode root, ObjectMapper mapper) {
         if (spec == null || spec.getName() == null) {
             return null;
         }
@@ -773,8 +871,13 @@ public class Resolver {
                         return null;
                     }
 
-                    // Otherwise return raw body node
-                    return root;
+                    // Otherwise return the raw body node, when it can be the declared type: a
+                    // missing string parameter is absent, not the whole body.
+                    if (spec.getType() == null
+                            || spec.getType().equalsIgnoreCase(jsonKindOf(root))) {
+                        return root;
+                    }
+                    return null;
                 }
             }
         } catch (RuntimeException e) {

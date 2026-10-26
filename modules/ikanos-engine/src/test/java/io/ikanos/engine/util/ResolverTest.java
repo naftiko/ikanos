@@ -1200,4 +1200,87 @@ public class ResolverTest {
         assertTrue(shaped.path("extra").asBoolean(),
                 "shaping must never remove data a caller already receives");
     }
+
+    @Test
+    public void requireDeclaredInputTypeShouldRejectStructureWhereScalarIsDeclared() {
+        // GHSA-6359-rp48-m9j6: a structured JSON body keeps a placeholder's JSON type, so an
+        // object passed for a string parameter would reach the upstream as an object.
+        for (String type : List.of("string", "number", "integer", "boolean")) {
+            assertThrows(IllegalArgumentException.class, () -> Resolver
+                    .requireDeclaredInputType(input("email", type), Map.of("$ne", "")), type);
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.requireDeclaredInputType(input("email", type), List.of("a")),
+                    type);
+        }
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldRejectMismatchedScalar() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("n", "number"), true));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("flag", "boolean"), 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("count", "integer"), 1.5));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("props", "object"), List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("ids", "array"), Map.of()));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldWriteNumberAndBooleanAsTextForString() {
+        assertEquals("42", Resolver.requireDeclaredInputType(input("id", "string"), 42));
+        assertEquals("true", Resolver.requireDeclaredInputType(input("id", "string"), true));
+        assertEquals("7", Resolver.requireDeclaredInputType(input("id", "string"),
+                MAPPER.getNodeFactory().numberNode(7)));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldAcceptStringForEveryType() {
+        // Path, query and header values are always strings.
+        for (String type : List.of("string", "number", "integer", "boolean", "object", "array")) {
+            assertEquals("5", Resolver.requireDeclaredInputType(input("v", type), "5"), type);
+        }
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldAcceptMatchingValues() {
+        Map<String, Object> props = Map.of("tokens", 5);
+        List<String> ids = List.of("a", "b");
+        String[] idArray = {"a"};
+        ObjectNode node = MAPPER.createObjectNode().put("tokens", 5);
+
+        assertEquals(1.5, Resolver.requireDeclaredInputType(input("n", "number"), 1.5));
+        assertEquals(3, Resolver.requireDeclaredInputType(input("n", "integer"), 3));
+        assertEquals(3.0, Resolver.requireDeclaredInputType(input("n", "integer"), 3.0));
+        assertEquals(false, Resolver.requireDeclaredInputType(input("b", "boolean"), false));
+        assertEquals(props, Resolver.requireDeclaredInputType(input("p", "object"), props));
+        assertEquals(node, Resolver.requireDeclaredInputType(input("p", "object"), node));
+        assertEquals(ids, Resolver.requireDeclaredInputType(input("a", "array"), ids));
+        assertEquals(idArray, Resolver.requireDeclaredInputType(input("a", "array"), idArray));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldLeaveNullAndUndeclaredTypeUnchanged() {
+        Map<String, Object> props = Map.of("k", "v");
+
+        assertNull(Resolver.requireDeclaredInputType(input("v", "string"), null));
+        assertEquals(props, Resolver.requireDeclaredInputType(input("v", null), props));
+        assertEquals(props, Resolver.requireDeclaredInputType(null, props));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldNameParameterWithoutEchoingValue() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("email", "string"),
+                        Map.of("secret-value", 1)));
+
+        assertTrue(error.getMessage().contains("email"));
+        assertFalse(error.getMessage().contains("secret-value"));
+    }
+
+    private static InputParameterSpec input(String name, String type) {
+        return new InputParameterSpec(name, type, null, null);
+    }
 }
