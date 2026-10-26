@@ -755,7 +755,9 @@ body:
 **JSON body with placeholders (object):** a value that is exactly one placeholder takes the
 parameter's JSON type (string, number, boolean, object, array) and is left out when the
 parameter is absent. Any other string stays a JSON string, with substituted values inserted
-as text. In a string template, substituted values are JSON-encoded; quote string placeholders.
+as text. A placeholder in a key is resolved too, but two members that resolve to the same key
+fail the call, so a caller value cannot replace a fixed member. In a string template, substituted
+values are JSON-encoded; quote string placeholders.
 
 ```yaml
 body:

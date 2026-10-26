@@ -361,6 +361,44 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
+    void findClientRequestForShouldRejectPlaceholderKeyOverridingLaterStaticMember()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    "{{field}}": "{{value}}"
+                                    role: "user"
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not replace a member the capability author fixed");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyOverridingEarlierStaticMember()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    role: "user"
+                                    "{{field}}": "{{value}}"
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not replace a member the capability author fixed");
+    }
+
+    @Test
     void findClientRequestForShouldKeepStaticMembersInJsonObjectData() throws Exception {
         OperationStepExecutor executor = executorWithBody("""
                                 body:

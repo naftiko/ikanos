@@ -542,7 +542,9 @@ public class Resolver {
      * (quotes and backslashes included) and each substituted value is inserted as text, a list,
      * map or array value as its JSON text.</li>
      * <li>Numbers, booleans, null and nested objects or arrays are kept, recursively.</li>
-     * <li>Placeholders in object keys are resolved the same way as interpolated strings.</li>
+     * <li>Placeholders in object keys are resolved the same way as interpolated strings. Two
+     * members that resolve to the same key are rejected, so a caller value cannot replace a
+     * member the capability author fixed.</li>
      * </ul>
      *
      * @param data the structured body data, as read from the capability
@@ -566,8 +568,15 @@ public class Resolver {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 JsonNode value = resolveJsonDataNode(entry.getValue(), parameters, jsonMapper);
                 if (value != null) {
-                    object.set(resolveJsonKey(String.valueOf(entry.getKey()), parameters,
-                            jsonMapper), value);
+                    String key = resolveJsonKey(String.valueOf(entry.getKey()), parameters,
+                            jsonMapper);
+                    // A placeholder key must not replace another member, in particular one the
+                    // capability author fixed. The key is not echoed: it may be caller data.
+                    if (object.has(key)) {
+                        throw new IllegalArgumentException(
+                                "Two members of structured JSON body data resolve to the same key");
+                    }
+                    object.set(key, value);
                 }
             }
             return object;
