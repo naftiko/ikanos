@@ -1,7 +1,7 @@
 # Capability with an inline `control` exposes entry and no `namespace`.
 # The schema does not allow `namespace` on control adapters, so the rule must skip them.
 # Should NOT trigger: ikanos-exposes-namespace-required
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 capability:
   exposes:

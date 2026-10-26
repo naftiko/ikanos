@@ -8,7 +8,7 @@
 # Only stateless upstreams (MCP protocol 2026-07-28, no `initialize` and no
 # `Mcp-Session-Id`) are supported in phase 1. Consumed tool `hints` are
 # authored locally and never derived from the upstream's annotations.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "Collections — MCP client example"

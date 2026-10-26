@@ -2,7 +2,7 @@
 #   - ikanos-mcp-consumes-endpoint-https, three times:
 #       plain HTTP to a remote host, and two userinfo bypasses whose real host is evil.com
 #   - ikanos-mcp-consumed-tool-hints (tool without hints)
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 info:
   display: "Consumed MCP rules — violations"
   description: "Fixture that violates each consumed MCP Polychro rule."

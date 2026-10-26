@@ -3,7 +3,7 @@
 #
 # The adapter listens beyond loopback but trusts loopback peers, so a co-located
 # process or sidecar could set the identity header.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — loopback trusted on a public address"

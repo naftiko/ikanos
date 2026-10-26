@@ -3,7 +3,7 @@
 #
 # The address starts with "127." but is a hostname, not a loopback literal, so the adapter may
 # listen beyond loopback while loopback peers are trusted.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — loopback on a 127-prefixed hostname"

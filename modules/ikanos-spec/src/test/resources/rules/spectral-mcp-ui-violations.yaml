@@ -2,7 +2,7 @@
 #   - ikanos-mcp-ui-resource-mime-type (ui:// resource with text/html, no profile)
 #   - ikanos-mcp-ui-tool-output-parameters (tool with ui, no outputParameters)
 #   - ikanos-mcp-ui-connect-domains-empty (view declares connectDomains)
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 info:
   display: "MCP Apps rules — violations"
   description: "Fixture that violates each MCP Apps Polychro rule."

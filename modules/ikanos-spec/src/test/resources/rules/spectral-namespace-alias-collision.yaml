@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta8
+ikanos: 1.0.0-beta9
 info:
   display: Imported alias namespace collision
   description: Negative fixture - an imported consumes alias reuses an aggregate namespace

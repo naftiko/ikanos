@@ -2,7 +2,7 @@
 # Spectral fixture — ikanos-mcp-trust-loopback-on-public-address MUST NOT FIRE.
 #
 # Loopback peers are trusted, and the adapter listens on ::1 written in its expanded form.
-ikanos: "1.0.0-beta8"
+ikanos: "1.0.0-beta9"
 
 info:
   display: "MCP trust — loopback on an expanded IPv6 loopback address"
