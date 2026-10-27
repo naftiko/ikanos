@@ -151,8 +151,23 @@ public class MultipartFormBodyTest {
 
     @Test
     public void buildShouldRejectTemplateWhenNoParametersAreGiven() {
-        assertThrows(IllegalArgumentException.class, () -> MultipartFormBody.build(
-                List.of(part("note", "{{text}}", null, null, null)), Map.of()));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(
+                        List.of(part("note", "{{text}}", null, null, null)), Map.of()));
+        assertTrue(ex.getMessage().contains("'note'") && ex.getMessage().contains("[text]"),
+                ex.getMessage());
+    }
+
+    @Test
+    public void buildShouldAcceptOptionalSectionsWhenNoParametersAreGiven() {
+        // #858: a part made only of optional sections is valid without parameters, as in every
+        // other body type.
+        MultipartFormBody body = MultipartFormBody.build(
+                List.of(part("note", "{{#text}}Note: {{text}}{{/text}}", null, null, null)),
+                Map.of());
+
+        assertTrue(new String(body.bytes(), StandardCharsets.UTF_8)
+                .contains("name=\"note\"\r\n\r\n\r\n"));
     }
 
     @Test
