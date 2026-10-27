@@ -110,6 +110,25 @@ public class MultipartFormBodyTest {
     }
 
     @Test
+    public void buildShouldKeepQuotedParameterInContentType() {
+        MultipartFormBody body = MultipartFormBody.build(List.of(
+                part("file", "x", "a.txt", "{{type}}", null)),
+                params("type", "text/plain; charset=\"UTF-8\""));
+
+        assertTrue(new String(body.bytes(), StandardCharsets.UTF_8)
+                .contains("\r\nContent-Type: text/plain; charset=\"UTF-8\"\r\n"));
+    }
+
+    @Test
+    public void buildShouldRejectLineBreakInContentType() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(
+                        List.of(part("file", "x", "a.txt", "{{type}}", null)),
+                        params("type", "text/plain\r\nX-Injected: 1")));
+        assertTrue(ex.getMessage().contains("'file'"), ex.getMessage());
+    }
+
+    @Test
     public void buildShouldPickBoundaryThatDoesNotOccurInContent() {
         String content = "--" + MultipartFormBody.build(
                 List.of(part("a", "x", null, null, null)), params("k", "v")).boundary();

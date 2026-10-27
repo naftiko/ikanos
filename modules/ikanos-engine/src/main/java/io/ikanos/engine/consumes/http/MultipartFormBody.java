@@ -73,6 +73,13 @@ public final class MultipartFormBody {
             String value = render(name, spec.get("value"), parameters, noParameters);
             String filename = render(name, spec.get("filename"), parameters, noParameters);
             String contentType = render(name, spec.get("contentType"), parameters, noParameters);
+            if (contentType != null && (contentType.indexOf('\r') >= 0
+                    || contentType.indexOf('\n') >= 0)) {
+                // Content-Type is not a quoted value, so quotes are kept as they are (a quoted
+                // charset is valid); only a line break could start a new header.
+                throw new IllegalArgumentException(
+                        "Line break in the contentType of multipartForm part '" + name + "'");
+            }
             byte[] content;
             if ("base64".equalsIgnoreCase(String.valueOf(spec.get("encoding")))) {
                 try {
@@ -101,7 +108,7 @@ public final class MultipartFormBody {
             }
             utf8(out, disposition.append("\r\n").toString());
             if (part.contentType != null && !part.contentType.isBlank()) {
-                utf8(out, "Content-Type: " + escapeHeaderValue(part.contentType) + "\r\n");
+                utf8(out, "Content-Type: " + part.contentType + "\r\n");
             }
             out.writeBytes(CRLF);
             out.writeBytes(part.content);
@@ -139,7 +146,10 @@ public final class MultipartFormBody {
         return Resolver.resolveMustacheTemplate(text, parameters);
     }
 
-    /** Percent-encodes {@code "}, CR and LF, as browsers do in multipart header values. */
+    /**
+     * Percent-encodes {@code "}, CR and LF, as browsers do in the quoted {@code name} and
+     * {@code filename} values of a multipart header.
+     */
     static String escapeHeaderValue(String value) {
         return value.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A");
     }
