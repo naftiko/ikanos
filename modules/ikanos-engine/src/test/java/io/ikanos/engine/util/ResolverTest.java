@@ -387,6 +387,114 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveInputParametersToRequestShouldRepeatListFromWholeValueTemplate() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/subscriptions");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("statuses", List.of("active", "pending"));
+
+        InputParameterSpec status = new InputParameterSpec();
+        status.setName("status");
+        status.setIn("query");
+        status.setWireName("status[]");
+        status.setValue("{{statuses}}");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(status), parameters);
+
+        assertEquals("https://api.example.com/subscriptions"
+                + "?status%5B%5D=active&status%5B%5D=pending",
+            clientRequest.getResourceRef().toString(),
+            "#880: a value that is exactly one placeholder passes the list, not its JSON text");
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldOmitWholeValueTemplateWhenVariableAbsent() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/subscriptions");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("other", "x");
+
+        InputParameterSpec status = new InputParameterSpec();
+        status.setName("status");
+        status.setIn("query");
+        status.setValue("{{statuses}}");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(status), parameters);
+
+        assertEquals("https://api.example.com/subscriptions",
+            clientRequest.getResourceRef().toString());
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldJoinListHeaderWithCommas() {
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("tags", List.of("a", "b"));
+
+        InputParameterSpec tags = new InputParameterSpec();
+        tags.setName("X-Tags");
+        tags.setIn("header");
+        tags.setValue("{{tags}}");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(tags), parameters);
+
+        assertEquals("a,b", clientRequest.getHeaders().getFirstValue("X-Tags", true));
+      }
+
+      @Test
+      public void resolveValueShouldReturnListForEveryWholeValueVariableForm() {
+        List<String> statuses = List.of("active", "pending");
+        Map<String, Object> parameters = Map.of("statuses", statuses);
+
+        for (String form : List.of("{{statuses}}", "{{ statuses }}", "{{{statuses}}}",
+            "{{{ statuses }}}", "{{&statuses}}", "{{& statuses}}")) {
+          assertEquals(statuses, Resolver.resolveValue(form, parameters), form);
+        }
+      }
+
+      @Test
+      public void resolveValueShouldReturnNestedValueForDottedPath() {
+        Map<String, Object> parameters =
+            Map.of("step", Map.of("ids", List.of(1, 2)));
+
+        assertEquals(List.of(1, 2), Resolver.resolveValue("{{step.ids}}", parameters));
+      }
+
+      @Test
+      public void resolveValueShouldKeepNumberAndBooleanTypes() {
+        Map<String, Object> parameters = Map.of("count", 5, "enabled", false);
+
+        assertEquals(5, Resolver.resolveValue("{{count}}", parameters));
+        assertEquals(Boolean.FALSE, Resolver.resolveValue("{{enabled}}", parameters));
+      }
+
+      @Test
+      public void resolveValueShouldReturnNullWhenWholeValueVariableIsAbsent() {
+        assertNull(Resolver.resolveValue("{{statuses}}", Map.of("other", "x")));
+        assertNull(Resolver.resolveValue("{{step.missing}}", Map.of("step", Map.of())));
+      }
+
+      @Test
+      public void resolveValueShouldKeepUnresolvedLeftoverWhenThereAreNoParameters() {
+        assertEquals("{{statuses}}", Resolver.resolveValue("{{statuses}}", Map.of()));
+        assertEquals("{{statuses}}", Resolver.resolveValue("{{ statuses }}", null));
+      }
+
+      @Test
+      public void resolveValueShouldRenderMixedTemplateAsText() {
+        Map<String, Object> parameters = Map.of("statuses", List.of("active", "pending"));
+
+        assertEquals("x-[\"active\",\"pending\"]",
+            Resolver.resolveValue("x-{{statuses}}", parameters));
+      }
+
+      @Test
+      public void resolveValueShouldRenderSectionTemplateAsText() {
+        Map<String, Object> parameters = Map.of("other", "x");
+
+        assertEquals("active",
+            Resolver.resolveValue("{{^status}}active{{/status}}", parameters));
+      }
+
+      @Test
       public void resolveInputParametersToRequestShouldApplyHeaderQueryAndTemplateResolution() {
         Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
         Map<String, Object> parameters = new HashMap<>();

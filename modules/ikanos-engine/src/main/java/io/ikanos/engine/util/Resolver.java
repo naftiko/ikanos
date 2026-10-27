@@ -29,6 +29,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.NullNode;
 import tools.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
@@ -145,6 +146,61 @@ public class Resolver {
             }
         }
         return compileTemplate(compiler, template).execute(serialized);
+    }
+
+    /**
+     * A string that is exactly one variable tag: {@code {{x}}}, {@code {{ x }}}, {@code {{{x}}}}
+     * or {@code {{&x}}}, where {@code x} is a name or a dotted path.
+     */
+    private static final java.util.regex.Pattern WHOLE_VALUE_VARIABLE = java.util.regex.Pattern
+            .compile("\\{\\{\\s*(?:&\\s*)?([^\\s{}#^/!=>&]+)\\s*\\}\\}"
+                    + "|\\{\\{\\{\\s*([^\\s{}]+)\\s*\\}\\}\\}");
+
+    /**
+     * Resolve a value that may be a whole-value placeholder (#880). When {@code template} is
+     * exactly one variable tag ({@code {{x}}}, {@code {{ x }}}, {@code {{{x}}}}, {@code {{&x}}},
+     * dotted paths included), the parameter value itself is returned, so a list, a number or a
+     * boolean keeps its type; it is looked up as Mustache would look it up, and {@code null} is
+     * returned when it is absent or null. Any other template, or any template when there are no
+     * parameters at all (so the {@code {{x}}} leftover still flags a missing value), is rendered
+     * to text by {@link #resolveMustacheTemplate(String, Map)}.
+     *
+     * @param template the value, may be null
+     * @param parameters map of parameter names to values, may be null
+     * @return the parameter value, the rendered text, or {@code null}
+     */
+    public static Object resolveValue(String template, Map<String, Object> parameters) {
+        if (template == null) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = WHOLE_VALUE_VARIABLE.matcher(template);
+        if (parameters == null || parameters.isEmpty() || !matcher.matches()) {
+            return resolveMustacheTemplate(template, parameters);
+        }
+        String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+        if (".".equals(name) || "this".equals(name)) {
+            return resolveMustacheTemplate(template, parameters);
+        }
+        return lookupVariable(name, parameters);
+    }
+
+    /**
+     * The value JMustache would render for {@code {{name}}}, before formatting, or {@code null}
+     * when it is absent or null.
+     */
+    static Object lookupVariable(String name, Map<String, Object> parameters) {
+        Object[] found = new Object[1];
+        // No default value: a missing or null variable makes JMustache throw.
+        Mustache.Compiler compiler = Mustache.compiler().withFormatter(value -> {
+            found[0] = value;
+            return "";
+        });
+        try {
+            compileTemplate(compiler, "{{" + name + "}}").execute(parameters);
+        } catch (MustacheException e) {
+            return null;
+        }
+        return found[0];
     }
 
     /**
@@ -433,7 +489,8 @@ public class Resolver {
                         // still sent (#858).
                         continue;
                     }
-                    val = Resolver.resolveMustacheTemplate(template, parameters);
+                    // A whole-value placeholder keeps the parameter's type (#880)
+                    val = Resolver.resolveValue(template, parameters);
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
                 } else if ("environment".equalsIgnoreCase(in)) {
@@ -449,7 +506,10 @@ public class Resolver {
                 String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
                         ? spec.getWireName() : spec.getName();
                 if ("header".equalsIgnoreCase(in)) {
-                    clientRequest.getHeaders().set(wireName, val.toString());
+                    // A list is comma-separated, the OpenAPI "simple" style for headers
+                    List<String> elements = listElements(val);
+                    clientRequest.getHeaders().set(wireName,
+                            elements != null ? String.join(",", elements) : val.toString());
                 } else if ("query".equalsIgnoreCase(in)) {
                     String old = clientRequest.getResourceRef().toString();
                     StringBuilder ref = new StringBuilder(old);

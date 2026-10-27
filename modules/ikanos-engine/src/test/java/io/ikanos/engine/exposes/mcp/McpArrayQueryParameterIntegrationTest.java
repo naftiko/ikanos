@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,9 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Integration test: an MCP {@code array} argument mapped to a consumed query parameter with a
- * wire name is sent as a repeated parameter, the Rails/PHP {@code name[]} convention (#851).
+ * wire name is sent as a repeated parameter, the Rails/PHP {@code name[]} convention (#851),
+ * also when it reaches the parameter through a whole-value placeholder such as
+ * {@code "{{statuses}}"} (#880).
  */
 public class McpArrayQueryParameterIntegrationTest {
 
@@ -60,6 +63,69 @@ public class McpArrayQueryParameterIntegrationTest {
 
             assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
             assertEquals("status%5B%5D=active&status%5B%5D=pending", query.get());
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    @Test
+    public void handleToolCallShouldSendArrayRenamedThroughWithAsRepeatedQueryParameter()
+            throws Exception {
+        assertEquals("status%5B%5D=active&status%5B%5D=pending",
+                queryForStatuses("list-subscriptions-renamed"),
+                "#880: with: {status: \"{{statuses}}\"} should pass the list, not its JSON text");
+    }
+
+    @Test
+    public void handleToolCallShouldSendArrayFromConsumedValueTemplateAsRepeatedQueryParameter()
+            throws Exception {
+        assertEquals("status%5B%5D=active&status%5B%5D=pending",
+                queryForStatuses("list-subscriptions-by-value"),
+                "#880: value: \"{{statuses}}\" should pass the list, not its JSON text");
+    }
+
+    @Test
+    public void handleToolCallShouldSendArrayRenamedThroughStepWithAsRepeatedQueryParameter()
+            throws Exception {
+        assertEquals("status%5B%5D=active&status%5B%5D=pending",
+                queryForStatuses("list-subscriptions-in-step"),
+                "#880: a step with: {status: \"{{statuses}}\"} should pass the list");
+    }
+
+    @Test
+    public void handleToolCallShouldOmitRenamedQueryParameterWhenArgumentAbsent() throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, query);
+        upstream.start();
+        try {
+            Capability capability = capabilityFromYaml(capabilityYaml(port));
+            ObjectNode arguments = MAPPER.createObjectNode();
+            arguments.put("customer", "c-1");
+
+            JsonNode result = callTool(capability, "list-subscriptions-renamed", arguments);
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertNull(query.get(), "an absent list should leave the query parameter out");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    private String queryForStatuses(String tool) throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, query);
+        upstream.start();
+        try {
+            Capability capability = capabilityFromYaml(capabilityYaml(port));
+            ObjectNode arguments = MAPPER.createObjectNode();
+            arguments.putArray("statuses").add("active").add("pending");
+
+            JsonNode result = callTool(capability, tool, arguments);
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            return query.get();
         } finally {
             upstream.stop();
         }
@@ -98,6 +164,13 @@ public class McpArrayQueryParameterIntegrationTest {
                                 status:
                                   in: query
                                   wireName: "status[]"
+                            list-subscriptions-by-value:
+                              method: GET
+                              inputParameters:
+                                status:
+                                  in: query
+                                  wireName: "status[]"
+                                  value: "{{statuses}}"
                   exposes:
                     - type: mcp
                       port: 0
@@ -110,6 +183,37 @@ public class McpArrayQueryParameterIntegrationTest {
                               type: array
                               description: "Statuses to include"
                           call: lago.list-subscriptions
+                        list-subscriptions-renamed:
+                          description: "List subscriptions"
+                          inputParameters:
+                            statuses:
+                              type: array
+                              description: "Statuses to include"
+                            customer:
+                              type: string
+                              description: "Customer identifier"
+                          call: lago.list-subscriptions
+                          with:
+                            status: "{{statuses}}"
+                        list-subscriptions-by-value:
+                          description: "List subscriptions"
+                          inputParameters:
+                            statuses:
+                              type: array
+                              description: "Statuses to include"
+                          call: lago.list-subscriptions-by-value
+                        list-subscriptions-in-step:
+                          description: "List subscriptions"
+                          inputParameters:
+                            statuses:
+                              type: array
+                              description: "Statuses to include"
+                          steps:
+                            list:
+                              type: call
+                              call: lago.list-subscriptions
+                              with:
+                                status: "{{statuses}}"
                 """.formatted(schemaVersion, port);
     }
 
