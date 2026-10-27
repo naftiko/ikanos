@@ -218,6 +218,21 @@ class McpToolOutputSchemaTest {
     }
 
     @Test
+    void forStepsShouldDescribeOpenArrayOutputWithoutItems() {
+        StepOutputMappingSpec mapping = new StepOutputMappingSpec();
+        mapping.setTarget("tags");
+        mapping.setValue("$.page.tags");
+
+        Map<String, Object> schema = McpToolOutputSchema.forSteps(
+                List.of(scalar("tags", "array", null)), List.of(mapping));
+
+        Map<String, Object> property = property(properties(schema), "tags");
+        assertEquals(List.of("array", "null"), property.get("type"),
+                "#859: an array output without items is any array");
+        assertFalse(property.containsKey("items"));
+    }
+
+    @Test
     void forStepsShouldDescribeNamedOutputParameters() {
         StepOutputMappingSpec mapping = new StepOutputMappingSpec();
         mapping.setTarget("voyageId");
