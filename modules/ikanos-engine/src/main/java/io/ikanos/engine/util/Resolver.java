@@ -214,7 +214,9 @@ public class Resolver {
      * rendering it fails on its own; with no parameters at all,
      * {@link #resolveMustacheTemplate(String, Map)} returns it unchanged, so it is sent as is
      * rather than rejected (the same rule that keeps a static credential containing
-     * {@code {{}}} intact).</p>
+     * {@code {{}}} intact). Consumed templates never get that far:
+     * {@code ConsumedTemplateValidator} rejects a malformed one when the capability is loaded
+     * (#849).</p>
      *
      * @param template the Mustache template, may be null
      * @param parameters the parameters the template is rendered with, may be null
