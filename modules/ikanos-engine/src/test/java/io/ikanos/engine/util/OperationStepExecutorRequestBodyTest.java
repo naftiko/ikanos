@@ -341,18 +341,17 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
-    void findClientRequestForShouldSendMalformedTemplateAsIsWhenThereAreNoParameters()
-            throws Exception {
-        OperationStepExecutor executor = executorWithBody("""
+    void capabilityShouldFailToLoadWhenBodyTemplateIsMalformed() {
+        // #849 supersedes #858 here: a malformed template is rejected at load time, so it is
+        // never sent, with or without parameters.
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executorWithBody("""
                                 body:
                                   type: "text"
                                   data: "{{#a}}unclosed"
-                """);
+                """));
 
-        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op", Map.of());
-
-        assertEquals("{{#a}}unclosed", ctx.getRequest().getEntity().getText(),
-                "#858: a malformed template is an authoring error and is sent unchanged");
+        assertTrue(error.getMessage().contains("svc.op body"), error.getMessage());
     }
 
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {
