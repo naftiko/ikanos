@@ -749,6 +749,16 @@ public class ResolverTest {
     }
 
     @Test
+    public void shapeStepOutputShouldNullOpenArrayWhenValueIsNotAnArray() throws Exception {
+        ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"tags\": { \"a\": 1 } }");
+
+        JsonNode shaped = Resolver.shapeStepOutput(
+                List.of(new OutputParameterSpec("tags", "array", null, null)), assembled, MAPPER);
+
+        assertEquals(MAPPER.readTree("{ \"tags\": null }"), shaped);
+    }
+
+    @Test
     public void shapeStepOutputShouldNullFillUnresolvedDeclaredParameters() throws Exception {
         ObjectNode assembled = (ObjectNode) MAPPER.readTree("{ \"voyageId\": \"V-1\" }");
 
