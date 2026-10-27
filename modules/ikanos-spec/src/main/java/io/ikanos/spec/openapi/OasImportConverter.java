@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
@@ -46,6 +48,13 @@ public class OasImportConverter {
 
     private static final int MAX_DEPTH = 10;
 
+    /** Key pattern of {@code inputParameters} in the Ikanos schema. */
+    static final Pattern PARAMETER_NAME = Pattern.compile("^[a-zA-Z0-9-_*]+$");
+
+    private static final Pattern INVALID_KEY_CHARS = Pattern.compile("[^a-zA-Z0-9_*-]+");
+
+    private static final Pattern PATH_PLACEHOLDER = Pattern.compile("\\{([^}]+)}");
+
     /**
      * Convert an OpenAPI document to an Ikanos HttpClientSpec.
      *
@@ -71,7 +80,7 @@ public class OasImportConverter {
             List<OperationEntry> ops = entry.getValue();
 
             HttpClientResourceSpec resource = new HttpClientResourceSpec();
-            resource.setPath(path.replaceAll("\\{([^}]+)}", "{{$1}}"));
+            resource.setPath(convertPath(path));
             resource.setName(deriveResourceName(path));
 
             Map<String, HttpClientOperationSpec> operations = new LinkedHashMap<>();
@@ -247,7 +256,16 @@ public class OasImportConverter {
         if (operation.getParameters() != null) {
             for (Parameter param : operation.getParameters()) {
                 InputParameterSpec inputParam = convertInputParameter(param);
-                inputMap.put(inputParam.getName(), inputParam);
+                if (inputParam == null) {
+                    warnings.add("Parameter '" + param.getName() + "' of operation '" + name
+                            + "' has no valid key; skipped");
+                } else if (inputMap.containsKey(inputParam.getName())) {
+                    warnings.add("Parameter '" + param.getName() + "' of operation '" + name
+                            + "' maps to key '" + inputParam.getName()
+                            + "', already used by another parameter; skipped");
+                } else {
+                    inputMap.put(inputParam.getName(), inputParam);
+                }
             }
         }
 
@@ -283,16 +301,48 @@ public class OasImportConverter {
         return (method.toLowerCase() + "-" + slug).replaceAll("-+", "-");
     }
 
+    /**
+     * Turn OpenAPI path placeholders into Mustache ones that name the input parameter key, so
+     * {@code /users/{user.id}} gives {@code /users/{{user-id}}}.
+     */
+    static String convertPath(String path) {
+        return PATH_PLACEHOLDER.matcher(path).replaceAll(match -> {
+            String key = deriveParameterKey(match.group(1));
+            return Matcher.quoteReplacement("{{" + (key != null ? key : match.group(1)) + "}}");
+        });
+    }
+
+    /**
+     * Derive a valid {@code inputParameters} key from an OpenAPI parameter name: each run of
+     * characters outside the key pattern becomes {@code -}, and leading or trailing {@code -}
+     * are trimmed. {@code status[]} gives {@code status}, {@code page[size]} gives
+     * {@code page-size} (#851, #881).
+     *
+     * @return the key, or {@code null} when the name yields none
+     */
+    static String deriveParameterKey(String name) {
+        if (name == null || PARAMETER_NAME.matcher(name).matches()) {
+            return name;
+        }
+        String key = INVALID_KEY_CHARS.matcher(name).replaceAll("-").replaceAll("^-+|-+$", "");
+        return key.isEmpty() ? null : key;
+    }
+
+    /**
+     * @return the input parameter, or {@code null} when its name yields no valid key
+     */
     InputParameterSpec convertInputParameter(Parameter param) {
         InputParameterSpec spec = new InputParameterSpec();
         String name = param.getName();
-        if (name != null && name.endsWith("[]") && name.length() > 2) {
-            // A Rails/PHP list filter: the key must be a valid parameter name, the wire name
-            // keeps the brackets (#851).
-            spec.setName(name.substring(0, name.length() - 2));
+        String key = deriveParameterKey(name);
+        if (key == null) {
+            return null;
+        }
+        spec.setName(key);
+        if (!key.equals(name)) {
+            // The key must be a valid parameter name; the wire name keeps the original, such as
+            // the brackets of status[] or page[size].
             spec.setWireName(name);
-        } else {
-            spec.setName(name);
         }
         if (param.getIn() != null) {
             spec.setIn(param.getIn());

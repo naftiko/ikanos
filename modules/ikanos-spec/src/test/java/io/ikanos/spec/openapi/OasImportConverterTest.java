@@ -85,6 +85,89 @@ public class OasImportConverterTest {
     }
 
     @Test
+    void convertInputParameterShouldMapJsonApiBracketedNameToKeyWithWireName() {
+        Parameter param = new Parameter().name("page[size]").in("query")
+                .schema(new IntegerSchema());
+
+        InputParameterSpec spec = converter.convertInputParameter(param);
+
+        assertEquals("page-size", spec.getName(), "#881");
+        assertEquals("page[size]", spec.getWireName());
+    }
+
+    @Test
+    void convertInputParameterShouldReturnNullWhenNameYieldsNoKey() {
+        Parameter param = new Parameter().name("[]").in("query").schema(new StringSchema());
+
+        assertNull(converter.convertInputParameter(param));
+    }
+
+    @Test
+    void deriveParameterKeyShouldReplaceEachRunOfInvalidCharactersWithHyphen() {
+        assertEquals("filter-status", OasImportConverter.deriveParameterKey("filter[status]"));
+        assertEquals("fields-articles", OasImportConverter.deriveParameterKey("fields[articles]"));
+        assertEquals("a-b-c", OasImportConverter.deriveParameterKey("a[b][c]"));
+        assertEquals("user-id", OasImportConverter.deriveParameterKey("user.id"));
+    }
+
+    @Test
+    void deriveParameterKeyShouldKeepValidName() {
+        assertEquals("page_size-2*", OasImportConverter.deriveParameterKey("page_size-2*"));
+    }
+
+    @Test
+    void convertShouldKeepFirstParameterAndWarnWhenTwoNamesDeriveSameKey() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Operation op = operation("listArticles", null, null);
+        op.addParametersItem(parameter("page[size]", "query", "integer", false));
+        op.addParametersItem(parameter("page-size", "query", "integer", false));
+        openApi.getPaths().addPathItem("/articles", pathItem("GET", op));
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs =
+                firstOperation(firstResource(result)).getInputParameters();
+        assertEquals(1, inputs.size());
+        assertEquals("page-size", inputs.get(0).getName());
+        assertEquals("page[size]", inputs.get(0).getWireName());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("'page-size'") && w.contains("already used")),
+                "Expected a warning naming the duplicate key: " + result.getWarnings());
+    }
+
+    @Test
+    void convertShouldSkipAndWarnWhenParameterNameYieldsNoKey() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Operation op = operation("listArticles", null, null);
+        op.addParametersItem(parameter("[]", "query", "string", false));
+        op.addParametersItem(parameter("q", "query", "string", false));
+        openApi.getPaths().addPathItem("/articles", pathItem("GET", op));
+
+        OasImportResult result = converter.convert(openApi);
+
+        List<InputParameterSpec> inputs =
+                firstOperation(firstResource(result)).getInputParameters();
+        assertEquals(List.of("q"), inputs.stream().map(InputParameterSpec::getName).toList());
+        assertTrue(result.getWarnings().stream()
+                .anyMatch(w -> w.contains("'[]'") && w.contains("no valid key")),
+                "Expected a warning naming the skipped parameter: " + result.getWarnings());
+    }
+
+    @Test
+    void convertShouldUseDerivedKeyInPathPlaceholder() {
+        OpenAPI openApi = minimalOpenApi("Test");
+        Operation op = operation("getUser", null, null);
+        op.addParametersItem(parameter("user.id", "path", "string", true));
+        openApi.getPaths().addPathItem("/users/{user.id}", pathItem("GET", op));
+
+        OasImportResult result = converter.convert(openApi);
+
+        HttpClientResourceSpec resource = firstResource(result);
+        assertEquals("/users/{{user-id}}", resource.getPath());
+        assertEquals("user-id", firstOperation(resource).getInputParameters().get(0).getName());
+    }
+
+    @Test
     void convertInputParameterShouldNotSetStyleWhenSourceHasNone() {
         Parameter param = new Parameter().name("q").in("query").schema(new StringSchema());
 
