@@ -29,6 +29,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.NullNode;
 import tools.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -134,7 +135,7 @@ public class Resolver {
             // Nothing can be substituted: a string that is not a valid template (for example a
             // static credential containing "{{}}") is returned as-is, as it was before #847.
             try {
-                return compiler.compile(protectLiteralBraces(template)).execute(serialized);
+                return compileTemplate(compiler, template).execute(serialized);
             } catch (RuntimeException e) {
                 // Log the exception type only: JMustache messages quote tag names, which could
                 // echo part of a static credential.
@@ -143,7 +144,33 @@ public class Resolver {
                 return template;
             }
         }
-        return compiler.compile(protectLiteralBraces(template)).execute(serialized);
+        return compileTemplate(compiler, template).execute(serialized);
+    }
+
+    /**
+     * Compiles a template exactly as {@link #resolveMustacheTemplate(String, Map)} parses it,
+     * literal braces before section tags included (#848). Every code path that compiles a
+     * consumed template, to render it or only to inspect it, goes through here, so that checking
+     * a template and rendering it cannot disagree.
+     *
+     * @param template the template, not null
+     * @return the compiled template
+     * @throws com.samskivert.mustache.MustacheException if the template cannot be parsed
+     */
+    public static Template compileTemplate(String template) {
+        return compileTemplate(Mustache.compiler().escapeHTML(false), template);
+    }
+
+    /**
+     * Same as {@link #compileTemplate(String)}, with the given compiler settings.
+     *
+     * @param compiler the compiler to use
+     * @param template the template, not null
+     * @return the compiled template
+     * @throws com.samskivert.mustache.MustacheException if the template cannot be parsed
+     */
+    public static Template compileTemplate(Mustache.Compiler compiler, String template) {
+        return compiler.compile(protectLiteralBraces(template));
     }
 
     /**

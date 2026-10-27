@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
 import java.util.List;
@@ -151,6 +152,20 @@ public class ResolverTest {
       public void resolveMustacheTemplateShouldKeepTwoLiteralBracesBeforeSectionTag() {
         assertEquals("{{1", Resolver.resolveMustacheTemplate("{{{{#x}}1{{/x}}",
             Map.of("x", true)));
+      }
+
+      @Test
+      public void compileTemplateShouldParseLiteralBraceBeforeSectionTag() {
+        // The Lago update-invoice body: compiling it raw throws "Invalid triple-mustache tag".
+        String body = "{\"invoice\":{{{#status}}\"payment_status\":\"{{status}}\"{{/status}}}}";
+        assertEquals("{\"invoice\":{\"payment_status\":\"succeeded\"}}",
+            Resolver.compileTemplate(body).execute(Map.of("status", "succeeded")));
+      }
+
+      @Test
+      public void compileTemplateShouldRejectInvalidTemplate() {
+        assertThrows(com.samskivert.mustache.MustacheException.class,
+            () -> Resolver.compileTemplate("{{#a}}unclosed"));
       }
 
       @Test

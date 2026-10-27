@@ -264,7 +264,7 @@ A call step whose upstream response is not 2xx, or that gets no response, stops 
 
 ### Parameters and templates
 
-A request's parameters start as the client's arguments (or the REST inputs), merged with the unit's `with` map, and grow with each step output. Templates are rendered by `Resolver.resolveMustacheTemplate` (JMustache), and output mappings are JSONPath expressions (Jayway) applied by `Resolver`.
+A request's parameters start as the client's arguments (or the REST inputs), merged with the unit's `with` map, and grow with each step output. Templates are rendered by `Resolver.resolveMustacheTemplate` (JMustache), and output mappings are JSONPath expressions (Jayway) applied by `Resolver`. Any code that compiles a template, to render it or only to check it, goes through `Resolver.compileTemplate`, so a check and the rendering parse a template the same way (a literal `{` before a section tag included).
 
 ### Data formats
 
