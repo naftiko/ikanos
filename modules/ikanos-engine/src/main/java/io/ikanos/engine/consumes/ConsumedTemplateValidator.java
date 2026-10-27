@@ -21,22 +21,30 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
+import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
 
 /**
- * Compiles every template of the consumed HTTP adapters when a capability is loaded or
- * validated, so that a template the engine cannot parse fails at startup and in
- * {@code ikanos validate}, instead of on the first call as an opaque error (#849).
+ * Compiles every template of the consumed adapters when a capability is loaded or validated, so
+ * that a template the engine cannot parse fails at startup and in {@code ikanos validate},
+ * instead of on the first call as an opaque error (#849).
  *
  * <p>Checked templates: {@code baseUri} + resource {@code path}, the {@code value} and
- * {@code template} of adapter-, resource- and operation-level input parameters, and every string
+ * {@code template} of adapter-, resource- and operation-level input parameters, every string
  * of a request body (a plain string body, string {@code data}, and each string inside structured
- * {@code data}, including form fields and multipart parts). Templates are compiled the way the
- * engine renders them ({@link Resolver#templateError}). Messages name the adapter namespace, the
- * operation and the location, and never echo the template text, which may hold static
- * credentials.</p>
+ * {@code data}, including form fields and multipart parts), and the authentication values that
+ * {@code ConsumedAuthentication} renders for HTTP and MCP adapters (basic and digest username and
+ * password, bearer token, API key name and value). Templates are compiled the way the engine
+ * renders them ({@link Resolver#templateError}). Messages name the adapter namespace, the
+ * operation and the location, plus the kind and line of the parse error, and never echo the
+ * template text, which may hold static credentials.</p>
  */
 public final class ConsumedTemplateValidator {
 
@@ -74,6 +82,9 @@ public final class ConsumedTemplateValidator {
         for (ClientSpec client : clients) {
             if (client instanceof HttpClientSpec http) {
                 checkAdapter(http, errors);
+                checkAuthentication(http.getAuthentication(), http.getNamespace(), errors);
+            } else if (client instanceof McpClientSpec mcp) {
+                checkAuthentication(mcp.getAuthentication(), mcp.getNamespace(), errors);
             }
         }
         return errors;
@@ -114,15 +125,39 @@ public final class ConsumedTemplateValidator {
         }
     }
 
-    /** Walks a body spec, checking every string it contains. */
+    /** Checks the values {@code ConsumedAuthentication} renders as templates on every request. */
+    private static void checkAuthentication(AuthenticationSpec authentication, String ns,
+            List<String> errors) {
+        String where = ns + " authentication";
+        if (authentication instanceof BasicAuthenticationSpec basic) {
+            check(basic.getUsername(), where + " username", errors);
+            check(asString(basic.getPassword()), where + " password", errors);
+        } else if (authentication instanceof DigestAuthenticationSpec digest) {
+            check(digest.getUsername(), where + " username", errors);
+            check(asString(digest.getPassword()), where + " password", errors);
+        } else if (authentication instanceof BearerAuthenticationSpec bearer) {
+            check(bearer.getToken(), where + " token", errors);
+        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            check(apiKey.getKey(), where + " key", errors);
+            check(apiKey.getValue(), where + " value", errors);
+        }
+    }
+
+    private static String asString(char[] value) {
+        return value == null ? null : new String(value);
+    }
+
+    /**
+     * Walks a body spec, checking every string it contains. Every value is checked, including a
+     * {@code type} key: at the top level it is the body type, which holds no template, and deeper
+     * it is an ordinary field of the payload.
+     */
     private static void checkBody(Object body, String where, List<String> errors) {
         if (body instanceof String text) {
             check(text, where, errors);
         } else if (body instanceof Map<?, ?> map) {
-            for (Map.Entry<?, ?> entry : map.entrySet()) {
-                if (!"type".equals(String.valueOf(entry.getKey()))) {
-                    checkBody(entry.getValue(), where, errors);
-                }
+            for (Object value : map.values()) {
+                checkBody(value, where, errors);
             }
         } else if (body instanceof Collection<?> items) {
             for (Object item : items) {

@@ -113,6 +113,90 @@ public class ConsumedTemplateValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportErrorKindAndLineWithoutTagName() throws Exception {
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "text"
+                                data: "{{#s3cr3t}}"
+                """, "/items"));
+
+        assertEquals("svc.create body: Section missing close tag (line 1)", errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldCheckFieldNamedTypeInsideStructuredBody() throws Exception {
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "json"
+                                data:
+                                  data:
+                                    type: "{{#t}}"
+                """, "/items"));
+
+        assertEquals(1, errors.size(), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportInvalidTemplateInHttpAuthentication() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      authentication:
+                        type: "bearer"
+                        token: "{{#token}}"
+                """.formatted(IKANOS), IkanosSpec.class);
+
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec);
+
+        assertEquals(List.of("svc authentication token: Section missing close tag (line 1)"),
+                errors);
+    }
+
+    @Test
+    void findErrorsShouldReportInvalidTemplateInMcpAuthentication() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "mcp"
+                      namespace: "up"
+                      endpoint: "https://mcp.example.com/mcp"
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-Key"
+                        value: "{{/key}}"
+                        placement: "header"
+                """.formatted(IKANOS), IkanosSpec.class);
+
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec);
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("up authentication value: "), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldAcceptAuthenticationBoundToVariables() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      authentication:
+                        type: "basic"
+                        username: "{{USER}}"
+                        password: "{{PASSWORD}}"
+                """.formatted(IKANOS), IkanosSpec.class);
+
+        assertTrue(ConsumedTemplateValidator.findErrors(spec).isEmpty());
+    }
+
+    @Test
     void validateShouldThrowWithAllErrors() throws Exception {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> ConsumedTemplateValidator.validate(spec("""

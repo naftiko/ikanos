@@ -269,8 +269,8 @@ public class Resolver {
      * rendering it, and reports why it cannot be parsed (#849).
      *
      * @param template the template, may be null
-     * @return {@code null} when the template compiles (or is null), otherwise the parser message,
-     *         which names the offending tag and line but not the surrounding template text
+     * @return {@code null} when the template compiles (or is null), otherwise the kind of parse
+     *         error and its line, for example {@code Section missing close tag (line 1)}
      */
     public static String templateError(String template) {
         if (template == null || !template.contains("{{")) {
@@ -280,8 +280,27 @@ public class Resolver {
             Mustache.compiler().escapeHTML(false).compile(template);
             return null;
         } catch (RuntimeException e) {
-            return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return describeTemplateError(e);
         }
+    }
+
+    private static final java.util.regex.Pattern PARSE_ERROR_LINE =
+            java.util.regex.Pattern.compile(" @ line (\\d+)$");
+
+    /**
+     * Reduces a JMustache error to its kind and line. JMustache messages quote tag names and
+     * template text ({@code Invalid triple-mustache tag: {{{#x}}"}), which could echo part of a
+     * static credential, so everything from the first quote, colon or brace on is dropped.
+     */
+    static String describeTemplateError(RuntimeException e) {
+        String message = e.getMessage();
+        if (message == null) {
+            return e.getClass().getSimpleName();
+        }
+        java.util.regex.Matcher line = PARSE_ERROR_LINE.matcher(message);
+        String location = line.find() ? " (line " + line.group(1) + ")" : "";
+        String kind = message.split("[:'{]", 2)[0].trim();
+        return (kind.isEmpty() ? e.getClass().getSimpleName() : kind) + location;
     }
 
     /**
