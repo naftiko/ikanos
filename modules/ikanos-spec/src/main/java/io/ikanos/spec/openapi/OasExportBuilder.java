@@ -15,6 +15,7 @@ package io.ikanos.spec.openapi;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -215,7 +216,7 @@ public class OasExportBuilder {
             if ("body".equals(inputParam.getIn())) {
                 if (requestBody == null) {
                     requestBody = new RequestBody();
-                    Schema<?> bodySchema = new Schema<>().type("object");
+                    Schema<?> bodySchema = typedSchema("object");
                     bodySchema.setProperties(new LinkedHashMap<>());
                     requestBody.setContent(new Content().addMediaType("application/json",
                             new MediaType().schema(bodySchema)));
@@ -302,7 +303,7 @@ public class OasExportBuilder {
                             mediaEntry.getValue();
                     Schema<?> schema;
                     if (contentSpec != null && contentSpec.isBinary()) {
-                        schema = new Schema<>().type("string").format("binary");
+                        schema = typedSchema("string").format("binary");
                     } else if (contentSpec != null && contentSpec.getSchema() != null) {
                         schema = mapInlineSchema(contentSpec.getSchema());
                     } else {
@@ -327,7 +328,7 @@ public class OasExportBuilder {
         Schema<?> schema = new Schema<>();
         Object type = inline.get("type");
         if (type instanceof String typeStr) {
-            schema.setType(typeStr);
+            setSchemaType(schema, typeStr);
         }
         Object format = inline.get("format");
         if (format instanceof String formatStr) {
@@ -338,7 +339,7 @@ public class OasExportBuilder {
 
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {
         Schema<?> schema = new Schema<>();
-        schema.setType(mapIkanosTypeToOas(inputParam.getType()));
+        setSchemaType(schema, mapIkanosTypeToOas(inputParam.getType()));
         if (inputParam.getDescription() != null) {
             schema.setDescription(inputParam.getDescription());
         }
@@ -347,7 +348,7 @@ public class OasExportBuilder {
 
     @SuppressWarnings("rawtypes")
     Schema<?> buildOutputSchema(List<OutputParameterSpec> outputParams) {
-        Schema<?> schema = new Schema<>().type("object");
+        Schema<?> schema = typedSchema("object");
         Map<String, Schema> properties = new LinkedHashMap<>();
 
         for (OutputParameterSpec outParam : outputParams) {
@@ -366,7 +367,7 @@ public class OasExportBuilder {
 
         if ("object".equals(outParam.getType()) && outParam.getProperties() != null
                 && !outParam.getProperties().isEmpty()) {
-            schema.setType("object");
+            setSchemaType(schema, "object");
             Map<String, Schema> nested = new LinkedHashMap<>();
             for (OutputParameterSpec child : outParam.getProperties()) {
                 String name = child.getName() != null ? child.getName() : "value";
@@ -374,12 +375,12 @@ public class OasExportBuilder {
             }
             schema.setProperties(nested);
         } else if ("array".equals(outParam.getType())) {
-            schema.setType("array");
+            setSchemaType(schema, "array");
             if (outParam.getItems() != null) {
                 schema.setItems(buildOutputPropertySchema(outParam.getItems()));
             }
         } else {
-            schema.setType(mapIkanosTypeToOas(outParam.getType()));
+            setSchemaType(schema, mapIkanosTypeToOas(outParam.getType()));
         }
 
         if (outParam.getDescription() != null) {
@@ -472,6 +473,24 @@ public class OasExportBuilder {
             case "HEAD" -> pathItem.setHead(operation);
             case "OPTIONS" -> pathItem.setOptions(operation);
         }
+    }
+
+    /**
+     * Create a schema of the given type that serializes under both OAS 3.0 and 3.1.
+     */
+    private static Schema<Object> typedSchema(String type) {
+        Schema<Object> schema = new Schema<>();
+        setSchemaType(schema, type);
+        return schema;
+    }
+
+    /**
+     * Set a schema's type for both OAS 3.0 and 3.1. The 3.1 serializer writes {@code types} and
+     * ignores {@code type}, so setting only {@code type} drops it from a 3.1 export.
+     */
+    private static void setSchemaType(Schema<?> schema, String type) {
+        schema.setType(type);
+        schema.setTypes(new LinkedHashSet<>(List.of(type)));
     }
 
     private String mapIkanosTypeToOas(String ikanosType) {

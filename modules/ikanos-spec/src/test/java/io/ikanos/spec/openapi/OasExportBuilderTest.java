@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.swagger.v3.core.util.Yaml;
+import io.swagger.v3.core.util.Yaml31;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.SpecVersion;
@@ -41,9 +44,13 @@ import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.JsonNode;
 
 
 public class OasExportBuilderTest {
+
+    private static final String TYPES_KEPT = "#876: the 3.1 export must keep every schema type";
 
     private OasExportBuilder builder;
 
@@ -504,6 +511,118 @@ public class OasExportBuilderTest {
         String yaml = io.swagger.v3.core.util.Yaml31.pretty(result.getOpenApi());
         assertNotNull(yaml);
         assertTrue(yaml.contains("openapi: 3.1.0") || yaml.contains("openapi: \"3.1.0\""));
+    }
+
+    @Test
+    void buildShouldSerializeSchemaTypesWhenSpecVersionIs31() {
+        JsonNode get = exportTypedPetsOperation(SpecVersion.V31);
+
+        assertEquals("number", get.at("/parameters/0/schema/type").asText(), TYPES_KEPT);
+        JsonNode body = get.at("/responses/200/content/application~1json/schema");
+        assertEquals("object", body.at("/type").asText(), TYPES_KEPT);
+        assertEquals("object", body.at("/properties/address/type").asText(), TYPES_KEPT);
+        assertEquals("string", body.at("/properties/address/properties/street/type").asText(),
+                TYPES_KEPT);
+    }
+
+    @Test
+    void buildShouldOmitTypesKeywordWhenSpecVersionIs30() {
+        JsonNode get = exportTypedPetsOperation(SpecVersion.V30);
+
+        assertEquals("number", get.at("/parameters/0/schema/type").asText());
+        assertTrue(get.at("/parameters/0/schema/types").isMissingNode(),
+                "#876: the 3.0 export must not contain the 3.1-only types keyword");
+        assertEquals("string", get.at("/responses/200/content/application~1json/schema"
+                + "/properties/address/properties/street/type").asText());
+    }
+
+    @Test
+    void buildShouldSerializeRequestBodyTypesWhenSpecVersionIs31() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets", "pets",
+                "POST", "create-pet", null);
+
+        InputParameterSpec nameParam = new InputParameterSpec();
+        nameParam.setName("name");
+        nameParam.setIn("body");
+        nameParam.setType("string");
+        firstOp(resource).setInputParameters(Map.of(nameParam.getName(), nameParam));
+        addResource(rest, resource);
+
+        JsonNode schema = toYamlTree(builder.build(spec, null, SpecVersion.V31))
+                .at("/paths/~1pets/post/requestBody/content/application~1json/schema");
+
+        assertEquals("object", schema.at("/type").asText(), TYPES_KEPT);
+        assertEquals("string", schema.at("/properties/name/type").asText(), TYPES_KEPT);
+    }
+
+    @Test
+    void buildShouldSerializeResponseContentTypesWhenSpecVersionIs31() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+
+        RestServerResourceSpec resource = new RestServerResourceSpec();
+        resource.setPath("/photos/{id}");
+        resource.setName("photo");
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod("GET");
+        op.setName("get-photo");
+
+        io.ikanos.spec.exposes.rest.RestResponseContentSpec binary =
+                new io.ikanos.spec.exposes.rest.RestResponseContentSpec(Boolean.TRUE);
+        io.ikanos.spec.exposes.rest.RestResponseContentSpec inline =
+                new io.ikanos.spec.exposes.rest.RestResponseContentSpec();
+        inline.setSchema(Map.of("type", "object"));
+        io.ikanos.spec.exposes.rest.RestResponseSpec resp =
+                new io.ikanos.spec.exposes.rest.RestResponseSpec();
+        resp.setDescription("Photo");
+        resp.setContent(Map.of("image/jpeg", binary, "application/json", inline));
+        op.setResponses(Map.of("200", resp));
+
+        resource.setOperations(Map.of(op.getName(), op));
+        addResource(rest, resource);
+
+        JsonNode content = toYamlTree(builder.build(spec, null, SpecVersion.V31))
+                .at("/paths/~1photos~1{id}/get/responses/200/content");
+
+        assertEquals("string", content.at("/image~1jpeg/schema/type").asText(), TYPES_KEPT);
+        assertEquals("binary", content.at("/image~1jpeg/schema/format").asText());
+        assertEquals("object", content.at("/application~1json/schema/type").asText(),
+                TYPES_KEPT);
+    }
+
+    private JsonNode exportTypedPetsOperation(SpecVersion specVersion) {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null);
+
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("limit");
+        param.setIn("query");
+        param.setType("number");
+        firstOp(resource).setInputParameters(Map.of(param.getName(), param));
+
+        OutputParameterSpec address = new OutputParameterSpec();
+        address.setName("address");
+        address.setType("object");
+        OutputParameterSpec street = new OutputParameterSpec();
+        street.setName("street");
+        street.setType("string");
+        address.getProperties().add(street);
+        firstOp(resource).getOutputParameters().add(address);
+        addResource(rest, resource);
+
+        return toYamlTree(builder.build(spec, null, specVersion)).at("/paths/~1pets/get");
+    }
+
+    private static JsonNode toYamlTree(OasExportResult result) {
+        OpenAPI openApi = result.getOpenApi();
+        String yaml = openApi.getSpecVersion() == SpecVersion.V31
+                ? Yaml31.pretty(openApi)
+                : Yaml.pretty(openApi);
+        return IkanosMappers.lenientYaml().readTree(yaml);
     }
 
     // ── B2: Additional branch-coverage tests ──
