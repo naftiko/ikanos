@@ -227,7 +227,7 @@ public class Resolver {
         }
         java.util.Set<String> missing = new java.util.LinkedHashSet<>();
         try {
-            Mustache.compiler().compile(template).visit(new Mustache.Visitor() {
+            compileTemplate(template).visit(new Mustache.Visitor() {
                 @Override
                 public void visitText(String text) {
                     // literal text holds no variable

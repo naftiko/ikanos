@@ -454,6 +454,13 @@ public class ResolverTest {
       }
 
       @Test
+      public void missingVariablesShouldParseLiteralBraceBeforeSectionTagLikeRendering() {
+        // #848: compiled raw, this template fails and the missing "id" would go unnoticed.
+        assertEquals(List.of("id"), Resolver.missingVariables(
+            "{\"id\":\"{{id}}\",\"invoice\":{{{#status}}\"s\":1{{/status}}}}", Map.of()));
+      }
+
+      @Test
       public void missingVariablesShouldReturnEmptyListForInvalidTemplate() {
         assertEquals(List.of(), Resolver.missingVariables("{{#a}}unclosed", Map.of()));
       }
