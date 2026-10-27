@@ -503,13 +503,15 @@ public class ScriptStepExecutor {
             }
         }
 
-        // Apply 'with' overrides (Mustache-resolved)
+        // Apply 'with' overrides (Mustache-resolved; a whole-value placeholder keeps its type).
+        // An absent value is still bound as rendered text, so a script can read every key.
         if (with != null) {
             for (Map.Entry<String, Object> entry : with.entrySet()) {
                 Object rawValue = entry.getValue();
                 if (rawValue instanceof String rawStringValue) {
-                    bindings.put(entry.getKey(),
-                            Resolver.resolveMustacheTemplate(rawStringValue, bindings));
+                    Object resolved = Resolver.resolveValue(rawStringValue, bindings);
+                    bindings.put(entry.getKey(), resolved != null ? resolved
+                            : Resolver.resolveMustacheTemplate(rawStringValue, bindings));
                 } else {
                     bindings.put(entry.getKey(), rawValue);
                 }

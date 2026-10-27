@@ -417,7 +417,9 @@ public class OperationStepExecutor {
      * Merges 'with' parameters into a target map, resolving values against the current state of
      * the target map. Handles two value syntaxes:
      * <ul>
-     *   <li>Mustache template ({@code {{paramName}}}) — resolved via JMustache.</li>
+     *   <li>Mustache template — resolved by {@link Resolver#resolveValue}: a whole-value
+     *       placeholder ({@code {{paramName}}}) passes the value with its type, and leaves the
+     *       key unset when the value is absent.</li>
      *   <li>Namespace-qualified reference ({@code namespace.paramName}) — resolved by looking up
      *       {@code paramName} in the target map when a matching namespace prefix is provided.</li>
      * </ul>
@@ -442,8 +444,10 @@ public class OperationStepExecutor {
                         target.put(entry.getKey(), resolved);
                     }
                 } else {
-                    target.put(entry.getKey(),
-                            Resolver.resolveMustacheTemplate(rawStringValue, target));
+                    Object resolved = Resolver.resolveValue(rawStringValue, target);
+                    if (resolved != null) {
+                        target.put(entry.getKey(), resolved);
+                    }
                 }
             } else {
                 target.put(entry.getKey(), rawValue);

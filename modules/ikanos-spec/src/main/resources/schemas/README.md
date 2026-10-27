@@ -807,6 +807,8 @@ Used in consumed resources and operations.
 - A unique parameter is defined by the combination of `name` and `in`.
 - No additional properties are allowed.
 - **List values in a query parameter.** A list argument (for example an MCP `array` input) is serialized by `style` and `explode`: `["a","b"]` becomes `status[]=a&status[]=b` with `wireName: "status[]"` and the defaults, `ids=a,b` with `explode: false`, `tags=a%20b` with `spaceDelimited`, `tags=a|b` with `pipeDelimited`. An empty list leaves the parameter out.
+  - The list keeps its elements when it reaches the parameter under the same name, through a namespace reference (`lago-tools.statuses`), or through a **whole-value placeholder**: a `with:` value, `value` or `template` that is exactly one variable (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path such as `"{{step.ids}}"`). If that variable is absent, the `with:` key is not set and the parameter is left out.
+  - Any other template is rendered to text, so a list in it becomes its JSON text: `"x-{{statuses}}"` gives `x-["a","b"]`, and a template with sections gives a single string.
 
 **ConsumedInputParameter Example:**
 
@@ -818,6 +820,9 @@ Used in consumed resources and operations.
 - name: status
   in: query
   wireName: "status[]"   # ["active","pending"] -> status[]=active&status[]=pending
+- name: tag
+  in: query
+  value: "{{tags}}"      # whole-value placeholder: a list in tags is repeated too
 - name: Authorization
   in: header
   value: "Bearer token"
@@ -1426,6 +1431,7 @@ Defines parameter injection for simple-mode exposed operations. Used with the `w
 - The keys MUST correspond to valid parameter names in the consumed operation being called.
 - Values can be strings or numbers.
 - String values can use the `$this` root to reference exposed input parameters (same as in OperationStepParameter).
+- A string value that is exactly one Mustache variable (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path such as `"{{step.ids}}"`) passes the value itself, so a list, a number or a boolean keeps its type. If the variable is absent, the key is not set. Any other template (`"x-{{statuses}}"`, sections) is rendered to a string.
 - No additional constraints.
 
 #### 3.19.3 WithInjector Object Example
@@ -1436,6 +1442,14 @@ with:
   username: $this.sample.username
   Accept: "application/json"
   maxRetries: 3
+```
+
+Renaming a list argument for a consumed query parameter (`status: {in: query, wireName: "status[]"}`):
+
+```yaml
+call: lago.list-subscriptions
+with:
+  status: "{{statuses}}"   # ["active","pending"] -> status[]=active&status[]=pending
 ```
 
 ---

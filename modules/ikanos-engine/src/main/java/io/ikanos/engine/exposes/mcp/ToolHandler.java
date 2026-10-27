@@ -480,18 +480,19 @@ public class ToolHandler {
      * <ul>
      *   <li>Namespace-qualified reference ({@code namespace.paramName}) per §3.15.1 —
      *       resolved by looking up {@code paramName} in the caller's arguments.</li>
-     *   <li>Mustache template ({@code {{paramName}}}) — resolved via JMustache.</li>
+     *   <li>Mustache template — resolved by {@link Resolver#resolveValue}: a whole-value
+     *       placeholder ({@code {{paramName}}}) passes the argument with its type.</li>
      * </ul>
      *
-     * @return the resolved value, or {@code null} if the reference is a namespace-qualified
-     *         reference whose target parameter was not provided by the caller
+     * @return the resolved value, or {@code null} if the referenced parameter was not provided
+     *         by the caller
      */
     private Object resolveWithValue(String value, Map<String, Object> arguments) {
         if (exposeNamespace != null && value.startsWith(exposeNamespace + ".")) {
             String paramName = value.substring(exposeNamespace.length() + 1);
             return arguments != null ? arguments.get(paramName) : null;
         }
-        return Resolver.resolveMustacheTemplate(value, arguments);
+        return Resolver.resolveValue(value, arguments);
     }
 
     public Capability getCapability() {

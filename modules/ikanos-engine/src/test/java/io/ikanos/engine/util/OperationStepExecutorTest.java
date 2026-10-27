@@ -14,10 +14,12 @@
 package io.ikanos.engine.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,72 @@ public class OperationStepExecutorTest {
 
         assertEquals(100, target.get("pageSize"),
                 "Non-string values should be passed through as-is");
+    }
+
+    @Test
+    public void mergeWithShouldKeepListForWholeValuePlaceholder() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("statuses", List.of("active", "pending"));
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("status", "{{statuses}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertEquals(List.of("active", "pending"), target.get("status"),
+                "#880: {{statuses}} alone should pass the list, not its JSON text");
+    }
+
+    @Test
+    public void mergeWithShouldKeepNumberTypeForWholeValuePlaceholder() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("count", 5);
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("n", "{{count}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertEquals(5, target.get("n"));
+    }
+
+    @Test
+    public void mergeWithShouldKeepBooleanTypeForWholeValuePlaceholder() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("enabled", false);
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("active", "{{enabled}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertEquals(Boolean.FALSE, target.get("active"));
+    }
+
+    @Test
+    public void mergeWithShouldLeaveKeyUnsetWhenWholeValueVariableIsAbsent() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("other", "x");
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("status", "{{statuses}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertFalse(target.containsKey("status"));
+    }
+
+    @Test
+    public void mergeWithShouldRenderMixedTemplateAsText() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("statuses", List.of("active", "pending"));
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("label", "x-{{statuses}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertEquals("x-[\"active\",\"pending\"]", target.get("label"));
     }
 
     @Test

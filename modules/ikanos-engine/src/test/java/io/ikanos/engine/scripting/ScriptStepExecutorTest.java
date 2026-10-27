@@ -403,6 +403,33 @@ class ScriptStepExecutorTest {
         assertNotNull(bindings.get("step-a"));
     }
 
+    @Test
+    void buildBindingsShouldKeepListAndNumberForWholeValuePlaceholder() {
+        Map<String, Object> runtimeParams = new HashMap<>();
+        runtimeParams.put("statuses", List.of("active", "pending"));
+        runtimeParams.put("minStock", 10);
+
+        Map<String, Object> bindings = executor.buildBindings(runtimeParams,
+                new StepExecutionContext(),
+                Map.of("status", "{{statuses}}", "threshold", "{{minStock}}"));
+
+        assertEquals(List.of("active", "pending"), bindings.get("status"),
+                "#880: {{statuses}} alone should bind the list, not its JSON text");
+        assertEquals(10, bindings.get("threshold"));
+    }
+
+    @Test
+    void buildBindingsShouldBindEmptyTextWhenWholeValueVariableIsAbsent() {
+        Map<String, Object> runtimeParams = new HashMap<>();
+        runtimeParams.put("other", "x");
+
+        Map<String, Object> bindings = executor.buildBindings(runtimeParams,
+                new StepExecutionContext(), Map.of("status", "{{statuses}}"));
+
+        assertEquals("", bindings.get("status"),
+                "a script still sees every with: key when its value is absent");
+    }
+
     // ── Python execution ─────────────────────────────────────────
 
     @Test
