@@ -265,7 +265,7 @@ public class Resolver {
     }
 
     /**
-     * Compiles a template the way {@link #resolveMustacheTemplate(String, Map)} does, without
+     * Compiles a template through {@link #compileTemplate(String)}, as rendering does, without
      * rendering it, and reports why it cannot be parsed (#849).
      *
      * @param template the template, may be null
@@ -277,7 +277,7 @@ public class Resolver {
             return null;
         }
         try {
-            Mustache.compiler().escapeHTML(false).compile(template);
+            compileTemplate(template);
             return null;
         } catch (RuntimeException e) {
             return describeTemplateError(e);

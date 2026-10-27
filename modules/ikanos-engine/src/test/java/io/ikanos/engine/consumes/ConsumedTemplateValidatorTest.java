@@ -102,6 +102,18 @@ public class ConsumedTemplateValidatorTest {
     }
 
     @Test
+    void findErrorsShouldAcceptLiteralBraceBeforeSectionTag() throws Exception {
+        // #848: the Lago update-invoice body renders correctly, so it must not fail at load time.
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "text"
+                                data: '{"invoice":{{{#status}}"payment_status":"{{status}}"{{/status}}}}'
+                """, "/items"));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
     void findErrorsShouldNotEchoTemplateTextInMessage() throws Exception {
         List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
                               body:
