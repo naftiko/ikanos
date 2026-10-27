@@ -139,9 +139,14 @@ public final class MultipartFormBody {
             return null;
         }
         String text = String.valueOf(raw);
-        if (noParameters && text.contains("{{") && text.contains("}}")) {
-            throw new IllegalArgumentException(
-                    "Unresolved template parameters in multipartForm part '" + partName + "'");
+        if (noParameters) {
+            // Same check as the other body types (#858): it reads the template, so optional
+            // sections are allowed, and names the missing variables without echoing any value.
+            List<String> missing = Resolver.missingVariables(text, parameters);
+            if (!missing.isEmpty()) {
+                throw new IllegalArgumentException("Unresolved template parameters in "
+                        + "multipartForm part '" + partName + "': " + missing);
+            }
         }
         return Resolver.resolveMustacheTemplate(text, parameters);
     }
