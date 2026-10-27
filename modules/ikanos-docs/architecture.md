@@ -292,7 +292,7 @@ A value that is longer than 256 characters, contains characters outside `[A-Za-z
 
 | Adapter | Where its routes are defined | Notes |
 |---|---|---|
-| `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`) through `McpToolInputSchema`, which copies the nested `items`/`properties`/`enum`/`format`/bounds as written, annotations from hints, and an output schema when the tool has an output contract. |
+| `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`) through `McpToolInputSchema`, which copies the nested `items`/`properties`/`enum`/`format`/bounds as written (advertised to clients only: tool arguments are not validated against it), annotations from hints, and an output schema when the tool has an output contract. |
 | `RestServerAdapter` | One route per resource path declared in the spec | |
 | `SkillServerAdapter` | Attached in `SkillServerAdapter` | Validates the skill tools at startup. |
 | `ControlServerAdapter` | Attached in `ControlServerAdapter` | Each route is only attached when the matching management or observability option is on. The `ikanos` control-port commands are its clients. |
