@@ -35,3 +35,6 @@ dependency-reduced-pom.xml
 # Kept inside the workspace per agents-shared/context/agent-universal.md
 # ("Working directory — inside the workspace, never outside it"), never /tmp.
 /.work/
+
+# ─── Local test-result summaries written by developer tooling ──────────────────
+/.report-summary.txt

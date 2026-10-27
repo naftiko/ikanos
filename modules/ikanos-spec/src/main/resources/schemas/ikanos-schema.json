@@ -1534,11 +1534,11 @@
         },
         "minimum": {
           "type": "number",
-          "description": "Inclusive lower bound for a number or integer parameter."
+          "description": "Inclusive lower bound for a number or integer parameter. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
         },
         "maximum": {
           "type": "number",
-          "description": "Inclusive upper bound for a number or integer parameter."
+          "description": "Inclusive upper bound for a number or integer parameter. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
         },
         "items": {
           "$ref": "#/$defs/McpToolInputSchema",
@@ -1550,11 +1550,11 @@
         },
         "requiredProperties": {
           "$ref": "#/$defs/McpToolInputRequiredList",
-          "description": "Names of the object parameter's properties that are required. Emitted as `required` inside the parameter's schema; the parameter-level `required` stays a boolean."
+          "description": "Names of the object parameter's properties that are required. Emitted as `required` inside the parameter's schema; the parameter-level `required` stays a boolean. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
         },
         "additionalProperties": {
           "type": "boolean",
-          "description": "Whether an object parameter accepts properties beyond `properties`."
+          "description": "Whether an object parameter accepts properties beyond `properties`. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
         }
       },
       "required": [
@@ -1565,7 +1565,7 @@
     },
     "McpToolInputSchema": {
       "type": "object",
-      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names.",
+      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names. Like the parameter-level keywords, `enum`, `format`, `minimum`, `maximum`, `required` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.",
       "properties": {
         "type": {
           "type": "string",
@@ -1628,7 +1628,7 @@
     },
     "McpToolInputEnum": {
       "type": "array",
-      "description": "Allowed values, written as strings. For a number, integer or boolean parameter, each value is emitted with that type.",
+      "description": "Allowed values, written as strings. For a number, integer or boolean parameter, each value is emitted with that type. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it.",
       "minItems": 1,
       "uniqueItems": true,
       "items": {
