@@ -23,6 +23,7 @@ import org.restlet.representation.ByteArrayRepresentation;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
 
 /**
  * HTTP Client Adapter implementation
@@ -404,23 +406,41 @@ public class HttpClientAdapter extends ClientAdapter {
      * an unquoted placeholder received a value that breaks the syntax. A blank body (a template
      * that rendered to nothing) is left alone, as before. The body itself is not echoed, since it
      * may carry caller data or credentials.
+     *
+     * <p>A body where two members of the same object have the same key is rejected too: a
+     * placeholder in a member name ({@code "{{field}}":"{{value}}"}) could otherwise repeat a
+     * member the template already sets, and most upstreams keep the last one
+     * (GHSA-6359-rp48-m9j6).</p>
      */
     private void requireValidJson(String body, String operationName) {
         if (body.isBlank()) {
             return;
         }
-        boolean valid;
-        try {
-            JsonNode parsed = JSON.readerFor(JsonNode.class)
-                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(body);
-            valid = parsed != null && !parsed.isMissingNode();
-        } catch (JacksonException e) {
-            valid = false;
-        }
-        if (!valid) {
+        String operation = getHttpClientSpec().getNamespace() + "." + operationName;
+        if (!parsesAsJson(body, false)) {
             throw new IllegalArgumentException("Rendered JSON body is not valid JSON for operation: "
-                    + getHttpClientSpec().getNamespace() + "." + operationName
+                    + operation
                     + ". Check that string placeholders are quoted in the body template.");
+        }
+        if (!parsesAsJson(body, true)) {
+            throw new IllegalArgumentException(
+                    "Two members of the rendered JSON body have the same key for operation: "
+                            + operation
+                            + ". A placeholder in a member name must not repeat another member.");
+        }
+    }
+
+    private static boolean parsesAsJson(String body, boolean rejectDuplicateKeys) {
+        ObjectReader reader = JSON.readerFor(JsonNode.class)
+                .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        if (rejectDuplicateKeys) {
+            reader = reader.with(StreamReadFeature.STRICT_DUPLICATE_DETECTION);
+        }
+        try {
+            JsonNode parsed = reader.readValue(body);
+            return parsed != null && !parsed.isMissingNode();
+        } catch (JacksonException e) {
+            return false;
         }
     }
 

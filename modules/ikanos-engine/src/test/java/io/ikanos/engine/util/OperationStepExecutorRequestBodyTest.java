@@ -380,6 +380,57 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
+    void findClientRequestForShouldRejectPlaceholderKeyRepeatingMemberInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"role":"user","{{field}}":"{{value}}"}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not repeat a member the capability author fixed");
+        assertTrue(!error.getMessage().contains("admin"),
+                "the rendered body must not be echoed in the error");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyRepeatingNestedMemberInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"user":{"{{field}}":"{{value}}","role":"user"}}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"));
+    }
+
+    @Test
+    void findClientRequestForShouldAcceptPlaceholderKeyWithDistinctNameInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"role":"user","{{field}}":"{{value}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("field", "team", "value", "blue"));
+
+        assertEquals("{\"role\":\"user\",\"team\":\"blue\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
     void findClientRequestForShouldRejectPlaceholderKeyOverridingEarlierStaticMember()
             throws Exception {
         OperationStepExecutor executor = executorWithBody("""
