@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import org.restlet.Context;
+import org.restlet.Response;
 import org.restlet.Restlet;
 import org.restlet.Server;
 import org.restlet.data.ChallengeScheme;
@@ -129,7 +130,20 @@ public abstract class ServerAdapter extends Adapter {
                 : ChallengeScheme.HTTP_BASIC;
 
         ChallengeAuthenticator authenticator =
-                new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos");
+                new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos") {
+
+                    @Override
+                    public void challenge(Response response, boolean stale) {
+                        RejectedRequestBodies.discard(response.getRequest());
+                        super.challenge(response, stale);
+                    }
+
+                    @Override
+                    public void forbid(Response response) {
+                        RejectedRequestBodies.discard(response.getRequest());
+                        super.forbid(response);
+                    }
+                };
         authenticator.setVerifier(new SecretVerifier() {
 
             @Override
