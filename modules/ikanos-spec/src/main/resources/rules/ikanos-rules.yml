@@ -37,6 +37,8 @@ functions:
   - mcp-ui-view-mime-type
   - flow-calls
   - mcp-trust-networks
+  - shared-listener-mounts
+  - exposes-hosts-binds-ref
 
 rules:
 
@@ -267,6 +269,38 @@ rules:
     then:
       field: "scopes"
       function: truthy
+
+  ikanos-exposes-mounts-distinct:
+    message: >-
+      {{error}}
+    description: >
+      Exposed adapters on the same address and port share one listener and are
+      routed by `hosts`, then by `path`. On each host, two adapters must not be
+      mounted at the same path (two adapters without `path` on one port count as
+      both mounted at `/`), and one path must not be nested in another, such as
+      `/api` and `/api/v2`. The root `/` may hold other paths. The engine
+      enforces the same rule at startup.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: shared-listener-mounts
+
+  ikanos-exposes-hosts-must-bind:
+    message: >-
+      {{error}}
+    description: >
+      A `hosts` entry written as a Mustache expression (for example
+      `{{CUSTOM_DOMAIN}}` or `{{deploy.CUSTOM_DOMAIN}}`) is resolved from the
+      bindings when the capability starts, so a deployment can inject its
+      custom domain. The referenced key, and namespace when given, must be
+      declared in `binds` or `capability.binds`. The engine checks the resolved
+      host name at startup.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: exposes-hosts-binds-ref
 
   # ────────────────────────────────────────────────────────────────
   # 2. QUALITY & DISCOVERABILITY

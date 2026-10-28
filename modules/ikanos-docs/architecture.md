@@ -100,7 +100,7 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed script steps. |
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
 | `io.ikanos.engine.imports` | Resolves `import` entries in `consumes`, `exposes`, `aggregates` and `binds` before anything else runs. |
-| `io.ikanos.engine.exposes` | `ServerAdapter` base class and the shared authentication filters. |
+| `io.ikanos.engine.exposes` | `ServerAdapter` base class, the shared authentication filters, and `ServerHost`, which mounts adapters that share an address and port on one listener. |
 | `io.ikanos.engine.exposes.mcp` | The MCP server: transports, `ProtocolDispatcher`, per-method handlers, tool/resource/prompt handlers. |
 | `io.ikanos.engine.exposes.rest` | The REST server: routing and `ResourceRestlet`. |
 | `io.ikanos.engine.exposes.skill` | The Skill server: a read-only catalog of agent skills. |
@@ -141,10 +141,11 @@ The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHel
     6. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`. The executor holds no per-flow state: each flow passes its own namespace with every call, so flows of different namespaces can run concurrently and call each other.
     7. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
     8. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
-    9. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
-    10. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
-4. **Start**: client adapters first, then server adapters, so nothing accepts a request before it can call upstream. An MCP client adapter with `discovery: verify` lists the upstream tools here and fails startup if a declared tool or a required argument is missing.
-5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then client adapters.
+    9. **Plan the listeners** (`ServerHost.build`): group the HTTP adapters by address and port, resolve Mustache `hosts` entries from the bindings, and reject ambiguous mounts (see [Shared listeners](#shared-listeners)).
+    10. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
+    11. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
+4. **Start**: client adapters first, then the shared listeners (`ServerHost.start`), then server adapters, so nothing accepts a request before it can call upstream. An MCP client adapter with `discovery: verify` lists the upstream tools here and fails startup if a declared tool or a required argument is missing.
+5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then the shared listeners, then client adapters.
 
 Two consequences for contributors:
 
@@ -292,7 +293,7 @@ When the authentication chain rejects a request (401 or 403), it first reads and
 - `forwarded`: the gateway is the authentication boundary. `TrustedPeerFilter` is the outermost Restlet of the MCP chain, in front of authentication: a request whose direct peer address (`ClientInfo.getAddress()`, never `X-Forwarded-For`) is outside `trustedNetworks` (`CidrRange`) gets a generic `403` and is never parsed. This applies to every path of the adapter, so health probes (Kubernetes liveness and readiness) and, with `authentication: oauth2`, `/.well-known/oauth-protected-resource` are refused too, consistent with the no-mixed-mode rule: add the probes' source network to `trustedNetworks`, or probe the control port. Its warning is rate-limited (`RateLimitedWarning`). For a trusted peer, the identity is the `agentIdentityHeader` value, so the gateway must overwrite or remove any copy of that header sent by the agent (Ikanos cannot tell them apart). `forwarded` can be combined with `authentication`, so the gateway is authenticated too.
 - `verify`: the `sub` (else `client_id`) of the token that `OAuth2AuthenticationRestlet` validated, plus the `sub` of its RFC 8693 `act` claim as the actor. The restlet hands the claims over in the `VALIDATED_CLAIMS_ATTRIBUTE` request attribute, so the token is not parsed twice.
 
-A value that is longer than 256 characters, contains characters outside `[A-Za-z0-9._~:@/+=|-]`, or arrives in more than one header is ignored, with a rate-limited warning naming the source (header, `sub`, `client_id` or `act.sub`) and the reason, never the value. `|` is allowed for provider-prefixed subjects such as Auth0's `google-oauth2|123`; subjects with spaces or other characters are still ignored. The identity is for audit only: it never authorizes a request and is never forwarded to consumed APIs. Stdio has no peer or headers, so the schema does not allow `trust` there. Every server connector sets `useForwardedForHeader=false` (`ServerAdapter.initServer`), so the client address is always the direct peer.
+A value that is longer than 256 characters, contains characters outside `[A-Za-z0-9._~:@/+=|-]`, or arrives in more than one header is ignored, with a rate-limited warning naming the source (header, `sub`, `client_id` or `act.sub`) and the reason, never the value. `|` is allowed for provider-prefixed subjects such as Auth0's `google-oauth2|123`; subjects with spaces or other characters are still ignored. The identity is for audit only: it never authorizes a request and is never forwarded to consumed APIs. Stdio has no peer or headers, so the schema does not allow `trust` there. Every server connector sets `useForwardedForHeader=false` (`ServerAdapter.createServer`, used for dedicated and shared listeners), so the client address is always the direct peer.
 
 | Adapter | Where its routes are defined | Notes |
 |---|---|---|
@@ -300,6 +301,16 @@ A value that is longer than 256 characters, contains characters outside `[A-Za-z
 | `RestServerAdapter` | One route per resource path declared in the spec | |
 | `SkillServerAdapter` | Attached in `SkillServerAdapter` | Validates the skill tools at startup. |
 | `ControlServerAdapter` | Attached in `ControlServerAdapter` | Each route is only attached when the matching management or observability option is on. The `ikanos` control-port commands are its clients. |
+
+### Shared listeners
+
+`rest`, `mcp` and `skill` adapters may share one address and port, told apart by two optional fields: `path`, a mount prefix made of whole path segments, and `hosts`, exact host names or `*.domain` wildcards ([#893](https://github.com/naftiko/ikanos/issues/893)). `ServerHost` groups the adapters by `(address, port)`:
+
+- A listener used by **one adapter mounted at the root on any host** stays that adapter's own `Server`, created in `ServerAdapter.initServer` and started by the adapter, exactly as before shared listeners existed.
+- Any other listener gets one Restlet `Component`, with its log and status services off so responses match a dedicated server. Each host name gets a `VirtualHost`, exact names before wildcards (a wildcard matches one label); adapters without `hosts` go on the default host. Within a host, a `MODE_BEST_MATCH` router holds one `SegmentRoute` per adapter: a `MODE_STARTS_WITH` template that scores zero unless the match ends on a segment boundary, so `/mcp` matches `/mcp/tools` but not `/mcpx`. The matched prefix moves into the base reference, so the adapter's own router and authentication chain run unchanged. Each adapter's `server` field points to the shared `Server`, so `/health/ready` and `/status` report it, and `ServerAdapter.start/stop` leave it to `ServerHost`.
+- **Well-known paths** an adapter must answer outside its prefix (`ServerAdapter.getWellKnownPaths`, today the MCP OAuth Protected Resource Metadata of RFC 9728) are attached on the host root with an exact match and routed to that adapter's full chain, so `TrustedPeerFilter` still applies.
+
+`ServerHost.build` runs in the `Capability` constructor and fails startup on: two adapters at the same path of a host, a path nested in another one (`/api` and `/api/v2`; the root may hold other paths), two adapters serving the same well-known path, a control adapter sharing a business port, a malformed `path`, or a `hosts` entry that is malformed or resolves to an empty or invalid name. A resolved host value is never echoed in errors. The ruleset reports the same mount conflicts (`ikanos-exposes-mounts-distinct`) and unbound `hosts` expressions (`ikanos-exposes-hosts-must-bind`) at lint time.
 
 ## Observability
 
@@ -364,7 +375,7 @@ These hold across the codebase. Breaking one needs a deliberate decision, not a 
 - **Load-time over request-time.** Imports, refs and adapter configuration are resolved and checked once at startup. Request handling assumes a consistent spec.
 - **Clients start before servers, and servers stop before clients.**
 - **JSON inside, other formats at the edge.** Conversion happens when data enters (`Converter`) and the protocol shape is built when it leaves. Binary is passed through, never decoded.
-- **Secrets stay in authentication.** The resolved `binds` are only used for authentication, on both sides: the credentials a server adapter checks (`ServerAdapter`, `ServerAuthenticationRestlet`) and the credentials a client adapter sends (`ConsumedAuthentication`, shared by the HTTP and MCP client adapters), plus the tunnel identity. They are not merged into the parameters used for URLs, bodies and steps.
+- **Secrets stay in authentication.** The resolved `binds` are only used for authentication, on both sides: the credentials a server adapter checks (`ServerAdapter`, `ServerAuthenticationRestlet`) and the credentials a client adapter sends (`ConsumedAuthentication`, shared by the HTTP and MCP client adapters), plus the tunnel identity. They are not merged into the parameters used for URLs, bodies and steps. The one other use is a `hosts` entry of an exposed adapter, a public host name resolved once at startup to route requests.
 - **No internal detail in error responses.** Unexpected failures return a generic message and a reference id. The detail goes to the server log under that id (`ErrorReference`).
 - **MCP protocol logic is transport-agnostic.** In the MCP adapter, protocol logic lives in `ProtocolDispatcher` and the handlers, shared by HTTP and stdio. Transports only translate I/O.
 - **Supported protocol versions have a single source of truth.** A client using an unsupported version gets an explicit error, never a silent downgrade.

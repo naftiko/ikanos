@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.exposes;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,8 @@ public abstract class ServerSpec {
     private final AtomicReference<String> type = new AtomicReference<>();
     private final AtomicReference<String> address = new AtomicReference<>();
     private final AtomicInteger port = new AtomicInteger();
+    private final AtomicReference<String> path = new AtomicReference<>();
+    private final AtomicReference<List<String>> hosts = new AtomicReference<>(List.of());
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
@@ -112,6 +115,35 @@ public abstract class ServerSpec {
 
     public void setPort(int port) {
         this.port.set(port);
+    }
+
+    /**
+     * Returns the mount prefix of this adapter on its listener, or {@code null} for the root.
+     * Adapters that share an address and port are told apart by this prefix and by
+     * {@link #getHosts()}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getPath() {
+        return path.get();
+    }
+
+    public void setPath(String path) {
+        this.path.set(path);
+    }
+
+    /**
+     * Returns the host names this adapter answers on, exact or with one leading {@code *.}
+     * wildcard. Entries may be Mustache expressions resolved from the capability bindings. An
+     * empty list means any host.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getHosts() {
+        return hosts.get();
+    }
+
+    public void setHosts(List<String> hosts) {
+        this.hosts.set(hosts != null
+                ? Collections.unmodifiableList(new ArrayList<>(hosts)) : List.of());
     }
 
     public List<InputParameterSpec> getInputParameters() {

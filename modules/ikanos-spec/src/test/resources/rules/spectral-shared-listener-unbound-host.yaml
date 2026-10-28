@@ -1,0 +1,37 @@
+---
+# Spectral fixture — ikanos-exposes-hosts-must-bind MUST FIRE.
+#
+# The `hosts` entry references key CUSTOM_DOMAIN, which the `deploy` binding
+# does not declare.
+ikanos: "1.0.0-beta9"
+
+info:
+  display: "Shared listener — unbound host"
+  description: "Negative fixture: hosts entry references an undeclared key."
+
+binds:
+  - namespace: "deploy"
+    description: "Values injected by the runtime."
+    keys:
+      REGION: "region"
+
+capability:
+  aggregates:
+    - namespace: "greeting"
+      flows:
+        hello:
+          description: "Builds a greeting."
+          outputParameters:
+            message:
+              type: "string"
+              value: "Hello!"
+  exposes:
+    - type: "mcp"
+      port: 8080
+      hosts: ["{{deploy.CUSTOM_DOMAIN}}"]
+      namespace: "greeting-public"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"

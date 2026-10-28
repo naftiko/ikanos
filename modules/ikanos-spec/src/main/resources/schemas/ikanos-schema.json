@@ -714,6 +714,33 @@
         }
       ]
     },
+    "MountPath": {
+      "type": "string",
+      "description": "Mount prefix of an exposed adapter on its listener: `/` for the root, or one or more full path segments such as `/api` or `/mcp`, without a trailing slash or template variables. A request matches when its path equals the prefix or continues it with a `/`, so `/mcp` matches `/mcp` and `/mcp/tools` but not `/mcpx`.",
+      "pattern": "^(/|(/[^/{}?#;\\s]+)+)$"
+    },
+    "HostPattern": {
+      "description": "Host name an exposed adapter answers on, without a port: exact (`mcp.acme.com`) or with one leading wildcard label (`*.acme.com`), or a single Mustache expression resolved from `binds` at startup (`{{CUSTOM_DOMAIN}}`).",
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(\\*\\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\{\\{\\s*[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)?\\s*\\}\\}$"
+        }
+      ]
+    },
+    "HostPatterns": {
+      "type": "array",
+      "description": "Host names this adapter answers on. Omitted means any host. Adapters that share an address and port are routed by host first, then by `path`. An exact name takes precedence over a wildcard.",
+      "items": {
+        "$ref": "#/$defs/HostPattern"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
     "Info": {
       "type": "object",
       "description": "Information about the capability",
@@ -1058,6 +1085,13 @@
           "minimum": 1,
           "maximum": 65535
         },
+        "path": {
+          "$ref": "#/$defs/MountPath",
+          "description": "Mount prefix on the listener. Default: `/`. Lets several adapters share one `address` and `port`."
+        },
+        "hosts": {
+          "$ref": "#/$defs/HostPatterns"
+        },
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
           "description": "Unique identifier for this exposed API"
@@ -1113,6 +1147,13 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        },
+        "path": {
+          "$ref": "#/$defs/MountPath",
+          "description": "Mount prefix on the listener. Default: `/`. Lets several adapters share one `address` and `port`."
+        },
+        "hosts": {
+          "$ref": "#/$defs/HostPatterns"
         },
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -3130,6 +3171,13 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        },
+        "path": {
+          "$ref": "#/$defs/MountPath",
+          "description": "Mount prefix on the listener. Default: `/`. Lets several adapters share one `address` and `port`."
+        },
+        "hosts": {
+          "$ref": "#/$defs/HostPatterns"
         },
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",

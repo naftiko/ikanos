@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 import org.restlet.Context;
 import org.restlet.Response;
 import org.restlet.Restlet;
@@ -37,12 +38,18 @@ import io.ikanos.spec.exposes.ServerSpec;
  * Base class for server adapters. All HTTP-based adapters share the same Restlet {@link Server}
  * lifecycle: create, start, stop. Subclasses configure routing in their constructor and call
  * {@link #initServer(String, int, Restlet)} to wire the transport.
+ *
+ * <p>When several adapters share an address and port, the capability's {@link ServerHost} mounts
+ * each adapter's handler on one shared server instead, and {@link #start()} and {@link #stop()}
+ * leave that server to the host.</p>
  */
 public abstract class ServerAdapter extends Adapter {
 
     private final Capability capability;
     private final ServerSpec spec;
     private Server server;
+    private Restlet handler;
+    private boolean sharedServer;
 
     public ServerAdapter(Capability capability, ServerSpec spec) {
         this.capability = capability;
@@ -53,17 +60,55 @@ public abstract class ServerAdapter extends Adapter {
      * Initialize the Restlet HTTP server. Subclasses call this after building their router/chain.
      */
     protected void initServer(String address, int port, Restlet handler) {
-        this.server = new Server(Protocol.HTTP, address, port);
-        this.server.setContext(new Context());
+        this.server = createServer(address, port);
+        this.server.setNext(handler);
+        this.handler = handler;
+    }
+
+    /**
+     * Configures a server connector exactly like the one each adapter opens on its own, so that a
+     * listener shared by several adapters behaves like a dedicated one.
+     */
+    static Server createServer(String address, int port) {
+        Server result = new Server(Protocol.HTTP, address, port);
+        result.setContext(new Context());
 
         // Configurable idle timeout is tracked in https://github.com/naftiko/ikanos/issues/835.
-        this.server.getContext().getParameters().add("socketTimeout", "12000");
+        result.getContext().getParameters().add("socketTimeout", "12000");
         // The client address is always the direct peer. With "true", Restlet would take it from
         // the caller-controlled X-Forwarded-For header, which would defeat the MCP
         // trustedNetworks check (issue #483).
-        this.server.getContext().getParameters().add("useForwardedForHeader", "false");
+        result.getContext().getParameters().add("useForwardedForHeader", "false");
+        return result;
+    }
 
-        this.server.setNext(handler);
+    /**
+     * Returns the handler chain (authentication and routing) built by the adapter, or
+     * {@code null} when the adapter has no HTTP transport.
+     */
+    public Restlet getHandler() {
+        return handler;
+    }
+
+    /**
+     * Returns the full request paths that must reach this adapter even when it is mounted under
+     * a prefix, such as RFC 9728 metadata under {@code /.well-known/}. Empty by default.
+     */
+    public List<String> getWellKnownPaths() {
+        return List.of();
+    }
+
+    /**
+     * Hands this adapter's transport to a listener shared with other adapters. The
+     * {@link ServerHost} owns that server: it starts and stops it once for all its adapters.
+     */
+    void useSharedServer(Server shared) {
+        this.server = shared;
+        this.sharedServer = true;
+    }
+
+    public boolean isSharedServer() {
+        return sharedServer;
     }
 
     public Capability getCapability() {
@@ -80,14 +125,14 @@ public abstract class ServerAdapter extends Adapter {
 
     @Override
     public void start() throws Exception {
-        if (server != null) {
+        if (server != null && !sharedServer) {
             server.start();
         }
     }
 
     @Override
     public void stop() throws Exception {
-        if (server != null) {
+        if (server != null && !sharedServer) {
             server.stop();
         }
     }

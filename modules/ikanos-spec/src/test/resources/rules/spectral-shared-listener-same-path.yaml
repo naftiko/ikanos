@@ -1,0 +1,38 @@
+---
+# Spectral fixture — ikanos-exposes-mounts-distinct MUST FIRE.
+#
+# Two MCP adapters on port 8080 declare neither `path` nor `hosts`: both are
+# mounted at the root of any host.
+ikanos: "1.0.0-beta9"
+
+info:
+  display: "Shared listener — same path"
+  description: "Negative fixture: two adapters at the root of one port."
+
+capability:
+  aggregates:
+    - namespace: "greeting"
+      flows:
+        hello:
+          description: "Builds a greeting."
+          outputParameters:
+            message:
+              type: "string"
+              value: "Hello!"
+  exposes:
+    - type: "mcp"
+      port: 8080
+      namespace: "greeting-a"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"
+    - type: "mcp"
+      port: 8080
+      namespace: "greeting-b"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"

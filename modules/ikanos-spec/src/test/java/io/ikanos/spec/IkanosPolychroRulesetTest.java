@@ -430,6 +430,39 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Shared listener rules (#893)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void sharedListenerRulesShouldNotFireOnDistinctMountsAndBoundHosts() {
+        ProcessResult result = lintFixture("rules/spectral-shared-listener-compliant.yaml");
+        assertFalse(result.output().contains("ikanos-exposes-mounts-distinct"),
+            "Expected distinct paths and hosts on one port not to be flagged.\n"
+                + result.output());
+        assertFalse(result.output().contains("ikanos-exposes-hosts-must-bind"),
+            "Expected a hosts entry bound to a declared key not to be flagged.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mountsDistinctRuleShouldFireWhenTwoAdaptersShareTheRootOfAPort() {
+        assertRuleFires("rules/spectral-shared-listener-same-path.yaml",
+            "ikanos-exposes-mounts-distinct");
+    }
+
+    @Test
+    public void mountsDistinctRuleShouldFireWhenAPathIsNestedInAnother() {
+        assertRuleFires("rules/spectral-shared-listener-nested-path.yaml",
+            "ikanos-exposes-mounts-distinct");
+    }
+
+    @Test
+    public void hostsMustBindRuleShouldFireWhenTheKeyIsNotDeclared() {
+        assertRuleFires("rules/spectral-shared-listener-unbound-host.yaml",
+            "ikanos-exposes-hosts-must-bind");
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // MCP Apps rules (SEP-1865)
     // ────────────────────────────────────────────────────────────────
 

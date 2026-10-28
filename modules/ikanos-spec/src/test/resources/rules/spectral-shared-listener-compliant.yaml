@@ -1,0 +1,82 @@
+---
+# Spectral fixture — ikanos-exposes-mounts-distinct and ikanos-exposes-hosts-must-bind
+# MUST NOT FIRE.
+#
+# REST, MCP and Skill adapters share port 8080: REST under /api, MCP under /mcp and
+# under the root of a custom domain injected from a binding, Skill at the root. /mcp
+# and /mcp-admin only share characters, not a path segment.
+ikanos: "1.0.0-beta9"
+
+info:
+  display: "Shared listener — compliant"
+  description: "Positive fixture: adapters share one port with distinct mounts."
+
+binds:
+  - namespace: "deploy"
+    description: "Values injected by the runtime."
+    keys:
+      CUSTOM_DOMAIN: "custom-domain"
+
+capability:
+  aggregates:
+    - namespace: "greeting"
+      flows:
+        hello:
+          description: "Builds a greeting."
+          outputParameters:
+            message:
+              type: "string"
+              value: "Hello!"
+  exposes:
+    - type: "rest"
+      port: 8080
+      path: "/api"
+      namespace: "greeting-rest"
+      resources:
+        hello:
+          path: "/hello"
+          description: "Greeting resource."
+          operations:
+            hello:
+              method: "GET"
+              description: "Returns a greeting."
+              ref: "greeting.hello"
+    - type: "mcp"
+      port: 8080
+      path: "/mcp"
+      namespace: "greeting-mcp"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"
+    - type: "mcp"
+      port: 8080
+      path: "/mcp-admin"
+      namespace: "greeting-admin"
+      description: "Greeting tools for administrators."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"
+    - type: "mcp"
+      port: 8080
+      hosts: ["{{deploy.CUSTOM_DOMAIN}}"]
+      namespace: "greeting-public"
+      description: "Greeting tools on the customer's domain."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"
+    - type: "skill"
+      port: 8080
+      namespace: "greeting-skills"
+      skills:
+        greetings:
+          description: "Greets people."
+          tools:
+            hello:
+              description: "Say hello."
+              from:
+                sourceNamespace: "greeting-rest"
+                action: "hello"
