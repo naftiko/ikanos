@@ -39,8 +39,9 @@ import io.ikanos.spec.util.VersionHelper;
  * <ul>
  *   <li>resources, operations and parameters are maps keyed by name, without a {@code name}
  *       property;</li>
- *   <li>input parameters keep only {@code in} and {@code value} ({@code ConsumedInputParameter});
- *   </li>
+ *   <li>input parameters keep only {@code in}, {@code value} and the query serialization
+ *       fields {@code wireName}, {@code style} and {@code explode}
+ *       ({@code ConsumedInputParameter});</li>
  *   <li>named output parameters become {@code {type, value}} with the JsonPath as {@code value}
  *       ({@code ConsumedOutputParameter}); unnamed outputs (a whole-response array or scalar) are
  *       dropped, since the raw response is already returned when none are declared.</li>
@@ -154,6 +155,11 @@ public class OasImportWriter {
             ObjectNode input = NODES.objectNode();
             putIfPresent(input, "in", param.getIn());
             putIfPresent(input, "value", param.getValue());
+            putIfPresent(input, "wireName", param.getWireName());
+            putIfPresent(input, "style", param.getStyle());
+            if (param.getExplode() != null) {
+                input.put("explode", param.getExplode());
+            }
             inputs.set(param.getName(), input);
         }
     }

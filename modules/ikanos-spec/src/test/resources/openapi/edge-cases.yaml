@@ -24,6 +24,27 @@ paths:
           in: query
           schema:
             type: integer
+        - name: status[]
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: ids
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: tags
+          in: query
+          style: pipeDelimited
+          schema:
+            type: array
+            items:
+              type: string
       responses:
         "200":
           description: OK

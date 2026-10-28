@@ -111,7 +111,7 @@ public class OasImportWriterTest {
     }
 
     @Test
-    void toDocumentShouldKeyInputParametersByNameAndKeepOnlyLocationAndValue() {
+    void toDocumentShouldKeyInputParametersByNameAndDropDescriptiveFields() {
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
         InputParameterSpec limit = new InputParameterSpec();
         limit.setName("limit");
@@ -130,9 +130,57 @@ public class OasImportWriterTest {
 
         assertEquals("query", inputs.path("limit").path("in").asString());
         assertEquals(1, inputs.path("limit").size(),
-                "#871: ConsumedInputParameter only allows 'in' and 'value'");
+                "#871: ConsumedInputParameter has no type, description or required");
         assertEquals("header", inputs.path("Api-Version").path("in").asString());
         assertEquals("2024-01-01", inputs.path("Api-Version").path("value").asString());
+    }
+
+    @Test
+    void toDocumentShouldKeepQuerySerializationFields() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec status = new InputParameterSpec();
+        status.setName("status");
+        status.setIn("query");
+        status.setWireName("status[]");
+        InputParameterSpec ids = new InputParameterSpec();
+        ids.setName("ids");
+        ids.setIn("query");
+        ids.setStyle("form");
+        ids.setExplode(false);
+        InputParameterSpec tags = new InputParameterSpec();
+        tags.setName("tags");
+        tags.setIn("query");
+        tags.setStyle("pipeDelimited");
+        operation.setInputParameters(Map.of("status", status, "ids", ids, "tags", tags));
+
+        JsonNode document = writer.toDocument(adapterWithOperation(operation));
+        JsonNode inputs = operationNode(document).path("inputParameters");
+
+        assertEquals("status[]", inputs.path("status").path("wireName").asString(),
+                "#872: without wireName the request sends status=a instead of status[]=a");
+        assertEquals("form", inputs.path("ids").path("style").asString());
+        assertTrue(inputs.path("ids").path("explode").isBoolean());
+        assertFalse(inputs.path("ids").path("explode").asBoolean(),
+                "#872: without explode: false the request sends ids=a&ids=b instead of ids=a,b");
+        assertEquals("pipeDelimited", inputs.path("tags").path("style").asString());
+        assertFalse(inputs.path("tags").has("explode"));
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepQuerySerializationFieldsFromImportedSpec() {
+        File file = new File("src/test/resources/openapi/edge-cases.yaml");
+        OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)
+                .getOpenAPI();
+        HttpClientSpec adapter = new OasImportConverter().convert(openApi).getHttpClient();
+
+        JsonNode inputs = writer.toDocument(adapter).path("consumes").path(0)
+                .path("resources").path("items").path("operations").path("list-items")
+                .path("inputParameters");
+
+        assertEquals("status[]", inputs.path("status").path("wireName").asString());
+        assertFalse(inputs.path("ids").path("explode").asBoolean(true));
+        assertEquals("pipeDelimited", inputs.path("tags").path("style").asString());
     }
 
     @Test
