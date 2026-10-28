@@ -1,0 +1,39 @@
+---
+# Spectral fixture — ikanos-exposes-mounts-distinct MUST FIRE.
+#
+# On port 8080, `/mcp/admin` is nested in `/mcp`.
+ikanos: "1.0.0-beta9"
+
+info:
+  display: "Shared listener — nested path"
+  description: "Negative fixture: one path nested in another."
+
+capability:
+  aggregates:
+    - namespace: "greeting"
+      flows:
+        hello:
+          description: "Builds a greeting."
+          outputParameters:
+            message:
+              type: "string"
+              value: "Hello!"
+  exposes:
+    - type: "mcp"
+      port: 8080
+      path: "/mcp"
+      namespace: "greeting-a"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"
+    - type: "mcp"
+      port: 8080
+      path: "/mcp/admin"
+      namespace: "greeting-b"
+      description: "Greeting tools."
+      tools:
+        hello:
+          description: "Returns a greeting."
+          ref: "greeting.hello"

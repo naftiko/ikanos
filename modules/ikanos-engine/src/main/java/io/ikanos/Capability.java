@@ -47,6 +47,7 @@ import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.exposes.ServerHost;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
@@ -82,6 +83,7 @@ public class Capability {
      */
     private final AtomicReference<IkanosSpec> spec = new AtomicReference<>();
     private final AtomicReference<List<ServerAdapter>> serverAdapters = new AtomicReference<>();
+    private final AtomicReference<ServerHost> serverHost = new AtomicReference<>();
     private final AtomicReference<List<ClientAdapter>> clientAdapters = new AtomicReference<>();
     private final AtomicReference<List<Aggregate>> aggregates = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> bindings = new AtomicReference<>();
@@ -212,6 +214,10 @@ public class Capability {
             }
         }
 
+        // Adapters that share an address and port are mounted on one listener, routed by host
+        // and path. Mounts are validated here, before any tunnel is opened.
+        this.serverHost.set(ServerHost.build(serverList, this.bindings.get()));
+
         // Discover and start any reverse-tunnel transports declared by consumes-blocks
         // BEFORE constructing HttpClientAdapters, so the adapter constructors receive a
         // started (or empty) tunnel map. The 30s default readiness gate matches the
@@ -261,6 +267,10 @@ public class Capability {
 
     public List<ServerAdapter> getServerAdapters() {
         return serverAdapters.get();
+    }
+
+    public ServerHost getServerHost() {
+        return serverHost.get();
     }
 
     public List<Aggregate> getAggregates() {
@@ -355,6 +365,10 @@ public class Capability {
             adapter.start();
         }
 
+        // Shared listeners first, so adapters announce themselves once they can be reached.
+        // Adapters on a shared listener leave it to the server host.
+        serverHost.get().start();
+
         for (ServerAdapter adapter : getServerAdapters()) {
             adapter.start();
         }
@@ -374,6 +388,8 @@ public class Capability {
         for (ServerAdapter adapter : getServerAdapters()) {
             adapter.stop();
         }
+
+        serverHost.get().stop();
 
         for (ClientAdapter adapter : getClientAdapters()) {
             adapter.stop();

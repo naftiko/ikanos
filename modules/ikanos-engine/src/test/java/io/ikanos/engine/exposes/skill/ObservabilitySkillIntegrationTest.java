@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,8 +45,7 @@ import io.ikanos.spec.util.IkanosMappers;
  */
 public class ObservabilitySkillIntegrationTest {
 
-    private static final int SKILL_PORT = 9098;
-    private static final String BASE_URL = "http://localhost:" + SKILL_PORT;
+    private static String baseUrl;
 
     private static final InMemorySpanExporter exporter = InMemorySpanExporter.create();
     private static SdkTracerProvider tracerProvider;
@@ -66,11 +66,17 @@ public class ObservabilitySkillIntegrationTest {
         ObjectMapper mapper = IkanosMappers.lenientYaml();
         IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
 
-        // Override the port to avoid conflict with other tests
+        // Override the port to avoid conflict with other tests, and with the fixture's REST
+        // adapter: two adapters at the root of one port are rejected (#893).
+        int skillPort;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            skillPort = socket.getLocalPort();
+        }
+        baseUrl = "http://localhost:" + skillPort;
         spec.getCapability().getExposes().stream()
                 .filter(s -> "skill".equals(s.getType()))
                 .findFirst()
-                .ifPresent(s -> s.setPort(SKILL_PORT));
+                .ifPresent(s -> s.setPort(skillPort));
 
         Capability capability = new Capability(spec);
 
@@ -97,7 +103,7 @@ public class ObservabilitySkillIntegrationTest {
 
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/skills"))
+                .uri(URI.create(baseUrl + "/skills"))
                 .GET()
                 .build();
 
@@ -130,7 +136,7 @@ public class ObservabilitySkillIntegrationTest {
 
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/skills"))
+                .uri(URI.create(baseUrl + "/skills"))
                 .header("traceparent", traceparent)
                 .GET()
                 .build();

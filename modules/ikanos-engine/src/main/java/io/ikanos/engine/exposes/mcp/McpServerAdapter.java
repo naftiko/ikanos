@@ -55,6 +55,9 @@ public class McpServerAdapter extends ServerAdapter {
     private final AtomicReference<StdioJsonRpcHandler> stdioHandler = new AtomicReference<>();
     private final AtomicReference<Thread> stdioThread = new AtomicReference<>();
 
+    /** OAuth 2.1 restlet, set when the HTTP transport uses {@code oauth2} authentication. */
+    private final AtomicReference<McpOAuth2Restlet> oauth2Restlet = new AtomicReference<>();
+
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
     private final Map<String, String> toolLabels;
@@ -131,7 +134,19 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
-        return new McpOAuth2Restlet(oauth2, next);
+        McpOAuth2Restlet restlet = new McpOAuth2Restlet(oauth2, next);
+        this.oauth2Restlet.set(restlet);
+        return restlet;
+    }
+
+    /**
+     * The Protected Resource Metadata path (RFC 9728) sits under {@code /.well-known/}, outside
+     * any prefix this adapter is mounted under, so a shared listener must route it here.
+     */
+    @Override
+    public List<String> getWellKnownPaths() {
+        McpOAuth2Restlet restlet = oauth2Restlet.get();
+        return restlet != null ? List.of(restlet.getMetadataPath()) : List.of();
     }
 
     /**

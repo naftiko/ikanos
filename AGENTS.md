@@ -249,7 +249,7 @@ When designing or modifying a Capability:
 - Prefix variables with the capability/namespace/resource name — they are already scoped, unless disambiguation is strictly needed
 - Set a type property for `inputParameter` in a rest consumes bloc
 - Use an `integer` type instead of a `number` type for `outputParameters` in a mcp exposes bloc
-- Bind two `exposes` adapters (e.g. `skill` and `rest`) to the same port
+- Bind two `exposes` adapters (e.g. `skill` and `rest`) to the same port without telling them apart: give each a distinct `path` (such as `/api` and `/mcp`) or `hosts`, and never nest one `path` in another
 - Describe an array or object MCP tool input in prose or as a JSON string — declare `items`, `properties` and `requiredProperties` on `McpToolInputParameter` instead (a bounded JSON Schema subset, also `enum`, `format`, `minimum`, `maximum`, `additionalProperties`); the parameter-level `required` stays a boolean, while inside `items`/`properties` `required` is the list of required property names
 - Use YAML list syntax (`- type: object`) for `items` in `MappedOutputParameterArray` — `items` is a single `MappedOutputParameter` object, not an array
 - Use snake_case identifiers where the schema expects `IdentifierKebab` (e.g. `match`, `name`, `namespace`) — use kebab-case
