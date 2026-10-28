@@ -254,6 +254,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     }
 
     protected void unauthorized(Response response, String error, String description) {
+        RejectedRequestBodies.discard(response.getRequest());
         response.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
         addBearerChallenge(response,
                 buildBearerChallengeParams(error, description, null));
@@ -261,6 +262,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     }
 
     protected void forbidden(Response response, String requiredScope) {
+        RejectedRequestBodies.discard(response.getRequest());
         response.setStatus(Status.CLIENT_ERROR_FORBIDDEN);
         String scopeValue = spec.getScopes() != null ? String.join(" ", spec.getScopes()) : null;
         addBearerChallenge(response,

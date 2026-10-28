@@ -15,14 +15,20 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -39,6 +45,9 @@ class McpAuthenticationIntegrationTest {
 
     private static final ObjectMapper YAML_MAPPER = IkanosMappers.lenientYaml();
     private static final ObjectMapper JSON = IkanosMappers.lenientJson();
+
+    /** Mirrors {@code RejectedRequestBodies.MAX_WAIT}, which is not visible from this package. */
+    private static final long REJECTED_BODY_MAX_WAIT = 500;
 
     @Test
     void bearerAuthShouldRejectRequestWithoutToken() throws Exception {
@@ -271,6 +280,154 @@ class McpAuthenticationIntegrationTest {
         }
     }
 
+    /**
+     * Regression test for GitHub issue #878: a request rejected with 401 before its body arrived
+     * must leave the keep-alive connection usable. The server used to send the 401 and then close
+     * the connection without {@code Connection: close}, so the client's next request on it read
+     * EOF instead of a status line.
+     */
+    @Test
+    void bearerAuthRejectionShouldKeepConnectionReusableWhenBodyArrivesLate() throws Exception {
+        McpServerAdapter adapter = startBearerProtectedServer();
+        try {
+            assertConnectionReusableAfterLateBodyRejection(adapter,
+                    "Bearer mcp-secret-token-123", "Bearer wrong-token");
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    /**
+     * Same as {@link #bearerAuthRejectionShouldKeepConnectionReusableWhenBodyArrivesLate()} for
+     * the basic challenge, where a client normally sends a first request without credentials and
+     * retries on the same connection after the 401.
+     */
+    @Test
+    void basicAuthChallengeShouldKeepConnectionReusableWhenBodyArrivesLate() throws Exception {
+        McpServerAdapter adapter = startBasicProtectedServer();
+        try {
+            String credentials = Base64.getEncoder()
+                    .encodeToString("mcp-user:mcp-pass".getBytes(StandardCharsets.UTF_8));
+            assertConnectionReusableAfterLateBodyRejection(adapter, "Basic " + credentials, null);
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    /**
+     * Regression test for GitHub issue #878: when the body of a rejected request never arrives,
+     * the server must still answer once it gives up waiting for it, rather than hold the thread.
+     */
+    @Test
+    void bearerAuthRejectionShouldRespondWhenBodyNeverArrives() throws Exception {
+        McpServerAdapter adapter = startBearerProtectedServer();
+        try (Socket socket = new Socket(adapter.getMcpServerSpec().getAddress(),
+                adapter.getMcpServerSpec().getPort())) {
+            socket.setSoTimeout(5000);
+            OutputStream out = socket.getOutputStream();
+
+            long start = System.nanoTime();
+            out.write(discoverRequestHead("Bearer wrong-token", discoverBody())
+                    .getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+
+            assertEquals(401, readStatusCode(socket.getInputStream()),
+                    "Request with wrong bearer token should be rejected without its body");
+            long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+            assertTrue(elapsedMillis < REJECTED_BODY_MAX_WAIT + 2_000,
+                    "Server should give up on the body shortly after the limit, waited "
+                            + elapsedMillis);
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    /**
+     * Sends four requests on one connection: an accepted one, a rejected one whose body is sent
+     * only after a pause, another accepted one, and a rejected one sent in one piece. The pause
+     * lets the server reject before the body arrives, which is the race of issue #878. The fix
+     * keeps the connection usable as long as the body arrives within
+     * {@code RejectedRequestBodies.MAX_WAIT}, which the pause stays well under. The last request
+     * checks that a body sent with the request is discarded without waiting for that limit.
+     */
+    private static void assertConnectionReusableAfterLateBodyRejection(McpServerAdapter adapter,
+            String acceptedAuthorization, String rejectedAuthorization) throws Exception {
+        try (Socket socket = new Socket(adapter.getMcpServerSpec().getAddress(),
+                adapter.getMcpServerSpec().getPort())) {
+            socket.setSoTimeout(5000);
+            OutputStream out = socket.getOutputStream();
+            InputStream in = socket.getInputStream();
+            String body = discoverBody();
+
+            out.write((discoverRequestHead(acceptedAuthorization, body) + body)
+                    .getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            assertEquals(200, readStatusCode(in), "Request with valid credentials should be served");
+
+            out.write(discoverRequestHead(rejectedAuthorization, body)
+                    .getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            Thread.sleep(100);
+            out.write(body.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            assertEquals(401, readStatusCode(in), "Request with invalid credentials should be rejected");
+
+            out.write((discoverRequestHead(acceptedAuthorization, body) + body)
+                    .getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            assertEquals(200, readStatusCode(in),
+                    "Next request on the same connection should be served after a 401");
+
+            long start = System.nanoTime();
+            out.write((discoverRequestHead(rejectedAuthorization, body) + body)
+                    .getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            assertEquals(401, readStatusCode(in), "Request with invalid credentials should be rejected");
+            long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+            assertTrue(elapsedMillis < REJECTED_BODY_MAX_WAIT,
+                    "A body sent with the request should be discarded without waiting, waited "
+                            + elapsedMillis);
+        }
+    }
+
+    private static String discoverRequestHead(String authorization, String body) {
+        return "POST / HTTP/1.1\r\n"
+                + "Host: localhost\r\n"
+                + "Content-Type: application/json\r\n"
+                + "MCP-Protocol-Version: " + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\r\n"
+                + "Mcp-Method: server/discover\r\n"
+                + (authorization != null ? "Authorization: " + authorization + "\r\n" : "")
+                + "Content-Length: " + body.getBytes(StandardCharsets.UTF_8).length + "\r\n"
+                + "\r\n";
+    }
+
+    /**
+     * Reads one HTTP/1.1 response with a {@code Content-Length} body and returns its status code,
+     * or -1 if the server closed the connection before sending a status line.
+     */
+    private static int readStatusCode(InputStream in) throws Exception {
+        StringBuilder head = new StringBuilder();
+        while (head.indexOf("\r\n\r\n") < 0) {
+            int b = in.read();
+            if (b < 0) {
+                return -1;
+            }
+            head.append((char) b);
+        }
+
+        assertTrue(head.toString().startsWith("HTTP/1.1 "), "Unexpected status line: " + head);
+        int contentLength = -1;
+        for (String line : head.toString().split("\r\n")) {
+            if (line.regionMatches(true, 0, "Content-Length:", 0, 15)) {
+                contentLength = Integer.parseInt(line.substring(15).trim());
+            }
+        }
+        assertTrue(contentLength >= 0, "Response should have a Content-Length: " + head);
+        in.readNBytes(contentLength);
+
+        return Integer.parseInt(head.substring(9, 12));
+    }
+
     private static String discoverBody() {
         return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
                 + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
@@ -294,6 +451,36 @@ class McpAuthenticationIntegrationTest {
                       authentication:
                         type: "bearer"
                         token: "mcp-secret-token-123"
+                      tools:
+                        - name: "test-tool"
+                          description: "A test tool"
+                          outputParameters:
+                            - type: "string"
+                              value: "ok"
+                  consumes: []
+                """.formatted(schemaVersion, findFreePort());
+
+        return startAdapter(yaml);
+    }
+
+    private McpServerAdapter startBasicProtectedServer() throws Exception {
+        String schemaVersion = VersionHelper.getSchemaVersion();
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "MCP Auth Test"
+                  description: "Basic auth integration test"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "auth-test-mcp"
+                      description: "Test MCP server with basic auth"
+                      authentication:
+                        type: "basic"
+                        username: "mcp-user"
+                        password: "mcp-pass"
                       tools:
                         - name: "test-tool"
                           description: "A test tool"
