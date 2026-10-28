@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +27,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
@@ -35,19 +35,68 @@ import io.modelcontextprotocol.spec.McpSchema;
  * {@code outputParameters[].mapping}, so array indexing and other JSONPath features work (#746).
  *
  * <p>The capability consumes only the test {@code type: fake} adapter, which returns a canned
- * listing in-process, so no test opens a network connection.</p>
+ * listing in-process, so no test opens a network connection. The capability is inline, not a
+ * resource file, because {@code type: fake} is not part of the published schema and every YAML
+ * file under {@code src/test/resources} is linted against it.</p>
  */
 class AggregateMappingsJsonPathTest {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final ObjectMapper YAML = IkanosMappers.lenientYaml();
+
+    private static final String CAPABILITY = """
+            ikanos: "%s"
+            capability:
+              aggregates:
+                - display: Registry
+                  namespace: registry
+                  flows:
+                    first-record:
+                      description: Return the first and last records of a listing.
+                      steps:
+                        list-records:
+                          type: call
+                          call: canned.list-records
+                      mappings:
+                        - target: first-id
+                          value: $.list-records.records[0].id
+                        - target: last-name
+                          value: $.list-records.records[-1].name
+                        - target: all-ids
+                          value: $.list-records.records[*].id
+                      outputParameters:
+                        first-id:
+                          type: number
+                        last-name:
+                          type: string
+                        all-ids:
+                          type: array
+                          items:
+                            type: number
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: registry-mcp
+                  tools:
+                    first-record:
+                      description: Return the first and last records of a listing.
+                      ref: registry.first-record
+              consumes:
+                - type: fake
+                  namespace: canned
+                  operations:
+                    list-records:
+                      outputParameters: []
+                  responses:
+                    list-records: '{"records":[{"id":1,"name":"Ada"},{"id":2,"name":"Grace"}]}'
+            """.formatted(VersionHelper.getSchemaVersion());
 
     private Capability capability;
 
     @BeforeEach
     void setUp() throws Exception {
-        File file = new File("src/test/resources/aggregates/aggregate-mappings-jsonpath.yaml");
-        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(file, IkanosSpec.class);
-        capability = new Capability(spec);
+        capability = new Capability(YAML.readValue(CAPABILITY, IkanosSpec.class));
     }
 
     private JsonNode executeFlow() throws Exception {
