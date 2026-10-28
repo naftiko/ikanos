@@ -418,11 +418,12 @@ public class OperationStepExecutor {
      * the target map. Handles two value syntaxes:
      * <ul>
      *   <li>Mustache template — resolved by {@link Resolver#resolveValue}: a whole-value
-     *       placeholder ({@code {{paramName}}}) passes the value with its type, and leaves the
-     *       key unset when the value is absent.</li>
+     *       placeholder ({@code {{paramName}}}) passes the value with its type.</li>
      *   <li>Namespace-qualified reference ({@code namespace.paramName}) — resolved by looking up
      *       {@code paramName} in the target map when a matching namespace prefix is provided.</li>
      * </ul>
+     * When the value is absent, the key is removed from the target, so 'with' keeps precedence
+     * over a value of the same name already there (for example a caller argument).
      *
      * @param with      the 'with' map from a spec; may be null (no-op)
      * @param target    the map to merge into; resolution uses its current state
@@ -439,19 +440,22 @@ public class OperationStepExecutor {
             if (rawValue instanceof String rawStringValue) {
                 if (namespace != null && rawStringValue.startsWith(namespace + ".")) {
                     String paramName = rawStringValue.substring(namespace.length() + 1);
-                    Object resolved = target.get(paramName);
-                    if (resolved != null) {
-                        target.put(entry.getKey(), resolved);
-                    }
+                    putOrRemove(target, entry.getKey(), target.get(paramName));
                 } else {
-                    Object resolved = Resolver.resolveValue(rawStringValue, target);
-                    if (resolved != null) {
-                        target.put(entry.getKey(), resolved);
-                    }
+                    putOrRemove(target, entry.getKey(),
+                            Resolver.resolveValue(rawStringValue, target));
                 }
             } else {
                 target.put(entry.getKey(), rawValue);
             }
+        }
+    }
+
+    private static void putOrRemove(Map<String, Object> target, String key, Object value) {
+        if (value != null) {
+            target.put(key, value);
+        } else {
+            target.remove(key);
         }
     }
 

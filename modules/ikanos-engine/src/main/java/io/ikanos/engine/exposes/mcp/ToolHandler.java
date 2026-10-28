@@ -224,7 +224,8 @@ public class ToolHandler {
         // Merge arguments with tool-level 'with' parameters.
         // 'with' values are Mustache templates resolved against the tool arguments,
         // allowing parameter renaming (e.g. imo → imo_number).
-        // Arguments take precedence for keys not present in 'with'.
+        // Arguments take precedence for keys not present in 'with'. A 'with' key whose value is
+        // absent is removed, so a caller argument of the same name does not pass in its place.
         Map<String, Object> parameters = new HashMap<>();
         if (arguments != null) {
             parameters.putAll(arguments);
@@ -237,6 +238,8 @@ public class ToolHandler {
                     Object resolved = resolveWithValue(strValue, arguments);
                     if (resolved != null) {
                         parameters.put(entry.getKey(), resolved);
+                    } else {
+                        parameters.remove(entry.getKey());
                     }
                 } else {
                     parameters.put(entry.getKey(), rawValue);
