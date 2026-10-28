@@ -1431,7 +1431,8 @@ Defines parameter injection for simple-mode exposed operations. Used with the `w
 - The keys MUST correspond to valid parameter names in the consumed operation being called.
 - Values can be strings or numbers.
 - String values can use the `$this` root to reference exposed input parameters (same as in OperationStepParameter).
-- A string value that is exactly one Mustache variable (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path such as `"{{step.ids}}"`) passes the value itself, so a list, a number or a boolean keeps its type. If the variable is absent, the key is not set. Any other template (`"x-{{statuses}}"`, sections) is rendered to a string.
+- A string value that is exactly one Mustache variable (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path such as `"{{step.ids}}"`) passes the value itself, so a list, a number or a boolean keeps its type. If the variable is absent, the key is not set: a value of the same name that is already there, such as a caller argument, is removed, so the `with` mapping always decides the key's value. Any other template (`"x-{{statuses}}"`, sections) is rendered to a string.
+- In a script step's `with`, a whole-value placeholder likewise reaches the script as a list, number or boolean, not as JSON text. A script that used to parse such a value (`JSON.parse(ids)` in JavaScript, `json.loads(ids)` in Python) must now use it directly. If the variable is absent, a script step still binds the rendered text (`""`), so the script can read every key.
 - No additional constraints.
 
 #### 3.19.3 WithInjector Object Example
