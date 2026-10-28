@@ -787,11 +787,18 @@ public class OperationStepExecutor {
     }
 
     /**
-     * Resolve a {@code $.<step-name>.<field-path>} expression against the step context.
+     * Resolve a {@code $.<step-name><json-path>} expression against the step context.
+     *
+     * <p>The step name ends at the first {@code .} or {@code [}; the remainder is evaluated as
+     * JSONPath against that step's output with {@link Converter#jsonPathFind}, the engine behind
+     * {@code outputParameters[].mapping}, so array indexing, slices, wildcards and filters
+     * work (e.g. {@code $.list-records.records[0].id}). As with that engine, a wildcard or filter
+     * that matches nothing yields an empty array.</p>
      *
      * @param value       the path expression (e.g. {@code "$.get-ship.imo_number"})
      * @param stepContext the execution context containing step outputs
-     * @return the resolved {@link JsonNode}, or {@code null} when the path cannot be resolved
+     * @return the resolved {@link JsonNode} (a {@link NullNode} for an explicit JSON
+     *         {@code null}), or {@code null} when the path cannot be resolved
      */
     JsonNode resolveJsonPathFromStepContext(String value, StepExecutionContext stepContext) {
         if (value == null || !value.startsWith("$.") || stepContext == null) {
@@ -799,37 +806,25 @@ public class OperationStepExecutor {
         }
 
         String path = value.substring(2);
-        int firstDot = path.indexOf('.');
-
-        String stepName;
-        String fieldPath;
-
-        if (firstDot == -1) {
-            stepName = path;
-            fieldPath = null;
-        } else {
-            stepName = path.substring(0, firstDot);
-            fieldPath = path.substring(firstDot + 1);
+        int stepNameEnd = path.length();
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '.' || c == '[') {
+                stepNameEnd = i;
+                break;
+            }
         }
 
-        JsonNode stepOutput = stepContext.getStepOutput(stepName);
+        JsonNode stepOutput = stepContext.getStepOutput(path.substring(0, stepNameEnd));
         if (stepOutput == null) {
             return null;
         }
 
-        if (fieldPath == null || fieldPath.isEmpty()) {
-            return stepOutput;
+        JsonNode resolved = Converter.jsonPathFind(stepOutput, "$" + path.substring(stepNameEnd));
+        if (resolved == null) {
+            return NullNode.instance;
         }
-
-        JsonNode current = stepOutput;
-        for (String segment : fieldPath.split("\\.")) {
-            if (current == null || current.isNull()) {
-                return null;
-            }
-            current = current.get(segment);
-        }
-
-        return current;
+        return resolved.isMissingNode() ? null : resolved;
     }
 
     /**
