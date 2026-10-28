@@ -131,7 +131,8 @@ class OperationStepExecutorBranchTest {
         String uri = context.getRequest().getResourceRef().toString();
         assertTrue(uri.startsWith("https://api.example.com/search/"),
                 "#858: braces in a caller value must not be reported as an unresolved template");
-        assertTrue(uri.endsWith("/search/{{x}}"),
+        // The value is sent as one percent-encoded path segment (GHSA-rvg4-2rxw-mc64).
+        assertTrue(uri.endsWith("/search/%7B%7Bx%7D%7D"),
                 "#858: the caller value must be sent, not dropped: " + uri);
     }
 
