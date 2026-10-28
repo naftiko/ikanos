@@ -279,7 +279,7 @@ public class OasImportConverterTest {
     }
 
     @Test
-    void convertShouldSkipParametersWithNamesTheSchemaCannotKey() {
+    void convertShouldWriteSchemaValidKeysForBracketedParameterNames() {
         OpenAPI openApi = minimalOpenApi("Test");
         Operation op = operation("listPets", "List pets", null);
         op.setParameters(List.of(
@@ -292,10 +292,12 @@ public class OasImportConverterTest {
         OasImportResult result = converter.convert(openApi);
 
         List<InputParameterSpec> inputs = firstOperation(firstResource(result)).getInputParameters();
-        assertEquals(List.of("limit"), inputs.stream().map(InputParameterSpec::getName).toList(),
+        // #881 maps page[size] to a valid key and keeps the original name as wireName.
+        assertEquals(List.of("page-size", "limit"),
+                inputs.stream().map(InputParameterSpec::getName).toList());
+        assertTrue(inputs.stream().allMatch(
+                p -> OasImportConverter.PARAMETER_NAME.matcher(p.getName()).matches()),
                 "#871: inputParameters keys must match ^[a-zA-Z0-9-_*]+$");
-        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("page[size]")),
-                "Expected a warning naming the skipped parameter: " + result.getWarnings());
     }
 
     @Test
