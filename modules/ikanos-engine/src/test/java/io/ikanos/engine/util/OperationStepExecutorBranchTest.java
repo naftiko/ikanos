@@ -523,6 +523,124 @@ class OperationStepExecutorBranchTest {
         assertEquals("NO", json.path("ship").path("flag").asString());
     }
 
+    /**
+     * Regression test for #746: a step mapping must resolve array indexing through JSONPath,
+     * as {@code outputParameters[].mapping} does, instead of silently resolving to null.
+     */
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnElementWhenPathHasArrayIndex()
+            throws Exception {
+        JsonNode resolved = minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records.records[1].id", contextWith(RECORDS));
+
+        assertNotNull(resolved, "#746: records[1] must not silently resolve to null");
+        assertEquals(2, resolved.asInt());
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldIndexOutputWhenStepOutputIsArrayRoot()
+            throws Exception {
+        JsonNode resolved = minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records[0].id", contextWith("""
+                        [{"id": 1}, {"id": 2}]
+                        """));
+
+        assertNotNull(resolved, "#746: a step name followed by [0] must index the step output");
+        assertEquals(1, resolved.asInt());
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnArrayWhenPathHasWildcard() throws Exception {
+        JsonNode resolved = minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records.records[*].id", contextWith(RECORDS));
+
+        assertNotNull(resolved, "#746: a JSONPath wildcard must resolve");
+        assertEquals(IkanosMappers.json().readTree("[1, 2]"), resolved);
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnNullWhenIndexIsOutOfRange() throws Exception {
+        assertNull(minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records.records[5].id", contextWith(RECORDS)));
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnNullWhenFieldIsMissing() throws Exception {
+        assertNull(minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records.missing", contextWith(RECORDS)));
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnNullWhenStepIsUnknown() throws Exception {
+        assertNull(minimalExecutor().resolveJsonPathFromStepContext(
+                "$.unknown-step.records[0].id", contextWith(RECORDS)));
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnJsonNullWhenFieldIsExplicitNull()
+            throws Exception {
+        JsonNode resolved = minimalExecutor().resolveJsonPathFromStepContext(
+                "$.list-records.flag", contextWith("""
+                        {"flag": null}
+                        """));
+
+        assertNotNull(resolved,
+                "an explicit JSON null is a resolved value, not a missing path");
+        assertTrue(resolved.isNull());
+    }
+
+    @Test
+    void resolveStepMappingsShouldEmitNullWhenMappedFieldIsExplicitNull() throws Exception {
+        String result = minimalExecutor().resolveStepMappings(
+                List.of(new StepOutputMappingSpec("flag", "$.list-records.flag")),
+                contextWith("""
+                        {"flag": null}
+                        """));
+
+        assertNotNull(result,
+                "a mapping to an explicit JSON null must not make the mapped output vanish");
+        assertEquals(IkanosMappers.json().readTree("{\"flag\": null}"),
+                IkanosMappers.json().readTree(result));
+    }
+
+    @Test
+    void resolveJsonPathFromStepContextShouldReturnWholeStepOutputWhenNoFieldPath()
+            throws Exception {
+        StepExecutionContext stepContext = contextWith(RECORDS);
+
+        assertEquals(stepContext.getStepOutput("list-records"),
+                minimalExecutor().resolveJsonPathFromStepContext("$.list-records", stepContext));
+    }
+
+    private static final String RECORDS = """
+            {"records": [{"id": 1}, {"id": 2}]}
+            """;
+
+    private static StepExecutionContext contextWith(String listRecordsOutput) {
+        StepExecutionContext stepContext = new StepExecutionContext();
+        stepContext.storeStepOutput("list-records",
+                IkanosMappers.json().readTree(listRecordsOutput));
+        return stepContext;
+    }
+
+    private OperationStepExecutor minimalExecutor() throws Exception {
+        return executorFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/x"
+                          operations:
+                            - method: "GET"
+                              name: "x"
+                  consumes: []
+                """.formatted(schemaVersion));
+    }
+
     private static OperationStepExecutor executorFromYaml(String yaml) throws Exception {
         return new OperationStepExecutor(capabilityFromYaml(yaml));
     }

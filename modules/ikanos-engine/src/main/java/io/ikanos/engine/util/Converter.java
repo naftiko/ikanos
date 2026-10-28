@@ -16,6 +16,7 @@ package io.ikanos.engine.util;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.MissingNode;
 import tools.jackson.databind.node.NullNode;
 import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
@@ -435,14 +436,28 @@ public class Converter {
      * @return The extracted JsonNode, or NullNode if path not found
      */
     public static JsonNode jsonPathExtract(JsonNode root, String mapping) {
+        JsonNode found = jsonPathFind(root, mapping);
+        return found != null && found.isMissingNode() ? NullNode.instance : found;
+    }
+
+    /**
+     * Same as {@link #jsonPathExtract(JsonNode, String)}, but tells a path that does not resolve
+     * apart from one that resolves to JSON {@code null}.
+     *
+     * @param root The root JsonNode to extract from
+     * @param mapping The JSONPath expression
+     * @return The extracted JsonNode, or {@link MissingNode} if the path is empty, not found or
+     *         invalid
+     */
+    static JsonNode jsonPathFind(JsonNode root, String mapping) {
         if (mapping == null || mapping.isEmpty()) {
-            return NullNode.instance;
+            return MissingNode.getInstance();
         }
 
         String m = mapping.trim();
 
         if (m.equals("$") || m.equals("$.")) {
-            return root == null ? NullNode.instance : root;
+            return root == null ? MissingNode.getInstance() : root;
         }
 
         try {
@@ -452,7 +467,7 @@ public class Converter {
                             .mappingProvider(new Jackson3MappingProvider(mapper)).build();
             return JsonPath.using(config).parse(root).read(m, JsonNode.class);
         } catch (PathNotFoundException pnfe) {
-            return NullNode.instance;
+            return MissingNode.getInstance();
         } catch (Exception e) {
             // If the path contains properties with spaces, try to fix it by converting to bracket
             // notation
@@ -469,12 +484,12 @@ public class Converter {
                                 JsonNode.class);
                     } catch (Exception e2) {
                         logger.debug("JSONPath bracket-notation retry also failed for path '{}': {}", fixedMapping, e2.getMessage(), e2);
-                        return NullNode.instance;
+                        return MissingNode.getInstance();
                     }
                 }
             }
-            // For any other exception, return null
-            return NullNode.instance;
+            // For any other exception, the path does not resolve
+            return MissingNode.getInstance();
         }
     }
 
