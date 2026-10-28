@@ -46,8 +46,10 @@ public class Resolver {
      * JMustache default value used when there are no parameters at all: JMustache replaces
      * {@code {{name}}} in a default value with the missing variable's name, so a missing variable
      * is rendered back as {@code {{name}}}. Unescaped and spaced forms ({@code {{{x}}}},
-     * {@code {{&x}}}, {@code {{ x }}}) are normalised to {@code {{x}}}; the result always keeps
-     * its braces, which is what unresolved-template guards check.
+     * {@code {{&x}}}, {@code {{ x }}}) are normalised to {@code {{x}}}. The braces are kept so an
+     * exposes-side credential template never collapses to an empty string; to reject a missing
+     * required value, call {@link #missingVariables(String, Map)} on the template instead of
+     * checking the rendered output.
      */
     private static final String UNRESOLVED_VARIABLE = "{{{{name}}}}";
 
@@ -63,9 +65,10 @@ public class Resolver {
      * {@code {{^x}}...{{/x}}} is kept when {@code x} is absent, even when {@code parameters} is
      * null or empty. A bare variable that is missing renders as an empty string when other
      * parameters are present. When there are no parameters at all, it is rendered back as
-     * {@code {{name}}} (unescaped and spaced forms are normalised to that form), so callers can
-     * still detect a template that could not be resolved; a string that is not a valid template
-     * is then returned unchanged.</p>
+     * {@code {{name}}} (unescaped and spaced forms are normalised to that form), so an
+     * exposes-side credential template never collapses to an empty string; a string that is not
+     * a valid template is then returned unchanged. To reject a missing required value, call
+     * {@link #missingVariables(String, Map)} on the template.</p>
      *
      * @param template The template string containing {{...}} placeholders
      * @param parameters Map of parameter names to values for template resolution, may be null
@@ -123,8 +126,8 @@ public class Resolver {
         //
         // With no parameters at all, sections are still rendered (so an optional part over an
         // absent key disappears, #847), but a bare missing variable is written back as its own
-        // {{name}}: callers rely on that leftover to reject a missing required value, and an
-        // exposes-side credential template must never collapse to an empty string.
+        // {{name}}, so an exposes-side credential template never collapses to an empty string.
+        // Required-value checks do not read this leftover: they call missingVariables(...).
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
                 .defaultValue(noParameters ? UNRESOLVED_VARIABLE : "");
         if (valueEncoder != null && !noParameters) {
