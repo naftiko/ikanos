@@ -112,6 +112,41 @@ public class McpArrayQueryParameterIntegrationTest {
         }
     }
 
+    @Test
+    public void handleToolCallShouldNotPassCallerValueForToolWithKeyWhenArgumentAbsent()
+            throws Exception {
+        assertNull(queryForCallerStatus("list-subscriptions-renamed"),
+                "with: {status: \"{{statuses}}\"} decides status, so the caller's status must not"
+                        + " reach the upstream");
+    }
+
+    @Test
+    public void handleToolCallShouldNotPassCallerValueForStepWithKeyWhenArgumentAbsent()
+            throws Exception {
+        assertNull(queryForCallerStatus("list-subscriptions-in-step"),
+                "a step with: {status: \"{{statuses}}\"} decides status, so the caller's status"
+                        + " must not reach the upstream");
+    }
+
+    private String queryForCallerStatus(String tool) throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, query);
+        upstream.start();
+        try {
+            Capability capability = capabilityFromYaml(capabilityYaml(port));
+            ObjectNode arguments = MAPPER.createObjectNode();
+            arguments.putArray("status").add("from-caller");
+
+            JsonNode result = callTool(capability, tool, arguments);
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            return query.get();
+        } finally {
+            upstream.stop();
+        }
+    }
+
     private String queryForStatuses(String tool) throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
         int port = findFreePort();

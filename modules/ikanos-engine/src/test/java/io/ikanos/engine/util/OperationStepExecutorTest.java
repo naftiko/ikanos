@@ -141,6 +141,34 @@ public class OperationStepExecutorTest {
     }
 
     @Test
+    public void mergeWithShouldRemoveCallerValueWhenWholeValueVariableIsAbsent() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("status", "from-caller");
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("status", "{{statuses}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertFalse(target.containsKey("status"),
+                "with: decides the key's value, so a caller value with the same name must not pass");
+    }
+
+    @Test
+    public void mergeWithShouldRemoveCallerValueWhenNamespaceRefIsAbsent() {
+        Map<String, Object> target = new HashMap<>();
+        target.put("shipImo", "from-caller");
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("shipImo", "shipyard-api.imo");
+
+        OperationStepExecutor.mergeWithParameters(with, target, "shipyard-api");
+
+        assertFalse(target.containsKey("shipImo"),
+                "with: decides the key's value, so a caller value with the same name must not pass");
+    }
+
+    @Test
     public void mergeWithShouldRenderMixedTemplateAsText() {
         Map<String, Object> target = new HashMap<>();
         target.put("statuses", List.of("active", "pending"));
