@@ -1202,6 +1202,12 @@
     "allDeclaredFields": true
   },
   {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerSkillSpec",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
     "name": "io.ikanos.spec.exposes.control.ControlServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
@@ -1326,6 +1332,10 @@
   },
   {
     "name": "io.ikanos.spec.exposes.mcp.McpServerResourceMapDeserializer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.ikanos.spec.exposes.mcp.McpServerSkillMapDeserializer",
     "allDeclaredConstructors": true
   },
   {
