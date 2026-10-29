@@ -224,6 +224,12 @@
       "description": "Kebab-case identifier (alphanumeric and hyphens).",
       "pattern": "^[a-zA-Z0-9-]+$"
     },
+    "SkillName": {
+      "type": "string",
+      "description": "Agent Skills name: lowercase letters, digits and single hyphens, no leading or trailing hyphen, at most 64 characters.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
     "IdentifierExtended": {
       "type": "string",
       "description": "Extended identifier (alphanumeric, hyphens, underscores, and wildcard).",
@@ -1125,7 +1131,7 @@
     },
     "ExposesMcp": {
       "type": "object",
-      "description": "MCP Server exposition configuration. Exposes tools, resources and prompts over MCP transport (Streamable HTTP or stdio).",
+      "description": "MCP Server exposition configuration. Exposes tools, resources, prompts and skills over MCP transport (Streamable HTTP or stdio). At least one of 'tools' or 'skills' is required.",
       "properties": {
         "type": {
           "type": "string",
@@ -1215,12 +1221,34 @@
           },
           "description": "MCP prompt templates exposed by this server, keyed by prompt name.",
           "minProperties": 1
+        },
+        "skills": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/SkillName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/McpSkill"
+          },
+          "description": "Agent Skills served by this server through the MCP Skills Extension (SEP-2640), keyed by skill name. Each skill is exposed as skill://<name>/SKILL.md plus its supporting files.",
+          "minProperties": 1
         }
       },
       "required": [
         "type",
-        "namespace",
-        "tools"
+        "namespace"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "tools"
+          ]
+        },
+        {
+          "required": [
+            "skills"
+          ]
+        }
       ],
       "oneOf": [
         {
@@ -1988,6 +2016,83 @@
       "required": [
         "role",
         "content"
+      ],
+      "additionalProperties": false
+    },
+    "McpSkill": {
+      "type": "object",
+      "description": "An Agent Skill served over MCP (SEP-2640). The engine renders SKILL.md from these fields: the frontmatter always comes from the spec, and the body comes from an authored SKILL.md in 'location' when present, otherwise it is generated.",
+      "properties": {
+        "description": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "What the skill does and when to use it: activation cues, the workflow it guides and the expected outcome. Used for agent discovery."
+        },
+        "license": {
+          "type": "string",
+          "description": "License identifier (e.g., MIT, Apache-2.0)"
+        },
+        "compatibility": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Compatibility notes and requirements"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Arbitrary key-value metadata (author, category, tags, ecosystem, etc.)"
+        },
+        "allowed-tools": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Space-delimited list of pre-approved tool names (Agent Skills Spec). Hosts treat it as a request, not a grant, for skills served over MCP."
+        },
+        "argument-hint": {
+          "type": "string",
+          "description": "Hint text shown when agents invoke this skill via slash command (Agent Skills Spec)"
+        },
+        "user-invocable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether agents can invoke this skill as a slash command (Agent Skills Spec)"
+        },
+        "disable-model-invocation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to prevent auto-loading this skill based on context (Agent Skills Spec)"
+        },
+        "location": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^file:///",
+          "description": "file:/// URI to a curated directory of skill files (an optional authored SKILL.md, instruction files, references, scripts). Dotfiles, dot-directories and editor backups are not published; symlinks are rejected. Required when 'instructions' is declared."
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "uniqueItems": true,
+          "description": "Names of tools declared on this same MCP server that the skill depends on. Validated at load, never rendered into SKILL.md. Omit for a guidance-only skill."
+        },
+        "instructions": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$",
+            "description": "Path of the instruction file, relative to 'location'."
+          },
+          "description": "Instruction files keyed by name, each a path relative to 'location'. Linked from a generated SKILL.md body.",
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "description"
       ],
       "additionalProperties": false
     },

@@ -18,6 +18,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
+import io.ikanos.engine.exposes.mcp.SkillManifest;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
@@ -62,6 +63,21 @@ public class ResourcesListHandler extends McpCallHandler {
                 node.set("_meta", MAPPER.valueToTree(entry.meta()));
             }
             resourcesArray.add(node);
+        }
+
+        // Each skill's SKILL.md (SEP-2640), so clients without the extension still find skills.
+        // Supporting files are reachable through skills/list and resources/read, not listed here.
+        if (adapter.getSkillHandler() != null) {
+            for (SkillManifest skill : adapter.getSkillHandler().list()) {
+                ObjectNode node = resourcesArray.addObject();
+                node.put("uri", skill.uri());
+                node.put("name", skill.name());
+                node.put("description", skill.description());
+                node.put("mimeType", "text/markdown");
+                if (skill.meta() != null) {
+                    node.set("_meta", MAPPER.valueToTree(skill.meta()));
+                }
+            }
         }
 
         result.put("resultType", "complete");

@@ -18,6 +18,7 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
@@ -42,8 +43,8 @@ import java.util.logging.Level;
  * <li>{@code stdio} — stdin/stdout JSON-RPC for local IDE integration</li>
  * </ul>
  * 
- * In both modes, tool definitions and the {@link ToolHandler} are shared. Only the I/O layer
- * differs.
+ * In both modes, tool definitions and the {@link ToolHandler}, {@link ResourceHandler},
+ * {@link PromptHandler} and {@link SkillHandler} are shared. Only the I/O layer differs.
  */
 public class McpServerAdapter extends ServerAdapter {
 
@@ -63,6 +64,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final Map<String, String> toolLabels;
     private final ResourceHandler resourceHandler;
     private final PromptHandler promptHandler;
+    private final SkillHandler skillHandler;
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -101,6 +103,11 @@ public class McpServerAdapter extends ServerAdapter {
 
         // Create the prompt handler (transport-agnostic)
         this.promptHandler = new PromptHandler(serverSpec.getPrompts());
+
+        // Skills (SEP-2640): validated and snapshotted once, here, so a bad skill fails startup
+        this.skillHandler = new SkillHandler(serverSpec.getSkills(), serverSpec.getTools().keySet(),
+                serverSpec.getResources().values().stream()
+                        .map(McpServerResourceSpec::getUri).toList());
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -217,6 +224,10 @@ public class McpServerAdapter extends ServerAdapter {
 
     public PromptHandler getPromptHandler() {
         return promptHandler;
+    }
+
+    public SkillHandler getSkillHandler() {
+        return skillHandler;
     }
 
     public List<McpSchema.Tool> getTools() {

@@ -24,7 +24,7 @@ flowchart LR
         subgraph exposes[Exposes]
             MCP[MCP server<br/>HTTP or stdio]
             REST[REST server]
-            SKILL[Skill server]
+            SKILL[Skill server<br/>deprecated]
             CTRL[Control port]
         end
         ORCH[Orchestration<br/>call · steps · aggregates]
@@ -39,7 +39,8 @@ flowchart LR
 
     A --> MCP
     B --> REST
-    C --> SKILL
+    C --> MCP
+    C -.-> SKILL
     O --> CTRL
     MCP --> ORCH
     REST --> ORCH
@@ -101,9 +102,9 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
 | `io.ikanos.engine.imports` | Resolves `import` entries in `consumes`, `exposes`, `aggregates` and `binds` before anything else runs. |
 | `io.ikanos.engine.exposes` | `ServerAdapter` base class, the shared authentication filters, and `ServerHost`, which mounts adapters that share an address and port on one listener. |
-| `io.ikanos.engine.exposes.mcp` | The MCP server: transports, `ProtocolDispatcher`, per-method handlers, tool/resource/prompt handlers. |
+| `io.ikanos.engine.exposes.mcp` | The MCP server: transports, `ProtocolDispatcher`, per-method handlers, tool/resource/prompt handlers, and the skill handler that serves Agent Skills through the Skills Extension (SEP-2640). |
 | `io.ikanos.engine.exposes.rest` | The REST server: routing and `ResourceRestlet`. |
-| `io.ikanos.engine.exposes.skill` | The Skill server: a read-only catalog of agent skills. |
+| `io.ikanos.engine.exposes.skill` | The Skill server: a read-only HTTP catalog of agent skills. Deprecated in favour of the `skills` block of the MCP adapter ([#898](https://github.com/naftiko/ikanos/issues/898)). |
 | `io.ikanos.engine.exposes.control` | The control port: health, status, metrics, traces, scripting management. |
 | `io.ikanos.engine.observability` | OpenTelemetry bootstrap, metrics, trace context propagation. |
 
@@ -150,7 +151,7 @@ The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHel
 Two consequences for contributors:
 
 - An adapter **constructor must not** call `getClientAdapters()` or `getServerAdapters()`: they are not published until the end of the `Capability` constructor. Do cross-adapter lookups at request time or in `start()`.
-- Anything that can be checked at load time (an unknown `ref`, a cycle between flows, a malformed skill tool) should fail **here**, not on the first request.
+- Anything that can be checked at load time (an unknown `ref`, a cycle between flows, a skill that depends on an undeclared tool) should fail **here**, not on the first request.
 
 ## Life of a request
 
@@ -204,6 +205,7 @@ What this path shows about the MCP adapter:
 
 - **Transport and protocol are separate.** In the MCP adapter, `McpServerResource` holds everything specific to HTTP (header checks, HTTP status codes, content types), and `ProtocolDispatcher` holds the MCP protocol, shared with the stdio transport (`StdioJsonRpcHandler`). A protocol change belongs in the dispatcher or a handler, never in a transport.
 - **One handler per JSON-RPC method.** Each method has its own `McpCallHandler` subclass in `exposes.mcp.handler`, built once per adapter by `McpCallHandlersFactory`, which is the list of supported methods. Each handler declares the MCP headers it requires, its pre-processors and its post-processors (`exposes.mcp.processor`).
+- **Extensions.** `server/discover` advertises every extension in one `capabilities.extensions` object: MCP Apps (`McpAppsMetadata`) when a tool links a `ui://` view, Skills (`SkillHandler`) when the adapter declares skills. The Skills methods (`skills/list`, `skills/get`) are only registered when the adapter serves skills, so a server without skills answers them with `method not found`.
 - **Protocol versions.** The supported versions are defined in one place, `ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS` (at the time of writing, 2026-07-28 only). A request with an unsupported version, including a legacy `initialize` (`LegacyInitializeHandler`), gets an explicit `UnsupportedProtocolVersionError` that names the supported versions.
 
 ### Errors
@@ -217,7 +219,8 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 
 - **MCP over stdio**: `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
 - **REST**: `RestServerAdapter` attaches one `ResourceRestlet` per resource path. `ResourceRestlet` first looks for an operation matching the HTTP method and runs it (see [Execution modes](#execution-modes)). Only when no operation handles the request does it fall back to `forward`, which proxies the request to a consumed API; otherwise it answers `404`.
-- **Skill**: read-only. It serves skill metadata and files and never runs a call itself; a skill tool that runs something points to a tool of a sibling MCP or REST adapter.
+- **Skills over MCP**: read-only. `SkillHandler` validates every declared skill at startup and snapshots it: it renders `SKILL.md` (frontmatter from the spec, body authored or generated), walks the skill's `location` under the publication rules (no dotfiles, dot-directories or editor backups; a symbolic link fails the load) and computes a `sha256:` digest per file. `skills/list`, `skills/get` and `resources/read` on `skill://` URIs are answered from that snapshot, never from disk, so a published digest always matches the served bytes. A skill over the SEP-2640 limits (512 files, 16 MiB) is not served.
+- **Skill (deprecated)**: read-only. It serves skill metadata and files over its own HTTP routes and never runs a call itself; a skill tool that runs something points to a tool of a sibling MCP or REST adapter.
 - **Control port**: engine-defined management endpoints, no orchestration.
 
 ## Consumes: calling upstream APIs
@@ -297,9 +300,9 @@ A value that is longer than 256 characters, contains characters outside `[A-Za-z
 
 | Adapter | Where its routes are defined | Notes |
 |---|---|---|
-| `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`) through `McpToolInputSchema`, which copies the nested `items`/`properties`/`enum`/`format`/bounds as written (advertised to clients only: tool arguments are not validated against it), annotations from hints, and an output schema when the tool has an output contract. |
+| `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Validates and snapshots the declared skills at startup (`SkillHandler`). Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`) through `McpToolInputSchema`, which copies the nested `items`/`properties`/`enum`/`format`/bounds as written (advertised to clients only: tool arguments are not validated against it), annotations from hints, and an output schema when the tool has an output contract. |
 | `RestServerAdapter` | One route per resource path declared in the spec | |
-| `SkillServerAdapter` | Attached in `SkillServerAdapter` | Validates the skill tools at startup. |
+| `SkillServerAdapter` | Attached in `SkillServerAdapter` | Deprecated: logs a warning at startup. Validates the skill tools at startup. |
 | `ControlServerAdapter` | Attached in `ControlServerAdapter` | Each route is only attached when the matching management or observability option is on. The `ikanos` control-port commands are its clients. |
 
 ### Shared listeners
