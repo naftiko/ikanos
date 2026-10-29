@@ -17,9 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSkillSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 /**
@@ -173,7 +180,7 @@ public class Step8ShipyardMcpClientIntegrationTest
     }
 
     @Test
-    public void fleetOpsSkillShouldServeGeneratedSkillMd() throws Exception {
+    public void fleetOpsSkillShouldServeAuthoredSkillMd() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
 
         JsonNode skill = callSkillsGet(http, "skill://fleet-ops/SKILL.md");
@@ -184,10 +191,41 @@ public class Step8ShipyardMcpClientIntegrationTest
                 "fleet-ops description must come from the spec");
 
         JsonNode resources = skill.path("resources");
-        assertEquals(1, resources.size(), "a skill without location serves only SKILL.md");
+        assertEquals(1, resources.size(), "the authored SKILL.md replaces the generated one");
         assertEquals("skill://fleet-ops/SKILL.md", resources.get(0).path("uri").asString());
         assertTrue(resources.get(0).path("digest").asString().startsWith("sha256:"),
                 "SKILL.md must carry a sha256 digest");
+    }
+
+    @Test
+    public void fleetOpsSkillShouldTeachTheLegacyRegistryFallback() throws Exception {
+        HttpClient http = HttpClient.newHttpClient();
+
+        String skillMd = callResourcesReadText(http, "skill://fleet-ops/SKILL.md");
+
+        assertTrue(skillMd.startsWith("---\nname: \"fleet-ops\"\n"),
+                "the frontmatter must be generated from the spec");
+        assertTrue(skillMd.contains("If `get-ship` returns no match, call `list-legacy-vessels`"),
+                "fleet-ops must teach the fallback to the legacy registry");
+    }
+
+    @Test
+    public void tutorialSkillsShouldOnlyNameToolsTheyDependOn() throws Exception {
+        IkanosSpec spec = loadSpec(CAPABILITY_FILE);
+        McpServerSpec mcp = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        Pattern toolName = Pattern.compile("`([a-z]+(?:-[a-z]+)+)`");
+
+        for (Map.Entry<String, McpServerSkillSpec> skill : mcp.getSkills().entrySet()) {
+            String body = Files.readString(Path.of(
+                    URI.create(skill.getValue().getLocation())).resolve("SKILL.md"));
+            Matcher matcher = toolName.matcher(body);
+            while (matcher.find()) {
+                String name = matcher.group(1);
+                assertTrue(skill.getValue().getTools().contains(name)
+                        || mcp.getSkills().containsKey(name),
+                        skill.getKey() + " names `" + name + "`, which it does not depend on");
+            }
+        }
     }
 
     @Test

@@ -496,6 +496,28 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Agent Skills over MCP rules (SEP-2640)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpSkillAllowedToolsRuleShouldFireWhenSkillDeclaresAllowedTools() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-violations.yaml",
+            "info");
+        assertTrue(result.output().contains("ikanos-mcp-skill-allowed-tools"),
+            "Expected lint output to reference ikanos-mcp-skill-allowed-tools.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpSkillRulesShouldNotFireForCompliantSkill() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-compliant.yaml",
+            "info");
+        assertTrue(!result.output().contains("ikanos-mcp-skill-"),
+            "Expected no Agent Skills rule findings for a compliant document.\n"
+                + result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Consumed MCP rules (consumes type: mcp)
     // ────────────────────────────────────────────────────────────────
 

@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
@@ -130,6 +131,27 @@ class SkillHandlerTest {
         assertThat(paths(manifest)).containsExactly("SKILL.md");
         assertThat(skillMd).contains("description: \"Find ships across registries.\"")
                 .doesNotContain("Old.").endsWith("# Fleet\n\nTry legacy too.\n");
+    }
+
+    @Test
+    void warnIfLowValueShouldFlagSkillThatOnlyRestatesItsDescription() {
+        McpServerSkillSpec skill = skill("fleet-ops");
+
+        assertThat(SkillHandler.warnIfLowValue(skill, SkillMarkdownRenderer.generatedBody(skill)))
+                .isTrue();
+        assertThat(SkillHandler.warnIfLowValue(skill, "\n")).isTrue();
+    }
+
+    @Test
+    void warnIfLowValueShouldAcceptAuthoredBodyOrInstructionFiles() {
+        McpServerSkillSpec authored = skill("fleet-ops");
+        McpServerSkillSpec withInstructions = skill("voyage-ops");
+        withInstructions.setInstructions(Map.of("checklist", "checklist.md"));
+
+        assertThat(SkillHandler.warnIfLowValue(authored, "# Fleet\n\nTry legacy too.\n"))
+                .isFalse();
+        assertThat(SkillHandler.warnIfLowValue(withInstructions,
+                SkillMarkdownRenderer.generatedBody(withInstructions))).isFalse();
     }
 
     // ── publication rules ────────────────────────────────────────────────────────────────────────
@@ -342,6 +364,51 @@ class SkillHandlerTest {
 
         assertThatThrownBy(() -> handler.read("skill://fleet-ops/.env"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void resolveLocationShouldResolveRelativeUriAgainstTheWorkingDirectory() throws Exception {
+        Path root = location("guide.md");
+        String relative = Path.of(System.getProperty("user.dir")).relativize(root).toString()
+                .replace('\\', '/');
+
+        assertThat(SkillHandler.resolveLocation("fleet-ops", "file:///./" + relative))
+                .isEqualTo(root.toRealPath());
+    }
+
+    @Test
+    void readDirectoryShouldListDirectChildrenInManifestOrder() throws Exception {
+        McpServerSkillSpec skill = skill("fleet-ops");
+        skill.setLocation(location("guide.md", "templates/a.md", "templates/regional/eu.md")
+                .toUri().toString());
+        SkillHandler handler = handler(skill);
+
+        assertThat(handler.readDirectory("skill://fleet-ops")).extracting(
+                SkillHandler.DirectoryChild::uri, SkillHandler.DirectoryChild::mimeType)
+                .containsExactly(
+                        tuple("skill://fleet-ops/SKILL.md",
+                                "text/markdown"),
+                        tuple("skill://fleet-ops/guide.md",
+                                "text/markdown"),
+                        tuple("skill://fleet-ops/templates",
+                                SkillHandler.DIRECTORY));
+        assertThat(handler.readDirectory("skill://fleet-ops/templates/"))
+                .extracting(SkillHandler.DirectoryChild::name)
+                .containsExactly("a.md", "regional");
+        assertThat(handler.readDirectory("skill://fleet-ops/templates/regional").get(0).size())
+                .isEqualTo("content of templates/regional/eu.md".length());
+    }
+
+    @Test
+    void readDirectoryShouldRejectFilesAndUnknownDirectories() {
+        SkillHandler handler = handler(skill("fleet-ops"), skill("fleet"));
+
+        assertThat(handler.readDirectory("skill://fleet")).hasSize(1);
+        for (String uri : new String[] {"skill://fleet-ops/SKILL.md", "skill://fleet-ops/missing",
+                "skill://fleet-op", "skill://other", null}) {
+            assertThatThrownBy(() -> handler.readDirectory(uri))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test

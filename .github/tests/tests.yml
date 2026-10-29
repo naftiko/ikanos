@@ -289,6 +289,17 @@ tests:
       - jq: '.skill.frontmatter.name == "fleet-ops"'
       - jq: '.skill.resources[0].digest | startswith("sha256:")'
 
+  - name: step8-skills-directory-read-fleet-ops
+    type: rpc
+    file: step-8-shipyard-skill-groups.yml
+    port: 3001
+    method: resources/directory/read
+    params:
+      uri: "skill://fleet-ops"
+    validations:
+      - jq: '[.resources[].uri] == ["skill://fleet-ops/SKILL.md"]'
+      - jq: '.resources[0].mimeType == "text/markdown"'
+
   - name: step9-list-ships
     file: step-9-shipyard-aggregates.yml
     port: 3001

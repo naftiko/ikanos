@@ -292,6 +292,8 @@ capability:
       fleet-ops:
         description: "Fleet management — list, search, and inspect ships across all registries"
         tools: [list-ships, get-ship, list-legacy-vessels, get-ship-with-crew]
+        location: "file:///./shared/skills/fleet-ops"
       voyage-ops:
         description: "Voyage planning — create and manage voyages"
         tools: [create-voyage]
+        location: "file:///./shared/skills/voyage-ops"

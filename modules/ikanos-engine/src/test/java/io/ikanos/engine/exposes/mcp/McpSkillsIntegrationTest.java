@@ -63,6 +63,8 @@ class McpSkillsIntegrationTest {
         Files.writeString(dir.resolve("lookup-fallback.md"),
                 "If get-ship finds nothing, call list-legacy-vessels before giving up.\n");
         Files.writeString(dir.resolve(".env"), "TOKEN=secret\n");
+        Files.createDirectories(dir.resolve("templates"));
+        Files.writeString(dir.resolve("templates/escalation.md"), "# Escalate to the registry\n");
         location = dir.toUri().toString();
     }
 
@@ -75,7 +77,9 @@ class McpSkillsIntegrationTest {
 
         assertThat(capabilities.path("extensions").has(SkillHandler.EXTENSION_ID)).isTrue();
         assertThat(capabilities.path("extensions").path(SkillHandler.EXTENSION_ID)
-                .has("directoryRead")).isFalse();
+                .path("directoryRead").isBoolean()).isTrue();
+        assertThat(capabilities.path("extensions").path(SkillHandler.EXTENSION_ID)
+                .path("directoryRead").asBoolean()).isTrue();
         assertThat(capabilities.has("resources")).isTrue();
         assertThat(capabilities.has("tools")).isTrue();
     }
@@ -125,7 +129,7 @@ class McpSkillsIntegrationTest {
         assertThat(result.has("cacheScope")).isTrue();
         assertThat(entry.path("uri").asString()).isEqualTo(SKILL_URI);
         assertThat(uris(entry.path("resources"))).containsExactly(SKILL_URI,
-                "skill://fleet-ops/lookup-fallback.md");
+                "skill://fleet-ops/lookup-fallback.md", "skill://fleet-ops/templates/escalation.md");
         for (JsonNode resource : entry.path("resources")) {
             byte[] bytes = readBytes(adapter, resource.path("uri").asString());
             assertThat(resource.path("digest").asString()).isEqualTo(sha256(bytes));
@@ -237,6 +241,55 @@ class McpSkillsIntegrationTest {
                 "{\"uri\":\"skill://fleet-ops/.env\"}").path("error");
 
         assertThat(error.path("code").asInt()).isEqualTo(-32602);
+    }
+
+    // ── resources/directory/read ─────────────────────────────────────────────────────────────────
+
+    @Test
+    void directoryReadShouldListDirectChildrenOfTheSkillRoot() throws Exception {
+        JsonNode result = dispatch(load(fleetCapability()), "resources/directory/read",
+                "{\"uri\":\"skill://fleet-ops\"}").path("result");
+        JsonNode resources = result.path("resources");
+
+        assertThat(result.path("resultType").asString()).isEqualTo("complete");
+        assertThat(result.has("nextCursor")).isFalse();
+        assertThat(uris(resources)).containsExactly(SKILL_URI,
+                "skill://fleet-ops/lookup-fallback.md", "skill://fleet-ops/templates");
+        assertThat(resources.get(1).path("name").asString()).isEqualTo("lookup-fallback.md");
+        assertThat(resources.get(1).path("mimeType").asString()).isEqualTo("text/markdown");
+        assertThat(resources.get(1).has("size")).isTrue();
+        assertThat(resources.get(2).path("name").asString()).isEqualTo("templates");
+        assertThat(resources.get(2).path("mimeType").asString())
+                .isEqualTo(SkillHandler.DIRECTORY);
+        assertThat(resources.get(2).has("size")).isFalse();
+    }
+
+    @Test
+    void directoryReadShouldListSubdirectory() throws Exception {
+        JsonNode resources = dispatch(load(fleetCapability()), "resources/directory/read",
+                "{\"uri\":\"skill://fleet-ops/templates\"}").path("result").path("resources");
+
+        assertThat(uris(resources)).containsExactly("skill://fleet-ops/templates/escalation.md");
+    }
+
+    @Test
+    void directoryReadShouldRejectFileUnknownDirectoryAndCursor() throws Exception {
+        McpServerAdapter adapter = load(fleetCapability());
+
+        for (String params : List.of("{\"uri\":\"" + SKILL_URI + "\"}",
+                "{\"uri\":\"skill://fleet-ops/missing\"}", "{\"uri\":\"skill://other\"}",
+                "{}", "{\"uri\":\"skill://fleet-ops\",\"cursor\":\"page-2\"}")) {
+            assertThat(dispatch(adapter, "resources/directory/read", params)
+                    .path("error").path("code").asInt()).as(params).isEqualTo(-32602);
+        }
+    }
+
+    @Test
+    void directoryReadShouldBeUnknownMethodWhenServerServesNoSkill() throws Exception {
+        JsonNode error = dispatch(load(toolsOnlyCapability()), "resources/directory/read",
+                "{\"uri\":\"skill://fleet-ops\"}").path("error");
+
+        assertThat(error.path("code").asInt()).isEqualTo(-32601);
     }
 
     // ── load-time validation ─────────────────────────────────────────────────────────────────────

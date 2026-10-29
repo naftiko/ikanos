@@ -43,6 +43,7 @@ import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.ImportedConsumesHttpSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSkillSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.BindingSpec;
@@ -202,6 +203,17 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
         return json.readTree(response.body()).path("result").path("skill");
     }
 
+    protected String callResourcesReadText(HttpClient http, String uri) throws Exception {
+        HttpResponse<String> response = http.send(
+                buildPost("""
+                        {"jsonrpc":"2.0","id":7,"method":"resources/read","params":{"uri":"%s"}}
+                        """.formatted(uri)),
+                string());
+        assertEquals(200, response.statusCode());
+        return json.readTree(response.body()).path("result").path("contents").get(0)
+                .path("text").asString();
+    }
+
     /**
      * Sends {@code tools/call}, asserts {@code isError} is false, and returns the parsed
      * JSON payload from {@code result.content[0].text}.
@@ -331,6 +343,21 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
 
         normalizeBindLocations(spec.getCapability().getBinds());
         normalizeConsumesImports(spec.getCapability().getConsumes());
+        normalizeSkillLocations(spec.getCapability().getExposes());
+    }
+
+    private void normalizeSkillLocations(List<ServerSpec> exposes) {
+        for (ServerSpec server : exposes) {
+            if (!(server instanceof McpServerSpec mcp)) {
+                continue;
+            }
+            for (McpServerSkillSpec skill : mcp.getSkills().values()) {
+                String location = skill.getLocation();
+                if (location != null && location.startsWith(SHARED_FILE_URI_PREFIX)) {
+                    skill.setLocation(resolveSharedPath(location.substring(SHARED_FILE_URI_PREFIX.length())).toUri().toString());
+                }
+            }
+        }
     }
 
     private void normalizeBindLocations(List<BindingSpec> binds) {

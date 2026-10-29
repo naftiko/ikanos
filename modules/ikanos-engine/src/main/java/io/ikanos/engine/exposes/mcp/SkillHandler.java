@@ -77,7 +77,13 @@ public class SkillHandler {
     /** A publishable path segment: no leading dot, no separators, no special characters. */
     private static final Pattern SAFE_SEGMENT = Pattern.compile("^[A-Za-z0-9_-][A-Za-z0-9._-]*$");
 
+    /** Media type of a directory resource, as listed by {@code resources/directory/read}. */
+    public static final String DIRECTORY = "inode/directory";
+
     private static final String MARKDOWN = "text/markdown";
+
+    /** Prefix of a location relative to the working directory. */
+    private static final String RELATIVE_FILE = "file:///./";
 
     private final Map<String, SkillManifest> manifests;
 
@@ -162,6 +168,63 @@ public class SkillHandler {
         throw new IllegalArgumentException("Unknown skill resource: " + uri);
     }
 
+    /**
+     * List the direct children of a skill directory: the skill root ({@code skill://<name>}) or
+     * one of its subdirectories. Directory URIs have no trailing slash; one is tolerated.
+     *
+     * @return the published files directly in the directory and its subdirectories (as
+     *         {@value #DIRECTORY} entries), in manifest order: {@code SKILL.md} first, then by
+     *         path
+     * @throws IllegalArgumentException when the URI is not a directory of a served skill
+     */
+    public List<DirectoryChild> readDirectory(String uri) {
+        String directory = uri != null && uri.endsWith("/")
+                ? uri.substring(0, uri.length() - 1) : uri;
+        for (SkillManifest manifest : manifests.values()) {
+            String root = SCHEME + manifest.name();
+            String prefix;
+            if (root.equals(directory)) {
+                prefix = "";
+            } else if (directory != null && directory.startsWith(root + "/")) {
+                prefix = directory.substring(root.length() + 1) + "/";
+            } else {
+                continue;
+            }
+            Map<String, DirectoryChild> children = new LinkedHashMap<>();
+            for (SkillFile file : manifest.files()) {
+                if (!file.path().startsWith(prefix)) {
+                    continue;
+                }
+                String rest = file.path().substring(prefix.length());
+                int slash = rest.indexOf('/');
+                if (slash < 0) {
+                    children.put(rest, new DirectoryChild(file.uri(), rest, file.mimeType(),
+                            file.size()));
+                } else {
+                    String child = rest.substring(0, slash);
+                    children.putIfAbsent(child + "/", new DirectoryChild(
+                            root + "/" + prefix + child, child, DIRECTORY, null));
+                }
+            }
+            // The root always holds SKILL.md; a subdirectory exists only if a file is under it
+            if (!children.isEmpty()) {
+                return List.copyOf(children.values());
+            }
+        }
+        throw new IllegalArgumentException("Unknown skill directory: " + uri);
+    }
+
+    /**
+     * A direct child of a skill directory.
+     *
+     * @param uri      the {@code skill://} URI of the child
+     * @param name     the last segment of its path
+     * @param mimeType the media type of a file, or {@value SkillHandler#DIRECTORY}
+     * @param size     the byte length of a file, or {@code null} for a directory
+     */
+    public record DirectoryChild(String uri, String name, String mimeType, Long size) {
+    }
+
     // ── Snapshot ─────────────────────────────────────────────────────────────────────────────────
 
     /**
@@ -215,6 +278,12 @@ public class SkillHandler {
             }
             body = parsed.body();
         }
+        warnIfLowValue(skill, body);
+        if (skill.getAllowedTools() != null) {
+            Context.getCurrentLogger().warning("Skill '" + name + "' declares allowed-tools: hosts"
+                    + " ignore it for skills served over MCP unless the user approves the grant"
+                    + " for that skill, so it is a request, not a permission.");
+        }
         byte[] skillMd = SkillMarkdownRenderer.render(frontmatter, body)
                 .getBytes(StandardCharsets.UTF_8);
 
@@ -242,9 +311,31 @@ public class SkillHandler {
                 SkillMarkdownRenderer.resourceMeta(skill), files);
     }
 
-    private static Path resolveLocation(String name, String location) {
+    /**
+     * Warn when a skill has neither an authored body nor instruction files: its {@code SKILL.md}
+     * only restates the description, so it gives an agent no workflow guidance.
+     */
+    static boolean warnIfLowValue(McpServerSkillSpec skill, String body) {
+        boolean lowValue = skill.getInstructions().isEmpty()
+                && (body.isBlank() || body.equals(SkillMarkdownRenderer.generatedBody(skill)));
+        if (lowValue) {
+            Context.getCurrentLogger().warning("Skill '" + skill.getName() + "' has no authored"
+                    + " SKILL.md body and no instruction files, so it only restates its"
+                    + " description. Add a SKILL.md to its location that explains the workflow.");
+        }
+        return lowValue;
+    }
+
+    /**
+     * Resolve a skill location: an absolute {@code file:///} URI, or {@code file:///./<path>}
+     * relative to the working directory, as for {@code binds}.
+     */
+    static Path resolveLocation(String name, String location) {
         try {
-            Path path = Paths.get(URI.create(location));
+            Path path = location.startsWith(RELATIVE_FILE)
+                    ? Path.of(System.getProperty("user.dir"))
+                            .resolve(location.substring(RELATIVE_FILE.length()))
+                    : Paths.get(URI.create(location));
             if (!Files.isDirectory(path) || !Files.isReadable(path)) {
                 throw new IllegalStateException("The location of skill '" + name + "' ("
                         + location + ") is not a readable directory.");
