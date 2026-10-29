@@ -1,0 +1,31 @@
+# SEP-2640 (Skills Extension) conformance fixture, served by the mcp-skills-conformance workflow.
+# Run from the repository root: skill locations are relative to the working directory.
+# fleet-ops is listed first and has nested directories, so the directory scenario can test it.
+ikanos: "1.0.0-beta9"
+info:
+  display: "SEP-2640 conformance"
+  description: "Fixture for the MCP Skills Extension conformance suite"
+capability:
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 3099
+      namespace: "conformance"
+      description: "Agent Skills over MCP conformance fixture."
+      tools:
+        get-ship:
+          description: "Retrieve a ship by IMO number."
+          outputParameters:
+            - type: "string"
+              value: "ship"
+      skills:
+        fleet-ops:
+          description: "Find ships across the current and legacy registries."
+          tools: ["get-ship"]
+          location: "file:///./modules/ikanos-engine/src/test/resources/conformance/sep-2640/skills/fleet-ops"
+          instructions:
+            lookup-fallback: "lookup-fallback.md"
+          argument-hint: "<imo-number>"
+        install-guide:
+          description: "Guide a developer through installing Ikanos."
+  consumes: []

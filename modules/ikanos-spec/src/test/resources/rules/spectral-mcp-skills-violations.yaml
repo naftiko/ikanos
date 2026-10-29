@@ -1,0 +1,31 @@
+# Spectral fixture — Agent Skills over MCP rules MUST FIRE:
+#   a skill declares allowed-tools.
+ikanos: "1.0.0-beta9"
+info:
+  display: "Agent Skills over MCP rules — violations"
+  description: "Fixture that breaks every Agent Skills over MCP Polychro rule."
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API."
+      baseUri: https://api.registry.test
+      resources:
+        ship:
+          path: /ships/{{imo}}
+          operations:
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      namespace: fleet
+      port: 3001
+      tools:
+        get-ship:
+          description: Retrieve a ship by IMO number.
+          call: registry.get-ship
+      skills:
+        fleet-ops:
+          description: Find ships across the current and legacy registries.
+          tools: [get-ship]
+          allowed-tools: "Bash(git:*)"

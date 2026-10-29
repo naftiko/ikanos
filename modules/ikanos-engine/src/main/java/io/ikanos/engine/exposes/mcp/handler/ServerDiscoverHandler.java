@@ -69,10 +69,9 @@ public class ServerDiscoverHandler extends McpCallHandler {
         if (McpAppsMetadata.anyToolDeclaresUi(spec.getTools().values())) {
             extensions.putObject(McpAppsMetadata.EXTENSION_ID);
         }
-        // Skills (SEP-2640): no resources/directory/read yet, so directoryRead stays at its
-        // default (false).
+        // Skills (SEP-2640), with resources/directory/read over every skill directory
         if (!skills.isEmpty()) {
-            extensions.putObject(SkillHandler.EXTENSION_ID);
+            extensions.putObject(SkillHandler.EXTENSION_ID).put("directoryRead", true);
         }
         if (!extensions.isEmpty()) {
             capabilities.set("extensions", extensions);

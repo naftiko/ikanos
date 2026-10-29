@@ -38,10 +38,11 @@ jobs:
     # tokens have zero real-world value. Do NOT reproduce this pattern for actual
     # credentials, use secrets: and the workflow_run split pattern instead
     # (see publish-badges-and-comment.yml for an example).
-    - name: Copy secrets file
+    - name: Copy secrets file and skills
       run: |
         mkdir -p shared
         cp modules/ikanos-docs/tutorial/shared/secrets.yaml shared/secrets.yaml
+        cp -r modules/ikanos-docs/tutorial/shared/skills shared/skills
 
     - name: Start Microcks
       run: |

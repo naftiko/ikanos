@@ -1,0 +1,72 @@
+name: MCP Skills conformance
+
+# Runs the official MCP conformance suite's SEP-2640 (Skills Extension) server
+# scenarios against an Ikanos MCP server serving the fixture in
+# modules/ikanos-engine/src/test/resources/conformance/sep-2640/.
+on:
+  push:
+    paths:
+      - 'modules/ikanos-engine/src/main/java/io/ikanos/engine/exposes/mcp/**'
+      - 'modules/ikanos-engine/src/test/resources/conformance/sep-2640/**'
+      - '.github/workflows/mcp-skills-conformance.yml'
+  pull_request:
+    paths:
+      - 'modules/ikanos-engine/src/main/java/io/ikanos/engine/exposes/mcp/**'
+      - 'modules/ikanos-engine/src/test/resources/conformance/sep-2640/**'
+      - '.github/workflows/mcp-skills-conformance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned: the suite's checks change between releases.
+  CONFORMANCE_VERSION: 0.2.0-alpha.12
+  FIXTURE: modules/ikanos-engine/src/test/resources/conformance/sep-2640/capability.yml
+  SERVER_URL: http://localhost:3099
+
+jobs:
+  sep-2640:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    - name: Set up Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: 21
+
+    - name: Build project
+      run: mvn package -DskipTests -q
+
+    - name: Start the fixture server
+      run: |
+        java -jar modules/ikanos-cli/target/ikanos.jar serve "$FIXTURE" > server.log 2>&1 &
+        for i in {1..30}; do
+          if curl -s -o /dev/null "$SERVER_URL"; then
+            echo "Server is ready"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Server failed to start"
+        cat server.log
+        exit 1
+
+    - name: Run the SEP-2640 server scenarios
+      run: |
+        status=0
+        for scenario in enumeration manifest directory; do
+          echo "::group::sep-2640-skills-$scenario"
+          npx --yes "@modelcontextprotocol/conformance@$CONFORMANCE_VERSION" server \
+            --url "$SERVER_URL" --scenario "sep-2640-skills-$scenario" || status=1
+          echo "::endgroup::"
+        done
+        exit $status
+
+    - name: Server log
+      if: always()
+      run: cat server.log

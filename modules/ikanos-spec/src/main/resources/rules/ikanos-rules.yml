@@ -397,6 +397,24 @@ rules:
       functionOptions:
         max: 0
 
+  # Agent Skills over MCP (SEP-2640) — skills served by an exposed MCP adapter
+
+  ikanos-mcp-skill-allowed-tools:
+    message: "`allowed-tools` is a request, not a grant: hosts ignore it for skills served over MCP unless the user approves it."
+    description: >
+      SEP-2640 requires hosts to ignore `allowed-tools` for MCP-origin skills
+      unless the user has explicitly approved that grant for that skill. A
+      skill that relies on it may run with fewer tools than its author expects.
+      Describe the tools the workflow needs in the skill body instead.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'mcp')].skills[*]"
+      - "$.exposes[?(@.type == 'mcp')].skills[*]"
+    then:
+      field: "allowed-tools"
+      function: falsy
+
   ikanos-consumes-description:
     message: "Each `consumes` entry should have a `description` field."
     description: >

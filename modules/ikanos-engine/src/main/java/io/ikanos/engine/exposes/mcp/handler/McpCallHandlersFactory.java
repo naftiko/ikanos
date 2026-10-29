@@ -74,6 +74,8 @@ public class McpCallHandlersFactory {
                     List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
             handlers.add(new SkillsGetHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
                     List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
+            handlers.add(new ResourcesDirectoryReadHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
+                    List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
         }
         return List.copyOf(handlers);
     }
