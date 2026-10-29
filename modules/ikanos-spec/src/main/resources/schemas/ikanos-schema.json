@@ -1238,18 +1238,6 @@
         "type",
         "namespace"
       ],
-      "anyOf": [
-        {
-          "required": [
-            "tools"
-          ]
-        },
-        {
-          "required": [
-            "skills"
-          ]
-        }
-      ],
       "oneOf": [
         {
           "properties": {
@@ -1287,6 +1275,21 @@
         }
       ],
       "allOf": [
+        {
+          "$comment": "Tools or skills. Kept inside allOf: a bare anyOf next to oneOf is misevaluated by networknt 1.x (Polychro).",
+          "anyOf": [
+            {
+              "required": [
+                "tools"
+              ]
+            },
+            {
+              "required": [
+                "skills"
+              ]
+            }
+          ]
+        },
         {
           "if": {
             "properties": {
