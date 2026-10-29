@@ -65,6 +65,11 @@
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-models</artifactId>
         </dependency>
+        <!-- Declared directly so the published POM carries the fixed Guava to consumers (CVE-2026-102554) -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
 
         <!-- Logging API only — no impl binding at spec level -->
         <dependency>
