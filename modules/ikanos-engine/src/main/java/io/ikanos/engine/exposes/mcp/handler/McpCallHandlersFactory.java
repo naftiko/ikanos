@@ -21,6 +21,7 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.processor.ProtocolsVersionsValidator;
 import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_METHOD;
@@ -46,7 +47,7 @@ public class McpCallHandlersFactory {
         DispatchPostProcessor cacheDataAppender = new CacheDataAppender(ttlMs, cacheScope);
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
-        return List.of(
+        List<McpCallHandler> handlers = new ArrayList<>(List.of(
                 new ToolsListHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
                         List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)),
                 new ToolsCallHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
@@ -65,6 +66,15 @@ public class McpCallHandlersFactory {
                         List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)),
                 // Takes no headers or processors: legacy clients send neither MCP headers nor _meta.
                 new LegacyInitializeHandler(adapter)
-        );
+        ));
+
+        // Skills Extension (SEP-2640) methods exist only when the server serves skills.
+        if (adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty()) {
+            handlers.add(new SkillsListHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
+                    List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
+            handlers.add(new SkillsGetHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
+                    List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
+        }
+        return List.copyOf(handlers);
     }
 }

@@ -53,6 +53,11 @@ public class SkillServerAdapter extends ServerAdapter {
 
     public SkillServerAdapter(Capability capability, SkillServerSpec serverSpec) {
         super(capability, serverSpec);
+        Context.getCurrentLogger().warning("The 'skill' adapter (namespace: "
+                + serverSpec.getNamespace() + ") is deprecated and will be removed: declare the"
+                + " skills in a 'skills' block of an 'mcp' adapter instead, which serves them"
+                + " through the MCP Skills Extension (SEP-2640). See"
+                + " https://github.com/naftiko/ikanos/issues/898");
 
         this.namespaceMode = buildNamespaceMode(capability, serverSpec);
         validateSkills(serverSpec, namespaceMode);
