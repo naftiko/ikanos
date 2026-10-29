@@ -134,7 +134,7 @@ public abstract class ServerSpec {
     /**
      * Returns the host names this adapter answers on, exact or with one leading {@code *.}
      * wildcard. Entries may be Mustache expressions resolved from the capability bindings. An
-     * empty list means any host.
+     * empty list means any host that no other adapter on the same listener declares.
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public List<String> getHosts() {
