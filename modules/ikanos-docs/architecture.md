@@ -24,7 +24,6 @@ flowchart LR
         subgraph exposes[Exposes]
             MCP[MCP server<br/>HTTP or stdio]
             REST[REST server]
-            SKILL[Skill server<br/>deprecated]
             CTRL[Control port]
         end
         ORCH[Orchestration<br/>call · steps · aggregates]
@@ -40,7 +39,6 @@ flowchart LR
     A --> MCP
     B --> REST
     C --> MCP
-    C -.-> SKILL
     O --> CTRL
     MCP --> ORCH
     REST --> ORCH
@@ -104,7 +102,6 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.exposes` | `ServerAdapter` base class, the shared authentication filters, and `ServerHost`, which mounts adapters that share an address and port on one listener. |
 | `io.ikanos.engine.exposes.mcp` | The MCP server: transports, `ProtocolDispatcher`, per-method handlers, tool/resource/prompt handlers, and the skill handler that serves Agent Skills through the Skills Extension (SEP-2640). |
 | `io.ikanos.engine.exposes.rest` | The REST server: routing and `ResourceRestlet`. |
-| `io.ikanos.engine.exposes.skill` | The Skill server: a read-only HTTP catalog of agent skills. Deprecated in favour of the `skills` block of the MCP adapter ([#898](https://github.com/naftiko/ikanos/issues/898)). |
 | `io.ikanos.engine.exposes.control` | The control port: health, status, metrics, traces, scripting management. |
 | `io.ikanos.engine.observability` | OpenTelemetry bootstrap, metrics, trace context propagation. |
 
@@ -220,7 +217,6 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 - **MCP over stdio**: `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
 - **REST**: `RestServerAdapter` attaches one `ResourceRestlet` per resource path. `ResourceRestlet` first looks for an operation matching the HTTP method and runs it (see [Execution modes](#execution-modes)). Only when no operation handles the request does it fall back to `forward`, which proxies the request to a consumed API; otherwise it answers `404`.
 - **Skills over MCP**: read-only. `SkillHandler` validates every declared skill at startup and snapshots it: it renders `SKILL.md` (frontmatter from the spec, body authored or generated), walks the skill's `location` under the publication rules (no dotfiles, dot-directories or editor backups; a symbolic link fails the load) and computes a `sha256:` digest per file. `skills/list`, `skills/get`, `resources/read` on `skill://` URIs and `resources/directory/read` on skill directories are answered from that snapshot, never from disk, so a published digest always matches the served bytes. A skill over the SEP-2640 limits (512 files, 16 MiB) is not served. Loading warns about `allowed-tools` (a request hosts may ignore, not a grant) and about a skill with neither an authored body nor instruction files.
-- **Skill (deprecated)**: read-only. It serves skill metadata and files over its own HTTP routes and never runs a call itself; a skill tool that runs something points to a tool of a sibling MCP or REST adapter.
 - **Control port**: engine-defined management endpoints, no orchestration.
 
 ## Consumes: calling upstream APIs
@@ -302,12 +298,11 @@ A value that is longer than 256 characters, contains characters outside `[A-Za-z
 |---|---|---|
 | `McpServerAdapter` | One endpoint over HTTP (`McpServerResource`), or stdio | Validates and snapshots the declared skills at startup (`SkillHandler`). Builds the advertised MCP tools at startup: the input schema from the input parameters (or from the flow for a `ref`) through `McpToolInputSchema`, which copies the nested `items`/`properties`/`enum`/`format`/bounds as written (advertised to clients only: tool arguments are not validated against it), annotations from hints, and an output schema when the tool has an output contract. |
 | `RestServerAdapter` | One route per resource path declared in the spec | |
-| `SkillServerAdapter` | Attached in `SkillServerAdapter` | Deprecated: logs a warning at startup. Validates the skill tools at startup. |
 | `ControlServerAdapter` | Attached in `ControlServerAdapter` | Each route is only attached when the matching management or observability option is on. The `ikanos` control-port commands are its clients. |
 
 ### Shared listeners
 
-`rest`, `mcp` and `skill` adapters may share one address and port, told apart by two optional fields: `path`, a mount prefix made of whole path segments, and `hosts`, exact host names or `*.domain` wildcards ([#893](https://github.com/naftiko/ikanos/issues/893)). `ServerHost` groups the adapters by `(address, port)`:
+`rest` and `mcp` adapters may share one address and port, told apart by two optional fields: `path`, a mount prefix made of whole path segments, and `hosts`, exact host names or `*.domain` wildcards ([#893](https://github.com/naftiko/ikanos/issues/893)). `ServerHost` groups the adapters by `(address, port)`:
 
 - A listener used by **one adapter mounted at the root on any host** stays that adapter's own `Server`, created in `ServerAdapter.initServer` and started by the adapter, exactly as before shared listeners existed.
 - Any other listener gets one Restlet `Component`, with its log and status services off so responses match a dedicated server. Each host name gets a `VirtualHost`, exact names before wildcards (a wildcard matches one label); adapters without `hosts` go on the default host, which only answers host names that no adapter declares. Within a host, a `MODE_BEST_MATCH` router holds one `SegmentRoute` per adapter: a `MODE_STARTS_WITH` template that scores zero unless the match ends on a segment boundary, so `/mcp` matches `/mcp/tools` but not `/mcpx`. The matched prefix moves into the base reference, so the adapter's own router and authentication chain run unchanged. Each adapter's `server` field points to the shared `Server`, so `/health/ready` and `/status` report it, and `ServerAdapter.start/stop` leave it to `ServerHost`.
@@ -321,14 +316,14 @@ A value that is longer than 256 characters, contains characters outside `[A-Za-z
 
 What gets a span:
 
-- **Entry** spans: each incoming request, from `ProtocolDispatcher.dispatchWithTracing` (MCP), `ResourceRestlet` (REST) and `SkillServerResource` (Skill). The span is SERVER when Ikanos is the entry point, and INTERNAL when the caller already sent trace context, because the caller's span is then the real SERVER span (`TelemetryBootstrap.startServerSpan`).
+- **Entry** spans: each incoming request, from `ProtocolDispatcher.dispatchWithTracing` (MCP) and `ResourceRestlet` (REST). The span is SERVER when Ikanos is the entry point, and INTERNAL when the caller already sent trace context, because the caller's span is then the real SERVER span (`TelemetryBootstrap.startServerSpan`).
 - **INTERNAL** spans: a tool call, an aggregate flow, each step.
 - **CLIENT** spans: each upstream call, in `ConsumedInvocation.invoke()` (except REST `forward`, see [Consumes](#consumes-calling-upstream-apis)).
 
 Incoming trace context is read per adapter:
 
 - **MCP** reads it from the request's `params._meta` (`McpMetaTraceContextBridge`). Over HTTP it falls back to the `traceparent` header; over stdio `_meta` is the only carrier.
-- **REST** and **Skill** read the `traceparent` header (`OtelRestletBridge`).
+- **REST** reads the `traceparent` header (`OtelRestletBridge`).
 
 Outgoing, trace context is injected into upstream requests. The trace id is also put in the logging MDC and used as the `ErrorReference`, so a reference returned to a client finds both the log line and the trace (`/traces/{traceId}` on the control port).
 

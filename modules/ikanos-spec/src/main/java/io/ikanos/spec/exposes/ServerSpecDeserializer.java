@@ -19,7 +19,6 @@ import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import tools.jackson.databind.DatabindException;
 import tools.jackson.databind.ValueDeserializer;
 
@@ -29,11 +28,23 @@ import tools.jackson.databind.ValueDeserializer;
  * <p>Discriminant rules (checked in order):</p>
  * <ol>
  *   <li>If the entry has a {@code from} field, it is an {@link ImportedExposesSpec} import.</li>
- *   <li>Otherwise, dispatch on the {@code type} field ({@code rest}, {@code mcp}, {@code skill},
+ *   <li>Otherwise, dispatch on the {@code type} field ({@code rest}, {@code mcp},
  *       {@code control}) to the matching inline subclass.</li>
  * </ol>
+ *
+ * <p>The {@code skill} type was removed: an entry that still declares it fails with
+ * {@link #SKILL_ADAPTER_REMOVED}, which names the migration to the {@code skills} block of the
+ * MCP adapter.</p>
  */
 public class ServerSpecDeserializer extends ValueDeserializer<ServerSpec> {
+
+    /** The expose type of the removed standalone skill server adapter. */
+    public static final String REMOVED_SKILL_TYPE = "skill";
+
+    /** Reported when a capability still declares an adapter of the removed {@code skill} type. */
+    public static final String SKILL_ADAPTER_REMOVED = "The 'skill' adapter was removed in Ikanos "
+            + "1.0.0-beta9. Move its skills into a `skills` block on a `type: mcp` adapter; see "
+            + "https://github.com/naftiko/ikanos/issues/898.";
 
     @Override
     public ServerSpec deserialize(JsonParser p, DeserializationContext ctxt) {
@@ -49,7 +60,7 @@ public class ServerSpecDeserializer extends ValueDeserializer<ServerSpec> {
         return switch (type) {
             case "rest" -> ctxt.readTreeAsValue(node, RestServerSpec.class);
             case "mcp" -> ctxt.readTreeAsValue(node, McpServerSpec.class);
-            case "skill" -> ctxt.readTreeAsValue(node, SkillServerSpec.class);
+            case REMOVED_SKILL_TYPE -> throw DatabindException.from(p, SKILL_ADAPTER_REMOVED);
             case "control" -> ctxt.readTreeAsValue(node, ControlServerSpec.class);
             default -> throw DatabindException.from(p, "Unknown server spec type: '" + type + "'");
         };

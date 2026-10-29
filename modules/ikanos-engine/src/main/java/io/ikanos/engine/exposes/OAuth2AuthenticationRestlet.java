@@ -53,7 +53,7 @@ import io.ikanos.spec.util.IkanosMappers;
  * Shared Restlet that implements OAuth 2.1 resource server authentication. Validates bearer tokens
  * (JWTs) issued by an external authorization server using JWKS-based signature verification.
  *
- * <p>Used directly by REST and Skill adapters. Extended by {@code McpOAuth2Restlet} for
+ * <p>Used directly by the REST adapter. Extended by {@code McpOAuth2Restlet} for
  * MCP-specific protocol behavior (Protected Resource Metadata, {@code resource_metadata} in
  * {@code WWW-Authenticate} headers).</p>
  */

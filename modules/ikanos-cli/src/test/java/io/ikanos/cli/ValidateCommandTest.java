@@ -15,6 +15,7 @@ package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
+import io.ikanos.spec.exposes.ServerSpecDeserializer;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 import picocli.CommandLine;
 
@@ -169,6 +172,61 @@ public class ValidateCommandTest {
 
         assertEquals(1, exitCode, "#849: a template the engine cannot parse must fail validate");
         assertTrue(errCapture.toString().contains("svc.create"), errCapture.toString());
+    }
+
+    @Test
+    public void callShouldReportTheMigrationForARemovedSkillAdapter() {
+        Path yaml = tempDir.resolve("skill-adapter.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Legacy skills"
+                  description: "Still declares the removed skill adapter"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      description: "Tools"
+                      tools:
+                        hello:
+                          description: "Say hello"
+                          outputParameters:
+                            message:
+                              type: "string"
+                              value: "hi"
+                    - type: "skill"
+                      port: 3001
+                      namespace: "skills"
+                      skills:
+                        greetings:
+                          description: "Greets people"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode);
+        assertTrue(err.contains(ServerSpecDeserializer.SKILL_ADAPTER_REMOVED), err);
+        assertTrue(err.contains("Path: $.capability.exposes[1]"), err);
+        assertFalse(err.contains("[2]"),
+                "The removed adapter should not also be reported as a schema mismatch:\n" + err);
+    }
+
+    @Test
+    public void removedSkillAdaptersShouldBeFoundInStandaloneExposesFiles() throws Exception {
+        JsonNode data = IkanosMappers.yaml().readTree("""
+                ikanos: "1.0.0-beta9"
+                exposes:
+                  - type: "rest"
+                    port: 3000
+                  - type: "skill"
+                    port: 3001
+                  - from: "./shared.yml"
+                    type: "skill"
+                """);
+
+        assertEquals(java.util.List.of("$.exposes[1]"), ValidateCommand.removedSkillAdapters(data));
     }
 
     @Test

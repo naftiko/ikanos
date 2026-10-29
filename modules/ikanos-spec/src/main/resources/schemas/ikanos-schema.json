@@ -43,9 +43,6 @@
             "$ref": "#/$defs/ExposesMcp"
           },
           {
-            "$ref": "#/$defs/ExposesSkill"
-          },
-          {
             "$ref": "#/$defs/ExposesControl"
           },
           {
@@ -54,7 +51,7 @@
         ]
       },
       "minItems": 1,
-      "description": "Exposed server adapters declared at file scope. Each entry is either an inline adapter (rest/mcp/skill/control) or an `ImportEntry` (with a `from` URI). Standalone exposes files use this section at root."
+      "description": "Exposed server adapters declared at file scope. Each entry is either an inline adapter (rest/mcp/control) or an `ImportEntry` (with a `from` URI). Standalone exposes files use this section at root."
     },
     "aggregates": {
       "type": "array",
@@ -839,7 +836,7 @@
         },
         "exposes": {
           "type": "array",
-          "description": "List of exposed server adapters. Inline adapters (rest/mcp/skill/control) or `ImportEntry` references to a shared exposes file.",
+          "description": "List of exposed server adapters. Inline adapters (rest/mcp/control) or `ImportEntry` references to a shared exposes file.",
           "items": {
             "oneOf": [
               {
@@ -847,9 +844,6 @@
               },
               {
                 "$ref": "#/$defs/ExposesMcp"
-              },
-              {
-                "$ref": "#/$defs/ExposesSkill"
               },
               {
                 "$ref": "#/$defs/ExposesControl"
@@ -2857,7 +2851,7 @@
               "type": "string",
               "format": "uri",
               "pattern": "^file:///",
-              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as ExposedSkill.location \u2014 a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port \u2014 the engine falls back to the default."
+              "description": "file:/// URI pointing to the scripts directory. Follows the same convention as McpSkill.location \u2014 a directory root from which 'file' and 'dependencies' are resolved as relative paths. Optional when 'management.scripting.defaultLocation' is set in the Control Port \u2014 the engine falls back to the default."
             },
             "file": {
               "type": "string",
@@ -3261,177 +3255,6 @@
         "type",
         "authorizationServerUri",
         "resource"
-      ],
-      "additionalProperties": false
-    },
-    "ExposesSkill": {
-      "type": "object",
-      "description": "Skill server adapter \u2014 metadata and catalog layer. Skills declare tools derived from sibling api or mcp adapters or defined as local file instructions. Does not execute tools.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "skill"
-        },
-        "address": {
-          "$ref": "#/$defs/Address"
-        },
-        "port": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
-        },
-        "path": {
-          "$ref": "#/$defs/MountPath",
-          "description": "Mount prefix on the listener. Default: `/`. Lets several adapters share one `address` and `port`."
-        },
-        "hosts": {
-          "$ref": "#/$defs/HostPatterns"
-        },
-        "namespace": {
-          "$ref": "#/$defs/IdentifierKebab",
-          "description": "Unique identifier for this skill server"
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of this skill server's purpose"
-        },
-        "authentication": {
-          "$ref": "#/$defs/Authentication",
-          "description": "Authentication required on incoming requests to this skill server. Protects the skills catalog and tool invocation endpoints."
-        },
-        "skills": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/ExposedSkill"
-          },
-          "description": "Skill definitions, keyed by skill name.",
-          "minProperties": 1
-        }
-      },
-      "required": [
-        "type",
-        "port",
-        "namespace",
-        "skills"
-      ],
-      "additionalProperties": false
-    },
-    "ExposedSkill": {
-      "type": "object",
-      "description": "A skill definition with full Agent Skills Spec frontmatter. Declares tools derived from sibling api or mcp adapters or defined as local file instructions, or stands alone as purely descriptive (no tools).",
-      "properties": {
-        "description": {
-          "type": "string",
-          "maxLength": 1024,
-          "description": "What the skill does and when to use it. Used for agent discovery."
-        },
-        "license": {
-          "type": "string",
-          "description": "License identifier (e.g., MIT, Apache-2.0)"
-        },
-        "compatibility": {
-          "type": "string",
-          "maxLength": 500,
-          "description": "Compatibility notes and requirements"
-        },
-        "metadata": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Arbitrary key-value metadata (author, category, tags, ecosystem, etc.)"
-        },
-        "allowed-tools": {
-          "type": "string",
-          "maxLength": 1024,
-          "description": "Space-delimited list of pre-approved tool names (Agent Skills Spec)"
-        },
-        "argument-hint": {
-          "type": "string",
-          "description": "Hint text shown when agents invoke this skill via slash command (Agent Skills Spec)"
-        },
-        "user-invocable": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether agents can invoke this skill as a slash command (Agent Skills Spec)"
-        },
-        "disable-model-invocation": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether to prevent auto-loading this skill based on context (Agent Skills Spec)"
-        },
-        "location": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^file:///",
-          "description": "file:/// URI to a directory containing SKILL.md and supporting files. Required when any tool uses 'instruction'."
-        },
-        "tools": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/SkillTool"
-          },
-          "description": "Tools declared by this skill, keyed by tool name.",
-          "minProperties": 1
-        }
-      },
-      "required": [
-        "description"
-      ],
-      "additionalProperties": false
-    },
-    "SkillTool": {
-      "type": "object",
-      "description": "A tool declared within a skill. Exactly one of 'from' (derived from a sibling api or mcp adapter) or 'instruction' (local file path relative to the skill's location) must be specified.",
-      "properties": {
-        "description": {
-          "type": "string",
-          "description": "What the tool does. Used for agent discovery."
-        },
-        "from": {
-          "type": "object",
-          "description": "Derive this tool from a sibling api or mcp adapter.",
-          "properties": {
-            "sourceNamespace": {
-              "type": "string",
-              "description": "Namespace of a sibling exposes[] entry of type api or mcp"
-            },
-            "action": {
-              "type": "string",
-              "description": "Operation name (api) or tool name (mcp) in the source adapter"
-            }
-          },
-          "required": [
-            "sourceNamespace",
-            "action"
-          ],
-          "additionalProperties": false
-        },
-        "instruction": {
-          "type": "string",
-          "description": "File path relative to the skill's location directory containing the tool instruction content"
-        }
-      },
-      "required": [
-        "description"
-      ],
-      "oneOf": [
-        {
-          "required": [
-            "from"
-          ]
-        },
-        {
-          "required": [
-            "instruction"
-          ]
-        }
       ],
       "additionalProperties": false
     },

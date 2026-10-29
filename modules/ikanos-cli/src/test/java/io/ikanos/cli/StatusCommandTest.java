@@ -242,7 +242,7 @@ public class StatusCommandTest {
                  "adapters":[
                    {"type":"rest","port":8080,"state":"started"},
                    {"type":"mcp","namespace":"ns1","port":3000,"state":"started"},
-                   {"type":"skill","namespace":"ns2","port":4000,"state":"started"},
+                   {"type":"mcp","namespace":"ns2","port":4000,"state":"started"},
                    {"type":"control","port":9090,"state":"started"}
                  ]}""";
 

@@ -1058,84 +1058,6 @@
     "allDeclaredFields": true
   },
   {
-    "name": "io.ikanos.spec.exposes.skill.ExposedSkillSpec",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true,
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      },
-      {
-        "name": "setAllowedTools",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      },
-      {
-        "name": "setCompatibility",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      },
-      {
-        "name": "setDescription",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      },
-      {
-        "name": "setLicense",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      }
-    ]
-  },
-  {
-    "name": "io.ikanos.spec.exposes.skill.SkillServerSpec",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true,
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      },
-      {
-        "name": "setDescription",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      },
-      {
-        "name": "setNamespace",
-        "parameterTypes": [
-          "java.lang.String"
-        ]
-      },
-      {
-        "name": "setSkills",
-        "parameterTypes": [
-          "java.util.Map"
-        ]
-      }
-    ]
-  },
-  {
-    "name": "io.ikanos.spec.exposes.skill.SkillToolSpec",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
-    "name": "io.ikanos.spec.exposes.skill.SkillToolFromSpec",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true,
-    "allDeclaredFields": true
-  },
-  {
     "name": "io.ikanos.spec.exposes.mcp.McpServerSpec",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
@@ -1450,36 +1372,6 @@
   },
   {
     "name": "io.ikanos.engine.exposes.mcp.McpServerResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.CatalogResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.ContentsResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.DetailResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.DownloadResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.FileResource",
-    "allDeclaredConstructors": true,
-    "allDeclaredMethods": true
-  },
-  {
-    "name": "io.ikanos.engine.exposes.skill.SkillServerResource",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true
   },
@@ -1828,24 +1720,6 @@
   },
   {
     "name": "io.ikanos.spec.exposes.rest.RestServerResourceMapDeserializer",
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      }
-    ]
-  },
-  {
-    "name": "io.ikanos.spec.exposes.skill.ExposedSkillMapDeserializer",
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      }
-    ]
-  },
-  {
-    "name": "io.ikanos.spec.exposes.skill.SkillToolMapDeserializer",
     "methods": [
       {
         "name": "<init>",

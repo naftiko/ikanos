@@ -2,9 +2,9 @@
 # Spectral fixture — ikanos-exposes-mounts-distinct and ikanos-exposes-hosts-must-bind
 # MUST NOT FIRE.
 #
-# REST, MCP and Skill adapters share port 8080: REST under /api, MCP under /mcp and
-# under the root of a custom domain injected from a binding, Skill at the root. /mcp
-# and /mcp-admin only share characters, not a path segment.
+# REST and MCP adapters share port 8080: REST under /api, MCP under /mcp and
+# under the root of a custom domain injected from a binding, and a skills-only MCP
+# adapter at the root. /mcp and /mcp-admin only share characters, not a path segment.
 ikanos: "1.0.0-beta9"
 
 info:
@@ -68,15 +68,10 @@ capability:
         hello:
           description: "Returns a greeting."
           ref: "greeting.hello"
-    - type: "skill"
+    - type: "mcp"
       port: 8080
       namespace: "greeting-skills"
+      description: "Greeting skills."
       skills:
         greetings:
           description: "Greets people."
-          tools:
-            hello:
-              description: "Say hello."
-              from:
-                sourceNamespace: "greeting-rest"
-                action: "hello"

@@ -23,7 +23,7 @@ import org.restlet.Request;
  * Shared bridge between the OpenTelemetry SDK and the Restlet request/response model.
  *
  * <p>Concentrates the {@code @Nonnull} narrowing of three SDK values that every adapter
- * (REST, MCP, Skill, HTTP client) needs when extracting or injecting W3C trace context:</p>
+ * (REST, MCP, HTTP client) needs when extracting or injecting W3C trace context:</p>
  * <ul>
  *   <li>{@link Context#current()} — current OTel context, guaranteed non-null</li>
  *   <li>{@link RestletHeaderGetter#INSTANCE} — text-map getter for inbound headers</li>

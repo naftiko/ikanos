@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * Resolves relative file paths within a {@code file:///} URI directory root, with path traversal
  * protection.
  *
- * <p>Used by both the Skill adapter and the Script step executor to validate that resolved paths
+ * <p>Used by the Script step executor to validate that resolved paths
  * remain within the declared location directory. Each path segment is validated against an allowlist
  * and the final resolved path is checked for prefix containment.</p>
  */
