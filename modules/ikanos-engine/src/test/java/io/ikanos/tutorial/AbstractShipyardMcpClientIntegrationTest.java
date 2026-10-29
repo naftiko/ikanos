@@ -176,6 +176,33 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     }
 
     /**
+     * Sends {@code skills/list} and returns the {@code result.skills} array.
+     */
+    protected JsonNode callSkillsList(HttpClient http) throws Exception {
+        HttpResponse<String> response = http.send(
+                buildPost("""
+                        {"jsonrpc":"2.0","id":5,"method":"skills/list","params":{}}
+                        """),
+                string());
+        assertEquals(200, response.statusCode());
+        return json.readTree(response.body()).path("result").path("skills");
+    }
+
+    /**
+     * Sends {@code skills/get} for the given {@code SKILL.md} URI and returns
+     * {@code result.skill}.
+     */
+    protected JsonNode callSkillsGet(HttpClient http, String skillUri) throws Exception {
+        HttpResponse<String> response = http.send(
+                buildPost("""
+                        {"jsonrpc":"2.0","id":6,"method":"skills/get","params":{"uri":"%s"}}
+                        """.formatted(skillUri)),
+                string());
+        assertEquals(200, response.statusCode());
+        return json.readTree(response.body()).path("result").path("skill");
+    }
+
+    /**
      * Sends {@code tools/call}, asserts {@code isError} is false, and returns the parsed
      * JSON payload from {@code result.content[0].text}.
      */

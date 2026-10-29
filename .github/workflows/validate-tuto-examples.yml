@@ -181,6 +181,31 @@ jobs:
 
             DATA="$RESPONSE"
 
+          elif [ "$TYPE" = "rpc" ]; then
+            # Any other MCP method (e.g. skills/list, skills/get); validations run on .result
+            RPC_METHOD=$(yq -r ".tests[$i].method" $TEST_FILE)
+            PARAMS=$(yq -o=json ".tests[$i].params // {}" $TEST_FILE \
+              | jq -c '. + {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}}')
+
+            echo "Calling MCP method: $RPC_METHOD"
+
+            RESPONSE=$(curl -s http://localhost:$PORT \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $MCP_SERVER_TOKEN" \
+              -H "MCP-Protocol-Version: 2026-07-28" \
+              -H "Mcp-Method: $RPC_METHOD" \
+              -d "$(jq -cn --arg m "$RPC_METHOD" --argjson p "$PARAMS" \
+                '{jsonrpc: "2.0", id: 1, method: $m, params: $p}')")
+
+            if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+              echo "MCP method returned an error:"
+              echo "$RESPONSE"
+              cleanup
+              exit 1
+            fi
+
+            DATA=$(echo "$RESPONSE" | jq -c '.result')
+
           else
             RESPONSE=$(curl -s http://localhost:$PORT \
               -H "Content-Type: application/json" \

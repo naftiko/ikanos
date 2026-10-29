@@ -17,11 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,18 +26,15 @@ import org.junit.jupiter.api.Test;
 
 import tools.jackson.databind.JsonNode;
 
-import io.ikanos.Capability;
-import io.ikanos.engine.exposes.ServerAdapter;
-import io.ikanos.engine.exposes.skill.SkillServerAdapter;
 import io.ikanos.spec.IkanosSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 /**
  * End-to-end integration test for {@code step-8-shipyard-skill-groups.yml}
  * exercised from an MCP client perspective.
  *
- * <p>Step 8 adds a Skill expose for grouped discovery while preserving the step-6
- * MCP tool surface and behavior.</p>
+ * <p>Step 8 groups the step-7 MCP tools into Agent Skills served by the same MCP server
+ * ({@code skills/list}, {@code skills/get}) while preserving the tool surface and behavior.</p>
  */
 public class Step8ShipyardMcpClientIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
@@ -166,94 +159,45 @@ public class Step8ShipyardMcpClientIntegrationTest
     }
 
     @Test
-    public void skillCatalogShouldExposeFleetAndVoyageGroups() throws Exception {
-        int skillPort = findFreePort();
-        SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
+    public void skillsListShouldAdvertiseFleetAndVoyageSkills() throws Exception {
+        HttpClient http = HttpClient.newHttpClient();
 
-        try (HttpClient http = HttpClient.newHttpClient()){
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + skillPort + "/skills"))
-                    .GET()
-                    .build();
+        JsonNode skills = callSkillsList(http);
 
-            HttpResponse<String> response = http.send(request, string());
-            assertEquals(200, response.statusCode(), "GET /skills must succeed");
-
-            JsonNode catalog = json.readTree(response.body());
-            assertEquals(2, catalog.path("count").asInt(), "step-8 skill expose must declare 2 skill groups");
-
-            List<String> names = new ArrayList<>();
-            for (JsonNode s : catalog.path("skills")) {
-                names.add(s.path("name").asString());
-            }
-            assertTrue(names.contains("fleet-ops"), "catalog must include fleet-ops");
-            assertTrue(names.contains("voyage-ops"), "catalog must include voyage-ops");
-        } finally {
-            skillAdapter.stop();
+        assertEquals(2, skills.size(), "step-8 MCP server must declare 2 skills");
+        List<String> uris = new ArrayList<>();
+        for (JsonNode s : skills) {
+            uris.add(s.path("uri").asString());
         }
+        assertEquals(List.of("skill://fleet-ops/SKILL.md", "skill://voyage-ops/SKILL.md"), uris);
     }
 
     @Test
-    public void fleetOpsSkillDetailShouldExposeDerivedMcpInvocationRefs() throws Exception {
-        int skillPort = findFreePort();
-        SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
+    public void fleetOpsSkillShouldServeGeneratedSkillMd() throws Exception {
+        HttpClient http = HttpClient.newHttpClient();
 
-        try (HttpClient http = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + skillPort + "/skills/fleet-ops"))
-                    .GET()
-                    .build();
+        JsonNode skill = callSkillsGet(http, "skill://fleet-ops/SKILL.md");
 
-            HttpResponse<String> response = http.send(request, string());
-            assertEquals(200, response.statusCode(), "GET /skills/fleet-ops must succeed");
+        JsonNode frontmatter = skill.path("frontmatter");
+        assertEquals("fleet-ops", frontmatter.path("name").asString());
+        assertTrue(frontmatter.path("description").asString().startsWith("Fleet management"),
+                "fleet-ops description must come from the spec");
 
-            JsonNode detail = json.readTree(response.body());
-            assertEquals("fleet-ops", detail.path("name").asString());
-
-            JsonNode tools = detail.path("tools");
-            assertTrue(tools.isArray(), "fleet-ops detail must contain a tools array");
-            assertEquals(4, tools.size(), "fleet-ops must expose 4 tools in step-8");
-
-            for (JsonNode t : tools) {
-                assertEquals("derived", t.path("type").asString(), "fleet-ops tools should be derived");
-                JsonNode inv = t.path("invocationRef");
-                assertEquals("shipyard-tools", inv.path("targetNamespace").asString());
-                assertEquals("mcp", inv.path("mode").asString());
-                assertFalse(inv.path("action").asString().isBlank(), "invocation action must be present");
-            }
-        } finally {
-            skillAdapter.stop();
-        }
+        JsonNode resources = skill.path("resources");
+        assertEquals(1, resources.size(), "a skill without location serves only SKILL.md");
+        assertEquals("skill://fleet-ops/SKILL.md", resources.get(0).path("uri").asString());
+        assertTrue(resources.get(0).path("digest").asString().startsWith("sha256:"),
+                "SKILL.md must carry a sha256 digest");
     }
 
-    private IkanosSpec loadPatchedStep8Spec() throws Exception {
+    @Test
+    public void fleetOpsSkillShouldGroupFourMcpTools() throws Exception {
         IkanosSpec spec = loadSpec(CAPABILITY_FILE);
 
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-        spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
+        McpServerSpec mcp = (McpServerSpec) spec.getCapability().getExposes().get(0);
 
-
-        return spec;
-    }
-
-    private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
-        IkanosSpec spec = loadPatchedStep8Spec();
-
-        // Keep this server isolated from the MCP server started by the base class.
-        spec.getCapability().getExposes().get(0).setPort(findFreePort());
-        SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().get(1);
-        skillSpec.setAddress("localhost");
-        skillSpec.setPort(skillPort);
-
-        Capability capability = new Capability(spec);
-        ServerAdapter adapter = capability.getServerAdapters().stream()
-                .filter(a -> a instanceof SkillServerAdapter)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No SkillServerAdapter found"));
-
-        SkillServerAdapter skillAdapter = (SkillServerAdapter) adapter;
-        skillAdapter.start();
-        return skillAdapter;
+        assertEquals(List.of("list-ships", "get-ship", "list-legacy-vessels", "get-ship-with-crew"),
+                mcp.getSkills().get("fleet-ops").getTools());
+        assertEquals(List.of("create-voyage"), mcp.getSkills().get("voyage-ops").getTools());
     }
 }
