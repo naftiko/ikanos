@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -248,6 +250,37 @@ class McpClientAdapterIntegrationTest {
         startConsumer("verify", "");
 
         assertInstanceOf(McpClientAdapter.class, consumer.getClientAdapters().get(0));
+    }
+
+    @Test
+    void endpointShouldBeResolvedFromBindingsAtLoadTime() throws Exception {
+        Path bindings = Files.createTempFile("billing-binds", ".yaml");
+        try {
+            Files.writeString(bindings,
+                    "billing-mcp-url: \"http://localhost:" + mcpPort + "/\"\n");
+            String binds = """
+                    binds:
+                      - namespace: "deploy"
+                        location: "%s"
+                        keys:
+                          BILLING_MCP_URL: "billing-mcp-url"
+                    """.formatted(bindings.toUri());
+            String yaml = consumerYaml("verify", "")
+                    .replace("endpoint: http://localhost:" + mcpPort + "/",
+                            "endpoint: \"{{BILLING_MCP_URL}}\"")
+                    .replace("capability:\n", binds + "capability:\n");
+            consumer = capability(yaml);
+            consumer.start();
+
+            McpClientAdapter billing = (McpClientAdapter) consumer.getClientAdapters().get(0);
+            assertEquals("http://localhost:" + mcpPort + "/", billing.getEndpoint());
+            McpSchema.CallToolResult result =
+                    callConsumer("invoice-status", Map.of("invoice-id", "INV-42"));
+            assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
+            assertEquals(125.5, textPayload(result).path("total").asDouble());
+        } finally {
+            Files.deleteIfExists(bindings);
+        }
     }
 
     @Test

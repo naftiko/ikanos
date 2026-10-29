@@ -34,11 +34,8 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
 
@@ -57,9 +54,6 @@ public class HttpClientAdapter extends ClientAdapter {
      */
     static final String TUNNEL_AWARE_HELPER_CLASS_NAME =
             "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper";
-
-    private static final Pattern PLACEHOLDER =
-            Pattern.compile("\\{\\{\\{?\\s*([^{}#^/!&>=]+?)\\s*\\}?\\}\\}");
 
     private final Client httpClient;
 
@@ -154,48 +148,21 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Resolve {@code baseUri} against the capability bindings, once, when the adapter is built.
-     * Call parameters are never used, so a caller cannot choose the upstream host (SSRF). Bound
-     * values are substituted as written, without URL encoding, since a binding may hold a whole
-     * URL.
-     *
-     * @throws IllegalArgumentException when a placeholder is not bound, or when the resolved value
-     *     is not an absolute http(s) URI with a host. The resolved value is not echoed, as it may
-     *     come from a secret store.
+     * Resolve {@code baseUri} against the capability bindings, once, when the adapter is built
+     * (see {@link #resolveUriFromBindings}). A trailing {@code /} is removed from a resolved value,
+     * since a resource path is appended to it; the {@code ikanos-consumes-baseuri-no-trailing-slash}
+     * lint rule only sees the placeholder, so it cannot catch a bound value ending in {@code /}.
      */
     static String resolveBaseUri(String namespace, String baseUri, Map<String, Object> bindings) {
-        if (baseUri == null || !baseUri.contains("{{")) {
-            return baseUri;
+        String resolved = resolveUriFromBindings(namespace, "baseUri", baseUri, bindings);
+        if (resolved == null || resolved.equals(baseUri)) {
+            return resolved;
         }
-        Map<String, Object> scope = bindings != null ? bindings : Map.of();
-        String resolved = Resolver.resolveMustacheTemplate(baseUri, scope);
-        List<String> missing = new ArrayList<>();
-        Matcher placeholder = PLACEHOLDER.matcher(baseUri);
-        while (placeholder.find()) {
-            String name = placeholder.group(1).trim();
-            if (!scope.containsKey(name) && !missing.contains(name)) {
-                missing.add(name);
-            }
+        int end = resolved.length();
+        while (end > 0 && resolved.charAt(end - 1) == '/') {
+            end--;
         }
-        if (!missing.isEmpty() || resolved.contains("{{")) {
-            throw new IllegalArgumentException("consumes '" + namespace
-                    + "' baseUri references unbound variables " + missing
-                    + ". Declare them in a binds entry.");
-        }
-        try {
-            URI uri = new URI(resolved);
-            String scheme = uri.getScheme();
-            if (scheme == null
-                    || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    || uri.getHost() == null || uri.getHost().isEmpty()) {
-                throw new IllegalArgumentException("consumes '" + namespace
-                        + "' baseUri must resolve to an absolute http(s) URI with a host");
-            }
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("consumes '" + namespace
-                    + "' baseUri does not resolve to a valid URI");
-        }
-        return resolved;
+        return resolved.substring(0, end);
     }
 
     /**
