@@ -193,6 +193,30 @@ class SharedListenerIntegrationTest {
     }
 
     @Test
+    void eachAdapterShouldKeepItsOwnAuthenticationOnASharedListener() throws Exception {
+        start(restAt("""
+                path: "/api"
+                authentication:
+                  type: "bearer"
+                  token: "rest-token"
+                """) + mcpAt("""
+                path: "/mcp"
+                authentication:
+                  type: "bearer"
+                  token: "mcp-token"
+                """));
+
+        assertEquals(200, get("localhost", "/api/hello?name=Ada", "rest-token").status());
+        assertEquals(200, mcpDiscover("localhost", "/mcp", "mcp-token").status());
+
+        // A token opens only its own adapter, and no token opens neither.
+        assertEquals(401, get("localhost", "/api/hello?name=Ada", "mcp-token").status());
+        assertEquals(401, mcpDiscover("localhost", "/mcp", "rest-token").status());
+        assertEquals(401, get("localhost", "/api/hello?name=Ada").status());
+        assertEquals(401, mcpDiscover("localhost", "/mcp").status());
+    }
+
+    @Test
     void adaptersOnTheirOwnPortsShouldKeepDedicatedServers() throws Exception {
         int other = freePort();
         start(restAt("") + """
@@ -308,22 +332,34 @@ class SharedListenerIntegrationTest {
     }
 
     private Reply get(String host, String path) throws IOException {
-        return send("GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\n"
+        return get(host, path, null);
+    }
+
+    private Reply get(String host, String path, String token) throws IOException {
+        return send("GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\n" + bearer(token)
                 + "Content-Length: 0\r\nConnection: close\r\n\r\n");
     }
 
     private Reply mcpDiscover(String host, String path) throws IOException {
+        return mcpDiscover(host, path, null);
+    }
+
+    private Reply mcpDiscover(String host, String path, String token) throws IOException {
         String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\","
                 + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
                 + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        return send("POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\n"
+        return send("POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\n" + bearer(token)
                 + "Content-Type: application/json\r\n"
                 + "Accept: application/json, text/event-stream\r\n"
                 + "MCP-Protocol-Version: " + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\r\n"
                 + "Mcp-Method: server/discover\r\n"
                 + "Content-Length: " + bytes.length + "\r\n"
                 + "Connection: close\r\n\r\n" + body);
+    }
+
+    private static String bearer(String token) {
+        return token == null ? "" : "Authorization: Bearer " + token + "\r\n";
     }
 
     private Reply send(String request) throws IOException {
