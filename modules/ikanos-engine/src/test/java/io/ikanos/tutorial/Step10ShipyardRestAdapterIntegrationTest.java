@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -33,17 +32,15 @@ import tools.jackson.databind.JsonNode;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
-import io.ikanos.engine.exposes.skill.SkillServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
 
 /**
  * End-to-end integration test for {@code step-10-shipyard-rest-adapter.yml}
- * exercised from REST and Skill client perspectives.
+ * exercised from REST and MCP client perspectives.
  *
  * <p>Step 10 adds a REST expose for non-agent consumers (dashboards, mobile apps)
- * while preserving MCP tools and Skill groups from prior steps.</p>
+ * while preserving MCP tools and skills from prior steps.</p>
  */
 public class Step10ShipyardRestAdapterIntegrationTest
         extends AbstractShipyardMcpClientIntegrationTest {
@@ -75,7 +72,6 @@ public class Step10ShipyardRestAdapterIntegrationTest
 
         restPort = findFreePort();
         int mcpPort = findFreePort();
-        int skillPort = findFreePort();
 
         spec.getCapability().getExposes().getFirst().setPort(mcpPort);
         spec.getCapability().getExposes().getFirst().setAddress("localhost");
@@ -87,12 +83,6 @@ public class Step10ShipyardRestAdapterIntegrationTest
         restSpec.setPort(restPort);
         restSpec.setAddress("localhost");
 
-        SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof SkillServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
-        skillSpec.setPort(skillPort);
-        skillSpec.setAddress("localhost");
 
         Capability capability = new Capability(spec);
         allAdapters.addAll(capability.getServerAdapters());
@@ -177,104 +167,16 @@ public class Step10ShipyardRestAdapterIntegrationTest
     }
 
     @Test
-    public void skillCatalogShouldExposeFleetAndVoyageGroups() throws Exception {
-        int skillPort = findFreePort();
-        SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
-
+    public void skillsListShouldAdvertiseFleetAndVoyageSkillsOnTheMcpServer() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + skillPort + "/skills"))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = http.send(request, string());
-            assertEquals(200, response.statusCode(), "GET /skills must succeed");
-
-            JsonNode catalog = json.readTree(response.body());
-            assertEquals(2, catalog.path("count").asInt(), "step-10 skill expose must declare 2 skill groups");
+            JsonNode skills = callSkillsList(http);
 
             List<String> names = new ArrayList<>();
-            for (JsonNode s : catalog.path("skills")) {
-                names.add(s.path("name").asString());
+            for (JsonNode s : skills) {
+                names.add(s.path("frontmatter").path("name").asString());
             }
-            assertTrue(names.contains("fleet-ops"), "catalog must include fleet-ops");
-            assertTrue(names.contains("voyage-ops"), "catalog must include voyage-ops");
-        } finally {
-            skillAdapter.stop();
+            assertEquals(List.of("fleet-ops", "voyage-ops"), names,
+                    "step-10 MCP server must keep the step-8 skills");
         }
-    }
-
-    @Test
-    public void fleetOpsSkillDetailShouldExposeDerivedMcpInvocationRefs() throws Exception {
-        int skillPort = findFreePort();
-        SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
-
-        try (HttpClient http = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + skillPort + "/skills/fleet-ops"))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = http.send(request, string());
-            assertEquals(200, response.statusCode(), "GET /skills/fleet-ops must succeed");
-
-            JsonNode detail = json.readTree(response.body());
-            assertEquals("fleet-ops", detail.path("name").asString());
-
-            JsonNode tools = detail.path("tools");
-            assertTrue(tools.isArray(), "fleet-ops detail must contain a tools array");
-            assertEquals(4, tools.size(), "fleet-ops must expose 4 tools in step-10");
-
-            for (JsonNode t : tools) {
-                assertEquals("derived", t.path("type").asString(), "fleet-ops tools should be derived");
-                JsonNode inv = t.path("invocationRef");
-                assertEquals("shipyard-tools", inv.path("targetNamespace").asString());
-                assertEquals("mcp", inv.path("mode").asString());
-                assertFalse(inv.path("action").asString().isBlank(), "invocation action must be present");
-            }
-        } finally {
-            skillAdapter.stop();
-        }
-    }
-
-    private IkanosSpec loadPatchedStep10Spec() throws Exception {
-        IkanosSpec spec = loadSpec(CAPABILITY_FILE);
-        disableMcpAuthentication(spec);
-
-        String secretsAbsoluteUri = new File(SECRETS_FILE).getAbsoluteFile().toURI().toString();
-        spec.getBinds().get(0).setLocation(secretsAbsoluteUri);
-        spec.getBinds().get(1).setLocation(secretsAbsoluteUri);
-
-
-        return spec;
-    }
-
-    private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
-        IkanosSpec spec = loadPatchedStep10Spec();
-
-        spec.getCapability().getExposes().getFirst().setPort(findFreePort());
-
-        RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof RestServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-10 spec"));
-        restSpec.setPort(findFreePort());
-
-        SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof SkillServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-10 spec"));
-        skillSpec.setAddress("localhost");
-        skillSpec.setPort(skillPort);
-
-        Capability capability = new Capability(spec);
-        ServerAdapter adapter = capability.getServerAdapters().stream()
-                .filter(a -> a instanceof SkillServerAdapter)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No SkillServerAdapter found"));
-
-        SkillServerAdapter skillAdapter = (SkillServerAdapter) adapter;
-        skillAdapter.start();
-        return skillAdapter;
     }
 }
