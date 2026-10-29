@@ -16,10 +16,7 @@ package io.ikanos.tutorial;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,14 +28,13 @@ import tools.jackson.databind.JsonNode;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
-import io.ikanos.engine.exposes.skill.SkillServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 /**
  * End-to-end integration test for {@code step-11-shipyard-fleet-manifest.yml}
- * exercised from MCP and Skill client perspectives.
+ * exercised from an MCP client perspective.
  *
  * <p>Step 11 adds orchestrated multi-step tools ({@code get-ship-with-crew},
  * {@code get-voyage-manifest}) that chain API calls and server-side lookups to
@@ -74,7 +70,6 @@ public class Step11ShipyardFleetManifestIntegrationTest
 
         restPort = findFreePort();
         int mcpPort = findFreePort();
-        int skillPort = findFreePort();
 
         spec.getCapability().getExposes().getFirst().setPort(mcpPort);
         spec.getCapability().getExposes().getFirst().setAddress("localhost");
@@ -86,12 +81,6 @@ public class Step11ShipyardFleetManifestIntegrationTest
         restSpec.setPort(restPort);
         restSpec.setAddress("localhost");
 
-        SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof SkillServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-11 spec"));
-        skillSpec.setPort(skillPort);
-        skillSpec.setAddress("localhost");
 
         Capability capability = new Capability(spec);
         allAdapters.addAll(capability.getServerAdapters());
@@ -160,70 +149,22 @@ public class Step11ShipyardFleetManifestIntegrationTest
     }
 
     @Test
-    public void skillVoyageOpsShouldIncludeVoyageManifestTool() throws Exception {
-        int skillPort = findFreePort();
-        SkillServerAdapter skillAdapter = startIsolatedSkillServer(skillPort);
+    public void voyageOpsSkillShouldIncludeVoyageManifestTool() throws Exception {
+        McpServerSpec mcp = (McpServerSpec) loadSpec(CAPABILITY_FILE).getCapability()
+                .getExposes().getFirst();
 
+        assertEquals(List.of("create-voyage", "get-voyage-manifest"),
+                mcp.getSkills().get("voyage-ops").getTools());
+    }
+
+    @Test
+    public void voyageOpsSkillShouldBeServedOverMcp() throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + skillPort + "/skills/voyage-ops"))
-                    .GET()
-                    .build();
+            JsonNode skill = callSkillsGet(http, "skill://voyage-ops/SKILL.md");
 
-            HttpResponse<String> response = http.send(request, string());
-            assertEquals(200, response.statusCode(), "GET /skills/voyage-ops must succeed");
-
-            JsonNode detail = json.readTree(response.body());
-            assertEquals("voyage-ops", detail.path("name").asString());
-
-            JsonNode tools = detail.path("tools");
-            assertTrue(tools.isArray(), "voyage-ops detail must contain a tools array");
-            assertEquals(2, tools.size(), "voyage-ops must have 2 tools including manifest");
-
-            List<String> toolNames = new ArrayList<>();
-            for (JsonNode t : tools) {
-                toolNames.add(t.path("name").asString());
-            }
-            assertTrue(toolNames.contains("create-voyage"), "voyage-ops must include create-voyage");
-            assertTrue(toolNames.contains("get-voyage-manifest"), "voyage-ops must include get-voyage-manifest");
-        } finally {
-            skillAdapter.stop();
+            assertEquals("voyage-ops", skill.path("frontmatter").path("name").asString());
+            assertEquals("skill://voyage-ops/SKILL.md",
+                    skill.path("resources").get(0).path("uri").asString());
         }
-    }
-
-    private IkanosSpec loadPatchedStep11Spec() throws Exception {
-        IkanosSpec spec = loadSpec(CAPABILITY_FILE);
-        disableMcpAuthentication(spec);
-
-        return spec;
-    }
-
-    private SkillServerAdapter startIsolatedSkillServer(int skillPort) throws Exception {
-        IkanosSpec spec = loadPatchedStep11Spec();
-
-        spec.getCapability().getExposes().getFirst().setPort(findFreePort());
-
-        RestServerSpec restSpec = (RestServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof RestServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("REST expose not found in step-11 spec"));
-        restSpec.setPort(findFreePort());
-
-        SkillServerSpec skillSpec = (SkillServerSpec) spec.getCapability().getExposes().stream()
-                .filter(e -> e instanceof SkillServerSpec)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Skill expose not found in step-11 spec"));
-        skillSpec.setAddress("localhost");
-        skillSpec.setPort(skillPort);
-
-        Capability capability = new Capability(spec);
-        ServerAdapter adapter = capability.getServerAdapters().stream()
-                .filter(a -> a instanceof SkillServerAdapter)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No SkillServerAdapter found"));
-
-        SkillServerAdapter skillAdapter = (SkillServerAdapter) adapter;
-        skillAdapter.start();
-        return skillAdapter;
     }
 }

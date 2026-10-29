@@ -299,43 +299,14 @@ capability:
       get-ship-with-crew:
         description: "Get ship details with resolved crew names"
         ref: crew-resolver.resolve-crew-for-ship
-  - type: skill
-    address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
-    port: 3002
-    namespace: shipyard-skills
-    description: "Shipyard skill groups for structured agent discovery"
+
     skills:
       fleet-ops:
         description: "Fleet management — list, search, and inspect ships across all registries"
-        tools:
-          list-ships:
-            description: "List ships in the shipyard, optionally filtered by status"
-            from:
-              sourceNamespace: shipyard-tools
-              action: list-ships
-          get-ship:
-            description: "Retrieve a ship's details by IMO number"
-            from:
-              sourceNamespace: shipyard-tools
-              action: get-ship
-          list-legacy-vessels:
-            description: "List vessels from the legacy Dockyard"
-            from:
-              sourceNamespace: shipyard-tools
-              action: list-legacy-vessels
-          get-ship-with-crew:
-            description: "Get ship details with resolved crew names"
-            from:
-              sourceNamespace: shipyard-tools
-              action: get-ship-with-crew
+        tools: [list-ships, get-ship, list-legacy-vessels, get-ship-with-crew]
       voyage-ops:
         description: "Voyage planning — create and manage voyages"
-        tools:
-          create-voyage:
-            description: "Plan a new voyage with ship, crew, route, and dates"
-            from:
-              sourceNamespace: shipyard-tools
-              action: create-voyage
+        tools: [create-voyage]
 
   - type: rest
     address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
