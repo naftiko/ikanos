@@ -17,6 +17,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpAppsMetadata;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.mcp.SkillHandler;
+import io.ikanos.engine.exposes.mcp.SkillManifest;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
@@ -45,28 +48,67 @@ public class ServerDiscoverHandler extends McpCallHandler {
         putSupportedProtocolVersions(result, "supportedVersions");
 
         // Conditionally advertise capabilities based on what is declared in the spec
+        McpServerSpec spec = adapter.getMcpServerSpec();
+        List<SkillManifest> skills = adapter.getSkillHandler() != null
+                ? adapter.getSkillHandler().list() : List.of();
         ObjectNode capabilities = MAPPER.createObjectNode();
-        capabilities.putObject("tools");
-        if (!adapter.getMcpServerSpec().getResources().isEmpty()) {
+        if (!spec.getTools().isEmpty()) {
+            capabilities.putObject("tools");
+        }
+        // Skills are resources, so the Skills Extension requires the resources capability.
+        if (!spec.getResources().isEmpty() || !skills.isEmpty()) {
             capabilities.putObject("resources");
         }
-        if (!adapter.getMcpServerSpec().getPrompts().isEmpty()) {
+        if (!spec.getPrompts().isEmpty()) {
             capabilities.putObject("prompts");
         }
+        // Each extension adds its own entry to the one "extensions" object.
+        ObjectNode extensions = MAPPER.createObjectNode();
         // MCP Apps (SEP-1865): advertised when any tool links a ui:// view. Load-time validation
         // guarantees a declared resource backs each view, so "resources" is present too.
-        if (McpAppsMetadata.anyToolDeclaresUi(adapter.getMcpServerSpec().getTools().values())) {
-            capabilities.putObject("extensions").putObject(McpAppsMetadata.EXTENSION_ID);
+        if (McpAppsMetadata.anyToolDeclaresUi(spec.getTools().values())) {
+            extensions.putObject(McpAppsMetadata.EXTENSION_ID);
+        }
+        // Skills (SEP-2640): no resources/directory/read yet, so directoryRead stays at its
+        // default (false).
+        if (!skills.isEmpty()) {
+            extensions.putObject(SkillHandler.EXTENSION_ID);
+        }
+        if (!extensions.isEmpty()) {
+            capabilities.set("extensions", extensions);
         }
         result.set("capabilities", capabilities);
 
-        // Instructions from the spec description
-        if (adapter.getMcpServerSpec().getDescription() != null) {
-            result.put("instructions", adapter.getMcpServerSpec().getDescription());
+        // Instructions from the spec description, plus where to find the skills for clients that
+        // read resources but do not implement the Skills Extension
+        String instructions = instructions(spec.getDescription(), skills);
+        if (instructions != null) {
+            result.put("instructions", instructions);
         }
 
         result.put("resultType", "complete");
         return new HandlerSuccessResult(result);
+    }
+
+    /**
+     * Build the server instructions: the spec description, followed by the URIs of the skills'
+     * {@code SKILL.md} when the server serves skills. Returns {@code null} when both are absent.
+     */
+    static String instructions(String description, List<SkillManifest> skills) {
+        StringBuilder text = new StringBuilder();
+        if (description != null) {
+            text.append(description);
+        }
+        if (!skills.isEmpty()) {
+            if (!text.isEmpty()) {
+                text.append("\n\n");
+            }
+            text.append("Agent skills (read each SKILL.md with resources/read):");
+            for (SkillManifest skill : skills) {
+                text.append("\n- ").append(skill.uri());
+            }
+        }
+        return text.isEmpty() ? null : text.toString();
     }
 
     @Override

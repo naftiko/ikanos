@@ -31,7 +31,7 @@ import io.ikanos.spec.exposes.ServerSpec;
  *   <li>{@code http} (default) — Streamable HTTP via Restlet, for networked deployments</li>
  *   <li>{@code stdio} — stdin/stdout JSON-RPC, for local IDE development</li>
  * </ul>
- * Tools, resources, and prompts are keyed by their name (kebab-case identifier).</p>
+ * Tools, resources, prompts and skills are keyed by their name (kebab-case identifier).</p>
  */
 @JsonDeserialize(using = ValueDeserializer.None.class)
 public class McpServerSpec extends ServerSpec {
@@ -70,6 +70,11 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerPromptMapDeserializer.class)
     private final Map<String, McpServerPromptSpec> prompts =
+            Collections.synchronizedMap(new LinkedHashMap<>());
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonDeserialize(using = McpServerSkillMapDeserializer.class)
+    private final Map<String, McpServerSkillSpec> skills =
             Collections.synchronizedMap(new LinkedHashMap<>());
 
     public McpServerSpec() {
@@ -183,6 +188,19 @@ public class McpServerSpec extends ServerSpec {
         synchronized (this.prompts) {
             this.prompts.clear();
             this.prompts.putAll(prompts);
+        }
+    }
+
+    /** Agent Skills served through the Skills Extension (SEP-2640), keyed by skill name. */
+    public Map<String, McpServerSkillSpec> getSkills() {
+        return skills;
+    }
+
+    public void setSkills(Map<String, McpServerSkillSpec> skills) {
+        if (skills == null) return;
+        synchronized (this.skills) {
+            this.skills.clear();
+            this.skills.putAll(skills);
         }
     }
 }

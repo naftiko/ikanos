@@ -19,6 +19,7 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpErrors;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
+import io.ikanos.engine.exposes.mcp.SkillHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -59,8 +60,11 @@ public class ResourcesReadHandler extends McpCallHandler {
         }
 
         try {
-            List<ResourceHandler.ResourceContent> contents =
-                    adapter.getResourceHandler().read(uri);
+            // skill:// URIs are reserved for skills (SEP-2640) and served from their snapshot
+            List<ResourceHandler.ResourceContent> contents = SkillHandler.isSkillUri(uri)
+                    && adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty()
+                    ? List.of(adapter.getSkillHandler().read(uri))
+                    : adapter.getResourceHandler().read(uri);
             ObjectNode result = MAPPER.createObjectNode();
             ArrayNode contentsArray = result.putArray("contents");
             for (ResourceHandler.ResourceContent c : contents) {
