@@ -734,7 +734,7 @@
     },
     "HostPatterns": {
       "type": "array",
-      "description": "Host names this adapter answers on. Omitted means any host. Adapters that share an address and port are routed by host first, then by `path`. An exact name takes precedence over a wildcard.",
+      "description": "Host names this adapter answers on. Omitted means any host that no other adapter on the same address and port declares. Adapters that share an address and port are routed by host first, then by `path`. An exact name takes precedence over a wildcard.",
       "items": {
         "$ref": "#/$defs/HostPattern"
       },

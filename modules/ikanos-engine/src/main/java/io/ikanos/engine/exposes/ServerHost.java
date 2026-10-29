@@ -56,7 +56,7 @@ public class ServerHost {
     /** {@code /} or full path segments without a trailing slash or template variables. */
     static final Pattern PATH_PATTERN = Pattern.compile("^(/|(/[^/{}?#;\\s]+)+)$");
 
-    /** Marks the default host, which answers any host name. */
+    /** Marks the default host, which answers any host name no other virtual host matches. */
     static final String ANY_HOST = "";
 
     /**

@@ -9,7 +9,7 @@
  *   `hosts` on one port included);
  * - a path nested inside another one on the same host, such as `/api` and `/api/v2`.
  *
- * Adapters without `hosts` answer on any host. A `hosts` entry written as a Mustache
+ * Adapters without `hosts` answer on any host that no other adapter declares. A `hosts` entry written as a Mustache
  * expression is compared as written, since its value is only known at startup. The control
  * adapter is checked by `control-port-validation`, and MCP over stdio has no listener.
  */
