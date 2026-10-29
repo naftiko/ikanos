@@ -17,6 +17,28 @@ services:
     networks:
       - e2e
 
+  # Authenticating reverse proxy in front of Microcks, used by the consumed-auth
+  # feature. Microcks cannot reject a request on missing or wrong credentials,
+  # so the auth is enforced here while the payloads still come from the OpenAPI
+  # specs. See authgw/httpd.conf one vhost per auth type.
+  authgw:
+    image: httpd:2.4
+    container_name: e2e-authgw
+    depends_on:
+      microcks:
+        condition: service_healthy
+    ports:
+      - "8090:8090"   # basic
+      - "8091:8091"   # apikey
+      - "8092:8092"   # digest
+      - "8093:8093"   # apikey, raw token in Authorization
+    volumes:
+      - ./authgw/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./authgw/htpasswd:/usr/local/apache2/conf/auth/htpasswd:ro
+      - ./authgw/htdigest:/usr/local/apache2/conf/auth/htdigest:ro
+    networks:
+      - e2e
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
     container_name: e2e-keycloak
