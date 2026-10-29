@@ -13,11 +13,18 @@
  */
 package io.ikanos.engine.consumes;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.Adapter;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.consumes.ClientSpec;
 
 /**
@@ -38,9 +45,64 @@ public abstract class ClientAdapter extends Adapter {
 
     private final AtomicReference<ClientSpec> spec = new AtomicReference<>();
 
+    private static final Pattern PLACEHOLDER =
+            Pattern.compile("\\{\\{\\{?\\s*([^{}#^/!&>=]+?)\\s*\\}?\\}\\}");
+
     public ClientAdapter(Capability capability, ClientSpec spec) {
         this.capability.set(capability);
         this.spec.set(spec);
+    }
+
+    /**
+     * Resolve a consumed URI (an HTTP {@code baseUri} or an MCP {@code endpoint}) against the
+     * capability bindings, once, when the adapter is built. Call parameters are never used, so a
+     * caller cannot choose the upstream host (SSRF). Bound values are substituted as written,
+     * without URL encoding, since a binding may hold a whole URL. A value without placeholders is
+     * returned unchanged.
+     *
+     * @param namespace the consumes namespace, for error messages
+     * @param field the field name, for error messages ({@code baseUri}, {@code endpoint})
+     * @param uri the URI as written, may be null
+     * @param bindings the capability bindings, may be null
+     * @return the resolved URI
+     * @throws IllegalArgumentException when a placeholder is not bound, or when the resolved value
+     *     is not an absolute http(s) URI with a host. The resolved value is not echoed, as it may
+     *     come from a secret store.
+     */
+    protected static String resolveUriFromBindings(String namespace, String field, String uri,
+            Map<String, Object> bindings) {
+        if (uri == null || !uri.contains("{{")) {
+            return uri;
+        }
+        Map<String, Object> scope = bindings != null ? bindings : Map.of();
+        String resolved = Resolver.resolveMustacheTemplate(uri, scope);
+        List<String> missing = new ArrayList<>();
+        Matcher placeholder = PLACEHOLDER.matcher(uri);
+        while (placeholder.find()) {
+            String name = placeholder.group(1).trim();
+            if (!scope.containsKey(name) && !missing.contains(name)) {
+                missing.add(name);
+            }
+        }
+        if (!missing.isEmpty() || resolved.contains("{{")) {
+            throw new IllegalArgumentException("consumes '" + namespace + "' " + field
+                    + " references unbound variables " + missing
+                    + ". Declare them in a binds entry.");
+        }
+        try {
+            URI parsed = new URI(resolved);
+            String scheme = parsed.getScheme();
+            if (scheme == null
+                    || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                    || parsed.getHost() == null || parsed.getHost().isEmpty()) {
+                throw new IllegalArgumentException("consumes '" + namespace + "' " + field
+                        + " must resolve to an absolute http(s) URI with a host");
+            }
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("consumes '" + namespace + "' " + field
+                    + " does not resolve to a valid URI");
+        }
+        return resolved;
     }
 
     public Capability getCapability() {

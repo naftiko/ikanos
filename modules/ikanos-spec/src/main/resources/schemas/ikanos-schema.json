@@ -2544,8 +2544,8 @@
         },
         "endpoint": {
           "type": "string",
-          "description": "Streamable HTTP endpoint of the upstream MCP server. No path composition is applied. Example: `https://billing.example.com/mcp`.",
-          "pattern": "^https?://[^/]+(/.*)?$"
+          "description": "Streamable HTTP endpoint of the upstream MCP server. No path composition is applied. Example: `https://billing.example.com/mcp`. Placeholders (`https://{{HOST}}/mcp`, or a whole value such as `{{MCP_URL}}`) are resolved once at load time from `binds`, never from call parameters; an unbound placeholder, or a resolved value that is not `https://` outside localhost, fails the capability at startup.",
+          "pattern": "^(https?://[^/]+(/.*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$"
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",

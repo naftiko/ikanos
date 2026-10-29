@@ -50,6 +50,15 @@ class HttpClientAdapterBaseUriTest {
     }
 
     @Test
+    void resolveBaseUriShouldStripTrailingSlashFromBoundValue() {
+        // The baseUri-no-trailing-slash lint rule only sees {{API_URL}}, so a bound value
+        // ending in / would otherwise give // once a resource path is appended.
+        assertEquals("https://api.example.com/v1",
+                HttpClientAdapter.resolveBaseUri("api", "{{API_URL}}",
+                        Map.of("API_URL", "https://api.example.com/v1/")));
+    }
+
+    @Test
     void resolveBaseUriShouldNotEncodeBoundValue() {
         assertEquals("https://host.test/a/b?x=1",
                 HttpClientAdapter.resolveBaseUri("api", "{{URL}}",

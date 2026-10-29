@@ -1,6 +1,6 @@
 # Spectral fixture — consumed MCP rules MUST NOT FIRE:
 #   HTTPS to a remote host, plain HTTP only to loopback (with and without a port),
-#   and every consumed tool declares hints.
+#   an endpoint taken whole from a binding, and every consumed tool declares hints.
 ikanos: "1.0.0-beta9"
 info:
   display: "Consumed MCP rules — compliant"
@@ -35,6 +35,14 @@ capability:
       namespace: local-ipv6
       description: "Local MCP sidecar on the IPv6 loopback."
       endpoint: http://[::1]:9000/mcp
+      tools:
+        get-invoice:
+          description: Retrieve one invoice
+          hints: { readOnly: true }
+    - type: mcp
+      namespace: bound-endpoint
+      description: "Endpoint from a binding, checked by the engine at load time."
+      endpoint: "{{BILLING_MCP_URL}}"
       tools:
         get-invoice:
           description: Retrieve one invoice
