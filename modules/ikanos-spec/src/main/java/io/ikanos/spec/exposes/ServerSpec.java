@@ -77,7 +77,7 @@ public abstract class ServerSpec {
     /**
      * Returns the namespace of this adapter, or {@code null} if the adapter type does not use
      * namespaces. Overridden by concrete subclasses that carry a {@code namespace} field
-     * (e.g. {@code RestServerSpec}, {@code McpServerSpec}, {@code SkillServerSpec}).
+     * (e.g. {@code RestServerSpec}, {@code McpServerSpec}).
      *
      * <p>Defined here so the generic import resolver can read the namespace without
      * downcasting to a specific subclass.</p>

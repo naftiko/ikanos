@@ -29,11 +29,11 @@ capability:
             method: GET
             display: Get Ping
             call: ping-backend.get
-  - type: skill
+  - type: mcp
     address: localhost
     port: 9612
     namespace: regression-skills
-    description: Native regression skill catalogue
+    description: Native regression skills-only MCP server
     skills:
       networknt-probe:
         description: >

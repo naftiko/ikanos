@@ -39,7 +39,7 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * End-to-end tests of adapters sharing one listener (issue #893): a capability is started
- * in-process with REST, MCP and Skill adapters on the same port, routed by {@code path} and
+ * in-process with REST and MCP adapters on the same port, routed by {@code path} and
  * {@code hosts}, and called over real HTTP. Requests are written on a raw socket so that each
  * test controls the {@code Host} header.
  */
@@ -77,8 +77,8 @@ class SharedListenerIntegrationTest {
     }
 
     @Test
-    void restMcpAndSkillShouldAnswerOnOnePortUnderTheirPaths() throws Exception {
-        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\"") + skillAtRoot());
+    void restMcpAndSkillsShouldAnswerOnOnePortUnderTheirPaths() throws Exception {
+        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\"") + skillsMcpAtRoot());
 
         Reply rest = get("localhost", "/api/hello?name=Ada");
         assertEquals(200, rest.status(), rest.body());
@@ -88,14 +88,14 @@ class SharedListenerIntegrationTest {
         assertEquals(200, mcp.status(), mcp.body());
         assertTrue(mcp.body().contains("\"result\""), mcp.body());
 
-        Reply skills = get("localhost", "/skills");
+        Reply skills = mcpDiscover("localhost", "/");
         assertEquals(200, skills.status(), skills.body());
-        assertTrue(skills.body().contains("greetings"), skills.body());
+        assertTrue(skills.body().contains("io.modelcontextprotocol/skills"), skills.body());
     }
 
     @Test
     void prefixShouldNotMatchALongerSegment() throws Exception {
-        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\"") + skillAtRoot());
+        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\""));
 
         assertEquals(404, mcpDiscover("localhost", "/mcpx").status());
         assertEquals(404, get("localhost", "/apix/hello").status());
@@ -103,7 +103,7 @@ class SharedListenerIntegrationTest {
 
     @Test
     void sharedAdaptersShouldReportTheSharedServerAsStarted() throws Exception {
-        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\"") + skillAtRoot());
+        start(restAt("path: \"/api\"") + mcpAt("path: \"/mcp\"") + skillsMcpAtRoot());
 
         ServerAdapter first = capability.getServerAdapters().get(0);
         for (ServerAdapter adapter : capability.getServerAdapters()) {
@@ -276,21 +276,16 @@ class SharedListenerIntegrationTest {
                 """.formatted(indent(mountLines));
     }
 
-    private String skillAtRoot() {
+    /** A skills-only MCP adapter mounted at the root of the shared listener. */
+    private String skillsMcpAtRoot() {
         return """
-                    - type: "skill"
+                    - type: "mcp"
                       address: "localhost"
                       port: {PORT}
                       namespace: "greetings"
                       skills:
                         greetings:
                           description: "Greets people"
-                          tools:
-                            hello:
-                              description: "Say hello"
-                              from:
-                                sourceNamespace: "greeting-rest"
-                                action: "hello"
                 """;
     }
 

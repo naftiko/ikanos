@@ -21,7 +21,6 @@ import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import org.restlet.representation.Representation;
@@ -82,8 +81,6 @@ public class HealthReadyResource extends ServerResource {
             return rest.getNamespace();
         } else if (spec instanceof McpServerSpec mcp) {
             return mcp.getNamespace();
-        } else if (spec instanceof SkillServerSpec skill) {
-            return skill.getNamespace();
         }
         return null;
     }

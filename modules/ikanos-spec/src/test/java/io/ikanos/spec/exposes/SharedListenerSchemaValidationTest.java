@@ -83,7 +83,7 @@ class SharedListenerSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldAcceptPathAndHostsOnMcpAndSkillAdapters() throws Exception {
+    void schemaShouldAcceptPathAndHostsOnMcpAdapters() throws Exception {
         assertValid("""
                 ikanos: "%s"
                 capability:
@@ -101,7 +101,7 @@ class SharedListenerSchemaValidationTest {
                           msg:
                             type: string
                             value: "hi"
-                  - type: skill
+                  - type: mcp
                     port: 8080
                     path: "/catalog"
                     hosts: ["*.acme.com"]

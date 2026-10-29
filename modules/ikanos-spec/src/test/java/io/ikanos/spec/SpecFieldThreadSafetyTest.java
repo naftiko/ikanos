@@ -37,13 +37,12 @@ import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.control.ControlManagementSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSkillSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerStepSpec;
-import io.ikanos.spec.exposes.skill.ExposedSkillSpec;
-import io.ikanos.spec.exposes.skill.SkillToolSpec;
 import io.ikanos.spec.observability.ObservabilityExportersSpec;
 import io.ikanos.spec.observability.ObservabilityMetricsSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
@@ -90,13 +89,12 @@ class SpecFieldThreadSafetyTest {
                 ControlServerSpec.class,
                 ControlManagementSpec.class,
                 McpServerResourceSpec.class,
+                McpServerSkillSpec.class,
                 McpServerToolSpec.class,
                 McpTrustSpec.class,
                 RestServerResourceSpec.class,
                 RestServerOperationSpec.class,
                 RestServerStepSpec.class,
-                ExposedSkillSpec.class,
-                SkillToolSpec.class,
                 ObservabilitySpec.class,
                 ObservabilityTracesSpec.class,
                 ObservabilityMetricsSpec.class,

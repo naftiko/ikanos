@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
  * context the same way.</p>
  *
  * <p>Mirrors {@link RestletHeaderGetter}, which remains the HTTP-header-based carrier used by
- * the REST and Skill adapters.</p>
+ * the REST adapter.</p>
  */
 public class McpMetaTraceContextGetter implements TextMapGetter<JsonNode> {
 

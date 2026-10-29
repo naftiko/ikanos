@@ -24,7 +24,7 @@
             <artifactId>ikanos-spec</artifactId>
         </dependency>
 
-        <!-- REST / Skill adapters -->
+        <!-- REST adapter and shared HTTP listener -->
         <dependency>
             <groupId>org.restlet</groupId>
             <artifactId>org.restlet</artifactId>

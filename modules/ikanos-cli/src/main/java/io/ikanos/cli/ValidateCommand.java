@@ -24,6 +24,7 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 
 import java.io.File;
@@ -32,6 +33,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,15 +87,21 @@ public class ValidateCommand implements Callable<Integer> {
             }
             Schema schema = factory.getSchema(schemaNode);
             
-            // Validate.
-            List<com.networknt.schema.Error> errors = schema.validate(dataNode);
+            // Validate. Adapters of a removed type are reported with their migration message
+            // instead of the schema's mismatch against every remaining adapter type.
+            List<String> removedAdapters = removedSkillAdapters(dataNode);
+            List<com.networknt.schema.Error> errors = schema.validate(dataNode).stream()
+                    .filter(error -> !isWithin(error.getInstanceLocation().toString(),
+                            removedAdapters))
+                    .toList();
 
             // Compile consumed templates the way the engine renders them (#849), only once the
             // document matches the schema, so the spec can be read.
-            List<String> templateErrors = errors.isEmpty() ? templateErrors(dataNode) : List.of();
+            List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
+                    ? templateErrors(dataNode) : List.of();
 
             // Display validation result.
-            if (errors.isEmpty() && templateErrors.isEmpty()) {
+            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -104,6 +112,12 @@ public class ValidateCommand implements Callable<Integer> {
                 System.err.println("\nErrors found:");
                 
                 int errorCount = 1;
+                for (String path : removedAdapters) {
+                    System.err.println("\n  [" + errorCount + "] "
+                            + ServerSpecDeserializer.SKILL_ADAPTER_REMOVED);
+                    System.err.println("      Path: " + path);
+                    errorCount++;
+                }
                 for (com.networknt.schema.Error error : errors) {
                     System.err.println("\n  [" + errorCount + "] " + error.getMessage());
                     System.err.println("      Path: " + error.getInstanceLocation());
@@ -135,6 +149,42 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Paths of the exposed adapters that still declare the removed {@code skill} type, both in a
+     * capability and at the root of a standalone exposes file (#898).
+     */
+    static List<String> removedSkillAdapters(JsonNode dataNode) {
+        List<String> paths = new ArrayList<>();
+        collectRemovedSkillAdapters(dataNode.path("capability").path("exposes"),
+                "$.capability.exposes", paths);
+        collectRemovedSkillAdapters(dataNode.path("exposes"), "$.exposes", paths);
+        return paths;
+    }
+
+    private static void collectRemovedSkillAdapters(JsonNode exposes, String basePath,
+            List<String> paths) {
+        if (!exposes.isArray()) {
+            return;
+        }
+        for (int i = 0; i < exposes.size(); i++) {
+            JsonNode entry = exposes.get(i);
+            if (!entry.has("from") && ServerSpecDeserializer.REMOVED_SKILL_TYPE
+                    .equals(entry.path("type").asString(null))) {
+                paths.add(basePath + "[" + i + "]");
+            }
+        }
+    }
+
+    private static boolean isWithin(String location, List<String> paths) {
+        for (String path : paths) {
+            if (location.equals(path) || location.startsWith(path + ".")
+                    || location.startsWith(path + "[")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     JsonNode loadFile(File file) throws IOException {

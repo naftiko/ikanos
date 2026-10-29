@@ -125,7 +125,6 @@ rules:
     given:
       - "$.capability.exposes[?(@.type == 'rest')].address"
       - "$.capability.exposes[?(@.type == 'mcp')].address"
-      - "$.capability.exposes[?(@.type == 'skill')].address"
     then:
       function: pattern
       functionOptions:
@@ -478,7 +477,6 @@ rules:
       - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
       - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
       - "$.capability.exposes[?(@.type == 'mcp')].skills[*].description"
-      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
       - "$.consumes[*].description"
       - "$.capability.consumes[*].description"
     then:
@@ -502,7 +500,6 @@ rules:
       - "$.capability.exposes[?(@.type == 'rest')].resources[*].operations[*].description"
       - "$.capability.exposes[?(@.type == 'mcp')].tools[*].description"
       - "$.capability.exposes[?(@.type == 'mcp')].skills[*].description"
-      - "$.capability.exposes[?(@.type == 'skill')].skills[*].description"
       - "$.consumes[*].description"
       - "$.capability.consumes[*].description"
     then:

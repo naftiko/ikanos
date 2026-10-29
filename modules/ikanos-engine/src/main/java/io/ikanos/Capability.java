@@ -51,7 +51,6 @@ import io.ikanos.engine.exposes.ServerHost;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
-import io.ikanos.engine.exposes.skill.SkillServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
 import io.ikanos.engine.util.QualifiedName;
@@ -63,7 +62,6 @@ import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -207,8 +205,6 @@ public class Capability {
                 serverList.add(new RestServerAdapter(this, (RestServerSpec) serverSpec));
             } else if ("mcp".equals(serverSpec.getType())) {
                 serverList.add(new McpServerAdapter(this, (McpServerSpec) serverSpec));
-            } else if ("skill".equals(serverSpec.getType())) {
-                serverList.add(new SkillServerAdapter(this, (SkillServerSpec) serverSpec));
             } else if ("control".equals(serverSpec.getType())) {
                 serverList.add(new ControlServerAdapter(this, (ControlServerSpec) serverSpec));
             }

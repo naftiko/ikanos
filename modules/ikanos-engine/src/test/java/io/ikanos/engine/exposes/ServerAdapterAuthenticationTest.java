@@ -199,22 +199,22 @@ class ServerAdapterAuthenticationTest {
     }
 
     @Test
-    void skillAdapterShouldReturnGenericOAuth2RestletForOAuth2() throws Exception {
+    void restAdapterShouldReturnGenericOAuth2RestletForOAuth2() throws Exception {
         String authBlock = """
                       authentication:
                         type: "oauth2"
                         authorizationServerUri: "https://auth.example.com"
-                        resource: "https://skills.example.com"
+                        resource: "https://api.example.com"
                         scopes:
                           - "read"
                 """;
-        ServerAdapter adapter = adapterFromYaml(SKILL_YAML.formatted(schemaVersion, authBlock));
+        ServerAdapter adapter = adapterFromYaml(REST_YAML.formatted(schemaVersion, authBlock));
 
         Router router = new Router();
         Restlet chain = adapter.buildServerChain(router);
 
-        assertInstanceOf(OAuth2AuthenticationRestlet.class, chain,
-                "Skill adapter OAuth2 should produce OAuth2AuthenticationRestlet");
+        assertEquals(OAuth2AuthenticationRestlet.class, chain.getClass(),
+                "REST adapter OAuth2 should produce the generic OAuth2AuthenticationRestlet");
     }
 
     @Test
@@ -250,23 +250,23 @@ class ServerAdapterAuthenticationTest {
               consumes: []
             """;
 
-    /** Skill adapter YAML template. First %s = schema version, second %s = authentication block. */
-    private static final String SKILL_YAML = """
+    /** REST adapter YAML template. First %s = schema version, second %s = authentication block. */
+    private static final String REST_YAML = """
             ikanos: "%s"
             capability:
               exposes:
-                - type: "skill"
+                - type: "rest"
                   address: "localhost"
                   port: 0
-                  namespace: "test-skills"
-            %s      skills:
-                    - name: "test-skill"
-                      description: "A test skill"
-                      location: "file:///tmp/test-skill"
-                      tools:
-                        - name: "test-tool"
-                          description: "A test tool"
-                          instruction: "guide.md"
+                  namespace: "test-rest"
+            %s      resources:
+                    - path: "/hello"
+                      description: "hello"
+                      operations:
+                        - method: "GET"
+                          outputParameters:
+                            - type: "string"
+                              value: "ok"
               consumes: []
             """;
 

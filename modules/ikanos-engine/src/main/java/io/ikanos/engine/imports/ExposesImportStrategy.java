@@ -22,7 +22,6 @@ import io.ikanos.spec.exposes.ImportedExposesSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
-import io.ikanos.spec.exposes.skill.SkillServerSpec;
 
 /**
  * Import strategy for the {@code exposes} section.
@@ -70,7 +69,6 @@ public class ExposesImportStrategy implements ImportStrategy<ServerSpec> {
     public void setNamespace(ServerSpec entry, String namespace) {
         if (entry instanceof RestServerSpec rest) { rest.setNamespace(namespace); return; }
         if (entry instanceof McpServerSpec mcp)   { mcp.setNamespace(namespace);  return; }
-        if (entry instanceof SkillServerSpec sk)  { sk.setNamespace(namespace);   return; }
         throw new UnsupportedOperationException(
                 "Cannot apply alias to adapter type " + entry.getClass().getSimpleName()
                 + " — type does not support namespace");
