@@ -141,6 +141,19 @@ public class OperationStepExecutorTest {
     }
 
     @Test
+    public void mergeWithShouldLeaveKeyUnsetWhenWholeValueVariableIsAbsentAndTargetIsEmpty() {
+        Map<String, Object> target = new HashMap<>();
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("status", "{{statuses}}");
+
+        OperationStepExecutor.mergeWithParameters(with, target, null);
+
+        assertFalse(target.containsKey("status"),
+                "a call with no argument at all must not get the placeholder text as a value");
+    }
+
+    @Test
     public void mergeWithShouldRemoveCallerValueWhenWholeValueVariableIsAbsent() {
         Map<String, Object> target = new HashMap<>();
         target.put("status", "from-caller");

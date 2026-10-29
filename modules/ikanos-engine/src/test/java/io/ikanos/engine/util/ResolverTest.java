@@ -472,10 +472,20 @@ public class ResolverTest {
         assertNull(Resolver.resolveValue("{{step.missing}}", Map.of("step", Map.of())));
       }
 
+      // Replaces resolveValueShouldKeepUnresolvedLeftoverWhenThereAreNoParameters: with no
+      // parameters at all, an absent whole-value variable used to come back as its own text, so
+      // with: {status: "{{statuses}}"} sent status[]=%7B%7Bstatuses%7D%7D upstream. An absent
+      // value is null whatever the size of the map; missing values are flagged on the consumed
+      // template instead (Resolver.missingVariables, #858).
       @Test
-      public void resolveValueShouldKeepUnresolvedLeftoverWhenThereAreNoParameters() {
-        assertEquals("{{statuses}}", Resolver.resolveValue("{{statuses}}", Map.of()));
-        assertEquals("{{statuses}}", Resolver.resolveValue("{{ statuses }}", null));
+      public void resolveValueShouldReturnNullWhenWholeValueVariableIsAbsentAndThereAreNoParameters() {
+        assertNull(Resolver.resolveValue("{{statuses}}", Map.of()));
+        assertNull(Resolver.resolveValue("{{ statuses }}", null));
+      }
+
+      @Test
+      public void resolveValueShouldKeepMixedTemplateTextWhenThereAreNoParameters() {
+        assertEquals("x-{{statuses}}", Resolver.resolveValue("x-{{statuses}}", Map.of()));
       }
 
       @Test
