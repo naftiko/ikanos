@@ -15,9 +15,7 @@ capability:
       tools:
         get-ship:
           description: "Retrieve a ship by IMO number."
-          outputParameters:
-            - type: "string"
-              value: "ship"
+          call: "registry.get-ship"
       skills:
         fleet-ops:
           description: "Find ships across the current and legacy registries."
@@ -28,4 +26,14 @@ capability:
           argument-hint: "<imo-number>"
         install-guide:
           description: "Guide a developer through installing Ikanos."
-  consumes: []
+  consumes:
+    - type: "http"
+      namespace: "registry"
+      description: "Ship registry API. Never called by the conformance suite."
+      baseUri: "https://registry.invalid"
+      resources:
+        ship:
+          path: "/ships/{{imo}}"
+          operations:
+            get-ship:
+              method: "GET"
