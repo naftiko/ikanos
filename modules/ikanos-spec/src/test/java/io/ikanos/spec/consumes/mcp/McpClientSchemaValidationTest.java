@@ -136,6 +136,18 @@ class McpClientSchemaValidationTest {
     }
 
     @Test
+    void endpointFromBindingShouldPassSchemaValidation() throws Exception {
+        String base = capability("\"verify\"", "\"fail\"");
+
+        for (String endpoint : List.of("\"{{BILLING_MCP_URL}}\"",
+                "\"https://{{BILLING_HOST}}/mcp\"")) {
+            String yaml = base.replace("\"https://billing.example.com/mcp\"", endpoint);
+            assertTrue(validate(yaml).isEmpty(),
+                    endpoint + " must validate: " + validate(yaml));
+        }
+    }
+
+    @Test
     void unknownStringShouldFailSchemaValidation() throws Exception {
         assertFalse(validate(capability("\"sometimes\"", "\"fail\"")).isEmpty());
         assertFalse(validate(capability("\"verify\"", "\"maybe\"")).isEmpty());

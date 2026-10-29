@@ -323,6 +323,8 @@ rules:
     description: >
       Consumed MCP servers receive tool arguments and an upstream credential on every
       call. Plain HTTP is only acceptable for a local upstream (development, sidecar).
+      An endpoint taken whole from a binding (`{{MCP_URL}}`) is checked by the engine
+      when the capability loads, since its value is not known at lint time.
     severity: error
     recommended: true
     given:
@@ -331,7 +333,7 @@ rules:
     then:
       function: pattern
       functionOptions:
-        match: "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?(/|$))"
+        match: "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?(/|$)|\\{\\{[A-Za-z0-9_.-]+\\}\\}$)"
 
   ikanos-mcp-consumed-tool-hints:
     message: "Each consumed MCP tool should declare `hints`."

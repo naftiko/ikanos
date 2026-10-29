@@ -570,4 +570,57 @@ class McpClientAdapterTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new McpClientAdapter(null, spec, new StubClient()));
     }
+
+    @Test
+    void resolveEndpointShouldSubstituteBindings() {
+        assertEquals("https://billing.example.com/mcp",
+                McpClientAdapter.resolveEndpoint("billing", "{{BILLING_MCP_URL}}",
+                        Map.of("BILLING_MCP_URL", "https://billing.example.com/mcp")));
+    }
+
+    @Test
+    void resolveEndpointShouldKeepLiteralEndpointAsWritten() {
+        // No path composition: a trailing slash is part of the endpoint and is kept.
+        assertEquals("https://billing.example.com/mcp/",
+                McpClientAdapter.resolveEndpoint("billing", "https://billing.example.com/mcp/",
+                        Map.of()));
+    }
+
+    @Test
+    void resolveEndpointShouldRejectBoundPlainHttpToRemoteHost() {
+        // The ikanos-mcp-consumes-endpoint-https lint rule only sees {{BILLING_MCP_URL}}, so the
+        // engine applies the same rule to a bound value.
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> McpClientAdapter.resolveEndpoint("billing", "{{BILLING_MCP_URL}}",
+                        Map.of("BILLING_MCP_URL", "http://billing.example.com/mcp")));
+        assertTrue(error.getMessage().contains("https"), error.getMessage());
+        assertFalse(error.getMessage().contains("billing.example.com"),
+                "the resolved value may be secret and must not be echoed: " + error.getMessage());
+    }
+
+    @Test
+    void resolveEndpointShouldAcceptBoundPlainHttpToLoopback() {
+        for (String url : List.of("http://localhost:8080/mcp", "http://127.0.0.1/mcp",
+                "http://[::1]:9000/mcp")) {
+            assertEquals(url, McpClientAdapter.resolveEndpoint("billing", "{{URL}}",
+                    Map.of("URL", url)));
+        }
+    }
+
+    @Test
+    void resolveEndpointShouldLeaveLiteralPlainHttpToTheLintRule() {
+        assertEquals("http://billing.example.com/mcp",
+                McpClientAdapter.resolveEndpoint("billing", "http://billing.example.com/mcp",
+                        Map.of()));
+    }
+
+    @Test
+    void resolveEndpointShouldFailWhenPlaceholderIsNotBound() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> McpClientAdapter.resolveEndpoint("billing", "https://{{HOST}}/mcp",
+                        Map.of("OTHER", "x")));
+        assertTrue(error.getMessage().contains("billing"), error.getMessage());
+        assertTrue(error.getMessage().contains("endpoint"), error.getMessage());
+        assertTrue(error.getMessage().contains("HOST"), error.getMessage());
+    }
 }

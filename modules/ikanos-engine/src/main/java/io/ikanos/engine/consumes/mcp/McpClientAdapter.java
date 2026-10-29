@@ -16,6 +16,7 @@ package io.ikanos.engine.consumes.mcp;
 import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -87,6 +88,8 @@ public class McpClientAdapter extends ClientAdapter {
     static final int MAX_LIST_PAGES = 100;
 
     private final Client client;
+    /** {@code endpoint} after binding resolution; never resolved from call parameters. */
+    private final String endpoint;
     private final McpStreamableHttpTransport transport;
     private final Map<String, Schema> outputSchemas = new ConcurrentHashMap<>();
 
@@ -102,16 +105,51 @@ public class McpClientAdapter extends ClientAdapter {
                     "consumes type mcp '" + spec.getNamespace() + "' requires an endpoint");
         }
         this.client = client;
-        this.transport = new McpStreamableHttpTransport(client, spec.getEndpoint(),
+        this.endpoint = resolveEndpoint(spec.getNamespace(), spec.getEndpoint(),
+                capability != null ? capability.getBindings() : null);
+        this.transport = new McpStreamableHttpTransport(client, endpoint,
                 spec.getAuthentication());
+    }
+
+    /**
+     * Resolve {@code endpoint} against the capability bindings, once, when the adapter is built,
+     * as for an HTTP {@code baseUri} (see {@link #resolveUriFromBindings}). Unlike a
+     * {@code baseUri}, the endpoint is used as written, so a trailing {@code /} is kept.
+     *
+     * <p>A resolved value must use {@code https://} unless it targets the loopback interface:
+     * the {@code ikanos-mcp-consumes-endpoint-https} lint rule only sees the placeholder, and a
+     * consumed MCP server receives tool arguments and an upstream credential on every call. A
+     * literal endpoint is left to that lint rule.</p>
+     */
+    static String resolveEndpoint(String namespace, String endpoint,
+            Map<String, Object> bindings) {
+        String resolved = resolveUriFromBindings(namespace, "endpoint", endpoint, bindings);
+        if (resolved != null && !resolved.equals(endpoint) && !isHttpsOrLoopback(resolved)) {
+            throw new IllegalArgumentException("consumes '" + namespace
+                    + "' endpoint must resolve to an https:// URI unless it targets localhost");
+        }
+        return resolved;
+    }
+
+    private static boolean isHttpsOrLoopback(String uri) {
+        URI parsed = URI.create(uri);
+        if ("https".equalsIgnoreCase(parsed.getScheme())) {
+            return true;
+        }
+        String host = parsed.getHost();
+        return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)
+                || "[::1]".equals(host);
     }
 
     public McpClientSpec getMcpClientSpec() {
         return (McpClientSpec) getSpec();
     }
 
+    /**
+     * @return the {@code endpoint} with its binding placeholders resolved at load time
+     */
     public String getEndpoint() {
-        return getMcpClientSpec().getEndpoint();
+        return endpoint;
     }
 
     /** @return the cached upstream output schema for a tool, or {@code null} */

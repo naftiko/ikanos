@@ -450,9 +450,10 @@ capability:
 ```
 
 - Placeholders are resolved **once, at load time, from `binds` only**. Call parameters are never used, so a caller cannot redirect requests to another host, even with an argument of the same name.
-- Bound values are substituted as written (not URL-encoded).
+- Bound values are substituted as written (not URL-encoded), except that a trailing `/` is removed from a resolved `baseUri`, since a resource path is appended to it.
 - The resolved value MUST be an absolute `http://` or `https://` URI with a host. An unbound placeholder or an invalid result fails the capability at startup; the error names the variables, never the resolved value.
 - Placeholders are not allowed in the base path (`https://api.test/{{x}}`); use `ConsumedHttpResource.path` for per-call segments.
+- The `endpoint` of a consumed MCP server (`type: mcp`) accepts the same placeholders, resolved the same way. It is used as written, so a trailing `/` is kept, and a resolved value MUST use `https://` unless it targets localhost (`localhost`, `127.0.0.1` or `[::1]`), as the `ikanos-mcp-consumes-endpoint-https` rule requires for a literal endpoint.
 
 #### 3.7.4 Consumes Object Example
 
