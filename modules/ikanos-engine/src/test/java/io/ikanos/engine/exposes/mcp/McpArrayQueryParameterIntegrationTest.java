@@ -128,6 +128,38 @@ public class McpArrayQueryParameterIntegrationTest {
                         + " must not reach the upstream");
     }
 
+    @Test
+    public void handleToolCallShouldOmitToolWithQueryParameterWhenCalledWithNoArgument()
+            throws Exception {
+        assertNull(queryWithNoArgument("list-subscriptions-renamed"),
+                "with: {status: \"{{statuses}}\"} and no argument at all should leave status out");
+    }
+
+    @Test
+    public void handleToolCallShouldOmitStepWithQueryParameterWhenCalledWithNoArgument()
+            throws Exception {
+        assertNull(queryWithNoArgument("list-subscriptions-in-step"),
+                "a step with: {status: \"{{statuses}}\"} and no argument at all should leave"
+                        + " status out");
+    }
+
+    private String queryWithNoArgument(String tool) throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        int port = findFreePort();
+        Component upstream = createRecordingUpstream(port, query);
+        upstream.start();
+        try {
+            Capability capability = capabilityFromYaml(capabilityYaml(port));
+
+            JsonNode result = callTool(capability, tool, MAPPER.createObjectNode());
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            return query.get();
+        } finally {
+            upstream.stop();
+        }
+    }
+
     private String queryForCallerStatus(String tool) throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
         int port = findFreePort();

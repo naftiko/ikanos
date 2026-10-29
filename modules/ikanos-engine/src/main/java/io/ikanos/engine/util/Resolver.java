@@ -164,9 +164,9 @@ public class Resolver {
      * exactly one variable tag ({@code {{x}}}, {@code {{ x }}}, {@code {{{x}}}}, {@code {{&x}}},
      * dotted paths included), the parameter value itself is returned, so a list, a number or a
      * boolean keeps its type; it is looked up as Mustache would look it up, and {@code null} is
-     * returned when it is absent or null. Any other template, or any template when there are no
-     * parameters at all (so the {@code {{x}}} leftover still flags a missing value), is rendered
-     * to text by {@link #resolveMustacheTemplate(String, Map)}.
+     * returned when it is absent or null, also when there are no parameters at all (a missing
+     * value is flagged on the consumed template, see {@link #missingVariables}). Any other
+     * template is rendered to text by {@link #resolveMustacheTemplate(String, Map)}.
      *
      * @param template the value, may be null
      * @param parameters map of parameter names to values, may be null
@@ -177,12 +177,15 @@ public class Resolver {
             return null;
         }
         java.util.regex.Matcher matcher = WHOLE_VALUE_VARIABLE.matcher(template);
-        if (parameters == null || parameters.isEmpty() || !matcher.matches()) {
+        if (!matcher.matches()) {
             return resolveMustacheTemplate(template, parameters);
         }
         String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
         if (".".equals(name) || "this".equals(name)) {
             return resolveMustacheTemplate(template, parameters);
+        }
+        if (parameters == null || parameters.isEmpty()) {
+            return null;
         }
         return lookupVariable(name, parameters);
     }
