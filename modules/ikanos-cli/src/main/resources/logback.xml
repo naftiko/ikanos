@@ -10,7 +10,7 @@
     <captureExperimentalAttributes>false</captureExperimentalAttributes>
     <!-- Least-privilege: export only the correlation keys we own, never arbitrary third-party
          MDC data that embedding applications may set (issue #548 review). -->
-    <captureMdcAttributes>trace_id,span_id,agent_id</captureMdcAttributes>
+    <mdcAttributesIncluded>trace_id,span_id,agent_id</mdcAttributesIncluded>
   </appender>
 
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
