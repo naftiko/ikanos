@@ -24,8 +24,9 @@ read-only by the `agents-shared` Ikanos capability, as Agent Skills over MCP (SE
    ```
 
    Exit code 0 means up to date: read the local `SKILL.md` and follow it. Exit code 1 means
-   missing or stale: sync it (step 2). Exit code 2 means the server is unreachable: use the
-   local copy if there is one and tell the user it may be stale.
+   missing or stale: sync it (step 2). Exit code 2 means an error (see stderr). If the server
+   is unreachable, use the local copy if there is one and tell the user it may be stale;
+   otherwise see *If the server is not running* below.
 
 2. **Sync it from the agents-shared server.** The server URL defaults to
    `http://localhost:9700`; the `AGENTS_SHARED_URL` environment variable overrides it. The
