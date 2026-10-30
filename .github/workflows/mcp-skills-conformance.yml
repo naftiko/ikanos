@@ -8,11 +8,17 @@ on:
     paths:
       - 'modules/ikanos-engine/src/main/java/io/ikanos/engine/exposes/mcp/**'
       - 'modules/ikanos-engine/src/test/resources/conformance/sep-2640/**'
+      - 'modules/ikanos-spec/src/main/**'
+      - 'modules/ikanos-cli/src/main/**'
+      - '**/pom.xml'
       - '.github/workflows/mcp-skills-conformance.yml'
   pull_request:
     paths:
       - 'modules/ikanos-engine/src/main/java/io/ikanos/engine/exposes/mcp/**'
       - 'modules/ikanos-engine/src/test/resources/conformance/sep-2640/**'
+      - 'modules/ikanos-spec/src/main/**'
+      - 'modules/ikanos-cli/src/main/**'
+      - '**/pom.xml'
       - '.github/workflows/mcp-skills-conformance.yml'
   workflow_dispatch:
 

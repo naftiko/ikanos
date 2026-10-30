@@ -2070,7 +2070,7 @@
           "type": "string",
           "format": "uri",
           "pattern": "^file:///",
-          "description": "file:/// URI to a curated directory of skill files (an optional authored SKILL.md, instruction files, references, scripts). Dotfiles, dot-directories and editor backups are not published; symlinks are rejected. Required when 'instructions' is declared."
+          "description": "file:/// URI to a curated directory of skill files (an optional authored SKILL.md, instruction files, references, scripts). An absolute URI (file:///opt/skills/fleet-ops) names the directory directly. A relative URI (file:///./skills/fleet-ops) is resolved against the working directory of the Ikanos process, as for 'binds', so it depends on where 'ikanos serve' is launched. The directory must exist and be readable at startup, or the capability fails to start. Dotfiles, dot-directories and editor backups are not published; symlinks are rejected. Required when 'instructions' is declared."
         },
         "tools": {
           "type": "array",
