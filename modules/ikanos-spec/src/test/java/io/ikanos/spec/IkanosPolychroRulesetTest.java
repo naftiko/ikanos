@@ -517,6 +517,27 @@ public class IkanosPolychroRulesetTest {
                 + result.output());
     }
 
+    @Test
+    public void skillAdapterRemovedRuleShouldFireForCapabilityExpose() {
+        assertRuleFires("rules/spectral-skill-adapter-removed-violations.yaml",
+            "ikanos-skill-adapter-removed");
+    }
+
+    @Test
+    public void skillAdapterRemovedRuleShouldFireForStandaloneExpose() {
+        assertRuleFires("rules/spectral-skill-adapter-removed-standalone-violations.yaml",
+            "ikanos-skill-adapter-removed");
+    }
+
+    @Test
+    public void skillAdapterRemovedRuleShouldNotFireForSkillsOnMcpAdapter() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-compliant.yaml",
+            "info");
+        assertTrue(!result.output().contains("ikanos-skill-adapter-removed"),
+            "Expected no removed-adapter finding for skills on an MCP adapter.\n"
+                + result.output());
+    }
+
     // ────────────────────────────────────────────────────────────────
     // Consumed MCP rules (consumes type: mcp)
     // ────────────────────────────────────────────────────────────────
