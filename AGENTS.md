@@ -206,6 +206,12 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 
 **`exposes`/`consumes` adapters — and any other repeated mechanism across the engine (Mustache resolution, JSONPath extraction, header handling, etc.) — are instances of the same rule.** This engine has several small resolution mechanisms that recur in more than one place, not only across `exposes` vs `consumes`. Before adding or fixing such a mechanism anywhere, grep for other implementations of the same concept first — factor a shared helper by default, specialize only when a real difference forces it; and when fixing a bug in one implementation, check the others for the same defect before closing. Full rationale: `agents-shared/context/engineering.md` (golden-repo-naftiko), "factor by default, specialize by exception" — not restated here. (Instance: #482/#654, the same secret-resolution mechanism reimplemented independently on the `exposes` and `consumes` sides.)
 
+## Vulnerability Findings
+
+Findings reported on `main` by the nightly (Trivy, Gitleaks) follow the
+[Vulnerability Remediation Cadence](https://github.com/naftiko/golden-repo-naftiko/blob/main/agents-shared/context/engineering.md#vulnerability-remediation-cadence):
+deadline per severity and how to accept a finding in `.trivyignore`. It is not restated here.
+
 ## Test Writing Rules
 
 When writing or generating tests, follow these rules:
