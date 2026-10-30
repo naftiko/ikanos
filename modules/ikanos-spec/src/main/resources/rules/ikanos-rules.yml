@@ -414,6 +414,24 @@ rules:
       field: "allowed-tools"
       function: falsy
 
+  ikanos-skill-adapter-removed:
+    message: "The 'skill' adapter was removed in Ikanos engine 1.0.0-beta9. Move its skills into a `skills` block on a `type: mcp` adapter; see https://github.com/naftiko/ikanos/issues/898."
+    description: >
+      The engine and `ikanos validate` refuse a `type: skill` adapter with this
+      message. The schema alone only reports it as a `oneOf` mismatch against
+      the remaining adapter types, so this rule gives tools that rely on the
+      schema and rules (Polychro lint runs, editors) the same migration
+      guidance. The message is kept identical to
+      `ServerSpecDeserializer.SKILL_ADAPTER_REMOVED` by a test.
+    severity: error
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'skill')]"
+      - "$.exposes[?(@.type == 'skill')]"
+    then:
+      field: "type"
+      function: falsy
+
   ikanos-consumes-description:
     message: "Each `consumes` entry should have a `description` field."
     description: >

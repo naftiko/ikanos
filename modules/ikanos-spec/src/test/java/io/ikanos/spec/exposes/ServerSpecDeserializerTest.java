@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.exposes;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -135,5 +136,22 @@ class ServerSpecDeserializerTest {
                 .getSchema(schemaNode);
 
         assertFalse(schema.validate(YAML_MAPPER.readTree(SKILL_CAPABILITY)).isEmpty());
+    }
+
+    @Test
+    void migrationMessageShouldNameTheEngineVersion() {
+        assertTrue(ServerSpecDeserializer.SKILL_ADAPTER_REMOVED.contains("Ikanos engine 1.0.0-beta9"),
+                ServerSpecDeserializer.SKILL_ADAPTER_REMOVED);
+    }
+
+    @Test
+    void skillAdapterRemovedRuleShouldCarryTheSameMessage() throws Exception {
+        InputStream rulesStream = ServerSpecDeserializerTest.class.getClassLoader()
+                .getResourceAsStream("rules/ikanos-rules.yml");
+        JsonNode rule = YAML_MAPPER.readTree(rulesStream).path("rules")
+                .path("ikanos-skill-adapter-removed");
+
+        assertEquals(ServerSpecDeserializer.SKILL_ADAPTER_REMOVED, rule.path("message").asString(null));
+        assertEquals("error", rule.path("severity").asString(null));
     }
 }

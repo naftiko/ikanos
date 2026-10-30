@@ -41,10 +41,13 @@ public class ServerSpecDeserializer extends ValueDeserializer<ServerSpec> {
     /** The expose type of the removed standalone skill server adapter. */
     public static final String REMOVED_SKILL_TYPE = "skill";
 
-    /** Reported when a capability still declares an adapter of the removed {@code skill} type. */
+    /**
+     * Reported when a capability still declares an adapter of the removed {@code skill} type.
+     * The Polychro rule {@code ikanos-skill-adapter-removed} carries the same text.
+     */
     public static final String SKILL_ADAPTER_REMOVED = "The 'skill' adapter was removed in Ikanos "
-            + "1.0.0-beta9. Move its skills into a `skills` block on a `type: mcp` adapter; see "
-            + "https://github.com/naftiko/ikanos/issues/898.";
+            + "engine 1.0.0-beta9. Move its skills into a `skills` block on a `type: mcp` adapter; "
+            + "see https://github.com/naftiko/ikanos/issues/898.";
 
     @Override
     public ServerSpec deserialize(JsonParser p, DeserializationContext ctxt) {

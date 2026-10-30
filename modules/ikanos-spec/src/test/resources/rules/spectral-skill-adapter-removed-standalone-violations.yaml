@@ -1,0 +1,8 @@
+# Spectral fixture — ikanos-skill-adapter-removed MUST FIRE:
+#   a standalone exposes file still declares the removed `type: skill` adapter.
+ikanos: "1.0.0-beta9"
+
+exposes:
+  - type: skill
+    namespace: shared-skills
+    port: 3002

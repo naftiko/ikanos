@@ -1,0 +1,25 @@
+# Spectral fixture — ikanos-skill-adapter-removed MUST FIRE:
+#   a capability still declares the removed `type: skill` adapter.
+ikanos: "1.0.0-beta9"
+info:
+  display: "Removed skill adapter — violation"
+  description: "Fixture that still declares the standalone skill adapter removed in Beta 9."
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API."
+      baseUri: https://api.registry.test
+      resources:
+        ship:
+          path: /ships/{{imo}}
+          operations:
+            get-ship:
+              method: GET
+  exposes:
+    - type: skill
+      namespace: fleet-skills
+      port: 3002
+      skills:
+        fleet-ops:
+          description: "Fleet management"
