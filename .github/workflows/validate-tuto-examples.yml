@@ -6,11 +6,15 @@ on:
       - 'modules/ikanos-*/src/main/**'
       - 'modules/ikanos-*/pom.xml'
       - 'pom.xml'
+      - 'modules/ikanos-docs/tutorial/shared/skills/**'
+      - 'modules/ikanos-engine/src/test/resources/tutorial/shared/skills/**'
   pull_request:
     paths:
       - 'modules/ikanos-*/src/main/**'
       - 'modules/ikanos-*/pom.xml'
       - 'pom.xml'
+      - 'modules/ikanos-docs/tutorial/shared/skills/**'
+      - 'modules/ikanos-engine/src/test/resources/tutorial/shared/skills/**'
   workflow_dispatch:
   workflow_call:
 
@@ -38,11 +42,16 @@ jobs:
     # tokens have zero real-world value. Do NOT reproduce this pattern for actual
     # credentials, use secrets: and the workflow_run split pattern instead
     # (see publish-badges-and-comment.yml for an example).
+    # The skills are served from the engine copy, like the capability files below. The docs copy
+    # is the one readers see, so both trees must stay identical.
+    - name: Check that both copies of the tutorial skills match
+      run: diff -r modules/ikanos-docs/tutorial/shared/skills modules/ikanos-engine/src/test/resources/tutorial/shared/skills
+
     - name: Copy secrets file and skills
       run: |
         mkdir -p shared
         cp modules/ikanos-docs/tutorial/shared/secrets.yaml shared/secrets.yaml
-        cp -r modules/ikanos-docs/tutorial/shared/skills shared/skills
+        cp -r modules/ikanos-engine/src/test/resources/tutorial/shared/skills shared/skills
 
     - name: Start Microcks
       run: |
