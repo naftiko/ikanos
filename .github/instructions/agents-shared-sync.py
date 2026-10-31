@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Sync agents-shared skills from the agents-shared MCP server into .agents/skills/.
 
+Version 1.0.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
+agents-shared/instructions/agents-shared-sync.py. Consumer repos copy this file verbatim and
+never edit their copy; the server also publishes it as the ``agents-shared-sync`` skill, so
+each copy can tell when it is outdated (see --check-helper).
+
 The agents-shared capability serves its skills as Agent Skills over MCP (SEP-2640).
 This helper is the consumer side of that protocol: for each requested skill it calls
 ``skills/get``, reads every listed resource with ``resources/read``, checks each file
@@ -12,6 +17,7 @@ Usage:
     python agents-shared-sync.py --list
     python agents-shared-sync.py pr-review [bugfix ...]
     python agents-shared-sync.py --check pr-review [bugfix ...]
+    python agents-shared-sync.py --check-helper
 
 Options:
     --url URL    server URL (default: $AGENTS_SHARED_URL, else http://localhost:9700)
@@ -20,8 +26,12 @@ Options:
     --check      compare the local copies with the server and write nothing;
                  exit 1 when a copy is missing or stale
     --list       print the skills the server publishes, with their version
+    --check-helper
+                 compare this helper with the one the server publishes and write
+                 nothing; exit 1 when this copy is outdated. Every other mode also
+                 compares it, and prints a warning on stderr when it differs.
 
-Exit codes: 0 success / up to date, 1 stale or missing (--check), 2 error.
+Exit codes: 0 success / up to date, 1 stale or missing (--check, --check-helper), 2 error.
 
 Requirements: Python 3.8+, standard library only. Works on Windows, Linux and macOS.
 """
@@ -39,6 +49,11 @@ from pathlib import Path, PurePosixPath
 PROTOCOL_VERSION = "2026-07-28"
 DEFAULT_URL = "http://localhost:9700"
 SCHEME = "skill://"
+
+# Keep equal to metadata.version of the agents-shared-sync skill in agents-shared.yml.
+HELPER_VERSION = "1.0.0"
+HELPER_SKILL = "agents-shared-sync"
+HELPER_URI = f"{SCHEME}{HELPER_SKILL}/agents-shared-sync.py"
 
 
 class SyncError(Exception):
@@ -139,22 +154,27 @@ def fetch_manifest(client, name):
     return client.call("skills/get", {"uri": f"{SCHEME}{name}/SKILL.md"})["skill"]
 
 
+def read_resource(client, resource):
+    """Read one announced resource and verify it against its digest and size."""
+    uri = resource["uri"]
+    contents = client.call("resources/read", {"uri": uri}, name=uri).get("contents", [])
+    if len(contents) != 1:
+        raise SyncError(f"{uri}: expected one content entry, got {len(contents)}")
+    content = contents[0]
+    if "blob" in content:
+        data = base64.b64decode(content["blob"])
+    else:
+        data = content.get("text", "").encode("utf-8")
+    if len(data) != resource.get("size", len(data)) or digest(data) != resource["digest"]:
+        raise SyncError(f"{uri}: content does not match the announced digest/size")
+    return data
+
+
 def fetch_files(client, name, manifest):
     """Read every resource of a skill and verify it; return {relative path: bytes}."""
     files = {}
     for resource in manifest.get("resources", []):
-        uri = resource["uri"]
-        contents = client.call("resources/read", {"uri": uri}, name=uri).get("contents", [])
-        if len(contents) != 1:
-            raise SyncError(f"{uri}: expected one content entry, got {len(contents)}")
-        content = contents[0]
-        if "blob" in content:
-            data = base64.b64decode(content["blob"])
-        else:
-            data = content.get("text", "").encode("utf-8")
-        if len(data) != resource.get("size", len(data)) or digest(data) != resource["digest"]:
-            raise SyncError(f"{uri}: content does not match the announced digest/size")
-        files[relative_path(name, uri)] = data
+        files[relative_path(name, resource["uri"])] = read_resource(client, resource)
     if Path("SKILL.md") not in files:
         raise SyncError(f"skill {name} publishes no SKILL.md")
     return files
@@ -203,6 +223,34 @@ def version_of(manifest):
     return (manifest.get("frontmatter") or {}).get("metadata", {}).get("version", "?")
 
 
+def helper_status(client):
+    """Compare this file with the helper the server publishes; return (up to date, version).
+
+    Line endings depend on each checkout (core.autocrlf), so the text is compared, not the
+    bytes.
+    """
+    manifest = fetch_manifest(client, HELPER_SKILL)
+    resource = next((r for r in manifest.get("resources", []) if r.get("uri") == HELPER_URI),
+                    None)
+    if resource is None:
+        raise SyncError(f"the server does not publish {HELPER_URI}")
+    published = read_resource(client, resource).replace(b"\r\n", b"\n")
+    local = Path(__file__).read_bytes().replace(b"\r\n", b"\n")
+    return local == published, version_of(manifest)
+
+
+def warn_if_outdated(client):
+    """Print a warning when this helper differs from the published one; never fail on it."""
+    try:
+        up_to_date, version = helper_status(client)
+    except (SyncError, KeyError, ValueError, OSError):
+        return  # an older server that does not publish the helper, or an unreachable one
+    if not up_to_date:
+        print(f"warning: this agents-shared-sync.py ({HELPER_VERSION}) differs from the one the "
+              f"server publishes ({version}); refresh it as the {HELPER_SKILL} skill explains",
+              file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("skills", nargs="*", help="skill names, e.g. pr-review")
@@ -211,6 +259,8 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="report stale copies, write nothing")
     mode.add_argument("--list", action="store_true", help="list the served skills")
+    mode.add_argument("--check-helper", action="store_true",
+                      help="report whether this helper is outdated, write nothing")
     args = parser.parse_args()
     for stream in (sys.stdout, sys.stderr):  # a Windows console may not encode every message
         if hasattr(stream, "reconfigure"):
@@ -231,9 +281,20 @@ def main():
             name = skill["uri"][len(SCHEME):].split("/", 1)[0]
             print(f"{name}\t{version_of(skill)}")
         return 0
+    if args.check_helper:
+        try:
+            up_to_date, version = helper_status(client)
+        except (SyncError, KeyError, ValueError, OSError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        print(f"agents-shared-sync.py {HELPER_VERSION}: " + (
+            "up to date" if up_to_date else
+            f"outdated (the server publishes {version}; see the {HELPER_SKILL} skill)"))
+        return 0 if up_to_date else 1
     if not args.skills:
         parser.error("name at least one skill, or use --list")
 
+    warn_if_outdated(client)
     status = 0
     for name in args.skills:
         target = Path(args.dest) / name
