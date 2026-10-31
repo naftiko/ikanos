@@ -58,3 +58,5 @@ skill into version control.
 - Never edit a synced copy; improvements go to `golden-repo-naftiko` (issue-first).
 - Never edit `agents-shared-sync.py` here either: it is a copy of
   `agents-shared/instructions/agents-shared-sync.py` in `golden-repo-naftiko`.
+- If the helper warns that it differs from the one the server publishes, tell the user: the
+  `agents-shared-sync` skill explains how to refresh this repository's copy.
