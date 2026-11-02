@@ -354,9 +354,6 @@ public class ToolHandler {
     }
 
     /**
-     * Execute a tool call by delegating to its referenced aggregate flow.
-     */
-    /**
      * Check each argument against the declared type of its input parameter (tool-level, or the
      * aggregate flow's when the tool declares none), the same way the REST adapter does. A
      * structured JSON body keeps a placeholder's JSON type, so an object passed for a string
@@ -385,6 +382,9 @@ public class ToolHandler {
         return checked;
     }
 
+    /**
+     * Execute a tool call by delegating to its referenced aggregate flow.
+     */
     private McpSchema.CallToolResult executeViaAggregate(McpServerToolSpec toolSpec,
             String toolName, Map<String, Object> parameters) throws Exception {
         try {
