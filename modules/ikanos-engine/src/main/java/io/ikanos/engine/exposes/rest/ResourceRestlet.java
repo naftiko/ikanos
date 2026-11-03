@@ -27,6 +27,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -165,7 +166,7 @@ public class ResourceRestlet extends Restlet {
                     if (invocation != null) {
                         try {
                             // Send the request to the target endpoint
-                            found = invocation.invoke();
+                            found = Executions.invoke(invocation);
                             // An upstream error is answered as in steps: mode, never passed
                             // through (#879); no answer at all too (#873)
                             if (found != null) {
