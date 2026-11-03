@@ -21,6 +21,18 @@
     <dependencies>
         <dependency>
             <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
             <artifactId>ikanos-spec</artifactId>
             <version>${project.version}</version>
         </dependency>
