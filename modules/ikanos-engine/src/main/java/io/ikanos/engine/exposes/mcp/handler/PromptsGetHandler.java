@@ -25,6 +25,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import org.restlet.Context;
 
 import java.util.List;
@@ -84,7 +85,7 @@ public class PromptsGetHandler extends McpCallHandler {
                 messagesArray.add(msgNode);
             }
 
-            result.put("resultType", "complete");
+            result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
             return new HandlerSuccessResult(result);
         } catch (IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling prompts/get", e);

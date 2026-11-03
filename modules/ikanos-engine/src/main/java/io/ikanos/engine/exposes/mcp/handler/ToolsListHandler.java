@@ -22,6 +22,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.util.List;
@@ -98,7 +99,7 @@ public class ToolsListHandler extends McpCallHandler {
             toolsArray.add(toolNode);
         }
 
-        result.put("resultType", "complete");
+        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
         return new HandlerSuccessResult(result);
     }
 

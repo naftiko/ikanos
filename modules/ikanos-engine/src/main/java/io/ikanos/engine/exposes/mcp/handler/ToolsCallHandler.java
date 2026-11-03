@@ -24,6 +24,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.restlet.Context;
 
@@ -34,6 +35,7 @@ import java.util.logging.Level;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_PARAMS;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
+import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 
 /**
  * The tools/call handler.
@@ -63,15 +65,40 @@ public class ToolsCallHandler extends McpCallHandler {
             Map<String, Object> arguments = argumentsNode != null
                     ? MAPPER.treeToValue(argumentsNode, Map.class)
                     : new ConcurrentHashMap<>();
+
+            // Tasks (SEP-2663): the server decides per request. A task is returned only when the
+            // tool's flow declares mode: task, the capability is durable, and this request
+            // declares the tasks extension; otherwise the call is answered synchronously.
+            if (adapter.getTaskService() != null && adapter.isTaskTool(toolName)
+                    && RequestClientCapabilities.from(params).supportsTasks()) {
+                String entry = "mcp:" + adapter.getMcpServerSpec().getNamespace() + "/" + toolName;
+                return new HandlerSuccessResult(adapter.getTaskService().create(entry,
+                        () -> callTool(toolName, arguments)));
+            }
+
+            return new HandlerSuccessResult(callTool(toolName, arguments));
+        } catch (IllegalArgumentException e) {
+            Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
+            return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Call a tool and return its {@code CallToolResult}. A tool execution error becomes a result
+     * with {@code isError: true}; invalid parameters are rethrown as an
+     * {@link IllegalArgumentException}, which callers turn into a JSON-RPC error. A task runs this
+     * same method, so its result never differs from the synchronous one.
+     */
+    ObjectNode callTool(String toolName, Map<String, Object> arguments) {
+        try {
             McpSchema.CallToolResult toolResult =
                     adapter.getToolHandler().handleToolCall(toolName, arguments);
             ObjectNode result = MAPPER.valueToTree(toolResult);
 
-            result.put("resultType", "complete");
-            return new HandlerSuccessResult(result);
+            result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
+            return result;
         } catch (IllegalArgumentException e) {
-            Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
-            return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
+            throw e;
         } catch (Exception e) {
             String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
             // Tool execution error — return as a tool result with isError=true
@@ -81,8 +108,8 @@ public class ToolsCallHandler extends McpCallHandler {
             textContent.put("type", "text");
             textContent.put("text", ErrorReference.withReference("Tool execution failed", ref));
             result.put("isError", true);
-            result.put("resultType", "complete");
-            return new HandlerSuccessResult(result);
+            result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
+            return result;
         }
     }
 

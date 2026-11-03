@@ -38,6 +38,7 @@ public class ControlServerSpec extends ServerSpec {
 
     private final AtomicReference<ControlManagementSpec> management = new AtomicReference<>();
     private final AtomicReference<ObservabilitySpec> observability = new AtomicReference<>();
+    private final AtomicReference<DurabilitySpec> durability = new AtomicReference<>();
 
     public ControlServerSpec() {
         this(null, 0);
@@ -71,5 +72,15 @@ public class ControlServerSpec extends ServerSpec {
 
     public void setObservability(ObservabilitySpec observability) {
         this.observability.set(observability);
+    }
+
+    /** Where the capability keeps its executions, or {@code null} for the {@code none} mode. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public DurabilitySpec getDurability() {
+        return durability.get();
+    }
+
+    public void setDurability(DurabilitySpec durability) {
+        this.durability.set(durability);
     }
 }
