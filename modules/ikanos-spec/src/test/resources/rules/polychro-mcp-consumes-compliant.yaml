@@ -1,4 +1,4 @@
-# Spectral fixture — consumed MCP rules MUST NOT FIRE:
+# Polychro fixture — consumed MCP rules MUST NOT FIRE:
 #   HTTPS to a remote host, plain HTTP only to loopback (with and without a port),
 #   an endpoint taken whole from a binding, and every consumed tool declares hints.
 ikanos: "1.0.0-beta9"

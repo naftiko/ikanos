@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: tunnel-identity-binds-ref
+ * Polychro rule function: tunnel-identity-binds-ref
  *
  * Enforces the Reverse Tunnel blueprint rule `ikanos-tunnel-identity-must-bind`:
  * when a `ConsumesHttp.tunnel.identity` field contains one or more Mustache

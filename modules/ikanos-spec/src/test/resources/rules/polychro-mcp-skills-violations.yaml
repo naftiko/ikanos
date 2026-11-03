@@ -1,9 +1,9 @@
-# Spectral fixture — Agent Skills over MCP rules MUST NOT FIRE:
-#   the skill names the tools it depends on and declares no allowed-tools.
+# Polychro fixture — Agent Skills over MCP rules MUST FIRE:
+#   a skill declares allowed-tools.
 ikanos: "1.0.0-beta9"
 info:
-  display: "Agent Skills over MCP rules — compliant"
-  description: "Fixture that satisfies every Agent Skills over MCP Polychro rule."
+  display: "Agent Skills over MCP rules — violations"
+  description: "Fixture that breaks every Agent Skills over MCP Polychro rule."
 capability:
   consumes:
     - type: http
@@ -28,3 +28,4 @@ capability:
         fleet-ops:
           description: Find ships across the current and legacy registries.
           tools: [get-ship]
+          allowed-tools: "Bash(git:*)"

@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-tunnel-identity-must-bind MUST FIRE.
+# Polychro fixture — ikanos-tunnel-identity-must-bind MUST FIRE.
 #
 # The tunnel.identity references a Mustache namespace ("secrets") that is NOT
 # declared in binds/capability.binds. The custom function tunnel-identity-binds-ref

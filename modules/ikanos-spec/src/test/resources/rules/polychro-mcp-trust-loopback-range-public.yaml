@@ -1,11 +1,11 @@
 ---
-# Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
+# Polychro fixture — ikanos-mcp-trust-loopback-on-public-address MUST FIRE.
 #
-# 0.0.0.0/0 and ::/0 trust every peer, so any caller can set the identity header.
+# 127.1.0.0/16 is inside 127.0.0.0/8 but does not contain 127.0.0.1.
 ikanos: "1.0.0-beta9"
 
 info:
-  display: "MCP trust — every address trusted"
+  display: "MCP trust — loopback range on a public address"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:
@@ -18,7 +18,7 @@ capability:
       trust:
         mode: "forwarded"
         agentIdentityHeader: "X-Agent-Id"
-        trustedNetworks: ["0.0.0.0/0", "::/0"]
+        trustedNetworks: ["127.1.0.0/16"]
       tools:
         hello:
           description: "Say hello to the caller."

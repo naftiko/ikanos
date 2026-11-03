@@ -1,4 +1,4 @@
-# Spectral fixture — ikanos-skill-adapter-removed MUST FIRE:
+# Polychro fixture — ikanos-skill-adapter-removed MUST FIRE:
 #   a capability still declares the removed `type: skill` adapter.
 ikanos: "1.0.0-beta9"
 info:

@@ -1,4 +1,4 @@
-# Spectral fixture — MCP Apps rules MUST FIRE:
+# Polychro fixture — MCP Apps rules MUST FIRE:
 #   - ikanos-mcp-ui-resource-mime-type (ui:// resource with text/html, no profile)
 #   - ikanos-mcp-ui-tool-output-parameters (tool with ui, no outputParameters)
 #   - ikanos-mcp-ui-connect-domains-empty (view declares connectDomains)

@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: mcp-ui-view-mime-type
+ * Polychro rule function: mcp-ui-view-mime-type
  *
  * Enforces `ikanos-mcp-ui-resource-mime-type`: every exposed MCP resource whose
  * `uri` starts with `ui://` (an MCP Apps view, SEP-1865) must declare

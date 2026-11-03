@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — neither MCP trust network rule may fire.
+# Polychro fixture — neither MCP trust network rule may fire.
 #
 # Scoped private ranges on an adapter listening beyond loopback.
 ikanos: "1.0.0-beta9"

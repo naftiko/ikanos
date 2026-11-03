@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: durability
+ * Polychro rule function: durability
  *
  * Checks the combination of a capability's durability mode (the control port's
  * `durability.mode`, `none` when absent) and the constructs that need one.

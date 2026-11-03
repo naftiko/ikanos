@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-tunnel-identity-must-bind MUST NOT FIRE.
+# Polychro fixture — ikanos-tunnel-identity-must-bind MUST NOT FIRE.
 #
 # The tunnel.identity references the "secrets.ZITI_IDENTITY" key, and "secrets"
 # is declared in binds with a matching key. The custom function must accept this

@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-exposes-mounts-distinct and ikanos-exposes-hosts-must-bind
+# Polychro fixture — ikanos-exposes-mounts-distinct and ikanos-exposes-hosts-must-bind
 # MUST NOT FIRE.
 #
 # REST and MCP adapters share port 8080: REST under /api, MCP under /mcp and

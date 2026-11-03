@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-exposes-mounts-distinct MUST FIRE.
+# Polychro fixture — ikanos-exposes-mounts-distinct MUST FIRE.
 #
 # On port 8080, `/mcp/admin` is nested in `/mcp`.
 ikanos: "1.0.0-beta9"

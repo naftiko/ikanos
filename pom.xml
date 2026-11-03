@@ -67,6 +67,12 @@
         <module>modules/ikanos-docs</module>
         <module>modules/ikanos-coverage</module>
         <!--
+          Ruleset tests only: lints ikanos-spec's ruleset and fixtures with Polychro, in process.
+          A module of its own because Polychro and ikanos-spec need incompatible versions of
+          json-schema-validator. Not published.
+        -->
+        <module>modules/ikanos-rules-tests</module>
+        <!--
           ikanos-tunnel-ziti is a reactor module so it compiles, tests, and releases with
           the rest of the build, but it is NOT a transitive dependency of ikanos-cli (the
           CLI only depends on ikanos-engine, which discovers Tunnel SPI providers at
@@ -101,6 +107,8 @@
         <opentelemetry.version>1.67.0</opentelemetry.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
+        <!-- Polychro runs ikanos-rules.yml in the ruleset tests; same version as the CI lint job -->
+        <polychro.version>1.0.0-beta7</polychro.version>
         <openziti.version>0.33.1</openziti.version>
         <bouncycastle.version>1.85</bouncycastle.version>
         <revision>1.0.0-beta9-SNAPSHOT</revision>
@@ -162,6 +170,16 @@
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-engine</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.polychro</groupId>
+                <artifactId>polychro-core</artifactId>
+                <version>${polychro.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.polychro</groupId>
+                <artifactId>polychro-ruleset-polyglot</artifactId>
+                <version>${polychro.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.openziti</groupId>

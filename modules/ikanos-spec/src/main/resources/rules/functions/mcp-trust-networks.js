@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: mcp-trust-networks
+ * Polychro rule function: mcp-trust-networks
  *
  * Checks `trustedNetworks` of an MCP adapter in `trust: forwarded` mode (issue #483). Only
  * direct peers in these networks may set the agent identity header, so they should be the
@@ -16,7 +16,7 @@
 const MIN_IPV4_PREFIX = 8;
 const MIN_IPV6_PREFIX = 16;
 
-export default function mcpTrustNetworks(adapter, options, context) {
+export default function mcpTrustNetworks(adapter, options) {
   if (!adapter || typeof adapter !== "object" || !adapter.trust) {
     return;
   }
@@ -35,7 +35,8 @@ export default function mcpTrustNetworks(adapter, options, context) {
     if (!network) {
       return;
     }
-    const path = [...context.path, "trust", "trustedNetworks", index];
+    // Relative to the adapter the rule targets: Polychro resolves it from there.
+    const path = ["trust", "trustedNetworks", index];
     if (check === "broad" && isTooBroad(network)) {
       results.push({
         message: `'${entry}' trusts far more peers than a gateway. List the gateway's own `

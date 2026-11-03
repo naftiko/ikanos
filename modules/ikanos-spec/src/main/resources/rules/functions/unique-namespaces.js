@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: unique-namespaces
+ * Polychro rule function: unique-namespaces
  *
  * A namespace has one owner across the whole capability: root and capability
  * `consumes`, `capability.exposes`, `capability.aggregates`, and root and

@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-exposes-mounts-distinct MUST FIRE.
+# Polychro fixture — ikanos-exposes-mounts-distinct MUST FIRE.
 #
 # Two MCP adapters on port 8080 declare neither `path` nor `hosts`: both are
 # mounted at the root of any host.

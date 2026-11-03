@@ -1,24 +1,24 @@
 ---
-# Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
+# Polychro fixture — ikanos-mcp-trust-loopback-on-public-address MUST FIRE.
 #
-# ::ffff:0.0.0.0/96 is every IPv4 peer, written as IPv4-mapped IPv6.
+# ::1 is trusted while the adapter listens on every IPv6 address (::).
 ikanos: "1.0.0-beta9"
 
 info:
-  display: "MCP trust — every IPv4-mapped address trusted"
+  display: "MCP trust — IPv6 loopback on a public address"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:
   exposes:
     - type: "mcp"
-      address: "0.0.0.0"
+      address: "::"
       port: 3001
       namespace: "gateway-mcp"
       description: "MCP server behind an identity-forwarding gateway."
       trust:
         mode: "forwarded"
         agentIdentityHeader: "X-Agent-Id"
-        trustedNetworks: ["::ffff:0.0.0.0/96"]
+        trustedNetworks: ["::1/128"]
       tools:
         hello:
           description: "Say hello to the caller."
