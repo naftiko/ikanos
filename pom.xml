@@ -53,6 +53,13 @@
     </scm>
 
     <modules>
+        <!--
+          The durable execution engine (design: Execution & Resolution Model). Its API and
+          core depend on the JDK only and never on another Ikanos module; the enforcer rule
+          below (durable-modules-jdk-only) keeps it that way. Store modules come later.
+        -->
+        <module>modules/ikanos-durable-api</module>
+        <module>modules/ikanos-durable-core</module>
         <module>modules/ikanos-spec</module>
         <module>modules/ikanos-engine</module>
         <module>modules/ikanos-cli</module>
@@ -130,6 +137,16 @@
     <dependencyManagement>
         <dependencies>
             <!-- Inter-module dependencies -->
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-spec</artifactId>
@@ -391,6 +408,42 @@
                         <source>21</source>
                         <target>21</target>
                     </configuration>
+                </plugin>
+
+                <plugin>
+                    <!--
+                        Applied by the ikanos-durable-* engine modules only. Their compile
+                        and runtime classpath may hold nothing but other ikanos-durable-*
+                        modules, so the engine stays JDK-only and free of Ikanos concepts.
+                        Test-scoped libraries (JUnit, AssertJ) are allowed.
+                    -->
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.5.0</version>
+                    <executions>
+                        <execution>
+                            <id>durable-modules-jdk-only</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <bannedDependencies>
+                                        <excludes>
+                                            <exclude>*:*:*:*:compile</exclude>
+                                            <exclude>*:*:*:*:runtime</exclude>
+                                            <exclude>*:*:*:*:provided</exclude>
+                                        </excludes>
+                                        <includes>
+                                            <include>io.ikanos:ikanos-durable-*</include>
+                                        </includes>
+                                        <searchTransitive>true</searchTransitive>
+                                        <message>ikanos-durable-* modules depend on the JDK and on other ikanos-durable-* modules only.</message>
+                                    </bannedDependencies>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
 
                 <plugin>

@@ -64,7 +64,10 @@ flowchart BT
     engine[ikanos-engine]
     cli[ikanos-cli]
     ziti[ikanos-tunnel-ziti]
+    dapi[ikanos-durable-api]
+    dcore[ikanos-durable-core]
     engine --> spec
+    dcore --> dapi
     cli --> engine
     cli --> spec
     ziti --> engine
@@ -75,6 +78,8 @@ flowchart BT
 | `modules/ikanos-spec` | The specification. The JSON Schema (`schemas/ikanos-schema.json`, the source of truth for the YAML format), the ruleset (`rules/ikanos-rules.yml`), the Jackson model the YAML is read into (`io.ikanos.spec`), and OpenAPI import/export (`io.ikanos.spec.openapi`). It has no runtime behaviour. |
 | `modules/ikanos-engine` | The runtime. Loads a spec, builds the adapters, runs requests, and handles telemetry. Usable as a library (see [Extension points](#extension-points)). |
 | `modules/ikanos-cli` | The `ikanos` command (Picocli, `io.ikanos.cli`): `serve`, `validate`, the import/export and scaffolding commands, and the clients of the control port. It builds the shaded `ikanos.jar` used by the Docker image and the GraalVM native binary. |
+| `modules/ikanos-durable-api` | The API of the durable execution engine: the `Interpreter` contract, the command set, the execution view, `Runner` and the (provisional) storage interfaces. It depends on the JDK only and carries no Ikanos concept; a Maven Enforcer rule fails the build if it, or any `ikanos-durable-*` module, depends on anything else. Not used by the engine yet. |
+| `modules/ikanos-durable-core` | The core of the durable execution engine. Today, the `DirectRunner` that will serve the `none` durability mode: it carries the Interpreter's commands out inline and keeps nothing. Same dependency rule. Not used by the engine yet. |
 | `modules/ikanos-tunnel-ziti` | An optional OpenZiti implementation of the reverse-tunnel SPI. It is discovered with `ServiceLoader` when the jar is on the classpath. |
 | `modules/ikanos-docs` | No code. This document, the tutorial capabilities (`tutorial/`), demos, and test documentation. |
 | `modules/ikanos-coverage` | No code. Aggregates JaCoCo coverage across modules for the quality gate. |
