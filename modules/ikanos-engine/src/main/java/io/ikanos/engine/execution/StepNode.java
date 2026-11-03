@@ -37,6 +37,8 @@ public record StepNode(NodePath path, Kind kind, OperationStepSpec step, int ind
         HANDLER,
         /** A {@code lookup} step: reads earlier outputs only, so it is recomputed, not recorded. */
         LOOKUP,
+        /** An {@code elicit} step: a pause on the caller, resumed by an update at its path. */
+        ELICIT,
         /** A step type the engine does not run; ignored, as before. */
         SKIP;
 

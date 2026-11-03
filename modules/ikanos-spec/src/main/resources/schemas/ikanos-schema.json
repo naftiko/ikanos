@@ -2844,7 +2844,8 @@
           "enum": [
             "call",
             "lookup",
-            "script"
+            "script",
+            "elicit"
           ]
         }
       },
@@ -2979,8 +2980,59 @@
         },
         {
           "$ref": "#/$defs/OperationStepScript"
+        },
+        {
+          "$ref": "#/$defs/OperationStepElicit"
         }
       ]
+    },
+    "OperationStepElicit": {
+      "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "elicit"
+            },
+            "message": {
+              "type": "string",
+              "description": "The question shown to the caller. Defaults to the step name."
+            },
+            "schema": {
+              "type": "object",
+              "description": "The fields asked for, by name. Each value is a JSON Schema property with a primitive `type` (string, number, integer, boolean), optionally `description`, `enum` or `format`. Every field is required.",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["string", "number", "integer", "boolean"]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "enum": {
+                    "type": "array"
+                  },
+                  "format": {
+                    "type": "string"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "schema"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "StepOutputMapping": {
       "type": "object",

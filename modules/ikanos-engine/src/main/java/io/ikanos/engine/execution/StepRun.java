@@ -31,6 +31,7 @@ public final class StepRun {
     private final Map<String, Object> runtimeParameters = new HashMap<>();
     private final StepExecutionContext stepContext = new StepExecutionContext();
     private final Set<NodePath> evaluated = new HashSet<>();
+    private final Map<NodePath, Object> answers = new HashMap<>();
     private ConsumedResult lastResult;
     private Exception failure;
 
@@ -66,6 +67,15 @@ public final class StepRun {
 
     void fail(Exception failure) {
         this.failure = failure;
+    }
+
+    /** The caller's answer to the {@code elicit} step at {@code path}, or {@code null}. */
+    public Object answer(NodePath path) {
+        return answers.get(path);
+    }
+
+    void setAnswer(NodePath path, Object answer) {
+        answers.put(path, answer);
     }
 
     boolean isEvaluated(NodePath path) {

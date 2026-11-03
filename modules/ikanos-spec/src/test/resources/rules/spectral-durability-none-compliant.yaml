@@ -1,0 +1,50 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Durability none compliant
+  description: Positive fixture asking for input before any write, under the none mode
+capability:
+  consumes:
+  - type: http
+    namespace: port
+    description: Port Authority API
+    baseUri: https://port.example.com
+    resources:
+      checks:
+        path: /dangerous-goods/checks
+        operations:
+          check-dangerous-goods:
+            method: GET
+      slots:
+        path: /departure-slots
+        operations:
+          book-departure-slot:
+            method: POST
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      clear-for-departure:
+        description: Synchronous flow asking before the first write
+        steps:
+          screen:
+            type: call
+            call: port.check-dangerous-goods
+          confirm:
+            type: elicit
+            message: Confirm the dangerous-goods declaration
+            schema:
+              confirmed:
+                type: boolean
+          book-slot:
+            type: call
+            call: port.book-departure-slot
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9315
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      clear-for-departure:
+        description: Clear a voyage for departure
+        ref: departure.clear-for-departure

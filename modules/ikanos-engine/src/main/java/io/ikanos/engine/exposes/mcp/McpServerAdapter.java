@@ -68,6 +68,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
     private final McpTaskService taskService;
+    private final McpRequestState requestState = McpRequestState.withRandomKey();
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -115,7 +116,8 @@ public class McpServerAdapter extends ServerAdapter {
         // Tasks (SEP-2663) need somewhere to keep executions: only in a durable mode.
         Durability durability = capability.getDurability();
         this.taskService = durability != null && durability.isDurable()
-                ? new McpTaskService(durability.runner(), Clock.systemUTC()) : null;
+                ? new McpTaskService(durability.runner(), Clock.systemUTC(),
+                        durability.retentionMs()) : null;
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -236,6 +238,27 @@ public class McpServerAdapter extends ServerAdapter {
         return flow != null && flow.getSemantics() != null
                 && flow.getSemantics().getInteraction() != null
                 && flow.getSemantics().getInteraction().isTask();
+    }
+
+    /** Seals and opens the {@code requestState} of multi round-trip requests. */
+    public McpRequestState getRequestState() {
+        return requestState;
+    }
+
+    /**
+     * The {@code semantics.interaction.expectedDurationMs} of the tool's flow, or {@code null}
+     * when it declares none.
+     */
+    public Long expectedDurationMs(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        if (toolSpec == null || toolSpec.getRef() == null) {
+            return null;
+        }
+        AggregateFlow flow = getCapability().lookupFlow(toolSpec.getRef());
+        return flow != null && flow.getSemantics() != null
+                && flow.getSemantics().getInteraction() != null
+                        ? flow.getSemantics().getInteraction().getExpectedDurationMs()
+                        : null;
     }
 
     /** Whether tasks can be served: a durable mode and at least one task tool. */

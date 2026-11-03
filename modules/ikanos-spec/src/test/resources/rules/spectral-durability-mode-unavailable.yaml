@@ -1,0 +1,30 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Durability mode unavailable
+  description: Negative fixture declaring a durability mode whose store has not shipped
+capability:
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      get-voyage:
+        description: Mock voyage lookup
+        outputParameters:
+          status:
+            type: string
+            value: planned
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9311
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      get-voyage:
+        description: Get a voyage
+        ref: departure.get-voyage
+  - type: control
+    address: localhost
+    port: 9312
+    durability:
+      mode: local

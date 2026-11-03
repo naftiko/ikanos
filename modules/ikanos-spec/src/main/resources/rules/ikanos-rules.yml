@@ -39,6 +39,7 @@ functions:
   - mcp-trust-networks
   - shared-listener-mounts
   - exposes-hosts-binds-ref
+  - durability
 
 rules:
 
@@ -214,6 +215,53 @@ rules:
       function: flow-calls
       functionOptions:
         check: semantics
+
+  ikanos-task-mode-requires-durability:
+    message: "A flow in task mode needs a durability mode on the control port."
+    description: >
+      `semantics.interaction.mode: task` lets an MCP client receive a task
+      handle and poll for the result. The task must be kept somewhere, so the
+      capability needs `durability: { mode: memory }` (or above) on its
+      control port. Under `none`, the engine answers every call synchronously.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: task-mode
+
+  ikanos-elicit-after-unsafe-requires-durability:
+    message: "An `elicit` step after a call that is not read-only needs a durability mode."
+    description: >
+      Under the `none` durability mode, an answer to an `elicit` step replays
+      the steps from the start with the answers collected so far (a stateless
+      multi round-trip request). Every call before the question therefore runs
+      again on each answer, which is only harmless when it is read-only: a
+      consumed HTTP operation with a safe method, a consumed MCP tool with
+      `hints.readOnly: true`, or a flow with `semantics.safe: true`. Declare a
+      durability mode, or ask the question before the first write.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: elicit-safety
+
+  ikanos-durability-mode-available:
+    message: "This durability mode is not available yet."
+    description: >
+      The `local` (embedded H2) and `distributed` durability modes need store
+      modules that ship with later releases; the engine rejects a capability
+      that declares them. Use `memory` or `none` for now.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: mode-available
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

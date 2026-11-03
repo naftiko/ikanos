@@ -44,7 +44,22 @@ public final class StepInterpreter implements Interpreter {
     @Override
     public List<Command> next(ExecutionView view) {
         for (StepNode node : tree.nodes()) {
-            if (node.kind() == StepNode.Kind.LOOKUP) {
+            if (node.kind() == StepNode.Kind.ELICIT) {
+                Optional<Object> answer = view.update(node.path());
+                if (answer.isEmpty()) {
+                    return List.of(new Command.AwaitUpdate(node.path(), node));
+                }
+                if (!run.isEvaluated(node.path())) {
+                    run.setAnswer(node.path(), answer.get());
+                    try {
+                        nodeRunner.run(node, run);
+                    } catch (RuntimeException e) {
+                        run.fail(e);
+                        return List.of(new Command.Fail(failureOf(e)));
+                    }
+                    run.markEvaluated(node.path());
+                }
+            } else if (node.kind() == StepNode.Kind.LOOKUP) {
                 if (!run.isEvaluated(node.path())) {
                     try {
                         nodeRunner.run(node, run);

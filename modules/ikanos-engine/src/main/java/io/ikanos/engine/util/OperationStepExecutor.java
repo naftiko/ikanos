@@ -37,6 +37,7 @@ import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.execution.ExecutionTree;
 import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.StepNode;
 import io.ikanos.engine.execution.StepRun;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -50,6 +51,7 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
@@ -279,7 +281,8 @@ public class OperationStepExecutor {
                         // A step failed inside a called flow: fail this step too, naming
                         // the chain so the error says where the failure came from.
                         throw e.calledFrom(callStep.getName(), callStep.getCall());
-                    } catch (FlowCallDepthExceededException e) {
+                    } catch (FlowCallDepthExceededException | InputRequiredException e) {
+                        // A called flow that pauses on its caller pauses this flow too.
                         throw e;
                     } catch (Exception e) {
                         throw new IllegalStateException(
@@ -422,11 +425,33 @@ public class OperationStepExecutor {
                     TelemetryBootstrap.endSpan(stepSpan);
                 }
             }
+            case OperationStepElicitSpec elicitStep -> {
+                return applyAnswer(elicitStep, run.answer(node.path()), run);
+            }
             default -> {
                 // Ignore unsupported step types
                 return null;
             }
         }
+    }
+
+    /**
+     * Apply the caller's answer to an {@code elicit} step: an accepted answer's {@code content}
+     * becomes the step output; a declined or cancelled one fails the step.
+     */
+    JsonNode applyAnswer(OperationStepElicitSpec step, Object answer, StepRun run) {
+        JsonNode result = answer instanceof JsonNode node ? node : mapper.valueToTree(answer);
+        String action = result != null ? result.path("action").asString("") : "";
+        if (!"accept".equals(action)) {
+            throw new IllegalStateException("Step '" + step.getName()
+                    + "': the caller did not accept the request (" + (action.isEmpty()
+                            ? "no answer" : action) + ")");
+        }
+        JsonNode content = result.path("content").isObject() ? result.get("content")
+                : mapper.createObjectNode();
+        run.stepContext().storeStepOutput(step.getName(), content);
+        addStepOutputToParameters(run.runtimeParameters(), step.getName(), content);
+        return content;
     }
 
     /**

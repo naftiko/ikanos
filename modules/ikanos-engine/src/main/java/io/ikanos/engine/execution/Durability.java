@@ -19,6 +19,8 @@ import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.StoreProvider;
 import io.ikanos.durable.store.Stores;
 import io.ikanos.spec.exposes.control.DurabilitySpec;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 
 /**
  * The durability mode of a capability, resolved at load time from the control port's
@@ -37,14 +39,16 @@ public final class Durability {
      */
     static final String UNPINNED = "unpinned";
 
-    private static final Durability NONE = new Durability(DurabilitySpec.MODE_NONE, null);
+    private static final Durability NONE = new Durability(DurabilitySpec.MODE_NONE, null, null);
 
     private final String mode;
     private final JournaledRunner runner;
+    private final Long retentionMs;
 
-    private Durability(String mode, JournaledRunner runner) {
+    private Durability(String mode, JournaledRunner runner, Long retentionMs) {
         this.mode = mode;
         this.runner = runner;
+        this.retentionMs = retentionMs;
     }
 
     /** The {@code none} mode. */
@@ -77,7 +81,7 @@ public final class Durability {
                                 + StoreProvider.available()));
                 Stores stores = provider.open(Map.of());
                 return new Durability(mode, new JournaledRunner(stores, new JsonPayloadCodec(),
-                        Clock.systemUTC(), UNPINNED));
+                        Clock.systemUTC(), UNPINNED), retentionMs(spec.getRetention()));
             }
             case DurabilitySpec.MODE_LOCAL:
             case DurabilitySpec.MODE_DISTRIBUTED:
@@ -88,6 +92,23 @@ public final class Durability {
                 throw new IllegalArgumentException("Unknown durability mode '" + mode
                         + "'; expected none, memory, local or distributed");
         }
+    }
+
+    static Long retentionMs(String retention) {
+        if (retention == null || retention.isBlank()) {
+            return null;
+        }
+        try {
+            return Duration.parse(retention).toMillis();
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("durability.retention must be an ISO 8601 "
+                    + "duration such as P7D, not '" + retention + "'", e);
+        }
+    }
+
+    /** How long a completed execution is kept, in milliseconds, or {@code null} if unbounded. */
+    public Long retentionMs() {
+        return retentionMs;
     }
 
     /** The resolved mode. */

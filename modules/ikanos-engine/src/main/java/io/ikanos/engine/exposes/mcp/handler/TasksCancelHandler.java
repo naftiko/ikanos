@@ -18,6 +18,7 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import java.util.List;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.McpCallContext;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -44,7 +45,7 @@ public class TasksCancelHandler extends McpCallHandler {
     public HandlerResult handle(JsonNode requestBody) {
         JsonNode idNode = requestBody.get("id");
         String taskId = requestBody.path("params").path("taskId").asString(null);
-        boolean known = adapter.getTaskService() != null && adapter.getTaskService().cancel(taskId);
+        boolean known = adapter.getTaskService() != null && adapter.getTaskService().cancel(taskId, McpCallContext.principal());
         if (!known) {
             return new HandlerFailureResult(INVALID_PARAMS,
                     buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Task not found"));

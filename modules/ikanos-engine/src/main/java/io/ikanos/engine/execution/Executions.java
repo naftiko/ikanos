@@ -26,6 +26,7 @@ import io.ikanos.durable.Runner;
 import io.ikanos.durable.core.DirectRunner;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 
 /**
  * The one entry point through which steps and single calls run, whatever exposed them.
@@ -55,7 +56,8 @@ public final class Executions {
         if (tree.isEmpty()) {
             return run;
         }
-        ExecutionResult result = DIRECT.run(ExecutionRequest.of(nextId(), null),
+        ExecutionResult result = DIRECT.run(
+                new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
                 new StepInterpreter(tree, run, nodeRunner), request -> {
                     StepNode node = (StepNode) request.action();
                     try {
@@ -67,6 +69,13 @@ public final class Executions {
                 });
         if (result instanceof ExecutionResult.Completed) {
             return run;
+        }
+        if (result instanceof ExecutionResult.Suspended suspended) {
+            // Only elicit steps await an update: the caller must answer them.
+            throw new InputRequiredException(suspended.awaiting().stream()
+                    .map(await -> new InputRequiredException.Question(await.path().value(),
+                            (OperationStepElicitSpec) ((StepNode) await.request()).step()))
+                    .toList());
         }
         throw rethrowable(run, result);
     }

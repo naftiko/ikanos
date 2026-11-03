@@ -629,6 +629,40 @@ public class IkanosPolychroRulesetTest {
             "Expected no flow composition findings for a compliant document.\n" + output);
     }
 
+    @Test
+    public void taskModeRuleShouldFireWhenTheCapabilityHasNoDurabilityMode() {
+        assertRuleFires("rules/spectral-durability-violations.yaml",
+            "ikanos-task-mode-requires-durability");
+    }
+
+    @Test
+    public void elicitSafetyRuleShouldFireWhenAQuestionFollowsAWriteUnderNone() {
+        assertRuleFires("rules/spectral-durability-violations.yaml",
+            "ikanos-elicit-after-unsafe-requires-durability");
+    }
+
+    @Test
+    public void durabilityModeRuleShouldFireForAModeWhoseStoreHasNotShipped() {
+        assertRuleFires("rules/spectral-durability-mode-unavailable.yaml",
+            "ikanos-durability-mode-available");
+    }
+
+    @Test
+    public void durabilityRulesShouldNotFireOnTheMemoryMode() {
+        String output = lintFixture("rules/spectral-durability-compliant.yaml").output();
+        assertTrue(!output.contains("ikanos-task-mode-")
+                && !output.contains("ikanos-elicit-")
+                && !output.contains("ikanos-durability-"),
+            "Expected no durability findings on the memory mode.\n" + output);
+    }
+
+    @Test
+    public void elicitSafetyRuleShouldNotFireWhenTheQuestionComesBeforeAnyWrite() {
+        String output = lintFixture("rules/spectral-durability-none-compliant.yaml").output();
+        assertTrue(!output.contains("ikanos-elicit-"),
+            "Expected no elicit finding when only reads precede the question.\n" + output);
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

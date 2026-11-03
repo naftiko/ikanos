@@ -200,10 +200,13 @@ public class ProtocolDispatcher {
                 extractedContext, null, capabilityName);
         try (Scope scope = span.makeCurrent()) {
             TelemetryBootstrap.populateMdc(span);
-            identityResolver.resolve(httpRequest).ifPresent(identity ->
-                    TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
-                            identity.actor()));
-            return dispatch(request);
+            String principal = identityResolver.resolve(httpRequest).map(identity -> {
+                TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
+                        identity.actor());
+                return identity.id();
+            }).orElse(McpCallContext.ANONYMOUS);
+            // State bound to the caller (requestState, tasks) reads the principal from here.
+            return McpCallContext.as(principal, () -> dispatch(request));
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;
