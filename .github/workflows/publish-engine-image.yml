@@ -10,6 +10,14 @@ on:
         required: false
         default: ''
         type: string
+      environment:
+        description: "Target environment. staging pushes staging + sha-<commit> and leaves latest alone."
+        required: false
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 permissions:
   contents: read
@@ -148,6 +156,9 @@ jobs:
       #  - tag push (v*)            -> sha-<commit>, <git tag>, latest
       #  - manual run with version  -> sha-<commit>, <version input>, latest
       #  - manual run without input -> sha-<commit>, latest
+      #  - manual run, environment=staging -> sha-<commit>, staging; never a release tag,
+      #    the version input or latest, even if started on a tag
+      # A release rebuilds the image and re-points sha-<commit> if that commit was staged.
       - name: Extract metadata (tags)
         id: meta
         uses: docker/metadata-action@v6
@@ -157,9 +168,10 @@ jobs:
             docker.io/naftiko/ikanos
           tags: |
             type=sha,prefix=sha-
-            type=ref,event=tag
-            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }},priority=1000
-            type=raw,value=latest
+            type=ref,event=tag,enable=${{ inputs.environment != 'staging' }}
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' && inputs.environment != 'staging' }},priority=1000
+            type=raw,value=staging,enable=${{ inputs.environment == 'staging' }}
+            type=raw,value=latest,enable=${{ inputs.environment != 'staging' }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
