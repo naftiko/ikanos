@@ -430,7 +430,7 @@ public class HttpClientAdapter extends ClientAdapter {
         }
     }
 
-    private static boolean parsesAsJson(String body, boolean rejectDuplicateKeys) {
+    static boolean parsesAsJson(String body, boolean rejectDuplicateKeys) {
         ObjectReader reader = JSON.readerFor(JsonNode.class)
                 .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         if (rejectDuplicateKeys) {

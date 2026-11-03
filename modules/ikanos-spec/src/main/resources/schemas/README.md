@@ -721,7 +721,7 @@ Describes request body configuration for consumed operations. `RequestBody` is a
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. MUST be `"multipartForm"`. |
-| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required, Mustache-rendered), `filename` (optional), `contentType` (optional), `encoding` (optional, `base64`: the part is sent as the decoded bytes of `value`). Sent as `multipart/form-data` with a generated boundary. |
+| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required, Mustache-rendered), `filename` (optional), `contentType` (optional), `encoding` (optional, `base64`: the part is sent as the decoded bytes of `value`). When `contentType` is `application/json` or a `+json` type, substituted values are JSON-encoded and the rendered `value` MUST be a single JSON document with no repeated member key, as for a `json` body. Sent as `multipart/form-data` with a generated boundary. |
 
 **RequestBodyRaw** — Raw string body
 

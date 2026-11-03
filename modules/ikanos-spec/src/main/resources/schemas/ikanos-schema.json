@@ -3071,7 +3071,7 @@
         },
         "value": {
           "type": "string",
-          "description": "Content of this part, Mustache-rendered. Sent as UTF-8 text, or as decoded bytes when `encoding` is `base64`."
+          "description": "Content of this part, Mustache-rendered. Sent as UTF-8 text, or as decoded bytes when `encoding` is `base64`. When `contentType` is `application/json` or a `+json` type, substituted values are JSON-encoded and the result must be a single JSON document with no repeated member key."
         },
         "filename": {
           "type": "string",
