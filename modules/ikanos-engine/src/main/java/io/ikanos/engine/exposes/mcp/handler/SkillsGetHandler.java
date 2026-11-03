@@ -23,6 +23,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 
 import java.util.List;
 
@@ -58,7 +59,7 @@ public class SkillsGetHandler extends McpCallHandler {
 
         ObjectNode result = MAPPER.createObjectNode();
         result.set("skill", SkillsListHandler.skillEntry(MAPPER, manifest));
-        result.put("resultType", "complete");
+        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
         return new HandlerSuccessResult(result);
     }
 

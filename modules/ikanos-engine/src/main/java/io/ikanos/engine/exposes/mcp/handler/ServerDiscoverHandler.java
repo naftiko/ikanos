@@ -25,10 +25,12 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 
 import java.util.List;
 
 import static io.ikanos.engine.exposes.mcp.ProtocolDispatcher.putSupportedProtocolVersions;
+import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 
 /**
  * The server/discover handler.
@@ -73,6 +75,10 @@ public class ServerDiscoverHandler extends McpCallHandler {
         if (!skills.isEmpty()) {
             extensions.putObject(SkillHandler.EXTENSION_ID).put("directoryRead", true);
         }
+        // Tasks (SEP-2663): only when executions are kept and at least one tool may become a task
+        if (adapter.servesTasks()) {
+            extensions.putObject(RequestClientCapabilities.TASKS_EXTENSION);
+        }
         if (!extensions.isEmpty()) {
             capabilities.set("extensions", extensions);
         }
@@ -85,7 +91,7 @@ public class ServerDiscoverHandler extends McpCallHandler {
             result.put("instructions", instructions);
         }
 
-        result.put("resultType", "complete");
+        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
         return new HandlerSuccessResult(result);
     }
 

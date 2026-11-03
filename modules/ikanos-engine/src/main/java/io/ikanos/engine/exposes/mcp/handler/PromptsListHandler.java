@@ -24,6 +24,7 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.spec.exposes.mcp.McpPromptArgumentSpec;
 import io.ikanos.spec.exposes.mcp.McpServerPromptSpec;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 
 import java.util.List;
 
@@ -70,7 +71,7 @@ public class PromptsListHandler extends McpCallHandler {
             promptsArray.add(promptNode);
         }
 
-        result.put("resultType", "complete");
+        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
         return new HandlerSuccessResult(result);
     }
 
