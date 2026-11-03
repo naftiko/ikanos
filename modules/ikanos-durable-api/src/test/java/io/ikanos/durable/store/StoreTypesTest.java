@@ -90,6 +90,18 @@ public class StoreTypesTest {
     }
 
     @Test
+    void storesShouldRequireEveryStore() {
+        assertThrows(NullPointerException.class,
+                () -> new Stores(null, null, null, null, null));
+    }
+
+    @Test
+    void findShouldReturnNothingForAStoreTypeWithoutModule() {
+        assertTrue(StoreProvider.find("raft").isEmpty());
+        assertFalse(StoreProvider.available().contains("raft"));
+    }
+
+    @Test
     void leaseAndBlobRefShouldRequireTheirFields() {
         assertThrows(NullPointerException.class, () -> new Lease(ID, null, 1, Instant.EPOCH));
         assertThrows(NullPointerException.class, () -> new BlobRef(null));

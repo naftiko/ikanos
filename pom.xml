@@ -60,6 +60,7 @@
         -->
         <module>modules/ikanos-durable-api</module>
         <module>modules/ikanos-durable-core</module>
+        <module>modules/ikanos-durable-store-memory</module>
         <module>modules/ikanos-spec</module>
         <!--
           Ruleset tests only: lints ikanos-spec's ruleset and fixtures with Polychro, in process.
@@ -148,6 +149,11 @@
             <dependency>
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-durable-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-store-memory</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
