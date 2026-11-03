@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
+import java.time.Clock;
+import io.ikanos.engine.execution.Durability;
 
 /**
  * MCP Server Adapter implementation.
@@ -65,6 +67,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final ResourceHandler resourceHandler;
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
+    private final McpTaskService taskService;
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -108,6 +111,11 @@ public class McpServerAdapter extends ServerAdapter {
         this.skillHandler = new SkillHandler(serverSpec.getSkills(), serverSpec.getTools().keySet(),
                 serverSpec.getResources().values().stream()
                         .map(McpServerResourceSpec::getUri).toList());
+
+        // Tasks (SEP-2663) need somewhere to keep executions: only in a durable mode.
+        Durability durability = capability.getDurability();
+        this.taskService = durability != null && durability.isDurable()
+                ? new McpTaskService(durability.runner(), Clock.systemUTC()) : null;
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -208,6 +216,32 @@ public class McpServerAdapter extends ServerAdapter {
                 hints != null ? hints.getDestructive() : null,
                 hints != null ? hints.getIdempotent() : null,
                 hints != null ? hints.getOpenWorld() : null, null);
+    }
+
+    /** The task service, or {@code null} when the capability runs under {@code none}. */
+    public McpTaskService getTaskService() {
+        return taskService;
+    }
+
+    /**
+     * Whether the tool's flow declares {@code semantics.interaction.mode: task}. Only a tool that
+     * references a flow with {@code ref:} can: inline steps carry no flow contract.
+     */
+    public boolean isTaskTool(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        if (toolSpec == null || toolSpec.getRef() == null) {
+            return false;
+        }
+        AggregateFlow flow = getCapability().lookupFlow(toolSpec.getRef());
+        return flow != null && flow.getSemantics() != null
+                && flow.getSemantics().getInteraction() != null
+                && flow.getSemantics().getInteraction().isTask();
+    }
+
+    /** Whether tasks can be served: a durable mode and at least one task tool. */
+    public boolean servesTasks() {
+        return taskService != null
+                && getMcpServerSpec().getTools().keySet().stream().anyMatch(this::isTaskTool);
     }
 
     public McpServerSpec getMcpServerSpec() {

@@ -27,6 +27,7 @@ import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import org.restlet.Context;
 
 import java.util.List;
@@ -85,7 +86,7 @@ public class ResourcesReadHandler extends McpCallHandler {
                 contentsArray.add(contentNode);
             }
 
-            result.put("resultType", "complete");
+            result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
             return new HandlerSuccessResult(result);
         } catch (ResourceHandler.UpstreamUnreachableException e) {
             return new HandlerFailureResult(INTERNAL_ERROR,

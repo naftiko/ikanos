@@ -77,6 +77,15 @@ public class McpCallHandlersFactory {
             handlers.add(new ResourcesDirectoryReadHandler(adapter, List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
                     List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
         }
+        // Tasks Extension (SEP-2663) methods exist only when a durable capability has task tools.
+        if (adapter.servesTasks()) {
+            handlers.add(new TasksGetHandler(adapter,
+                    List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
+                    List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
+            handlers.add(new TasksCancelHandler(adapter,
+                    List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
+                    List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
+        }
         return List.copyOf(handlers);
     }
 }

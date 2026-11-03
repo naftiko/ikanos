@@ -1065,6 +1065,31 @@
         "cacheable": {
           "type": "boolean",
           "description": "If true, the result can be cached. Default: false."
+        },
+        "interaction": {
+          "$ref": "#/$defs/Interaction"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Interaction": {
+      "type": "object",
+      "description": "What a caller may observe while the unit runs. `mode: task` lets an MCP client that declares the tasks extension receive a task handle and poll for the result; it needs a durability mode other than `none` on the control port.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["sync", "task"],
+          "default": "sync",
+          "description": "`sync`: the caller waits for the result. `task`: the caller may receive a task handle."
+        },
+        "expectedDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Typical duration of a call, in milliseconds."
+        },
+        "mayElicit": {
+          "type": "boolean",
+          "description": "If true, the unit may ask its caller for input while it runs."
         }
       },
       "additionalProperties": false
@@ -3352,12 +3377,55 @@
         },
         "observability": {
           "$ref": "#/$defs/ObservabilitySpec"
+        },
+        "durability": {
+          "$ref": "#/$defs/Durability"
         }
       },
       "required": [
         "type",
         "port"
       ],
+      "additionalProperties": false
+    },
+    "Durability": {
+      "type": "object",
+      "description": "Where the capability keeps its executions, declared once per capability. `none` (the default) runs everything inline with no journal. `memory` keeps executions in process memory, so MCP tasks work while the process lives, on a single replica.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "memory", "local", "distributed"],
+          "default": "none",
+          "description": "Durability mode. `local` (embedded H2) and `distributed` need store modules that are not available yet."
+        },
+        "store": {
+          "$ref": "#/$defs/DurabilityStore"
+        },
+        "retention": {
+          "type": "string",
+          "description": "How long a completed execution is kept, as an ISO 8601 duration (for example `P7D`)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "DurabilityStore": {
+      "type": "object",
+      "description": "The store of a durability mode. `type` selects the store module.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Store type, such as `memory`, `h2` or `jdbc`."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path of an embedded store."
+        },
+        "url": {
+          "type": "string",
+          "description": "Connection URL of a shared store; reference a secret."
+        }
+      },
+      "required": ["type"],
       "additionalProperties": false
     },
     "ControlManagementSpec": {

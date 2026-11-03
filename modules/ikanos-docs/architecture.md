@@ -66,8 +66,11 @@ flowchart BT
     ziti[ikanos-tunnel-ziti]
     dapi[ikanos-durable-api]
     dcore[ikanos-durable-core]
+    dmem[ikanos-durable-store-memory]
     engine --> spec
+    engine --> dcore
     dcore --> dapi
+    dmem --> dapi
     cli --> engine
     cli --> spec
     ziti --> engine
@@ -78,8 +81,9 @@ flowchart BT
 | `modules/ikanos-spec` | The specification. The JSON Schema (`schemas/ikanos-schema.json`, the source of truth for the YAML format), the ruleset (`rules/ikanos-rules.yml`), the Jackson model the YAML is read into (`io.ikanos.spec`), and OpenAPI import/export (`io.ikanos.spec.openapi`). It has no runtime behaviour. |
 | `modules/ikanos-engine` | The runtime. Loads a spec, builds the adapters, runs requests, and handles telemetry. Usable as a library (see [Extension points](#extension-points)). |
 | `modules/ikanos-cli` | The `ikanos` command (Picocli, `io.ikanos.cli`): `serve`, `validate`, the import/export and scaffolding commands, and the clients of the control port. It builds the shaded `ikanos.jar` used by the Docker image and the GraalVM native binary. |
-| `modules/ikanos-durable-api` | The API of the durable execution engine: the `Interpreter` contract, the command set, the execution view, `Runner` and the (provisional) storage interfaces. It depends on the JDK only and carries no Ikanos concept; a Maven Enforcer rule fails the build if it, or any `ikanos-durable-*` module, depends on anything else. Not used by the engine yet. |
-| `modules/ikanos-durable-core` | The core of the durable execution engine. Today, the `DirectRunner` that will serve the `none` durability mode: it carries the Interpreter's commands out inline and keeps nothing. Same dependency rule. Not used by the engine yet. |
+| `modules/ikanos-durable-api` | The API of the durable execution engine: the `Interpreter` contract, the command set, the execution view, `Runner` and the (provisional) storage interfaces. It depends on the JDK only and carries no Ikanos concept; a Maven Enforcer rule fails the build if it, or any `ikanos-durable-*` module, depends on anything else. Store modules are discovered with `ServiceLoader` through its `StoreProvider` SPI. |
+| `modules/ikanos-durable-core` | The core of the durable execution engine: the `DirectRunner` of the `none` durability mode, which carries the Interpreter's commands out inline and keeps nothing, and the `JournaledRunner` of the durable modes, which journals every outcome, decision and update and resumes from the journal. Same dependency rule. The engine runs every step through it (see [Steps](#steps)). |
+| `modules/ikanos-durable-store-memory` | The `memory` store: journal, execution index, work queue, signal inbox and blob store in process memory, registered as store type `memory`. Same dependency rule. |
 | `modules/ikanos-tunnel-ziti` | An optional OpenZiti implementation of the reverse-tunnel SPI. It is discovered with `ServiceLoader` when the jar is on the classpath. |
 | `modules/ikanos-docs` | No code. This document, the tutorial capabilities (`tutorial/`), demos, and test documentation. |
 | `modules/ikanos-coverage` | No code. Aggregates JaCoCo coverage across modules for the quality gate. |
@@ -207,7 +211,7 @@ What this path shows about the MCP adapter:
 
 - **Transport and protocol are separate.** In the MCP adapter, `McpServerResource` holds everything specific to HTTP (header checks, HTTP status codes, content types), and `ProtocolDispatcher` holds the MCP protocol, shared with the stdio transport (`StdioJsonRpcHandler`). A protocol change belongs in the dispatcher or a handler, never in a transport.
 - **One handler per JSON-RPC method.** Each method has its own `McpCallHandler` subclass in `exposes.mcp.handler`, built once per adapter by `McpCallHandlersFactory`, which is the list of supported methods. Each handler declares the MCP headers it requires, its pre-processors and its post-processors (`exposes.mcp.processor`).
-- **Extensions.** `server/discover` advertises every extension in one `capabilities.extensions` object: MCP Apps (`McpAppsMetadata`) when a tool links a `ui://` view, Skills (`SkillHandler`) when the adapter declares skills. Skills is advertised with `directoryRead: true`. The Skills methods (`skills/list`, `skills/get`, `resources/directory/read`) are only registered when the adapter serves skills, so a server without skills answers them with `method not found`.
+- **Extensions.** `server/discover` advertises every extension in one `capabilities.extensions` object: MCP Apps (`McpAppsMetadata`) when a tool links a `ui://` view, Skills (`SkillHandler`) when the adapter declares skills. Skills is advertised with `directoryRead: true`. The Skills methods (`skills/list`, `skills/get`, `resources/directory/read`) are only registered when the adapter serves skills, so a server without skills answers them with `method not found`. Tasks (SEP-2663, `RequestClientCapabilities.TASKS_EXTENSION`) are advertised, and `tasks/get` and `tasks/cancel` registered, only when the capability runs in a durable mode and at least one tool's flow declares `semantics.interaction.mode: task`.
 - **Protocol versions.** The supported versions are defined in one place, `ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS` (at the time of writing, 2026-07-28 only). A request with an unsupported version, including a legacy `initialize` (`LegacyInitializeHandler`), gets an explicit `UnsupportedProtocolVersionError` that names the supported versions.
 
 ### Errors
@@ -223,6 +227,7 @@ A consumed call that gets no HTTP answer (a connection failure, which Restlet re
 
 - **MCP over stdio**: `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
 - **REST**: `RestServerAdapter` attaches one `ResourceRestlet` per resource path. `ResourceRestlet` first looks for an operation matching the HTTP method and runs it (see [Execution modes](#execution-modes)). Only when no operation handles the request does it fall back to `forward`, which proxies the request to a consumed API; otherwise it answers `404`.
+- **Tasks** (SEP-2663): `tools/call` returns a `CreateTaskResult` only when the tool references a flow that declares `semantics.interaction.mode: task`, the capability's control port declares a durability mode other than `none`, and the request declares the tasks extension in its per-request client capabilities (`RequestClientCapabilities`); otherwise the call is answered synchronously. `McpTaskService` records the execution in the `JournaledRunner`'s index before answering, then runs the same `callTool` a synchronous call runs, as one journaled action on a virtual thread, so a task's `result` equals the synchronous result. The task ID is 128 random bits, distinct from the execution ID. Durability is resolved once, at load, by `Capability` (`Durability`): `memory` opens the memory store through `ServiceLoader`, and a missing store module, or a mode whose store has not shipped, fails the load. Every result's `resultType` comes from `McpResultType`.
 - **Skills over MCP**: read-only. `SkillHandler` validates every declared skill at startup and snapshots it: it renders `SKILL.md` (frontmatter from the spec, body authored or generated), walks the skill's `location` under the publication rules (no dotfiles, dot-directories or editor backups; a symbolic link fails the load) and computes a `sha256:` digest per file. `skills/list`, `skills/get`, `resources/read` on `skill://` URIs and `resources/directory/read` on skill directories are answered from that snapshot, never from disk, so a published digest always matches the served bytes. A skill over the SEP-2640 limits (512 files, 16 MiB) is not served. Loading warns about `allowed-tools` (a request hosts may ignore, not a grant) and about a skill with neither an authored body nor instruction files.
 - **Control port**: engine-defined management endpoints, no orchestration.
 
@@ -269,7 +274,9 @@ In the code, the same decision is made in three places: `ToolHandler`, `Resource
 
 ### Steps
 
-`OperationStepExecutor.executeSteps` runs the steps in declaration order. Before the normal dispatch, it checks whether a Java `StepHandler` is registered under the step's name (embedding API); if so, the handler runs instead. Otherwise it dispatches on the step's spec class: a call step goes through `findClientRequestFor` like a single call, a lookup step through `LookupExecutor`, a script step through `ScriptStepExecutor`. The step types and their fields are in the [specification](https://shipyard.naftiko.io/ikanos/spec/steps/).
+`OperationStepExecutor.executeSteps` compiles the steps into an `ExecutionTree` (package `io.ikanos.engine.execution`) and runs it through `Executions`, the one entry point for steps and single calls. The tree holds one node per step, in declaration order, at a stable path (`steps/<name>`); the map form of `steps:` runs in document order, which the spec setters guarantee by accepting only maps with a defined order (`StepOrder`). The `StepInterpreter` walks the tree and emits the commands of `ikanos-durable-api`; today they always run through the `DirectRunner`, inline in the request thread, so behaviour and cost match a plain loop. A failed run rethrows the exception that ended it, unchanged. A single `call:` on a tool, resource or REST operation runs through the same entry point as a one-action execution (`Executions.invoke`).
+
+`OperationStepExecutor.runStep` runs one node. If a Java `StepHandler` is registered under the step's name (embedding API), the handler runs instead. Otherwise it dispatches on the step's spec class: a call step goes through `findClientRequestFor` like a single call, a lookup step through `LookupExecutor`, a script step through `ScriptStepExecutor`. The step types and their fields are in the [specification](https://shipyard.naftiko.io/ikanos/spec/steps/).
 
 Each step gets its own span and step metric. Its output is added to the parameters under the step's name, which is how later steps and templates read it.
 

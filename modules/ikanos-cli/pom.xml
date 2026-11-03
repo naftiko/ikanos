@@ -20,6 +20,12 @@
             <groupId>io.ikanos</groupId>
             <artifactId>ikanos-engine</artifactId>
         </dependency>
+        <!-- Store of the memory durability mode, discovered with ServiceLoader. JDK only. -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-store-memory</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>io.ikanos</groupId>
             <artifactId>ikanos-spec</artifactId>

@@ -67,6 +67,7 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.YamlAliases;
+import io.ikanos.engine.execution.Durability;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
@@ -90,6 +91,8 @@ public class Capability {
     private final AtomicReference<List<Aggregate>> aggregates = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> bindings = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
+    private final AtomicReference<Durability> durability =
+            new AtomicReference<>(Durability.none());
     private final AtomicReference<StepHandlerRegistry> stepHandlerRegistry = new AtomicReference<>();
 
     public Capability(IkanosSpec spec) throws Exception {
@@ -162,6 +165,15 @@ public class Capability {
             }
         }
         this.scriptingSpec.set(resolvedScriptingSpec);
+
+        // Durability is declared once per capability, on the control port. A missing store module
+        // fails the load here rather than running a durable contract without a journal.
+        for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
+            if (serverSpec instanceof ControlServerSpec controlSpec) {
+                this.durability.set(Durability.fromSpec(controlSpec.getDurability()));
+                break;
+            }
+        }
 
         // Build runtime aggregates (must happen after imports are resolved). The executor is
         // shared: each flow passes its own namespace when it calls it.
@@ -267,6 +279,11 @@ public class Capability {
 
     public List<ClientAdapter> getClientAdapters() {
         return clientAdapters.get();
+    }
+
+    /** The capability's durability mode, {@code none} unless the control port declares one. */
+    public Durability getDurability() {
+        return durability.get();
     }
 
     public List<ServerAdapter> getServerAdapters() {
