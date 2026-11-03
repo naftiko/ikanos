@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.McpCallContext;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -45,7 +46,7 @@ public class TasksGetHandler extends McpCallHandler {
         JsonNode idNode = requestBody.get("id");
         String taskId = requestBody.path("params").path("taskId").asString(null);
         Optional<ObjectNode> task = adapter.getTaskService() != null
-                ? adapter.getTaskService().get(taskId) : Optional.empty();
+                ? adapter.getTaskService().get(taskId, McpCallContext.principal()) : Optional.empty();
         if (task.isEmpty()) {
             return new HandlerFailureResult(INVALID_PARAMS,
                     buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Task not found"));

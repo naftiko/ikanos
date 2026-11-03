@@ -40,6 +40,7 @@ import io.ikanos.durable.Interpreter;
 import io.ikanos.durable.NodePath;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionStatus;
+import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import io.ikanos.spec.util.IkanosMappers;
@@ -65,6 +66,9 @@ public final class McpTaskService {
     /** Failure class of a call rejected for invalid parameters: a JSON-RPC error, not a tool error. */
     static final String INVALID_PARAMS = "invalid-params";
 
+    /** Failure class of a task whose flow asked for input: tasks/update is not served yet. */
+    static final String INPUT_REQUIRED = "input-required";
+
     /** Suggested polling interval, in milliseconds. */
     static final long POLL_INTERVAL_MS = 1000;
 
@@ -73,25 +77,33 @@ public final class McpTaskService {
 
     private final JournaledRunner runner;
     private final Clock clock;
+    private final Long ttlMs;
     private final Map<String, Task> tasks = new ConcurrentHashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
 
     private static final class Task {
         final ExecutionId executionId;
+        final String principal;
         final Instant createdAt;
         final AtomicReference<Instant> lastUpdatedAt;
         volatile Future<?> work;
 
-        Task(ExecutionId executionId, Instant createdAt) {
+        Task(ExecutionId executionId, String principal, Instant createdAt) {
             this.executionId = executionId;
+            this.principal = principal;
             this.createdAt = createdAt;
             this.lastUpdatedAt = new AtomicReference<>(createdAt);
         }
     }
 
-    public McpTaskService(JournaledRunner runner, Clock clock) {
+    /**
+     * @param ttlMs how long a task is kept after creation, from the durability retention, or
+     *        {@code null} when unbounded
+     */
+    public McpTaskService(JournaledRunner runner, Clock clock, Long ttlMs) {
         this.runner = runner;
         this.clock = clock;
+        this.ttlMs = ttlMs;
     }
 
     /**
@@ -99,13 +111,14 @@ public final class McpTaskService {
      *
      * @param entry the exposed entry, recorded with the execution (for example
      *        {@code mcp:shipyard-ops/clear-for-departure})
+     * @param principal the caller; every later {@code tasks/*} request must come from it
      * @param work the tool call; an {@link IllegalArgumentException} ends the task {@code failed}
      *        with {@code -32602}, as the synchronous call would answer
      */
-    public ObjectNode create(String entry, Callable<JsonNode> work) {
+    public ObjectNode create(String entry, String principal, Callable<JsonNode> work) {
         String taskId = newTaskId();
         Instant now = clock.instant();
-        Task task = new Task(ExecutionId.random(), now);
+        Task task = new Task(ExecutionId.random(), principal, now);
         ExecutionRequest request = ExecutionRequest.of(task.executionId, null);
         runner.create(request, entry);
         tasks.put(taskId, task);
@@ -116,6 +129,10 @@ public final class McpTaskService {
                         return work.call();
                     } catch (IllegalArgumentException e) {
                         throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
+                    } catch (InputRequiredException e) {
+                        // Input requests on a task (tasks/update) arrive with the next increment.
+                        throw new ActionFailedException(new Failure(INPUT_REQUIRED,
+                                "This task asks for input, which tasks do not support yet"), e);
                     }
                 });
             } finally {
@@ -127,9 +144,12 @@ public final class McpTaskService {
         return result;
     }
 
-    /** The current state of a task for {@code tasks/get}, or empty for an unknown ID. */
-    public Optional<ObjectNode> get(String taskId) {
-        Task task = taskId == null ? null : tasks.get(taskId);
+    /**
+     * The current state of a task for {@code tasks/get}. Empty for an unknown ID and for a task
+     * created by another principal, so that existence never leaks.
+     */
+    public Optional<ObjectNode> get(String taskId, String principal) {
+        Task task = find(taskId, principal);
         if (task == null) {
             return Optional.empty();
         }
@@ -144,9 +164,9 @@ public final class McpTaskService {
         return Optional.of(node);
     }
 
-    /** Cancels a task; returns {@code false} for an unknown ID. */
-    public boolean cancel(String taskId) {
-        Task task = taskId == null ? null : tasks.get(taskId);
+    /** Cancels a task; returns {@code false} for an unknown ID or another principal's task. */
+    public boolean cancel(String taskId, String principal) {
+        Task task = find(taskId, principal);
         if (task == null) {
             return false;
         }
@@ -159,9 +179,9 @@ public final class McpTaskService {
         return true;
     }
 
-    /** Whether any task is known; used to advertise the extension only when it can be served. */
-    int size() {
-        return tasks.size();
+    private Task find(String taskId, String principal) {
+        Task task = taskId == null ? null : tasks.get(taskId);
+        return task != null && task.principal.equals(principal) ? task : null;
     }
 
     private ObjectNode terminal(String taskId, Task task) {
@@ -178,7 +198,9 @@ public final class McpTaskService {
         error.put("code", INVALID_PARAMS.equals(failure.errorClass())
                 ? JsonRpcError.INVALID_PARAMS.getCode() : JsonRpcError.INTERNAL_ERROR.getCode());
         error.put("message", INVALID_PARAMS.equals(failure.errorClass())
-                ? "Invalid params: " + failure.message() : "Task execution failed");
+                ? "Invalid params: " + failure.message()
+                : INPUT_REQUIRED.equals(failure.errorClass()) ? failure.message()
+                        : "Task execution failed");
         return node;
     }
 
@@ -188,7 +210,11 @@ public final class McpTaskService {
         node.put("status", status);
         node.put("createdAt", task.createdAt.toString());
         node.put("lastUpdatedAt", task.lastUpdatedAt.get().toString());
-        node.putNull("ttlMs");
+        if (ttlMs != null) {
+            node.put("ttlMs", ttlMs);
+        } else {
+            node.putNull("ttlMs");
+        }
         if ("working".equals(status) || "input_required".equals(status)) {
             node.put("pollIntervalMs", POLL_INTERVAL_MS);
         }
