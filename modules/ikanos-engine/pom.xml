@@ -24,6 +24,12 @@
             <artifactId>ikanos-spec</artifactId>
         </dependency>
 
+        <!-- Durable execution engine: every flow and exposed step runs through its Interpreter -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-core</artifactId>
+        </dependency>
+
         <!-- REST adapter and shared HTTP listener -->
         <dependency>
             <groupId>org.restlet</groupId>
@@ -150,6 +156,11 @@
         </dependency>
 
         <!-- Test -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-store-memory</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

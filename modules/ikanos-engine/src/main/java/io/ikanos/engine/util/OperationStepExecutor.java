@@ -35,6 +35,10 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.execution.ExecutionTree;
+import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.StepNode;
+import io.ikanos.engine.execution.StepRun;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.scripting.ScriptStepExecutor;
 import io.ikanos.engine.step.StepHandlerRegistry;
@@ -180,237 +184,249 @@ public class OperationStepExecutor {
      */
     public StepExecutionResult executeSteps(Map<String, OperationStepSpec> steps,
             Map<String, Object> baseParameters, String namespace) {
-        ConsumedResult lastResult = null;
-        StepExecutionContext stepContext = new StepExecutionContext();
-        Map<String, Object> runtimeParameters = new HashMap<>();
-
-        if (baseParameters != null) {
-            runtimeParameters.putAll(baseParameters);
-        }
-
+        StepRun run = new StepRun(baseParameters);
         if (steps == null || steps.isEmpty()) {
-            return new StepExecutionResult(lastResult, stepContext);
+            return new StepExecutionResult(null, run.stepContext());
         }
 
         StepHandlerRegistry registry = capability != null
             ? capability.getStepHandlerRegistry() : null;
 
-        int stepIndex = 0;
-        for (OperationStepSpec step : steps.values()) {
-            // Check step handler registry before normal dispatch
-            if (registry != null && step.getName() != null && registry.has(step.getName())) {
+        // The steps compile to an execution tree, walked by the Interpreter: the same path every
+        // flow and exposed operation takes, whatever its durability mode.
+        Executions.runSteps(ExecutionTree.compile(steps, registry), run,
+                (node, current) -> runStep(node, current, namespace, registry));
+        return new StepExecutionResult(run.lastResult(), run.stepContext());
+    }
+
+    /**
+     * Run one step of a sequence and record its output in {@code run}.
+     *
+     * @return the step's JSON output, or {@code null} when it has none
+     */
+    JsonNode runStep(StepNode node, StepRun run, String namespace, StepHandlerRegistry registry) {
+        OperationStepSpec step = node.step();
+        int stepIndex = node.index();
+        Map<String, Object> runtimeParameters = run.runtimeParameters();
+        StepExecutionContext stepContext = run.stepContext();
+
+        if (node.kind() == StepNode.Kind.HANDLER) {
+            TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+            Span stepSpan = telemetry.startStepCallSpan(
+                    stepIndex, "handler:" + step.getName(), namespace);
+            long handlerStartNanos = System.nanoTime();
+            try (Scope stepScope = stepSpan.makeCurrent()) {
+                Map<String, Object> withValues = null;
+                if (step instanceof OperationStepCallSpec callSpec) {
+                    withValues = callSpec.getWith();
+                    if (withValues != null) {
+                        Map<String, Object> resolved = new HashMap<>(withValues);
+                        mergeWithParameters(resolved, runtimeParameters, namespace);
+                        withValues = resolved;
+                    }
+                }
+                JsonNode handlerResult = registry.executeHandler(
+                        step.getName(), runtimeParameters, stepContext, withValues);
+                if (handlerResult != null) {
+                    stepContext.storeStepOutput(step.getName(), handlerResult);
+                    addStepOutputToParameters(
+                            runtimeParameters, step.getName(), handlerResult);
+                }
+                return handlerResult;
+            } catch (Exception e) {
+                TelemetryBootstrap.recordError(stepSpan, e);
+                throw e instanceof IllegalStateException
+                        ? (IllegalStateException) e
+                        : new IllegalStateException(
+                                "Step handler failed for step: " + step.getName(), e);
+            } finally {
+                double handlerDurationSec =
+                        (System.nanoTime() - handlerStartNanos) / 1_000_000_000.0;
+                telemetry.getMetrics().recordStep(
+                        "handler", namespace, handlerDurationSec);
+                TelemetryBootstrap.endSpan(stepSpan);
+            }
+        }
+
+        switch (step) {
+            case OperationStepCallSpec callStep -> {
                 TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-                Span stepSpan = telemetry.startStepCallSpan(
-                        stepIndex, "handler:" + step.getName(), namespace);
-                long handlerStartNanos = System.nanoTime();
+                Span stepSpan = telemetry
+                        .startStepCallSpan(stepIndex, callStep.getCall(), namespace);
+                long stepStartNanos = System.nanoTime();
                 try (Scope stepScope = stepSpan.makeCurrent()) {
-                    Map<String, Object> withValues = null;
-                    if (step instanceof OperationStepCallSpec callSpec) {
-                        withValues = callSpec.getWith();
-                        if (withValues != null) {
-                            Map<String, Object> resolved = new HashMap<>(withValues);
-                            mergeWithParameters(resolved, runtimeParameters, namespace);
-                            withValues = resolved;
+                    // The previous call step's result is replaced here and nothing reads it
+                    // afterwards: its JSON output, if any, is already in the step context.
+                    // A binary body was never read, so release it explicitly rather than
+                    // leaving the upstream entity open. Harmless for an already-read body.
+                    if (run.lastResult() != null) {
+                        run.lastResult().release();
+                        run.setLastResult(null);
+                    }
+
+                    ConsumedInvocation invocation =
+                            executeCallStep(callStep, runtimeParameters, namespace);
+
+                    if (invocation == null) {
+                        throw new IllegalArgumentException("Invalid call format: "
+                                + (callStep.getCall() != null ? callStep.getCall() : "null"));
+                    }
+
+                    ConsumedResult lastResult;
+                    try {
+                        lastResult = invocation.invoke();
+                    } catch (StepFailedException e) {
+                        // A step failed inside a called flow: fail this step too, naming
+                        // the chain so the error says where the failure came from.
+                        throw e.calledFrom(callStep.getName(), callStep.getCall());
+                    } catch (FlowCallDepthExceededException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new IllegalStateException(
+                                "Error while handling a consumed call", e);
+                    }
+                    run.setLastResult(lastResult);
+
+                    // #739: a non-2xx response fails the whole sequence. Without this, the
+                    // error body became the step output and later steps ran with it.
+                    failIfUnsuccessful(callStep.getName(), lastResult);
+
+                    // Store call output for lookup references when response is valid JSON.
+                    // text() memoizes the body so exposers can still read or forward it.
+                    // Binary bodies are never JSON, and reading them as text would replace
+                    // the original bytes with a decoded string, so they are skipped.
+                    if (lastResult.hasBody() && !lastResult.operation().isBinary()) {
+                        try {
+                            String responseText = lastResult.text();
+                            if (responseText != null) {
+                                JsonNode rawOutput = mapper.readTree(responseText);
+                                JsonNode stepOutput =
+                                        resolveStepOutput(lastResult.operation(), rawOutput);
+                                stepContext.storeStepOutput(callStep.getName(), stepOutput);
+                                addStepOutputToParameters(runtimeParameters,
+                                        callStep.getName(), stepOutput);
+                                return stepOutput;
+                            }
+                        } catch (JacksonException | IOException ignoreJsonParseError) {
+                            logger.debug("Step output is not JSON; skipping lookup index update", ignoreJsonParseError);
                         }
                     }
-                    JsonNode handlerResult = registry.executeHandler(
-                            step.getName(), runtimeParameters, stepContext, withValues);
-                    if (handlerResult != null) {
-                        stepContext.storeStepOutput(step.getName(), handlerResult);
-                        addStepOutputToParameters(
-                                runtimeParameters, step.getName(), handlerResult);
-                    }
+                    return null;
                 } catch (Exception e) {
                     TelemetryBootstrap.recordError(stepSpan, e);
-                    throw e instanceof IllegalStateException
-                            ? (IllegalStateException) e
-                            : new IllegalStateException(
-                                    "Step handler failed for step: " + step.getName(), e);
+                    throw e;
                 } finally {
-                    double handlerDurationSec =
-                            (System.nanoTime() - handlerStartNanos) / 1_000_000_000.0;
+                    double stepDurationSec =
+                            (System.nanoTime() - stepStartNanos) / 1_000_000_000.0;
                     telemetry.getMetrics().recordStep(
-                            "handler", namespace, handlerDurationSec);
+                            "call", namespace, stepDurationSec);
                     TelemetryBootstrap.endSpan(stepSpan);
                 }
-                continue;
             }
+            case OperationStepLookupSpec lookupStep -> {
+                TelemetryBootstrap lookupTelemetry = TelemetryBootstrap.get();
+                Span stepSpan = lookupTelemetry
+                        .startStepLookupSpan(stepIndex, lookupStep.getMatch());
+                long lookupStartNanos = System.nanoTime();
+                try (Scope stepScope = stepSpan.makeCurrent()) {
+                    JsonNode indexData = stepContext.getStepOutput(lookupStep.getIndex());
 
-            switch (step) {
-                case OperationStepCallSpec callStep -> {
-                    TelemetryBootstrap telemetry = TelemetryBootstrap.get();
-                    Span stepSpan = telemetry
-                            .startStepCallSpan(stepIndex, callStep.getCall(), namespace);
-                    long stepStartNanos = System.nanoTime();
-                    try (Scope stepScope = stepSpan.makeCurrent()) {
-                        // The previous call step's result is replaced here and nothing reads it
-                        // afterwards: its JSON output, if any, is already in the step context.
-                        // A binary body was never read, so release it explicitly rather than
-                        // leaving the upstream entity open. Harmless for an already-read body.
-                        if (lastResult != null) {
-                            lastResult.release();
-                            lastResult = null;
-                        }
+                    if (indexData == null) {
+                        throw new IllegalArgumentException(
+                                "Lookup step references non-existent step: "
+                                        + lookupStep.getIndex());
+                    }
 
-                        ConsumedInvocation invocation =
-                                executeCallStep(callStep, runtimeParameters, namespace);
+                    String resolvedLookupValue = Resolver.resolveMustacheTemplate(
+                            lookupStep.getLookupValue(), runtimeParameters);
 
-                        if (invocation == null) {
-                            throw new IllegalArgumentException("Invalid call format: "
-                                    + (callStep.getCall() != null ? callStep.getCall() : "null"));
-                        }
+                    // Resolve lookup value from step context (JsonPath) when applicable
+                    JsonNode lookupValueNode = resolveJsonPathFromStepContext(
+                            lookupStep.getLookupValue(), stepContext);
 
-                        try {
-                            lastResult = invocation.invoke();
-                        } catch (StepFailedException e) {
-                            // A step failed inside a called flow: fail this step too, naming
-                            // the chain so the error says where the failure came from.
-                            throw e.calledFrom(callStep.getName(), callStep.getCall());
-                        } catch (FlowCallDepthExceededException e) {
-                            throw e;
-                        } catch (Exception e) {
-                            throw new IllegalStateException(
-                                    "Error while handling a consumed call", e);
-                        }
-
-                        // #739: a non-2xx response fails the whole sequence. Without this, the
-                        // error body became the step output and later steps ran with it.
-                        failIfUnsuccessful(callStep.getName(), lastResult);
-
-                        // Store call output for lookup references when response is valid JSON.
-                        // text() memoizes the body so exposers can still read or forward it.
-                        // Binary bodies are never JSON, and reading them as text would replace
-                        // the original bytes with a decoded string, so they are skipped.
-                        if (lastResult.hasBody() && !lastResult.operation().isBinary()) {
-                            try {
-                                String responseText = lastResult.text();
-                                if (responseText != null) {
-                                    JsonNode rawOutput = mapper.readTree(responseText);
-                                    JsonNode stepOutput =
-                                            resolveStepOutput(lastResult.operation(), rawOutput);
-                                    stepContext.storeStepOutput(callStep.getName(), stepOutput);
-                                    addStepOutputToParameters(runtimeParameters,
-                                            callStep.getName(), stepOutput);
-                                }
-                            } catch (JacksonException | IOException ignoreJsonParseError) {
-                                logger.debug("Step output is not JSON; skipping lookup index update", ignoreJsonParseError);
+                    JsonNode lookupResult;
+                    if (lookupValueNode != null && lookupValueNode.isArray()) {
+                        // Multi-value lookup: collect results into an array
+                        ArrayNode resultArray = mapper.createArrayNode();
+                        for (JsonNode item : lookupValueNode) {
+                            JsonNode match = LookupExecutor.executeLookup(indexData,
+                                    lookupStep.getMatch(), item.asString(),
+                                    lookupStep.getOutputParameters());
+                            if (match != null) {
+                                resultArray.add(match);
                             }
                         }
-                    } catch (Exception e) {
-                        TelemetryBootstrap.recordError(stepSpan, e);
-                        throw e;
-                    } finally {
-                        double stepDurationSec =
-                                (System.nanoTime() - stepStartNanos) / 1_000_000_000.0;
-                        telemetry.getMetrics().recordStep(
-                                "call", namespace, stepDurationSec);
-                        TelemetryBootstrap.endSpan(stepSpan);
+                        lookupResult = resultArray.isEmpty() ? null : resultArray;
+                    } else if (lookupValueNode != null) {
+                        lookupResult = LookupExecutor.executeLookup(indexData,
+                                lookupStep.getMatch(), lookupValueNode.asString(),
+                                lookupStep.getOutputParameters());
+                    } else {
+                        lookupResult = LookupExecutor.executeLookup(indexData,
+                                lookupStep.getMatch(), resolvedLookupValue,
+                                lookupStep.getOutputParameters());
                     }
-                }
-                case OperationStepLookupSpec lookupStep -> {
-                    TelemetryBootstrap lookupTelemetry = TelemetryBootstrap.get();
-                    Span stepSpan = lookupTelemetry
-                            .startStepLookupSpan(stepIndex, lookupStep.getMatch());
-                    long lookupStartNanos = System.nanoTime();
-                    try (Scope stepScope = stepSpan.makeCurrent()) {
-                        JsonNode indexData = stepContext.getStepOutput(lookupStep.getIndex());
 
-                        if (indexData == null) {
-                            throw new IllegalArgumentException(
-                                    "Lookup step references non-existent step: "
-                                            + lookupStep.getIndex());
-                        }
-
-                        String resolvedLookupValue = Resolver.resolveMustacheTemplate(
-                                lookupStep.getLookupValue(), runtimeParameters);
-
-                        // Resolve lookup value from step context (JsonPath) when applicable
-                        JsonNode lookupValueNode = resolveJsonPathFromStepContext(
-                                lookupStep.getLookupValue(), stepContext);
-
-                        JsonNode lookupResult;
-                        if (lookupValueNode != null && lookupValueNode.isArray()) {
-                            // Multi-value lookup: collect results into an array
-                            ArrayNode resultArray = mapper.createArrayNode();
-                            for (JsonNode item : lookupValueNode) {
-                                JsonNode match = LookupExecutor.executeLookup(indexData,
-                                        lookupStep.getMatch(), item.asString(),
-                                        lookupStep.getOutputParameters());
-                                if (match != null) {
-                                    resultArray.add(match);
-                                }
-                            }
-                            lookupResult = resultArray.isEmpty() ? null : resultArray;
-                        } else if (lookupValueNode != null) {
-                            lookupResult = LookupExecutor.executeLookup(indexData,
-                                    lookupStep.getMatch(), lookupValueNode.asString(),
-                                    lookupStep.getOutputParameters());
-                        } else {
-                            lookupResult = LookupExecutor.executeLookup(indexData,
-                                    lookupStep.getMatch(), resolvedLookupValue,
-                                    lookupStep.getOutputParameters());
-                        }
-
-                        if (lookupResult != null) {
-                            stepContext.storeStepOutput(lookupStep.getName(), lookupResult);
-                        }
-                    } catch (Exception e) {
-                        TelemetryBootstrap.recordError(stepSpan, e);
-                        throw e;
-                    } finally {
-                        double lookupDurationSec =
-                                (System.nanoTime() - lookupStartNanos) / 1_000_000_000.0;
-                        lookupTelemetry.getMetrics().recordStep(
-                                "lookup", namespace, lookupDurationSec);
-                        TelemetryBootstrap.endSpan(stepSpan);
+                    if (lookupResult != null) {
+                        stepContext.storeStepOutput(lookupStep.getName(), lookupResult);
                     }
-                }
-                case OperationStepScriptSpec scriptStep -> {
-                    ScriptStepExecutor.requireScriptingPermitted(
-                            scriptStep.getName(),
-                            scriptExecutor != null ? scriptExecutor.getScriptingSpec() : null);
-                    TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
-                    String effectiveScriptLanguage = scriptStep.getLanguage();
-                    if ((effectiveScriptLanguage == null
-                            || effectiveScriptLanguage.isBlank())
-                            && scriptExecutor != null
-                            && scriptExecutor.getScriptingSpec() != null) {
-                        effectiveScriptLanguage =
-                                scriptExecutor.getScriptingSpec().getDefaultLanguage();
-                    }
-                    Span stepSpan = scriptTelemetry.startStepScriptSpan(
-                            stepIndex, scriptStep.getFile(),
-                            effectiveScriptLanguage == null
-                                    || effectiveScriptLanguage.isBlank()
-                                            ? "unknown"
-                                            : effectiveScriptLanguage);
-                    long scriptStartNanos = System.nanoTime();
-                    try (Scope stepScope = stepSpan.makeCurrent()) {
-                        JsonNode scriptResult = scriptExecutor.execute(
-                                scriptStep, runtimeParameters, stepContext);
-                        if (scriptResult != null) {
-                            stepContext.storeStepOutput(scriptStep.getName(), scriptResult);
-                            addStepOutputToParameters(
-                                    runtimeParameters, scriptStep.getName(), scriptResult);
-                        }
-                    } catch (Exception e) {
-                        TelemetryBootstrap.recordError(stepSpan, e);
-                        throw e;
-                    } finally {
-                        double scriptDurationSec =
-                                (System.nanoTime() - scriptStartNanos) / 1_000_000_000.0;
-                        scriptTelemetry.getMetrics().recordStep(
-                                "script", namespace, scriptDurationSec);
-                        TelemetryBootstrap.endSpan(stepSpan);
-                    }
-                }
-                default -> {
-                    // Ignore unsupported step types
+                    return lookupResult;
+                } catch (Exception e) {
+                    TelemetryBootstrap.recordError(stepSpan, e);
+                    throw e;
+                } finally {
+                    double lookupDurationSec =
+                            (System.nanoTime() - lookupStartNanos) / 1_000_000_000.0;
+                    lookupTelemetry.getMetrics().recordStep(
+                            "lookup", namespace, lookupDurationSec);
+                    TelemetryBootstrap.endSpan(stepSpan);
                 }
             }
-            stepIndex++;
+            case OperationStepScriptSpec scriptStep -> {
+                ScriptStepExecutor.requireScriptingPermitted(
+                        scriptStep.getName(),
+                        scriptExecutor != null ? scriptExecutor.getScriptingSpec() : null);
+                TelemetryBootstrap scriptTelemetry = TelemetryBootstrap.get();
+                String effectiveScriptLanguage = scriptStep.getLanguage();
+                if ((effectiveScriptLanguage == null
+                        || effectiveScriptLanguage.isBlank())
+                        && scriptExecutor != null
+                        && scriptExecutor.getScriptingSpec() != null) {
+                    effectiveScriptLanguage =
+                            scriptExecutor.getScriptingSpec().getDefaultLanguage();
+                }
+                Span stepSpan = scriptTelemetry.startStepScriptSpan(
+                        stepIndex, scriptStep.getFile(),
+                        effectiveScriptLanguage == null
+                                || effectiveScriptLanguage.isBlank()
+                                        ? "unknown"
+                                        : effectiveScriptLanguage);
+                long scriptStartNanos = System.nanoTime();
+                try (Scope stepScope = stepSpan.makeCurrent()) {
+                    JsonNode scriptResult = scriptExecutor.execute(
+                            scriptStep, runtimeParameters, stepContext);
+                    if (scriptResult != null) {
+                        stepContext.storeStepOutput(scriptStep.getName(), scriptResult);
+                        addStepOutputToParameters(
+                                runtimeParameters, scriptStep.getName(), scriptResult);
+                    }
+                    return scriptResult;
+                } catch (Exception e) {
+                    TelemetryBootstrap.recordError(stepSpan, e);
+                    throw e;
+                } finally {
+                    double scriptDurationSec =
+                            (System.nanoTime() - scriptStartNanos) / 1_000_000_000.0;
+                    scriptTelemetry.getMetrics().recordStep(
+                            "script", namespace, scriptDurationSec);
+                    TelemetryBootstrap.endSpan(stepSpan);
+                }
+            }
+            default -> {
+                // Ignore unsupported step types
+                return null;
+            }
         }
-        return new StepExecutionResult(lastResult, stepContext);
     }
 
     /**
@@ -690,7 +706,7 @@ public class OperationStepExecutor {
                 throw new IllegalArgumentException(
                         "Invalid call for " + entityLabel + ": " + call.getOperation());
             }
-            return found.invoke();
+            return Executions.invoke(found);
         } else if (steps != null && !steps.isEmpty()) {
             return executeSteps(steps, parameters, namespace).lastResult;
         } else {
