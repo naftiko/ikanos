@@ -183,8 +183,8 @@ class McpTasksIntegrationTest {
     }
 
     @Test
-    void toolsCallShouldAnswerSynchronouslyForASyncFlow() throws Exception {
-        McpServerAdapter adapter = load(clearanceCapability(MEMORY, "sync"));
+    void toolsCallShouldAnswerInlineForAnInlineFlow() throws Exception {
+        McpServerAdapter adapter = load(clearanceCapability(MEMORY, "inline"));
 
         JsonNode result = dispatch(adapter, "tools/call", CLEAR, true).path("result");
 

@@ -1078,9 +1078,9 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["sync", "task"],
-          "default": "sync",
-          "description": "`sync`: the caller waits for the result. `task`: the caller may receive a task handle."
+          "enum": ["inline", "task"],
+          "default": "inline",
+          "description": "`inline`: the result comes back in the response to the call. `task`: the caller may receive a task handle and poll for the result."
         },
         "expectedDurationMs": {
           "type": "integer",

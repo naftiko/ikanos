@@ -22,8 +22,8 @@ package io.ikanos.spec.aggregates;
  */
 public class InteractionSpec {
 
-    /** The default mode: the caller waits for the result. */
-    public static final String MODE_SYNC = "sync";
+    /** The default mode: the result comes back in the response to the call. */
+    public static final String MODE_INLINE = "inline";
 
     /** The caller may receive a task handle and poll for the result. */
     public static final String MODE_TASK = "task";

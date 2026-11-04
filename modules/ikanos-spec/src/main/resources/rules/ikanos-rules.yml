@@ -225,7 +225,7 @@ rules:
       `semantics.interaction.mode: task` lets an MCP client receive a task
       handle and poll for the result. The task must be kept somewhere, so the
       capability needs `durability: { mode: memory }` (or above) on its
-      control port. Under `none`, the engine answers every call synchronously.
+      control port. Under `none`, the engine answers every call inline.
     severity: error
     recommended: true
     given: "$"
