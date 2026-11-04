@@ -25,7 +25,11 @@ for line in (results / "samples.csv").read_text().splitlines():
 steps = {}
 for line in (results / "steps.csv").read_text().splitlines() if (results / "steps.csv").exists() else []:
     phase, gc_before, gc_after, ok_before, ok_after, recovery = line.split(";")
-    steps[phase] = (float(gc_after) - float(gc_before), (float(ok_after) - float(ok_before)) / DURATION, recovery)
+    # A counter read as 0 means the Control Port didn't answer: GC time is never 0 once the JVM runs, and the
+    # request count only drops when the reading failed.
+    gc = float(gc_after) - float(gc_before) if float(gc_before) and float(gc_after) else None
+    ok = (float(ok_after) - float(ok_before)) / DURATION if float(ok_after) >= float(ok_before) and float(ok_after) else None
+    steps[phase] = (gc, ok, recovery)
 
 
 def figures(phase):

@@ -3,7 +3,7 @@
 A first baseline from [`run.sh`](run.sh), on 2026-11-04, with the jar of `main` plus the JVM metrics of issue
 #737 (Java 21, Temurin, Alpine image).
 
-**Where it ran:** Docker Desktop on an Apple Silicon Mac. The Docker VM has 15 CPUs and 7.9 GB, and k6 and nginx
+**Where it ran:** Docker Desktop on an Apple Silicon Mac. The Docker VM has 15 CPUs and 7.7 GiB, and k6 and nginx
 run in the same VM as Ikanos, so at high rates they compete with it for the VM's CPUs. Ikanos had fixed CPU and
 memory limits and **no swap** (`memswap_limit` = `mem_limit`, as in Kubernetes), but the host was not dedicated:
 treat these figures as an order of magnitude. The issue asks for a dedicated, resource-fixed machine for the
@@ -43,7 +43,7 @@ starts with the environment and explains its columns. The main columns:
 | /fleet | 25 | 25.0 | 25.0 | 0 | 19.3 | 21.1 | 0.0% | 48 / 51 | 231 | 112 | 55 | 77 | 3.0 | 0 |
 | /fleet | 30 | 30.0 | 30.0 | 0 | 18.2 | 19.8 | 0.0% | 56 / 66 | 232 | 113 | 54 | 76 | 3.5 | 0 |
 | /fleet | 35 | 2.4 | no answer | 1656 | 17.4 | 681.5 | 48.8% | 94 / 102 | 259 | 119 | 85 | 85 | no answer | 120+ |
-| /fleet | 40 | 0.0 | 0.0 | 2221 | – | – | 100.0% | 100 / 102 | 271 | no answer | no answer | no answer | 0.0 | 120+ |
+| /fleet | 40 | 0.0 | no answer | 2221 | – | – | 100.0% | 100 / 102 | 271 | no answer | no answer | no answer | no answer | 120+ |
 
 "no answer": the Control Port didn't answer during the collapse either.
 
@@ -90,14 +90,15 @@ The highest step tried, 75 req/s, held: the edge at 2 CPUs is above it.
 4. **The collapse is not CPU running out.** At 35 req/s, 35 × 19 ms is 66% of a core, yet Ikanos answered almost
    nothing. Nothing limits how many requests it works on at once (Jetty takes up to 200, with an unbounded queue
    behind), and the more it works on at once, the less it gets done: each large request in progress holds about
-   2 MB of parsed JSON, the heap fills (heap after GC 54 → 85 MiB, out-of-memory errors in the log), and garbage
-   collection takes the CPU. The edge is unstable: in separate tests, 25 req/s held for two minutes, then flipped
+   2 MB of parsed JSON, and the heap fills: heap after GC 54 → 85 MiB, 993 log lines with an OutOfMemoryError.
+   The Control Port stopped answering during the collapse, so this run couldn't read the GC time; in separate
+   tests it reached 79–99% of the time. The edge is unstable: in separate tests, 25 req/s held for two minutes, then flipped
    after one short GC pause. A cold JVM can collapse at a rate it holds once warm: a first 2-CPU run, warmed
    up directly at its step's rate, collapsed even at 40 req/s, and the same steps after a gentle warm-up all held.
 5. **It doesn't recover by itself.** After a collapse, Ikanos still answered nothing 120 s after the load
    stopped (and 20 minutes in a separate test): it keeps working on requests whose clients have already left.
-   Meanwhile the Control Port's `/health` stays green, so a Kubernetes liveness probe on it would not restart
-   the pod.
+   The Control Port isn't a reliable signal of it: in separate tests `/health/live` sometimes still answered 200
+   (after up to 13 s) while the API answered nothing, and sometimes timed out too.
 6. **A bigger heap only moves the edge a little.** With 75% of 1 GB, 40 req/s mostly held (with a 3.8 s p99 and
    dropped requests), and the container used 858 of its 1,024 MiB. At 512 MB, 75% would leave 128 MiB for
    everything outside the heap, which already takes about 140 MiB under load: Kubernetes would kill the
@@ -124,7 +125,7 @@ These hold until Ikanos limits the requests it works on at once; see Next.
 - **Raise the heap only with the memory to match.** `-XX:MaxRAMPercentage=75` fits a 1Gi limit (858 MiB used
   under load), not 512Mi. At 512Mi, keep the default.
 - **Probe the API, not only `/health`.** A liveness probe that calls a cheap operation of the capability restarts
-  a collapsed pod; `/health` alone doesn't see the collapse.
+  a collapsed pod; `/health` doesn't reliably see the collapse.
 
 ## Next
 
