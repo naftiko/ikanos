@@ -1,2 +1,3 @@
-# Benchmark runs: run.sh writes one folder per run; results worth keeping go in the README.
+# Benchmark runs: run.sh writes one folder per run here. The summary.md of a run that RESULTS.md cites is
+# copied to runs/, so that its figures can be checked.
 results/
