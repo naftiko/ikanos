@@ -22,6 +22,7 @@ services:
       - ./capability.yml:/capability/capability.yml:ro
     cpus: ${IKANOS_CPUS:-1}
     mem_limit: ${IKANOS_MEMORY:-512m}
+    memswap_limit: ${IKANOS_MEMORY:-512m}   # no swap, like Kubernetes: mem_limit alone allows as much swap again
     ports:
       - "8080:8080"   # the REST adapter under load
       - "9090:9090"   # the Control Port: /health, /metrics (the observability demo scrapes it)
