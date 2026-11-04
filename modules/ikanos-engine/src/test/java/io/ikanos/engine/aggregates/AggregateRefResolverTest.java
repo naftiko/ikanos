@@ -28,6 +28,8 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.StepOutputMappingSpec;
 
 /**
  * Unit tests for AggregateRefResolver — ref resolution, merge semantics, hints derivation.
@@ -267,6 +269,113 @@ public class AggregateRefResolverTest {
         resolver.resolveRestOperationRef(op, map);
 
         assertNull(op.getCall(), "call should not be copied — resolved at runtime via aggregate flow");
+    }
+
+    // ── execution fields next to ref (#911) ──
+
+    @Test
+    void resolveMcpToolRefShouldRejectCallNextToRef() {
+        McpServerToolSpec tool = new McpServerToolSpec("list-other", null, "List other");
+        tool.setRef("data.get-data");
+        tool.setCall(new ServerCallSpec("mock-api.list-other"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveMcpToolRef(tool, flowMapWithCall()));
+
+        assertEquals("MCP tool 'list-other' uses 'ref: data.get-data', so it cannot also declare"
+                + " 'call:'. The flow runs instead: remove 'call:' or 'ref:'.", e.getMessage(),
+                "#911: a call next to ref must fail, not be silently ignored");
+    }
+
+    @Test
+    void resolveMcpToolRefShouldRejectStepsNextToRef() {
+        McpServerToolSpec tool = new McpServerToolSpec("list-other", null, "List other");
+        tool.setRef("data.get-data");
+        tool.setSteps(Map.of("list",
+                new OperationStepCallSpec("list", "mock-api.list-other")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveMcpToolRef(tool, flowMapWithCall()));
+
+        assertTrue(e.getMessage().contains("cannot also declare 'steps:'"),
+                "#911: steps next to ref must fail, not be silently ignored: " + e.getMessage());
+    }
+
+    @Test
+    void resolveMcpToolRefShouldRejectMappingsNextToRef() {
+        McpServerToolSpec tool = new McpServerToolSpec("list-other", null, "List other");
+        tool.setRef("data.get-data");
+        tool.getMappings().add(new StepOutputMappingSpec("items", "$.list.items"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveMcpToolRef(tool, flowMapWithCall()));
+
+        assertTrue(e.getMessage().contains("cannot also declare 'mappings:'"),
+                "#911: mappings next to ref must fail, not be silently ignored: "
+                        + e.getMessage());
+    }
+
+    @Test
+    void resolveRestOperationRefShouldRejectCallNextToRef() {
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setName("list-other");
+        op.setRef("data.get-data");
+        op.setCall(new ServerCallSpec("mock-api.list-other"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveRestOperationRef(op, flowMapWithCall()));
+
+        assertEquals("REST operation 'list-other' uses 'ref: data.get-data', so it cannot also"
+                + " declare 'call:'. The flow runs instead: remove 'call:' or 'ref:'.",
+                e.getMessage(), "#911: a call next to ref must fail, not be silently ignored");
+    }
+
+    @Test
+    void resolveRestOperationRefShouldRejectStepsNextToRef() {
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setName("list-other");
+        op.setRef("data.get-data");
+        op.setSteps(Map.of("list",
+                new OperationStepCallSpec("list", "mock-api.list-other")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveRestOperationRef(op, flowMapWithCall()));
+
+        assertTrue(e.getMessage().contains("cannot also declare 'steps:'"),
+                "#911: steps next to ref must fail, not be silently ignored: " + e.getMessage());
+    }
+
+    @Test
+    void resolveRestOperationRefShouldRejectMappingsNextToRef() {
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setName("list-other");
+        op.setRef("data.get-data");
+        op.getMappings().add(new StepOutputMappingSpec("items", "$.list.items"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> resolver.resolveRestOperationRef(op, flowMapWithCall()));
+
+        assertTrue(e.getMessage().contains("cannot also declare 'mappings:'"),
+                "#911: mappings next to ref must fail, not be silently ignored: "
+                        + e.getMessage());
+    }
+
+    @Test
+    void resolveMcpToolRefShouldAcceptWithNextToRef() {
+        McpServerToolSpec tool = new McpServerToolSpec("get-data", null, "Get data");
+        tool.setRef("data.get-data");
+        tool.setWith(Map.of("id", "{{key}}"));
+
+        assertDoesNotThrow(() -> resolver.resolveMcpToolRef(tool, flowMapWithCall()),
+                "with adapts the tool's inputs to the flow and stays allowed next to ref");
+    }
+
+    private static Map<String, AggregateFlowSpec> flowMapWithCall() {
+        AggregateFlowSpec fn = new AggregateFlowSpec();
+        fn.setName("get-data");
+        fn.setDescription("Get data");
+        fn.setCall(new ServerCallSpec("mock-api.get-data"));
+        return Map.of("data.get-data", fn);
     }
 
     // ── deriveHints ──

@@ -409,6 +409,19 @@ class FlowCompositionTest {
     }
 
     @Test
+    void exposedToolDeclaringCallNextToRefShouldFailAtLoad() {
+        String exposes = MCP_EXPOSES.replace("ref: payments.checkout",
+                "ref: payments.checkout\n          call: canned.echo");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> capability(cannedConsumes(200) + shimAggregates() + exposes));
+
+        assertEquals("MCP tool 'checkout' uses 'ref: payments.checkout', so it cannot also"
+                + " declare 'call:'. The flow runs instead: remove 'call:' or 'ref:'.",
+                error.getMessage(), "#911: the tool's call must not be silently ignored");
+    }
+
+    @Test
     void callDepthBeyondTheConfiguredLimitShouldFailNamingTheChain() throws Exception {
         String aggregates = """
                   aggregates:
