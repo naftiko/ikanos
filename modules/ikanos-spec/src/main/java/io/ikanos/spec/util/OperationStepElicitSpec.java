@@ -51,8 +51,9 @@ public class OperationStepElicitSpec extends OperationStepSpec {
 
     /**
      * The fields asked for, by name: each value is a JSON Schema property (a primitive
-     * {@code type}, optionally {@code description}, {@code enum}, {@code format}). Every field
-     * is required.
+     * {@code type}, optionally a {@code description}; a string field may also declare an
+     * {@code enum} of strings or a {@code format} among email, uri, date, date-time). Every
+     * field is required.
      */
     public Map<String, Object> getFields() {
         return fields;
