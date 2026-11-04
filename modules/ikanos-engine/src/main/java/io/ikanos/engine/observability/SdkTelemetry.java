@@ -38,17 +38,21 @@ final class SdkTelemetry {
     private final OpenTelemetry openTelemetry;
     private final PullMetricReader metricReader;
     private final DelegatingSpanProcessor spanProcessorSlot;
+    // The JVM metrics' recorder, or null when they aren't recorded (#737).
+    private final AutoCloseable runtimeMetrics;
 
     private SdkTelemetry(OpenTelemetry openTelemetry, PullMetricReader metricReader,
-            DelegatingSpanProcessor spanProcessorSlot) {
+            DelegatingSpanProcessor spanProcessorSlot, AutoCloseable runtimeMetrics) {
         this.openTelemetry = openTelemetry;
         this.metricReader = metricReader;
         this.spanProcessorSlot = spanProcessorSlot;
+        this.runtimeMetrics = runtimeMetrics;
     }
 
     /**
      * Builds an auto-configured SDK with a {@link PullMetricReader} (Prometheus scraping via the
-     * Control Port) and an empty span-processor slot (trace capture, wired later).
+     * Control Port) and an empty span-processor slot (trace capture, wired later), and starts the
+     * JVM metrics on it when {@link RuntimeMetrics} is available.
      */
     static SdkTelemetry autoConfigure(String serviceName, Map<String, String> properties) {
         PullMetricReader pullReader = new PullMetricReader();
@@ -65,11 +69,16 @@ final class SdkTelemetry {
                         tracerProviderBuilder.addSpanProcessor(slot))
                 .build()
                 .getOpenTelemetrySdk();
-        return new SdkTelemetry(otel, pullReader, slot);
+        AutoCloseable runtimeMetrics = RuntimeMetrics.available() ? RuntimeMetrics.start(otel) : null;
+        return new SdkTelemetry(otel, pullReader, slot, runtimeMetrics);
     }
 
     OpenTelemetry openTelemetry() {
         return openTelemetry;
+    }
+
+    boolean recordsRuntimeMetrics() {
+        return runtimeMetrics != null;
     }
 
     /** Serializes all collected metrics in Prometheus exposition text format. */

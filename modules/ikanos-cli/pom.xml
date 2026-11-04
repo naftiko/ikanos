@@ -81,6 +81,11 @@
             <artifactId>opentelemetry-logback-appender-1.0</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-runtime-telemetry</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- Test -->
         <dependency>
