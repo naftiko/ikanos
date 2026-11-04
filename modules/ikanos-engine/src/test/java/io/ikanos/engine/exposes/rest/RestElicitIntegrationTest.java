@@ -50,7 +50,7 @@ class RestElicitIntegrationTest {
                       confirm:
                         type: elicit
                         message: Confirm the departure?
-                        schema:
+                        fields:
                           confirmed:
                             type: boolean
                             description: Whether the departure is confirmed
@@ -75,7 +75,7 @@ class RestElicitIntegrationTest {
                           ask:
                             type: elicit
                             message: Confirm the departure?
-                            schema:
+                            fields:
                               confirmed:
                                 type: boolean
                                 description: Whether the departure is confirmed

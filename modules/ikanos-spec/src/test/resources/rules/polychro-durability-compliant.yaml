@@ -35,7 +35,7 @@ capability:
           confirm:
             type: elicit
             message: Confirm the dangerous-goods declaration
-            schema:
+            fields:
               confirmed:
                 type: boolean
           book-slot:

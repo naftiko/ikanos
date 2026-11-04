@@ -35,7 +35,7 @@ capability:
           confirm:
             type: elicit
             message: Confirm the departure
-            schema:
+            fields:
               confirmed:
                 type: boolean
   exposes:

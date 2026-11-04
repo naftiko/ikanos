@@ -59,7 +59,7 @@ class McpMultiRoundTripIntegrationTest {
                           confirm:
                             type: elicit
                             message: Confirm the departure?
-                            schema:
+                            fields:
                               confirmed:
                                 type: boolean
                                 description: Whether the departure is confirmed
@@ -87,7 +87,7 @@ class McpMultiRoundTripIntegrationTest {
                           confirm:
                             type: elicit
                             message: Publish the departure note?
-                            schema:
+                            fields:
                               confirmed:
                                 type: boolean
                                 description: Whether the note is published
