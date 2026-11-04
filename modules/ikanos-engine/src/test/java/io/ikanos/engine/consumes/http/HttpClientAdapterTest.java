@@ -14,6 +14,9 @@
 package io.ikanos.engine.consumes.http;
 
 import io.ikanos.Capability;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -24,6 +27,7 @@ import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.data.Method;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -217,6 +221,94 @@ public class HttpClientAdapterTest {
                         clientRequest.getResourceRef().toString(), Map.of()));
         assertEquals("Placement is required for apikey authentication (expected: header or query)",
                 ex.getMessage());
+    }
+
+    @Test
+    public void prepareShouldApplyResourceLevelQueryParametersBetweenAdapterAndOperation()
+            throws Exception {
+        Request request = prepare("list-things", Map.of("filter", "a eq 1"));
+
+        assertEquals("https://probe.example/v1/things?res-query=from-resource"
+                + "&%24filter=a+eq+1&op-query=from-operation",
+                request.getResourceRef().toString(),
+                "#909: resource-level query parameters should be sent, after the adapter level"
+                        + " and before the operation level");
+    }
+
+    @Test
+    public void prepareShouldApplyResourceLevelHeader() throws Exception {
+        Request request = prepare("list-things", Map.of("filter", "a eq 1"));
+
+        assertEquals("from-resource", request.getHeaders().getFirstValue("X-Res-Header"),
+                "#909: a resource-level header should be sent");
+    }
+
+    @Test
+    public void prepareShouldLetOperationParameterOverrideResourceParameterWithSameName()
+            throws Exception {
+        Request request = prepare("list-top", Map.of("filter", "a eq 1"));
+
+        assertEquals("https://probe.example/v1/things?res-query=from-operation"
+                + "&%24filter=a+eq+1",
+                request.getResourceRef().toString(),
+                "#909: an operation parameter with the same name and location as a resource"
+                        + " parameter should replace it, not be sent a second time");
+    }
+
+    @Test
+    public void prepareShouldApplyResourceLevelInputParametersToEveryOperation() throws Exception {
+        Request request = prepare("list-other", Map.of("filter", "b eq 2"));
+
+        assertEquals("https://probe.example/v1/things?res-query=from-resource&%24filter=b+eq+2",
+                request.getResourceRef().toString(),
+                "#909: an operation without parameters should still send the resource's");
+    }
+
+    private Request prepare(String operation, Map<String, Object> arguments) throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                resourceParametersSpec());
+        return adapter.prepare(operation, new HashMap<>(arguments)).getRequest();
+    }
+
+    private HttpClientSpec resourceParametersSpec() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      resources:
+                        things:
+                          path: "/things"
+                          inputParameters:
+                            res-query:
+                              in: query
+                              value: "from-resource"
+                            X-Res-Header:
+                              in: header
+                              value: "from-resource"
+                            filter:
+                              in: query
+                              wireName: "$filter"
+                          operations:
+                            list-things:
+                              method: GET
+                              inputParameters:
+                                op-query:
+                                  in: query
+                                  value: "from-operation"
+                            list-other:
+                              method: GET
+                            list-top:
+                              method: GET
+                              inputParameters:
+                                res-query:
+                                  in: query
+                                  value: "from-operation"
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
     }
 
     private Capability getMockCapability(Map<String, Object> bindings) {
