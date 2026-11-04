@@ -5,9 +5,9 @@ groups:
 
       - alert: NaftikoHighErrorRate
         expr: >
-          sum(rate(naftiko_request_errors[5m]))
+          sum(rate(ikanos_request_errors[5m]))
           /
-          clamp_min(sum(rate(naftiko_request_total[5m])), 1)
+          clamp_min(sum(rate(ikanos_request_total[5m])), 1)
           > 0.05
         for: 5m
         labels:
@@ -20,9 +20,9 @@ groups:
 
       - alert: NaftikoCriticalErrorRate
         expr: >
-          sum(rate(naftiko_request_errors[5m]))
+          sum(rate(ikanos_request_errors[5m]))
           /
-          clamp_min(sum(rate(naftiko_request_total[5m])), 1)
+          clamp_min(sum(rate(ikanos_request_total[5m])), 1)
           > 0.20
         for: 2m
         labels:
@@ -38,7 +38,7 @@ groups:
       - alert: NaftikoHighP99Latency
         expr: >
           histogram_quantile(0.99,
-            sum(rate(naftiko_request_duration_seconds_bucket[5m])) by (le)
+            sum(rate(ikanos_request_duration_seconds_bucket[5m])) by (le)
           ) > 2
         for: 5m
         labels:
@@ -52,7 +52,7 @@ groups:
       - alert: NaftikoCriticalP99Latency
         expr: >
           histogram_quantile(0.99,
-            sum(rate(naftiko_request_duration_seconds_bucket[5m])) by (le)
+            sum(rate(ikanos_request_duration_seconds_bucket[5m])) by (le)
           ) > 10
         for: 2m
         labels:
@@ -67,9 +67,9 @@ groups:
 
       - alert: NaftikoConsumedApiHighErrorRate
         expr: >
-          sum(rate(naftiko_http_client_total{http_response_status_code=~"5.."}[5m])) by (server_address)
+          sum(rate(ikanos_http_client_total{http_response_status_code=~"5.."}[5m])) by (server_address)
           /
-          clamp_min(sum(rate(naftiko_http_client_total[5m])) by (server_address), 1)
+          clamp_min(sum(rate(ikanos_http_client_total[5m])) by (server_address), 1)
           > 0.10
         for: 5m
         labels:
@@ -83,7 +83,7 @@ groups:
       - alert: NaftikoConsumedApiHighLatency
         expr: >
           histogram_quantile(0.95,
-            sum(rate(naftiko_http_client_duration_seconds_bucket[5m])) by (le, server_address)
+            sum(rate(ikanos_http_client_duration_seconds_bucket[5m])) by (le, server_address)
           ) > 5
         for: 5m
         labels:
@@ -97,12 +97,12 @@ groups:
       # ── Availability ──
 
       - alert: NaftikoCapabilityDown
-        expr: naftiko_capability_active < 1
+        expr: ikanos_capability_active < 1
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "No active Naftiko capabilities"
           description: >
-            The naftiko_capability_active gauge is {{ $value }}.
+            The ikanos_capability_active gauge is {{ $value }}.
             The capability may have stopped or failed to start.

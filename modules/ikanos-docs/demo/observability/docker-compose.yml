@@ -35,7 +35,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/naftiko.json
     volumes:
-      - ./grafana-naftiko.json:/var/lib/grafana/dashboards/naftiko.json:ro
+      - ./grafana-ikanos.json:/var/lib/grafana/dashboards/naftiko.json:ro
       - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
     restart: unless-stopped

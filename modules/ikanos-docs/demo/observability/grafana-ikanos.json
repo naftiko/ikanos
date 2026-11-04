@@ -45,7 +45,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "naftiko_capability_active",
+          "expr": "ikanos_capability_active",
           "legendFormat": "{{ capability_name }}"
         }
       ]
@@ -69,7 +69,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_total[$__rate_interval]))",
+          "expr": "sum(rate(ikanos_request_total[$__rate_interval]))",
           "legendFormat": "req/s"
         }
       ]
@@ -101,7 +101,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors[$__rate_interval]))",
+          "expr": "sum(rate(ikanos_request_errors[$__rate_interval]))",
           "legendFormat": "err/s"
         }
       ]
@@ -133,7 +133,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(naftiko_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(ikanos_request_duration_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p99"
         }
       ]
@@ -165,7 +165,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors[$__rate_interval])) / clamp_min(sum(rate(naftiko_request_total[$__rate_interval])), 1)",
+          "expr": "sum(rate(ikanos_request_errors[$__rate_interval])) / clamp_min(sum(rate(ikanos_request_total[$__rate_interval])), 1)",
           "legendFormat": "error %"
         }
       ]
@@ -202,8 +202,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_total[$__rate_interval])) by (naftiko_adapter_type)",
-          "legendFormat": "{{ naftiko_adapter_type }}"
+          "expr": "sum(rate(ikanos_request_total[$__rate_interval])) by (ikanos_adapter_type)",
+          "legendFormat": "{{ ikanos_adapter_type }}"
         }
       ]
     },
@@ -231,8 +231,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_request_errors[$__rate_interval])) by (naftiko_adapter_type)",
-          "legendFormat": "{{ naftiko_adapter_type }}"
+          "expr": "sum(rate(ikanos_request_errors[$__rate_interval])) by (ikanos_adapter_type)",
+          "legendFormat": "{{ ikanos_adapter_type }}"
         }
       ]
     },
@@ -260,15 +260,15 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(naftiko_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(ikanos_request_duration_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p50"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(naftiko_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(ikanos_request_duration_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p95"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(naftiko_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(ikanos_request_duration_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p99"
         }
       ]
@@ -297,8 +297,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(naftiko_request_duration_seconds_bucket[$__rate_interval])) by (le, naftiko_operation_id))",
-          "legendFormat": "{{ naftiko_operation_id }}"
+          "expr": "histogram_quantile(0.95, sum(rate(ikanos_request_duration_seconds_bucket[$__rate_interval])) by (le, ikanos_operation_id))",
+          "legendFormat": "{{ ikanos_operation_id }}"
         }
       ]
     },
@@ -333,7 +333,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(naftiko_step_duration_seconds_bucket[$__rate_interval])) by (le, step_type))",
+          "expr": "histogram_quantile(0.95, sum(rate(ikanos_step_duration_seconds_bucket[$__rate_interval])) by (le, step_type))",
           "legendFormat": "{{ step_type }}"
         }
       ]
@@ -362,8 +362,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(naftiko_step_duration_seconds_bucket[$__rate_interval])) by (le, naftiko_namespace))",
-          "legendFormat": "{{ naftiko_namespace }}"
+          "expr": "histogram_quantile(0.95, sum(rate(ikanos_step_duration_seconds_bucket[$__rate_interval])) by (le, ikanos_namespace))",
+          "legendFormat": "{{ ikanos_namespace }}"
         }
       ]
     },
@@ -398,7 +398,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_http_client_total[$__rate_interval])) by (server_address)",
+          "expr": "sum(rate(ikanos_http_client_total[$__rate_interval])) by (server_address)",
           "legendFormat": "{{ server_address }}"
         }
       ]
@@ -427,7 +427,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(naftiko_http_client_duration_seconds_bucket[$__rate_interval])) by (le, server_address))",
+          "expr": "histogram_quantile(0.95, sum(rate(ikanos_http_client_duration_seconds_bucket[$__rate_interval])) by (le, server_address))",
           "legendFormat": "{{ server_address }}"
         }
       ]
@@ -456,10 +456,98 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(naftiko_http_client_total[$__rate_interval])) by (http_response_status_code)",
+          "expr": "sum(rate(ikanos_http_client_total[$__rate_interval])) by (http_response_status_code)",
           "legendFormat": "{{ http_response_status_code }}"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "JVM Resources",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Recent CPU use of the Ikanos process, in % of one core, against the cores the JVM can use.",
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "id": 40,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "jvm_cpu_recent_utilization * 100", "legendFormat": "ikanos process", "refId": "A" },
+        { "expr": "jvm_cpu_count * 100", "legendFormat": "available", "refId": "B" }
+      ],
+      "title": "CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Java heap: what is used, what the JVM reserved, and its maximum (-Xmx, or a share of the container memory).",
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "id": 41,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum(jvm_memory_used{jvm_memory_type=\"heap\"})", "legendFormat": "used", "refId": "A" },
+        { "expr": "sum(jvm_memory_committed{jvm_memory_type=\"heap\"})", "legendFormat": "committed", "refId": "B" },
+        { "expr": "sum(jvm_memory_limit{jvm_memory_type=\"heap\"})", "legendFormat": "max", "refId": "C" }
+      ],
+      "title": "Heap",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Metaspace, compiled code and class space: memory outside the heap, which also counts against the container limit.",
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 },
+      "id": 42,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum by (jvm_memory_pool_name) (jvm_memory_used{jvm_memory_type=\"non_heap\"})", "legendFormat": "{{ jvm_memory_pool_name }}", "refId": "A" }
+      ],
+      "title": "Non-heap memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Share of time spent in garbage collection, by collector.",
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 },
+      "id": 43,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum by (jvm_gc_name) (rate(jvm_gc_duration_sum[$__rate_interval]))", "legendFormat": "{{ jvm_gc_name }}", "refId": "A" }
+      ],
+      "title": "Garbage collection",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Live JVM threads.",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
+      "id": 44,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum(jvm_thread_count)", "legendFormat": "threads", "refId": "A" }
+      ],
+      "title": "Threads",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Classes currently loaded.",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
+      "id": 45,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "jvm_class_count", "legendFormat": "loaded", "refId": "A" }
+      ],
+      "title": "Classes loaded",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
