@@ -3003,7 +3003,7 @@
             },
             "fields": {
               "type": "object",
-              "description": "The fields asked for, by name. Each value is a JSON Schema property with a primitive `type` (string, number, integer, boolean), optionally `description`, `enum` or `format`. Every field is required.",
+              "description": "The fields asked for, by name. Each value is a JSON Schema property with a primitive `type` (string, number, integer, boolean) and optionally a `description`. A string field may also declare an `enum` of strings, or a `format` among those MCP elicitation accepts (email, uri, date, date-time). Every field is required.",
               "minProperties": 1,
               "additionalProperties": {
                 "type": "object",
@@ -3016,14 +3016,45 @@
                     "type": "string"
                   },
                   "enum": {
-                    "type": "array"
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
                   },
                   "format": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": ["email", "uri", "date", "date-time"]
                   }
                 },
                 "required": ["type"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "required": ["enum"]
+                    },
+                    "then": {
+                      "properties": {
+                        "type": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": ["format"]
+                    },
+                    "then": {
+                      "properties": {
+                        "type": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  }
+                ]
               }
             }
           },
