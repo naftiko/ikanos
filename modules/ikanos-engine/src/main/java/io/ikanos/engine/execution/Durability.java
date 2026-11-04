@@ -28,8 +28,8 @@ import java.time.format.DateTimeParseException;
  *
  * <p>{@code none} needs nothing. {@code memory} opens the {@code memory} store, discovered with
  * {@code ServiceLoader}; when its module is missing, the capability fails at load with an error
- * naming the module, and never falls back to {@code none}. {@code local} and {@code distributed}
- * need store modules that later increments ship, so they fail at load for now.</p>
+ * naming the module, and never falls back to {@code none}. {@code local} needs the H2 store module,
+ * which a later increment ships, so it fails at load for now.</p>
  */
 public final class Durability {
 
@@ -84,13 +84,12 @@ public final class Durability {
                         Clock.systemUTC(), UNPINNED), retentionMs(spec.getRetention()));
             }
             case DurabilitySpec.MODE_LOCAL:
-            case DurabilitySpec.MODE_DISTRIBUTED:
-                throw new IllegalStateException("Durability mode '" + mode + "' is not available "
-                        + "in this release: its store module ships with a later increment. Use "
+                throw new IllegalStateException("Durability mode 'local' is not available "
+                        + "in this release: its H2 store module ships with a later increment. Use "
                         + "'memory' or 'none'.");
             default:
                 throw new IllegalArgumentException("Unknown durability mode '" + mode
-                        + "'; expected none, memory, local or distributed");
+                        + "'; expected none, memory or local");
         }
     }
 
