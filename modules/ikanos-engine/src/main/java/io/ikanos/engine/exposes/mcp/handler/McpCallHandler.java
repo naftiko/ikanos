@@ -169,8 +169,8 @@ public abstract class McpCallHandler {
             schema.put("type", "object");
             ObjectNode properties = schema.putObject("properties");
             ArrayNode required = schema.putArray("required");
-            if (question.step().getSchema() != null) {
-                question.step().getSchema().forEach((name, property) -> {
+            if (question.step().getFields() != null) {
+                question.step().getFields().forEach((name, property) -> {
                     properties.set(name, MAPPER.valueToTree(property));
                     required.add(name);
                 });

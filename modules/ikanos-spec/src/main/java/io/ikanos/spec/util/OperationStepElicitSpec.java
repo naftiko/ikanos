@@ -28,16 +28,16 @@ import java.util.Map;
 public class OperationStepElicitSpec extends OperationStepSpec {
 
     private volatile String message;
-    private volatile Map<String, Object> schema;
+    private volatile Map<String, Object> fields;
 
     public OperationStepElicitSpec() {
         this(null, null, null);
     }
 
-    public OperationStepElicitSpec(String name, String message, Map<String, Object> schema) {
+    public OperationStepElicitSpec(String name, String message, Map<String, Object> fields) {
         super("elicit", name);
         this.message = message;
-        this.schema = schema != null ? new LinkedHashMap<>(schema) : null;
+        this.fields = fields != null ? new LinkedHashMap<>(fields) : null;
     }
 
     /** The question shown to the caller; the step name when absent. */
@@ -54,11 +54,11 @@ public class OperationStepElicitSpec extends OperationStepSpec {
      * {@code type}, optionally {@code description}, {@code enum}, {@code format}). Every field
      * is required.
      */
-    public Map<String, Object> getSchema() {
-        return schema;
+    public Map<String, Object> getFields() {
+        return fields;
     }
 
-    public void setSchema(Map<String, Object> schema) {
-        this.schema = schema != null ? new LinkedHashMap<>(schema) : null;
+    public void setFields(Map<String, Object> fields) {
+        this.fields = fields != null ? new LinkedHashMap<>(fields) : null;
     }
 }
