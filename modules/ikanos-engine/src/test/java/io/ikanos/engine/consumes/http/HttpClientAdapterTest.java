@@ -228,8 +228,8 @@ public class HttpClientAdapterTest {
             throws Exception {
         Request request = prepare("list-things", Map.of("filter", "a eq 1"));
 
-        assertEquals("https://probe.example/v1/things?res-query=from-resource"
-                + "&%24filter=a+eq+1&op-query=from-operation",
+        assertEquals("https://probe.example/v1/things?adapter-query=from-adapter&top=10"
+                + "&res-query=from-resource&%24filter=a+eq+1&op-query=from-operation",
                 request.getResourceRef().toString(),
                 "#909: resource-level query parameters should be sent, after the adapter level"
                         + " and before the operation level");
@@ -244,22 +244,23 @@ public class HttpClientAdapterTest {
     }
 
     @Test
-    public void prepareShouldLetOperationParameterOverrideResourceParameterWithSameName()
+    public void prepareShouldLetOperationParameterOverrideBroaderParametersWithSameName()
             throws Exception {
         Request request = prepare("list-top", Map.of("filter", "a eq 1"));
 
-        assertEquals("https://probe.example/v1/things?%24filter=a+eq+1"
-                + "&res-query=from-operation",
+        assertEquals("https://probe.example/v1/things?adapter-query=from-adapter"
+                + "&%24filter=a+eq+1&res-query=from-operation&top=5",
                 request.getResourceRef().toString(),
-                "#909: an operation parameter with the same name and location as a resource"
-                        + " parameter should replace it, not be sent a second time");
+                "#909: an operation parameter with the same name and location as an adapter or"
+                        + " resource parameter should replace it, not be sent a second time");
     }
 
     @Test
     public void prepareShouldApplyResourceLevelInputParametersToEveryOperation() throws Exception {
         Request request = prepare("list-other", Map.of("filter", "b eq 2"));
 
-        assertEquals("https://probe.example/v1/things?res-query=from-resource&%24filter=b+eq+2",
+        assertEquals("https://probe.example/v1/things?adapter-query=from-adapter&top=10"
+                + "&res-query=from-resource&%24filter=b+eq+2",
                 request.getResourceRef().toString(),
                 "#909: an operation without parameters should still send the resource's");
     }
@@ -269,10 +270,26 @@ public class HttpClientAdapterTest {
             throws Exception {
         Request request = prepare("list-dependent", Map.of());
 
-        assertEquals("https://probe.example/v1/things?status=active&res-query=active",
+        assertEquals("https://probe.example/v1/things?adapter-query=from-adapter&top=10"
+                + "&status=active&res-query=active",
                 request.getResourceRef().toString(),
                 "#909: an operation parameter that replaces a resource parameter should be"
                         + " resolved in its own position, after the parameters it uses");
+    }
+
+    @Test
+    public void prepareShouldResolveBroaderParameterBeforeANarrowerOneReplacesWhatItUses()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                adapterDependencySpec());
+
+        Request request = adapter.prepare("list", new HashMap<>()).getRequest();
+
+        assertEquals("https://probe.example/v1/things?q=active&status=inactive",
+                request.getResourceRef().toString(),
+                "#909: parameters should be resolved in declaration order, as before the merge,"
+                        + " so an adapter template still sees the adapter value it uses; only"
+                        + " the replaced parameter should not be sent");
     }
 
     private Request prepare(String operation, Map<String, Object> arguments) throws Exception {
@@ -289,6 +306,13 @@ public class HttpClientAdapterTest {
                     - type: http
                       namespace: api
                       baseUri: "https://probe.example/v1"
+                      inputParameters:
+                        adapter-query:
+                          in: query
+                          value: "from-adapter"
+                        top:
+                          in: query
+                          value: "10"
                       resources:
                         things:
                           path: "/things"
@@ -317,6 +341,9 @@ public class HttpClientAdapterTest {
                                 res-query:
                                   in: query
                                   value: "from-operation"
+                                top:
+                                  in: query
+                                  value: "5"
                             list-dependent:
                               method: GET
                               inputParameters:
@@ -326,6 +353,36 @@ public class HttpClientAdapterTest {
                                 res-query:
                                   in: query
                                   value: "{{status}}"
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
+    private HttpClientSpec adapterDependencySpec() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      inputParameters:
+                        status:
+                          in: query
+                          value: "active"
+                        q:
+                          in: query
+                          value: "{{status}}"
+                      resources:
+                        things:
+                          path: "/things"
+                          operations:
+                            list:
+                              method: GET
+                              inputParameters:
+                                status:
+                                  in: query
+                                  value: "inactive"
                 """.formatted(VersionHelper.getSchemaVersion());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
