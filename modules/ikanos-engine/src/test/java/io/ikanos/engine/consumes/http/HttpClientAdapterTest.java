@@ -248,8 +248,8 @@ public class HttpClientAdapterTest {
             throws Exception {
         Request request = prepare("list-top", Map.of("filter", "a eq 1"));
 
-        assertEquals("https://probe.example/v1/things?res-query=from-operation"
-                + "&%24filter=a+eq+1",
+        assertEquals("https://probe.example/v1/things?%24filter=a+eq+1"
+                + "&res-query=from-operation",
                 request.getResourceRef().toString(),
                 "#909: an operation parameter with the same name and location as a resource"
                         + " parameter should replace it, not be sent a second time");
@@ -262,6 +262,17 @@ public class HttpClientAdapterTest {
         assertEquals("https://probe.example/v1/things?res-query=from-resource&%24filter=b+eq+2",
                 request.getResourceRef().toString(),
                 "#909: an operation without parameters should still send the resource's");
+    }
+
+    @Test
+    public void prepareShouldResolveOverridingParameterAfterTheParametersItDependsOn()
+            throws Exception {
+        Request request = prepare("list-dependent", Map.of());
+
+        assertEquals("https://probe.example/v1/things?status=active&res-query=active",
+                request.getResourceRef().toString(),
+                "#909: an operation parameter that replaces a resource parameter should be"
+                        + " resolved in its own position, after the parameters it uses");
     }
 
     private Request prepare(String operation, Map<String, Object> arguments) throws Exception {
@@ -306,6 +317,15 @@ public class HttpClientAdapterTest {
                                 res-query:
                                   in: query
                                   value: "from-operation"
+                            list-dependent:
+                              method: GET
+                              inputParameters:
+                                status:
+                                  in: query
+                                  value: "active"
+                                res-query:
+                                  in: query
+                                  value: "{{status}}"
                 """.formatted(VersionHelper.getSchemaVersion());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
