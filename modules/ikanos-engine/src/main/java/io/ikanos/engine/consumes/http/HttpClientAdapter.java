@@ -34,6 +34,8 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import io.ikanos.spec.util.IkanosMappers;
@@ -190,7 +192,7 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Build a Restlet request for one consumed operation: URI templating, client- and
+     * Build a Restlet request for one consumed operation: URI templating, client-, resource- and
      * operation-level input parameters, body, authentication and default headers.
      *
      * @return the prepared invocation, or {@code null} when the operation is not declared
@@ -214,13 +216,14 @@ public class HttpClientAdapter extends ClientAdapter {
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
         clientRequest.setResourceRef(new Reference(clientResUri));
 
-        // Apply client-level and operation-level input parameters
+        // Apply client-level, resource-level and operation-level input parameters
         // NOTE: setResourceRef must be called first so that query params
         // (in: query) are appended to the correct base URI, not to null.
         Resolver.resolveInputParametersToRequest(clientRequest,
-                getHttpClientSpec().getInputParameters(), parameters);
-        Resolver.resolveInputParametersToRequest(clientRequest,
-                clientOp.getInputParameters(), parameters);
+                mergeInputParameters(getHttpClientSpec().getInputParameters(),
+                        clientOp.getParentResource().getInputParameters(),
+                        clientOp.getInputParameters()),
+                parameters);
 
         List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
@@ -283,6 +286,25 @@ public class HttpClientAdapter extends ClientAdapter {
                 parameters);
         setHeaders(clientRequest);
         return new HttpInvocation(this, clientOp, clientRequest);
+    }
+
+    /**
+     * Merges the adapter-, resource- and operation-level input parameters, in that order. A
+     * parameter with the same name and location as one of a broader level replaces it in place,
+     * as in OpenAPI, so it is sent once (#909).
+     */
+    @SafeVarargs
+    static List<InputParameterSpec> mergeInputParameters(List<InputParameterSpec>... levels) {
+        Map<String, InputParameterSpec> merged = new LinkedHashMap<>();
+        for (List<InputParameterSpec> level : levels) {
+            if (level != null) {
+                for (InputParameterSpec spec : level) {
+                    String in = spec.getIn() == null ? "body" : spec.getIn().toLowerCase();
+                    merged.put(in + ":" + spec.getName(), spec);
+                }
+            }
+        }
+        return new ArrayList<>(merged.values());
     }
 
     /**
