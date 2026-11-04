@@ -16,10 +16,17 @@
  *                       tool with `hints.readOnly: true`, or a flow declaring
  *                       `semantics.safe: true`. Targets in an imported namespace
  *                       are out of reach of a single-document lint and skipped;
- *   - "mode-available": the mode is `local` or `distributed`, whose store modules
- *                       are not available yet: the engine rejects the capability.
+ *   - "mode-available": the mode is `local`, whose H2 store module is not
+ *                       available yet: the engine rejects the capability;
+ *   - "sealing-key-binds": `durability.sealingKey` is not a single Mustache
+ *                       expression naming a key declared in `binds` or
+ *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`);
+ *   - "elicit-over-rest": a REST operation whose steps, or whose `ref:` or
+ *                       `call:` flow (and the flows it calls), include an
+ *                       `elicit` step, which REST cannot serve yet.
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
 
 export default function durability(targetVal, options) {
   if (!targetVal || typeof targetVal !== "object") {
@@ -42,16 +49,170 @@ export default function durability(targetVal, options) {
     return control.mode === "none" ? checkElicitSafety(capability) : [];
   }
   if (check === "mode-available") {
-    if (control.mode === "local" || control.mode === "distributed") {
+    if (control.mode === "local") {
       return [{
-        message: "Durability mode '" + control.mode + "' is not available yet: its store "
-          + "module ships with a later release. Use 'memory' or 'none'.",
+        message: "Durability mode 'local' is not available yet: its H2 store module ships "
+          + "with a later release. Use 'memory' or 'none'.",
         path: control.path.concat("durability", "mode"),
       }];
     }
     return [];
   }
+  if (check === "sealing-key-binds") {
+    return checkSealingKey(targetVal, control);
+  }
+  if (check === "elicit-over-rest") {
+    return checkElicitOverRest(capability);
+  }
   return;
+}
+
+// Messages never quote the key: it may be a secret, and the linter could read double braces
+// as a placeholder.
+function checkSealingKey(doc, control) {
+  const durability = control.adapter && control.adapter.durability;
+  const declared = durability && durability.sealingKey;
+  if (typeof declared !== "string" || declared.trim() === "") {
+    return [];
+  }
+  const path = control.path.concat("durability", "sealingKey");
+  const match = declared.match(MUSTACHE_PATTERN);
+  if (!match) {
+    return [{
+      message: "durability.sealingKey is written into the capability. Reference a binding "
+        + "key instead, such as IKANOS_SEALING_KEY in double braces, so the key stays out of "
+        + "source control.",
+      path,
+    }];
+  }
+  const bindings = collectBindings(doc);
+  const ns = match[1];
+  const key = match[2];
+  if (ns !== undefined) {
+    const keys = bindings.byNamespace.get(ns);
+    if (!keys) {
+      return [{
+        message: "durability.sealingKey references binding namespace '" + ns
+          + "', but no matching entry exists in 'binds' or 'capability.binds'.",
+        path,
+      }];
+    }
+    if (!keys.has(key)) {
+      return [{
+        message: "durability.sealingKey references key '" + key + "' on binding '" + ns
+          + "', but that key is not declared. Add it to binds[" + ns + "].keys.",
+        path,
+      }];
+    }
+    return [];
+  }
+  if (!bindings.allKeys.has(key)) {
+    return [{
+      message: "durability.sealingKey references key '" + key + "', but no binding declares "
+        + "it. Add it to the keys of an entry in 'binds'.",
+      path,
+    }];
+  }
+  return [];
+}
+
+function collectBindings(doc) {
+  const result = { byNamespace: new Map(), allKeys: new Set() };
+  const all = [];
+  if (Array.isArray(doc.binds)) {
+    all.push(...doc.binds);
+  }
+  if (doc.capability && Array.isArray(doc.capability.binds)) {
+    all.push(...doc.capability.binds);
+  }
+  for (const bind of all) {
+    if (!bind || typeof bind !== "object" || typeof bind.namespace !== "string") {
+      continue;
+    }
+    const keys = result.byNamespace.get(bind.namespace) || new Set();
+    if (bind.keys && typeof bind.keys === "object") {
+      for (const k of Object.keys(bind.keys)) {
+        keys.add(k);
+        result.allKeys.add(k);
+      }
+    }
+    result.byNamespace.set(bind.namespace, keys);
+  }
+  return result;
+}
+
+function hasElicit(steps) {
+  return entries(steps).some((s) => s.value && s.value.type === "elicit");
+}
+
+// Flows that ask for input, directly or through the flows they call.
+function elicitingFlows(capability) {
+  const flows = new Map();
+  for (const { key, flow } of flowsOf(capability)) {
+    flows.set(key, flow);
+  }
+  const memo = new Map();
+  const asks = (key, visiting) => {
+    if (memo.has(key)) {
+      return memo.get(key);
+    }
+    const flow = flows.get(key);
+    if (!flow || visiting.has(key)) {
+      return false;
+    }
+    visiting.add(key);
+    let result = hasElicit(flow.steps);
+    for (const s of entries(flow.steps)) {
+      const step = s.value;
+      if (!result && step && step.type === "call" && typeof step.call === "string") {
+        result = asks(step.call, visiting);
+      }
+    }
+    visiting.delete(key);
+    memo.set(key, result);
+    return result;
+  };
+  return (key) => typeof key === "string" && asks(key, new Set());
+}
+
+function checkElicitOverRest(capability) {
+  const asks = elicitingFlows(capability);
+  const results = [];
+  for (const e of entries(capability.exposes)) {
+    const adapter = e.value;
+    if (!adapter || adapter.type !== "rest") {
+      continue;
+    }
+    const base = ["capability", "exposes", ...e.locator];
+    for (const r of entries(adapter.resources)) {
+      for (const o of entries(r.value && r.value.operations)) {
+        const op = o.value;
+        if (!op || typeof op !== "object") {
+          continue;
+        }
+        const opPath = base.concat("resources", ...r.locator, "operations", ...o.locator);
+        let target = null;
+        if (hasElicit(op.steps)
+            || entries(op.steps).some((s) => s.value && s.value.type === "call"
+              && asks(s.value.call))) {
+          target = opPath.concat("steps");
+        } else if (asks(op.ref)) {
+          target = opPath.concat("ref");
+        } else if (asks(op.call)) {
+          target = opPath.concat("call");
+        }
+        if (target) {
+          results.push({
+            message: "Operation '" + o.key + "' reaches an elicit step, which REST cannot "
+              + "serve yet: a call that reaches it answers 501 Not Implemented. Expose the "
+              + "same steps as an MCP tool to ask the caller.",
+            path: target,
+          });
+        }
+      }
+    }
+  }
+  return results;
 }
 
 function entries(collection) {
@@ -78,10 +239,10 @@ function findControl(capability) {
     if (adapter && adapter.type === "control") {
       const declared = adapter.durability && typeof adapter.durability.mode === "string"
         ? adapter.durability.mode : "none";
-      return { mode: declared, path: ["capability", "exposes", ...e.locator] };
+      return { mode: declared, adapter, path: ["capability", "exposes", ...e.locator] };
     }
   }
-  return { mode: "none", path: ["capability", "exposes"] };
+  return { mode: "none", adapter: null, path: ["capability", "exposes"] };
 }
 
 function flowsOf(capability) {
