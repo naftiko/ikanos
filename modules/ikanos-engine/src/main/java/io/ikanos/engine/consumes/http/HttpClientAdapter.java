@@ -35,9 +35,12 @@ import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
 
@@ -219,11 +222,12 @@ public class HttpClientAdapter extends ClientAdapter {
         // Apply client-level, resource-level and operation-level input parameters
         // NOTE: setResourceRef must be called first so that query params
         // (in: query) are appended to the correct base URI, not to null.
-        Resolver.resolveInputParametersToRequest(clientRequest,
-                mergeInputParameters(getHttpClientSpec().getInputParameters(),
-                        clientOp.getParentResource().getInputParameters(),
-                        clientOp.getInputParameters()),
-                parameters);
+        List<InputParameterSpec> declared = declaredInputParameters(
+                getHttpClientSpec().getInputParameters(),
+                clientOp.getParentResource().getInputParameters(),
+                clientOp.getInputParameters());
+        Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters,
+                replacedInputParameters(declared));
 
         List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
@@ -289,26 +293,37 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Merges the adapter-, resource- and operation-level input parameters, in that order. A
-     * parameter with the same name and location as one of a broader level replaces it, as in
-     * OpenAPI, so it is sent once (#909). The replacement takes its own position, not the broader
-     * one's: parameters are resolved in order, so a template must come after the parameters it
-     * uses.
+     * The adapter-, resource- and operation-level input parameters, in that order (#909).
+     * Parameters are resolved in this order, so a template can use any earlier parameter.
      */
     @SafeVarargs
-    static List<InputParameterSpec> mergeInputParameters(List<InputParameterSpec>... levels) {
-        Map<String, InputParameterSpec> merged = new LinkedHashMap<>();
+    static List<InputParameterSpec> declaredInputParameters(List<InputParameterSpec>... levels) {
+        List<InputParameterSpec> declared = new ArrayList<>();
         for (List<InputParameterSpec> level : levels) {
             if (level != null) {
-                for (InputParameterSpec spec : level) {
-                    String in = spec.getIn() == null ? "body" : spec.getIn().toLowerCase();
-                    String key = in + ":" + spec.getName();
-                    merged.remove(key);
-                    merged.put(key, spec);
-                }
+                declared.addAll(level);
             }
         }
-        return new ArrayList<>(merged.values());
+        return declared;
+    }
+
+    /**
+     * The parameters replaced by a later one with the same name and location, as in OpenAPI: a
+     * narrower level replaces a broader one (#909). They are still resolved in their position, so
+     * a template that uses them sees the same value as before, but they are not sent, so a query
+     * parameter is sent once.
+     */
+    static Set<InputParameterSpec> replacedInputParameters(List<InputParameterSpec> declared) {
+        Set<InputParameterSpec> replaced = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<String, InputParameterSpec> last = new HashMap<>();
+        for (InputParameterSpec spec : declared) {
+            String in = spec.getIn() == null ? "body" : spec.getIn().toLowerCase();
+            InputParameterSpec previous = last.put(in + ":" + spec.getName(), spec);
+            if (previous != null) {
+                replaced.add(previous);
+            }
+        }
+        return replaced;
     }
 
     /**

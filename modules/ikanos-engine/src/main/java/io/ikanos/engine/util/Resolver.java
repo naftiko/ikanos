@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
@@ -475,6 +476,16 @@ public class Resolver {
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
+        resolveInputParametersToRequest(clientRequest, specs, parameters, Set.of());
+    }
+
+    /**
+     * Same, but the parameters in {@code notSent} are only resolved: their value is added to
+     * {@code parameters}, for the templates that use it, and they are not sent (#909).
+     */
+    public static void resolveInputParametersToRequest(Request clientRequest,
+            List<InputParameterSpec> specs, Map<String, Object> parameters,
+            Set<InputParameterSpec> notSent) {
 
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
@@ -507,6 +518,9 @@ public class Resolver {
                     continue;
                 } else if (parameters != null) {
                     parameters.put(spec.getName(), val);
+                }
+                if (notSent.contains(spec)) {
+                    continue;
                 }
 
                 String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
