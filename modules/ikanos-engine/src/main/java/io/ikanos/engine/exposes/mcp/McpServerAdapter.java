@@ -68,10 +68,12 @@ public class McpServerAdapter extends ServerAdapter {
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
     private final McpTaskService taskService;
-    private final McpRequestState requestState = McpRequestState.withRandomKey();
+    private final McpRequestState requestState;
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
+        this.requestState = McpRequestState.withKey(capability.getSealingKey(),
+                capability.getSpecDigest());
 
         // Create the tool handler first (transport-agnostic): it owns each tool's output
         // contract, which buildMcpTool() advertises as the MCP outputSchema.

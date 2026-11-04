@@ -36,6 +36,7 @@ public class DurabilitySpec {
     private String mode;
     private DurabilityStoreSpec store;
     private String retention;
+    private String sealingKey;
 
     public DurabilitySpec() {}
 
@@ -67,6 +68,20 @@ public class DurabilitySpec {
 
     public void setRetention(String retention) {
         this.retention = retention;
+    }
+
+    /**
+     * The key sealing the state handed to clients, such as an MCP {@code requestState}: a
+     * base64-encoded AES key of 128, 192 or 256 bits, usually a {@code {{...}}} reference to a
+     * {@code binds} variable. Absent, each process draws a random key.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getSealingKey() {
+        return sealingKey;
+    }
+
+    public void setSealingKey(String sealingKey) {
+        this.sealingKey = sealingKey;
     }
 
     /** The declared mode, {@link #MODE_NONE} when absent. */

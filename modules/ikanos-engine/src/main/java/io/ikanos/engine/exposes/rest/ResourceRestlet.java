@@ -28,6 +28,7 @@ import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -214,6 +215,9 @@ public class ResourceRestlet extends Restlet {
                         sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
                                 "Invalid request", "Invalid argument in orchestrated steps", e);
                         return true;
+                    } catch (InputRequiredException e) {
+                        sendInputRequired(response, e);
+                        return true;
                     } catch (RuntimeException e) {
                         sendError(response, Status.SERVER_ERROR_INTERNAL,
                                 "Error while handling a consumed call",
@@ -296,6 +300,9 @@ public class ResourceRestlet extends Restlet {
         } catch (OperationStepExecutor.StepFailedException e) {
             sendError(response, Status.SERVER_ERROR_BAD_GATEWAY, "An upstream call failed",
                     "Aggregate flow step failed", e);
+            return true;
+        } catch (InputRequiredException e) {
+            sendInputRequired(response, e);
             return true;
         } catch (Exception e) {
             sendError(response, Status.SERVER_ERROR_INTERNAL, "Error in aggregate function call",
@@ -395,6 +402,21 @@ public class ResourceRestlet extends Restlet {
      * message and a correlation identifier, the full exception goes to the log under the same
      * identifier. See {@link ErrorReference}. Package-private so it can be unit-tested directly.
      */
+    /**
+     * Answers an operation whose steps ask the caller for input ({@code elicit}). The REST adapter
+     * cannot ask yet: answering on a {@code 202} execution is not specified. The response is
+     * {@code 501 Not Implemented}, naming the step, rather than a generic server error.
+     */
+    void sendInputRequired(Response response, InputRequiredException e) {
+        String steps = e.questions().stream()
+                .map(InputRequiredException.Question::key)
+                .collect(java.util.stream.Collectors.joining(", "));
+        sendError(response, Status.SERVER_ERROR_NOT_IMPLEMENTED,
+                "This operation asks for input (" + steps + "), which the REST adapter cannot "
+                        + "request yet; call it through an MCP adapter",
+                "Step asked for input over REST", e);
+    }
+
     void sendError(Response response, Status status, String publicMessage, String logContext,
             Throwable cause) {
         String correlationId = ErrorReference.record(Level.WARNING, logContext, cause);

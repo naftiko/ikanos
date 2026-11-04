@@ -3456,6 +3456,10 @@
         "retention": {
           "type": "string",
           "description": "How long a completed execution is kept, as an ISO 8601 duration (for example `P7D`)."
+        },
+        "sealingKey": {
+          "type": "string",
+          "description": "Key sealing the state handed to clients, such as an MCP `requestState`: a base64-encoded AES key of 128, 192 or 256 bits. Reference a `binds` variable (for example `{{IKANOS_SEALING_KEY}}`) rather than writing the key here. Replicas serving the same clients need the same key. Absent, each process draws a random key, so state does not survive a restart."
         }
       },
       "additionalProperties": false

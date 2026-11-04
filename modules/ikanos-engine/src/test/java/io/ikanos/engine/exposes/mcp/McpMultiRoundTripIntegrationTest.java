@@ -79,6 +79,18 @@ class McpMultiRoundTripIntegrationTest {
                       confirm-departure:
                         description: Confirm a departure.
                         ref: departure.confirm-departure
+                    resources:
+                      departure-note:
+                        uri: shipyard://departures/note
+                        description: A departure note, confirmed by the duty officer.
+                        steps:
+                          confirm:
+                            type: elicit
+                            message: Publish the departure note?
+                            schema:
+                              confirmed:
+                                type: boolean
+                                description: Whether the note is published
                   - type: control
                     address: localhost
                     port: 0
@@ -101,10 +113,15 @@ class McpMultiRoundTripIntegrationTest {
 
     private ObjectNode call(McpServerAdapter adapter, String paramsJson, boolean elicitation,
             boolean tasks) throws Exception {
+        return send(adapter, "tools/call", paramsJson, elicitation, tasks);
+    }
+
+    private ObjectNode send(McpServerAdapter adapter, String method, String paramsJson,
+            boolean elicitation, boolean tasks) throws Exception {
         ObjectNode request = jsonMapper.createObjectNode();
         request.put("jsonrpc", "2.0");
         request.put("id", 1);
-        request.put("method", "tools/call");
+        request.put("method", method);
         ObjectNode params = (ObjectNode) jsonMapper.readTree(paramsJson);
         ObjectNode meta = params.putObject("_meta");
         meta.put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
@@ -221,6 +238,51 @@ class McpMultiRoundTripIntegrationTest {
         JsonNode response = call(adapter, other.toString(), true, false);
 
         assertEquals(-32602, response.path("error").path("code").asInt());
+    }
+
+    private static final String READ = "{\"uri\":\"shipyard://departures/note\"}";
+
+    @Test
+    void resourcesReadShouldAskForInputAndCompleteOnRetry() throws Exception {
+        McpServerAdapter adapter = load(capability("", ""));
+        JsonNode asked = send(adapter, "resources/read", READ, true, false).path("result");
+
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+        assertEquals("Publish the departure note?", asked.path("inputRequests").path(KEY)
+                .path("params").path("message").asString());
+
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(READ);
+        retry.put("requestState", asked.path("requestState").asString());
+        retry.putObject("inputResponses").set(KEY,
+                jsonMapper.readTree("{\"action\":\"accept\",\"content\":{\"confirmed\":true}}"));
+        JsonNode result = send(adapter, "resources/read", retry.toString(), true, false)
+                .path("result");
+
+        assertEquals("complete", result.path("resultType").asString(), result.toString());
+        assertEquals("shipyard://departures/note",
+                result.path("contents").get(0).path("uri").asString());
+    }
+
+    @Test
+    void aToolsCallStateShouldNotOpenAResourcesRead() throws Exception {
+        McpServerAdapter adapter = load(capability("", ""));
+        String state = call(adapter, CALL, true, false).path("result").path("requestState")
+                .asString();
+        ObjectNode read = (ObjectNode) jsonMapper.readTree(READ);
+        read.put("requestState", state);
+
+        JsonNode response = send(adapter, "resources/read", read.toString(), true, false);
+
+        assertEquals(-32602, response.path("error").path("code").asInt());
+    }
+
+    @Test
+    void resourcesReadShouldRequireTheElicitationCapabilityToAsk() throws Exception {
+        JsonNode response = send(load(capability("", "")), "resources/read", READ, false, false);
+
+        assertEquals(-32021, response.path("error").path("code").asInt());
+        assertTrue(response.path("error").path("data").path("requiredCapabilities")
+                .has("elicitation"));
     }
 
     @Test
