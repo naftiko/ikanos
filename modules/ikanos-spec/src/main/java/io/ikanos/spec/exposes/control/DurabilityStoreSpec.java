@@ -23,7 +23,6 @@ public class DurabilityStoreSpec {
 
     private String type;
     private String path;
-    private String url;
 
     public DurabilityStoreSpec() {}
 
@@ -45,13 +44,5 @@ public class DurabilityStoreSpec {
 
     public void setPath(String path) {
         this.path = path;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
     }
 }

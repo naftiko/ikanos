@@ -255,9 +255,10 @@ rules:
   ikanos-durability-mode-available:
     message: "This durability mode is not available yet."
     description: >
-      The `local` (embedded H2) and `distributed` durability modes need store
-      modules that ship with later releases; the engine rejects a capability
-      that declares them. Use `memory` or `none` for now.
+      The `local` durability mode keeps executions in an embedded H2 file, whose
+      store module ships with a later increment; until then the engine rejects
+      a capability that declares it. Use `memory` or `none` for now. This rule
+      goes away when the H2 store ships.
     severity: error
     recommended: true
     given: "$"
@@ -265,6 +266,38 @@ rules:
       function: durability
       functionOptions:
         check: mode-available
+
+  ikanos-sealing-key-must-bind:
+    message: "{{error}}"
+    description: >
+      The sealing key protects the state handed to clients, such as an MCP
+      `requestState`. A key written into the capability ends up in source
+      control. Write a single Mustache expression naming a binding key, such as
+      `{{IKANOS_SEALING_KEY}}` or `{{secrets.IKANOS_SEALING_KEY}}`, and declare
+      that key in `binds`. A literal key still loads, which keeps a quick local
+      test possible.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: sealing-key-binds
+
+  ikanos-elicit-not-served-over-rest:
+    message: "{{error}}"
+    description: >
+      An `elicit` step asks the caller for input. MCP serves it through a
+      multi round-trip request or a task; REST has no way to carry the question
+      yet, so a REST call that reaches the step answers `501 Not Implemented`.
+      The same steps work when exposed as an MCP tool.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: elicit-over-rest
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

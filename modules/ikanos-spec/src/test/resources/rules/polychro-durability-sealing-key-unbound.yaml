@@ -1,0 +1,36 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Sealing key unbound
+  description: Negative fixture referencing a sealing key that no binding declares
+binds:
+- namespace: secrets
+  description: Deployment secrets
+  keys:
+    OTHER_KEY: other-key
+capability:
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      get-voyage:
+        description: Mock voyage lookup
+        outputParameters:
+          status:
+            type: string
+            value: planned
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9317
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      get-voyage:
+        description: Get a voyage
+        ref: departure.get-voyage
+  - type: control
+    address: localhost
+    port: 9318
+    durability:
+      mode: memory
+      sealingKey: "{{secrets.IKANOS_SEALING_KEY}}"

@@ -1,0 +1,66 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Durability warnings
+  description: >-
+    Negative fixture for the durability warnings: a sealing key written into the
+    capability, and REST operations that reach an elicit step inline, through a
+    referenced flow, and through a flow that calls an asking flow
+capability:
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      confirm-departure:
+        description: Asks the caller to confirm
+        steps:
+          confirm:
+            type: elicit
+            message: Confirm the departure
+            fields:
+              confirmed:
+                type: boolean
+      clear-for-departure:
+        description: Calls the asking flow
+        steps:
+          confirm:
+            type: call
+            call: departure.confirm-departure
+      get-voyage:
+        description: Mock voyage lookup, asks nothing
+        outputParameters:
+          status:
+            type: string
+            value: planned
+  exposes:
+  - type: rest
+    port: 9315
+    namespace: shipyard-rest
+    resources:
+      departures:
+        path: /departures
+        description: Departure clearance
+        operations:
+          confirm-inline:
+            method: POST
+            steps:
+              confirm:
+                type: elicit
+                message: Confirm the departure
+                fields:
+                  confirmed:
+                    type: boolean
+          confirm-by-ref:
+            method: POST
+            ref: departure.confirm-departure
+          clear-by-ref:
+            method: POST
+            ref: departure.clear-for-departure
+          get-voyage:
+            method: GET
+            ref: departure.get-voyage
+  - type: control
+    address: localhost
+    port: 9316
+    durability:
+      mode: memory
+      sealingKey: not-a-real-key

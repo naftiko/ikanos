@@ -602,8 +602,33 @@ public class IkanosPolychroRulesetTest {
         String output = lintFixture("rules/polychro-durability-compliant.yaml").output();
         assertTrue(!output.contains("ikanos-task-mode-")
                 && !output.contains("ikanos-elicit-")
-                && !output.contains("ikanos-durability-"),
+                && !output.contains("ikanos-durability-")
+                && !output.contains("ikanos-sealing-key-"),
             "Expected no durability findings on the memory mode.\n" + output);
+    }
+
+    @Test
+    public void sealingKeyRuleShouldWarnOnAKeyWrittenIntoTheCapability() {
+        assertWarnsOn("rules/polychro-durability-warnings.yaml",
+            "ikanos-sealing-key-must-bind", "written into the capability");
+    }
+
+    @Test
+    public void sealingKeyRuleShouldWarnOnAKeyNoBindingDeclares() {
+        assertWarnsOn("rules/polychro-durability-sealing-key-unbound.yaml",
+            "ikanos-sealing-key-must-bind", "'IKANOS_SEALING_KEY'");
+    }
+
+    @Test
+    public void elicitOverRestRuleShouldWarnOnEveryOperationThatReachesAQuestion() {
+        String fixture = "rules/polychro-durability-warnings.yaml";
+        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'confirm-inline'");
+        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'confirm-by-ref'");
+        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'clear-by-ref'");
+        String output = lintFixture(fixture).output();
+        assertTrue(output.lines().noneMatch(line -> line.contains("ikanos-elicit-not-served")
+                && line.contains("'get-voyage'")),
+            "Expected no elicit warning on an operation that asks nothing.\n" + output);
     }
 
     @Test

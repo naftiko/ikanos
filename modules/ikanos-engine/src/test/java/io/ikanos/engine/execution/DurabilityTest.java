@@ -52,17 +52,17 @@ public class DurabilityTest {
     }
 
     @Test
-    void fromSpecShouldFailForModesWhoseStoreShipsLater() {
+    void fromSpecShouldFailForTheLocalModeUntilItsStoreShips() {
         assertThrows(IllegalStateException.class,
                 () -> Durability.fromSpec(new DurabilitySpec("local")));
-        assertThrows(IllegalStateException.class,
-                () -> Durability.fromSpec(new DurabilitySpec("distributed")));
     }
 
     @Test
     void fromSpecShouldRejectAnUnknownMode() {
         assertThrows(IllegalArgumentException.class,
                 () -> Durability.fromSpec(new DurabilitySpec("forever")));
+        assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(new DurabilitySpec("distributed")));
     }
 
     @Test

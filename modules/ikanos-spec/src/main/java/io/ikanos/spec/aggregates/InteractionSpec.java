@@ -30,14 +30,12 @@ public class InteractionSpec {
 
     private String mode;
     private Long expectedDurationMs;
-    private Boolean mayElicit;
 
     public InteractionSpec() {}
 
-    public InteractionSpec(String mode, Long expectedDurationMs, Boolean mayElicit) {
+    public InteractionSpec(String mode, Long expectedDurationMs) {
         this.mode = mode;
         this.expectedDurationMs = expectedDurationMs;
-        this.mayElicit = mayElicit;
     }
 
     public String getMode() {
@@ -54,14 +52,6 @@ public class InteractionSpec {
 
     public void setExpectedDurationMs(Long expectedDurationMs) {
         this.expectedDurationMs = expectedDurationMs;
-    }
-
-    public Boolean getMayElicit() {
-        return mayElicit;
-    }
-
-    public void setMayElicit(Boolean mayElicit) {
-        this.mayElicit = mayElicit;
     }
 
     /** Whether the flow may answer with a task handle. */

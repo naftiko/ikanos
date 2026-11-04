@@ -1086,10 +1086,6 @@
           "type": "integer",
           "minimum": 0,
           "description": "Typical duration of a call, in milliseconds."
-        },
-        "mayElicit": {
-          "type": "boolean",
-          "description": "If true, the unit may ask its caller for input while it runs."
         }
       },
       "additionalProperties": false
@@ -3477,16 +3473,17 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["none", "memory", "local", "distributed"],
+          "enum": ["none", "memory", "local"],
           "default": "none",
-          "description": "Durability mode. `local` (embedded H2) and `distributed` need store modules that are not available yet."
+          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs the H2 store module, which is not available yet."
         },
         "store": {
           "$ref": "#/$defs/DurabilityStore"
         },
         "retention": {
           "type": "string",
-          "description": "How long a completed execution is kept, as an ISO 8601 duration (for example `P7D`)."
+          "pattern": "^P(?!$)(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+          "description": "How long a completed execution is kept, as an ISO 8601 duration in days, hours, minutes and seconds (for example `P7D` or `PT12H`)."
         },
         "sealingKey": {
           "type": "string",
@@ -3506,10 +3503,6 @@
         "path": {
           "type": "string",
           "description": "File path of an embedded store."
-        },
-        "url": {
-          "type": "string",
-          "description": "Connection URL of a shared store; reference a secret."
         }
       },
       "required": ["type"],
