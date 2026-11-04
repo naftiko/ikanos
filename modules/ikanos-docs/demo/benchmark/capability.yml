@@ -1,0 +1,124 @@
+# The capability the benchmark loads (issue #737): a REST adapter that calls an upstream API and
+# reshapes its answer, the most common shape of a capability. The upstream is a static nginx in the
+# same compose project, so the figures measure Ikanos, not the network or a slow API.
+ikanos: "1.0.0-beta9"
+info:
+  display: "Ikanos benchmark"
+  description: "Proxies a ship registry and reshapes its answers, to measure Ikanos's CPU and memory under load."
+
+capability:
+  consumes:
+  - namespace: registry
+    type: http
+    baseUri: "http://upstream"
+    resources:
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+      fleet:
+        path: "/fleet"
+        operations:
+          list-fleet:
+            method: GET
+      ship:
+        path: "/ships/{{imo}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo:
+                in: path
+
+  exposes:
+  - type: rest
+    address: "0.0.0.0"
+    port: 8080
+    namespace: bench
+    resources:
+      # 20 ships, about 6 KB from the upstream: the small payload.
+      ships:
+        path: "/ships"
+        operations:
+          list-ships:
+            method: GET
+            call: registry.list-ships
+            outputParameters:
+              - type: array
+                mapping: "$."
+                items:
+                  type: object
+                  properties:
+                    imo:
+                      type: string
+                      mapping: "$.imo_number"
+                    name:
+                      type: string
+                      mapping: "$.vessel_name"
+                    status:
+                      type: string
+                      mapping: "$.operational_status"
+                    tonnage:
+                      type: number
+                      mapping: "$.gross_tonnage"
+      # 1,000 ships, about 285 KB from the upstream: the large payload.
+      fleet:
+        path: "/fleet"
+        operations:
+          list-fleet:
+            method: GET
+            call: registry.list-fleet
+            outputParameters:
+              - type: array
+                mapping: "$."
+                items:
+                  type: object
+                  properties:
+                    imo:
+                      type: string
+                      mapping: "$.imo_number"
+                    name:
+                      type: string
+                      mapping: "$.vessel_name"
+                    status:
+                      type: string
+                      mapping: "$.operational_status"
+                    tonnage:
+                      type: number
+                      mapping: "$.gross_tonnage"
+      ship:
+        path: "/ships/{{imo}}"
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo:
+                in: path
+                type: string
+                description: "IMO number of the ship"
+            call: registry.get-ship
+            with:
+              imo: bench.imo
+            outputParameters:
+              - type: object
+                properties:
+                  imo:
+                    type: string
+                    mapping: "$.imo_number"
+                  name:
+                    type: string
+                    mapping: "$.vessel_name"
+                  length:
+                    type: number
+                    mapping: "$.dimensions.length_overall"
+
+  - type: control
+    address: "0.0.0.0"
+    port: 9090
+    management:
+      health: true
+    observability:
+      metrics:
+        local:
+          enabled: true

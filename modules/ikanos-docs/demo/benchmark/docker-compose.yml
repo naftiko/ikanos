@@ -1,0 +1,36 @@
+# Ikanos CPU/RAM benchmark (issue #737). run.sh drives it; see README.md.
+#
+# Ikanos runs with fixed limits (IKANOS_CPUS, IKANOS_MEMORY) so its figures don't depend on the
+# machine, next to a static upstream API. k6 is only started by run.sh, with the load profile.
+name: ikanos-benchmark
+
+services:
+  upstream:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./upstream/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${UPSTREAM_DATA:?run.sh sets it}:/data:ro
+
+  ikanos:
+    # The image built from this checkout by run.sh, or a released one: IKANOS_IMAGE=ghcr.io/...
+    image: ${IKANOS_IMAGE:-ikanos-benchmark:local}
+    command: ["serve", "/capability/capability.yml"]
+    environment:
+      # JVM options for a run, such as -XX:MaxRAMPercentage=75 (the JVM's default heap is 25% of the memory).
+      JAVA_TOOL_OPTIONS: ${IKANOS_JAVA_OPTIONS:-}
+    volumes:
+      - ./capability.yml:/capability/capability.yml:ro
+    cpus: ${IKANOS_CPUS:-1}
+    mem_limit: ${IKANOS_MEMORY:-512m}
+    ports:
+      - "8080:8080"   # the REST adapter under load
+      - "9090:9090"   # the Control Port: /health, /metrics (the observability demo scrapes it)
+    depends_on:
+      - upstream
+
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: ["load"]
+    volumes:
+      - ./k6:/scripts:ro
+      - ${RESULTS:?run.sh sets it}:/results
