@@ -29,6 +29,7 @@ import java.util.TreeMap;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -40,13 +41,14 @@ import io.ikanos.spec.util.IkanosMappers;
  *
  * <p>The state passes through the client, so it is attacker-controlled input. It is sealed with
  * AES-GCM, which protects both its integrity and the answers it carries, and bound to the
- * principal, an expiry and a digest of the request (method, tool and arguments). State that fails
- * any check is rejected. It carries the answers collected so far and the keys still outstanding;
- * it never carries step outputs or secrets.</p>
+ * principal, an expiry, a digest of the request (method, tool and arguments) and the digest of the
+ * capability spec (the scope). State that fails any check is rejected. It carries the answers
+ * collected so far and the keys still outstanding; it never carries step outputs or secrets.</p>
  *
- * <p>The key is generated per process for now, so state does not survive a restart: the client
- * then gets an error and starts the call again. A capability-scoped key through {@code binds}
- * comes with the durable modes' shared stores.</p>
+ * <p>The key is the capability's sealing key ({@code durability.sealingKey} on the control port,
+ * resolved from {@code binds}), shared by its MCP adapters and by replicas that declare the same
+ * key. Without one, the key is random per process, so state does not survive a restart: the
+ * client then gets an error and starts the call again.</p>
  */
 public final class McpRequestState {
 
@@ -60,6 +62,7 @@ public final class McpRequestState {
 
     private final SecretKey key;
     private final Clock clock;
+    private final String scope;
 
     /**
      * The content of a verified state.
@@ -71,19 +74,66 @@ public final class McpRequestState {
     }
 
     McpRequestState(SecretKey key, Clock clock) {
+        this(key, clock, "");
+    }
+
+    McpRequestState(SecretKey key, Clock clock, String scope) {
         this.key = key;
         this.clock = clock;
+        this.scope = scope;
     }
 
     /** A state sealer with a fresh random key. */
     public static McpRequestState withRandomKey() {
+        return withKey(randomKey());
+    }
+
+    /** A state sealer with the given key. */
+    public static McpRequestState withKey(SecretKey key) {
+        return withKey(key, "");
+    }
+
+    /**
+     * A state sealer with the given key, whose states only open under the same scope. The scope
+     * is the digest of the capability spec: a state sealed by a replica running another version
+     * of the capability is rejected, so its answers are never replayed into changed steps.
+     */
+    public static McpRequestState withKey(SecretKey key, String scope) {
+        return new McpRequestState(key, Clock.systemUTC(), scope);
+    }
+
+    /** A fresh random 256-bit AES key. */
+    public static SecretKey randomKey() {
         try {
             KeyGenerator generator = KeyGenerator.getInstance("AES");
             generator.init(256, RANDOM);
-            return new McpRequestState(generator.generateKey(), Clock.systemUTC());
+            return generator.generateKey();
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("AES is not available", e);
         }
+    }
+
+    /**
+     * Parses a declared sealing key: base64 (standard or URL-safe) of 16, 24 or 32 bytes.
+     *
+     * @throws IllegalArgumentException when the value is not such a key; the message never
+     *         carries the value
+     */
+    public static SecretKey parseKey(String base64) {
+        byte[] bytes;
+        try {
+            String text = base64.trim();
+            bytes = text.indexOf('-') >= 0 || text.indexOf('_') >= 0
+                    ? Base64.getUrlDecoder().decode(text)
+                    : Base64.getDecoder().decode(text);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("durability.sealingKey is not valid base64");
+        }
+        if (bytes.length != 16 && bytes.length != 24 && bytes.length != 32) {
+            throw new IllegalArgumentException("durability.sealingKey must be an AES key of 128, "
+                    + "192 or 256 bits; it has " + (bytes.length * 8) + " bits");
+        }
+        return new SecretKeySpec(bytes, "AES");
     }
 
     /** Seals the answers so far and the outstanding keys, bound to a principal and a request. */
@@ -91,7 +141,7 @@ public final class McpRequestState {
             List<String> pending) {
         ObjectNode payload = MAPPER.createObjectNode();
         payload.put("p", principal);
-        payload.put("d", requestDigest);
+        payload.put("d", scope + "\n" + requestDigest);
         payload.put("e", clock.millis() + TTL.toMillis());
         payload.set("a", answers);
         payload.set("k", MAPPER.valueToTree(pending));
@@ -129,7 +179,7 @@ public final class McpRequestState {
             throw new IllegalArgumentException("Invalid requestState", e);
         }
         if (!principal.equals(payload.path("p").asString())
-                || !requestDigest.equals(payload.path("d").asString())) {
+                || !(scope + "\n" + requestDigest).equals(payload.path("d").asString())) {
             throw new IllegalArgumentException("requestState does not match this request");
         }
         if (clock.millis() > payload.path("e").asLong()) {

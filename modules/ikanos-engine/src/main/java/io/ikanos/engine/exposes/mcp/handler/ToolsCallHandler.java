@@ -36,14 +36,8 @@ import java.util.logging.Level;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_PARAMS;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.MISSING_REQUIRED_CLIENT_CAPABILITY;
-import io.ikanos.durable.NodePath;
-import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.McpCallContext;
-import io.ikanos.engine.exposes.mcp.McpRequestState;
 
 /**
  * The tools/call handler.
@@ -96,25 +90,8 @@ public class ToolsCallHandler extends McpCallHandler {
                 }
             }
 
-            // Multi round-trip requests: answers collected in earlier rounds travel in the sealed
-            // requestState; this round's answers in inputResponses.
-            String digest = McpRequestState.digest(METHOD_NAME, toolName, argumentsNode);
-            ObjectNode answers = collectAnswers(params, principal, digest);
-            Map<NodePath, Object> updates = new LinkedHashMap<>();
-            answers.properties().forEach(e -> updates.put(new NodePath(e.getKey()), e.getValue()));
-
-            try {
-                return new HandlerSuccessResult(
-                        ExecutionInputs.with(updates, () -> callTool(toolName, arguments)));
-            } catch (InputRequiredException e) {
-                if (!capabilities.supportsElicitation()) {
-                    ObjectNode required = MAPPER.createObjectNode();
-                    required.putObject("elicitation");
-                    return missingCapability(idNode, "Tool '" + toolName
-                            + "' asks for input; it needs the elicitation capability", required);
-                }
-                return new HandlerSuccessResult(inputRequired(e, answers, principal, digest));
-            }
+            return inRounds(idNode, params, "Tool '" + toolName + "'", toolName,
+                    argumentsNode, () -> callTool(toolName, arguments));
         } catch (IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
@@ -126,67 +103,6 @@ public class ToolsCallHandler extends McpCallHandler {
 
     /** Longest expected duration, in milliseconds, still answered synchronously. */
     static final long SYNC_BUDGET_MS = 30_000;
-
-    /**
-     * Answers carried by the sealed {@code requestState}, plus this round's {@code inputResponses}
-     * for keys that are outstanding. Responses to other keys are ignored, as MRTR requires.
-     *
-     * @throws IllegalArgumentException when the state fails verification
-     */
-    ObjectNode collectAnswers(JsonNode params, String principal, String digest) {
-        String token = params.path("requestState").asString(null);
-        if (token == null || token.isEmpty()) {
-            return MAPPER.createObjectNode();
-        }
-        McpRequestState.Content state = adapter.getRequestState().open(token, principal, digest);
-        ObjectNode answers = state.answers().deepCopy();
-        JsonNode responses = params.path("inputResponses");
-        for (String key : state.pending()) {
-            if (responses.has(key)) {
-                answers.set(key, responses.get(key));
-            }
-        }
-        return answers;
-    }
-
-    /** The {@code InputRequiredResult} for the questions a run stopped at. */
-    ObjectNode inputRequired(InputRequiredException e, ObjectNode answers, String principal,
-            String digest) {
-        ObjectNode result = MAPPER.createObjectNode();
-        result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
-        ObjectNode requests = result.putObject("inputRequests");
-        List<String> pending = new ArrayList<>();
-        for (InputRequiredException.Question question : e.questions()) {
-            ObjectNode request = requests.putObject(question.key());
-            request.put("method", "elicitation/create");
-            ObjectNode requestParams = request.putObject("params");
-            requestParams.put("mode", "form");
-            requestParams.put("message", question.step().getMessage() != null
-                    ? question.step().getMessage() : question.step().getName());
-            ObjectNode schema = requestParams.putObject("requestedSchema");
-            schema.put("type", "object");
-            ObjectNode properties = schema.putObject("properties");
-            ArrayNode required = schema.putArray("required");
-            if (question.step().getSchema() != null) {
-                question.step().getSchema().forEach((name, property) -> {
-                    properties.set(name, MAPPER.valueToTree(property));
-                    required.add(name);
-                });
-            }
-            pending.add(question.key());
-        }
-        result.put("requestState",
-                adapter.getRequestState().seal(principal, digest, answers, pending));
-        return result;
-    }
-
-    private HandlerResult missingCapability(JsonNode idNode, String message, ObjectNode required) {
-        ObjectNode data = MAPPER.createObjectNode();
-        data.set("requiredCapabilities", required);
-        return new HandlerFailureResult(MISSING_REQUIRED_CLIENT_CAPABILITY,
-                buildJsonRpcError(idNode, MISSING_REQUIRED_CLIENT_CAPABILITY.getCode(), message,
-                        data));
-    }
 
     private ObjectNode requiredExtension(String extension) {
         ObjectNode required = MAPPER.createObjectNode();
