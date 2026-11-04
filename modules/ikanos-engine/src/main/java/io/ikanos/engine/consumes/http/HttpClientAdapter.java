@@ -290,8 +290,10 @@ public class HttpClientAdapter extends ClientAdapter {
 
     /**
      * Merges the adapter-, resource- and operation-level input parameters, in that order. A
-     * parameter with the same name and location as one of a broader level replaces it in place,
-     * as in OpenAPI, so it is sent once (#909).
+     * parameter with the same name and location as one of a broader level replaces it, as in
+     * OpenAPI, so it is sent once (#909). The replacement takes its own position, not the broader
+     * one's: parameters are resolved in order, so a template must come after the parameters it
+     * uses.
      */
     @SafeVarargs
     static List<InputParameterSpec> mergeInputParameters(List<InputParameterSpec>... levels) {
@@ -300,7 +302,9 @@ public class HttpClientAdapter extends ClientAdapter {
             if (level != null) {
                 for (InputParameterSpec spec : level) {
                     String in = spec.getIn() == null ? "body" : spec.getIn().toLowerCase();
-                    merged.put(in + ":" + spec.getName(), spec);
+                    String key = in + ":" + spec.getName();
+                    merged.remove(key);
+                    merged.put(key, spec);
                 }
             }
         }
