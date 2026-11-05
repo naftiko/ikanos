@@ -112,6 +112,14 @@ public final class JournaledRunner implements Runner {
         }
     }
 
+    /**
+     * The idempotency key of an action: stable across every run of the execution, so an action
+     * invoked again after a crash carries the same key as the attempt the crash cut short.
+     */
+    public static String idempotencyKey(ExecutionId executionId, NodePath path) {
+        return executionId.value() + "/" + path.value();
+    }
+
     /** The input recorded by {@link #start}, or empty when the execution has none. */
     public Optional<Object> input(ExecutionId executionId) {
         List<JournalEntry> entries = stores.journal().read(executionId);
@@ -228,6 +236,10 @@ public final class JournaledRunner implements Runner {
             }
             Optional<ExecutionResult> recorded = result(id);
             if (recorded.isPresent()) {
+                // A crash between the journal's last entry and the index update leaves the index
+                // behind the journal: the journal is the truth, so the index catches up here.
+                stores.index().updateStatus(id, recorded.get() instanceof ExecutionResult.Completed
+                        ? ExecutionStatus.COMPLETED : ExecutionStatus.FAILED);
                 return recorded.get();
             }
             Run run = new Run(request);
@@ -352,6 +364,13 @@ public final class JournaledRunner implements Runner {
 
         void runActions(List<Command.ScheduleAction> actions, ActionExecutor executor)
                 throws ConcurrentAppendException {
+            // Scheduled before invoked: a crash during the call leaves a scheduled action without
+            // an outcome, which the next run invokes again with the same idempotency key.
+            for (Command.ScheduleAction action : actions) {
+                append(JournalEntry.Kind.ACTION_SCHEDULED, action.path(),
+                        idempotencyKey(request.executionId(), action.path())
+                                .getBytes(StandardCharsets.UTF_8));
+            }
             DirectExecutionView scratch = new DirectExecutionView(request, clock);
             DirectRunner.runActions(request, actions, scratch, executor);
             // Outcomes are journaled in command order, whatever order the actions finished in.

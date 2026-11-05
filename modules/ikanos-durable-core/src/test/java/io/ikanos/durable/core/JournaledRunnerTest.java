@@ -168,8 +168,12 @@ public class JournaledRunnerTest {
 
         List<JournalEntry.Kind> kinds = stores.journal().read(ID).stream()
                 .map(JournalEntry::kind).toList();
-        assertEquals(List.of(JournalEntry.Kind.UPDATE_RECEIVED, JournalEntry.Kind.ACTION_SUCCEEDED,
-                JournalEntry.Kind.ACTION_SUCCEEDED, JournalEntry.Kind.EXECUTION_COMPLETED), kinds);
+        assertEquals(List.of(JournalEntry.Kind.UPDATE_RECEIVED,
+                JournalEntry.Kind.ACTION_SCHEDULED, JournalEntry.Kind.ACTION_SUCCEEDED,
+                JournalEntry.Kind.ACTION_SCHEDULED, JournalEntry.Kind.ACTION_SUCCEEDED,
+                JournalEntry.Kind.EXECUTION_COMPLETED), kinds);
+        assertEquals("task-1/steps/screen", new String(stores.journal().read(ID).get(1).payload(),
+                StandardCharsets.UTF_8), "A scheduled action carries its idempotency key");
     }
 
     @Test
