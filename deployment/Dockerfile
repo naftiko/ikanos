@@ -3,7 +3,11 @@
 FROM maven:3.9.15-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN sed -i 's|<module>modules/ikanos-coverage</module>||g' pom.xml
+RUN sed -i -e 's|<module>modules/ikanos-coverage</module>||g' \
+    -e 's|<module>modules/ikanos-rules-tests</module>||g' pom.xml
+COPY modules/ikanos-durable-api ./modules/ikanos-durable-api
+COPY modules/ikanos-durable-core ./modules/ikanos-durable-core
+COPY modules/ikanos-durable-store-memory ./modules/ikanos-durable-store-memory
 COPY modules/ikanos-spec ./modules/ikanos-spec
 COPY modules/ikanos-engine ./modules/ikanos-engine
 COPY modules/ikanos-cli ./modules/ikanos-cli
