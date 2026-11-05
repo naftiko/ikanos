@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import tools.jackson.databind.ObjectMapper;
+import org.restlet.Context;
 import io.ikanos.engine.aggregates.Aggregate;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
@@ -222,6 +224,10 @@ public class Capability {
         // §6.5 design in blueprints/reverse-tunnel-private-network.md.
         // Templates are checked first, so a capability that cannot work never starts a tunnel.
         ConsumedTemplateValidator.validate(spec);
+        for (String warning : ConsumedTemplateValidator.findUnboundCredentials(spec,
+                this.bindings.get())) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
         Map<String, Tunnel> tunnels = TunnelBootstrap.discoverAndStart(
                 spec.getCapability().getConsumes(),
                 java.time.Duration.ofSeconds(30),

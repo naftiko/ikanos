@@ -1396,6 +1396,7 @@ authentication:
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
 - On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.
+- On a consumed adapter, a credential that uses a variable with no value (unbound, misspelled, or bound to an empty value) is never sent: the call fails with an error naming the variable, and a warning names it when the capability loads.
 
 ---
 
