@@ -370,9 +370,10 @@ public class ToolHandler {
         int statusCode = found.status();
         if (found.noResponseReceived()) {
             // A connector code such as 1001 is not an HTTP status: report it like a failed step (#873)
+            Throwable cause = found.failureCause();
             found.release();
             return errorResult("An upstream call failed", "Tool '" + toolSpec.getName()
-                    + "' got no response (status " + statusCode + ")", null);
+                    + "' got no response (status " + statusCode + ")", cause);
         }
         boolean isError = found.outcome() != Outcome.SUCCESS;
         boolean hasBody = found.hasBody();

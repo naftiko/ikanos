@@ -405,15 +405,23 @@ public class ResourceRestlet extends Restlet {
     /**
      * The consumed call got no HTTP answer (a connector code such as 1001, or none): answer
      * {@code 502} with an error reference, as a failed step does, rather than forwarding a code
-     * that isn't an HTTP status (#873).
+     * that isn't an HTTP status (#873). The failure cause goes to the log line under the
+     * reference, so an operator can tell a refused connection from a timeout.
      */
     private boolean sendUpstreamUnreachable(Response response, int status, String what,
             ConsumedResult found) {
+        Throwable cause = null;
         if (found != null) {
+            cause = found.failureCause();
             found.release();
         }
+        return sendUpstreamUnreachable(response, status, what, cause);
+    }
+
+    private boolean sendUpstreamUnreachable(Response response, int status, String what,
+            Throwable cause) {
         sendError(response, Status.SERVER_ERROR_BAD_GATEWAY, "An upstream call failed",
-                what + " got no response (status " + status + ")", null);
+                what + " got no response (status " + status + ")", cause);
         return true;
     }
 
@@ -592,7 +600,8 @@ public class ResourceRestlet extends Restlet {
                         if (ConsumedResult.noResponseReceived(forwardedStatus)) {
                             clientResponse.release();
                             return sendUpstreamUnreachable(response, forwardedStatus,
-                                    "Forward to '" + forwardSpec.getTargetNamespace() + "'", null);
+                                    "Forward to '" + forwardSpec.getTargetNamespace() + "'",
+                                    clientResponse.getStatus().getThrowable());
                         }
                         response.setStatus(clientResponse.getStatus());
                         response.setEntity(clientResponse.getEntity());
