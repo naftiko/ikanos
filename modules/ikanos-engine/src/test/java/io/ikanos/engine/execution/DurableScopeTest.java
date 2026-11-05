@@ -180,6 +180,24 @@ public class DurableScopeTest {
     }
 
     @Test
+    void aCallWithABodyButNoJsonOutputShouldFailInsideAScopeOnly() throws Exception {
+        NodeRunner binary = (node, run) -> {
+            // A call whose body is not JSON: the step records its last result, but no output.
+            run.setLastResult(new RestoredResult(JSON.createObjectNode().put("raw", "bytes")));
+            return null;
+        };
+
+        Executions.runSteps(tree("download-manifest"), new StepRun(null), binary);
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> DurableScope.with(runner, ROOT, () -> Executions.runSteps(
+                        tree("download-manifest"), new StepRun(null), binary)));
+
+        assertTrue(e.getMessage().contains("not JSON"), e.getMessage());
+        assertEquals(ExecutionStatus.FAILED,
+                runner.status(new ExecutionId("task-1/steps")).orElseThrow());
+    }
+
+    @Test
     void aSecondRunStartedByOneActionShouldGetANumberedId() throws Exception {
         CountingRunner nodes = new CountingRunner();
         DurableScope.with(runner, ROOT, () -> {

@@ -73,7 +73,7 @@ public final class Executions {
                         scope.checkNotStopping();
                         return DurableScope.within(
                                 scope.child(request.executionId(), request.path()),
-                                () -> runNode(request.action(), run, nodeRunner));
+                                () -> runJournaledNode(request.action(), run, nodeRunner));
                     });
             if (result instanceof ExecutionResult.Completed) {
                 // Recorded before this run started: walk the tree once against the journal, so
@@ -139,6 +139,27 @@ public final class Executions {
             run.fail(e);
             throw new ActionFailedException(StepInterpreter.failureOf(e), e);
         }
+    }
+
+    /**
+     * Runs one action node of a journaled execution. A call step whose response has a body but no
+     * JSON output, such as a binary body, fails: its outcome could not be journaled, and a restart
+     * would restore it as a response without a body. The failure is journaled, so a replay fails
+     * the same way.
+     */
+    private static Object runJournaledNode(Object action, StepRun run, NodeRunner nodeRunner)
+            throws ActionFailedException {
+        Object output = runNode(action, run, nodeRunner);
+        StepNode node = (StepNode) action;
+        if (node.kind() == StepNode.Kind.CALL && output == null && run.lastResult() != null
+                && run.lastResult().hasBody()) {
+            IllegalStateException e = new IllegalStateException("Step '"
+                    + node.step().getName() + "' returned a response that is not JSON, which a "
+                    + "durable task cannot journal; call it outside the task, or map it to JSON");
+            run.fail(e);
+            throw new ActionFailedException(StepInterpreter.failureOf(e), e);
+        }
+        return output;
     }
 
     static RuntimeException rethrowable(StepRun run, ExecutionResult result) {
