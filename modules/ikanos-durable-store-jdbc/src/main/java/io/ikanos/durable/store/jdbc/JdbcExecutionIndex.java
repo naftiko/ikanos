@@ -112,6 +112,17 @@ final class JdbcExecutionIndex implements ExecutionIndex {
                 }));
     }
 
+    @Override
+    public List<ExecutionRecord> findByLabel(String key, String value) {
+        return database.call(c -> select(c, "SELECT " + COLUMNS + " FROM executions e WHERE "
+                + "EXISTS (SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "
+                + "AND l.label_key = ? AND l.label_value = ?) ORDER BY created_at, execution_id",
+                s -> {
+                    s.setString(1, key);
+                    s.setString(2, value);
+                }));
+    }
+
     @FunctionalInterface
     private interface Binder {
         void bind(PreparedStatement statement) throws SQLException;

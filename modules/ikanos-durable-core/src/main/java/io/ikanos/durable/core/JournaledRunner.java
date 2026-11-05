@@ -88,6 +88,80 @@ public final class JournaledRunner implements Runner {
                 entry, ExecutionStatus.RUNNING, clock.instant(), request.deadline(), Map.of()));
     }
 
+    /**
+     * Creates an execution that a restarted process can start again: its index entry, with
+     * {@code entry} and {@code labels}, then a first journal entry holding the request's input.
+     * Returns {@code false}, and records nothing, when the execution already exists.
+     */
+    public boolean start(ExecutionRequest request, String entry, Map<String, String> labels) {
+        ExecutionId id = request.executionId();
+        ReentrantLock lock = lockOf(id);
+        lock.lock();
+        try {
+            if (!stores.index().create(new ExecutionRecord(id, specDigest, entry,
+                    ExecutionStatus.RUNNING, clock.instant(), request.deadline(), labels))) {
+                return false;
+            }
+            stores.journal().append(id, 0, SINGLE_OWNER, List.of(new JournalEntry(1,
+                    JournalEntry.Kind.EXECUTION_STARTED, null, encodeValue(request.input()))));
+            return true;
+        } catch (ConcurrentAppendException e) {
+            throw new IllegalStateException("Another owner appended to the journal of " + id, e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** The input recorded by {@link #start}, or empty when the execution has none. */
+    public Optional<Object> input(ExecutionId executionId) {
+        List<JournalEntry> entries = stores.journal().read(executionId);
+        if (entries.isEmpty() || entries.get(0).kind() != JournalEntry.Kind.EXECUTION_STARTED) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(decodeValue(entries.get(0).payload()));
+    }
+
+    /** The index entry of an execution. */
+    public Optional<ExecutionRecord> record(ExecutionId executionId) {
+        return stores.index().find(executionId);
+    }
+
+    /** The executions labelled {@code key} = {@code value}, oldest first. */
+    public List<ExecutionRecord> findByLabel(String key, String value) {
+        return stores.index().findByLabel(key, value);
+    }
+
+    /** Up to {@code limit} executions with {@code status}, oldest first. */
+    public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
+        return stores.index().list(status, limit);
+    }
+
+    /** The digest of the spec this runner's executions are pinned to. */
+    public String specDigest() {
+        return specDigest;
+    }
+
+    /**
+     * Ends an execution that has not ended with {@code failure}, without running it: for an
+     * execution this process cannot run, such as one started by another version of the spec.
+     */
+    public void fail(ExecutionId executionId, Failure failure) {
+        ReentrantLock lock = lockOf(executionId);
+        lock.lock();
+        try {
+            Optional<ExecutionStatus> status = status(executionId);
+            if (status.isEmpty() || status.get().isTerminal()) {
+                return;
+            }
+            new Run(ExecutionRequest.of(executionId, null)).fail(failure);
+        } catch (ConcurrentAppendException e) {
+            throw new IllegalStateException(
+                    "Another owner appended to the journal of " + executionId, e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     /** The recorded status of an execution. */
     public Optional<ExecutionStatus> status(ExecutionId executionId) {
         return stores.index().find(executionId).map(ExecutionRecord::status);

@@ -212,6 +212,58 @@ public class JournaledRunnerTest {
     }
 
     @Test
+    void startShouldRecordTheInputLabelsAndEntryOnce() {
+        ExecutionRequest request = ExecutionRequest.of(ID, "{\"voyageId\":\"VOY-2026-042\"}");
+
+        assertTrue(runner.start(request, "mcp:shipyard-ops/clear", Map.of("taskId", "t-1")));
+        assertFalse(runner.start(ExecutionRequest.of(ID, "other"), "mcp:x/y", Map.of()));
+
+        assertEquals("{\"voyageId\":\"VOY-2026-042\"}", runner.input(ID).orElseThrow());
+        assertEquals("mcp:shipyard-ops/clear", runner.record(ID).orElseThrow().entry());
+        assertEquals("sha256:tree", runner.record(ID).orElseThrow().specDigest());
+        assertEquals(List.of(ID), runner.findByLabel("taskId", "t-1").stream()
+                .map(r -> r.executionId()).toList());
+        assertEquals(1, runner.list(ExecutionStatus.RUNNING, 10).size());
+        assertEquals("sha256:tree", runner.specDigest());
+    }
+
+    @Test
+    void aStartedExecutionShouldRunAndReplayAfterItsInput() {
+        runner.start(ExecutionRequest.of(ID, "input"), "mcp:shipyard-ops/clear", Map.of());
+
+        ExecutionResult first = runner.run(new ExecutionRequest(ID, null, Map.of(CONFIRM, true),
+                null), CLEARANCE, recording);
+        ExecutionResult second = runner.run(ExecutionRequest.of(ID, null), CLEARANCE, recording);
+
+        assertEquals(first, second);
+        assertEquals(List.of("steps/screen", "steps/book-slot"), calls);
+        assertEquals(JournalEntry.Kind.EXECUTION_STARTED, stores.journal().read(ID).get(0).kind());
+    }
+
+    @Test
+    void inputShouldBeEmptyForAnExecutionNotStartedThatWay() {
+        assertTrue(runner.input(ID).isEmpty());
+        runner.create(ExecutionRequest.of(ID, null), "mcp:shipyard-ops");
+        assertTrue(runner.input(ID).isEmpty());
+    }
+
+    @Test
+    void failShouldEndARunningExecutionWithoutRunningIt() {
+        runner.start(ExecutionRequest.of(ID, "input"), "mcp:shipyard-ops/clear", Map.of());
+
+        runner.fail(ID, new Failure("spec-changed", "The capability changed"));
+        runner.fail(new ExecutionId("unknown"), new Failure("spec-changed", "ignored"));
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(ID).orElseThrow());
+        assertEquals("spec-changed", assertInstanceOf(ExecutionResult.Failed.class,
+                runner.result(ID).orElseThrow()).failure().errorClass());
+        runner.fail(ID, new Failure("other", "An ended execution keeps its result"));
+        assertEquals("spec-changed", assertInstanceOf(ExecutionResult.Failed.class,
+                runner.result(ID).orElseThrow()).failure().errorClass());
+        assertTrue(calls.isEmpty());
+    }
+
+    @Test
     void createShouldBeIdempotent() {
         assertTrue(runner.create(ExecutionRequest.of(ID, null), "mcp:shipyard-ops"));
         assertFalse(runner.create(ExecutionRequest.of(ID, null), "mcp:shipyard-ops"));

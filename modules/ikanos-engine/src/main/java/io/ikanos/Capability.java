@@ -178,7 +178,7 @@ public class Capability {
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if (serverSpec instanceof ControlServerSpec controlSpec) {
                 durabilitySpec = controlSpec.getDurability();
-                this.durability.set(Durability.fromSpec(durabilitySpec));
+                this.durability.set(Durability.fromSpec(durabilitySpec, specDigest(spec)));
                 break;
             }
         }
@@ -307,7 +307,9 @@ public class Capability {
     /**
      * Digest of this capability's spec, with object keys sorted. Replicas running the same spec
      * share it; state sealed for clients is bound to it, so a replica running another version
-     * rejects it rather than replaying answers into changed steps.
+     * rejects it rather than replaying answers into changed steps. Durable executions are pinned
+     * to it too: after a restart, an unfinished execution recorded under another digest fails
+     * instead of resuming.
      */
     public String getSpecDigest() {
         return specDigest.get();

@@ -50,4 +50,10 @@ final class MemoryExecutionIndex implements ExecutionIndex {
         return records.values().stream().filter(r -> r.status() == status)
                 .sorted(Comparator.comparing(ExecutionRecord::createdAt)).limit(limit).toList();
     }
+
+    @Override
+    public List<ExecutionRecord> findByLabel(String key, String value) {
+        return records.values().stream().filter(r -> value.equals(r.labels().get(key)))
+                .sorted(Comparator.comparing(ExecutionRecord::createdAt)).toList();
+    }
 }

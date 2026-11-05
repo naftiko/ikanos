@@ -35,6 +35,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
+import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * MCP Server Adapter implementation.
@@ -49,6 +52,8 @@ import io.ikanos.engine.execution.Durability;
  * {@link PromptHandler} and {@link SkillHandler} are shared. Only the I/O layer differs.
  */
 public class McpServerAdapter extends ServerAdapter {
+
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     /**
      * Stdio handler and thread — only initialized for stdio transport. Held in
@@ -228,6 +233,30 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
+     * Starts again the unfinished tasks of this adapter's tools that the durable store kept, such
+     * as those of the {@code local} mode after a restart. A task belongs to this adapter when its
+     * entry names the adapter's namespace; one whose tool no longer exists fails when called.
+     *
+     * @return the number of tasks started again
+     */
+    public int resumeTasks() {
+        if (taskService == null) {
+            return 0;
+        }
+        String prefix = "mcp:" + getMcpServerSpec().getNamespace() + "/";
+        return taskService.resume((entry, arguments) -> {
+            if (!entry.startsWith(prefix)) {
+                return null;
+            }
+            String toolName = entry.substring(prefix.length());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> callArguments = arguments == null || !arguments.isObject()
+                    ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
+            return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
+        });
+    }
+
+    /**
      * Whether the tool's flow declares {@code semantics.interaction.mode: task}. Only a tool that
      * references a flow with {@code ref:} can: inline steps carry no flow contract.
      */
@@ -299,6 +328,12 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void start() throws Exception {
+        // Unfinished tasks kept by a durable store run again before new calls are served.
+        int resumed = resumeTasks();
+        if (resumed > 0) {
+            Context.getCurrentLogger().log(Level.INFO, "Resumed " + resumed + " MCP task(s)"
+                    + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        }
         if (getMcpServerSpec().isStdio()) {
             Thread thread = new Thread(stdioHandler.get(), "mcp-stdio");
             thread.setDaemon(true);

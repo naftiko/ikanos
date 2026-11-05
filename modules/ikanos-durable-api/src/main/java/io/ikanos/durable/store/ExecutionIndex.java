@@ -34,4 +34,7 @@ public interface ExecutionIndex {
 
     /** Lists up to {@code limit} executions with {@code status}, oldest first. */
     List<ExecutionRecord> list(ExecutionStatus status, int limit);
+
+    /** Finds the executions labelled {@code key} = {@code value}, oldest first. */
+    List<ExecutionRecord> findByLabel(String key, String value);
 }

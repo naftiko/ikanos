@@ -29,6 +29,8 @@ public record JournalEntry(long sequence, Kind kind, NodePath path, byte[] paylo
 
     /** What a journal entry records. */
     public enum Kind {
+        /** The execution's input, recorded first, so a restarted process can start it again. */
+        EXECUTION_STARTED,
         ACTION_SCHEDULED, ACTION_SUCCEEDED, ACTION_FAILED, DECISION_RECORDED, TIMER_STARTED,
         TIMER_FIRED, UPDATE_RECEIVED, EXECUTION_COMPLETED, EXECUTION_FAILED
     }
