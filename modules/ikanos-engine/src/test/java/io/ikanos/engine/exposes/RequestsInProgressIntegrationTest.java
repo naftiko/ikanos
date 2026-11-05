@@ -132,7 +132,7 @@ class RequestsInProgressIntegrationTest {
     }
 
     @Test
-    void adapterShouldDefaultTo32RequestsPerCpu() throws Exception {
+    void adapterShouldDefaultTo16RequestsPerCpu() throws Exception {
         Capability unset = capabilityFromYaml(yaml(freePort(), freePort(), freePort(), ""));
 
         assertEquals(ServerAdapter.DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU
