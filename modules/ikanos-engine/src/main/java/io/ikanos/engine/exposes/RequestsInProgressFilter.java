@@ -59,27 +59,28 @@ class RequestsInProgressFilter extends Filter {
     }
 
     @Override
-    protected int beforeHandle(Request request, Response response) {
-        if (permits.tryAcquire()) {
-            TelemetryBootstrap.get().getMetrics().requestInProgress(adapterType, namespace, 1);
-            return CONTINUE;
-        }
-        TelemetryBootstrap.get().getMetrics().recordRequestRejected(adapterType, namespace);
-        // Read the body first, or Jetty would close a keep-alive connection under the client (#878)
-        RejectedRequestBodies.discard(request);
-        response.setStatus(Status.SERVER_ERROR_SERVICE_UNAVAILABLE);
-        response.setRetryAfter(new Date(System.currentTimeMillis() + RETRY_AFTER_SECONDS * 1000L));
-        response.setEntity("Too many requests in progress, try again later", MediaType.TEXT_PLAIN);
-        return STOP;
-    }
-
-    @Override
     protected int doHandle(Request request, Response response) {
+        // Taking and giving back the slot in one place: nothing between them can leak it
+        if (!permits.tryAcquire()) {
+            refuse(request, response);
+            return STOP;
+        }
         try {
+            TelemetryBootstrap.get().getMetrics().requestInProgress(adapterType, namespace, 1);
             return super.doHandle(request, response);
         } finally {
             permits.release();
             TelemetryBootstrap.get().getMetrics().requestInProgress(adapterType, namespace, -1);
         }
+    }
+
+    private void refuse(Request request, Response response) {
+        TelemetryBootstrap.get().getMetrics().recordRequestRejected(adapterType, namespace);
+        // Read the body first, or Jetty would close a keep-alive connection under the client (#878)
+        RejectedRequestBodies.discard(request);
+        response.setStatus(Status.SERVER_ERROR_SERVICE_UNAVAILABLE);
+        // Restlet only writes Retry-After as a date: one second from now
+        response.setRetryAfter(new Date(System.currentTimeMillis() + RETRY_AFTER_SECONDS * 1000L));
+        response.setEntity("Too many requests in progress, try again later", MediaType.TEXT_PLAIN);
     }
 }

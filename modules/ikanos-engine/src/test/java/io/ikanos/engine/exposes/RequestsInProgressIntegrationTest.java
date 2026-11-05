@@ -128,6 +128,7 @@ class RequestsInProgressIntegrationTest {
         assertEquals(2, limit.getLimit());
         assertTrue(!(control.getHandler() instanceof RequestsInProgressFilter),
                 "the control port must not be limited");
+        assertEquals(0, control.getRequestsInProgressLimit());
     }
 
     @Test
@@ -137,6 +138,136 @@ class RequestsInProgressIntegrationTest {
         assertEquals(ServerAdapter.DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU
                 * Runtime.getRuntime().availableProcessors(),
                 unset.getServerAdapters().get(0).maxRequestsInProgress());
+    }
+
+    @Test
+    void adapterShouldGetEnoughJettyThreadsForALimitAbove200() throws Exception {
+        Capability large = capabilityFromYaml(yaml(freePort(), freePort(), freePort(),
+                "maxRequestsInProgress: 300"));
+        Capability small = capabilityFromYaml(yaml(freePort(), freePort(), freePort(),
+                "maxRequestsInProgress: 4"));
+
+        assertEquals("350", maxThreads(large.getServerAdapters().get(0).getServer()));
+        assertEquals(null, maxThreads(small.getServerAdapters().get(0).getServer()),
+                "below Restlet's default of 200 threads, it is left as it is");
+    }
+
+    @Test
+    void sharedListenerShouldGetEnoughJettyThreadsForAllItsAdapters() throws Exception {
+        int port = freePort();
+        Capability shared = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: "localhost"
+                      port: %d
+                      path: "/a"
+                      namespace: a
+                      maxRequestsInProgress: 150
+                      resources:
+                        ping:
+                          path: "/ping"
+                          operations:
+                            ping:
+                              method: GET
+                              outputParameters:
+                                - type: string
+                                  value: "ok"
+                    - type: rest
+                      address: "localhost"
+                      port: %d
+                      path: "/b"
+                      namespace: b
+                      maxRequestsInProgress: 100
+                      resources:
+                        ping:
+                          path: "/ping"
+                          operations:
+                            ping:
+                              method: GET
+                              outputParameters:
+                                - type: string
+                                  value: "ok"
+                  consumes: []
+                """.formatted(IKANOS, port, port));
+
+        assertEquals("300",
+                maxThreads(shared.getServerHost().getSharedListeners().get(0).server()));
+    }
+
+    @Test
+    void requestsRefusedByAuthenticationShouldNotTakeASlot() throws Exception {
+        int upstreamPort = freePort();
+        int port = freePort();
+        Component secured = slowUpstream(upstreamPort);
+        secured.start();
+        Capability withKey = capabilityFromYaml(yaml(upstreamPort, port, freePort(), """
+                maxRequestsInProgress: 1
+                      authentication:
+                        type: apikey
+                        key: X-Api-Key
+                        value: s3cr3t"""));
+        withKey.start();
+        try {
+            CompletableFuture<HttpResponse<String>> admitted = client.sendAsync(
+                    keyed(port, "s3cr3t"), HttpResponse.BodyHandlers.ofString());
+            // The latch counts two upstream calls; with one slot, only one gets there
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (upstreamReached.getCount() > 1 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertEquals(1, upstreamReached.getCount(), "the admitted request should reach the upstream");
+
+            List<Integer> badKeys = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                badKeys.add(client.send(keyed(port, "wrong"),
+                        HttpResponse.BodyHandlers.ofString()).statusCode());
+            }
+            int goodKeyWhileFull = client.send(keyed(port, "s3cr3t"),
+                    HttpResponse.BodyHandlers.ofString()).statusCode();
+            upstreamGate.release(1);
+
+            assertEquals(List.of(401, 401, 401, 401, 401), badKeys);
+            assertEquals(503, goodKeyWhileFull, "the one slot is taken by the admitted request");
+            assertEquals(200, admitted.get(10, TimeUnit.SECONDS).statusCode());
+        } finally {
+            withKey.stop();
+            secured.stop();
+        }
+    }
+
+    @Test
+    void mcpAdapterShouldBeLimitedToo() throws Exception {
+        Capability mcp = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      address: "localhost"
+                      port: %d
+                      namespace: demo
+                      description: "Demo"
+                      maxRequestsInProgress: 3
+                      tools:
+                        hello:
+                          description: "Say hello"
+                          outputParameters:
+                            - type: string
+                              value: "hi"
+                  consumes: []
+                """.formatted(IKANOS, freePort()));
+
+        assertEquals(3, mcp.getServerAdapters().get(0).getRequestsInProgressLimit());
+    }
+
+    private HttpRequest keyed(int port, String key) {
+        return HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/slow"))
+                .header("X-Api-Key", key).timeout(Duration.ofSeconds(15)).build();
+    }
+
+    private static String maxThreads(org.restlet.Server server) {
+        return server.getContext().getParameters().getFirstValue("threadPool.maxThreads");
     }
 
     private CompletableFuture<HttpResponse<String>> sendAsync(String path) {

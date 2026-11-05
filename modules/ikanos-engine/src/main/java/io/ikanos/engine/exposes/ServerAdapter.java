@@ -48,10 +48,18 @@ public abstract class ServerAdapter extends Adapter {
     /** Requests an adapter works on at once, per CPU, when its spec sets no maxRequestsInProgress (#920). */
     static final int DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU = 32;
 
+    /** Restlet's default for Jetty's {@code threadPool.maxThreads}. */
+    static final int JETTY_DEFAULT_MAX_THREADS = 200;
+
+    /** Jetty threads kept beyond the requests in progress, for its acceptors and selectors. */
+    static final int JETTY_THREAD_HEADROOM = 50;
+
     private final Capability capability;
     private final ServerSpec spec;
     private Server server;
     private Restlet handler;
+    /** The requests in progress {@link #limitRequestsInProgress} allows, or 0 without a limit. */
+    private int requestsInProgressLimit;
     private boolean sharedServer;
 
     public ServerAdapter(Capability capability, ServerSpec spec) {
@@ -63,7 +71,7 @@ public abstract class ServerAdapter extends Adapter {
      * Initialize the Restlet HTTP server. Subclasses call this after building their router/chain.
      */
     protected void initServer(String address, int port, Restlet handler) {
-        this.server = createServer(address, port);
+        this.server = createServer(address, port, requestsInProgressLimit);
         this.server.setNext(handler);
         this.handler = handler;
     }
@@ -73,6 +81,15 @@ public abstract class ServerAdapter extends Adapter {
      * listener shared by several adapters behaves like a dedicated one.
      */
     static Server createServer(String address, int port) {
+        return createServer(address, port, 0);
+    }
+
+    /**
+     * Same, with enough Jetty threads for {@code requestsInProgress} requests at once: past
+     * Restlet's 200, Jetty would queue the excess without a limit, and the limit on requests in
+     * progress would never be reached (#920).
+     */
+    static Server createServer(String address, int port, int requestsInProgress) {
         Server result = new Server(Protocol.HTTP, address, port);
         result.setContext(new Context());
 
@@ -82,6 +99,10 @@ public abstract class ServerAdapter extends Adapter {
         // the caller-controlled X-Forwarded-For header, which would defeat the MCP
         // trustedNetworks check (issue #483).
         result.getContext().getParameters().add("useForwardedForHeader", "false");
+        if (requestsInProgress + JETTY_THREAD_HEADROOM > JETTY_DEFAULT_MAX_THREADS) {
+            result.getContext().getParameters().add("threadPool.maxThreads",
+                    String.valueOf(requestsInProgress + JETTY_THREAD_HEADROOM));
+        }
         return result;
     }
 
@@ -147,8 +168,14 @@ public abstract class ServerAdapter extends Adapter {
      * it, so health checks and metrics keep answering during an overload.
      */
     protected Restlet limitRequestsInProgress(Restlet next) {
-        return new RequestsInProgressFilter(maxRequestsInProgress(), getSpec().getType(),
+        this.requestsInProgressLimit = maxRequestsInProgress();
+        return new RequestsInProgressFilter(requestsInProgressLimit, getSpec().getType(),
                 getSpec().getNamespace(), next);
+    }
+
+    /** The requests in progress this adapter allows, or 0 when it has no limit (the control port). */
+    int getRequestsInProgressLimit() {
+        return requestsInProgressLimit;
     }
 
     /** The spec's maxRequestsInProgress, or {@value #DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU} per CPU. */

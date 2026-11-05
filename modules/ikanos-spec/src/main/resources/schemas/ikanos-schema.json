@@ -1107,7 +1107,7 @@
         "maxRequestsInProgress": {
           "type": "integer",
           "minimum": 1,
-          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream."
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. The engine gives Jetty enough threads for it. Ignored by the stdio transport."
         },
         "resources": {
           "type": "object",
@@ -1175,7 +1175,7 @@
         "maxRequestsInProgress": {
           "type": "integer",
           "minimum": 1,
-          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream."
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. The engine gives Jetty enough threads for it. Ignored by the stdio transport."
         },
         "ttlMs": {
           "type": "integer",

@@ -147,7 +147,10 @@ public class ServerHost {
             statusService.setEnabled(false);
         }
 
-        Server server = ServerAdapter.createServer(key.address(), key.port());
+        // One Jetty pool serves every adapter here: size it for all their limits together (#920)
+        int requestsInProgress = mounts.stream()
+                .mapToInt(mount -> mount.adapter().getRequestsInProgressLimit()).sum();
+        Server server = ServerAdapter.createServer(key.address(), key.port(), requestsInProgress);
         component.getServers().add(server);
 
         for (Map.Entry<String, List<Mount>> entry : byHost.entrySet()) {
