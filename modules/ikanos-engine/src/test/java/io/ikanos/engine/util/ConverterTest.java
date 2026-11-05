@@ -15,6 +15,7 @@ package io.ikanos.engine.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
@@ -483,5 +484,9 @@ public class ConverterTest {
         assertEquals(2, outer.size());
         assertEquals("Widget", outer.get(0).get("Name").asString());
         assertEquals("Gadget", outer.get(1).get("Name").asString());
+
+        // The nested header must not reach the host's column names.
+        assertEquals(2, outer.get(0).size());
+        assertNull(outer.get(0).get("key"));
     }
 }
