@@ -21,6 +21,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,7 +32,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import io.ikanos.Capability;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
@@ -45,6 +52,7 @@ class ConnectorErrorIntegrationTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
     private static final ObjectMapper MAPPER = IkanosMappers.json();
+    private static final Pattern REFERENCE = Pattern.compile("\\(reference: (\\S+)\\)");
 
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
@@ -89,6 +97,53 @@ class ConnectorErrorIntegrationTest {
         String text = result.path("content").path(0).path("text").asString();
         assertTrue(text.matches("An upstream call failed \\(reference: \\S+\\)"),
                 tool + ": " + text);
+    }
+
+    /**
+     * The log line under the reference carries why the call failed (here a refused connection),
+     * so an operator can tell it from a timeout or a DNS failure. Before, the cause was dropped
+     * and the line only said "got no response (status 1001)".
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"/call", "/steps", "/ref", "/forward/items"})
+    void restLogLineUnderTheReferenceShouldCarryTheConnectionFailure(String path)
+            throws Exception {
+        try (LogCapture logs = new LogCapture()) {
+            HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                    URI.create("http://localhost:" + restPort + path))
+                    .timeout(Duration.ofSeconds(15)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            assertConnectionFailureLoggedUnder(reference(response.body()), logs);
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"call-tool", "steps-tool", "ref-tool"})
+    void mcpLogLineUnderTheReferenceShouldCarryTheConnectionFailure(String tool) {
+        try (LogCapture logs = new LogCapture()) {
+            String text = callTool(tool).path("content").path(0).path("text").asString();
+
+            assertConnectionFailureLoggedUnder(reference(text), logs);
+        }
+    }
+
+    private static String reference(String body) {
+        Matcher matcher = REFERENCE.matcher(body);
+        assertTrue(matcher.find(), body);
+        return matcher.group(1);
+    }
+
+    private static void assertConnectionFailureLoggedUnder(String reference, LogCapture logs) {
+        ILoggingEvent event = logs.events().stream()
+                .filter(e -> e.getFormattedMessage().contains("[ref=" + reference + "]"))
+                .findFirst().orElseThrow(() -> new AssertionError("no log line for " + reference));
+        List<String> chain = new ArrayList<>();
+        for (IThrowableProxy t = event.getThrowableProxy(); t != null; t = t.getCause()) {
+            chain.add(t.getClassName());
+        }
+        assertTrue(chain.contains("java.net.ConnectException"),
+                event.getFormattedMessage() + " logged with " + chain);
     }
 
     private JsonNode callTool(String tool) {

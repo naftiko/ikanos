@@ -263,4 +263,11 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     public Status restletStatus() {
         return response != null ? response.getStatus() : null;
     }
+
+    /** Restlet keeps the connection failure on the status, e.g. a refused connection. */
+    @Override
+    public Throwable failureCause() {
+        Status status = restletStatus();
+        return status != null ? status.getThrowable() : null;
+    }
 }

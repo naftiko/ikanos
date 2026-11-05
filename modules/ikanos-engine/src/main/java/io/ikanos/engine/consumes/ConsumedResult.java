@@ -83,6 +83,17 @@ public interface ConsumedResult {
         return status <= 0 || (status >= 1000 && status <= 1099);
     }
 
+    /**
+     * Why the call failed without an answer, such as a refused connection, a timeout or a DNS
+     * failure. The log line under an error reference carries it, so an operator can tell these
+     * cases apart (#873).
+     *
+     * @return the failure cause, or {@code null} when the adapter has none
+     */
+    default Throwable failureCause() {
+        return null;
+    }
+
     /** @return {@code true} when the result carries a non-empty body */
     boolean hasBody();
 
