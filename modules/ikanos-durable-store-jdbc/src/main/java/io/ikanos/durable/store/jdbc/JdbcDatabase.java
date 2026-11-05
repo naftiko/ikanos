@@ -37,8 +37,9 @@ import io.ikanos.durable.store.ConcurrentAppendException;
  *
  * <p>A single connection serves all stores, guarded by a lock: each operation runs in its own
  * transaction, committed before it returns. The database is opened with {@code WRITE_DELAY=0},
- * so a commit has reached the file when it returns, and with H2's file lock, so a second process
- * cannot open the same file. Opening applies the forward-only schema migrations shipped in this
+ * so a commit has reached the file when it returns, with H2's file lock, so a second process
+ * cannot open the same file, and without H2's shutdown hook ({@code DB_CLOSE_ON_EXIT=FALSE}), so
+ * the file stays open until its owner closes it after draining. Opening applies the forward-only schema migrations shipped in this
  * module, and refuses a database written by a newer schema or another minor version of H2.</p>
  */
 final class JdbcDatabase implements AutoCloseable {
@@ -77,7 +78,9 @@ final class JdbcDatabase implements AutoCloseable {
             throw new IllegalStateException("Cannot create the directory of the H2 store at "
                     + absolute + ": " + e.getMessage(), e);
         }
-        String url = "jdbc:h2:file:" + absolute + ";WRITE_DELAY=0";
+        // DB_CLOSE_ON_EXIT=FALSE: H2's own shutdown hook would close the file while the engine
+        // drains its tasks on SIGTERM (JVM hooks run concurrently); the owner closes it instead.
+        String url = "jdbc:h2:file:" + absolute + ";WRITE_DELAY=0;DB_CLOSE_ON_EXIT=FALSE";
         Connection connection;
         try {
             connection = new org.h2.Driver().connect(url, new Properties());
