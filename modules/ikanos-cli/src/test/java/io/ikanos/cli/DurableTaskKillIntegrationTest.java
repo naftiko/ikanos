@@ -312,6 +312,7 @@ public class DurableTaskKillIntegrationTest {
         assertEquals("completed", task.path("status").asString(), String.valueOf(task));
         assertEquals(1, bookings.get());
         assertEquals(1, lookups.get(),
-                "The drain let the lookup in flight finish and journal its outcome");
+                "The drain let the lookup in flight finish and journal its outcome; first process:\n"
+                        + Files.readString(directory.resolve("first.log")));
     }
 }
