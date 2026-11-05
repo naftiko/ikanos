@@ -100,13 +100,17 @@ class McpClientAdapterTest {
     }
 
     private static McpClientSpec spec(String extra) throws Exception {
+        return spec("{{token}}", extra);
+    }
+
+    private static McpClientSpec spec(String token, String extra) throws Exception {
         return (McpClientSpec) YAML.readValue("""
                 type: mcp
                 namespace: billing
                 endpoint: https://billing.example.com/mcp
                 authentication:
                   type: bearer
-                  token: "{{token}}"
+                  token: "%s"
                 discovery: off
                 tools:
                   get-invoice:
@@ -118,11 +122,28 @@ class McpClientAdapterTest {
                     outputParameters:
                       total: { type: number, value: $.amount.total }
                 %s
-                """.formatted(extra), ClientSpec.class);
+                """.formatted(token, extra), ClientSpec.class);
     }
 
     private static McpClientAdapter adapter(StubClient client, String extra) throws Exception {
         return new McpClientAdapter(null, spec(extra), client);
+    }
+
+    /** tools/list has no call parameters, so its credential can only come from the spec. */
+    private static McpClientAdapter adapterWithStaticToken(StubClient client) throws Exception {
+        return new McpClientAdapter(null, spec("s3cret", ""), client);
+    }
+
+    @Test
+    void toolsCallShouldNotSendACredentialWhoseVariableHasNoValue() throws Exception {
+        StubClient client = new StubClient();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter(client, "").prepare("get-invoice", Map.of("invoice-id", "1"))
+                        .invoke());
+
+        assertTrue(error.getMessage().contains("[token]"), error.getMessage());
+        assertEquals(0, client.requests.size(), "nothing was sent upstream (#843)");
     }
 
     @Test
@@ -184,7 +205,7 @@ class McpClientAdapterTest {
                         + "\"structuredContent\":{\"amount\":{\"total\":7}}}"));
 
         ConsumedResult result = adapter(client, "")
-                .prepare("get-invoice", Map.of("invoice-id", "1")).invoke();
+                .prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke();
 
         assertEquals(7, result.document().path("amount").path("total").asInt());
         assertEquals(200, result.status());
@@ -244,7 +265,7 @@ class McpClientAdapterTest {
                         + "\"structuredContent\":{\"x\":1}}"));
 
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
-                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+                "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
         assertTrue(error.getMessage().contains("boom"));
     }
@@ -256,7 +277,7 @@ class McpClientAdapterTest {
                 "{\"resultType\":\"input_required\",\"content\":[]}"));
 
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
-                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+                "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
         assertTrue(error.getMessage().contains("'input_required'"), error.getMessage());
     }
@@ -268,7 +289,7 @@ class McpClientAdapterTest {
                 + ",\"error\":{\"code\":-32022,\"message\":\"Unsupported protocol version\"}}");
 
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
-                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+                "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
         assertTrue(error.getMessage().contains("Only stateless upstreams are supported"),
                 error.getMessage());
@@ -280,7 +301,7 @@ class McpClientAdapterTest {
         client.answer = req -> json(503, "");
 
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
-                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+                "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
         assertTrue(error.getMessage().contains("HTTP 503"), error.getMessage());
     }
@@ -297,7 +318,7 @@ class McpClientAdapterTest {
         };
 
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
-                "").prepare("get-invoice", Map.of("invoice-id", "1")).invoke());
+                "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
         assertTrue(error.getMessage().contains("HTTP 401"), error.getMessage());
         assertTrue(error.getMessage().contains("401 Authorization Required"), error.getMessage());
@@ -313,7 +334,7 @@ class McpClientAdapterTest {
             client.answer = req -> json(401, body);
 
             McpClientException error = assertThrows(McpClientException.class,
-                    () -> adapter(client, "").prepare("get-invoice", Map.of("invoice-id", "1"))
+                    () -> adapter(client, "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret"))
                             .invoke());
 
             assertTrue(error.getMessage().contains("HTTP 401"), error.getMessage());
@@ -350,7 +371,7 @@ class McpClientAdapterTest {
         };
 
         ConsumedResult result = adapter(client, "")
-                .prepare("get-invoice", Map.of("invoice-id", "1")).invoke();
+                .prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke();
 
         assertEquals(5, result.document().path("amount").path("total").asInt());
     }
@@ -486,7 +507,7 @@ class McpClientAdapterTest {
         client.answer = req -> listPage(req, "same");
 
         McpClientException error = assertThrows(McpClientException.class,
-                () -> adapter(client, "").listTools());
+                () -> adapterWithStaticToken(client).listTools());
 
         assertTrue(error.getMessage().contains("repeated tools/list cursor 'same'"),
                 error.getMessage());
@@ -499,7 +520,7 @@ class McpClientAdapterTest {
         client.answer = req -> listPage(req, "c" + req.path("id").asLong());
 
         McpClientException error = assertThrows(McpClientException.class,
-                () -> adapter(client, "").listTools());
+                () -> adapterWithStaticToken(client).listTools());
 
         assertTrue(error.getMessage().contains("more than " + McpClientAdapter.MAX_LIST_PAGES),
                 error.getMessage());
@@ -512,7 +533,7 @@ class McpClientAdapterTest {
         client.answer = req -> listPage(req, req.path("id").asLong() < 3 ? "c"
                 + req.path("id").asLong() : null);
 
-        adapter(client, "").listTools();
+        adapterWithStaticToken(client).listTools();
 
         assertEquals(3, client.requests.size());
     }

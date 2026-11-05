@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
@@ -82,11 +83,9 @@ public final class ConsumedAuthentication {
                 BasicAuthenticationSpec basicAuth = (BasicAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
                 challengeResponse.setIdentifier(
-                        Resolver.resolveMustacheTemplate(basicAuth.getUsername(), parameters));
-                challengeResponse.setSecret(Resolver
-                        .resolveMustacheTemplate(passwordOrEmpty(basicAuth.getPassword()),
-                                parameters)
-                        .toCharArray());
+                        render(basicAuth.getUsername(), parameters, "basic username"));
+                challengeResponse.setSecret(render(passwordOrEmpty(basicAuth.getPassword()),
+                        parameters, "basic password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
@@ -94,9 +93,9 @@ public final class ConsumedAuthentication {
                 DigestAuthenticationSpec digestAuth = (DigestAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_DIGEST);
                 challengeResponse.setIdentifier(
-                        Resolver.resolveMustacheTemplate(digestAuth.getUsername(), parameters));
-                challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                        passwordOrEmpty(digestAuth.getPassword()), parameters).toCharArray());
+                        render(digestAuth.getUsername(), parameters, "digest username"));
+                challengeResponse.setSecret(render(passwordOrEmpty(digestAuth.getPassword()),
+                        parameters, "digest password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
@@ -104,14 +103,14 @@ public final class ConsumedAuthentication {
                 BearerAuthenticationSpec bearerAuth = (BearerAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_OAUTH_BEARER);
                 challengeResponse.setRawValue(
-                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), parameters));
+                        render(bearerAuth.getToken(), parameters, "bearer token"));
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
             case "apikey":
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
-                String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), parameters);
-                String value = Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
+                String key = render(apiKeyAuth.getKey(), parameters, "apikey key");
+                String value = render(apiKeyAuth.getValue(), parameters, "apikey value");
 
                 if (apiKeyAuth.isQueryPlacement()) {
                     String separator = targetRef.contains("?") ? "&" : "?";
@@ -135,6 +134,43 @@ public final class ConsumedAuthentication {
             default:
                 break;
         }
+    }
+
+    /**
+     * Renders a credential template, refusing one that uses a variable with no value: unbound (a
+     * typo such as {@code {{TOKN}}}) or bound to a blank value. Rendering alone would turn it into
+     * an empty string, or keep the placeholder when there are no parameters, and send that as the
+     * credential (#843). The error names the variables, never a value.
+     *
+     * @param template the credential template, may be null
+     * @param parameters template parameters, already merged with the bindings
+     * @param credential how the error names the credential, such as "bearer token"
+     * @return the rendered credential, or {@code null} if {@code template} is null
+     * @throws IllegalArgumentException when a variable of the template has no value
+     */
+    static String render(String template, Map<String, Object> parameters, String credential) {
+        List<String> empty = unresolvedVariables(template, parameters);
+        if (!empty.isEmpty()) {
+            throw new IllegalArgumentException("Missing or empty template parameters in the "
+                    + credential + ": " + empty + ". The credential is not sent.");
+        }
+        return Resolver.resolveMustacheTemplate(template, parameters);
+    }
+
+    /**
+     * @param template a credential template, may be null
+     * @param values the values available to it, may be null
+     * @return the variables of {@code template} that are unbound or bound to a blank value
+     */
+    public static List<String> unresolvedVariables(String template, Map<String, Object> values) {
+        // With no parameters, every variable of the template counts as missing: all are listed
+        return Resolver.missingVariables(template, null).stream()
+                .filter(variable -> values == null || isBlank(values.get(variable)))
+                .toList();
+    }
+
+    private static boolean isBlank(Object value) {
+        return value == null || value.toString().isBlank();
     }
 
     private static String passwordOrEmpty(char[] password) {
