@@ -52,6 +52,13 @@ public class HttpClientAdapter extends ClientAdapter {
     private static final ObjectMapper JSON = IkanosMappers.json();
 
     /**
+     * Fully-qualified class name of the {@link IkanosHttpClientHelper} that Restlet instantiates
+     * reflectively for every adapter that does not route through a tunnel (#925).
+     */
+    static final String HTTP_CLIENT_HELPER_CLASS_NAME =
+            "io.ikanos.engine.consumes.http.IkanosHttpClientHelper";
+
+    /**
      * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
      * Restlet instantiates reflectively when this adapter routes requests through a tunnel.
      * Kept as a string constant so the engine module need not statically depend on the helper
@@ -74,8 +81,8 @@ public class HttpClientAdapter extends ClientAdapter {
      * <p>When {@code spec.getTunnel()} is non-null AND {@code tunnels} contains an entry for
      * the tunnel's type, the underlying Restlet {@link Client} is created with a custom
      * {@link TunnelAwareHttpClientHelper} that installs a Jetty request listener routing
-     * matching hosts through the tunnel. Otherwise this behaves identically to the 2-arg
-     * constructor (direct internet path).
+     * matching hosts through the tunnel. Otherwise it uses {@link IkanosHttpClientHelper} on the
+     * direct internet path, as the 2-arg constructor does.
      *
      * @param capability the owning capability
      * @param spec the consumed-HTTP spec
@@ -89,7 +96,9 @@ public class HttpClientAdapter extends ClientAdapter {
                 capability != null ? capability.getBindings() : null);
         Tunnel tunnel = selectTunnel(spec, tunnels);
         if (tunnel == null) {
-            this.httpClient = new Client(HTTP, HTTPS);
+            IkanosHttpClientHelper.ensureRegistered();
+            this.httpClient = new Client(
+                    new Context(), List.of(HTTP, HTTPS), HTTP_CLIENT_HELPER_CLASS_NAME);
         } else {
             TunnelRouteTable routes = new TunnelRouteTable();
             routes.register(extractHost(this.baseUri), tunnel);

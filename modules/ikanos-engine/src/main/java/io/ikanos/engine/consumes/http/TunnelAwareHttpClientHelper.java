@@ -21,7 +21,7 @@ import org.eclipse.jetty.client.Request;
 import org.restlet.Client;
 
 /**
- * Restlet {@link org.restlet.engine.connector.HttpClientHelper} subclass that installs a
+ * {@link IkanosHttpClientHelper} subclass that installs a
  * Jetty request listener which, on every outgoing request, looks up the host in a {@link
  * TunnelRouteTable} and attaches a {@link TunnelTransport} when the host is tunneled.
  *
@@ -34,8 +34,7 @@ import org.restlet.Client;
  * Restlet swaps in custom helpers without touching the default helper lookup. The name MUST
  * stay stable.
  */
-public class TunnelAwareHttpClientHelper
-        extends org.restlet.engine.connector.HttpClientHelper {
+public class TunnelAwareHttpClientHelper extends IkanosHttpClientHelper {
 
     /**
      * Restlet calls this constructor reflectively when it resolves the helper class name.
