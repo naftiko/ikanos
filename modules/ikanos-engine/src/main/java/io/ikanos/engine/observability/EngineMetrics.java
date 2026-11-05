@@ -44,6 +44,8 @@ public class EngineMetrics {
     private final LongCounter httpClientTotal;
     private final DoubleHistogram httpClientDuration;
     private final LongUpDownCounter capabilityActive;
+    private final LongUpDownCounter requestInProgress;
+    private final LongCounter requestRejected;
 
     EngineMetrics(Meter meter, boolean enabled) {
         this.enabled = enabled;
@@ -76,6 +78,15 @@ public class EngineMetrics {
 
         this.capabilityActive = meter.upDownCounterBuilder("ikanos.capability.active")
                 .setDescription("Number of active capabilities")
+                .build();
+
+        this.requestInProgress = meter.upDownCounterBuilder("ikanos.request.in_progress")
+                .setDescription("Number of requests a server adapter is working on")
+                .build();
+
+        this.requestRejected = meter.counterBuilder("ikanos.request.rejected.total")
+                .setDescription("Requests refused with a 503 because the adapter was working on "
+                        + "its maximum number of requests")
                 .build();
     }
 
@@ -139,6 +150,30 @@ public class EngineMetrics {
         Attributes attrs = nonNull(builder.build());
         httpClientTotal.add(1, attrs);
         httpClientDuration.record(durationSec, attrs);
+    }
+
+    /**
+     * Record that a server adapter started ({@code +1}) or finished ({@code -1}) working on a
+     * request.
+     */
+    public void requestInProgress(String adapter, String namespace, long delta) {
+        if (!enabled) return;
+        requestInProgress.add(delta, adapterAttributes(adapter, namespace));
+    }
+
+    /**
+     * Record a request refused because the adapter was working on its maximum number of requests.
+     */
+    public void recordRequestRejected(String adapter, String namespace) {
+        if (!enabled) return;
+        requestRejected.add(1, adapterAttributes(adapter, namespace));
+    }
+
+    private static Attributes adapterAttributes(String adapter, String namespace) {
+        return nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_ADAPTER_TYPE), nonNull(adapter),
+                nonNullStringKey(TelemetryBootstrap.ATTR_NAMESPACE),
+                nonNull(namespace != null ? namespace : "unknown")));
     }
 
     /**

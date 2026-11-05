@@ -45,6 +45,9 @@ import io.ikanos.spec.exposes.ServerSpec;
  */
 public abstract class ServerAdapter extends Adapter {
 
+    /** Requests an adapter works on at once, per CPU, when its spec sets no maxRequestsInProgress (#920). */
+    static final int DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU = 32;
+
     private final Capability capability;
     private final ServerSpec spec;
     private Server server;
@@ -135,6 +138,24 @@ public abstract class ServerAdapter extends Adapter {
         if (server != null && !sharedServer) {
             server.stop();
         }
+    }
+
+    /**
+     * Limits how many requests reach {@code next} at once: past the limit, a request gets an
+     * immediate 503 (#920). The REST and MCP adapters put it around their router, inside the
+     * authentication chain, so a rejected login never takes a slot. The control port doesn't use
+     * it, so health checks and metrics keep answering during an overload.
+     */
+    protected Restlet limitRequestsInProgress(Restlet next) {
+        return new RequestsInProgressFilter(maxRequestsInProgress(), getSpec().getType(),
+                getSpec().getNamespace(), next);
+    }
+
+    /** The spec's maxRequestsInProgress, or {@value #DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU} per CPU. */
+    int maxRequestsInProgress() {
+        Integer configured = getSpec().getMaxRequestsInProgress();
+        return configured != null ? configured
+                : DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU * Runtime.getRuntime().availableProcessors();
     }
 
     /**
