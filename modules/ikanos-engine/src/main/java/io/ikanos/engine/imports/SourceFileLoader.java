@@ -14,6 +14,8 @@
 package io.ikanos.engine.imports;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +23,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 
 /**
  * Shared loader for standalone YAML source files referenced by import directives.
@@ -53,11 +56,21 @@ public class SourceFileLoader {
         Path key = absolutePath.normalize().toAbsolutePath();
 
         try {
-            return cache.computeIfAbsent(key,
-                    p -> yamlMapper.readValue(p.toFile(), IkanosSpec.class));
+            return cache.computeIfAbsent(key, p -> yamlMapper
+                    .readValue(YamlAliases.reject(readAllBytes(p)), IkanosSpec.class));
         } catch (JacksonException e) {
             throw new IOException(
                     "Failed to load source file: " + key + " - " + e.getMessage(), e);
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    private static byte[] readAllBytes(Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

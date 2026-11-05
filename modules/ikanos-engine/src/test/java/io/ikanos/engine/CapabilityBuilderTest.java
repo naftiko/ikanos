@@ -43,6 +43,29 @@ class CapabilityBuilderTest {
     }
 
     @Test
+    void capabilityFromClasspathShouldRejectYamlAlias() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Capability.builder()
+                        .loadFromClasspath("/yaml-aliases/alias-capability.yaml"));
+
+        String message = error.getCause().getMessage();
+        assertTrue(message.contains("*list-inputs"), message);
+        assertTrue(message.contains("line: 36"), message);
+    }
+
+    @Test
+    void capabilityFromFileShouldRejectYamlAlias() throws Exception {
+        java.nio.file.Path file = java.nio.file.Path.of(getClass()
+                .getResource("/yaml-aliases/alias-capability.yaml").toURI());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Capability.builder().loadFromFile(file));
+
+        assertTrue(error.getCause().getMessage().contains("*list-inputs"),
+                error.getCause().getMessage());
+    }
+
+    @Test
     void stepHandlerShouldRegisterHandler() {
         StepHandler handler = ctx -> StringNode.valueOf("test");
 
