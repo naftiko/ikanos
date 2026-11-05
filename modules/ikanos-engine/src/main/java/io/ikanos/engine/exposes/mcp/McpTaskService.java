@@ -18,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -28,7 +29,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -109,6 +115,7 @@ public final class McpTaskService {
     private final Map<ExecutionId, Future<?>> running = new ConcurrentHashMap<>();
     private final Map<ExecutionId, Instant> lastUpdated = new ConcurrentHashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    private final AtomicBoolean draining = new AtomicBoolean();
 
     /**
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
@@ -132,6 +139,9 @@ public final class McpTaskService {
      */
     public ObjectNode create(String entry, String principal, JsonNode arguments,
             Callable<JsonNode> work) {
+        if (draining.get()) {
+            throw new IllegalStateException("The server is shutting down: no new task starts");
+        }
         String taskId = newTaskId();
         ExecutionId executionId = ExecutionId.random();
         runner.start(ExecutionRequest.of(executionId, arguments), entry,
@@ -152,6 +162,9 @@ public final class McpTaskService {
      * @return the number of tasks started again
      */
     public int resume(BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        if (draining.get()) {
+            return 0;
+        }
         int resumed = 0;
         List<ExecutionRecord> unfinished = new ArrayList<>(
                 runner.list(ExecutionStatus.RUNNING, RESUME_LIMIT));
@@ -192,7 +205,7 @@ public final class McpTaskService {
                     try {
                         // The flow's steps are journaled one by one under this task's execution,
                         // so a step that already ran is restored rather than run again.
-                        return DurableScope.with(runner, executionId, work);
+                        return DurableScope.with(runner, executionId, draining::get, work);
                     } catch (IllegalArgumentException e) {
                         throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
                     } catch (InputRequiredException e) {
@@ -210,6 +223,33 @@ public final class McpTaskService {
             // Kept for tasks/cancel; a task that already ended has nothing left to interrupt.
             running.put(executionId, future);
         }
+    }
+
+    /**
+     * Stops the running tasks at their next action, for a graceful shutdown: no new task starts,
+     * each running one finishes the action in flight, journals its outcome and stops, unfinished,
+     * for the next process to resume. Waits at most {@code timeout}.
+     *
+     * @return the number of tasks still running when the timeout passed, cut short where they were
+     */
+    public int drain(Duration timeout) {
+        draining.set(true);
+        long deadline = System.nanoTime() + timeout.toNanos();
+        for (Future<?> task : List.copyOf(running.values())) {
+            long left = deadline - System.nanoTime();
+            try {
+                task.get(Math.max(left, 0), TimeUnit.NANOSECONDS);
+            } catch (TimeoutException e) {
+                break;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ExecutionException | CancellationException e) {
+                // Stopped, failed or cancelled: either way, no longer running.
+            }
+        }
+        workers.shutdown();
+        return (int) running.values().stream().filter(task -> !task.isDone()).count();
     }
 
     /**
