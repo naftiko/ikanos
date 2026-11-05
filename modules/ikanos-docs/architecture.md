@@ -212,6 +212,8 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 - **MCP**: a bad argument (`IllegalArgumentException`) becomes a JSON-RPC `invalid params` error. Any other failure while running a tool becomes a tool result with `isError: true` (`ToolsCallHandler`).
 - **REST**: a bad input becomes `400`, a failed upstream step (`StepFailedException`) `502`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
 
+A consumed call that gets no HTTP answer (a connection failure, which Restlet reports with a connector code from 1000 to 1099 instead of an HTTP status) is an upstream failure in every mode, not only in `steps:`. With a single `call:`, a `ref` to an aggregate flow or a REST `forward`, REST answers `502` and MCP an error result, both with "An upstream call failed" and a reference, instead of forwarding the connector code (`ConsumedResult.noResponseReceived`, #873). An HTTP error status from the upstream, such as `404`, is still forwarded as is in single-call mode.
+
 ### Other entry points
 
 - **MCP over stdio**: `StdioJsonRpcHandler` reads JSON-RPC lines from stdin and writes responses to stdout, through the same `ProtocolDispatcher`. Stdout is reserved for the protocol, so all logs go to stderr.
