@@ -112,11 +112,12 @@ public class NativeImageReflectConfigTest {
      * Restlet instantiates an Ikanos client connector helper reflectively, through its
      * {@code (Client)} constructor, once it has resolved the helper by class name. Without the
      * constructor in the native metadata, the native CLI has no connector for HTTP adapters
-     * (#925).
+     * (#925), or for tunneled ones (#940).
      */
     @Test
     void reflectConfigShouldRegisterTheClientConnectorHelpers() throws Exception {
-        for (String name : List.of("io.ikanos.engine.consumes.http.IkanosHttpClientHelper")) {
+        for (String name : List.of("io.ikanos.engine.consumes.http.IkanosHttpClientHelper",
+                "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper")) {
             ReflectEntry entry = entriesByName.get(name);
             assertNotNull(entry, "reflect-config.json is missing " + name);
             assertTrue(entry.allDeclaredConstructors,
