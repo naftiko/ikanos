@@ -14,6 +14,7 @@
 package io.ikanos.cli;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
@@ -29,6 +30,7 @@ import picocli.CommandLine.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 
 @Command(
     name = "openapi",
@@ -65,7 +67,8 @@ public class ExportOpenApiCommand implements Callable<Integer> {
             }
 
             ObjectMapper yamlMapper = IkanosMappers.lenientYaml();
-            IkanosSpec IkanosSpec = yamlMapper.readValue(capabilityFile, IkanosSpec.class);
+            IkanosSpec IkanosSpec = yamlMapper.readValue(
+                    YamlAliases.reject(Files.readAllBytes(capabilityFile.toPath())), IkanosSpec.class);
 
             // Validate and parse spec version
             SpecVersion specVersion;
