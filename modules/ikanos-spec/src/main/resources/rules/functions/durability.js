@@ -16,8 +16,6 @@
  *                       tool with `hints.readOnly: true`, or a flow declaring
  *                       `semantics.safe: true`. Targets in an imported namespace
  *                       are out of reach of a single-document lint and skipped;
- *   - "mode-available": the mode is `local`, whose H2 store module is not
- *                       available yet: the engine rejects the capability;
  *   - "sealing-key-binds": `durability.sealingKey` is not a single Mustache
  *                       expression naming a key declared in `binds` or
  *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`);
@@ -47,16 +45,6 @@ export default function durability(targetVal, options) {
   }
   if (check === "elicit-safety") {
     return control.mode === "none" ? checkElicitSafety(capability) : [];
-  }
-  if (check === "mode-available") {
-    if (control.mode === "local") {
-      return [{
-        message: "Durability mode 'local' is not available yet: its H2 store module ships "
-          + "with a later release. Use 'memory' or 'none'.",
-        path: control.path.concat("durability", "mode"),
-      }];
-    }
-    return [];
   }
   if (check === "sealing-key-binds") {
     return checkSealingKey(targetVal, control);

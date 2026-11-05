@@ -592,9 +592,11 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void durabilityModeRuleShouldFireForAModeWhoseStoreHasNotShipped() {
-        assertRuleFires("rules/polychro-durability-mode-unavailable.yaml",
-            "ikanos-durability-mode-available");
+    public void durabilityRulesShouldNotFireOnTheLocalMode() {
+        LintResult result = lintFixture("rules/polychro-durability-local.yaml");
+        assertTrue(result.exitCode() == 0 && !result.output().contains("ikanos-durability-")
+                && !result.output().contains("ikanos-task-mode-"),
+            "Expected the local mode to lint clean.\n" + result.output());
     }
 
     @Test

@@ -3475,7 +3475,7 @@
           "type": "string",
           "enum": ["none", "memory", "local"],
           "default": "none",
-          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs the H2 store module, which is not available yet."
+          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs `store.path`, the file to keep them in."
         },
         "store": {
           "$ref": "#/$defs/DurabilityStore"
@@ -3502,7 +3502,7 @@
         },
         "path": {
           "type": "string",
-          "description": "File path of an embedded store."
+          "description": "File of an embedded store, such as the H2 database of `local`, relative to the working directory; H2 adds its `.mv.db` extension."
         }
       },
       "required": ["type"],

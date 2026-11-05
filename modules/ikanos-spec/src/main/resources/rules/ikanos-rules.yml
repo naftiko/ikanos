@@ -252,21 +252,6 @@ rules:
       functionOptions:
         check: elicit-safety
 
-  ikanos-durability-mode-available:
-    message: "This durability mode is not available yet."
-    description: >
-      The `local` durability mode keeps executions in an embedded H2 file, whose
-      store module ships with a later increment; until then the engine rejects
-      a capability that declares it. Use `memory` or `none` for now. This rule
-      goes away when the H2 store ships.
-    severity: error
-    recommended: true
-    given: "$"
-    then:
-      function: durability
-      functionOptions:
-        check: mode-available
-
   ikanos-sealing-key-must-bind:
     message: "{{error}}"
     description: >

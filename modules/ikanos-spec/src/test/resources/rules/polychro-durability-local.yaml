@@ -1,7 +1,7 @@
 ikanos: 1.0.0-beta9
 info:
-  display: Durability mode unavailable
-  description: Negative fixture declaring a durability mode whose store has not shipped
+  display: Durability local
+  description: Positive fixture declaring the local durability mode on an H2 file
 capability:
   aggregates:
   - display: departure flows
@@ -28,3 +28,7 @@ capability:
     port: 9312
     durability:
       mode: local
+      store:
+        type: h2
+        path: ./data/shipyard-durable
+      retention: P7D

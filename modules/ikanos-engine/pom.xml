@@ -162,6 +162,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-store-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>

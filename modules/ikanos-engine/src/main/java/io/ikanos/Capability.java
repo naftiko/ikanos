@@ -471,6 +471,9 @@ public class Capability {
         for (ClientAdapter adapter : getClientAdapters()) {
             adapter.stop();
         }
+
+        // Last, once nothing serves calls any more: releases the store, such as the H2 file.
+        durability.get().close();
     }
 
     /** Create a new builder for embedding the Naftiko engine as a library. */

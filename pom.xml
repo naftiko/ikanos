@@ -56,11 +56,14 @@
         <!--
           The durable execution engine (design: Execution & Resolution Model). Its API and
           core depend on the JDK only and never on another Ikanos module; the enforcer rule
-          below (durable-modules-jdk-only) keeps it that way. Store modules come later.
+          below (durable-modules-jdk-only) keeps it that way. Store modules carry their own
+          dependencies (H2 for ikanos-durable-store-jdbc) and are added only by the modes that
+          need them.
         -->
         <module>modules/ikanos-durable-api</module>
         <module>modules/ikanos-durable-core</module>
         <module>modules/ikanos-durable-store-memory</module>
+        <module>modules/ikanos-durable-store-jdbc</module>
         <module>modules/ikanos-spec</module>
         <module>modules/ikanos-engine</module>
         <module>modules/ikanos-cli</module>
@@ -111,6 +114,12 @@
         <polychro.version>1.0.0-beta7</polychro.version>
         <openziti.version>0.33.1</openziti.version>
         <bouncycastle.version>1.85</bouncycastle.version>
+        <!--
+          The H2 version of the local durability mode. Pinned: the H2 store records it in each
+          database and refuses a file written by another minor version (Execution & Resolution
+          Model 7.13.3). Change it only with a migration path for existing local stores.
+        -->
+        <h2.version>2.3.232</h2.version>
         <revision>1.0.0-beta9-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
@@ -160,6 +169,23 @@
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-durable-store-memory</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-store-jdbc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-api</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.ikanos</groupId>

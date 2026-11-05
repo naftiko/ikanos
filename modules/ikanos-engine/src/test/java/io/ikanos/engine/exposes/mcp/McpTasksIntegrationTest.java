@@ -19,9 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -243,8 +246,32 @@ class McpTasksIntegrationTest {
     }
 
     @Test
-    void loadShouldFailForADurabilityModeWhoseStoreIsNotAvailableYet() {
+    void loadShouldFailForTheLocalModeWithoutAPath() {
         String local = "    durability:\n      mode: local\n";
-        assertThrows(IllegalStateException.class, () -> load(clearanceCapability(local, "task")));
+        assertThrows(IllegalArgumentException.class,
+                () -> load(clearanceCapability(local, "task")));
+    }
+
+    @Test
+    void tasksShouldCompleteInTheLocalMode(@TempDir Path directory) throws Exception {
+        String path = directory.resolve("durable").toString().replace('\\', '/');
+        String local = "    durability:\n      mode: local\n      store:\n        path: \"" + path
+                + "\"\n";
+        Capability capability = new Capability(
+                yamlMapper.readValue(clearanceCapability(local, "task"), IkanosSpec.class));
+        try {
+            McpServerAdapter adapter = capability.getServerAdapters().stream()
+                    .filter(McpServerAdapter.class::isInstance).map(McpServerAdapter.class::cast)
+                    .findFirst().orElseThrow();
+            String taskId = dispatch(adapter, "tools/call", CLEAR, true).path("result")
+                    .path("taskId").asString();
+
+            assertEquals("completed", awaitTerminal(adapter, taskId).path("status").asString());
+            assertEquals("local", capability.getDurability().mode());
+            assertTrue(Files.exists(directory.resolve("durable.mv.db")));
+        } finally {
+            // Releases the H2 file, so the temporary directory can be deleted.
+            capability.getDurability().close();
+        }
     }
 }

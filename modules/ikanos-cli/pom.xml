@@ -26,6 +26,16 @@
             <artifactId>ikanos-durable-store-memory</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!--
+          Store of the local durability mode (embedded H2), discovered with ServiceLoader. In the
+          JVM jar and the Docker image; left out of the native binary (see the native profile),
+          where `local` fails at load naming this module.
+        -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-store-jdbc</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>io.ikanos</groupId>
             <artifactId>ikanos-spec</artifactId>
@@ -252,6 +262,9 @@
                                             <exclude>org.graalvm.llvm:*</exclude>
                                             <exclude>org.graalvm.sdk:*</exclude>
                                             <exclude>org.apache.groovy:*</exclude>
+                                            <!-- No H2 in the native binary: untested under native-image -->
+                                            <exclude>io.ikanos:ikanos-durable-store-jdbc</exclude>
+                                            <exclude>com.h2database:h2</exclude>
                                             <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
                                         </excludes>
                                     </artifactSet>
