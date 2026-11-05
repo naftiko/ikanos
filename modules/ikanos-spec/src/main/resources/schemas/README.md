@@ -23,7 +23,7 @@ A Naftiko capability focuses on declaring the **integration intent** — what a 
 
 The JSON Schema for the Naftiko Specification is available in two forms:
 
-- **Raw file** — The schema source file is hosted on GitHub: [capability-schema.json](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/capability-schema.json)
+- **Raw file** — The schema source file is hosted on GitHub: [ikanos-schema.json](https://github.com/naftiko/ikanos/blob/main/modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json)
 - **Interactive viewer** — A human-friendly viewer is available at: [Schema Viewer](https://naftiko.github.io/schema-viewer/)
 
 ### 1.2 Core Objects
