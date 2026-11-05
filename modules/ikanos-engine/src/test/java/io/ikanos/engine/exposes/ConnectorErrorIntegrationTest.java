@@ -128,6 +128,26 @@ class ConnectorErrorIntegrationTest {
         }
     }
 
+    /**
+     * {@code resources/read} has no {@code isError}: an unreachable upstream comes back as a
+     * JSON-RPC error with the same message and a reference, never as empty contents. Before, a
+     * {@code call:} resource answered success with empty text.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"demo://call", "demo://steps"})
+    void mcpResourceShouldFailWithAReferenceWhenTheUpstreamIsUnreachable(String uri) {
+        try (LogCapture logs = new LogCapture()) {
+            JsonNode response = readResource(uri);
+
+            assertTrue(response.path("result").isMissingNode(), uri + ": " + response);
+            assertEquals(-32603, response.path("error").path("code").asInt(), uri + ": " + response);
+            String message = response.path("error").path("message").asString();
+            assertTrue(message.matches("An upstream call failed \\(reference: \\S+\\)"),
+                    uri + ": " + message);
+            assertConnectionFailureLoggedUnder(reference(message), logs);
+        }
+    }
+
     private static String reference(String body) {
         Matcher matcher = REFERENCE.matcher(body);
         assertTrue(matcher.find(), body);
@@ -144,6 +164,19 @@ class ConnectorErrorIntegrationTest {
         }
         assertTrue(chain.contains("java.net.ConnectException"),
                 event.getFormattedMessage() + " logged with " + chain);
+    }
+
+    private JsonNode readResource(String uri) {
+        McpServerAdapter mcp = (McpServerAdapter) capability.getServerAdapters().get(1);
+        ObjectNode request = MAPPER.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 1);
+        request.put("method", "resources/read");
+        ObjectNode params = request.putObject("params");
+        params.put("uri", uri);
+        params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        return new ProtocolDispatcher(mcp).dispatch(request).responseBody();
     }
 
     private JsonNode callTool(String tool) {
@@ -216,6 +249,18 @@ class ConnectorErrorIntegrationTest {
                       port: %d
                       namespace: demo-mcp
                       description: "Demo"
+                      resources:
+                        call-resource:
+                          uri: "demo://call"
+                          description: "Single call"
+                          call: up.get-item
+                        steps-resource:
+                          uri: "demo://steps"
+                          description: "Steps"
+                          steps:
+                            - type: call
+                              name: fetch
+                              call: up.get-item
                       tools:
                         call-tool:
                           description: "Single call"
