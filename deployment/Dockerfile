@@ -8,6 +8,7 @@ RUN sed -i -e 's|<module>modules/ikanos-coverage</module>||g' \
 COPY modules/ikanos-durable-api ./modules/ikanos-durable-api
 COPY modules/ikanos-durable-core ./modules/ikanos-durable-core
 COPY modules/ikanos-durable-store-memory ./modules/ikanos-durable-store-memory
+COPY modules/ikanos-durable-store-jdbc ./modules/ikanos-durable-store-jdbc
 COPY modules/ikanos-spec ./modules/ikanos-spec
 COPY modules/ikanos-engine ./modules/ikanos-engine
 COPY modules/ikanos-cli ./modules/ikanos-cli
