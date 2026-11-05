@@ -203,6 +203,26 @@ public abstract class StoreConformanceTest {
                 listed.stream().map(ExecutionRecord::executionId).toList());
     }
 
+    @Test
+    void indexShouldFindExecutionsByLabel() {
+        stores.index().create(record(OTHER, NOW.plusSeconds(10)));
+        stores.index().create(record(ID, NOW));
+
+        assertEquals(List.of(ID), stores.index().findByLabel("taskId", "task-exec-1").stream()
+                .map(ExecutionRecord::executionId).toList());
+        assertTrue(stores.index().findByLabel("taskId", "unknown").isEmpty());
+        assertTrue(stores.index().findByLabel("other", "task-exec-1").isEmpty());
+    }
+
+    @Test
+    void journalShouldKeepTheStartedEntry() throws ConcurrentAppendException {
+        JournalEntry started = new JournalEntry(1, JournalEntry.Kind.EXECUTION_STARTED, null,
+                new byte[] {'{', '}'});
+        stores.journal().append(ID, 0, 0, List.of(started));
+
+        assertEquals(List.of(started), stores.journal().read(ID));
+    }
+
     // Signal inbox
 
     @Test

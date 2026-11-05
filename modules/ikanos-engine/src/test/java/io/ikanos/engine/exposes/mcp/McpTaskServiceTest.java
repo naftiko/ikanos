@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
@@ -29,12 +30,34 @@ public class McpTaskServiceTest {
     @Test
     void anotherPrincipalShouldNeitherSeeNorCancelATask() {
         String taskId = service.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                IkanosMappers.json().createObjectNode(),
                 () -> IkanosMappers.json().createObjectNode()).path("taskId").asString();
 
         assertTrue(service.get(taskId, "agent-7").isPresent());
         assertTrue(service.get(taskId, "agent-8").isEmpty());
         assertFalse(service.cancel(taskId, "agent-8"));
         assertTrue(service.cancel(taskId, "agent-7"));
+    }
+
+    @Test
+    void theStoreShouldKeepADigestOfThePrincipalNotThePrincipal() {
+        service.create("mcp:shipyard-ops/clear-for-departure", "agent-7", null,
+                () -> IkanosMappers.json().createObjectNode());
+
+        assertEquals(64, McpTaskService.digest("agent-7").length());
+        assertFalse(McpTaskService.digest("agent-7").contains("agent-7"));
+        assertFalse(McpTaskService.digest("agent-7").equals(McpTaskService.digest("agent-8")));
+    }
+
+    @Test
+    void resumeShouldSkipEntriesItDoesNotServe() {
+        service.create("mcp:shipyard-ops/clear-for-departure", "agent-7", null,
+                () -> {
+                    Thread.sleep(200);
+                    return IkanosMappers.json().createObjectNode();
+                });
+
+        assertEquals(0, service.resume((entry, arguments) -> null));
     }
 
     @Test

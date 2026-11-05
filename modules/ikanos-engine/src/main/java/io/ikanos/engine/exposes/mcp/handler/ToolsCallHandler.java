@@ -14,10 +14,12 @@
 package io.ikanos.engine.exposes.mcp.handler;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -43,6 +45,9 @@ import io.ikanos.engine.exposes.mcp.McpCallContext;
  * The tools/call handler.
  */
 public class ToolsCallHandler extends McpCallHandler {
+
+    /** For the static methods, which have no handler instance: the same mapper as MAPPER. */
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     public static final String METHOD_NAME = "tools/call";
 
@@ -78,7 +83,7 @@ public class ToolsCallHandler extends McpCallHandler {
                     String entry =
                             "mcp:" + adapter.getMcpServerSpec().getNamespace() + "/" + toolName;
                     return new HandlerSuccessResult(adapter.getTaskService().create(entry,
-                            principal, () -> callTool(toolName, arguments)));
+                            principal, argumentsNode, () -> callTool(toolName, arguments)));
                 }
                 // A client without tasks is answered synchronously only when the flow is expected
                 // to finish within the synchronous budget.
@@ -117,10 +122,19 @@ public class ToolsCallHandler extends McpCallHandler {
      * same method, so its result never differs from the synchronous one.
      */
     ObjectNode callTool(String toolName, Map<String, Object> arguments) {
+        return callTool(adapter, toolName, arguments);
+    }
+
+    /**
+     * Calls a tool of {@code adapter}, as {@link #callTool(String, Map)} does: the work of a task,
+     * including one started again after a restart.
+     */
+    public static ObjectNode callTool(McpServerAdapter adapter, String toolName,
+            Map<String, Object> arguments) {
         try {
             McpSchema.CallToolResult toolResult =
                     adapter.getToolHandler().handleToolCall(toolName, arguments);
-            ObjectNode result = MAPPER.valueToTree(toolResult);
+            ObjectNode result = JSON.valueToTree(toolResult);
 
             result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
             return result;
@@ -133,8 +147,8 @@ public class ToolsCallHandler extends McpCallHandler {
     }
 
     /** A tool execution error, returned as a tool result with {@code isError: true}. */
-    ObjectNode toolError(String ref) {
-        ObjectNode result = MAPPER.createObjectNode();
+    static ObjectNode toolError(String ref) {
+        ObjectNode result = JSON.createObjectNode();
         ArrayNode content = result.putArray("content");
         ObjectNode textContent = content.addObject();
         textContent.put("type", "text");
