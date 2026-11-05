@@ -56,6 +56,12 @@ public class McpServerAdapter extends ServerAdapter {
     private static final ObjectMapper JSON = IkanosMappers.json();
 
     /**
+     * Longest wait for running tasks to reach their next action when the adapter stops. A task
+     * still in its action after it is cut short there, and resumed by the next start.
+     */
+    static final java.time.Duration DRAIN_TIMEOUT = java.time.Duration.ofSeconds(30);
+
+    /**
      * Stdio handler and thread — only initialized for stdio transport. Held in
      * {@link AtomicReference} so {@code start()} and {@code stop()} can publish/observe them
      * safely (see SonarQube {@code java:S3077}).
@@ -357,6 +363,16 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void stop() throws Exception {
+        // First, while the upstream clients and the store are still open: running tasks finish
+        // their action in flight and stop, unfinished, for the next process to resume.
+        if (taskService != null) {
+            int cutShort = taskService.drain(DRAIN_TIMEOUT);
+            if (cutShort > 0) {
+                Context.getCurrentLogger().log(Level.WARNING, cutShort + " MCP task(s) still "
+                        + "running after " + DRAIN_TIMEOUT.toSeconds() + " s; the next start "
+                        + "resumes them (namespace: " + getMcpServerSpec().getNamespace() + ")");
+            }
+        }
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();
             if (handler != null) {

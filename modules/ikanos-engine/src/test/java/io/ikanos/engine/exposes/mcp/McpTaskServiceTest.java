@@ -18,7 +18,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import tools.jackson.databind.JsonNode;
+import io.ikanos.engine.execution.ExecutionTree;
+import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.NodeRunner;
+import io.ikanos.engine.execution.StepRun;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepSpec;
 import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionResult;
@@ -97,6 +113,68 @@ public class McpTaskServiceTest {
         assertEquals(ExecutionStatus.FAILED, afterRestart.status(task).orElseThrow());
         assertEquals(McpTaskService.INCOMPLETE, ((ExecutionResult.Failed) afterRestart
                 .result(task).orElseThrow()).failure().errorClass());
+    }
+
+    @Test
+    void drainShouldStopATaskAtItsNextActionForTheNextStartToResume() throws Exception {
+        JournaledRunner runner = new JournaledRunner(MemoryStoreProvider.openStores(
+                Clock.systemUTC()), new JsonPayloadCodec(), Clock.systemUTC(), "sha256:spec");
+        CountDownLatch inBooking = new CountDownLatch(1);
+        CountDownLatch finishBooking = new CountDownLatch(1);
+        List<String> invoked = new CopyOnWriteArrayList<>();
+        NodeRunner nodes = (node, run) -> {
+            String name = node.step().getName();
+            invoked.add(name);
+            if (invoked.size() == 1) {
+                inBooking.countDown();
+                try {
+                    finishBooking.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            JsonNode output = IkanosMappers.json().createObjectNode().put("step", name);
+            run.stepContext().storeStepOutput(name, output);
+            return output;
+        };
+        Map<String, OperationStepSpec> steps = new LinkedHashMap<>();
+        steps.put("book-slot", new OperationStepCallSpec("book-slot", "port.book-slot"));
+        steps.put("declare", new OperationStepCallSpec("declare", "customs.declare"));
+        ExecutionTree tree = ExecutionTree.compile(steps, null);
+        Callable<JsonNode> work = () -> {
+            Executions.runSteps(tree, new StepRun(null), nodes);
+            return IkanosMappers.json().createObjectNode();
+        };
+
+        McpTaskService first = new McpTaskService(runner, Clock.systemUTC(), null);
+        String taskId = first.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                IkanosMappers.json().createObjectNode(), work).path("taskId").asString();
+        assertTrue(inBooking.await(10, TimeUnit.SECONDS));
+        AtomicInteger cutShort = new AtomicInteger(-1);
+        Thread draining = Thread.ofVirtual()
+                .start(() -> cutShort.set(first.drain(Duration.ofSeconds(10))));
+        Thread.sleep(100);
+        finishBooking.countDown();
+        draining.join();
+
+        assertEquals(0, cutShort.get(), "The task stopped at its next action, within the timeout");
+        assertEquals(List.of("book-slot"), invoked, "No action starts once the drain began");
+        assertEquals("working", first.get(taskId, "agent-7").orElseThrow().path("status")
+                .asString());
+        assertThrows(IllegalStateException.class, () -> first.create(
+                "mcp:shipyard-ops/clear-for-departure", "agent-7", null, work));
+
+        McpTaskService next = new McpTaskService(runner, Clock.systemUTC(), null);
+        assertEquals(1, next.resume((entry, arguments) -> work));
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (Instant.now().isBefore(deadline) && "working".equals(
+                next.get(taskId, "agent-7").orElseThrow().path("status").asString())) {
+            Thread.sleep(20);
+        }
+        assertEquals("completed", next.get(taskId, "agent-7").orElseThrow().path("status")
+                .asString());
+        assertEquals(List.of("book-slot", "declare"), invoked,
+                "The booking finished before the drain is not made again");
     }
 
     @Test

@@ -15,6 +15,7 @@ package io.ikanos.engine.execution;
 
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.function.BooleanSupplier;
 
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.NodePath;
@@ -38,13 +39,27 @@ public final class DurableScope {
 
     private static final ThreadLocal<DurableScope> CURRENT = new ThreadLocal<>();
 
+    /**
+     * Thrown before an action starts once the scope is stopping: an {@link Error}, so no action
+     * failure is journaled and the execution stays unfinished, to be resumed by the next process.
+     */
+    public static final class Stopped extends Error {
+        private static final long serialVersionUID = 1L;
+
+        Stopped() {
+            super("Stopped before the next action: the process is shutting down");
+        }
+    }
+
     private final JournaledRunner runner;
     private final ExecutionId next;
+    private final BooleanSupplier stopping;
     private int uses;
 
-    private DurableScope(JournaledRunner runner, ExecutionId next) {
+    private DurableScope(JournaledRunner runner, ExecutionId next, BooleanSupplier stopping) {
         this.runner = Objects.requireNonNull(runner, "runner");
         this.next = Objects.requireNonNull(next, "next");
+        this.stopping = Objects.requireNonNull(stopping, "stopping");
     }
 
     /**
@@ -53,7 +68,25 @@ public final class DurableScope {
      */
     public static <T> T with(JournaledRunner runner, ExecutionId root, Callable<T> work)
             throws Exception {
-        return within(new DurableScope(runner, new ExecutionId(root.value() + "/steps")), work);
+        return with(runner, root, () -> false, work);
+    }
+
+    /**
+     * Runs {@code work} as {@link #with(JournaledRunner, ExecutionId, Callable)} does, stopping
+     * before the next action once {@code stopping} holds: the action in flight finishes and its
+     * outcome is journaled, then {@link Stopped} ends the work.
+     */
+    public static <T> T with(JournaledRunner runner, ExecutionId root, BooleanSupplier stopping,
+            Callable<T> work) throws Exception {
+        return within(new DurableScope(runner, new ExecutionId(root.value() + "/steps"),
+                stopping), work);
+    }
+
+    /** Throws {@link Stopped} when the scope is stopping, before an action starts. */
+    void checkNotStopping() {
+        if (stopping.getAsBoolean()) {
+            throw new Stopped();
+        }
     }
 
     /** The scope of the current thread, or {@code null} when its steps run directly. */
@@ -91,6 +124,7 @@ public final class DurableScope {
 
     /** The scope of the step runs started by the action at {@code path} of {@code execution}. */
     DurableScope child(ExecutionId execution, NodePath path) {
-        return new DurableScope(runner, new ExecutionId(execution.value() + "/" + path.value()));
+        return new DurableScope(runner, new ExecutionId(execution.value() + "/" + path.value()),
+                stopping);
     }
 }

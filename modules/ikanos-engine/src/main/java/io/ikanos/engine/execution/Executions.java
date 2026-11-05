@@ -68,9 +68,13 @@ public final class Executions {
             ExecutionId id = scope.nextExecutionId();
             result = scope.runner().run(
                     new ExecutionRequest(id, null, ExecutionInputs.current(), null),
-                    interpreter, request -> DurableScope.within(
-                            scope.child(request.executionId(), request.path()),
-                            () -> runNode(request.action(), run, nodeRunner)));
+                    interpreter, request -> {
+                        // Shutting down: stop before this action, leaving it to the next process.
+                        scope.checkNotStopping();
+                        return DurableScope.within(
+                                scope.child(request.executionId(), request.path()),
+                                () -> runNode(request.action(), run, nodeRunner));
+                    });
             if (result instanceof ExecutionResult.Completed) {
                 // Recorded before this run started: walk the tree once against the journal, so
                 // the outputs mappings read are restored.

@@ -15,6 +15,7 @@ package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -278,5 +279,39 @@ public class DurableTaskKillIntegrationTest {
                 task.toString());
         assertEquals(1, bookings.get(), "The booking journaled before the kill is not made again");
         assertEquals(2, lookups.get(), "Only the lookup cut short by the kill runs again");
+    }
+
+    @Test
+    void aSigtermShouldLetTheCallInFlightFinishSoNothingRunsTwice() throws Exception {
+        // Process.destroy() sends SIGTERM on Unix; on Windows it terminates without warning.
+        assumeFalse(System.getProperty("os.name").toLowerCase().contains("win"),
+                "SIGTERM needs a Unix process");
+        first = serve("first.log");
+        String taskId = rpc("tools/call", "clear-for-departure",
+                "{\"name\":\"clear-for-departure\",\"arguments\":{\"voyageId\":\"VOY-2026-042\"}}")
+                .path("result").path("taskId").asString();
+        assertTrue(lookupInFlight.await(60, TimeUnit.SECONDS), "The lookup started");
+
+        first.destroy();
+        Thread.sleep(500);
+        releaseLookup.countDown();
+        assertTrue(first.waitFor(60, TimeUnit.SECONDS), "The first process drained and exited: "
+                + Files.readString(directory.resolve("first.log")));
+
+        second = serve("second.log");
+        JsonNode task = null;
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(60));
+        while (Instant.now().isBefore(deadline)) {
+            task = rpc("tasks/get", taskId, "{\"taskId\":\"" + taskId + "\"}").path("result");
+            if (!"working".equals(task.path("status").asString())) {
+                break;
+            }
+            Thread.sleep(200);
+        }
+
+        assertEquals("completed", task.path("status").asString(), String.valueOf(task));
+        assertEquals(1, bookings.get());
+        assertEquals(1, lookups.get(),
+                "The drain let the lookup in flight finish and journal its outcome");
     }
 }
