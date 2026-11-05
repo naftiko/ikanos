@@ -34,9 +34,8 @@ import java.time.format.DateTimeParseException;
 public final class Durability implements AutoCloseable {
 
     /**
-     * Digest placeholder until executions are pinned to the digest of their compiled tree. In the
-     * {@code memory} mode no execution outlives the spec it started with; in {@code local}, the
-     * digest becomes real with the resume of executions at startup.
+     * Digest of a durability resolved without a spec, such as in tests. A loaded capability pins
+     * its executions to the digest of its spec instead ({@link #fromSpec(DurabilitySpec, String)}).
      */
     static final String UNPINNED = "unpinned";
 
@@ -72,6 +71,17 @@ public final class Durability implements AutoCloseable {
      *         a {@code local} mode without {@code store.path}
      */
     public static Durability fromSpec(DurabilitySpec spec) {
+        return fromSpec(spec, UNPINNED);
+    }
+
+    /**
+     * Resolves the durability declared on the control port, pinning its executions to
+     * {@code specDigest}: a restarted process fails an unfinished execution recorded under another
+     * digest rather than replay it into steps that may have changed.
+     *
+     * @see #fromSpec(DurabilitySpec)
+     */
+    public static Durability fromSpec(DurabilitySpec spec, String specDigest) {
         String mode = spec == null ? DurabilitySpec.MODE_NONE : spec.effectiveMode();
         switch (mode) {
             case DurabilitySpec.MODE_NONE:
@@ -83,7 +93,7 @@ public final class Durability implements AutoCloseable {
                             + "in process memory; it cannot use store type '" + type + "'");
                 }
                 return open(mode, type, "io.ikanos:ikanos-durable-store-memory", Map.of(),
-                        retentionMs(spec.getRetention()));
+                        retentionMs(spec.getRetention()), specDigest);
             }
             case DurabilitySpec.MODE_LOCAL: {
                 String type = storeType(spec, H2);
@@ -97,7 +107,7 @@ public final class Durability implements AutoCloseable {
                             + "durability.store.path: the file its executions are kept in");
                 }
                 return open(mode, type, "io.ikanos:ikanos-durable-store-jdbc",
-                        Map.of("path", path), retentionMs(spec.getRetention()));
+                        Map.of("path", path), retentionMs(spec.getRetention()), specDigest);
             }
             default:
                 throw new IllegalArgumentException("Unknown durability mode '" + mode
@@ -111,14 +121,14 @@ public final class Durability implements AutoCloseable {
     }
 
     private static Durability open(String mode, String type, String module,
-            Map<String, String> settings, Long retentionMs) {
+            Map<String, String> settings, Long retentionMs, String specDigest) {
         StoreProvider provider = StoreProvider.find(type)
                 .orElseThrow(() -> new IllegalStateException("Durability mode '" + mode
                         + "' needs the store module " + module + " on the class path; available "
                         + "store types: " + StoreProvider.available()));
         Stores stores = provider.open(settings);
         return new Durability(mode, new JournaledRunner(stores, new JsonPayloadCodec(),
-                Clock.systemUTC(), UNPINNED), retentionMs, stores);
+                Clock.systemUTC(), specDigest), retentionMs, stores);
     }
 
     /** Releases the store, such as the H2 file of {@code local}; nothing under {@code none}. */
