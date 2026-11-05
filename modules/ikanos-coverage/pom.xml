@@ -39,6 +39,12 @@
 
         <dependency>
             <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-durable-store-jdbc</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
             <artifactId>ikanos-spec</artifactId>
             <version>${project.version}</version>
         </dependency>

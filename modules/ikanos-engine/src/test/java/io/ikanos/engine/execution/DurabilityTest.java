@@ -20,8 +20,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
+import io.ikanos.durable.ExecutionId;
+import io.ikanos.durable.ExecutionRequest;
+import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.spec.exposes.control.DurabilitySpec;
 import io.ikanos.spec.exposes.control.DurabilityStoreSpec;
 
@@ -51,10 +56,49 @@ public class DurabilityTest {
         assertThrows(IllegalArgumentException.class, () -> Durability.fromSpec(spec));
     }
 
+    private static DurabilitySpec local(String type, String path) {
+        DurabilitySpec spec = new DurabilitySpec("local");
+        DurabilityStoreSpec store = new DurabilityStoreSpec(type);
+        store.setPath(path);
+        spec.setStore(store);
+        return spec;
+    }
+
     @Test
-    void fromSpecShouldFailForTheLocalModeUntilItsStoreShips() {
-        assertThrows(IllegalStateException.class,
+    void fromSpecShouldOpenTheH2StoreForTheLocalModeAndKeepExecutionsAcrossARestart(
+            @TempDir Path directory) {
+        String path = directory.resolve("durable").toString();
+        ExecutionId id = new ExecutionId("exec-1");
+
+        try (Durability first = Durability.fromSpec(local(null, path))) {
+            assertTrue(first.isDurable());
+            assertEquals("local", first.mode());
+            assertTrue(first.runner().create(ExecutionRequest.of(id, null), "mcp:ops/clear"));
+        }
+        try (Durability second = Durability.fromSpec(local("h2", path))) {
+            assertEquals(ExecutionStatus.RUNNING, second.runner().status(id).orElseThrow());
+            assertFalse(second.runner().create(ExecutionRequest.of(id, null), "mcp:ops/clear"));
+        }
+    }
+
+    @Test
+    void fromSpecShouldRequireAPathForTheLocalMode() {
+        assertThrows(IllegalArgumentException.class,
                 () -> Durability.fromSpec(new DurabilitySpec("local")));
+        assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(local("h2", " ")));
+    }
+
+    @Test
+    void fromSpecShouldRejectAnotherStoreForTheLocalMode(@TempDir Path directory) {
+        assertThrows(IllegalArgumentException.class, () -> Durability.fromSpec(
+                local("memory", directory.resolve("durable").toString())));
+    }
+
+    @Test
+    void closeShouldBeHarmlessWithoutAStore() {
+        Durability.none().close();
+        Durability.fromSpec(new DurabilitySpec("memory")).close();
     }
 
     @Test

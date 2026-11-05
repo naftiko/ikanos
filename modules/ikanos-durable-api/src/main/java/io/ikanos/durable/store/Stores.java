@@ -18,14 +18,18 @@ import java.util.Objects;
 /**
  * The storage a durable mode runs on, opened by a {@link StoreProvider}.
  *
+ * <p>Closing releases what the provider opened, such as a database file. Stores held in process
+ * memory have nothing to release.</p>
+ *
  * @param journal the journal of each execution
  * @param index the execution index
  * @param queue runnable executions and due timers
  * @param inbox signals and updates
  * @param blobs large payloads
+ * @param onClose what {@link #close()} runs; it must tolerate being run twice
  */
 public record Stores(JournalStore journal, ExecutionIndex index, WorkQueue queue,
-        SignalInbox inbox, BlobStore blobs) {
+        SignalInbox inbox, BlobStore blobs, Runnable onClose) implements AutoCloseable {
 
     public Stores {
         Objects.requireNonNull(journal, "journal");
@@ -33,5 +37,18 @@ public record Stores(JournalStore journal, ExecutionIndex index, WorkQueue queue
         Objects.requireNonNull(queue, "queue");
         Objects.requireNonNull(inbox, "inbox");
         Objects.requireNonNull(blobs, "blobs");
+        onClose = onClose == null ? () -> { } : onClose;
+    }
+
+    /** Stores with nothing to release on close. */
+    public Stores(JournalStore journal, ExecutionIndex index, WorkQueue queue, SignalInbox inbox,
+            BlobStore blobs) {
+        this(journal, index, queue, inbox, blobs, null);
+    }
+
+    /** Releases what the provider opened; the stores must not be used afterwards. */
+    @Override
+    public void close() {
+        onClose.run();
     }
 }
