@@ -64,6 +64,25 @@ public interface ConsumedResult {
         return status >= 200 && status < 300;
     }
 
+    /**
+     * Whether the call got no HTTP answer at all: a connection failure, which Restlet reports with
+     * a connector code (1000-1099) instead of an HTTP status, or no status. Exposed adapters then
+     * answer that the upstream call failed rather than forwarding the code (#873).
+     *
+     * @return whether no HTTP response was received
+     */
+    default boolean noResponseReceived() {
+        return noResponseReceived(status());
+    }
+
+    /**
+     * @param status a consumed status code
+     * @return whether it means no HTTP response was received: 0 or a Restlet connector code
+     */
+    static boolean noResponseReceived(int status) {
+        return status <= 0 || (status >= 1000 && status <= 1099);
+    }
+
     /** @return {@code true} when the result carries a non-empty body */
     boolean hasBody();
 

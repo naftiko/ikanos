@@ -285,6 +285,9 @@ public class ToolHandler {
                     "Tool '" + toolName + "'");
         } catch (IllegalArgumentException e) {
             throw e;
+        } catch (OperationStepExecutor.StepFailedException e) {
+            return errorResult("An upstream call failed",
+                    "Step failed for tool '" + toolName + "'", e);
         } catch (Exception e) {
             return errorResult("Error during consumed call",
                     "Error during consumed call for tool '" + toolName + "'", e);
@@ -321,6 +324,9 @@ public class ToolHandler {
             return buildToolResult(toolSpec, result.lastResult);
         } catch (IllegalArgumentException e) {
             throw e;
+        } catch (OperationStepExecutor.StepFailedException e) {
+            return errorResult("An upstream call failed",
+                    "Aggregate flow step failed for tool '" + toolName + "'", e);
         } catch (Exception e) {
             return errorResult("Error during aggregate function call",
                     "Error during aggregate function call for tool '" + toolName + "'", e);
@@ -362,6 +368,12 @@ public class ToolHandler {
         }
 
         int statusCode = found.status();
+        if (found.noResponseReceived()) {
+            // A connector code such as 1001 is not an HTTP status: report it like a failed step (#873)
+            found.release();
+            return errorResult("An upstream call failed", "Tool '" + toolSpec.getName()
+                    + "' got no response (status " + statusCode + ")", null);
+        }
         boolean isError = found.outcome() != Outcome.SUCCESS;
         boolean hasBody = found.hasBody();
 

@@ -158,6 +158,10 @@ public class ResourceRestlet extends Restlet {
                         try {
                             // Send the request to the target endpoint
                             found = invocation.invoke();
+                            if (found != null && found.noResponseReceived()) {
+                                return sendUpstreamUnreachable(response, found.status(),
+                                        "Call '" + serverOp.getCall().getOperation() + "'", found);
+                            }
                             response.setStatus(statusOf(found));
                         } catch (Exception e) {
                             sendError(response, Status.SERVER_ERROR_INTERNAL,
@@ -267,6 +271,11 @@ public class ResourceRestlet extends Restlet {
                 response.setEntity(result.mappedOutput, MediaType.APPLICATION_JSON);
                 response.commit();
                 return true;
+            }
+
+            if (result.lastResult != null && result.lastResult.noResponseReceived()) {
+                return sendUpstreamUnreachable(response, result.lastResult.status(),
+                        "Aggregate flow '" + serverOp.getRef() + "'", result.lastResult);
             }
 
             if (result.lastResult != null) {
@@ -391,6 +400,21 @@ public class ResourceRestlet extends Restlet {
         response.setStatus(status);
         response.setEntity(ErrorReference.withReference(publicMessage, correlationId),
                 MediaType.TEXT_PLAIN);
+    }
+
+    /**
+     * The consumed call got no HTTP answer (a connector code such as 1001, or none): answer
+     * {@code 502} with an error reference, as a failed step does, rather than forwarding a code
+     * that isn't an HTTP status (#873).
+     */
+    private boolean sendUpstreamUnreachable(Response response, int status, String what,
+            ConsumedResult found) {
+        if (found != null) {
+            found.release();
+        }
+        sendError(response, Status.SERVER_ERROR_BAD_GATEWAY, "An upstream call failed",
+                what + " got no response (status " + status + ")", null);
+        return true;
     }
 
     void sendResponse(RestServerOperationSpec serverOp, Response response,
@@ -564,6 +588,12 @@ public class ResourceRestlet extends Restlet {
 
                         // Send the request to the target endpoint
                         httpAdapter.getHttpClient().handle(clientRequest, clientResponse);
+                        int forwardedStatus = clientResponse.getStatus().getCode();
+                        if (ConsumedResult.noResponseReceived(forwardedStatus)) {
+                            clientResponse.release();
+                            return sendUpstreamUnreachable(response, forwardedStatus,
+                                    "Forward to '" + forwardSpec.getTargetNamespace() + "'", null);
+                        }
                         response.setStatus(clientResponse.getStatus());
                         response.setEntity(clientResponse.getEntity());
                         response.commit();
