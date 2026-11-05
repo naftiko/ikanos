@@ -46,7 +46,7 @@ import io.ikanos.spec.exposes.ServerSpec;
 public abstract class ServerAdapter extends Adapter {
 
     /** Requests an adapter works on at once, per CPU, when its spec sets no maxRequestsInProgress (#920). */
-    static final int DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU = 32;
+    static final int DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU = 16;
 
     /** Restlet's default for Jetty's {@code threadPool.maxThreads}. */
     static final int JETTY_DEFAULT_MAX_THREADS = 200;
