@@ -431,4 +431,57 @@ public class ConverterTest {
 
         assertEquals(2, root.get("sections").size());
     }
+
+    @Test
+    public void convertHtmlToJsonShouldNotFlattenANestedTableIntoTheOuterRows() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Detail</th><th>Price</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Widget</td>
+                      <td><table><tbody><tr><td>color</td><td>red</td></tr></tbody></table></td>
+                      <td>9.99</td>
+                    </tr>
+                    <tr><td>Gadget</td><td>-</td><td>19.99</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), "table");
+
+        JsonNode outer = root.get("tables").get(0);
+        assertEquals(2, outer.size());
+        assertEquals("Widget", outer.get(0).get("Name").asString());
+        assertEquals("9.99", outer.get(0).get("Price").asString());
+        assertEquals("19.99", outer.get(1).get("Price").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldSkipOnlyRowsWhoseOwnCellsAreHeaders() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Detail</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Widget</td>
+                      <td><table><thead><tr><th>key</th></tr></thead>
+                          <tbody><tr><td>color</td></tr></tbody></table></td>
+                    </tr>
+                    <tr><td>Gadget</td><td>-</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), "table");
+
+        JsonNode outer = root.get("tables").get(0);
+        assertEquals(2, outer.size());
+        assertEquals("Widget", outer.get(0).get("Name").asString());
+        assertEquals("Gadget", outer.get(1).get("Name").asString());
+    }
 }
