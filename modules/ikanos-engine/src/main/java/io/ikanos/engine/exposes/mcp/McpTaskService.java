@@ -85,6 +85,9 @@ public final class McpTaskService {
     /** Failure class of a task started by another version of the capability. */
     static final String SPEC_CHANGED = "spec-changed";
 
+    /** Failure class of a task whose arguments were never recorded. */
+    static final String INCOMPLETE = "incomplete-creation";
+
     /** Label holding the task ID on the task's execution. */
     static final String TASK_ID = "taskId";
 
@@ -157,10 +160,17 @@ public final class McpTaskService {
                     || record.entry() == null) {
                 continue;
             }
-            JsonNode arguments = runner.input(record.executionId())
-                    .map(JsonNode.class::cast).orElse(null);
+            Optional<Object> input = runner.input(record.executionId());
+            JsonNode arguments = input.map(JsonNode.class::cast).orElse(null);
             Callable<JsonNode> work = workFor.apply(record.entry(), arguments);
             if (work == null) {
+                continue;
+            }
+            if (input.isEmpty()) {
+                // The process stopped between recording the task and its arguments: the task was
+                // never returned to a client, and running it without its arguments would be wrong.
+                runner.fail(record.executionId(), new Failure(INCOMPLETE,
+                        "The task was not fully recorded before the process stopped"));
                 continue;
             }
             if (!record.specDigest().equals(runner.specDigest())) {

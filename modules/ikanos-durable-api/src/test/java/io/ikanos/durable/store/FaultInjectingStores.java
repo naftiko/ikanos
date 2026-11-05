@@ -29,6 +29,8 @@ public final class FaultInjectingStores {
 
     /** Where the crash happens, around the append of one kind of journal entry. */
     public enum Boundary {
+        /** After an execution is indexed, before its input is journaled. */
+        BEFORE_STARTED(JournalEntry.Kind.EXECUTION_STARTED, false),
         /** After an action is journaled as scheduled, before it is invoked. */
         AFTER_SCHEDULED(JournalEntry.Kind.ACTION_SCHEDULED, true),
         /** After an action was invoked, before its outcome is journaled. */
