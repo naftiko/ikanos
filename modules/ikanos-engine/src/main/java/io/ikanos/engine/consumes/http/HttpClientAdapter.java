@@ -104,6 +104,8 @@ public class HttpClientAdapter extends ClientAdapter {
             routes.register(extractHost(this.baseUri), tunnel);
             Context restletContext = new Context();
             restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
+            IkanosHttpClientHelper.ensureRegistered(TunnelAwareHttpClientHelper.class,
+                    TunnelAwareHttpClientHelper::new);
             this.httpClient = new Client(
                     restletContext, List.of(HTTP, HTTPS), TUNNEL_AWARE_HELPER_CLASS_NAME);
         }

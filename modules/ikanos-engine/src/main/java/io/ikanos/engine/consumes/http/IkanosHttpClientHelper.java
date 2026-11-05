@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import java.util.List;
+import java.util.function.Function;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
 import org.restlet.Client;
@@ -53,10 +54,26 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
      * it. It is appended after the default helpers, so a client that names no helper class still
      * gets the default one.
      */
-    static synchronized void ensureRegistered() {
+    static void ensureRegistered() {
+        ensureRegistered(IkanosHttpClientHelper.class, IkanosHttpClientHelper::new);
+    }
+
+    /**
+     * Registers a helper class with the Restlet {@link Engine} singleton, once per JVM.
+     *
+     * <p>Restlet resolves a helper class name only among the registered helpers: it takes the
+     * one with that canonical name, then instantiates its class with the {@link Client}. A helper
+     * that is not registered leaves the client without a connector, and every request fails
+     * with {@code 1002} (#940).</p>
+     *
+     * @param type the helper class
+     * @param factory builds the registered prototype from a {@code null} client
+     */
+    static synchronized <T extends IkanosHttpClientHelper> void ensureRegistered(Class<T> type,
+            Function<Client, T> factory) {
         List<ConnectorHelper<Client>> clients = Engine.getInstance().getRegisteredClients();
-        if (clients.stream().noneMatch(h -> h.getClass() == IkanosHttpClientHelper.class)) {
-            clients.add(new IkanosHttpClientHelper(null));
+        if (clients.stream().noneMatch(h -> h.getClass() == type)) {
+            clients.add(factory.apply(null));
         }
     }
 

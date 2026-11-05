@@ -16,14 +16,19 @@ package io.ikanos.engine.consumes.http;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
 import io.ikanos.engine.consumes.tunnel.TunnelTransport;
-import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.Request;
 import org.restlet.Client;
+import org.restlet.engine.adapter.ClientCall;
+import org.restlet.engine.adapter.JettyClientCall;
 
 /**
- * {@link IkanosHttpClientHelper} subclass that installs a
- * Jetty request listener which, on every outgoing request, looks up the host in a {@link
- * TunnelRouteTable} and attaches a {@link TunnelTransport} when the host is tunneled.
+ * {@link IkanosHttpClientHelper} subclass that, for every outgoing request, looks up the host in
+ * a {@link TunnelRouteTable} and attaches a {@link TunnelTransport} when the host is tunneled.
+ *
+ * <p>The transport is attached when Restlet creates the Jetty request ({@link #create}), before
+ * it is sent. Jetty picks the destination, and so the transport, when the request is sent, before
+ * it notifies the request listeners: a transport set from a {@code onQueued} listener is ignored,
+ * and the request goes over plain TCP (#940).</p>
  *
  * <p>The route table is passed via Restlet {@link org.restlet.Context} attributes under the
  * key {@link TunnelRouteTable#CONTEXT_ATTRIBUTE}; {@link io.ikanos.Capability} populates that
@@ -46,16 +51,13 @@ public class TunnelAwareHttpClientHelper extends IkanosHttpClientHelper {
     }
 
     @Override
-    protected HttpClient createHttpClient() {
-        HttpClient httpClient = super.createHttpClient();
+    public ClientCall create(org.restlet.Request request) {
+        ClientCall call = super.create(request);
         TunnelRouteTable routes = readRouteTable();
-        if (routes == null || routes.isEmpty()) {
-            return httpClient;
+        if (routes != null && !routes.isEmpty() && call instanceof JettyClientCall jettyCall) {
+            applyTunnelTransport(jettyCall.getRequest(), routes);
         }
-        httpClient
-                .getRequestListeners()
-                .addQueuedListener(request -> applyTunnelTransport(request, routes));
-        return httpClient;
+        return call;
     }
 
     /**
