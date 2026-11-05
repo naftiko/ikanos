@@ -83,7 +83,8 @@ public final class StepInterpreter implements Interpreter {
                     // Recorded by an earlier run of this execution: restore the step's output
                     // instead of running the step again.
                     run.restoreOutput(node.step() != null ? node.step().getName() : null,
-                            ((ActionOutcome.Succeeded) outcome.get()).value());
+                            ((ActionOutcome.Succeeded) outcome.get()).value(),
+                            node.kind() == StepNode.Kind.CALL);
                     run.markEvaluated(node.path());
                 }
             }
