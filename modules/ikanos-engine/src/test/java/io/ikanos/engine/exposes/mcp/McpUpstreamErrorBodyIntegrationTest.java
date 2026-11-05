@@ -94,25 +94,30 @@ public class McpUpstreamErrorBodyIntegrationTest {
         upstream.start();
         try {
             Capability capability = capabilityFromYaml(capabilityYaml(upstreamPort));
-            ProtocolDispatcher dispatcher = new ProtocolDispatcher(
-                    (McpServerAdapter) capability.getServerAdapters().get(0));
-            ObjectMapper mapper = IkanosMappers.lenientJson();
+            try {
+                ProtocolDispatcher dispatcher = new ProtocolDispatcher(
+                        (McpServerAdapter) capability.getServerAdapters().get(0));
+                ObjectMapper mapper = IkanosMappers.lenientJson();
 
-            ObjectNode request = mapper.createObjectNode();
-            request.put("jsonrpc", "2.0");
-            request.put("id", 1);
-            request.put("method", "tools/call");
-            ObjectNode params = request.putObject("params");
-            params.put("name", "query");
-            params.putObject("arguments");
-            params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
-                    ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+                ObjectNode request = mapper.createObjectNode();
+                request.put("jsonrpc", "2.0");
+                request.put("id", 1);
+                request.put("method", "tools/call");
+                ObjectNode params = request.putObject("params");
+                params.put("name", "query");
+                params.putObject("arguments");
+                params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
+                        ProtocolDispatcher.MCP_PROTOCOL_VERSION);
 
-            JsonNode response = dispatcher.dispatch(request).responseBody();
+                JsonNode response = dispatcher.dispatch(request).responseBody();
 
-            assertTrue(response.path("result").path("isError").asBoolean(),
-                    "tool call should be an error, got: " + response);
-            return response.path("result").path("content").get(0).path("text").asString();
+                assertTrue(response.path("result").path("isError").asBoolean(),
+                        "tool call should be an error, got: " + response);
+                return response.path("result").path("content").get(0).path("text").asString();
+            } finally {
+                // Releases the consumed HTTP client that the dispatch started on demand
+                capability.stop();
+            }
         } finally {
             upstream.stop();
         }
