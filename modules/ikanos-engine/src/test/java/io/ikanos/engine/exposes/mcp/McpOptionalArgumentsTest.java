@@ -82,6 +82,7 @@ public class McpOptionalArgumentsTest {
             assertFalse(result.path("isError").asBoolean(), "#847: tool call failed: " + result);
             assertEquals("{\"preview\":true}", receivedBody.get(),
                     "#847: absent optional members must be left out of the body");
+            assertEquals("/preview", receivedUri.get());
         } finally {
             upstream.stop();
         }

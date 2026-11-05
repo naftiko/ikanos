@@ -17,9 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Restlet;
 import org.restlet.routing.Router;
 import org.restlet.security.ChallengeAuthenticator;
@@ -230,6 +239,84 @@ class ServerAdapterAuthenticationTest {
                 "Authentication spec should be deserialized");
         assertNotNull(adapter.getSpec().getAuthentication().getType(),
                 "Auth type should be set");
+    }
+
+    // #856: a capability must not start when an exposed apikey or bearer credential resolves to
+    // blank, since it would accept an empty credential. The error names the variable.
+
+    @TempDir
+    Path secrets;
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void capabilityShouldRefuseToStartWhenApiKeyIsBoundToEmptyValue(String placement)
+            throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", """
+                              authentication:
+                                type: "apikey"
+                                key: "X-Api-Key"
+                                value: "{{API_KEY}}"
+                                placement: "%s"
+                        """.formatted(placement)));
+
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+        assertTrue(e.getMessage().contains("apikey"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void capabilityShouldRefuseToStartWhenApiKeyVariableIsMisspelled(String placement)
+            throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                              authentication:
+                                type: "apikey"
+                                key: "X-Api-Key"
+                                value: "{{API_KY}}"
+                                placement: "%s"
+                        """.formatted(placement)));
+
+        assertTrue(e.getMessage().contains("API_KY"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @Test
+    void capabilityShouldRefuseToStartWhenBearerTokenIsBoundToEmptyValue() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", """
+                              authentication:
+                                type: "bearer"
+                                token: "{{API_KEY}}"
+                        """));
+
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+        assertTrue(e.getMessage().contains("bearer"), e.getMessage());
+    }
+
+    @Test
+    void capabilityShouldStartWhenApiKeyIsBoundToValue() throws Exception {
+        ServerAdapter adapter = adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-Key"
+                        value: "{{API_KEY}}"
+                """);
+
+        assertInstanceOf(ServerAuthenticationRestlet.class, adapter.buildServerChain(new Router()));
+    }
+
+    /** A REST adapter whose API_KEY binding comes from a secrets file with the given content. */
+    private ServerAdapter adapterWithSecrets(String secretsYaml, String authBlock) throws Exception {
+        Path file = Files.writeString(secrets.resolve("secrets.yaml"), secretsYaml);
+        String yaml = REST_YAML.formatted(schemaVersion, authBlock).replaceFirst("capability:", """
+                binds:
+                  - namespace: "test-secrets"
+                    location: "%s"
+                    keys:
+                      API_KEY: "api-key"
+                capability:""".formatted(file.toUri()));
+        return adapterFromYaml(yaml);
     }
 
     /** MCP adapter YAML template. First %s = schema version, second %s = authentication block. */

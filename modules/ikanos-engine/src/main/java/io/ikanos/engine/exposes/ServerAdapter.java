@@ -206,7 +206,16 @@ public abstract class ServerAdapter extends Adapter {
             return createOAuth2Restlet(oauth2, next);
         }
 
+        ServerAuthenticationRestlet.requireCredentials(authentication,
+                getCapability().getBindings(), describe());
         return new ServerAuthenticationRestlet(authentication, next, getCapability().getBindings());
+    }
+
+    /** How errors name this adapter, such as "the rest adapter 'shop' on port 8080". */
+    String describe() {
+        String namespace = getSpec().getNamespace();
+        return "the " + getSpec().getType() + " adapter"
+                + (namespace != null ? " '" + namespace + "'" : "") + " on port " + getSpec().getPort();
     }
 
     /**
