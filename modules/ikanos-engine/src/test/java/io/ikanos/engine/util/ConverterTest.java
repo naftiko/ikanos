@@ -22,15 +22,21 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.util.List;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.restlet.data.MediaType;
+import org.restlet.representation.InputRepresentation;
 import org.restlet.representation.StringRepresentation;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.protobuf.ProtobufMapper;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
 import tools.jackson.databind.node.NullNode;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -488,5 +494,70 @@ public class ConverterTest {
         // The nested header must not reach the host's column names.
         assertEquals(2, outer.get(0).size());
         assertNull(outer.get(0).get("key"));
+    }
+
+    @Test
+    public void convertToJsonShouldReadAJsonBodyThatStartsWithAByteOrderMark() throws Exception {
+        JsonNode root = Converter.convertToJson("JSON", null, "\uFEFF{\"id\":1}");
+
+        assertEquals(1, root.get("id").asInt());
+    }
+
+    @Test
+    public void convertToJsonFromRepresentationShouldReadAJsonBodyThatStartsWithAByteOrderMark()
+            throws Exception {
+        StringRepresentation entity =
+                new StringRepresentation("\uFEFF{\"id\":1}", MediaType.APPLICATION_JSON);
+
+        JsonNode root = Converter.convertToJson("JSON", null, entity);
+
+        assertEquals(1, root.get("id").asInt());
+    }
+
+    @Test
+    public void convertToJsonShouldNotPutALeadingByteOrderMarkInTheFirstColumnName()
+            throws Exception {
+        JsonNode root = Converter.convertToJson("CSV", null, "\uFEFFid,name\n1,Alice\n");
+
+        assertTrue(root.get(0).has("id"), root.get(0).toString());
+        assertEquals("1", root.get(0).get("id").asString());
+    }
+
+    @Test
+    public void convertToJsonShouldDropALeadingByteOrderMarkBeforeAPsvBody() throws Exception {
+        JsonNode root = Converter.convertToJson("PSV", null, "\uFEFFid|name\n1|Alice\n");
+
+        assertTrue(root.get(0).has("id"), root.get(0).toString());
+    }
+
+    @Test
+    public void convertToJsonShouldReadFrontMatterBehindALeadingByteOrderMark() throws Exception {
+        JsonNode root =
+                Converter.convertToJson("MARKDOWN", null, "\uFEFF---\ntitle: T\n---\n\nBody\n");
+
+        assertEquals("T", root.get("frontMatter").get("title").asString());
+    }
+
+    @Test
+    public void convertToJsonFromRepresentationShouldStillDecodeABinaryBody()
+            throws Exception {
+        // The text formats read the representation's reader, which consumes the representation's
+        // stream: the binary formats must keep getting a live stream, so this pins that they are
+        // not routed through the reader.
+        try (InputStream protoFile = Converter.loadSchemaFile("schemas/test-records.proto")) {
+            ProtobufSchema schema = ProtobufSchemaLoader.std.load(protoFile);
+            ProtobufMapper mapper = ProtobufMapper.builder().configureForJackson2().build();
+            byte[] body = mapper.writer(schema).writeValueAsBytes(
+                    Map.of("records", List.of(Map.of(
+                            "id", "7", "title", "a title", "description", "a description"))));
+
+            InputRepresentation entity = new InputRepresentation(
+                    new ByteArrayInputStream(body), MediaType.APPLICATION_OCTET_STREAM);
+
+            JsonNode root = Converter.convertToJson("PROTOBUF", "schemas/test-records.proto", entity);
+
+            assertEquals("7", root.get("records").get(0).get("id").asString());
+            assertEquals("a title", root.get("records").get(0).get("title").asString());
+        }
     }
 }

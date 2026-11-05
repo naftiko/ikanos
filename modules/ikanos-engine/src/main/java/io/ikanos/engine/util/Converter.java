@@ -45,6 +45,7 @@ import com.jayway.jsonpath.spi.mapper.Jackson3MappingProvider;
 import io.ikanos.spec.OutputParameterSpec;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -94,7 +95,6 @@ public class Converter {
         }
 
         return switch (fmt) {
-            case XML -> Converter.convertXmlToJson(entity.getReader());
             case PROTOBUF -> {
                 if (schema == null || schema.isEmpty()) {
                     throw new IOException(
@@ -109,13 +109,10 @@ public class Converter {
                 }
                 yield Converter.convertAvroToJson(entity.getStream(), schema);
             }
-            case YAML -> Converter.convertYamlToJson(entity.getReader());
-            case CSV -> Converter.convertDelimitedToJson(entity.getReader(), ',');
-            case TSV -> Converter.convertDelimitedToJson(entity.getReader(), '\t');
-            case PSV -> Converter.convertDelimitedToJson(entity.getReader(), '|');
-            case HTML -> Converter.convertHtmlToJson(entity.getReader(), schema);
-            case MARKDOWN -> Converter.convertMarkdownToJson(entity.getReader(), schema);
-            case JSON -> IkanosMappers.json().readTree(entity.getReader());
+            // Only the text formats go through the reader: reading it consumes the representation's
+            // stream (Restlet returns null from getStream() afterwards), which the two binary formats
+            // above still need.
+            default -> Converter.convertTextToJson(fmt, schema, entity.getReader());
         };
     }
 
@@ -146,18 +143,60 @@ public class Converter {
         }
 
         return switch (fmt) {
-            case XML -> Converter.convertXmlToJson(new StringReader(text));
-            case YAML -> Converter.convertYamlToJson(new StringReader(text));
-            case CSV -> Converter.convertDelimitedToJson(new StringReader(text), ',');
-            case TSV -> Converter.convertDelimitedToJson(new StringReader(text), '\t');
-            case PSV -> Converter.convertDelimitedToJson(new StringReader(text), '|');
-            case HTML -> Converter.convertHtmlToJson(new StringReader(text), schema);
-            case MARKDOWN -> Converter.convertMarkdownToJson(new StringReader(text), schema);
             case PROTOBUF, AVRO -> throw new IOException(fmt.display
                     + " format cannot be converted from a text string; "
                     + "use the Representation-based overload instead");
-            case JSON -> IkanosMappers.json().readTree(text);
+            default -> Converter.convertTextToJson(fmt, schema, new StringReader(text));
         };
+    }
+
+    /**
+     * Convert a text body to JSON, dropping a leading byte-order mark first.
+     *
+     * <p>A UTF-8 BOM survives text decoding as the character U+FEFF, which the text parsers treat as
+     * content: JSON refuses such a body outright, and the delimited formats fold the mark into the
+     * first column name. The XML and YAML parsers consume the mark themselves, so their body is read
+     * as it is.</p>
+     *
+     * <p>Called for the text formats only: the binary ones (Protobuf, Avro) must be handed the raw
+     * representation stream, which reading a reader would consume.</p>
+     */
+    private static JsonNode convertTextToJson(ConversionFormat fmt, String schema, Reader reader)
+            throws IOException {
+        Reader body = fmt == ConversionFormat.XML || fmt == ConversionFormat.YAML
+                ? reader
+                : Converter.skipByteOrderMark(reader);
+
+        return switch (fmt) {
+            case XML -> Converter.convertXmlToJson(body);
+            case YAML -> Converter.convertYamlToJson(body);
+            case CSV -> Converter.convertDelimitedToJson(body, ',');
+            case TSV -> Converter.convertDelimitedToJson(body, '\t');
+            case PSV -> Converter.convertDelimitedToJson(body, '|');
+            case HTML -> Converter.convertHtmlToJson(body, schema);
+            case MARKDOWN -> Converter.convertMarkdownToJson(body, schema);
+            case JSON -> IkanosMappers.json().readTree(body);
+            case PROTOBUF, AVRO -> throw new IOException(fmt.display
+                    + " format cannot be converted from a text string; "
+                    + "use the Representation-based overload instead");
+        };
+    }
+
+    /**
+     * Drops one leading byte-order mark from a text body.
+     *
+     * <p>A UTF-8 BOM survives text decoding as the character U+FEFF, which the JSON and delimited
+     * parsers treat as content. A body that does not start with the mark is pushed back untouched,
+     * so it parses exactly as before.</p>
+     */
+    private static Reader skipByteOrderMark(Reader reader) throws IOException {
+        PushbackReader pushback = new PushbackReader(reader, 1);
+        int first = pushback.read();
+        if (first != -1 && first != '\uFEFF') {
+            pushback.unread(first);
+        }
+
+        return pushback;
     }
 
     /**
