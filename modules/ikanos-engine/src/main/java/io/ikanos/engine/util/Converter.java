@@ -540,10 +540,7 @@ public class Converter {
     }
 
     private static List<String> extractHtmlHeaders(Element table) {
-        Elements headerCells = table.select("thead tr:first-child th");
-        if (headerCells.isEmpty()) {
-            headerCells = table.select("tr:first-child th");
-        }
+        Elements headerCells = directChildren(firstHeaderRow(table), "th");
 
         List<String> headers = new ArrayList<>();
         for (Element headerCell : headerCells) {
@@ -553,20 +550,49 @@ public class Converter {
         return sanitizeHeaders(headers);
     }
 
+    /**
+     * The row that names the table's columns: the first row of the table's own {@code thead} that
+     * carries {@code th} cells, else the first of the table's own rows that does.
+     *
+     * <p>Only the table's direct children are inspected. A {@code table} nested inside a cell is a
+     * different table: its header row belongs to it, and must not name the outer columns.</p>
+     */
+    private static Element firstHeaderRow(Element table) {
+        for (Element thead : directChildren(table, "thead")) {
+            for (Element headerRow : directChildren(thead, "tr")) {
+                if (!directChildren(headerRow, "th").isEmpty()) {
+                    return headerRow;
+                }
+            }
+        }
+
+        for (Element row : tableRows(table)) {
+            if (!directChildren(row, "th").isEmpty()) {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
     private static List<List<String>> extractHtmlRows(Element table, List<String> headers) {
         List<List<String>> rows = new ArrayList<>();
-        Elements rowElements = table.select("tbody tr");
+        Elements rowElements = new Elements();
+        for (Element body : directChildren(table, "tbody")) {
+            rowElements.addAll(directChildren(body, "tr"));
+        }
         if (rowElements.isEmpty()) {
-            rowElements = table.select("tr");
+            rowElements = tableRows(table);
         }
 
         for (Element rowElement : rowElements) {
-            // Skip any row containing at least one <th> — it is a header row.
-            if (!rowElement.select("th").isEmpty()) {
+            // Skip any row whose own cells are headers — it is a header row. A header row of a
+            // nested table is not this row's: it lives in a cell, not among this row's children.
+            if (!directChildren(rowElement, "th").isEmpty()) {
                 continue;
             }
 
-            Elements cells = rowElement.select("td");
+            Elements cells = directChildren(rowElement, "td");
             if (cells.isEmpty()) {
                 continue;
             }
@@ -579,6 +605,42 @@ public class Converter {
         }
 
         return rows;
+    }
+
+    /**
+     * The table's own rows, in document order: {@code tr} children of the table itself plus those
+     * of its own {@code thead}/{@code tbody}/{@code tfoot}. Rows of a nested table are excluded.
+     */
+    private static Elements tableRows(Element table) {
+        Elements rows = new Elements();
+        for (Element section : table.children()) {
+            String tag = section.normalName();
+            if ("tr".equals(tag)) {
+                rows.add(section);
+            } else if ("thead".equals(tag) || "tbody".equals(tag) || "tfoot".equals(tag)) {
+                rows.addAll(directChildren(section, "tr"));
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * The children of {@code parent} whose tag is {@code tagName}. Selecting by child rather than
+     * by descendant keeps a nested {@code table}'s rows and cells out of its host table's shape.
+     */
+    private static Elements directChildren(Element parent, String tagName) {
+        Elements children = new Elements();
+        if (parent == null) {
+            return children;
+        }
+
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.normalName())) {
+                children.add(child);
+            }
+        }
+
+        return children;
     }
 
     private static ArrayNode extractTablesFromAst(Node document, ObjectMapper mapper) {
