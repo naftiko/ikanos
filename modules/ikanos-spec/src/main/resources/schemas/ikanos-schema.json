@@ -1104,6 +1104,11 @@
           "$ref": "#/$defs/BinarySize",
           "description": "Maximum allowed binary response size before buffering. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
         },
+        "maxRequestsInProgress": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream."
+        },
         "resources": {
           "type": "object",
           "propertyNames": {
@@ -1166,6 +1171,11 @@
         "maxBinarySize": {
           "$ref": "#/$defs/BinarySize",
           "description": "Maximum allowed binary response size before base64-encoding. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
+        },
+        "maxRequestsInProgress": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 32 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream."
         },
         "ttlMs": {
           "type": "integer",

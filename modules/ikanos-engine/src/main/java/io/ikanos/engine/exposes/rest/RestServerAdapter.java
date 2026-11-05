@@ -42,7 +42,7 @@ public class RestServerAdapter extends ServerAdapter {
         }
 
         initServer(serverSpec.getAddress(), serverSpec.getPort(),
-                buildServerChain(this.router));
+                buildServerChain(limitRequestsInProgress(this.router)));
     }
 
     public RestServerSpec getRestServerSpec() {

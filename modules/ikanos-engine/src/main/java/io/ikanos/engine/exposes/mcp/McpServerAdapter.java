@@ -128,7 +128,7 @@ public class McpServerAdapter extends ServerAdapter {
         Router router = new Router(context);
         router.attachDefault(McpServerResource.class);
 
-        Restlet chain = buildServerChain(router);
+        Restlet chain = buildServerChain(limitRequestsInProgress(router));
         AgentIdentityResolver identityResolver = dispatcher.getIdentityResolver();
         if (identityResolver.isForwarded()) {
             // The gateway is the authentication boundary: refuse other peers before anything else.

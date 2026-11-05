@@ -52,6 +52,9 @@ public abstract class ServerSpec {
 
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
+    /** How many requests the adapter works on at once, or null for the engine's default (#920). */
+    private final AtomicReference<Integer> maxRequestsInProgress = new AtomicReference<>();
+
     public ServerSpec() {
         this(null, "localhost", 0);
     }
@@ -163,6 +166,14 @@ public abstract class ServerSpec {
 
     public void setAuthentication(AuthenticationSpec authentication) {
         this.authentication.set(authentication);
+    }
+
+    public Integer getMaxRequestsInProgress() {
+        return maxRequestsInProgress.get();
+    }
+
+    public void setMaxRequestsInProgress(Integer maxRequestsInProgress) {
+        this.maxRequestsInProgress.set(maxRequestsInProgress);
     }
 
 }
