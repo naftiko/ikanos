@@ -27,7 +27,9 @@ import io.ikanos.durable.Interpreter;
  * <p>It walks the tree in order: the first action without an outcome is scheduled; a failed
  * action fails the execution; a lookup is evaluated in place, since it only reads earlier
  * outputs; when every node is done, the execution completes. The step outputs themselves stay in
- * the {@link StepRun}, which the {@link NodeRunner} updates as each step runs.</p>
+ * the {@link StepRun}, which the {@link NodeRunner} updates as each step runs. On a journaled
+ * execution, an action whose outcome an earlier run recorded is not run again: its output is
+ * restored into the {@link StepRun} from that outcome.</p>
  */
 public final class StepInterpreter implements Interpreter {
 
@@ -76,6 +78,13 @@ public final class StepInterpreter implements Interpreter {
                 }
                 if (outcome.get() instanceof ActionOutcome.Failed failed) {
                     return List.of(new Command.Fail(failed.failure()));
+                }
+                if (!run.isEvaluated(node.path())) {
+                    // Recorded by an earlier run of this execution: restore the step's output
+                    // instead of running the step again.
+                    run.restoreOutput(node.step() != null ? node.step().getName() : null,
+                            ((ActionOutcome.Succeeded) outcome.get()).value());
+                    run.markEvaluated(node.path());
                 }
             }
         }

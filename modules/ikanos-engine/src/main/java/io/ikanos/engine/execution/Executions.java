@@ -56,17 +56,27 @@ public final class Executions {
         if (tree.isEmpty()) {
             return run;
         }
-        ExecutionResult result = DIRECT.run(
-                new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
-                new StepInterpreter(tree, run, nodeRunner), request -> {
-                    StepNode node = (StepNode) request.action();
-                    try {
-                        return nodeRunner.run(node, run);
-                    } catch (RuntimeException e) {
-                        run.fail(e);
-                        throw new ActionFailedException(StepInterpreter.failureOf(e), e);
-                    }
-                });
+        DurableScope scope = DurableScope.current();
+        StepInterpreter interpreter = new StepInterpreter(tree, run, nodeRunner);
+        ExecutionResult result;
+        if (scope == null) {
+            result = DIRECT.run(
+                    new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
+                    interpreter, request -> runNode(request.action(), run, nodeRunner));
+        } else {
+            // A task: each step is journaled, and one recorded by an earlier run is restored.
+            ExecutionId id = scope.nextExecutionId();
+            result = scope.runner().run(
+                    new ExecutionRequest(id, null, ExecutionInputs.current(), null),
+                    interpreter, request -> DurableScope.within(
+                            scope.child(request.executionId(), request.path()),
+                            () -> runNode(request.action(), run, nodeRunner)));
+            if (result instanceof ExecutionResult.Completed) {
+                // Recorded before this run started: walk the tree once against the journal, so
+                // the outputs mappings read are restored.
+                interpreter.next(scope.runner().view(id));
+            }
+        }
         if (result instanceof ExecutionResult.Completed) {
             return run;
         }
@@ -113,12 +123,30 @@ public final class Executions {
         throw failure != null ? failure : rethrowable(run, result);
     }
 
+    /** Runs one action node, marking it evaluated so the Interpreter never restores it again. */
+    private static Object runNode(Object action, StepRun run, NodeRunner nodeRunner)
+            throws ActionFailedException {
+        StepNode node = (StepNode) action;
+        try {
+            Object output = nodeRunner.run(node, run);
+            run.markEvaluated(node.path());
+            return output;
+        } catch (RuntimeException e) {
+            run.fail(e);
+            throw new ActionFailedException(StepInterpreter.failureOf(e), e);
+        }
+    }
+
     static RuntimeException rethrowable(StepRun run, ExecutionResult result) {
         if (run.failure() instanceof RuntimeException runtime) {
             return runtime;
         }
         if (run.failure() != null) {
             return new IllegalStateException(run.failure().getMessage(), run.failure());
+        }
+        if (result instanceof ExecutionResult.Failed failed) {
+            // A failure recorded by an earlier run of a journaled execution: no exception here.
+            return new IllegalStateException(failed.failure().message());
         }
         return new IllegalStateException("The execution did not complete: " + result);
     }
