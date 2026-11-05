@@ -16,6 +16,8 @@ package io.ikanos.engine.exposes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
@@ -373,5 +375,51 @@ public class ServerAuthenticationRestletTest {
 
         assertEquals(Status.SUCCESS_OK, response.getStatus(),
                 "API key from bindings map should be accepted");
+    }
+
+    // #856: an expected API key that resolves to blank must never match an empty header or query value.
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void apiKeyShouldRejectEmptyValueWhenExpectedValueRendersBlank(String placement) {
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
+                statusForEmptyApiKey(placement, "{{#x}}s3cr3t{{/x}}", Map.of()));
+    }
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void apiKeyShouldRejectEmptyValueWhenBoundValueIsEmpty(String placement) {
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
+                statusForEmptyApiKey(placement, "{{API_KEY}}", Map.of("API_KEY", "")));
+    }
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void apiKeyShouldRejectEmptyValueWhenVariableIsMisspelled(String placement) {
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
+                statusForEmptyApiKey(placement, "{{API_KY}}", Map.of("API_KEY", "s3cr3t")));
+    }
+
+    private static Status statusForEmptyApiKey(String placement, String expectedValue,
+            Map<String, Object> bindings) {
+        ApiKeyAuthenticationSpec auth = new ApiKeyAuthenticationSpec();
+        auth.setKey("X-API-Key");
+        auth.setValue(expectedValue);
+        auth.setPlacement(placement);
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+        Request request = "query".equals(placement)
+                ? new Request(Method.GET, "http://localhost/test?X-API-Key=")
+                : new Request(Method.GET, "http://localhost/test");
+        if (!"query".equals(placement)) {
+            request.getHeaders().set("X-API-Key", "");
+        }
+        Response response = new Response(request);
+        new ServerAuthenticationRestlet(auth, next, bindings).handle(request, response);
+        return response.getStatus();
     }
 }
