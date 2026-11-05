@@ -226,8 +226,8 @@ public class HttpClientAdapter extends ClientAdapter {
                 getHttpClientSpec().getInputParameters(),
                 clientOp.getParentResource().getInputParameters(),
                 clientOp.getInputParameters());
-        Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters,
-                replacedInputParameters(declared));
+        Set<InputParameterSpec> replaced = replacedInputParameters(declared);
+        Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters, replaced);
 
         List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
@@ -288,7 +288,7 @@ public class HttpClientAdapter extends ClientAdapter {
         // Set authentication and headers
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
-        setHeaders(clientRequest);
+        setHeaders(clientRequest, replaced);
         return new HttpInvocation(this, clientOp, clientRequest);
     }
 
@@ -369,9 +369,17 @@ public class HttpClientAdapter extends ClientAdapter {
      * Set any default headers from the input parameters on the client request
      */
     public void setHeaders(Request request) {
-        // Set any default headers from the input parameters
+        setHeaders(request, Set.of());
+    }
+
+    /**
+     * Same, but skips the adapter headers that a narrower parameter replaces, so that the
+     * narrower value is the one sent (#909).
+     */
+    void setHeaders(Request request, Set<InputParameterSpec> replaced) {
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
-            if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null) {
+            if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
+                    && !replaced.contains(param)) {
                 request.getHeaders().set(param.getName(), param.getValue());
             }
         }

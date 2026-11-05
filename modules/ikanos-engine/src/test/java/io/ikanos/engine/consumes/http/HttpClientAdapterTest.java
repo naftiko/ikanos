@@ -292,6 +292,70 @@ public class HttpClientAdapterTest {
                         + " the replaced parameter should not be sent");
     }
 
+    @Test
+    public void prepareShouldSendTheCallerValueOfANarrowerParameterOverABroaderFixedValue()
+            throws Exception {
+        Request request = prepareDefaults(new HashMap<>(Map.of("top", "3")));
+
+        assertEquals("https://probe.example/v1/things?top=3",
+                request.getResourceRef().toString(),
+                "#909: the caller value of a narrower parameter should not be overwritten by the"
+                        + " fixed value of the broader parameter it replaces");
+    }
+
+    @Test
+    public void prepareShouldSendTheBroaderFixedValueWhenTheCallerGivesNone() throws Exception {
+        Request request = prepareDefaults(new HashMap<>());
+
+        assertEquals("https://probe.example/v1/things?top=10",
+                request.getResourceRef().toString());
+    }
+
+    @Test
+    public void prepareShouldLetANarrowerHeaderReplaceAnAdapterHeaderWithAFixedValue()
+            throws Exception {
+        Request request = prepareDefaults(new HashMap<>());
+
+        assertEquals("from-resource", request.getHeaders().getFirstValue("X-Mode"),
+                "#909: setHeaders should not set an adapter header again once a narrower"
+                        + " parameter has replaced it");
+    }
+
+    private Request prepareDefaults(Map<String, Object> arguments) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      inputParameters:
+                        X-Mode:
+                          in: header
+                          value: "from-adapter"
+                      resources:
+                        things:
+                          path: "/things"
+                          inputParameters:
+                            top:
+                              in: query
+                              value: "10"
+                            X-Mode:
+                              in: header
+                              value: "from-resource"
+                          operations:
+                            list:
+                              method: GET
+                              inputParameters:
+                                top:
+                                  in: query
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
+        return adapter.prepare("list", arguments).getRequest();
+    }
+
     private Request prepare(String operation, Map<String, Object> arguments) throws Exception {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
                 resourceParametersSpec());

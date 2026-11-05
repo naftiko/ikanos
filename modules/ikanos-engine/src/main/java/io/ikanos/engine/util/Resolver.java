@@ -16,6 +16,7 @@ package io.ikanos.engine.util;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -481,7 +482,9 @@ public class Resolver {
 
     /**
      * Same, but the parameters in {@code notSent} are only resolved: their value is added to
-     * {@code parameters}, for the templates that use it, and they are not sent (#909).
+     * {@code parameters}, for the templates that use it, and they are not sent (#909). Such a
+     * value never overwrites one the caller supplied, so that the narrower parameter that
+     * replaces it still sends the caller's value.
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters,
@@ -490,6 +493,8 @@ public class Resolver {
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
         }
+        Set<String> supplied = parameters == null ? Set.of()
+                : new HashSet<>(parameters.keySet());
 
         for (InputParameterSpec spec : specs) {
             try {
@@ -516,11 +521,15 @@ public class Resolver {
 
                 if (val == null) {
                     continue;
-                } else if (parameters != null) {
-                    parameters.put(spec.getName(), val);
                 }
                 if (notSent.contains(spec)) {
+                    if (parameters != null && !supplied.contains(spec.getName())) {
+                        parameters.put(spec.getName(), val);
+                    }
                     continue;
+                }
+                if (parameters != null) {
+                    parameters.put(spec.getName(), val);
                 }
 
                 String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
