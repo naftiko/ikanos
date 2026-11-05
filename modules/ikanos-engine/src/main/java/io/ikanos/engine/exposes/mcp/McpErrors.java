@@ -37,4 +37,15 @@ public final class McpErrors {
         return buildJsonRpcError(id, INTERNAL_ERROR.getCode(),
                 ErrorReference.withReference("Internal error", ref));
     }
+
+    /**
+     * Log a failed upstream call (no answer, or a failed step) and build the JSON-RPC error for
+     * it: "An upstream call failed" plus a correlation identifier, the same message tools and
+     * REST give (#873). The cause stays in the log under the same identifier.
+     */
+    public static ObjectNode upstreamError(JsonNode id, String logContext, Throwable cause) {
+        String ref = ErrorReference.record(Level.WARNING, logContext, cause);
+        return buildJsonRpcError(id, INTERNAL_ERROR.getCode(),
+                ErrorReference.withReference("An upstream call failed", ref));
+    }
 }
