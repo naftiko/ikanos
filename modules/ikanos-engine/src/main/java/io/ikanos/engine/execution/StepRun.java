@@ -20,6 +20,9 @@ import java.util.Set;
 import io.ikanos.durable.NodePath;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.util.StepExecutionContext;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * State of one run of an {@link ExecutionTree} in the {@code none} mode: the parameters templates
@@ -27,6 +30,8 @@ import io.ikanos.engine.util.StepExecutionContext;
  * It lives for one request and is never shared.
  */
 public final class StepRun {
+
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     private final Map<String, Object> runtimeParameters = new HashMap<>();
     private final StepExecutionContext stepContext = new StepExecutionContext();
@@ -76,6 +81,20 @@ public final class StepRun {
 
     void setAnswer(NodePath path, Object answer) {
         answers.put(path, answer);
+    }
+
+    /**
+     * Records the output of a step restored from the journal, as running it recorded it: in the
+     * step context, and as a runtime parameter named after the step. A {@code null} or JSON
+     * {@code null} output records nothing, like a step that produced no JSON output.
+     */
+    void restoreOutput(String stepName, Object output) {
+        if (stepName == null || !(output instanceof JsonNode json) || json.isNull()
+                || json.isMissingNode()) {
+            return;
+        }
+        stepContext.storeStepOutput(stepName, json);
+        runtimeParameters.put(stepName, MAPPER.convertValue(json, Object.class));
     }
 
     boolean isEvaluated(NodePath path) {

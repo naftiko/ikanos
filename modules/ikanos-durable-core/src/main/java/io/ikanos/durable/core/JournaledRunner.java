@@ -109,6 +109,15 @@ public final class JournaledRunner implements Runner {
         };
     }
 
+    /**
+     * A read-only view of an execution, rebuilt from its journal: the outcomes, decisions and
+     * updates recorded so far. An Interpreter walked against it restores its own state without
+     * running anything, for an execution whose result is already recorded.
+     */
+    public ExecutionView view(ExecutionId executionId) {
+        return new Run(ExecutionRequest.of(executionId, null));
+    }
+
     /** Delivers an update for {@code path}; returns {@code false} if one was already delivered. */
     public boolean deliver(ExecutionId executionId, NodePath path, Object update) {
         return stores.inbox().deliver(executionId, path, encodeValue(update));

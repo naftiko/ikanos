@@ -40,6 +40,7 @@ import io.ikanos.durable.Interpreter;
 import io.ikanos.durable.NodePath;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionStatus;
+import io.ikanos.engine.execution.DurableScope;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
@@ -126,7 +127,9 @@ public final class McpTaskService {
             try {
                 runner.run(request, interpreter(), action -> {
                     try {
-                        return work.call();
+                        // The flow's steps are journaled one by one under this task's execution,
+                        // so a step that already ran is restored rather than run again.
+                        return DurableScope.with(runner, task.executionId, work);
                     } catch (IllegalArgumentException e) {
                         throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
                     } catch (InputRequiredException e) {
