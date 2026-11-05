@@ -294,6 +294,84 @@ class ServerAdapterAuthenticationTest {
         assertTrue(e.getMessage().contains("bearer"), e.getMessage());
     }
 
+    // A literal prefix plus an unbound or empty variable renders "sk-": not blank, but a value an
+    // attacker can guess when the prefix is public. The capability refuses to start too.
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void capabilityShouldRefuseToStartWhenApiKeyIsPrefixPlusMisspelledVariable(String placement)
+            throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                              authentication:
+                                type: "apikey"
+                                key: "X-Api-Key"
+                                value: "sk-{{API_KY}}"
+                                placement: "%s"
+                        """.formatted(placement)));
+
+        assertTrue(e.getMessage().contains("API_KY"), e.getMessage());
+        assertTrue(e.getMessage().contains("apikey value"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"header", "query"})
+    void capabilityShouldRefuseToStartWhenApiKeyIsPrefixPlusEmptyBinding(String placement)
+            throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", """
+                              authentication:
+                                type: "apikey"
+                                key: "X-Api-Key"
+                                value: "sk-{{API_KEY}}"
+                                placement: "%s"
+                        """.formatted(placement)));
+
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+        assertTrue(e.getMessage().contains("apikey value"), e.getMessage());
+    }
+
+    @Test
+    void capabilityShouldRefuseToStartWhenBearerTokenIsPrefixPlusMisspelledVariable()
+            throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                              authentication:
+                                type: "bearer"
+                                token: "sk-{{API_KY}}"
+                        """));
+
+        assertTrue(e.getMessage().contains("API_KY"), e.getMessage());
+        assertTrue(e.getMessage().contains("bearer"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @Test
+    void capabilityShouldRefuseToStartWhenBearerTokenIsPrefixPlusEmptyBinding() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", """
+                              authentication:
+                                type: "bearer"
+                                token: "sk-{{API_KEY}}"
+                        """));
+
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+        assertTrue(e.getMessage().contains("bearer"), e.getMessage());
+    }
+
+    @Test
+    void capabilityShouldStartWhenPrefixedApiKeyIsBoundToValue() throws Exception {
+        ServerAdapter adapter = adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-Key"
+                        value: "sk-{{API_KEY}}"
+                """);
+
+        assertInstanceOf(ServerAuthenticationRestlet.class, adapter.buildServerChain(new Router()));
+    }
+
     @Test
     void capabilityShouldStartWhenApiKeyIsBoundToValue() throws Exception {
         ServerAdapter adapter = adapterWithSecrets("api-key: \"s3cr3t\"\n", """
