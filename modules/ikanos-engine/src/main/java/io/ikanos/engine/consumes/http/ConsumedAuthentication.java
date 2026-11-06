@@ -114,8 +114,9 @@ public final class ConsumedAuthentication {
                 String value = Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
 
                 if (apiKeyAuth.isQueryPlacement()) {
-                    String separator = targetRef.contains("?") ? "&" : "?";
-                    clientRequest.setResourceRef(targetRef + separator + key + "=" + value);
+                    // Encoded like every query parameter, so the API reads it unchanged (#841)
+                    clientRequest.setResourceRef(
+                            Resolver.appendQueryParameter(targetRef, key, value));
                 } else if ("Authorization".equalsIgnoreCase(key)) {
                     ApiKeyAuthorizationHeaderHelper.ensureRegistered();
                     ChallengeResponse rawChallenge =
