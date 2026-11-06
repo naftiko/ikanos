@@ -88,6 +88,17 @@ class ConsumedAuthenticationUnresolvedTest {
     }
 
     @Test
+    void errorShouldNameTheFullDottedReference() {
+        Request request = request();
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer("{{secrets.CRM_TOKEN}}"), null, request,
+                        TARGET, Map.of("secrets", "not-a-map")));
+
+        assertTrue(e.getMessage().contains("[secrets.CRM_TOKEN]"), e.getMessage());
+    }
+
+    @Test
     void bearerTokenWithBoundVariableShouldBeSent() {
         Request request = request();
 

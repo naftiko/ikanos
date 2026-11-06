@@ -15,7 +15,6 @@ package io.ikanos.engine.consumes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
@@ -23,11 +22,7 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
-import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
-import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -137,7 +132,8 @@ public final class ConsumedTemplateValidator {
     /** Checks the values {@code ConsumedAuthentication} renders as templates on every request. */
     private static void checkAuthentication(AuthenticationSpec authentication, String ns,
             List<String> errors) {
-        credentials(authentication, ns).forEach((where, template) -> check(template, where, errors));
+        ConsumedAuthentication.credentials(authentication, ns + " authentication")
+                .forEach((where, template) -> check(template, where, errors));
     }
 
     /**
@@ -157,9 +153,10 @@ public final class ConsumedTemplateValidator {
             AuthenticationSpec authentication = client instanceof HttpClientSpec http
                     ? http.getAuthentication()
                     : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
-            credentials(authentication, client.getNamespace()).forEach((where, template) -> {
+            ConsumedAuthentication.credentials(authentication,
+                    client.getNamespace() + " authentication").forEach((where, template) -> {
                 List<String> unbound =
-                        ConsumedAuthentication.unresolvedVariables(template, bindings);
+                        Resolver.emptyVariables(template, bindings);
                 if (!unbound.isEmpty()) {
                     warnings.add(where + " uses " + String.join(", ", unbound)
                             + ", which no binding gives a value: unless the call provides it,"
@@ -168,29 +165,6 @@ public final class ConsumedTemplateValidator {
             });
         }
         return warnings;
-    }
-
-    /** The values {@code ConsumedAuthentication} renders as templates, by location. */
-    private static Map<String, String> credentials(AuthenticationSpec authentication, String ns) {
-        Map<String, String> credentials = new LinkedHashMap<>();
-        String where = ns + " authentication";
-        if (authentication instanceof BasicAuthenticationSpec basic) {
-            credentials.put(where + " username", basic.getUsername());
-            credentials.put(where + " password", asString(basic.getPassword()));
-        } else if (authentication instanceof DigestAuthenticationSpec digest) {
-            credentials.put(where + " username", digest.getUsername());
-            credentials.put(where + " password", asString(digest.getPassword()));
-        } else if (authentication instanceof BearerAuthenticationSpec bearer) {
-            credentials.put(where + " token", bearer.getToken());
-        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
-            credentials.put(where + " key", apiKey.getKey());
-            credentials.put(where + " value", apiKey.getValue());
-        }
-        return credentials;
-    }
-
-    private static String asString(char[] value) {
-        return value == null ? null : new String(value);
     }
 
     /**

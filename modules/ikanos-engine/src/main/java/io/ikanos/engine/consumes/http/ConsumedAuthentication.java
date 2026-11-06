@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.restlet.Request;
@@ -149,7 +150,7 @@ public final class ConsumedAuthentication {
      * @throws IllegalArgumentException when a variable of the template has no value
      */
     static String render(String template, Map<String, Object> parameters, String credential) {
-        List<String> empty = unresolvedVariables(template, parameters);
+        List<String> empty = Resolver.emptyVariables(template, parameters);
         if (!empty.isEmpty()) {
             throw new IllegalArgumentException("Missing or empty template parameters in the "
                     + credential + ": " + empty + ". The credential is not sent.");
@@ -158,19 +159,45 @@ public final class ConsumedAuthentication {
     }
 
     /**
-     * @param template a credential template, may be null
-     * @param values the values available to it, may be null
-     * @return the variables of {@code template} that are unbound or bound to a blank value
+     * The values {@link #apply} renders as credential templates, keyed by where they are, such as
+     * {@code "<where> token"}.
+     *
+     * @param authentication the consumed-side credential, may be null
+     * @param where the prefix of each key, such as {@code "crm authentication"}
+     * @return the templates in declaration order; empty for no authentication
      */
-    public static List<String> unresolvedVariables(String template, Map<String, Object> values) {
-        // With no parameters, every variable of the template counts as missing: all are listed
-        return Resolver.missingVariables(template, null).stream()
-                .filter(variable -> values == null || isBlank(values.get(variable)))
-                .toList();
+    public static Map<String, String> credentials(AuthenticationSpec authentication,
+            String where) {
+        Map<String, String> credentials = new LinkedHashMap<>();
+        if (authentication instanceof BasicAuthenticationSpec basic) {
+            credentials.put(where + " username", basic.getUsername());
+            credentials.put(where + " password", passwordOrNull(basic.getPassword()));
+        } else if (authentication instanceof DigestAuthenticationSpec digest) {
+            credentials.put(where + " username", digest.getUsername());
+            credentials.put(where + " password", passwordOrNull(digest.getPassword()));
+        } else if (authentication instanceof BearerAuthenticationSpec bearer) {
+            credentials.put(where + " token", bearer.getToken());
+        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            credentials.put(where + " key", apiKey.getKey());
+            credentials.put(where + " value", apiKey.getValue());
+        }
+        return credentials;
     }
 
-    private static boolean isBlank(Object value) {
-        return value == null || value.toString().isBlank();
+    /**
+     * @param authentication the consumed-side credential, may be null
+     * @param parameters template parameters, already merged with the bindings
+     * @return {@code true} when every variable of the credential has a value, so {@link #apply}
+     *         can send it; also {@code true} with no authentication
+     */
+    public static boolean canRender(AuthenticationSpec authentication,
+            Map<String, Object> parameters) {
+        return credentials(authentication, "").values().stream()
+                .allMatch(template -> Resolver.emptyVariables(template, parameters).isEmpty());
+    }
+
+    private static String passwordOrNull(char[] password) {
+        return password == null ? null : new String(password);
     }
 
     private static String passwordOrEmpty(char[] password) {
