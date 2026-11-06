@@ -181,11 +181,13 @@ public class DurableTaskKillIntegrationTest {
     }
 
     @AfterEach
-    void stopEverything() {
+    void stopEverything() throws InterruptedException {
         releaseLookup.countDown();
         for (Process process : new Process[] {first, second}) {
             if (process != null) {
                 process.destroyForcibly();
+                // Wait for the exit: on Windows, its open log and store files can't be deleted.
+                process.waitFor(30, TimeUnit.SECONDS);
             }
         }
         upstream.stop(0);
