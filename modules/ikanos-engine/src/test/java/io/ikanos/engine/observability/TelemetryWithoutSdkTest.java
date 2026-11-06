@@ -75,7 +75,7 @@ class TelemetryWithoutSdkTest {
         }
     }
 
-    /** The Surefire test classpath, without OpenTelemetry SDK, exporter or appender jars. */
+    /** The Surefire test classpath, without OpenTelemetry SDK, exporter, appender or runtime telemetry jars. */
     private static URLClassLoader classLoaderWithoutOtelSdk() throws Exception {
         String classpath = System.getProperty("surefire.test.class.path",
                 System.getProperty("java.class.path"));
@@ -84,7 +84,8 @@ class TelemetryWithoutSdkTest {
             String name = Path.of(entry).getFileName().toString();
             if (name.startsWith("opentelemetry-sdk")
                     || name.startsWith("opentelemetry-exporter")
-                    || name.startsWith("opentelemetry-logback-appender")) {
+                    || name.startsWith("opentelemetry-logback-appender")
+                    || name.startsWith("opentelemetry-runtime-telemetry")) {
                 continue;
             }
             urls.add(Path.of(entry).toUri().toURL());

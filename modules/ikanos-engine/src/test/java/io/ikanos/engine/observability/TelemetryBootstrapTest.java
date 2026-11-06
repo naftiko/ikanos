@@ -345,6 +345,17 @@ public class TelemetryBootstrapTest {
                 "Should contain serialized metrics");
     }
 
+    @Test
+    void initWithServiceNameShouldExposeJvmMetrics() {
+        // Issue #737: CPU, memory, GC and threads, for sizing a deployment from /metrics.
+        String text = TelemetryBootstrap.init("test-service").collectPrometheusMetrics();
+        assertNotNull(text, "Prometheus metrics should be available after init(serviceName)");
+        for (String metric : new String[] {"jvm_memory_used", "jvm_memory_committed",
+                "jvm_cpu_time", "jvm_thread_count", "jvm_class_loaded"}) {
+            assertTrue(text.contains("# TYPE " + metric + " "), "Should expose " + metric);
+        }
+    }
+
     // ── Spec-driven observability (Phase 3) ──
 
     @Test

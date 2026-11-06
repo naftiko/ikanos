@@ -94,6 +94,12 @@
             <artifactId>opentelemetry-logback-appender-1.0</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- JVM metrics (CPU, memory, GC, threads) on the Control Port's /metrics: issue #737. -->
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-runtime-telemetry</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- Orchestration utilities -->
         <dependency>

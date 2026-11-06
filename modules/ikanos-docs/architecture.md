@@ -337,7 +337,7 @@ Outgoing, trace context is injected into upstream requests. The trace id is also
 
 When the MCP adapter resolves an agent identity (see [Exposes](#exposes-the-server-adapters)), it is set on the entry span (`gen_ai.agent.id`, from the OpenTelemetry GenAI conventions, plus `ikanos.agent.id.source` and, when known, `ikanos.agent.actor.id`) and in the MDC (`agent_id`), so traces and logs show which agent made the call.
 
-Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port.
+Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port, next to the JVM's own metrics (CPU, heap and non-heap memory, garbage collection, threads, classes) that `RuntimeMetrics` records from OpenTelemetry's runtime telemetry. Like the SDK, that library is optional: `SdkTelemetry` only starts it when it is on the classpath.
 
 ## Extension points
 
