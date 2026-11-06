@@ -29,6 +29,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 import org.restlet.data.MediaType;
 import org.restlet.representation.InputRepresentation;
 import org.restlet.representation.StringRepresentation;
@@ -196,6 +198,118 @@ public class ConverterTest {
 
         assertEquals(1, root.get("tables").size());
         assertEquals("Kept", root.get("tables").get(0).get(0).get("Name").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldKeepValuesUnderTheirOwnHeaderAcrossARowspan()
+            throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Region</th><th>Quarter</th><th>Revenue</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td rowspan="2">North</td><td>Q1</td><td>100</td></tr>
+                    <tr><td>Q2</td><td>200</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode secondRow = root.get("tables").get(0).get(1);
+        assertEquals("North", secondRow.get("Region").asString());
+        assertEquals("Q2", secondRow.get("Quarter").asString());
+        assertEquals("200", secondRow.get("Revenue").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldKeepValuesUnderTheirOwnHeaderAfterAColspan()
+            throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Item</th><th>Q1</th><th>Q2</th><th>Total</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Widget</td><td colspan="2">10</td><td>10</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("Widget", row.get("Item").asString());
+        assertEquals("10", row.get("Q1").asString());
+        assertEquals("", row.get("Q2").asString());
+        assertEquals("10", row.get("Total").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldCoverEveryColumnOfACellWithBothSpans() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>A</th><th>B</th><th>C</th><th>D</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td rowspan="2" colspan="2">X</td><td>c1</td><td>d1</td></tr>
+                    <tr><td>c2</td><td>d2</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode secondRow = root.get("tables").get(0).get(1);
+        assertEquals("X", secondRow.get("A").asString());
+        assertEquals("", secondRow.get("B").asString());
+        assertEquals("c2", secondRow.get("C").asString());
+        assertEquals("d2", secondRow.get("D").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldTreatANonPositiveOrNonNumericSpanAsOne() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>A</th><th>B</th><th>C</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="abc">a</td><td rowspan="-2">b</td><td>c</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("a", row.get("A").asString());
+        assertEquals("b", row.get("B").asString());
+        assertEquals("c", row.get("C").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldNotBuildAGridWiderThanTheHeaders() throws Exception {
+        // The row size is clamped before the mapping, so the output alone cannot show it: assert the
+        // grid itself, since an unclamped colspan would allocate one entry per unit of the attribute.
+        String html = """
+                <table>
+                  <thead><tr><th>Item</th><th>Q1</th><th>Q2</th></tr></thead>
+                  <tbody><tr><td>Widget</td><td colspan="100000">10</td><td>20</td></tr></tbody>
+                </table>
+                """;
+
+        Element rowElement = Jsoup.parseBodyFragment(html).select("tbody tr").first();
+        List<Element> dataRows = List.of(rowElement);
+
+        List<List<String>> grid = Converter.expandMergedCells(dataRows, 3);
+
+        assertEquals(1, grid.size());
+        assertEquals(3, grid.get(0).size());
+        assertEquals("Widget", grid.get(0).get(0));
+        assertEquals("10", grid.get(0).get(1));
     }
 
     @Test

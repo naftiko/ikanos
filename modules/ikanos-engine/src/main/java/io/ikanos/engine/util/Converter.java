@@ -50,7 +50,9 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableBody;
@@ -79,6 +81,12 @@ import io.ikanos.spec.util.IkanosMappers;
 public class Converter {
 
     private static final Logger logger = LoggerFactory.getLogger(Converter.class);
+
+    /**
+     * Upper bound on a single {@code colspan}/{@code rowspan}, so that an oversized attribute cannot
+     * make the grid allocate a large number of cells before it is clamped to the header count.
+     */
+    private static final int MAX_MERGED_CELL_SPAN = 1000;
 
     /** Convert various formats to JSON */
     public static JsonNode convertToJson(String format, String schema, Representation entity)
@@ -615,7 +623,6 @@ public class Converter {
     }
 
     private static List<List<String>> extractHtmlRows(Element table, List<String> headers) {
-        List<List<String>> rows = new ArrayList<>();
         Elements rowElements = new Elements();
         for (Element body : directChildren(table, "tbody")) {
             rowElements.addAll(directChildren(body, "tr"));
@@ -624,6 +631,7 @@ public class Converter {
             rowElements = tableRows(table);
         }
 
+        List<Element> dataRows = new ArrayList<>();
         for (Element rowElement : rowElements) {
             // Skip any row whose own cells are headers — it is a header row. A header row of a
             // nested table is not this row's: it lives in a cell, not among this row's children.
@@ -631,19 +639,124 @@ public class Converter {
                 continue;
             }
 
-            Elements cells = directChildren(rowElement, "td");
-            if (cells.isEmpty()) {
+            if (directChildren(rowElement, "td").isEmpty()) {
                 continue;
             }
 
-            List<String> values = new ArrayList<>();
-            for (Element cell : cells) {
-                values.add(cell.text().trim());
-            }
-            rows.add(values);
+            dataRows.add(rowElement);
         }
 
-        return rows;
+        return expandMergedCells(dataRows, headers.size());
+    }
+
+    /**
+     * Lay the data rows out on a grid, honouring {@code rowspan} and {@code colspan}.
+     *
+     * <p>Without this, a merged cell makes its row one cell shorter than the header row, and every
+     * value after it is written under its left neighbour's header. A cell spanning several rows
+     * keeps its value on every row and column it covers, so each row stays self-describing. A cell
+     * spanning several columns fills its first column and leaves the rest of its span empty: the
+     * value covers the merged block as a whole, and copying it into each column would invent
+     * per-column data that is not there.</p>
+     *
+     * <p>Nothing past the last header is kept, which is what {@code mapRowsToTable} would drop
+     * anyway; clamping each span to the columns left keeps an oversized attribute from allocating a
+     * grid proportional to the attribute value rather than to the table.</p>
+     *
+     * <p>Only a row's own {@code td} children are laid out, so a {@code table} nested inside a cell
+     * does not contribute cells to its host's grid.</p>
+     *
+     * @param dataRows the data rows, in document order
+     * @param columnCount the number of columns the header row defines
+     * @return one list of cell texts per row, each already positioned on the grid
+     */
+    static List<List<String>> expandMergedCells(List<Element> dataRows, int columnCount) {
+        List<List<String>> grid = new ArrayList<>();
+        Map<Integer, String> coveredValue = new HashMap<>();
+        Map<Integer, Integer> coveredRowsLeft = new HashMap<>();
+
+        for (Element rowElement : dataRows) {
+            List<String> values = new ArrayList<>();
+            int column = 0;
+
+            for (Element cell : directChildren(rowElement, "td")) {
+                column = fillCoveredColumns(values, column, columnCount, coveredValue, coveredRowsLeft);
+                if (column >= columnCount) {
+                    // every header column is filled: the remaining cells would be dropped anyway
+                    break;
+                }
+
+                String value = cell.text().trim();
+                int columnSpan = Math.min(spanOf(cell, "colspan"), columnCount - column);
+                int rowSpan = spanOf(cell, "rowspan");
+
+                for (int i = 0; i < columnSpan; i++) {
+                    values.add(i == 0 ? value : "");
+                }
+
+                if (rowSpan > 1) {
+                    for (int i = 0; i < columnSpan; i++) {
+                        coveredValue.put(column + i, i == 0 ? value : "");
+                        coveredRowsLeft.put(column + i, rowSpan - 1);
+                    }
+                }
+
+                column += columnSpan;
+            }
+
+            // A short row can end before a column that a previous row still covers.
+            fillCoveredColumns(values, column, columnCount, coveredValue, coveredRowsLeft);
+            grid.add(values);
+        }
+
+        return grid;
+    }
+
+    /**
+     * Append the values carried down from a {@code rowspan} that occupy {@code column} onwards.
+     *
+     * @return the first column not covered by a rowspan
+     */
+    private static int fillCoveredColumns(List<String> values, int column, int columnCount,
+            Map<Integer, String> coveredValue, Map<Integer, Integer> coveredRowsLeft) {
+        while (column < columnCount && coveredRowsLeft.getOrDefault(column, 0) > 0) {
+            values.add(coveredValue.get(column));
+
+            int rowsLeft = coveredRowsLeft.get(column) - 1;
+            if (rowsLeft == 0) {
+                coveredRowsLeft.remove(column);
+                coveredValue.remove(column);
+            } else {
+                coveredRowsLeft.put(column, rowsLeft);
+            }
+
+            column++;
+        }
+        return column;
+    }
+
+    /**
+     * Read a span attribute, treating anything that is not a positive number as no span.
+     *
+     * @param cell the cell holding the attribute
+     * @param attribute {@code colspan} or {@code rowspan}
+     * @return the span, or 1 when the attribute is absent, not a number, or not positive
+     */
+    private static int spanOf(Element cell, String attribute) {
+        String raw = cell.attr(attribute).trim();
+        if (raw.isEmpty()) {
+            return 1;
+        }
+
+        try {
+            int span = Integer.parseInt(raw);
+            if (span < 1) {
+                return 1;
+            }
+            return Math.min(span, MAX_MERGED_CELL_SPAN);
+        } catch (NumberFormatException nfe) {
+            return 1;
+        }
     }
 
     /**
