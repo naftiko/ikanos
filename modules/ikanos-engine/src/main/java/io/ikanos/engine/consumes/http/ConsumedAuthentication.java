@@ -112,10 +112,16 @@ public final class ConsumedAuthentication {
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
                 String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), parameters);
                 String value = Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
+                if (key == null || value == null) {
+                    // The schema only requires type: never send "null", in a header or the query
+                    throw new IllegalArgumentException(
+                            "An apikey credential needs a key and a value to be sent");
+                }
 
                 if (apiKeyAuth.isQueryPlacement()) {
-                    String separator = targetRef.contains("?") ? "&" : "?";
-                    clientRequest.setResourceRef(targetRef + separator + key + "=" + value);
+                    // Encoded like every query parameter, so the API reads it unchanged (#841)
+                    clientRequest.setResourceRef(
+                            Resolver.appendQueryParameter(targetRef, key, value));
                 } else if ("Authorization".equalsIgnoreCase(key)) {
                     ApiKeyAuthorizationHeaderHelper.ensureRegistered();
                     ChallengeResponse rawChallenge =
