@@ -572,6 +572,31 @@ public class ResolverTest {
       }
 
       @Test
+      public void emptyVariablesShouldListUnboundAndBlankVariablesByTheirFullReference() {
+        assertEquals(List.of("TOKN", "EMPTY", "secrets.CRM_TOKEN"),
+            Resolver.emptyVariables("sk-{{TOKN}}{{EMPTY}}{{TOKEN}}{{secrets.CRM_TOKEN}}",
+                Map.of("TOKEN", "s3cr3t", "EMPTY", " ")));
+      }
+
+      @Test
+      public void emptyVariablesShouldAcceptANestedValue() {
+        assertEquals(List.of("vault.missing"), Resolver.emptyVariables(
+            "{{vault.token}}{{vault.missing}}", Map.of("vault", Map.of("token", "s3cr3t"))));
+      }
+
+      @Test
+      public void emptyVariablesShouldListEveryVariableWithoutValues() {
+        assertEquals(List.of("A", "b.c"), Resolver.emptyVariables("{{A}}-{{b.c}}", null));
+        assertEquals(List.of(), Resolver.emptyVariables("static", null));
+      }
+
+      @Test
+      public void emptyVariablesShouldIgnoreVariablesInsideSections() {
+        assertEquals(List.of(), Resolver.emptyVariables("{{#x}}{{x}}{{/x}}{{^y}}-{{/y}}",
+            Map.of()));
+      }
+
+      @Test
       public void missingVariablesShouldParseLiteralBraceBeforeSectionTagLikeRendering() {
         // #848: compiled raw, this template fails and the missing "id" would go unnoticed.
         assertEquals(List.of("id"), Resolver.missingVariables(

@@ -171,10 +171,7 @@ public class ServerAuthenticationRestlet extends Restlet {
         String resolved = template != null
                 ? Resolver.resolveMustacheTemplate(template, values)
                 : null;
-        // With no parameters, every variable of the template counts as missing: all are listed
-        List<String> empty = Resolver.missingVariables(template, null).stream()
-                .filter(variable -> isBlank(values.get(variable)))
-                .toList();
+        List<String> empty = Resolver.emptyVariables(template, values);
         boolean blank = resolved == null || resolved.isBlank();
         if (!blank && empty.isEmpty()) {
             return;
@@ -184,10 +181,6 @@ public class ServerAuthenticationRestlet extends Restlet {
                 + (empty.isEmpty() ? ""
                         : ": bind " + String.join(", ", empty) + " to a non-empty value")
                 + ". To expose it without a credential, remove its authentication block.");
-    }
-
-    private static boolean isBlank(Object value) {
-        return value == null || value.toString().isBlank();
     }
 
     private String resolveSecretTemplate(String rawValue) {

@@ -135,6 +135,27 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void listToolsShouldGoWithoutACredentialThatOnlyACallFills() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> listPage(req, null);
+
+        adapter(client, "").listTools();
+
+        assertNull(client.requests.get(0).getChallengeResponse(),
+                "#843: no half-rendered credential on tools/list");
+    }
+
+    @Test
+    void listToolsShouldSendAStaticCredential() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> listPage(req, null);
+
+        adapterWithStaticToken(client).listTools();
+
+        assertEquals("s3cret", client.requests.get(0).getChallengeResponse().getRawValue());
+    }
+
+    @Test
     void toolsCallShouldNotSendACredentialWhoseVariableHasNoValue() throws Exception {
         StubClient client = new StubClient();
 

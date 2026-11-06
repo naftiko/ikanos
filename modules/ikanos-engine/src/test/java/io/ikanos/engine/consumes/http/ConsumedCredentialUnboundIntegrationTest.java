@@ -85,16 +85,16 @@ class ConsumedCredentialUnboundIntegrationTest {
         try (LogCapture logs = new LogCapture()) {
             start("TOKEN: \"s3cr3t\"\n", "{{TOKN}}");
 
-            assertTrue(logs.messages().stream().anyMatch(m -> m.contains("TOKN")
-                    && m.contains("up")), "a load-time warning names the variable: "
-                            + logs.messages());
+            assertTrue(logs.messages().stream().anyMatch(
+                    m -> m.contains("up authentication token uses TOKN")),
+                    "a load-time warning names the variable: " + logs.messages());
             assertFalse(logs.messages().stream().anyMatch(m -> m.contains("s3cr3t")),
                     "no log shows the secret");
         }
 
         HttpResponse<String> response = get("/call");
 
-        assertTrue(response.statusCode() >= 400, response.statusCode() + " " + response.body());
+        assertEquals(400, response.statusCode(), response.body());
         assertEquals(List.of(), upstreamAuthorizations, "nothing was sent to the upstream");
     }
 
@@ -104,7 +104,7 @@ class ConsumedCredentialUnboundIntegrationTest {
 
         HttpResponse<String> response = get("/call");
 
-        assertTrue(response.statusCode() >= 400, response.statusCode() + " " + response.body());
+        assertEquals(400, response.statusCode(), response.body());
         assertEquals(List.of(), upstreamAuthorizations, "nothing was sent to the upstream");
     }
 
@@ -113,7 +113,8 @@ class ConsumedCredentialUnboundIntegrationTest {
         try (LogCapture logs = new LogCapture()) {
             start("TOKEN: \"s3cr3t\"\n", "{{TOKEN}}");
 
-            assertFalse(logs.messages().stream().anyMatch(m -> m.contains("not bound")),
+            assertFalse(logs.messages().stream()
+                    .anyMatch(m -> m.contains("up authentication token")),
                     "no warning for a bound variable: " + logs.messages());
         }
 
@@ -121,6 +122,44 @@ class ConsumedCredentialUnboundIntegrationTest {
 
         assertEquals(200, response.statusCode(), response.body());
         assertEquals(List.of("Bearer s3cr3t"), upstreamAuthorizations);
+    }
+
+    @Test
+    void mcpUpstreamCredentialWithMisspelledVariableShouldBeWarnedAboutAtLoad() throws Exception {
+        try (LogCapture logs = new LogCapture()) {
+            capability = new Capability(IkanosMappers.lenientYaml().readValue("""
+                    ikanos: "%s"
+                    capability:
+                      consumes:
+                        - namespace: billing
+                          type: mcp
+                          endpoint: "http://localhost:%d/"
+                          discovery: off
+                          authentication:
+                            type: bearer
+                            token: "{{TOKN}}"
+                          tools:
+                            get-invoice:
+                              description: Retrieve one invoice
+                      exposes:
+                        - type: rest
+                          address: "localhost"
+                          port: %d
+                          namespace: demo
+                          resources:
+                            call:
+                              path: "/call"
+                              operations:
+                                get:
+                                  method: GET
+                                  call: billing.get-invoice
+                    """.formatted(IKANOS, upstream.getAddress().getPort(), freePort()),
+                    IkanosSpec.class));
+
+            assertTrue(logs.messages().stream().anyMatch(
+                    m -> m.contains("billing authentication token uses TOKN")),
+                    "a load-time warning names the variable: " + logs.messages());
+        }
     }
 
     private void start(String secrets, String token) throws Exception {

@@ -107,6 +107,16 @@ public class McpStreamableHttpTransport {
      */
     public JsonNode call(String method, String name, ObjectNode params,
             Map<String, Object> templates) {
+        return call(method, name, params, templates, true);
+    }
+
+    /**
+     * Same as {@link #call(String, String, ObjectNode, Map)}, optionally without the credential.
+     *
+     * @param withCredential {@code false} to send the request with no authentication
+     */
+    public JsonNode call(String method, String name, ObjectNode params,
+            Map<String, Object> templates, boolean withCredential) {
         long id = ids.incrementAndGet();
         ObjectNode meta = params.withObjectProperty("_meta");
         meta.put(META_PROTOCOL_VERSION, PROTOCOL_VERSION);
@@ -133,7 +143,8 @@ public class McpStreamableHttpTransport {
         if (name != null) {
             request.getHeaders().set("Mcp-Name", name);
         }
-        ConsumedAuthentication.apply(authentication, null, request, endpoint, templates);
+        ConsumedAuthentication.apply(withCredential ? authentication : null, null, request,
+                endpoint, templates);
         OtelRestletBridge.injectContext(request);
 
         Response response = client.handle(request);
