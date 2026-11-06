@@ -87,7 +87,12 @@ public final class ConsumedAuthentication {
         }
 
         ChallengeResponse challengeResponse;
-        switch (authenticationSpec.getType()) {
+        String type = authenticationSpec.getType();
+        if (!isSupported(type)) {
+            // Never send the call without the credential the capability asked for (#842)
+            throw new IllegalArgumentException(unsupported(type));
+        }
+        switch (type) {
             case "basic":
                 BasicAuthenticationSpec basicAuth = (BasicAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
@@ -143,8 +148,7 @@ public final class ConsumedAuthentication {
                 break;
 
             default:
-                // Never send the call without the credential the capability asked for (#842)
-                throw new IllegalArgumentException(unsupported(authenticationSpec.getType()));
+                throw new IllegalArgumentException(unsupported(type));
         }
     }
 
@@ -173,12 +177,17 @@ public final class ConsumedAuthentication {
             AuthenticationSpec authentication = client instanceof HttpClientSpec http
                     ? http.getAuthentication()
                     : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
-            if (authentication != null && !SUPPORTED_TYPES.contains(authentication.getType())) {
+            if (authentication != null && !isSupported(authentication.getType())) {
                 errors.add("consumes '" + client.getNamespace() + "': "
                         + unsupported(authentication.getType()));
             }
         }
         return errors;
+    }
+
+    /** {@code null} too: a spec built in code may have no type. */
+    private static boolean isSupported(String type) {
+        return type != null && SUPPORTED_TYPES.contains(type);
     }
 
     private static String unsupported(String type) {
