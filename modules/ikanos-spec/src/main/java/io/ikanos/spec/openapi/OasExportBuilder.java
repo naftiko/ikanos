@@ -422,9 +422,9 @@ public class OasExportBuilder {
             schemeName = "apiKeyAuth";
             securityScheme.setType(SecurityScheme.Type.APIKEY);
             securityScheme.setName(apiKey.getKey());
-            if (apiKey.getPlacement() != null) {
-                securityScheme.setIn(SecurityScheme.In.valueOf(apiKey.getPlacement().toUpperCase()));
-            }
+            // A header unless the placement says query, as the engine reads it (#840)
+            securityScheme.setIn(apiKey.isQueryPlacement()
+                    ? SecurityScheme.In.QUERY : SecurityScheme.In.HEADER);
         } else if (auth instanceof OAuth2AuthenticationSpec oauth2) {
             String tokenUrl = oauth2.getTokenEndpoint();
             if (tokenUrl == null || tokenUrl.isBlank()) {

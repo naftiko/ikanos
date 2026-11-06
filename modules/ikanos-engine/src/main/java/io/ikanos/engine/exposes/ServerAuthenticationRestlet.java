@@ -119,7 +119,6 @@ public class ServerAuthenticationRestlet extends Restlet {
 
         String key = resolveSecretTemplate(apiKeyAuth.getKey());
         String value = resolveSecretTemplate(apiKeyAuth.getValue());
-        String placement = apiKeyAuth.getPlacement() != null ? apiKeyAuth.getPlacement() : "header";
 
         // A blank expected value would match a blank header or query value (#856)
         if (key == null || key.isBlank() || value == null || value.isBlank()) {
@@ -128,7 +127,7 @@ public class ServerAuthenticationRestlet extends Restlet {
 
         String actualValue = null;
 
-        if ("query".equalsIgnoreCase(placement)) {
+        if (apiKeyAuth.isQueryPlacement()) {
             if (request.getResourceRef() != null
                     && request.getResourceRef().getQueryAsForm() != null) {
                 actualValue = request.getResourceRef().getQueryAsForm().getFirstValue(key);

@@ -1338,7 +1338,7 @@ API Key authentication via header or query parameter.
 | **type** | `string` | **REQUIRED**. MUST be `"apikey"`. |
 | **key** | `string` | API key name (header name or query parameter name). |
 | **value** | `string` | API key value. |
-| **placement** | `string` | Where to place the key. Valid values: `"header"`, `"query"`. |
+| **placement** | `string` | Where to place the key. Valid values: `"header"`, `"query"`. Defaults to `"header"` when omitted, on exposed and consumed adapters alike. |
 
 **Example:**
 

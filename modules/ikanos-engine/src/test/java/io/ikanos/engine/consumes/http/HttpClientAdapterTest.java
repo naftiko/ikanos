@@ -204,8 +204,12 @@ public class HttpClientAdapterTest {
                 String.valueOf(clientRequest.getChallengeResponse().getSecret()));
     }
 
+    /**
+     * #840: the schema says placement defaults to {@code header}, and the exposed side reads it
+     * that way. This test used to expect "Placement is required", which was the bug.
+     */
     @Test
-    public void setChallengeResponseShouldThrowWhenApiKeyPlacementIsMissing() {
+    public void setChallengeResponseShouldSendTheKeyAsAHeaderWhenApiKeyPlacementIsMissing() {
         HttpClientSpec spec = new HttpClientSpec("apikey", "https://api.example.com", null);
         ApiKeyAuthenticationSpec authentication = new ApiKeyAuthenticationSpec();
         authentication.setType("apikey");
@@ -216,11 +220,10 @@ public class HttpClientAdapterTest {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()), spec);
         Request clientRequest = new Request(Method.GET, "https://api.example.com/v1/items");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> adapter.setChallengeResponse(null, clientRequest,
-                        clientRequest.getResourceRef().toString(), Map.of()));
-        assertEquals("Placement is required for apikey authentication (expected: header or query)",
-                ex.getMessage());
+        adapter.setChallengeResponse(null, clientRequest,
+                clientRequest.getResourceRef().toString(), Map.of());
+
+        assertEquals("MY_API_KEY", clientRequest.getHeaders().getFirstValue("X-Dock-Key"));
     }
 
     @Test
