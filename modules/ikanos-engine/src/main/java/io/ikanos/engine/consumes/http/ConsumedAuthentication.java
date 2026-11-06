@@ -13,17 +13,24 @@
  */
 package io.ikanos.engine.consumes.http;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
 
 /**
  * Applies a consumed-side {@link AuthenticationSpec} to an outbound Restlet {@link Request}.
@@ -33,6 +40,9 @@ import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
  * credential fields are resolved against the call parameters plus the capability bindings.</p>
  */
 public final class ConsumedAuthentication {
+
+    /** The types {@link #apply} sends, written as the schema writes them. */
+    static final Set<String> SUPPORTED_TYPES = Set.of("apikey", "basic", "bearer", "digest");
 
     private ConsumedAuthentication() {
     }
@@ -77,7 +87,12 @@ public final class ConsumedAuthentication {
         }
 
         ChallengeResponse challengeResponse;
-        switch (authenticationSpec.getType()) {
+        String type = authenticationSpec.getType();
+        if (!isSupported(type)) {
+            // Never send the call without the credential the capability asked for (#842)
+            throw new IllegalArgumentException(unsupported(type));
+        }
+        switch (type) {
             case "basic":
                 BasicAuthenticationSpec basicAuth = (BasicAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
@@ -133,8 +148,51 @@ public final class ConsumedAuthentication {
                 break;
 
             default:
-                break;
+                throw new IllegalArgumentException(unsupported(type));
         }
+    }
+
+    /**
+     * Lists the consumed adapters whose authentication type {@link #apply} can't send, such as
+     * {@code oauth2}, which the schema allows on consumes, or a type written with another case.
+     * The capability refuses to load with one, rather than calling its upstream with no
+     * credential (#842).
+     *
+     * @param spec the capability spec, may be null
+     * @return one message per such adapter, naming its namespace and the type
+     */
+    public static List<String> findUnsupported(IkanosSpec spec) {
+        List<String> errors = new ArrayList<>();
+        if (spec == null) {
+            return errors;
+        }
+        List<ClientSpec> clients = new ArrayList<>();
+        if (spec.getConsumes() != null) {
+            clients.addAll(spec.getConsumes());
+        }
+        if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
+            clients.addAll(spec.getCapability().getConsumes());
+        }
+        for (ClientSpec client : clients) {
+            AuthenticationSpec authentication = client instanceof HttpClientSpec http
+                    ? http.getAuthentication()
+                    : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
+            if (authentication != null && !isSupported(authentication.getType())) {
+                errors.add("consumes '" + client.getNamespace() + "': "
+                        + unsupported(authentication.getType()));
+            }
+        }
+        return errors;
+    }
+
+    /** {@code null} too: a spec built in code may have no type. */
+    private static boolean isSupported(String type) {
+        return type != null && SUPPORTED_TYPES.contains(type);
+    }
+
+    private static String unsupported(String type) {
+        return "Unsupported consumed authentication type '" + type
+                + "': the engine can send apikey, basic, bearer or digest credentials";
     }
 
     private static String passwordOrEmpty(char[] password) {

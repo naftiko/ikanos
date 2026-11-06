@@ -45,6 +45,7 @@ import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedReferenceValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -222,6 +223,10 @@ public class Capability {
         // §6.5 design in blueprints/reverse-tunnel-private-network.md.
         // Templates are checked first, so a capability that cannot work never starts a tunnel.
         ConsumedTemplateValidator.validate(spec);
+        List<String> unsupportedAuthentication = ConsumedAuthentication.findUnsupported(spec);
+        if (!unsupportedAuthentication.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));
+        }
         Map<String, Tunnel> tunnels = TunnelBootstrap.discoverAndStart(
                 spec.getCapability().getConsumes(),
                 java.time.Duration.ofSeconds(30),

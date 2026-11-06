@@ -2453,8 +2453,8 @@
           "description": "Adapter-level parameters injected into every request, keyed by parameter name."
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication",
-          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2`."
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer` and `digest`."
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",
@@ -2716,7 +2716,7 @@
           "pattern": "^(https?://[^/]+(/.*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$"
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication",
+          "$ref": "#/$defs/ConsumedAuthentication",
           "description": "Credential sent to the upstream MCP server on every request. The exposed-side caller token is never forwarded."
         },
         "discovery": {
@@ -3162,7 +3162,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -3178,6 +3178,23 @@
         },
         {
           "$ref": "#/$defs/AuthOAuth2"
+        }
+      ]
+    },
+    "ConsumedAuthentication": {
+      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer` or `digest`, the types the engine can send. `oauth2` is for exposed adapters only.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AuthBasic"
+        },
+        {
+          "$ref": "#/$defs/AuthApiKey"
+        },
+        {
+          "$ref": "#/$defs/AuthBearer"
+        },
+        {
+          "$ref": "#/$defs/AuthDigest"
         }
       ]
     },
