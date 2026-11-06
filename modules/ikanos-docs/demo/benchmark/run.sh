@@ -73,7 +73,9 @@ sample() {
     "$(printf '%s\n' "$m" | sum '^jvm_memory_used_after_last_gc\\{.*jvm_memory_type="heap"')" >> "$results/samples.csv"
 }
 sampling() { while :; do sample "$1"; sleep 2; done; }
-gc_seconds() { metrics | awk '/^jvm_gc_duration_sum/ {s += $NF} END {print s + 0}'; }
+# Pauses only: G1 also reports a "G1 Concurrent GC" collector for work done next to the application, while it runs.
+# (Below about 1.8 GB the JVM picks the Serial collector even with 2 CPUs, and all its time is a pause.)
+gc_seconds() { metrics | awk '/^jvm_gc_duration_sum/ && !/Concurrent/ {s += $NF} END {print s + 0}'; }
 
 # Waits until Ikanos completes no more requests (the ones a step left behind are done), at most 300 s.
 wait_until_idle() {
@@ -143,6 +145,7 @@ echo "${IKANOS_JAVA_OPTIONS:-}" > "$results/java-options.txt"
   echo "oom_killed=$(docker inspect "$container" --format '{{.State.OOMKilled}}')"
   echo "restarted_after_collapse=$(grep -c '+$' "$results/steps.csv" || true)"
   echo "out_of_memory_errors=$(docker logs "$container" 2>&1 | grep -c OutOfMemoryError || true)"
+  echo "gc_collectors=$(grep -o 'jvm_gc_name="[^"]*"' "$results/metrics-end.txt" | sort -u | cut -d'"' -f2 | paste -sd, -)"
 } >> "$results/environment.txt"
 DURATION="$DURATION" python3 -I report.py "$results"
 echo "Results: $results/summary.md"
