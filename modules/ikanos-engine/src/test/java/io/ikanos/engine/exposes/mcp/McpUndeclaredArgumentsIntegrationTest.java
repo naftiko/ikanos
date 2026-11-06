@@ -90,6 +90,15 @@ public class McpUndeclaredArgumentsIntegrationTest {
     }
 
     @Test
+    public void handleToolCallShouldNotLetDeclaredArgumentFillUriFromResourceLevelEnvironmentParameter()
+            throws Exception {
+        // A resource can declare input parameters too (#909): its in: environment parameters
+        // must be applied before the URI is resolved, like the adapter's and the operation's.
+        assertEquals("/things/t-", callAndRecordPath(true, true),
+                "an in: environment parameter declared on the resource must come from the environment only");
+    }
+
+    @Test
     public void handleToolCallShouldStillPassDeclaredArguments() throws Exception {
         String sent = callAndRecordBody(environmentCapabilityYaml(false),
                 MAPPER.createObjectNode().put("name", "Acme").put("extra", "ignored"));
@@ -104,10 +113,16 @@ public class McpUndeclaredArgumentsIntegrationTest {
     }
 
     private String callAndRecordPath(boolean declareVariable) throws Exception {
+        return callAndRecordPath(declareVariable, false);
+    }
+
+    private String callAndRecordPath(boolean declareVariable, boolean onResource)
+            throws Exception {
         assumeTrue(System.getenv(UNSET_VARIABLE) == null, UNSET_VARIABLE + " must be unset");
         ObjectNode arguments = MAPPER.createObjectNode().put("name", "Acme")
                 .put(UNSET_VARIABLE, "evil");
-        return callAndRecord(pathCapabilityYaml(declareVariable), "list-things", arguments)[1];
+        return callAndRecord(pathCapabilityYaml(declareVariable, onResource), "list-things",
+                arguments)[1];
     }
 
     /** Call the tool and return the body and the path the upstream received. */
@@ -209,7 +224,7 @@ public class McpUndeclaredArgumentsIntegrationTest {
      * The resource path uses an environment parameter the operator left unset. When
      * {@code declareVariable} is set, the tool also declares an input with the same name.
      */
-    private String pathCapabilityYaml(boolean declareVariable) {
+    private String pathCapabilityYaml(boolean declareVariable, boolean onResource) {
         String variableInput = declareVariable ? """
                             %s:
                               type: string
@@ -226,12 +241,11 @@ public class McpUndeclaredArgumentsIntegrationTest {
                       resources:
                         things:
                           path: "/things/t-{{%s}}"
+                %s
                           operations:
                             list-things:
                               method: GET
-                              inputParameters:
-                                %s:
-                                  in: environment
+                %s
                   exposes:
                     - type: mcp
                       port: 0
@@ -246,7 +260,17 @@ public class McpUndeclaredArgumentsIntegrationTest {
                               description: "Display name"
                 %s
                           call: upstream.list-things
-                """.formatted(schemaVersion, UNSET_VARIABLE, UNSET_VARIABLE, variableInput);
+                """.formatted(schemaVersion, UNSET_VARIABLE,
+                        onResource ? environmentInput(10) : "",
+                        onResource ? "" : environmentInput(14), variableInput);
+    }
+
+    /** An {@code in: environment} input parameter named {@code UNSET_VARIABLE}, at a YAML indent. */
+    private static String environmentInput(int indent) {
+        String pad = " ".repeat(indent);
+        return pad + "inputParameters:\n"
+                + pad + "  " + UNSET_VARIABLE + ":\n"
+                + pad + "    in: environment";
     }
 
     private static Component createRecordingUpstream(int port, AtomicReference<String> body,
