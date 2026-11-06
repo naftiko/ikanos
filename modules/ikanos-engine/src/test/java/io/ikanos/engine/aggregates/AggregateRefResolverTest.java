@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -291,8 +292,8 @@ public class AggregateRefResolverTest {
     void resolveMcpToolRefShouldRejectStepsNextToRef() {
         McpServerToolSpec tool = new McpServerToolSpec("list-other", null, "List other");
         tool.setRef("data.get-data");
-        tool.setSteps(Map.of("list",
-                new OperationStepCallSpec("list", "mock-api.list-other")));
+        tool.setSteps(new LinkedHashMap<>(Map.of("list",
+                new OperationStepCallSpec("list", "mock-api.list-other"))));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> resolver.resolveMcpToolRef(tool, flowMapWithCall()));
@@ -335,8 +336,8 @@ public class AggregateRefResolverTest {
         RestServerOperationSpec op = new RestServerOperationSpec();
         op.setName("list-other");
         op.setRef("data.get-data");
-        op.setSteps(Map.of("list",
-                new OperationStepCallSpec("list", "mock-api.list-other")));
+        op.setSteps(new LinkedHashMap<>(Map.of("list",
+                new OperationStepCallSpec("list", "mock-api.list-other"))));
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> resolver.resolveRestOperationRef(op, flowMapWithCall()));
