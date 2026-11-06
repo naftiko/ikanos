@@ -15,8 +15,12 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.data.Method;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
@@ -85,5 +89,32 @@ class ConsumedApiKeyPlacementTest {
                 null, request, target, Map.of());
 
         assertEquals(target + "&api_key=a%26b", request.getResourceRef().toString());
+    }
+
+    /**
+     * An apikey without a key or a value (the schema only requires {@code type}) can't be sent:
+     * a clear error, not a NullPointerException from the encoding, nor the text "null".
+     */
+    @ParameterizedTest(name = "placement: {0}")
+    @ValueSource(strings = {"query", "header"})
+    void applyShouldRefuseAnApiKeyWithoutAValue(String placement) {
+        Request request = new Request(Method.GET, TARGET);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(
+                        new ApiKeyAuthenticationSpec("api_key", placement, null), null, request,
+                        TARGET, Map.of()));
+
+        assertTrue(e.getMessage().contains("key and a value"), e.getMessage());
+        assertEquals(TARGET, request.getResourceRef().toString());
+    }
+
+    @Test
+    void applyShouldRefuseAnApiKeyWithoutAKey() {
+        Request request = new Request(Method.GET, TARGET);
+
+        assertThrows(IllegalArgumentException.class, () -> ConsumedAuthentication.apply(
+                new ApiKeyAuthenticationSpec(null, "query", "k1"), null, request, TARGET,
+                Map.of()));
     }
 }
