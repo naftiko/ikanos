@@ -24,6 +24,7 @@ import org.restlet.Request;
 import org.restlet.data.Method;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
@@ -64,6 +65,34 @@ class ConsumedAuthenticationUnsupportedTest {
 
         assertTrue(e.getMessage().contains("'Bearer'"), e.getMessage());
         assertNull(request.getChallengeResponse());
+    }
+
+    /** A spec built in code may have no type: a clear error, not a NullPointerException. */
+    @Test
+    void applyShouldRefuseACredentialWithoutAType() {
+        BearerAuthenticationSpec bearer = new BearerAuthenticationSpec();
+        bearer.setType(null);
+        bearer.setToken("s3cr3t");
+        Request request = new Request(Method.GET, TARGET);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer, null, request, TARGET, Map.of()));
+
+        assertTrue(e.getMessage().contains("'null'"), e.getMessage());
+    }
+
+    @Test
+    void findUnsupportedShouldReportACredentialWithoutAType() {
+        BearerAuthenticationSpec bearer = new BearerAuthenticationSpec();
+        bearer.setType(null);
+        IkanosSpec spec = new IkanosSpec();
+        spec.getConsumes().add(new HttpClientSpec("crm", "https://crm.example.com", bearer));
+
+        List<String> errors = ConsumedAuthentication.findUnsupported(spec);
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("crm") && errors.get(0).contains("'null'"),
+                errors.get(0));
     }
 
     @Test

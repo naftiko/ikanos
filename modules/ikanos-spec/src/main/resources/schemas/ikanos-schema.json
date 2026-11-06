@@ -3162,7 +3162,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching the upstream or downstream security model:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
