@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync agents-shared skills from the agents-shared MCP server into .agents/skills/.
 
-Version 1.0.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
+Version 1.1.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
 agents-shared/instructions/agents-shared-sync.py. Consumer repos copy this file verbatim and
 never edit their copy; the server also publishes it as the ``agents-shared-sync`` skill, so
 each copy can tell when it is outdated (see --check-helper).
@@ -28,8 +28,8 @@ Options:
     --list       print the skills the server publishes, with their version
     --check-helper
                  compare this helper with the one the server publishes and write
-                 nothing; exit 1 when this copy is outdated. Every other mode also
-                 compares it, and prints a warning on stderr when it differs.
+                 nothing; exit 1 when this copy is outdated. Every sync and --check
+                 run also compares it, and prints a warning on stderr when it differs.
 
 Exit codes: 0 success / up to date, 1 stale or missing (--check, --check-helper), 2 error.
 
@@ -42,6 +42,8 @@ import hashlib
 import http.client
 import json
 import os
+import re
+import shutil
 import sys
 import urllib.parse
 from pathlib import Path, PurePosixPath
@@ -51,9 +53,12 @@ DEFAULT_URL = "http://localhost:9700"
 SCHEME = "skill://"
 
 # Keep equal to metadata.version of the agents-shared-sync skill in agents-shared.yml.
-HELPER_VERSION = "1.0.0"
+HELPER_VERSION = "1.1.0"
 HELPER_SKILL = "agents-shared-sync"
 HELPER_URI = f"{SCHEME}{HELPER_SKILL}/agents-shared-sync.py"
+
+# Agent Skills names: lowercase letters, digits and single hyphens.
+SKILL_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 class SyncError(Exception):
@@ -132,7 +137,14 @@ def parse_message(raw, content_type):
     if "text/event-stream" in content_type:
         data = [line[5:].strip() for line in raw.splitlines() if line.startswith("data:")]
         raw = data[-1] if data else "{}"
-    return json.loads(raw)
+    try:
+        message = json.loads(raw)
+    except ValueError:
+        raise SyncError(f"the response is not JSON ({raw[:80]!r}); is this the agents-shared "
+                        "server?")
+    if not isinstance(message, dict):
+        raise SyncError(f"the response is not a JSON-RPC message ({raw[:80]!r})")
+    return message
 
 
 def relative_path(name, uri):
@@ -141,9 +153,21 @@ def relative_path(name, uri):
     if not uri.startswith(prefix):
         raise SyncError(f"resource {uri} is not part of skill {name}")
     path = PurePosixPath(uri[len(prefix):])
-    if not path.parts or path.is_absolute() or any(p in ("", ".", "..") for p in path.parts):
+    # The engine never publishes dot-files, so a leading dot also rules out "." and "..". A
+    # backslash or a colon is a separator or a drive on Windows, where Path() would honour it.
+    if not path.parts or path.is_absolute() or any(
+            not p or p.startswith(".") or "\\" in p or ":" in p for p in path.parts):
         raise SyncError(f"resource {uri} has an unsafe path")
     return Path(*path.parts)
+
+
+def require_inside(target, rel):
+    """Fail unless ``target / rel`` stays inside ``target`` once resolved."""
+    root = target.resolve()
+    try:
+        (root / rel).resolve().relative_to(root)
+    except ValueError:
+        raise SyncError(f"{rel.as_posix()} would be written outside {target.as_posix()}/")
 
 
 def digest(data):
@@ -170,11 +194,13 @@ def read_resource(client, resource):
     return data
 
 
-def fetch_files(client, name, manifest):
+def fetch_files(client, name, manifest, target):
     """Read every resource of a skill and verify it; return {relative path: bytes}."""
     files = {}
     for resource in manifest.get("resources", []):
-        files[relative_path(name, resource["uri"])] = read_resource(client, resource)
+        rel = relative_path(name, resource["uri"])
+        require_inside(target, rel)
+        files[rel] = read_resource(client, resource)
     if Path("SKILL.md") not in files:
         raise SyncError(f"skill {name} publishes no SKILL.md")
     return files
@@ -184,20 +210,50 @@ def is_dot_path(path):
     return any(part.startswith(".") for part in path.parts)
 
 
+def dot_entries(target):
+    """The top-most dot-entries of a local copy (e.g. ``.work/``), which a sync keeps."""
+    if not target.is_dir():
+        return []
+    return [path.relative_to(target) for path in target.rglob(".*")
+            if not is_dot_path(path.relative_to(target).parent)]
+
+
 def write_skill(target, files):
-    """Write the verified files, then prune local files the server no longer publishes."""
-    for rel, data in files.items():
-        path = target / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-    for path in sorted(target.rglob("*"), reverse=True):
-        rel = path.relative_to(target)
-        if is_dot_path(rel):
-            continue
-        if path.is_file() and rel not in files:
-            path.unlink()
-        elif path.is_dir() and not any(path.iterdir()):
-            path.rmdir()
+    """Replace the local copy with the verified files, keeping its dot-entries.
+
+    The files are written into a staging directory beside the copy, which then replaces it, so
+    a failed write (disk full, a file locked on Windows) leaves the copy as it was, and a path
+    that changed between file and directory needs no manual cleanup.
+    """
+    staging = target.parent / f".{target.name}.sync-{os.getpid()}"
+    backup = target.parent / f".{target.name}.old-{os.getpid()}"
+    try:
+        for rel, data in files.items():
+            path = staging / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+    except OSError as e:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise SyncError(f"cannot write {staging.as_posix()}/ ({e}); the local copy is unchanged")
+    kept = dot_entries(target)
+    if target.exists():
+        try:
+            target.rename(backup)
+        except OSError as e:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); is a file in it open? "
+                            "The local copy is unchanged")
+    try:
+        staging.rename(target)
+    except OSError as e:
+        if backup.exists():
+            backup.rename(target)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); the local copy is unchanged")
+    for rel in kept:
+        (target / rel).parent.mkdir(parents=True, exist_ok=True)
+        (backup / rel).rename(target / rel)
+    shutil.rmtree(backup, ignore_errors=True)
 
 
 def check_skill(target, manifest, name):
@@ -252,6 +308,15 @@ def warn_if_outdated(client):
 
 
 def main():
+    """Run the helper; any error not handled below still exits with code 2, never 1."""
+    try:
+        return run()
+    except Exception as e:  # noqa: BLE001 -- exit code 1 means stale, so nothing else may use it
+        print(f"error: {e.__class__.__name__}: {e}", file=sys.stderr)
+        return 2
+
+
+def run():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("skills", nargs="*", help="skill names, e.g. pr-review")
     parser.add_argument("--url", default=os.environ.get("AGENTS_SHARED_URL") or DEFAULT_URL)
@@ -293,6 +358,11 @@ def main():
         return 0 if up_to_date else 1
     if not args.skills:
         parser.error("name at least one skill, or use --list")
+    for name in args.skills:
+        if not SKILL_NAME.match(name):
+            print(f"error: {name!r} is not a skill name (lowercase letters, digits, hyphens)",
+                  file=sys.stderr)
+            return 2
 
     warn_if_outdated(client)
     status = 0
@@ -305,7 +375,7 @@ def main():
                 print(f"{name}: " + ("up to date" if not issues else "stale (" + ", ".join(issues) + ")"))
                 status = max(status, 1 if issues else 0)
                 continue
-            files = fetch_files(client, name, manifest)
+            files = fetch_files(client, name, manifest, target)
             write_skill(target, files)
             print(f"{name} {version_of(manifest)}: {len(files)} files verified and synced into "
                   f"{target.as_posix()}/")
