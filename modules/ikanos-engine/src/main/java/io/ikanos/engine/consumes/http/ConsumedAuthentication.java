@@ -126,6 +126,11 @@ public final class ConsumedAuthentication {
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
                 String key = render(apiKeyAuth.getKey(), parameters, "apikey key");
                 String value = render(apiKeyAuth.getValue(), parameters, "apikey value");
+                if (key == null || value == null) {
+                    // The schema only requires type: never send "null", in a header or the query
+                    throw new IllegalArgumentException(
+                            "An apikey credential needs a key and a value to be sent");
+                }
 
                 if (apiKeyAuth.isQueryPlacement()) {
                     // Encoded like every query parameter, so the API reads it unchanged (#841)
