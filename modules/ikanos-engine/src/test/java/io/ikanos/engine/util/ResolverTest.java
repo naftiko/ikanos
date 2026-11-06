@@ -554,6 +554,14 @@ public class ResolverTest {
       }
 
       @Test
+      public void appendQueryParameterShouldEncodeTheNameAndTheValue() {
+        assertEquals("http://api/x?api_key=a%2Bb%26c%3Dd",
+            Resolver.appendQueryParameter("http://api/x", "api_key", "a+b&c=d"));
+        assertEquals("http://api/x?p=1&a+b=%3D",
+            Resolver.appendQueryParameter("http://api/x?p=1", "a b", "="));
+      }
+
+      @Test
       public void missingVariablesShouldListTopLevelVariablesAbsentFromParameters() {
         assertEquals(List.of("id", "q"), Resolver.missingVariables(
             "/items/{{id}}?q={{q}}&v={{version}}", Map.of("version", "1")));

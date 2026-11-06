@@ -61,4 +61,29 @@ class ConsumedApiKeyPlacementTest {
         assertEquals(TARGET + "?api_key=k1", request.getResourceRef().toString());
         assertNull(request.getHeaders().getFirstValue("api_key"));
     }
+
+    /** #841: the key and its name are URL-encoded, so the API reads the value it was given. */
+    @Test
+    void applyShouldUrlEncodeAQueryKeyAndItsName() {
+        Request request = new Request(Method.GET, TARGET);
+
+        ConsumedAuthentication.apply(new ApiKeyAuthenticationSpec("api key", "query", "{{KEY}}"),
+                null, request, TARGET, Map.of("KEY", "a+b&c=d #é"));
+
+        assertEquals(TARGET + "?api+key=a%2Bb%26c%3Dd+%23%C3%A9",
+                request.getResourceRef().toString());
+        assertEquals("a+b&c=d #é",
+                request.getResourceRef().getQueryAsForm().getFirstValue("api key"));
+    }
+
+    @Test
+    void applyShouldAppendAnEncodedQueryKeyAfterAnExistingQuery() {
+        String target = TARGET + "?page=2";
+        Request request = new Request(Method.GET, target);
+
+        ConsumedAuthentication.apply(new ApiKeyAuthenticationSpec("api_key", "query", "a&b"),
+                null, request, target, Map.of());
+
+        assertEquals(target + "&api_key=a%26b", request.getResourceRef().toString());
+    }
 }

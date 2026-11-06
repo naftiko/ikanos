@@ -13,7 +13,6 @@
  */
 package io.ikanos.engine.util;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -603,21 +602,33 @@ public class Resolver {
                     clientRequest.getHeaders().set(wireName,
                             elements != null ? String.join(",", elements) : val.toString());
                 } else if ("query".equalsIgnoreCase(in)) {
-                    String old = clientRequest.getResourceRef().toString();
-                    StringBuilder ref = new StringBuilder(old);
-                    char separator = old.contains("?") ? '&' : '?';
-                    String encodedName = java.net.URLEncoder.encode(wireName, "UTF-8");
+                    String ref = clientRequest.getResourceRef().toString();
                     for (String value : queryValues(spec, val)) {
-                        ref.append(separator).append(encodedName).append('=')
-                                .append(java.net.URLEncoder.encode(value, "UTF-8"));
-                        separator = '&';
+                        ref = appendQueryParameter(ref, wireName, value);
                     }
-                    clientRequest.setResourceRef(ref.toString());
+                    clientRequest.setResourceRef(ref);
                 }
-            } catch (IOException | RuntimeException e) {
+            } catch (RuntimeException e) {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    /**
+     * Appends one query parameter to a URL, with its name and value URL-encoded (UTF-8, a space
+     * as {@code +}), after {@code ?} or {@code &} as the URL needs. Every consumed query parameter
+     * goes through here, an API key placed in the query included (#841), so a value with
+     * {@code +}, {@code &}, {@code =} or {@code #} reaches the API unchanged.
+     *
+     * @param ref the URL, which may already have a query
+     * @param name the parameter name, not encoded
+     * @param value the parameter value, not encoded
+     * @return the URL with the parameter appended
+     */
+    public static String appendQueryParameter(String ref, String name, String value) {
+        return ref + (ref.contains("?") ? '&' : '?')
+                + java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8) + '='
+                + java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**
