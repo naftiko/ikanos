@@ -13,6 +13,8 @@
  */
 package io.ikanos.spec.consumes.http;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * API Key Authentication Specification Element
  */
@@ -47,6 +49,18 @@ public class ApiKeyAuthenticationSpec extends AuthenticationSpec {
 
     public void setPlacement(String placement) {
         this.placement = placement;
+    }
+
+    /**
+     * Where the key goes, the same rule for an exposed and a consumed adapter: in the query only
+     * when {@code placement} says {@code query} (in any case), in a header otherwise, including
+     * when it is omitted, as the schema says (#840).
+     *
+     * @return {@code true} when the key goes in the query string
+     */
+    @JsonIgnore
+    public boolean isQueryPlacement() {
+        return "query".equalsIgnoreCase(placement);
     }
 
     public String getValue() {

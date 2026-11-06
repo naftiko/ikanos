@@ -112,30 +112,23 @@ public final class ConsumedAuthentication {
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
                 String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), parameters);
                 String value = Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
-                String placement = apiKeyAuth.getPlacement();
 
-                if (placement == null) {
-                    throw new IllegalArgumentException(
-                            "Placement is required for apikey authentication (expected: header or query)");
-                }
-
-                if (placement.equals("header")) {
-                    if ("Authorization".equalsIgnoreCase(key)) {
-                        ApiKeyAuthorizationHeaderHelper.ensureRegistered();
-                        ChallengeResponse rawChallenge =
-                                new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
-                        // setIdentifier (not setRawValue): formatResponse() short-circuits to
-                        // the raw value when it is set and never calls the registered helper,
-                        // which is what strips the technicalName + separator Restlet would
-                        // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
-                        rawChallenge.setIdentifier(value);
-                        clientRequest.setChallengeResponse(rawChallenge);
-                    } else {
-                        clientRequest.getHeaders().add(key, value);
-                    }
-                } else if (placement.equals("query")) {
+                if (apiKeyAuth.isQueryPlacement()) {
                     String separator = targetRef.contains("?") ? "&" : "?";
                     clientRequest.setResourceRef(targetRef + separator + key + "=" + value);
+                } else if ("Authorization".equalsIgnoreCase(key)) {
+                    ApiKeyAuthorizationHeaderHelper.ensureRegistered();
+                    ChallengeResponse rawChallenge =
+                            new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
+                    // setIdentifier (not setRawValue): formatResponse() short-circuits to
+                    // the raw value when it is set and never calls the registered helper,
+                    // which is what strips the technicalName + separator Restlet would
+                    // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
+                    rawChallenge.setIdentifier(value);
+                    clientRequest.setChallengeResponse(rawChallenge);
+                } else {
+                    // A header, also when placement is omitted, as the schema says (#840)
+                    clientRequest.getHeaders().add(key, value);
                 }
                 break;
 
