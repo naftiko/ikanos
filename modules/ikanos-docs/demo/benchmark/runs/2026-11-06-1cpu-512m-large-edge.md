@@ -1,7 +1,7 @@
 # Ikanos benchmark: 1 CPU, 512m
 
 ```
-date=2026-11-04T16:05:33Z
+date=2026-11-06T09:46:34Z
 host=Darwin arm64
 docker_vm_cpus=15
 docker_vm_memory_mib=7935
@@ -10,10 +10,11 @@ ikanos_cpus=1
 ikanos_memory=512m (no swap)
 image=ikanos-benchmark:local
 java_options=none
-warmup=60s first step, 20s others; measured=60s
+warmup=60s at 5 req/s after each start, then 20s at the step rate; measured=60s
 oom_killed=false
-restarted_after_collapse=0
-out_of_memory_errors=0
+restarted_after_collapse=3
+out_of_memory_errors=1687
+gc_collectors=Copy,MarkSweepCompact
 ```
 
 - **Asked**: the rate k6 sends (constant arrival rate). **Answered**: requests per second that got a 200, as k6 sees them (completed requests × share without error). **Ikanos 200/s**: the same, counted by Ikanos itself (`ikanos_request_total`), including answers to clients that already gave up.
@@ -23,7 +24,7 @@ out_of_memory_errors=0
 
 | Load | Asked | Answered | Ikanos 200/s | Dropped | p50 ms | p99 ms | Errors | CPU avg / max % | Memory max MiB | Heap max MiB | Heap after GC max MiB | Threads | GC s | Recovery s |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| idle | – | – | – | – | – | – | – | 0.4 / 2.5 | 100 | 21 | 10 | 32 | – | – |
-| /ships | 50 | 50.0 | 50.0 | 0 | 2.8 | 5.4 | 0.0% | 16 / 25 | 172 | 48 | 26 | 110 | 0.4 | 0 |
-| /ships | 200 | 200.0 | 200.0 | 0 | 1.3 | 3.7 | 0.0% | 27 / 33 | 189 | 55 | 29 | 161 | 1.5 | 0 |
-| /ships | 500 | 500.0 | 500.0 | 0 | 0.7 | 1.8 | 0.0% | 29 / 31 | 247 | 105 | 65 | 229 | 1.3 | 0 |
+| idle | – | – | – | – | – | – | – | 0.2 / 0.4 | 98 | 20 | 10 | 32 | – | – |
+| /fleet | 45 | 13.9 | no answer | 1228 | 15.6 | 143.5 | 10.3% | 88 / 104 | 259 | 107 | 44 | 58 | no answer | 120+ |
+| /fleet | 50 | 0.0 | no answer | 2652 | – | – | 100.0% | 100 / 108 | 265 | no answer | no answer | no answer | no answer | 120+ |
+| /fleet | 60 | 0.0 | no answer | 3288 | – | – | 100.0% | 100 / 104 | 263 | no answer | no answer | no answer | no answer | 120+ |
