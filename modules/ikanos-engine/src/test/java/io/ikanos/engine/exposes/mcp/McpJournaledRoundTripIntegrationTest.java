@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +52,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class McpJournaledRoundTripIntegrationTest {
 
     private static final String KEY = "steps/confirm";
-    private static final String SEALING_KEY = "AAECAwQFBgcICQoLDA0ODw==";
+    /** A test key shared by both processes of the restart test, made here, not written out. */
+    private static final String SEALING_KEY = Base64.getEncoder().encodeToString(new byte[16]);
     private static final String BOOK =
             "{\"name\":\"book-then-confirm\",\"arguments\":{\"voyageId\":\"VOY-2026-045\"}}";
     private static final String ACCEPT =
