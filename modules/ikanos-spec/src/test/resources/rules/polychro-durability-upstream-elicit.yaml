@@ -1,0 +1,50 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Upstream question after a write under none
+  description: >-
+    Negative fixture: under the none mode, a flow books a slot, then calls a
+    consumed MCP tool that may ask. The answer replays the steps, so the
+    booking would run again.
+capability:
+  consumes:
+  - type: http
+    namespace: port
+    description: Port Authority API
+    baseUri: https://port.example.com
+    resources:
+      slots:
+        path: /departure-slots
+        operations:
+          book-departure-slot:
+            method: POST
+  - type: mcp
+    namespace: customs
+    description: Customs capability
+    endpoint: https://customs.example.com/mcp
+    tools:
+      file-export-declaration:
+        description: File an export declaration
+        mayElicit: true
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      book-then-declare:
+        description: Books, then files a declaration that may ask
+        steps:
+          book-slot:
+            type: call
+            call: port.book-departure-slot
+          declare:
+            type: call
+            call: customs.file-export-declaration
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9317
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      book-then-declare:
+        description: Book a slot, then file the declaration
+        ref: departure.book-then-declare
