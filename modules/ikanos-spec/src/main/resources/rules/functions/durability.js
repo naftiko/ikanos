@@ -8,10 +8,10 @@
  *   - "task-mode":      a flow declares `semantics.interaction.mode: task` while
  *                       the capability runs under `none`: there is nowhere to
  *                       keep the task;
- *   - "elicit-safety":  under `none`, an `elicit` step follows a call step whose
- *                       target is not read-only. Without a journal, an answer
- *                       replays the steps from the start, so that call would run
- *                       again. A target is read-only when it is a consumed HTTP
+ *   - "elicit-safety":  an `elicit` step follows a call step whose target is not
+ *                       read-only. An answer replays the steps from the start, so
+ *                       that call would run again: without a journal under `none`,
+ *                       and in every mode until journal-backed questions ship. A target is read-only when it is a consumed HTTP
  *                       operation with a safe method (RFC 9110), a consumed MCP
  *                       tool with `hints.readOnly: true`, or a flow declaring
  *                       `semantics.safe: true`. Targets in an imported namespace
@@ -44,7 +44,8 @@ export default function durability(targetVal, options) {
     return control.mode === "none" ? checkTaskMode(capability) : [];
   }
   if (check === "elicit-safety") {
-    return control.mode === "none" ? checkElicitSafety(capability) : [];
+    // Every mode: until journal-backed questions ship, an answer replays the steps.
+    return checkElicitSafety(capability, control.mode);
   }
   if (check === "sealing-key-binds") {
     return checkSealingKey(targetVal, control);
@@ -333,7 +334,7 @@ function stepContainers(capability) {
   return containers;
 }
 
-function checkElicitSafety(capability) {
+function checkElicitSafety(capability, mode) {
   const { safe, imported } = buildSafety(capability);
   const results = [];
   for (const container of stepContainers(capability)) {
@@ -353,9 +354,14 @@ function checkElicitSafety(capability) {
       if (step.type === "elicit" && unsafeCall) {
         results.push({
           message: container.label + " asks for input in step '" + s.key + "' after step '"
-            + unsafeCall + "', which is not read-only. Without a journal the answer replays "
-            + "the steps, so that call would run again. Declare a durability mode on the "
-            + "control port, or move the question before it.",
+            + unsafeCall + "', which is not read-only. "
+            + (mode === "none"
+              ? "Without a journal the answer replays the steps, so that call would run "
+                + "again. Move the question before it; a durability mode alone is not "
+                + "enough yet."
+              : "The answer still replays the steps in the '" + mode + "' mode, until "
+                + "journal-backed questions ship, so that call would run again. Move the "
+                + "question before it."),
           path: container.path.concat(...s.locator),
         });
       }
