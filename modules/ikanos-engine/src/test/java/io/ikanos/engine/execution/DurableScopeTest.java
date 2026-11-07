@@ -29,11 +29,13 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import io.ikanos.durable.ExecutionId;
+import io.ikanos.durable.NodePath;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.memory.MemoryStoreProvider;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -194,6 +196,75 @@ public class DurableScopeTest {
 
         assertTrue(e.getMessage().contains("not JSON"), e.getMessage());
         assertEquals(ExecutionStatus.FAILED,
+                runner.status(new ExecutionId("task-1/steps")).orElseThrow());
+    }
+
+    /** A tree whose names starting with {@code ?} are elicit steps, the others call steps. */
+    private static ExecutionTree asking(String... names) {
+        Map<String, OperationStepSpec> steps = new LinkedHashMap<>();
+        for (String name : names) {
+            if (name.startsWith("?")) {
+                String step = name.substring(1);
+                steps.put(step, new OperationStepElicitSpec(step, "Confirm " + step + "?",
+                        Map.of("confirmed", Map.of("type", "boolean"))));
+            } else {
+                steps.put(name, new OperationStepCallSpec(name, "port." + name));
+            }
+        }
+        return ExecutionTree.compile(steps, null);
+    }
+
+    private static final JsonNode ACCEPT = JSON.createObjectNode().put("action", "accept")
+            .set("content", JSON.createObjectNode().put("confirmed", true));
+
+    @Test
+    void aNestedQuestionShouldBeKeyedByTheStepThatCalledItsFlow() {
+        CountingRunner nodes = new CountingRunner();
+        nodes.calls.put("customs", asking("?confirm"));
+
+        InputRequiredException e = assertThrows(InputRequiredException.class,
+                () -> Executions.runSteps(asking("customs"), new StepRun(null), nodes));
+
+        assertEquals(List.of("steps/customs/steps/confirm"),
+                e.questions().stream().map(InputRequiredException.Question::key).toList());
+    }
+
+    @Test
+    void anAnswerShouldReachOnlyTheRunItIsKeyedFor() throws Exception {
+        CountingRunner nodes = new CountingRunner();
+        nodes.calls.put("customs", asking("?confirm"));
+        ExecutionTree tree = asking("?confirm", "customs");
+
+        // The top-level answer does not answer the nested question of the same name.
+        InputRequiredException e = assertThrows(InputRequiredException.class,
+                () -> ExecutionInputs.with(Map.of(new NodePath("steps/confirm"), ACCEPT),
+                        () -> Executions.runSteps(tree, new StepRun(null), nodes)));
+        assertEquals(List.of("steps/customs/steps/confirm"),
+                e.questions().stream().map(InputRequiredException.Question::key).toList());
+
+        StepRun done = ExecutionInputs.with(Map.of(new NodePath("steps/confirm"), ACCEPT,
+                new NodePath("steps/customs/steps/confirm"), ACCEPT),
+                () -> Executions.runSteps(tree, new StepRun(null), nodes));
+        assertEquals("customs", done.stepContext().getStepOutput("customs").path("step")
+                .asString());
+    }
+
+    @Test
+    void aNestedQuestionShouldNotRunTheStepsBeforeItAgainOnceAnswered() throws Exception {
+        CountingRunner first = new CountingRunner();
+        first.calls.put("customs", asking("file-declaration", "?confirm"));
+        assertThrows(InputRequiredException.class,
+                () -> runInScope(asking("customs"), first));
+
+        CountingRunner second = new CountingRunner();
+        second.calls.putAll(first.calls);
+        ExecutionInputs.with(Map.of(new NodePath("steps/customs/steps/confirm"), ACCEPT),
+                () -> runInScope(asking("customs"), second));
+
+        assertEquals(List.of("customs", "file-declaration"), first.invoked);
+        assertEquals(List.of("customs", "confirm"), second.invoked,
+                "The declaration filed before the question is restored, not filed again");
+        assertEquals(ExecutionStatus.COMPLETED,
                 runner.status(new ExecutionId("task-1/steps")).orElseThrow());
     }
 

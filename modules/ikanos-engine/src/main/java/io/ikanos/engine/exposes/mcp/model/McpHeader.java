@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.exposes.mcp.handler.PromptsGetHandler;
 import io.ikanos.engine.exposes.mcp.handler.ResourcesReadHandler;
 import io.ikanos.engine.exposes.mcp.handler.TasksCancelHandler;
+import io.ikanos.engine.exposes.mcp.handler.TasksUpdateHandler;
 import io.ikanos.engine.exposes.mcp.handler.TasksGetHandler;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import org.restlet.data.Header;
@@ -42,7 +43,8 @@ public enum McpHeader {
                 PromptsGetHandler.METHOD_NAME, List.of("params", "name"),
                 // SEP-2663: a tasks/* request names its task, so it can be routed to it.
                 TasksGetHandler.METHOD_NAME, List.of("params", "taskId"),
-                TasksCancelHandler.METHOD_NAME, List.of("params", "taskId")
+                TasksCancelHandler.METHOD_NAME, List.of("params", "taskId"),
+                TasksUpdateHandler.METHOD_NAME, List.of("params", "taskId")
         );
 
         /**

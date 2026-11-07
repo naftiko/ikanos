@@ -29,14 +29,22 @@ import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.JsonNode;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
+import io.ikanos.spec.util.OperationStepSpec;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -249,8 +257,16 @@ public class McpServerAdapter extends ServerAdapter {
         if (taskService == null) {
             return 0;
         }
+        return taskService.resume(taskWork());
+    }
+
+    /**
+     * The tool call of a task of this adapter, from the task's entry and recorded arguments, or
+     * {@code null} for an entry of another adapter: what a resumed or answered task runs.
+     */
+    public BiFunction<String, JsonNode, Callable<JsonNode>> taskWork() {
         String prefix = "mcp:" + getMcpServerSpec().getNamespace() + "/";
-        return taskService.resume((entry, arguments) -> {
+        return (entry, arguments) -> {
             if (!entry.startsWith(prefix)) {
                 return null;
             }
@@ -259,7 +275,43 @@ public class McpServerAdapter extends ServerAdapter {
             Map<String, Object> callArguments = arguments == null || !arguments.isObject()
                     ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
             return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
-        });
+        };
+    }
+
+    /**
+     * Whether the tool's flow may ask its caller for input: it has an {@code elicit} step, or
+     * calls a flow that may, at any depth.
+     */
+    public boolean mayElicit(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        if (toolSpec == null || toolSpec.getRef() == null) {
+            return false;
+        }
+        return mayElicit(findFlow(toolSpec.getRef()), new HashSet<>());
+    }
+
+    private boolean mayElicit(AggregateFlow flow, Set<AggregateFlow> seen) {
+        if (flow == null || !seen.add(flow) || flow.getSteps() == null) {
+            return false;
+        }
+        for (OperationStepSpec step : flow.getSteps().values()) {
+            if (step instanceof OperationStepElicitSpec) {
+                return true;
+            }
+            if (step instanceof OperationStepCallSpec call && call.getCall() != null
+                    && mayElicit(findFlow(call.getCall()), seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private AggregateFlow findFlow(String ref) {
+        try {
+            return getCapability().lookupFlow(ref);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
