@@ -1,0 +1,31 @@
+---
+# Spectral fixture — ikanos-capability-no-root-sections MUST FIRE.
+#
+# A capability document declares its bindings under `capability.binds`. Root
+# `binds` is only valid in a standalone shared binds file (#955).
+ikanos: "1.0.0-beta10"
+
+info:
+  display: "Root binds next to capability"
+  description: "Negative fixture: bindings declared at the root of a capability document."
+
+binds:
+  - namespace: "registry-env"
+    description: "Registry credentials."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      REGISTRY_TOKEN: "registry-bearer-token"
+
+capability:
+  exposes:
+    - type: "mcp"
+      port: 8080
+      namespace: "registry-tools"
+      description: "Registry tools."
+      tools:
+        ping:
+          description: "Answers pong."
+          outputParameters:
+            message:
+              type: "string"
+              value: "pong"

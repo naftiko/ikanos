@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -34,15 +35,15 @@ public class AggregatesImportStrategy implements ImportStrategy<AggregateSpec> {
 
     @Override
     public List<AggregateSpec> readSection(IkanosSpec source) {
-        // Standalone document: root-level aggregates
+        // Capability document: its sections live under capability only. A root section next
+        // to capability is not valid there (#955) and is never imported.
+        if (source.getCapability() != null) {
+            Map<String, AggregateSpec> section = source.getCapability().getAggregates();
+            return section != null ? new ArrayList<>(section.values()) : Collections.emptyList();
+        }
+        // Standalone file: the section is at the root
         if (source.getAggregates() != null && !source.getAggregates().isEmpty()) {
             return source.getAggregates();
-        }
-        // Capability-wrapped form: capability.aggregates
-        if (source.getCapability() != null
-                && source.getCapability().getAggregates() != null
-                && !source.getCapability().getAggregates().isEmpty()) {
-            return new ArrayList<>(source.getCapability().getAggregates().values());
         }
         return Collections.emptyList();
     }

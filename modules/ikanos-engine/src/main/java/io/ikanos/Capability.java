@@ -44,6 +44,7 @@ import io.ikanos.engine.imports.ConsumesImportStrategy;
 import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.NamespaceUniquenessValidator;
+import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedReferenceValidator;
@@ -107,6 +108,10 @@ public class Capability {
      */
     public Capability(IkanosSpec spec, String capabilityDir) throws Exception {
         this.spec.set(spec);
+
+        // A capability document keeps its sections under `capability`. A root section would be
+        // ignored, since the document is not validated against the schema here: reject it.
+        RootSectionsValidator.validate(spec);
 
         // Resolve imports across all four sections using the unified import mechanism.
         // A shared SourceFileLoader caches parsed source files across section resolvers.
@@ -181,7 +186,8 @@ public class Capability {
         }
         this.aggregates.set(aggregateList);
 
-        // Resolve bindings early for injection into adapters
+        // Resolve bindings early for injection into adapters. They come from `capability.binds`,
+        // whose import entries were replaced by the imported bindings above.
         BindingResolver bindingResolver = new BindingResolver();
         ExecutionContext context = new ExecutionContext() {
             @Override
@@ -189,7 +195,8 @@ public class Capability {
                 return System.getenv(key);
             }
         };
-        Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);
+        Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getCapability().getBinds(),
+                context);
         // Convert Map<String, String> to Map<String, Object> for compatibility
         this.bindings.set(new HashMap<>(resolvedBinds));
 

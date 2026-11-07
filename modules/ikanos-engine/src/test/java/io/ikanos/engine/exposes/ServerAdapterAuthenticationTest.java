@@ -587,12 +587,12 @@ class ServerAdapterAuthenticationTest {
     private ServerAdapter adapterWithSecrets(String secretsYaml, String authBlock) throws Exception {
         Path file = Files.writeString(secrets.resolve("secrets.yaml"), secretsYaml);
         String yaml = REST_YAML.formatted(schemaVersion, authBlock).replaceFirst("capability:", """
-                binds:
-                  - namespace: "test-secrets"
-                    location: "%s"
-                    keys:
-                      API_KEY: "api-key"
-                capability:""".formatted(file.toUri()));
+                capability:
+                  binds:
+                    - namespace: "test-secrets"
+                      location: "%s"
+                      keys:
+                        API_KEY: "api-key\"""".formatted(file.toUri()));
         return adapterFromYaml(yaml);
     }
 

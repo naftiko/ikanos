@@ -36,6 +36,10 @@ import io.ikanos.spec.util.BindingSpec;
  *   <li>Standalone binds — {@code ikanos} + {@code binds}</li>
  * </ul>
  *
+ * <p>The root {@code consumes}, {@code exposes}, {@code aggregates} and {@code binds} lists are
+ * only filled by standalone documents. A capability document keeps those sections under
+ * {@code capability}, so its bindings are {@code getCapability().getBinds()}.</p>
+ *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference} so that fluent builders and
  * Control-port runtime edits can replace values atomically while engine threads read them.

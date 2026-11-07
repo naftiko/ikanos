@@ -84,16 +84,16 @@ public class CapabilityBootstrapTest {
         // Given
         IkanosSpec spec = TestUtils.parseYaml("""
                 ikanos: "%s"
-                binds:
-                  - namespace: "env"
-                    keys:
-                      path: PATH
-                  - namespace: "env2"
-                    description: "Environment 2"
-                    location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
-                    keys:
-                      registry_token: registry-bearer-token
                 capability:
+                  binds:
+                    - namespace: "env"
+                      keys:
+                        path: PATH
+                    - namespace: "env2"
+                      description: "Environment 2"
+                      location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
+                      keys:
+                        registry_token: registry-bearer-token
                   exposes:
                     - type: "rest"
                       address: "localhost"

@@ -9,14 +9,13 @@ info:
   display: "Reverse tunnel — direct fallback on non-loopback baseUri"
   description: "Negative fixture: fallback direct on a non-loopback host."
 
-binds:
-  - namespace: "secrets"
-    description: "Ziti identity bundle."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      ZITI_IDENTITY: "ziti-identity-path"
-
 capability:
+  binds:
+    - namespace: "secrets"
+      description: "Ziti identity bundle."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        ZITI_IDENTITY: "ziti-identity-path"
   consumes:
     - type: "http"
       namespace: "crm"

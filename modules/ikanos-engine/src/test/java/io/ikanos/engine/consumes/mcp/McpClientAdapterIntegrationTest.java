@@ -280,7 +280,7 @@ class McpClientAdapterIntegrationTest {
             String yaml = consumerYaml("verify", "")
                     .replace("endpoint: http://localhost:" + mcpPort + "/",
                             "endpoint: \"{{BILLING_MCP_URL}}\"")
-                    .replace("capability:\n", binds + "capability:\n");
+                    .replace("capability:\n", "capability:\n" + binds.indent(2));
             consumer = capability(yaml);
             consumer.start();
 
