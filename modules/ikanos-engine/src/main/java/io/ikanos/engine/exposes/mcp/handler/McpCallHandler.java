@@ -28,11 +28,13 @@ import java.util.Map;
 import java.util.function.Supplier;
 import io.ikanos.engine.exposes.mcp.InputRequests;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.NodePath;
 import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.McpCallContext;
 import io.ikanos.engine.exposes.mcp.McpRequestState;
+import io.ikanos.engine.exposes.mcp.McpTaskService;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
@@ -113,6 +115,12 @@ public abstract class McpCallHandler {
             JsonNode arguments, Supplier<ObjectNode> run) throws Exception {
         String principal = McpCallContext.principal();
         String digest = McpRequestState.digest(getMethodName(), name, arguments);
+        McpTaskService journal = adapter.getTaskService();
+        if (journal != null && mayAsk(name)) {
+            // Durable: resume a journaled execution instead of replaying the steps (§7.9).
+            return inJournaledRounds(journal, idNode, params, label, name, arguments, run,
+                    principal, digest);
+        }
         ObjectNode answers = collectAnswers(params, principal, digest);
         Map<NodePath, Object> updates = new LinkedHashMap<>();
         answers.properties().forEach(e -> updates.put(new NodePath(e.getKey()), e.getValue()));
@@ -127,6 +135,57 @@ public abstract class McpCallHandler {
             }
             return new HandlerSuccessResult(inputRequired(e, answers, principal, digest));
         }
+    }
+
+    /**
+     * Whether the entry named {@code name} may ask its caller for input. Only such entries run
+     * journal-backed in a durable mode, so a call that never asks costs no execution.
+     */
+    protected boolean mayAsk(String name) {
+        return false;
+    }
+
+    /**
+     * One round of a journal-backed multi round-trip request: the first round starts a hidden
+     * execution, and the sealed {@code requestState} names it, so each retry delivers its
+     * {@code inputResponses} and resumes it. Steps already journaled, a write before the question
+     * included, are restored, not run again.
+     */
+    private HandlerResult inJournaledRounds(McpTaskService journal, JsonNode idNode,
+            JsonNode params, String label, String name, JsonNode arguments,
+            Supplier<ObjectNode> run, String principal, String digest) throws Exception {
+        ExecutionId executionId = null;
+        String token = params.path("requestState").asString(null);
+        if (token != null && !token.isEmpty()) {
+            McpRequestState.Content state =
+                    adapter.getRequestState().open(token, principal, digest);
+            if (state.executionId() == null) {
+                throw new IllegalArgumentException(
+                        "requestState belongs to a call that replays its steps");
+            }
+            executionId = new ExecutionId(state.executionId());
+        }
+        String entry = "mrtr:" + adapter.getMcpServerSpec().getNamespace() + "/"
+                + getMethodName() + "/" + name;
+        McpTaskService.Round round = journal.inRounds(entry, principal, arguments, executionId,
+                params.get("inputResponses"), run::get);
+        if (round.result() != null) {
+            return new HandlerSuccessResult(round.result());
+        }
+        if (!RequestClientCapabilities.from(params).supportsElicitation()) {
+            ObjectNode required = MAPPER.createObjectNode();
+            required.putObject("elicitation");
+            return missingCapability(idNode,
+                    label + " asks for input; it needs the elicitation capability", required);
+        }
+        ObjectNode result = MAPPER.createObjectNode();
+        result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
+        result.set("inputRequests", round.questions());
+        List<String> pending = new ArrayList<>();
+        round.questions().propertyNames().forEach(pending::add);
+        result.put("requestState", adapter.getRequestState().seal(principal, digest,
+                MAPPER.createObjectNode(), pending, round.executionId().value()));
+        return new HandlerSuccessResult(result);
     }
 
     /**
