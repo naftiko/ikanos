@@ -209,6 +209,29 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldDocumentA202OnAnOperationThatAsksForInput() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec asking = resourceWithOperation("/confirm", "confirm", "POST",
+                "confirm", null);
+        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps =
+                new java.util.LinkedHashMap<>();
+        steps.put("confirm", new io.ikanos.spec.util.OperationStepElicitSpec("confirm",
+                "Confirm?", Map.of("ok", Map.of("type", "boolean"))));
+        firstOp(asking).setSteps(steps);
+        addResource(rest, asking);
+        addResource(rest, resourceWithOperation("/pets", "pets", "GET", "list-pets", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation confirm = result.getOpenApi().getPaths().get("/confirm").getPost();
+        assertNotNull(confirm.getResponses().get("202"));
+        assertNotNull(confirm.getResponses().get("202").getHeaders().get("Location"));
+        Operation list = result.getOpenApi().getPaths().get("/pets").getGet();
+        assertNull(list.getResponses().get("202"), "An operation that never asks has no 202");
+    }
+
+    @Test
     void buildShouldMap204ResponseWhenNoOutputParameters() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);

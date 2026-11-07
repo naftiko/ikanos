@@ -31,6 +31,13 @@ import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.headers.Header;
+import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
+import io.ikanos.spec.util.OperationStepSpec;
+import java.util.HashSet;
+import java.util.Set;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
@@ -81,6 +88,7 @@ public class OasExportBuilder {
     public OasExportResult build(IkanosSpec IkanosSpec, String adapterNamespace,
             SpecVersion specVersion) {
         List<String> warnings = new ArrayList<>();
+        flowSteps = flowSteps(IkanosSpec);
 
         RestServerSpec restServer = findRestServer(IkanosSpec, adapterNamespace, warnings);
         if (restServer == null) {
@@ -273,9 +281,80 @@ public class OasExportBuilder {
             responses.addApiResponse("204", new ApiResponse()
                     .description("No content"));
         }
+        if (mayAsk(opSpec.getRef(), opSpec.getSteps(), new HashSet<>())) {
+            responses.addApiResponse("202", inputRequiredResponse());
+        }
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    /** The steps of every flow of the exported capability, by {@code namespace.flow}. */
+    private Map<String, Map<String, OperationStepSpec>> flowSteps = Map.of();
+
+    private static Map<String, Map<String, OperationStepSpec>> flowSteps(IkanosSpec spec) {
+        Map<String, Map<String, OperationStepSpec>> steps = new LinkedHashMap<>();
+        CapabilitySpec capability = spec.getCapability();
+        if (capability == null || capability.getAggregates() == null) {
+            return steps;
+        }
+        for (AggregateSpec aggregate : capability.getAggregates().values()) {
+            if (aggregate == null || aggregate.getFlows() == null) {
+                continue;
+            }
+            aggregate.getFlows().forEach((name, flow) -> {
+                if (flow != null && flow.getSteps() != null) {
+                    steps.put(aggregate.getNamespace() + "." + name, flow.getSteps());
+                }
+            });
+        }
+        return steps;
+    }
+
+    /**
+     * Whether an operation may ask its caller for input: its steps, or the flow it references,
+     * hold an {@code elicit} step, directly or through the flows they call.
+     */
+    private boolean mayAsk(String ref, Map<String, OperationStepSpec> steps, Set<String> seen) {
+        if (ref != null) {
+            return seen.add(ref) && mayAsk(null, flowSteps.get(ref), seen);
+        }
+        if (steps == null) {
+            return false;
+        }
+        for (OperationStepSpec step : steps.values()) {
+            if (step instanceof OperationStepElicitSpec) {
+                return true;
+            }
+            if (step instanceof OperationStepCallSpec call && call.getCall() != null
+                    && flowSteps.containsKey(call.getCall())
+                    && mayAsk(call.getCall(), null, seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The {@code 202} of an operation that asks its caller: the questions, as MCP's
+     * {@code inputRequests}, and the {@code Location} to {@code POST} the answers to.
+     */
+    private ApiResponse inputRequiredResponse() {
+        Schema<?> body = typedSchema("object");
+        Map<String, Schema> properties = new LinkedHashMap<>();
+        properties.put("status", typedSchema("string").description("Always input_required"));
+        properties.put("inputRequests", typedSchema("object").description(
+                "One elicitation/create request per question, keyed by the step's path"));
+        body.setProperties(properties);
+        return new ApiResponse()
+                .description("Input required: POST the answers to the Location, as "
+                        + "{\"inputResponses\": {<key>: {\"action\": \"accept\", "
+                        + "\"content\": {...}}}}")
+                .addHeaderObject("Location", new Header()
+                        .description("Where to POST the answers")
+                        .schema(typedSchema("string")))
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().schema(body)));
     }
 
     /**

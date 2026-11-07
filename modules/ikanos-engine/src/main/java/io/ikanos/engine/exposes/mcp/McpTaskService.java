@@ -111,16 +111,10 @@ public final class McpTaskService {
     static final String PRINCIPAL = "principal";
 
     /** Label marking the hidden execution of an inline call answered in rounds. */
-    static final String KIND = "kind";
+    static final String KIND = InlineRounds.KIND;
 
     /** Value of {@link #KIND} for an inline call answered by multi round-trip requests. */
-    static final String MRTR = "mrtr";
-
-    /** Failure class of an inline call whose questions went unanswered past its state's expiry. */
-    static final String EXPIRED = "expired";
-
-    /** Least time between two sweeps of unanswered inline calls. */
-    static final Duration SWEEP_INTERVAL = Duration.ofMinutes(1);
+    static final String MRTR = InlineRounds.MRTR;
 
     /** Suggested polling interval, in milliseconds. */
     static final long POLL_INTERVAL_MS = 1000;
@@ -141,7 +135,7 @@ public final class McpTaskService {
     private final Map<ExecutionId, Instant> lastUpdated = new ConcurrentHashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean draining = new AtomicBoolean();
-    private volatile Instant lastSweep = Instant.EPOCH;
+    private final InlineRounds inline;
 
     /**
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
@@ -151,6 +145,7 @@ public final class McpTaskService {
         this.runner = runner;
         this.clock = clock;
         this.ttlMs = ttlMs;
+        this.inline = new InlineRounds(runner, clock, draining::get);
     }
 
     /**
@@ -343,95 +338,17 @@ public final class McpTaskService {
     }
 
     /**
-     * The outcome of one round of an inline call: its result, or the questions it stopped at, and
-     * the execution that keeps its progress.
+     * Runs one round of an inline call answered by multi round-trip requests, journal-backed
+     * ({@link InlineRounds#run}).
      */
-    public record Round(ObjectNode result, ObjectNode questions, ExecutionId executionId) {
-    }
-
-    /**
-     * Runs one round of an inline call answered by multi round-trip requests, journal-backed: the
-     * first round starts a hidden execution; a later one, named by the sealed state, receives the
-     * responses to the questions it waits on and resumes, so steps journaled in earlier rounds are
-     * restored, not run again. A round after the end returns the recorded result.
-     *
-     * @param executionId the execution the state names, or {@code null} for the first round
-     * @throws IllegalArgumentException for invalid parameters, or a state naming an execution
-     *         this store does not hold for this principal
-     */
-    public Round inRounds(String entry, String principal, JsonNode arguments,
+    public InlineRounds.Round inRounds(String entry, String principal, JsonNode arguments,
             ExecutionId executionId, JsonNode responses, Callable<JsonNode> work) {
-        sweepUnanswered();
-        ExecutionId id = executionId;
-        if (id == null) {
-            id = ExecutionId.random();
-            runner.start(ExecutionRequest.of(id, arguments), entry,
-                    Map.of(KIND, MRTR, PRINCIPAL, digest(principal)));
-        } else {
-            ExecutionRecord record = runner.record(id).orElse(null);
-            if (record == null || !MRTR.equals(record.labels().get(KIND))
-                    || !digest(principal).equals(record.labels().get(PRINCIPAL))) {
-                // Lost with a memory store's process, or removed by retention: start again.
-                throw new IllegalArgumentException("requestState names an unknown call");
-            }
-            if (record.status() == ExecutionStatus.SUSPENDED) {
-                ExecutionView view = runner.view(id);
-                int round = InputRounds.lastRound(view);
-                ObjectNode answers =
-                        InputRounds.answersTo(InputRounds.questions(view, round), responses);
-                if (!answers.isEmpty()) {
-                    runner.deliver(id, ANSWERS.visit(round), answers);
-                }
-            }
-        }
-        // A failure raised in this process reaches the caller as thrown, so the adapter maps it
-        // as it maps a synchronous call's; the journal keeps it as the call's failure.
-        AtomicReference<RuntimeException> raised = new AtomicReference<>();
-        Callable<JsonNode> watched = () -> {
-            try {
-                return work.call();
-            } catch (IllegalArgumentException | InputRequiredException e) {
-                throw e;
-            } catch (RuntimeException e) {
-                raised.set(e);
-                throw e;
-            }
-        };
-        ExecutionResult result = runner.run(ExecutionRequest.of(id, null),
-                InputRounds.interpreter(), InputRounds.executor(runner, id, draining::get, watched));
-        if (result instanceof ExecutionResult.Completed completed) {
-            return new Round((ObjectNode) completed.result(), null, id);
-        }
-        if (result instanceof ExecutionResult.Suspended suspended) {
-            return new Round(null, (ObjectNode) suspended.awaiting().get(0).request(), id);
-        }
-        Failure failure = ((ExecutionResult.Failed) result).failure();
-        if (raised.get() != null) {
-            throw raised.get();
-        }
-        if (INVALID_PARAMS.equals(failure.errorClass())) {
-            throw new IllegalArgumentException(failure.message());
-        }
-        throw new IllegalStateException(failure.message());
+        return inline.run(entry, principal, arguments, executionId, responses, work);
     }
 
-    /**
-     * Fails the inline calls still waiting for answers past the expiry of their sealed state,
-     * at most once per {@link #SWEEP_INTERVAL}: no retry can resume them any more.
-     */
+    /** Fails the inline calls left unanswered past their state's expiry. */
     void sweepUnanswered() {
-        Instant now = clock.instant();
-        if (now.isBefore(lastSweep.plus(SWEEP_INTERVAL))) {
-            return;
-        }
-        lastSweep = now;
-        Instant cutoff = now.minus(McpRequestState.TTL);
-        for (ExecutionRecord record : runner.list(ExecutionStatus.SUSPENDED, RESUME_LIMIT)) {
-            if (MRTR.equals(record.labels().get(KIND)) && record.createdAt().isBefore(cutoff)) {
-                runner.fail(record.executionId(), new Failure(EXPIRED,
-                        "The call's questions went unanswered past its requestState expiry"));
-            }
-        }
+        inline.sweepUnanswered();
     }
 
     /** Cancels a task; returns {@code false} for an unknown ID or another principal's task. */

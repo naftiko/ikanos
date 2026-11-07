@@ -71,8 +71,11 @@ public final class McpRequestState {
      * @param pending the keys asked in the last round, still outstanding
      * @param executionId the journal-backed execution the call resumes, or {@code null} when the
      *        call replays from the start with the answers
+     * @param bound what the call was bound to beyond the request digest, such as the REST
+     *        operation and its input parameters; {@code null} when nothing was
      */
-    public record Content(ObjectNode answers, List<String> pending, String executionId) {
+    public record Content(ObjectNode answers, List<String> pending, String executionId,
+            JsonNode bound) {
     }
 
     McpRequestState(SecretKey key, Clock clock) {
@@ -150,9 +153,21 @@ public final class McpRequestState {
      */
     public String seal(String principal, String requestDigest, ObjectNode answers,
             List<String> pending, String executionId) {
+        return seal(principal, requestDigest, answers, pending, executionId, null);
+    }
+
+    /**
+     * Seals a state that also carries what the call is bound to, such as a REST operation and
+     * its input parameters, for a later request that does not repeat them.
+     */
+    public String seal(String principal, String requestDigest, ObjectNode answers,
+            List<String> pending, String executionId, JsonNode bound) {
         ObjectNode payload = MAPPER.createObjectNode();
         if (executionId != null) {
             payload.put("x", executionId);
+        }
+        if (bound != null) {
+            payload.set("b", bound);
         }
         payload.put("p", principal);
         payload.put("d", scope + "\n" + requestDigest);
@@ -203,7 +218,8 @@ public final class McpRequestState {
         payload.path("k").forEach(key -> pending.add(key.asString()));
         JsonNode answers = payload.path("a");
         return new Content(answers.isObject() ? (ObjectNode) answers : MAPPER.createObjectNode(),
-                pending, payload.path("x").asString(null));
+                pending, payload.path("x").asString(null),
+                payload.has("b") ? payload.get("b") : null);
     }
 
     /**
