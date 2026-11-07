@@ -26,7 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import tools.jackson.databind.node.ArrayNode;
+import io.ikanos.engine.exposes.mcp.InputRequests;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.durable.NodePath;
 import io.ikanos.engine.execution.ExecutionInputs;
@@ -156,25 +156,9 @@ public abstract class McpCallHandler {
             String digest) {
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
-        ObjectNode requests = result.putObject("inputRequests");
+        result.set("inputRequests", InputRequests.of(e));
         List<String> pending = new ArrayList<>();
         for (InputRequiredException.Question question : e.questions()) {
-            ObjectNode request = requests.putObject(question.key());
-            request.put("method", "elicitation/create");
-            ObjectNode requestParams = request.putObject("params");
-            requestParams.put("mode", "form");
-            requestParams.put("message", question.step().getMessage() != null
-                    ? question.step().getMessage() : question.step().getName());
-            ObjectNode schema = requestParams.putObject("requestedSchema");
-            schema.put("type", "object");
-            ObjectNode properties = schema.putObject("properties");
-            ArrayNode required = schema.putArray("required");
-            if (question.step().getFields() != null) {
-                question.step().getFields().forEach((name, property) -> {
-                    properties.set(name, MAPPER.valueToTree(property));
-                    required.add(name);
-                });
-            }
             pending.add(question.key());
         }
         result.put("requestState",

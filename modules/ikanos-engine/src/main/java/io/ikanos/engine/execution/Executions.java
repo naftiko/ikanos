@@ -45,6 +45,22 @@ public final class Executions {
     private static final Runner DIRECT = new DirectRunner();
     private static final AtomicLong SEQUENCE = new AtomicLong();
 
+    /**
+     * Carries a nested flow's question out of the calling step without it being recorded as that
+     * step's failure: an action that throws an {@link Error} has no outcome, so a later run with
+     * the answer invokes it again. The run that called the step turns it back into the
+     * {@link InputRequiredException}.
+     */
+    private static final class Asked extends Error {
+        private static final long serialVersionUID = 1L;
+        private final transient InputRequiredException question;
+
+        Asked(InputRequiredException question) {
+            super(question.getMessage(), null, false, false);
+            this.question = question;
+        }
+    }
+
     private Executions() {
     }
 
@@ -63,30 +79,36 @@ public final class Executions {
         // see the answers addressed under that step's path.
         ExecutionInputs.Snapshot inputs = ExecutionInputs.capture();
         ExecutionResult result;
-        if (scope == null) {
-            result = DIRECT.run(
-                    new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
-                    interpreter, request -> ExecutionInputs.within(inputs, request.path(),
-                            () -> runNode(request.action(), run, nodeRunner)));
-        } else {
-            // A task: each step is journaled, and one recorded by an earlier run is restored.
-            ExecutionId id = scope.nextExecutionId();
-            result = scope.runner().run(
-                    new ExecutionRequest(id, null, ExecutionInputs.current(), null),
-                    interpreter, request -> {
-                        // Shutting down: stop before this action, leaving it to the next process.
-                        scope.checkNotStopping();
-                        return DurableScope.within(
-                                scope.child(request.executionId(), request.path()),
-                                () -> ExecutionInputs.within(inputs, request.path(),
-                                        () -> runJournaledNode(request.action(), run,
-                                                nodeRunner)));
-                    });
-            if (result instanceof ExecutionResult.Completed) {
-                // Recorded before this run started: walk the tree once against the journal, so
-                // the outputs mappings read are restored.
-                interpreter.next(scope.runner().view(id));
+        try {
+            if (scope == null) {
+                result = DIRECT.run(
+                        new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
+                        interpreter, request -> ExecutionInputs.within(inputs, request.path(),
+                                () -> runNode(request.action(), run, nodeRunner)));
+            } else {
+                // A task: each step is journaled, and one recorded by an earlier run is restored.
+                ExecutionId id = scope.nextExecutionId();
+                result = scope.runner().run(
+                        new ExecutionRequest(id, null, ExecutionInputs.current(), null),
+                        interpreter, request -> {
+                            // Shutting down: stop before this action, leaving it to the next
+                            // process.
+                            scope.checkNotStopping();
+                            return DurableScope.within(
+                                    scope.child(request.executionId(), request.path()),
+                                    () -> ExecutionInputs.within(inputs, request.path(),
+                                            () -> runJournaledNode(request.action(), run,
+                                                    nodeRunner)));
+                        });
+                if (result instanceof ExecutionResult.Completed) {
+                    // Recorded before this run started: walk the tree once against the journal,
+                    // so the outputs mappings read are restored.
+                    interpreter.next(scope.runner().view(id));
+                }
             }
+        } catch (Asked asked) {
+            // A flow called by one of these steps asks: its keys already carry their prefix.
+            throw asked.question;
         }
         if (result instanceof ExecutionResult.Completed) {
             return run;
@@ -144,6 +166,8 @@ public final class Executions {
             Object output = nodeRunner.run(node, run);
             run.markEvaluated(node.path());
             return output;
+        } catch (InputRequiredException e) {
+            throw new Asked(e);
         } catch (RuntimeException e) {
             run.fail(e);
             throw new ActionFailedException(StepInterpreter.failureOf(e), e);
