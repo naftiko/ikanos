@@ -21,12 +21,12 @@ import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
 import io.ikanos.engine.exposes.mcp.SkillHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
-import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import org.restlet.Context;
 
 import java.util.List;
@@ -61,32 +61,16 @@ public class ResourcesReadHandler extends McpCallHandler {
         }
 
         try {
-            // skill:// URIs are reserved for skills (SEP-2640) and served from their snapshot
-            List<ResourceHandler.ResourceContent> contents = SkillHandler.isSkillUri(uri)
-                    && adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty()
-                    ? List.of(adapter.getSkillHandler().read(uri))
-                    : adapter.getResourceHandler().read(uri);
-            ObjectNode result = MAPPER.createObjectNode();
-            ArrayNode contentsArray = result.putArray("contents");
-            for (ResourceHandler.ResourceContent c : contents) {
-                ObjectNode contentNode = MAPPER.createObjectNode();
-                contentNode.put("uri", c.uri);
-                if (c.mimeType != null) {
-                    contentNode.put("mimeType", c.mimeType);
+            // A resource with steps may ask for input: multi round-trip, as for tools
+            return inRounds(idNode, params, "Resource '" + uri + "'", uri, null, () -> {
+                try {
+                    return readResource(uri);
+                } catch (RuntimeException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new ReadFailure(e);
                 }
-                if (c.blob != null) {
-                    contentNode.put("blob", c.blob);
-                } else {
-                    contentNode.put("text", c.text != null ? c.text : "");
-                }
-                if (c.meta != null) {
-                    contentNode.set("_meta", MAPPER.valueToTree(c.meta));
-                }
-                contentsArray.add(contentNode);
-            }
-
-            result.put("resultType", "complete");
-            return new HandlerSuccessResult(result);
+            });
         } catch (ResourceHandler.UpstreamUnreachableException e) {
             return new HandlerFailureResult(INTERNAL_ERROR,
                     McpErrors.upstreamError(idNode, e.getMessage(), e));
@@ -97,8 +81,47 @@ public class ResourcesReadHandler extends McpCallHandler {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling resources/read", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
+            Throwable cause = e instanceof ReadFailure ? e.getCause() : e;
             return new HandlerFailureResult(INTERNAL_ERROR,
-                    McpErrors.internalError(idNode, "Error handling resources/read", e));
+                    McpErrors.internalError(idNode, "Error handling resources/read", cause));
+        }
+    }
+
+    /** Reads a resource and returns its {@code ReadResourceResult}. */
+    private ObjectNode readResource(String uri) throws Exception {
+        // skill:// URIs are reserved for skills (SEP-2640) and served from their snapshot
+        List<ResourceHandler.ResourceContent> contents = SkillHandler.isSkillUri(uri)
+                && adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty()
+                ? List.of(adapter.getSkillHandler().read(uri))
+                : adapter.getResourceHandler().read(uri);
+        ObjectNode result = MAPPER.createObjectNode();
+        ArrayNode contentsArray = result.putArray("contents");
+        for (ResourceHandler.ResourceContent c : contents) {
+            ObjectNode contentNode = MAPPER.createObjectNode();
+            contentNode.put("uri", c.uri);
+            if (c.mimeType != null) {
+                contentNode.put("mimeType", c.mimeType);
+            }
+            if (c.blob != null) {
+                contentNode.put("blob", c.blob);
+            } else {
+                contentNode.put("text", c.text != null ? c.text : "");
+            }
+            if (c.meta != null) {
+                contentNode.set("_meta", MAPPER.valueToTree(c.meta));
+            }
+            contentsArray.add(contentNode);
+        }
+        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
+        return result;
+    }
+
+    /** Carries a checked read failure through the round, unwrapped by {@link #handle}. */
+    private static final class ReadFailure extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        ReadFailure(Exception cause) {
+            super(cause);
         }
     }
 

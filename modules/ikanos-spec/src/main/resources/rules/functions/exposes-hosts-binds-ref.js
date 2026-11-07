@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: exposes-hosts-binds-ref
+ * Polychro rule function: exposes-hosts-binds-ref
  *
  * An exposed adapter's `hosts` entry may be a Mustache expression resolved from the
  * bindings at startup, such as `{{CUSTOM_DOMAIN}}` or `{{deploy.CUSTOM_DOMAIN}}` (issue #893).
@@ -9,7 +9,7 @@
  */
 const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
 
-// Messages never quote the entry: Spectral would read its double braces as a placeholder.
+// Messages never quote the entry: the linter could read its double braces as a placeholder.
 export default function exposesHostsBindsRef(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
     return;

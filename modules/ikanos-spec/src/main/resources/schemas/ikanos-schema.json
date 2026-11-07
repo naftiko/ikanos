@@ -1065,6 +1065,27 @@
         "cacheable": {
           "type": "boolean",
           "description": "If true, the result can be cached. Default: false."
+        },
+        "interaction": {
+          "$ref": "#/$defs/Interaction"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Interaction": {
+      "type": "object",
+      "description": "What a caller may observe while the unit runs. `mode: task` lets an MCP client that declares the tasks extension receive a task handle and poll for the result; it needs a durability mode other than `none` on the control port.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["inline", "task"],
+          "default": "inline",
+          "description": "`inline`: the result comes back in the response to the call. `task`: the caller may receive a task handle and poll for the result."
+        },
+        "expectedDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Typical duration of a call, in milliseconds."
         }
       },
       "additionalProperties": false
@@ -2819,7 +2840,8 @@
           "enum": [
             "call",
             "lookup",
-            "script"
+            "script",
+            "elicit"
           ]
         }
       },
@@ -2954,8 +2976,90 @@
         },
         {
           "$ref": "#/$defs/OperationStepScript"
+        },
+        {
+          "$ref": "#/$defs/OperationStepElicit"
         }
       ]
+    },
+    "OperationStepElicit": {
+      "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "elicit"
+            },
+            "message": {
+              "type": "string",
+              "description": "The question shown to the caller. Defaults to the step name."
+            },
+            "fields": {
+              "type": "object",
+              "description": "The fields asked for, by name. Each value is a JSON Schema property with a primitive `type` (string, number, integer, boolean) and optionally a `description`. A string field may also declare an `enum` of strings, or a `format` among those MCP elicitation accepts (email, uri, date, date-time). Every field is required.",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["string", "number", "integer", "boolean"]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "enum": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["email", "uri", "date", "date-time"]
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "required": ["enum"]
+                    },
+                    "then": {
+                      "properties": {
+                        "type": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "required": ["format"]
+                    },
+                    "then": {
+                      "properties": {
+                        "type": {
+                          "const": "string"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "fields"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "StepOutputMapping": {
       "type": "object",
@@ -3352,12 +3456,56 @@
         },
         "observability": {
           "$ref": "#/$defs/ObservabilitySpec"
+        },
+        "durability": {
+          "$ref": "#/$defs/Durability"
         }
       },
       "required": [
         "type",
         "port"
       ],
+      "additionalProperties": false
+    },
+    "Durability": {
+      "type": "object",
+      "description": "Where the capability keeps its executions, declared once per capability. `none` (the default) runs everything inline with no journal. `memory` keeps executions in process memory, so MCP tasks work while the process lives, on a single replica.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["none", "memory", "local"],
+          "default": "none",
+          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs `store.path`, the file to keep them in."
+        },
+        "store": {
+          "$ref": "#/$defs/DurabilityStore"
+        },
+        "retention": {
+          "type": "string",
+          "pattern": "^P(?!$)(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+          "description": "How long a completed execution is kept, as an ISO 8601 duration in days, hours, minutes and seconds (for example `P7D` or `PT12H`)."
+        },
+        "sealingKey": {
+          "type": "string",
+          "description": "Key sealing the state handed to clients, such as an MCP `requestState`: a base64-encoded AES key of 128, 192 or 256 bits. Reference a `binds` variable (for example `{{IKANOS_SEALING_KEY}}`) rather than writing the key here. Replicas serving the same clients need the same key. Absent, each process draws a random key, so state does not survive a restart."
+        }
+      },
+      "additionalProperties": false
+    },
+    "DurabilityStore": {
+      "type": "object",
+      "description": "The store of a durability mode. `type` selects the store module.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Store type, such as `memory`, `h2` or `jdbc`."
+        },
+        "path": {
+          "type": "string",
+          "description": "File of an embedded store, such as the H2 database of `local`, relative to the working directory; H2 adds its `.mv.db` extension."
+        }
+      },
+      "required": ["type"],
       "additionalProperties": false
     },
     "ControlManagementSpec": {

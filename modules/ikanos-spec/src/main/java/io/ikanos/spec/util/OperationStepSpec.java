@@ -33,7 +33,8 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = OperationStepCallSpec.class, name = "call"),
     @JsonSubTypes.Type(value = OperationStepLookupSpec.class, name = "lookup"),
-    @JsonSubTypes.Type(value = OperationStepScriptSpec.class, name = "script")
+    @JsonSubTypes.Type(value = OperationStepScriptSpec.class, name = "script"),
+    @JsonSubTypes.Type(value = OperationStepElicitSpec.class, name = "elicit")
 })
 public abstract class OperationStepSpec {
 

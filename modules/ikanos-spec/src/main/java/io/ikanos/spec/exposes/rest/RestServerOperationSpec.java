@@ -28,6 +28,7 @@ import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
+import io.ikanos.spec.util.StepOrder;
 
 /**
  * API Operation Specification Element.
@@ -94,6 +95,7 @@ public class RestServerOperationSpec extends OperationSpec {
 
     public void setSteps(Map<String, OperationStepSpec> steps) {
         if (steps == null) return;
+        StepOrder.requireOrdered(steps);
         synchronized (this.steps) { this.steps.clear(); this.steps.putAll(steps); }
     }
 

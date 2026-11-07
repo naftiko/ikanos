@@ -1,0 +1,34 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Durability local
+  description: Positive fixture declaring the local durability mode on an H2 file
+capability:
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      get-voyage:
+        description: Mock voyage lookup
+        outputParameters:
+          status:
+            type: string
+            value: planned
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9311
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      get-voyage:
+        description: Get a voyage
+        ref: departure.get-voyage
+  - type: control
+    address: localhost
+    port: 9312
+    durability:
+      mode: local
+      store:
+        type: h2
+        path: ./data/shipyard-durable
+      retention: P7D

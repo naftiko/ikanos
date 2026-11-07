@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: aggregate-function-unique
+ * Polychro rule function: aggregate-function-unique
  *
  * Enforces that function names within a single aggregate's 'functions' array
  * are unique. Duplicate function names would cause ambiguous 'call' and 'ref'

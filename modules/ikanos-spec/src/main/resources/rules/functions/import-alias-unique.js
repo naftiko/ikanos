@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: import-alias-unique
+ * Polychro rule function: import-alias-unique
  *
  * Enforces §11.1 `ikanos-import-unique-alias` of the unified-import-mechanism blueprint:
  * within each section of a capability, the effective namespace of imported entries

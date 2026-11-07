@@ -27,6 +27,7 @@ import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.spec.util.OperationStepSpec;
+import io.ikanos.spec.util.StepOrder;
 
 /**
  * MCP Resource Specification Element.
@@ -87,6 +88,7 @@ public class McpServerResourceSpec {
     public Map<String, OperationStepSpec> getSteps() { return steps; }
     public void setSteps(Map<String, OperationStepSpec> steps) {
         if (steps == null) return;
+        StepOrder.requireOrdered(steps);
         synchronized (this.steps) { this.steps.clear(); this.steps.putAll(steps); }
     }
 

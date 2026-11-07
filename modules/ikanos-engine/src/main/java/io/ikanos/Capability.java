@@ -67,6 +67,11 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.YamlAliases;
+import io.ikanos.engine.execution.Durability;
+import io.ikanos.engine.exposes.mcp.McpRequestState;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.exposes.control.DurabilitySpec;
+import javax.crypto.SecretKey;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
@@ -90,6 +95,10 @@ public class Capability {
     private final AtomicReference<List<Aggregate>> aggregates = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> bindings = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
+    private final AtomicReference<SecretKey> sealingKey = new AtomicReference<>();
+    private final AtomicReference<String> specDigest = new AtomicReference<>();
+    private final AtomicReference<Durability> durability =
+            new AtomicReference<>(Durability.none());
     private final AtomicReference<StepHandlerRegistry> stepHandlerRegistry = new AtomicReference<>();
 
     public Capability(IkanosSpec spec) throws Exception {
@@ -163,6 +172,17 @@ public class Capability {
         }
         this.scriptingSpec.set(resolvedScriptingSpec);
 
+        // Durability is declared once per capability, on the control port. A missing store module
+        // fails the load here rather than running a durable contract without a journal.
+        DurabilitySpec durabilitySpec = null;
+        for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
+            if (serverSpec instanceof ControlServerSpec controlSpec) {
+                durabilitySpec = controlSpec.getDurability();
+                this.durability.set(Durability.fromSpec(durabilitySpec, specDigest(spec)));
+                break;
+            }
+        }
+
         // Build runtime aggregates (must happen after imports are resolved). The executor is
         // shared: each flow passes its own namespace when it calls it.
         List<Aggregate> aggregateList = new CopyOnWriteArrayList<>();
@@ -185,6 +205,8 @@ public class Capability {
         Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);
         // Convert Map<String, String> to Map<String, Object> for compatibility
         this.bindings.set(new HashMap<>(resolvedBinds));
+        this.sealingKey.set(sealingKey(durabilitySpec, this.bindings.get()));
+        this.specDigest.set(specDigest(spec));
 
         // Initialize client adapters first
         List<ClientAdapter> clientList = new CopyOnWriteArrayList<>();
@@ -267,6 +289,59 @@ public class Capability {
 
     public List<ClientAdapter> getClientAdapters() {
         return clientAdapters.get();
+    }
+
+    /** The capability's durability mode, {@code none} unless the control port declares one. */
+    public Durability getDurability() {
+        return durability.get();
+    }
+
+    /**
+     * The key sealing state handed to clients, such as an MCP {@code requestState}: the declared
+     * {@code durability.sealingKey}, or a random key drawn once for this capability.
+     */
+    public SecretKey getSealingKey() {
+        return sealingKey.get();
+    }
+
+    /**
+     * Digest of this capability's spec, with object keys sorted. Replicas running the same spec
+     * share it; state sealed for clients is bound to it, so a replica running another version
+     * rejects it rather than replaying answers into changed steps. Durable executions are pinned
+     * to it too: after a restart, an unfinished execution recorded under another digest fails
+     * instead of resuming.
+     */
+    public String getSpecDigest() {
+        return specDigest.get();
+    }
+
+    static String specDigest(IkanosSpec spec) {
+        try {
+            return McpRequestState.digest("spec", "",
+                    IkanosMappers.json().valueToTree(spec));
+        } catch (RuntimeException e) {
+            // A spec that cannot be serialized gets a scope of its own: its state is simply not
+            // portable across replicas.
+            return java.util.UUID.randomUUID().toString();
+        }
+    }
+
+    /**
+     * Resolves the declared sealing key against the bindings.
+     *
+     * @throws IllegalArgumentException when a declared key does not resolve to an AES key
+     */
+    static SecretKey sealingKey(DurabilitySpec durabilitySpec, Map<String, Object> bindings) {
+        String declared = durabilitySpec != null ? durabilitySpec.getSealingKey() : null;
+        if (declared == null || declared.isBlank()) {
+            return McpRequestState.randomKey();
+        }
+        String resolved = Resolver.resolveMustacheTemplate(declared, bindings);
+        if (resolved == null || resolved.isBlank() || resolved.contains("{{")) {
+            throw new IllegalArgumentException(
+                    "durability.sealingKey does not resolve: declare its variable in binds");
+        }
+        return McpRequestState.parseKey(resolved);
     }
 
     public List<ServerAdapter> getServerAdapters() {
@@ -398,6 +473,9 @@ public class Capability {
         for (ClientAdapter adapter : getClientAdapters()) {
             adapter.stop();
         }
+
+        // Last, once nothing serves calls any more: releases the store, such as the H2 file.
+        durability.get().close();
     }
 
     /** Create a new builder for embedding the Naftiko engine as a library. */
