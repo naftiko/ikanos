@@ -200,6 +200,29 @@ public class StdioIntegrationTest {
     }
 
     @Test
+    public void stdioShouldWriteNothingWhenMessageHasNoId() throws Exception {
+        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+        String metaSuffix = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}";
+
+        // A notification, then a request: only the request is answered.
+        String input = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\","
+                + "\"params\":{\"requestId\":1," + metaSuffix + "}}\n"
+                + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\","
+                + "\"params\":{" + metaSuffix + "}}\n";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        new StdioJsonRpcHandler(dispatcher,
+                new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), out).run();
+
+        String[] lines = out.toString(StandardCharsets.UTF_8).strip().split("\\n");
+        assertEquals(1, lines.length, "#949: stdio must not answer a notification, but wrote "
+                + String.join(" | ", lines));
+        assertEquals(2, IkanosMappers.lenientJson().readTree(lines[0]).path("id").asInt());
+    }
+
+    @Test
     public void stdioShouldRejectLegacyInitializeNamingTheSupportedVersions() throws Exception {
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
