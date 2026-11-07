@@ -1,0 +1,50 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Durability violations under memory
+  description: >-
+    Negative fixture: under the memory mode, an inline tool asks for input after
+    a write. The answer still replays the steps until journal-backed questions
+    ship, so the booking would run again.
+capability:
+  consumes:
+  - type: http
+    namespace: port
+    description: Port Authority API
+    baseUri: https://port.example.com
+    resources:
+      slots:
+        path: /departure-slots
+        operations:
+          book-departure-slot:
+            method: POST
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      book-then-confirm:
+        description: Inline flow that books before it asks
+        steps:
+          book-slot:
+            type: call
+            call: port.book-departure-slot
+          confirm:
+            type: elicit
+            message: Confirm the departure
+            fields:
+              confirmed:
+                type: boolean
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9315
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      book-then-confirm:
+        description: Book a departure slot, then confirm it
+        ref: departure.book-then-confirm
+  - type: control
+    address: localhost
+    port: 9316
+    durability:
+      mode: memory
