@@ -217,6 +217,8 @@ public abstract class McpCallHandler {
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
         result.set("inputRequests", InputRequests.of(e));
+        // State a replay needs, such as an upstream's requestState, travels with the answers.
+        e.carry().forEach(answers::set);
         List<String> pending = new ArrayList<>();
         for (InputRequiredException.Question question : e.questions()) {
             pending.add(question.key());

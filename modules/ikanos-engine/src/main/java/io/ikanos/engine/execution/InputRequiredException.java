@@ -14,6 +14,8 @@
 package io.ikanos.engine.execution;
 
 import java.util.List;
+import java.util.Map;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 
 /**
@@ -31,18 +33,40 @@ public class InputRequiredException extends RuntimeException {
     /**
      * One question for the caller.
      *
-     * @param key the elicit step's node path, unique within the request
-     * @param step the elicit step
+     * @param key the question's key, unique within the request: an elicit step's node path, or
+     *        a consumed tool's question under the calling step's path
+     * @param step the elicit step, or {@code null} for a question an upstream asked
+     * @param request the upstream's {@code elicitation/create} request, passed through
+     *        unchanged, or {@code null} for an elicit step's own question
      */
-    public record Question(String key, OperationStepElicitSpec step) {
+    public record Question(String key, OperationStepElicitSpec step, JsonNode request) {
+
+        public Question(String key, OperationStepElicitSpec step) {
+            this(key, step, null);
+        }
     }
 
     private final transient List<Question> questions;
+    private final transient Map<String, JsonNode> carry;
 
     public InputRequiredException(List<Question> questions) {
+        this(questions, Map.of());
+    }
+
+    /**
+     * @param carry state a replay needs, by key, kept with the answers in the caller's sealed
+     *        state, such as an upstream's own {@code requestState}
+     */
+    public InputRequiredException(List<Question> questions, Map<String, JsonNode> carry) {
         super("Input required: " + questions.stream().map(Question::key).toList(), null, false,
                 false);
         this.questions = List.copyOf(questions);
+        this.carry = Map.copyOf(carry);
+    }
+
+    /** State to keep with the answers for a replay, by key. */
+    public Map<String, JsonNode> carry() {
+        return carry;
     }
 
     /** The questions to ask, in the order the steps reached them. */

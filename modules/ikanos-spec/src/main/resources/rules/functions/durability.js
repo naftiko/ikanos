@@ -192,6 +192,7 @@ function checkTaskMode(capability) {
 function buildSafety(capability) {
   const safe = new Map(); // "ns.name" -> true | false
   const imported = new Set();
+  const asks = new Set(); // "ns.tool" of consumed MCP tools declared mayElicit: true
   for (const c of entries(capability.consumes)) {
     const consumed = c.value;
     if (consumed && typeof consumed.import === "string") {
@@ -205,6 +206,9 @@ function buildSafety(capability) {
       for (const t of entries(consumed.tools)) {
         const hints = t.value && t.value.hints;
         safe.set(consumed.namespace + "." + t.key, !!(hints && hints.readOnly === true));
+        if (t.value && t.value.mayElicit === true) {
+          asks.add(consumed.namespace + "." + t.key);
+        }
       }
     } else {
       for (const r of entries(consumed.resources)) {
@@ -219,7 +223,7 @@ function buildSafety(capability) {
   for (const { key, flow } of flowsOf(capability)) {
     safe.set(key, !!(flow.semantics && flow.semantics.safe === true));
   }
-  return { safe, imported };
+  return { safe, imported, asks };
 }
 
 function stepContainers(capability) {
@@ -254,7 +258,7 @@ function stepContainers(capability) {
 }
 
 function checkElicitSafety(capability) {
-  const { safe, imported } = buildSafety(capability);
+  const { safe, imported, asks } = buildSafety(capability);
   const results = [];
   for (const container of stepContainers(capability)) {
     let unsafeCall = null;
@@ -263,14 +267,11 @@ function checkElicitSafety(capability) {
       if (!step || typeof step !== "object") {
         continue;
       }
-      if (step.type === "call" && typeof step.call === "string" && !unsafeCall) {
-        const dot = step.call.indexOf(".");
-        const namespace = dot > 0 ? step.call.substring(0, dot) : step.call;
-        if (!imported.has(namespace) && safe.get(step.call) === false) {
-          unsafeCall = s.key;
-        }
-      }
-      if (step.type === "elicit" && unsafeCall) {
+      // A call to a consumed MCP tool that may ask is a question too: its upstream's questions
+      // pass through, and the answer replays the steps before it.
+      const asksHere = step.type === "elicit"
+        || (step.type === "call" && typeof step.call === "string" && asks.has(step.call));
+      if (asksHere && unsafeCall) {
         results.push({
           message: container.label + " asks for input in step '" + s.key + "' after step '"
             + unsafeCall + "', which is not read-only. Without a journal the answer replays "
@@ -278,6 +279,13 @@ function checkElicitSafety(capability) {
             + "control port, or move the question before it.",
           path: container.path.concat(...s.locator),
         });
+      }
+      if (step.type === "call" && typeof step.call === "string" && !unsafeCall) {
+        const dot = step.call.indexOf(".");
+        const namespace = dot > 0 ? step.call.substring(0, dot) : step.call;
+        if (!imported.has(namespace) && safe.get(step.call) === false) {
+          unsafeCall = s.key;
+        }
       }
     }
   }

@@ -218,6 +218,8 @@ public final class RestInputRequests {
         } catch (InputRequiredException e) {
             List<String> pending = new ArrayList<>();
             e.questions().forEach(question -> pending.add(question.key()));
+            // State a replay needs, such as an upstream's requestState, travels with the answers.
+            e.carry().forEach(answers::set);
             String handle = requestState.seal(principal, DIGEST, answers, pending, null, bound);
             if (handle.length() > MAX_HANDLE) {
                 restlet.sendError(response, Status.CLIENT_ERROR_REQUEST_ENTITY_TOO_LARGE,
