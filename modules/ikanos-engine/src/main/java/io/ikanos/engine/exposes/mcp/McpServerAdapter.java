@@ -29,10 +29,8 @@ import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -41,10 +39,8 @@ import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.execution.Elicitation;
 import tools.jackson.databind.JsonNode;
-import io.ikanos.spec.util.OperationStepCallSpec;
-import io.ikanos.spec.util.OperationStepElicitSpec;
-import io.ikanos.spec.util.OperationStepSpec;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -284,51 +280,16 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public boolean mayElicit(String toolName) {
         McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
-        if (toolSpec == null) {
-            return false;
-        }
-        if (toolSpec.getRef() != null) {
-            return mayElicit(findFlow(toolSpec.getRef()), new HashSet<>());
-        }
-        return mayElicit(toolSpec.getSteps(), new HashSet<>());
+        return toolSpec != null
+                && Elicitation.mayAsk(getCapability(), toolSpec.getRef(), toolSpec.getSteps());
     }
 
     /** Whether the steps of the resource at {@code uri} may ask its caller for input. */
     public boolean resourceMayElicit(String uri) {
         return getMcpServerSpec().getResources().values().stream()
                 .filter(resource -> uri.equals(resource.getUri()))
-                .anyMatch(resource -> mayElicit(resource.getSteps(), new HashSet<>()));
-    }
-
-    private boolean mayElicit(AggregateFlow flow, Set<AggregateFlow> seen) {
-        if (flow == null || !seen.add(flow)) {
-            return false;
-        }
-        return mayElicit(flow.getSteps(), seen);
-    }
-
-    private boolean mayElicit(Map<String, OperationStepSpec> steps, Set<AggregateFlow> seen) {
-        if (steps == null) {
-            return false;
-        }
-        for (OperationStepSpec step : steps.values()) {
-            if (step instanceof OperationStepElicitSpec) {
-                return true;
-            }
-            if (step instanceof OperationStepCallSpec call && call.getCall() != null
-                    && mayElicit(findFlow(call.getCall()), seen)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private AggregateFlow findFlow(String ref) {
-        try {
-            return getCapability().lookupFlow(ref);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+                .anyMatch(resource -> Elicitation.mayAsk(getCapability(), null,
+                        resource.getSteps()));
     }
 
     /**

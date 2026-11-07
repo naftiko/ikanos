@@ -18,10 +18,7 @@
  *                       are out of reach of a single-document lint and skipped;
  *   - "sealing-key-binds": `durability.sealingKey` is not a single Mustache
  *                       expression naming a key declared in `binds` or
- *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`);
- *   - "elicit-over-rest": a REST operation whose steps, or whose `ref:` or
- *                       `call:` flow (and the flows it calls), include an
- *                       `elicit` step, which REST cannot serve yet.
+ *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`).
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
@@ -48,9 +45,6 @@ export default function durability(targetVal, options) {
   }
   if (check === "sealing-key-binds") {
     return checkSealingKey(targetVal, control);
-  }
-  if (check === "elicit-over-rest") {
-    return checkElicitOverRest(capability);
   }
   return;
 }
@@ -127,80 +121,6 @@ function collectBindings(doc) {
     result.byNamespace.set(bind.namespace, keys);
   }
   return result;
-}
-
-function hasElicit(steps) {
-  return entries(steps).some((s) => s.value && s.value.type === "elicit");
-}
-
-// Flows that ask for input, directly or through the flows they call.
-function elicitingFlows(capability) {
-  const flows = new Map();
-  for (const { key, flow } of flowsOf(capability)) {
-    flows.set(key, flow);
-  }
-  const memo = new Map();
-  const asks = (key, visiting) => {
-    if (memo.has(key)) {
-      return memo.get(key);
-    }
-    const flow = flows.get(key);
-    if (!flow || visiting.has(key)) {
-      return false;
-    }
-    visiting.add(key);
-    let result = hasElicit(flow.steps);
-    for (const s of entries(flow.steps)) {
-      const step = s.value;
-      if (!result && step && step.type === "call" && typeof step.call === "string") {
-        result = asks(step.call, visiting);
-      }
-    }
-    visiting.delete(key);
-    memo.set(key, result);
-    return result;
-  };
-  return (key) => typeof key === "string" && asks(key, new Set());
-}
-
-function checkElicitOverRest(capability) {
-  const asks = elicitingFlows(capability);
-  const results = [];
-  for (const e of entries(capability.exposes)) {
-    const adapter = e.value;
-    if (!adapter || adapter.type !== "rest") {
-      continue;
-    }
-    const base = ["capability", "exposes", ...e.locator];
-    for (const r of entries(adapter.resources)) {
-      for (const o of entries(r.value && r.value.operations)) {
-        const op = o.value;
-        if (!op || typeof op !== "object") {
-          continue;
-        }
-        const opPath = base.concat("resources", ...r.locator, "operations", ...o.locator);
-        let target = null;
-        if (hasElicit(op.steps)
-            || entries(op.steps).some((s) => s.value && s.value.type === "call"
-              && asks(s.value.call))) {
-          target = opPath.concat("steps");
-        } else if (asks(op.ref)) {
-          target = opPath.concat("ref");
-        } else if (asks(op.call)) {
-          target = opPath.concat("call");
-        }
-        if (target) {
-          results.push({
-            message: "Operation '" + o.key + "' reaches an elicit step, which REST cannot "
-              + "serve yet: a call that reaches it answers 501 Not Implemented. Expose the "
-              + "same steps as an MCP tool to ask the caller.",
-            path: target,
-          });
-        }
-      }
-    }
-  }
-  return results;
 }
 
 function entries(collection) {

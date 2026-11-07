@@ -269,21 +269,6 @@ rules:
       functionOptions:
         check: sealing-key-binds
 
-  ikanos-elicit-not-served-over-rest:
-    message: "{{error}}"
-    description: >
-      An `elicit` step asks the caller for input. MCP serves it through a
-      multi round-trip request or a task; REST has no way to carry the question
-      yet, so a REST call that reaches the step answers `501 Not Implemented`.
-      The same steps work when exposed as an MCP tool.
-    severity: warn
-    recommended: true
-    given: "$"
-    then:
-      function: durability
-      functionOptions:
-        check: elicit-over-rest
-
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."
     description: >

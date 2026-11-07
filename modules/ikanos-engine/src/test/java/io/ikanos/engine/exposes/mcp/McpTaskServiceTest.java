@@ -61,7 +61,7 @@ public class McpTaskServiceTest {
                 MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
                 Clock.systemUTC(), "test");
         McpTaskService now = new McpTaskService(runner, Clock.systemUTC(), null);
-        McpTaskService.Round round = now.inRounds("mrtr:ops/tools/call/ask", "alice", null, null,
+        InlineRounds.Round round = now.inRounds("mrtr:ops/tools/call/ask", "alice", null, null,
                 null, () -> {
                     throw new InputRequiredException(List.of(
                             new InputRequiredException.Question(
@@ -84,7 +84,7 @@ public class McpTaskServiceTest {
                 MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
                 Clock.systemUTC(), "test");
         McpTaskService service = new McpTaskService(runner, Clock.systemUTC(), null);
-        McpTaskService.Round round = service.inRounds("mrtr:ops/tools/call/ask", "alice", null,
+        InlineRounds.Round round = service.inRounds("mrtr:ops/tools/call/ask", "alice", null,
                 null, null, () -> {
                     throw new InputRequiredException(List.of(
                             new InputRequiredException.Question(

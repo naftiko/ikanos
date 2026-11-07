@@ -37,6 +37,7 @@ import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.execution.ExecutionTree;
 import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.StepNode;
 import io.ikanos.engine.execution.StepRun;
@@ -443,7 +444,7 @@ public class OperationStepExecutor {
         JsonNode result = answer instanceof JsonNode node ? node : mapper.valueToTree(answer);
         String action = result != null ? result.path("action").asString("") : "";
         if (!"accept".equals(action)) {
-            throw new IllegalStateException("Step '" + step.getName()
+            throw new InputDeclinedException("Step '" + step.getName()
                     + "': the caller did not accept the request (" + (action.isEmpty()
                             ? "no answer" : action) + ")");
         }
