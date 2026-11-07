@@ -310,39 +310,4 @@ class McpMultiRoundTripIntegrationTest {
         assertTrue(response.path("error").path("data").path("requiredCapabilities")
                 .path("extensions").has("io.modelcontextprotocol/tasks"));
     }
-
-    @Test
-    void aTaskWhoseFlowAsksForInputShouldFailClearlyForNow() throws Exception {
-        String interaction = """
-                        semantics:
-                          interaction:
-                            mode: task
-                """;
-        String memory = "    durability:\n      mode: memory\n      retention: PT1H\n";
-        McpServerAdapter adapter = load(capability(memory, interaction));
-
-        JsonNode created = call(adapter, CALL, true, true).path("result");
-        assertEquals(3_600_000L, created.path("ttlMs").asLong());
-        String taskId = created.path("taskId").asString();
-
-        JsonNode task = null;
-        for (int i = 0; i < 500; i++) {
-            ObjectNode get = jsonMapper.createObjectNode();
-            get.put("jsonrpc", "2.0");
-            get.put("id", 2);
-            get.put("method", "tasks/get");
-            ObjectNode params = get.putObject("params");
-            params.put("taskId", taskId);
-            params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
-                    ProtocolDispatcher.MCP_PROTOCOL_VERSION);
-            task = new ProtocolDispatcher(adapter).dispatch(get).responseBody().path("result");
-            if (!"working".equals(task.path("status").asString())) {
-                break;
-            }
-            Thread.sleep(10);
-        }
-
-        assertEquals("failed", task.path("status").asString(), String.valueOf(task));
-        assertTrue(task.path("error").path("message").asString().contains("input"));
-    }
 }

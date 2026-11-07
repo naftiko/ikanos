@@ -85,6 +85,9 @@ public class McpCallHandlersFactory {
             handlers.add(new TasksCancelHandler(adapter,
                     List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
                     List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
+            handlers.add(new TasksUpdateHandler(adapter,
+                    List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
+                    List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
         }
         return List.copyOf(handlers);
     }
