@@ -34,6 +34,7 @@ import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.McpCallContext;
 import io.ikanos.engine.exposes.mcp.McpRequestState;
+import io.ikanos.engine.exposes.mcp.InlineRounds;
 import io.ikanos.engine.exposes.mcp.McpTaskService;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
@@ -167,7 +168,7 @@ public abstract class McpCallHandler {
         }
         String entry = "mrtr:" + adapter.getMcpServerSpec().getNamespace() + "/"
                 + getMethodName() + "/" + name;
-        McpTaskService.Round round = journal.inRounds(entry, principal, arguments, executionId,
+        InlineRounds.Round round = journal.inRounds(entry, principal, arguments, executionId,
                 params.get("inputResponses"), run::get);
         if (round.result() != null) {
             return new HandlerSuccessResult(round.result());

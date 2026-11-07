@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.rest;
 
 import org.restlet.Restlet;
 import org.restlet.routing.Router;
+import org.restlet.routing.Template;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
 import io.ikanos.Capability;
@@ -29,14 +30,28 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 public class RestServerAdapter extends ServerAdapter {
 
     private final Router router;
+    private final RestInputRequests inputRequests;
 
     public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
         this.router = new Router();
+        this.inputRequests = new RestInputRequests(capability, serverSpec.getNamespace(),
+                () -> false);
+
+        // Answers to input requests, before the declared resources so none can shadow them.
+        getRouter().attach(RestInputRequests.PREFIX + "{handle}", inputRequests.answerResource(),
+                Template.MODE_EQUALS);
 
         for (RestServerResourceSpec res : getRestServerSpec().getResources().values()) {
+            if (res.getPath() != null && res.getPath().startsWith("/_ikanos/")) {
+                throw new IllegalArgumentException("Resource path '" + res.getPath()
+                        + "' is under /_ikanos/, which the REST adapter reserves for its own "
+                        + "resources");
+            }
             String pathTemplate = toUriTemplate(res.getPath());
-            Restlet resourceRestlet = new ResourceRestlet(capability, serverSpec, res);
+            ResourceRestlet resourceRestlet =
+                    new ResourceRestlet(capability, serverSpec, res, inputRequests);
+            inputRequests.register(res.getPath(), resourceRestlet);
             TemplateRoute route = getRouter().attach(pathTemplate, resourceRestlet);
             route.getTemplate().getVariables().put("path", new Variable(Variable.TYPE_URI_PATH));
         }
