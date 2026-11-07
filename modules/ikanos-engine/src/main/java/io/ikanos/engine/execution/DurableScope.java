@@ -109,6 +109,30 @@ public final class DurableScope {
         }
     }
 
+    /**
+     * Runs a small journaled run of its own for the action in progress, such as a consumed call
+     * waiting on an upstream task, under the action's path, so a restart restores what it
+     * recorded. Empty when no journal is kept: the caller then works directly.
+     */
+    public static java.util.Optional<io.ikanos.durable.ExecutionResult> runJournaled(
+            io.ikanos.durable.Interpreter interpreter, io.ikanos.durable.ActionExecutor executor) {
+        DurableScope scope = current();
+        if (scope == null) {
+            return java.util.Optional.empty();
+        }
+        ExecutionId id = scope.nextExecutionId();
+        return java.util.Optional.of(scope.runner().run(
+                io.ikanos.durable.ExecutionRequest.of(id, null), interpreter, request -> {
+                    scope.checkNotStopping();
+                    return executor.execute(request);
+                }));
+    }
+
+    /** Whether the action in progress runs inside a journaled run. */
+    public static boolean isJournaled() {
+        return current() != null;
+    }
+
     JournaledRunner runner() {
         return runner;
     }

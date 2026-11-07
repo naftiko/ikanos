@@ -592,6 +592,12 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void elicitSafetyRuleShouldCountACallToAConsumedToolThatMayAsk() {
+        assertRuleFires("rules/polychro-durability-upstream-elicit.yaml",
+            "ikanos-elicit-after-unsafe-requires-durability");
+    }
+
+    @Test
     public void elicitSafetyRuleShouldNotFireUnderADurableMode() {
         // Under memory and local, a question after a write resumes a journal instead of
         // replaying the write.

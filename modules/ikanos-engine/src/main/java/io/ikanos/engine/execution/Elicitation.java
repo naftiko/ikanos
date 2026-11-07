@@ -18,14 +18,18 @@ import java.util.Map;
 import java.util.Set;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
  * Whether an exposed entry may ask its caller for input: its steps, or the flow it references,
- * hold an {@code elicit} step, directly or through flows they call, at any depth. Only such an
- * entry needs the machinery of input requests; one that cannot ask runs as before.
+ * hold an {@code elicit} step, or call a consumed MCP tool declared {@code mayElicit: true}, whose
+ * questions pass through, directly or through flows they call, at any depth. Only such an entry
+ * needs the machinery of input requests; one that cannot ask runs as before.
  */
 public final class Elicitation {
 
@@ -63,8 +67,28 @@ public final class Elicitation {
                 return true;
             }
             if (step instanceof OperationStepCallSpec call && call.getCall() != null
-                    && mayAsk(capability, findFlow(capability, call.getCall()), seen)) {
+                    && (consumedToolAsks(capability, call.getCall())
+                            || mayAsk(capability, findFlow(capability, call.getCall()), seen))) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code call} names a consumed MCP tool declared {@code mayElicit: true}. */
+    public static boolean consumedToolAsks(Capability capability, String call) {
+        int dot = call.indexOf('.');
+        if (dot <= 0 || capability.getSpec() == null || capability.getSpec().getCapability() == null
+                || capability.getSpec().getCapability().getConsumes() == null) {
+            return false;
+        }
+        String namespace = call.substring(0, dot);
+        String tool = call.substring(dot + 1);
+        for (ClientSpec client : capability.getSpec().getCapability().getConsumes()) {
+            if (client instanceof McpClientSpec mcp && namespace.equals(mcp.getNamespace())
+                    && mcp.getTools() != null) {
+                McpClientToolSpec spec = mcp.getTools().get(tool);
+                return spec != null && spec.mayElicit();
             }
         }
         return false;

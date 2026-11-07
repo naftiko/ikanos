@@ -127,6 +127,15 @@ public final class Executions {
     }
 
     /**
+     * The key prefix of the step running on this thread: the path of each flow-call step on the
+     * way, then the step's own path, each followed by {@code /}. A consumed call that passes an
+     * upstream's questions through keys them under it.
+     */
+    public static String currentKeyPrefix() {
+        return KEY_PREFIX.get();
+    }
+
+    /**
      * The answers addressed to a run whose keys start with {@code prefix}, keyed by the run's own
      * paths. At the top, the prefix is empty and every answer passes.
      */

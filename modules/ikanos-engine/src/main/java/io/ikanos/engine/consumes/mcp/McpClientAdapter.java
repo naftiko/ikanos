@@ -61,8 +61,9 @@ import tools.jackson.core.JacksonException;
  *   <li><b>Request</b> — {@code params.arguments} holds the tool's declared
  *       {@code inputParameters}, taken from the call parameters by argument name.</li>
  *   <li><b>Response</b> — {@code structuredContent} first; else exactly one text block, parsed as
- *       JSON when possible; anything else fails. {@code isError}, a JSON-RPC error, and a
- *       {@code resultType} other than {@code complete} fail the call.</li>
+ *       JSON when possible; anything else fails. {@code isError} and a JSON-RPC error fail the call. An upstream
+ *       task is waited on inside a journaled run, and an upstream's questions pass through
+ *       when the tool declares {@code mayElicit: true} ({@link UpstreamCall}).</li>
  *   <li><b>Discovery</b> — with {@code discovery: verify}, {@link #start()} lists upstream tools,
  *       fails on a missing tool, an undeclared upstream argument, or an unmet required argument,
  *       and caches each {@code outputSchema} for validation. Upstream schemas are untrusted: only
@@ -186,16 +187,10 @@ public class McpClientAdapter extends ClientAdapter {
     /** Execute {@code tools/call} and select the response body. Called inside the client span. */
     ConsumedResult callTool(String toolName, ObjectNode arguments, ConsumedOperationView view,
             Map<String, Object> templates) {
-        ObjectNode params = JSON.createObjectNode();
-        params.put("name", toolName);
-        params.set("arguments", arguments);
-        JsonNode result = transport.call("tools/call", toolName, params, templates);
-
-        String resultType = result.path(McpResultType.FIELD).asString(McpResultType.COMPLETE.wireValue());
-        if (!McpResultType.COMPLETE.wireValue().equals(resultType)) {
-            throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
-                    + " requested '" + resultType + "'; not supported in v1");
-        }
+        McpClientToolSpec tool = getMcpClientSpec().getTools().get(toolName);
+        // A task or a question from the upstream is handled there; what comes back is complete.
+        JsonNode result = new UpstreamCall(this, transport, toolName, arguments, templates,
+                tool != null && tool.mayElicit()).run();
         if (result.path("isError").asBoolean(false)) {
             throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
                     + " reported an error: " + firstText(result));

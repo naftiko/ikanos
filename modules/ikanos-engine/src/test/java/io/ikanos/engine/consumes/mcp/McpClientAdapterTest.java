@@ -292,7 +292,7 @@ class McpClientAdapterTest {
     }
 
     @Test
-    void inputRequiredResultTypeShouldFail() throws Exception {
+    void inputRequiredFromAToolThatMayNotAskShouldFailNamingTheDeclaration() throws Exception {
         StubClient client = new StubClient();
         client.answer = req -> json(200, rpcResult(req,
                 "{\"resultType\":\"input_required\",\"content\":[]}"));
@@ -300,7 +300,7 @@ class McpClientAdapterTest {
         McpClientException error = assertThrows(McpClientException.class, () -> adapter(client,
                 "").prepare("get-invoice", Map.of("invoice-id", "1", "token", "s3cret")).invoke());
 
-        assertTrue(error.getMessage().contains("'input_required'"), error.getMessage());
+        assertTrue(error.getMessage().contains("mayElicit: true"), error.getMessage());
     }
 
     @Test
