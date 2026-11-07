@@ -269,6 +269,36 @@ class McpServerResourceTest {
     }
 
     @Test
+    void postShouldReturn202WithoutBodyWhenMessageHasNoId() throws Exception {
+        McpServerAdapter adapter = startAdapterOnFreePort();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String baseUrl = baseUrlFor(adapter);
+
+            try {
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl))
+                                .POST(HttpRequest.BodyPublishers.ofString(
+                                        "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\","
+                                                + "\"params\":{\"requestId\":1,\"_meta\":{"
+                                                + "\"io.modelcontextprotocol/protocolVersion\":\""
+                                                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}"))
+                                .header("Content-Type", "application/json")
+                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "notifications/cancelled")
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(202, response.statusCode(), "#949: MCP 2026-07-28 answers a"
+                        + " notification with 202 Accepted, but got " + response.body());
+                assertTrue(response.body().isEmpty(),
+                        "#949: a notification gets no JSON-RPC response");
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
     void serverDiscoverShouldSucceedWithValidHeaders() throws Exception {
         McpServerAdapter adapter = startAdapterOnFreePort();
         try (HttpClient client = HttpClient.newHttpClient()) {

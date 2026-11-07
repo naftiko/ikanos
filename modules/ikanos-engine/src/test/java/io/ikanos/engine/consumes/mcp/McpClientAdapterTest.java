@@ -219,6 +219,24 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void toolsCallShouldDeclareEmptyClientCapabilitiesInMeta() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req,
+                "{\"content\":[],\"structuredContent\":{\"amount\":{\"total\":3}},"
+                        + "\"resultType\":\"complete\"}"));
+
+        adapter(client, "").prepare("get-invoice",
+                Map.of("invoice-id", "INV-1", "token", "s3cret")).invoke();
+
+        JsonNode capabilities = JSON.readTree(client.bodies.get(0)).path("params").path("_meta")
+                .path(McpStreamableHttpTransport.META_CLIENT_CAPABILITIES);
+        assertTrue(capabilities.isObject(), "#949: MCP 2026-07-28 requires every request to"
+                + " declare its client capabilities in _meta, but none were sent");
+        assertTrue(capabilities.isEmpty(), "#949: the client handles no input_required result,"
+                + " so it must declare no capability, but got " + capabilities);
+    }
+
+    @Test
     void structuredContentShouldBeTheResponseDocument() throws Exception {
         StubClient client = new StubClient();
         client.answer = req -> json(200, rpcResult(req,
