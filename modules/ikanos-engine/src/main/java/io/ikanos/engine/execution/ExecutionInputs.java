@@ -102,4 +102,22 @@ public final class ExecutionInputs {
             }
         }
     }
+
+    /**
+     * The caller's answers available on this thread, by their full key: those a multi round-trip
+     * request or a round of a journaled call carried, whatever run they are addressed to. Empty
+     * when there are none.
+     */
+    public static Map<NodePath, Object> answers() {
+        return capture().answers();
+    }
+
+    /**
+     * The key prefix of the action running on this thread: the path of each flow-call step on
+     * the way, then the step's own path, each followed by {@code /}; empty outside a run.
+     */
+    static String callerPrefix() {
+        NodePath caller = capture().caller();
+        return caller == null ? "" : caller.value() + "/";
+    }
 }

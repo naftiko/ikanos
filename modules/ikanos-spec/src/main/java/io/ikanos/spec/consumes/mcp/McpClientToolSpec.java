@@ -43,6 +43,8 @@ public class McpClientToolSpec extends OperationSpec {
 
     private final AtomicReference<String> validateOutput = new AtomicReference<>(VALIDATE_FAIL);
 
+    private final AtomicReference<Boolean> mayElicit = new AtomicReference<>();
+
     public McpClientToolSpec() {
         super();
     }
@@ -64,6 +66,25 @@ public class McpClientToolSpec extends OperationSpec {
     public void setValidateOutput(String validateOutput) {
         // A bare YAML `off` arrives as "false" (YAML 1.1 boolean); see McpClientSpec#normalize.
         this.validateOutput.set(McpClientSpec.normalize(validateOutput, VALIDATE_FAIL));
+    }
+
+    /**
+     * Whether the upstream may ask for input during a call to this tool; its questions then pass
+     * through to the caller. {@code null} when not declared, which means {@code false}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Boolean getMayElicit() {
+        return mayElicit.get();
+    }
+
+    public void setMayElicit(Boolean mayElicit) {
+        this.mayElicit.set(mayElicit);
+    }
+
+    /** Whether the upstream may ask for input during a call to this tool. */
+    @JsonIgnore
+    public boolean mayElicit() {
+        return Boolean.TRUE.equals(mayElicit.get());
     }
 
     /** @return the validation mode, normalized to lower case */

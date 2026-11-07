@@ -126,6 +126,15 @@ public final class Executions {
     }
 
     /**
+     * The key prefix of the step running on this thread: the path of each flow-call step on the
+     * way, then the step's own path, each followed by {@code /}. A consumed call that passes an
+     * upstream's questions through keys them under it.
+     */
+    public static String currentKeyPrefix() {
+        return ExecutionInputs.callerPrefix();
+    }
+
+    /**
      * Runs a prepared inline {@code call:} as a one-action execution and returns its result. The
      * result is not checked for success: a single call passes the upstream status through.
      *

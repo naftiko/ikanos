@@ -35,6 +35,11 @@ public final class InputRequests {
     public static ObjectNode of(InputRequiredException e) {
         ObjectNode requests = MAPPER.createObjectNode();
         for (InputRequiredException.Question question : e.questions()) {
+            if (question.request() != null) {
+                // An upstream's question, passed through unchanged.
+                requests.set(question.key(), question.request());
+                continue;
+            }
             ObjectNode request = requests.putObject(question.key());
             request.put("method", "elicitation/create");
             ObjectNode requestParams = request.putObject("params");
