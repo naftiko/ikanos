@@ -132,6 +132,28 @@ public class ConverterTest {
     }
 
     @Test
+    public void applyMaxLengthIfNeededShouldIgnoreANegativeMaxLength() throws Exception {
+        OutputParameterSpec spec = new OutputParameterSpec();
+        spec.setMaxLength("-1");
+
+        JsonNode value =
+                Converter.applyMaxLengthIfNeeded(spec, IkanosMappers.json().readTree("\"abcdef\""));
+
+        assertEquals("abcdef", value.asString());
+    }
+
+    @Test
+    public void applyMaxLengthIfNeededShouldCutBetweenCharactersNotInsideOne() throws Exception {
+        OutputParameterSpec spec = new OutputParameterSpec();
+        spec.setMaxLength("1");
+
+        JsonNode value = Converter.applyMaxLengthIfNeeded(spec,
+                IkanosMappers.json().readTree("\"\uD83D\uDE00abcdef\""));
+
+        assertEquals("\uD83D\uDE00", value.asString());
+    }
+
+    @Test
     public void jsonPathExtractShouldSupportMissingPathsAndPropertiesWithSpaces() throws Exception {
         JsonNode root = IkanosMappers.json().readTree("""
                 {
