@@ -43,13 +43,13 @@ import tools.jackson.core.JacksonException;
 /**
  * Stateless MCP {@code 2026-07-28} Streamable HTTP transport over the Restlet client stack.
  *
- * <p>Each call is one JSON-RPC POST: no {@code initialize}, no session id, no stream held open.
- * The request carries the protocol version and W3C trace context in {@code params._meta}, and the
- * {@code MCP-Protocol-Version}, {@code Mcp-Method} and (for named calls) {@code Mcp-Name} headers
- * the specification requires to mirror the body. A {@code text/event-stream} reply is read
- * incrementally, event by event, until the JSON-RPC response matching the request id; the stream
- * is then closed without waiting for the upstream to end it. Every response body is capped at
- * {@link #MAX_RESPONSE_CHARS} characters.</p>
+ * <p>Each call is one JSON-RPC POST: no {@code initialize}, no session id, no stream held open. The
+ * request carries the protocol version, the (empty) client capabilities and W3C trace context in
+ * {@code params._meta}, and the {@code MCP-Protocol-Version}, {@code Mcp-Method} and (for named
+ * calls) {@code Mcp-Name} headers the specification requires to mirror the body. A
+ * {@code text/event-stream} reply is read incrementally, event by event, until the JSON-RPC
+ * response matching the request id; the stream is then closed without waiting for the upstream
+ * to end it. Every response body is capped at {@link #MAX_RESPONSE_CHARS} characters.</p>
  */
 public class McpStreamableHttpTransport {
 
@@ -58,6 +58,13 @@ public class McpStreamableHttpTransport {
 
     /** {@code _meta} key carrying the protocol version. */
     public static final String META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
+
+    /**
+     * {@code _meta} key carrying the client capabilities, which every {@code 2026-07-28} request
+     * declares. This client declares none: it handles no {@code input_required} result.
+     */
+    public static final String META_CLIENT_CAPABILITIES =
+            "io.modelcontextprotocol/clientCapabilities";
 
     /** JSON-RPC error code for an unsupported protocol version. */
     public static final int UNSUPPORTED_PROTOCOL_VERSION = -32022;
@@ -120,6 +127,7 @@ public class McpStreamableHttpTransport {
         long id = ids.incrementAndGet();
         ObjectNode meta = params.withObjectProperty("_meta");
         meta.put(META_PROTOCOL_VERSION, PROTOCOL_VERSION);
+        meta.putObject(META_CLIENT_CAPABILITIES);
         TelemetryBootstrap.get().getOpenTelemetry().getPropagators().getTextMapPropagator()
                 .inject(OtelRestletBridge.currentContext(), meta, META_SETTER);
 

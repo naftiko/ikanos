@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
+import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.spec.IkanosSpec;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,8 @@ import java.io.File;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.ikanos.spec.util.IkanosMappers;
 
 class ProtocolDispatcherCoverageTest {
@@ -42,6 +45,45 @@ class ProtocolDispatcherCoverageTest {
         assertEquals("Invalid Request: request body is missing",
                 response.path("error").path("message").asString());
         assertEquals("2.0", response.path("jsonrpc").asString());
+    }
+
+    @Test
+    void dispatchShouldAnswerWhenMessageIsNotAnObject() throws Exception {
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
+
+        DispatchResult result = dispatcher.dispatch(JSON.readTree("""
+                [{"jsonrpc":"2.0","id":1,"method":"tools/list"}]
+                """));
+
+        assertNotNull(result.responseBody(), "#949: only a Request object without id is a"
+                + " notification; a batch array must still be answered with an error");
+        assertTrue(result.isOnError(), "#949: a batch array is an invalid request, not a"
+                + " notification");
+    }
+
+    @Test
+    void dispatchShouldAnswerWhenIdIsNull() throws Exception {
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
+
+        DispatchResult result = dispatcher.dispatch(JSON.readTree(withProtocolVersion("""
+                {"jsonrpc":"2.0","id":null,"method":"tools/list","params":{}}
+                """)));
+
+        assertNotNull(result.responseBody(), "#949: a message with an id member, even null, is a"
+                + " request and must be answered");
+    }
+
+    @Test
+    void dispatchShouldReturnNoResponseWhenMessageHasNoId() throws Exception {
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
+
+        DispatchResult result = dispatcher.dispatch(JSON.readTree(withProtocolVersion("""
+                {"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}
+                """)));
+
+        assertNull(result.responseBody(), "#949: JSON-RPC forbids answering a notification"
+                + " (a message without id), but got " + result.responseBody());
+        assertFalse(result.isOnError(), "#949: a notification is not an error");
     }
 
     @Test
