@@ -592,6 +592,15 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void elicitSafetyRuleShouldFireUnderADurableModeUntilJournalBackedQuestionsShip() {
+        LintResult result = lintFixture("rules/polychro-durability-memory-violations.yaml");
+        assertTrue(result.output().contains("ikanos-elicit-after-unsafe-requires-durability")
+                && result.output().contains("'memory' mode"),
+            "Expected an answer replay to be reported under the memory mode.\n"
+                + result.output());
+    }
+
+    @Test
     public void durabilityRulesShouldNotFireOnTheLocalMode() {
         LintResult result = lintFixture("rules/polychro-durability-local.yaml");
         assertTrue(result.exitCode() == 0 && !result.output().contains("ikanos-durability-")
