@@ -14,15 +14,14 @@ info:
   display: "Collections — MCP client example"
   description: "Compose a vendor MCP tool with an internal CRM API and re-expose the result."
 
-binds:
-  - namespace: "secrets"
-    description: "Credentials for the vendor billing MCP server and the internal CRM."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      VENDOR_BILLING_TOKEN: "vendor-billing-token"
-      CRM_TOKEN: "crm-bearer-token"
-
 capability:
+  binds:
+    - namespace: "secrets"
+      description: "Credentials for the vendor billing MCP server and the internal CRM."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        VENDOR_BILLING_TOKEN: "vendor-billing-token"
+        CRM_TOKEN: "crm-bearer-token"
   consumes:
     - type: "mcp"
       namespace: "billing"

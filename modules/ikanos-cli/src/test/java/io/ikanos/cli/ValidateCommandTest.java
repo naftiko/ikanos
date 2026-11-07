@@ -422,6 +422,43 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldReportWhereToMoveRootBindsInACapabilityDocument() {
+        Path yaml = tempDir.resolve("root-binds.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Root binds"
+                  description: "Declares its bindings at the root"
+                binds:
+                  - namespace: "env"
+                    keys:
+                      TOKEN: "TOKEN"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      description: "Tools"
+                      tools:
+                        hello:
+                          description: "Say hello"
+                          outputParameters:
+                            message:
+                              type: "string"
+                              value: "hi"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode);
+        assertTrue(err.contains("move it under 'capability.binds'"), err);
+        assertTrue(err.contains("Path: $.binds"), err);
+        assertFalse(err.contains("[2]"),
+                "Root binds should not also be reported as a schema mismatch:\n" + err);
+    }
+
+    @Test
     public void removedSkillAdaptersShouldBeFoundInStandaloneExposesFiles() throws Exception {
         JsonNode data = IkanosMappers.yaml().readTree("""
                 ikanos: "1.0.0-beta9"
@@ -435,6 +472,23 @@ public class ValidateCommandTest {
                 """);
 
         assertEquals(java.util.List.of("$.exposes[1]"), ValidateCommand.removedSkillAdapters(data));
+    }
+
+    @Test
+    public void removedSkillAdaptersShouldSkipRootExposesOfACapabilityDocument() throws Exception {
+        JsonNode data = IkanosMappers.yaml().readTree("""
+                ikanos: "%s"
+                exposes:
+                  - type: "skill"
+                    port: 3001
+                capability:
+                  exposes:
+                    - type: "skill"
+                      port: 3002
+                """.formatted(IKANOS));
+
+        assertEquals(java.util.List.of("$.capability.exposes[0]"),
+                ValidateCommand.removedSkillAdapters(data));
     }
 
     @Test

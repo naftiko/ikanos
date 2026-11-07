@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ikanos.io/schemas/v1.0.0-beta10/ikanos.json",
   "name": "Ikanos Specification",
-  "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata) or a standalone shared file (consumes / exposes / aggregates / binds). A valid document must declare `ikanos` + exactly one of `capability`, `consumes`, `exposes`, `aggregates`, or `binds`. All adapter logic lives under `capability`; shared section definitions live at root.",
+  "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata) or a standalone shared file (consumes / exposes / aggregates / binds). A valid document must declare `ikanos` + exactly one of `capability`, `consumes`, `exposes`, `aggregates`, or `binds`. A capability document keeps all four sections under `capability`; root `consumes`, `exposes`, `aggregates` and `binds` are only valid in standalone shared files.",
   "type": "object",
   "properties": {
     "ikanos": {
@@ -30,7 +30,7 @@
         ]
       },
       "minItems": 1,
-      "description": "External adapters declared at file scope. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), or an `ImportEntry` (with a `from` URI). Standalone consumes files use this section at root."
+      "description": "Root section of a standalone consumes file. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.consumes`."
     },
     "exposes": {
       "type": "array",
@@ -51,7 +51,7 @@
         ]
       },
       "minItems": 1,
-      "description": "Exposed server adapters declared at file scope. Each entry is either an inline adapter (rest/mcp/control) or an `ImportEntry` (with a `from` URI). Standalone exposes files use this section at root."
+      "description": "Root section of a standalone exposes file. Each entry is either an inline adapter (rest/mcp/control) or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.exposes`."
     },
     "aggregates": {
       "type": "array",
@@ -66,7 +66,7 @@
         ]
       },
       "minItems": 1,
-      "description": "Domain aggregates declared at file scope. Each entry is either an inline `Aggregate` or an `ImportEntry` (with a `from` URI). Standalone aggregates files use this section at root."
+      "description": "Root section of a standalone aggregates file. Each entry is either an inline `Aggregate` or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.aggregates`."
     },
     "binds": {
       "type": "array",
@@ -81,11 +81,11 @@
         ]
       },
       "minItems": 1,
-      "description": "External variable bindings available file-wide. Each entry is either an inline `Binding` (with a runtime `location` URI such as `vault://`, `file://`, ...) or an `ImportEntry` (with a parse-time `from` URI to a shared binds file).\n\n**Example**:\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** \u2014 `capability.binds` for bindings scoped to a single capability."
+      "description": "Root section of a standalone shared binds file, which capabilities import from `capability.binds`. Each entry is an inline `Binding` (with a runtime `location` URI such as `vault://`, `file://`, ...). Not allowed in a capability document: declare its bindings under `capability.binds`.\n\n**Example** (`shared/secrets.binds.yml`):\n```yaml\nbinds:\n  - namespace: secrets\n    location: vault://my-vault/secret/data/app\n    keys:\n      API_KEY: api-key\n      DB_PASSWORD: db-password\n```\n**See also** \u2014 `capability.binds` for the bindings of a capability."
     },
     "capability": {
       "$ref": "#/$defs/Capability",
-      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** \u2014 `info` for metadata, `binds` for secrets."
+      "description": "Technical body of the capability: what it exposes (`exposes`), what it calls (`consumes`), and shared domain logic (`aggregates`). At least one of `exposes`, `consumes`, or `aggregates` is required.\n\n**See also** \u2014 `info` for metadata, `capability.binds` for secrets."
     }
   },
   "oneOf": [
@@ -93,7 +93,31 @@
       "required": [
         "ikanos",
         "capability"
-      ]
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "consumes"
+            ]
+          },
+          {
+            "required": [
+              "exposes"
+            ]
+          },
+          {
+            "required": [
+              "aggregates"
+            ]
+          },
+          {
+            "required": [
+              "binds"
+            ]
+          }
+        ]
+      }
     },
     {
       "required": [
@@ -883,7 +907,7 @@
             ]
           },
           "minItems": 1,
-          "description": "External sources the capability binds to for variable injection. Inline `Binding` entries or `ImportEntry` references to a shared binds file."
+          "description": "External sources the capability binds to for variable injection. Inline `Binding` entries or `ImportEntry` references to a shared binds file. This is the only place a capability document declares bindings: root `binds` is reserved for standalone shared binds files."
         },
         "exposes": {
           "type": "array",

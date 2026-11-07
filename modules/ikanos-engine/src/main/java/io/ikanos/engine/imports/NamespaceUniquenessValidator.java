@@ -30,9 +30,9 @@ import io.ikanos.spec.util.BindingSpec;
  * <p>{@link ImportResolver} checks each section on its own. This check runs once after all
  * sections are resolved, so imported entries are seen under their effective namespace (the
  * {@code as} alias, or the {@code import} name). It covers the same lists as the Polychro rule
- * {@code ikanos-namespaces-unique} plus {@code capability.aggregates}: root and capability
- * {@code consumes}, {@code capability.exposes}, {@code capability.aggregates}, and root and
- * capability {@code binds}.</p>
+ * {@code ikanos-namespaces-unique}: {@code capability.consumes}, {@code capability.exposes},
+ * {@code capability.aggregates} and {@code capability.binds}. A capability document has no root
+ * sections ({@link RootSectionsValidator} runs first).</p>
  *
  * <p>The check matters most for {@code call: namespace.name}, which resolves against both
  * consumed adapters and aggregate flows: a namespace declared in both would make the target
@@ -54,9 +54,6 @@ public final class NamespaceUniquenessValidator {
             return;
         }
         Map<String, String> seen = new LinkedHashMap<>();
-
-        addClients(seen, spec.getConsumes(), "consumes");
-        addBinds(seen, spec.getBinds(), "binds");
 
         CapabilitySpec capability = spec.getCapability();
         if (capability != null) {

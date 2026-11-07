@@ -168,12 +168,12 @@ class ConsumedCredentialUnboundIntegrationTest {
         restPort = freePort();
         String yaml = """
                 ikanos: "%s"
-                binds:
-                  - namespace: "secrets"
-                    location: "%s"
-                    keys:
-                      TOKEN: "TOKEN"
                 capability:
+                  binds:
+                    - namespace: "secrets"
+                      location: "%s"
+                      keys:
+                        TOKEN: "TOKEN"
                   consumes:
                     - namespace: up
                       type: http

@@ -218,6 +218,11 @@ public class IkanosPolychroRulesetTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
+    public void capabilityNoRootSectionsRuleShouldFireWhenCapabilityDocumentHasRootBinds() {
+        assertRuleFires("rules/capability-root-binds.yaml", "ikanos-capability-no-root-sections");
+    }
+
+    @Test
     public void standaloneNoImportsRuleShouldFireWhenStandaloneFileContainsImport() {
         assertRuleFires("imports/standalone-with-imports.yaml", "ikanos-standalone-no-imports");
     }

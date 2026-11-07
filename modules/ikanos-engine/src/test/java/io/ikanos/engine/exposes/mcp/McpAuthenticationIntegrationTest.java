@@ -577,13 +577,13 @@ class McpAuthenticationIntegrationTest {
                 info:
                   label: "MCP Auth Binding Test"
                   description: "Bearer auth from file bindings integration test"
-                binds:
-                  - namespace: "mcp-secrets"
-                    description: "MCP server credentials"
-                    location: "%s"
-                    keys:
-                      MCP_SERVER_TOKEN: "mcp-server-token"
                 capability:
+                  binds:
+                    - namespace: "mcp-secrets"
+                      description: "MCP server credentials"
+                      location: "%s"
+                      keys:
+                        MCP_SERVER_TOKEN: "mcp-server-token"
                   exposes:
                     - type: "mcp"
                       address: "127.0.0.1"

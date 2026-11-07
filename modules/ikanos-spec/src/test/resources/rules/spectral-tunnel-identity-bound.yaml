@@ -2,7 +2,7 @@
 # Spectral fixture — ikanos-tunnel-identity-must-bind MUST NOT FIRE.
 #
 # The tunnel.identity references the "secrets.ZITI_IDENTITY" key, and "secrets"
-# is declared in binds with a matching key. The custom function must accept this
+# is declared in capability.binds with a matching key. The custom function must accept this
 # document silently.
 ikanos: "1.0.0-beta10"
 
@@ -10,14 +10,13 @@ info:
   display: "Reverse tunnel — bound identity reference"
   description: "Positive fixture: identity correctly references a declared binding."
 
-binds:
-  - namespace: "secrets"
-    description: "Ziti identity bundle."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      ZITI_IDENTITY: "ziti-identity-path"
-
 capability:
+  binds:
+    - namespace: "secrets"
+      description: "Ziti identity bundle."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        ZITI_IDENTITY: "ziti-identity-path"
   consumes:
     - type: "http"
       namespace: "crm"

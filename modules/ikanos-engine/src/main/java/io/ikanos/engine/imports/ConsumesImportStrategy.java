@@ -33,15 +33,15 @@ public class ConsumesImportStrategy implements ImportStrategy<ClientSpec> {
 
     @Override
     public List<ClientSpec> readSection(IkanosSpec source) {
-        // Standalone document: root-level consumes
+        // Capability document: its sections live under capability only. A root section next
+        // to capability is not valid there (#955) and is never imported.
+        if (source.getCapability() != null) {
+            List<ClientSpec> section = source.getCapability().getConsumes();
+            return section != null ? section : Collections.emptyList();
+        }
+        // Standalone file: the section is at the root
         if (source.getConsumes() != null && !source.getConsumes().isEmpty()) {
             return source.getConsumes();
-        }
-        // Capability-wrapped form: capability.consumes
-        if (source.getCapability() != null
-                && source.getCapability().getConsumes() != null
-                && !source.getCapability().getConsumes().isEmpty()) {
-            return source.getCapability().getConsumes();
         }
         return Collections.emptyList();
     }

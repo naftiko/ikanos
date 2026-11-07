@@ -4,8 +4,8 @@
  * An exposed adapter's `hosts` entry may be a Mustache expression resolved from the
  * bindings at startup, such as `{{CUSTOM_DOMAIN}}` or `{{deploy.CUSTOM_DOMAIN}}` (issue #893).
  * The value is only known at runtime, so this rule checks what can be checked at lint time:
- * the referenced key (and namespace, when given) must be declared in `binds` or
- * `capability.binds`. The engine checks the resolved value when the capability starts.
+ * the referenced key (and namespace, when given) must be declared in `capability.binds`.
+ * The engine checks the resolved value when the capability starts.
  */
 const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
 
@@ -51,14 +51,14 @@ export default function exposesHostsBindsRef(targetVal) {
           results.push({
             message:
               "hosts[" + h + "] references binding namespace '" + ns +
-              "' but no matching entry exists in 'binds' or 'capability.binds'.",
+              "' but no matching entry exists in 'capability.binds'.",
             path,
           });
         } else if (!keys.has(key)) {
           results.push({
             message:
               "hosts[" + h + "] references key '" + key + "' on binding '" + ns +
-              "', but that key is not declared. Add it to binds[" + ns + "].keys.",
+              "', but that key is not declared. Add it to capability.binds[" + ns + "].keys.",
             path,
           });
         }
@@ -66,7 +66,7 @@ export default function exposesHostsBindsRef(targetVal) {
         results.push({
           message:
             "hosts[" + h + "] references key '" + key +
-            "', but no binding declares it. Add it to the keys of an entry in 'binds'.",
+            "', but no binding declares it. Add it to the keys of an entry in 'capability.binds'.",
           path,
         });
       }
@@ -78,7 +78,6 @@ export default function exposesHostsBindsRef(targetVal) {
 
 function collectBindings(doc) {
   const result = { byNamespace: new Map(), allKeys: new Set() };
-  addBindings(doc.binds, result);
   if (doc.capability && typeof doc.capability === "object") {
     addBindings(doc.capability.binds, result);
   }

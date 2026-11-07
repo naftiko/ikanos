@@ -4,8 +4,8 @@
  * Enforces the Reverse Tunnel blueprint rule `ikanos-tunnel-identity-must-bind`:
  * when a `ConsumesHttp.tunnel.identity` field contains one or more Mustache
  * references of the form `{{namespace.key}}`, every referenced namespace must
- * be declared in `binds` or `capability.binds` and the corresponding key must
- * exist on that binding.
+ * be declared in `capability.binds` and the corresponding key must exist on
+ * that binding.
  *
  * Bare filesystem paths (no Mustache markers) are accepted without further
  * checking — they are discouraged but not invalid, and the engine resolves
@@ -37,7 +37,6 @@ export default function tunnelIdentityBindsRef(targetVal) {
 function collectBindings(doc) {
   // Map<namespace, Set<key>>
   const map = new Map();
-  addBindings(doc.binds, map);
   if (doc.capability && typeof doc.capability === "object") {
     addBindings(doc.capability.binds, map);
   }
@@ -90,7 +89,7 @@ function scanConsumes(consumes, basePath, bindings, results) {
           message:
             "tunnel.identity references binding namespace '" +
             ns +
-            "' but no matching entry exists in 'binds' or 'capability.binds'.",
+            "' but no matching entry exists in 'capability.binds'.",
           path: [...basePath, i, "tunnel", "identity"],
         });
       } else if (!keys.has(key)) {
@@ -100,7 +99,7 @@ function scanConsumes(consumes, basePath, bindings, results) {
             key +
             "' on binding '" +
             ns +
-            "', but that key is not declared. Add it to binds[" +
+            "', but that key is not declared. Add it to capability.binds[" +
             ns +
             "].keys.",
           path: [...basePath, i, "tunnel", "identity"],

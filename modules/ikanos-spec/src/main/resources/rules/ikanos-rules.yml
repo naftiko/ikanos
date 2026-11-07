@@ -32,6 +32,7 @@ functions:
   - control-port-validation
   - script-defaults-required
   - standalone-no-imports
+  - capability-no-root-sections
   - import-alias-unique
   - tunnel-identity-binds-ref
   - mcp-ui-view-mime-type
@@ -50,9 +51,9 @@ rules:
   ikanos-namespaces-unique:
     message: "Namespaces must be globally unique across all adapters, aggregates and bindings."
     description: >
-      The same namespace must not be reused across root `consumes`,
-      `capability.consumes`, `capability.exposes`, `capability.aggregates`,
-      root `binds`, and `capability.binds`. Imported entries are checked under
+      The same namespace must not be reused across `capability.consumes`,
+      `capability.exposes`, `capability.aggregates` and `capability.binds`, nor
+      within the root section of a standalone file. Imported entries are checked under
       their effective namespace (the `as` alias, or the `import` name).
       This prevents ambiguous routing, reference resolution, and
       variable resolution: `call: namespace.name` resolves against both
@@ -370,7 +371,7 @@ rules:
       `{{CUSTOM_DOMAIN}}` or `{{deploy.CUSTOM_DOMAIN}}`) is resolved from the
       bindings when the capability starts, so a deployment can inject its
       custom domain. The referenced key, and namespace when given, must be
-      declared in `binds` or `capability.binds`. The engine checks the resolved
+      declared in `capability.binds`. The engine checks the resolved
       host name at startup.
     severity: error
     recommended: true
@@ -787,6 +788,19 @@ rules:
     then:
       function: standalone-no-imports
 
+  ikanos-capability-no-root-sections:
+    message: "{{error}}"
+    description: >
+      A capability document keeps its 'consumes', 'exposes', 'aggregates' and
+      'binds' under 'capability'. At the root, these sections are only valid in
+      standalone shared files, and the engine refuses to start a capability that
+      declares one. Bindings, for example, go under 'capability.binds'.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: capability-no-root-sections
+
   # §11.4 — Section-specific: namespace required (importability)
 
   ikanos-exposes-namespace-required:
@@ -844,7 +858,7 @@ rules:
     description: >
       When a ConsumesHttp 'tunnel' uses Mustache references in 'identity'
       (for example `{{secrets.ZITI_IDENTITY}}`), every referenced namespace and key
-      must be declared in the document's 'binds' or 'capability.binds' section.
+      must be declared in the document's 'capability.binds' section.
       Bare filesystem paths are accepted but discouraged.
     severity: error
     recommended: true

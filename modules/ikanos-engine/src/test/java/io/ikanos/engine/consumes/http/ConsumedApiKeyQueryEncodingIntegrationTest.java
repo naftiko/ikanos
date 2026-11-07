@@ -84,12 +84,12 @@ class ConsumedApiKeyQueryEncodingIntegrationTest {
         int restPort = freePort();
         capability = new Capability(IkanosMappers.lenientYaml().readValue("""
                 ikanos: "%s"
-                binds:
-                  - namespace: "secrets"
-                    location: "%s"
-                    keys:
-                      API_KEY: "API_KEY"
                 capability:
+                  binds:
+                    - namespace: "secrets"
+                      location: "%s"
+                      keys:
+                        API_KEY: "API_KEY"
                   consumes:
                     - namespace: up
                       type: http

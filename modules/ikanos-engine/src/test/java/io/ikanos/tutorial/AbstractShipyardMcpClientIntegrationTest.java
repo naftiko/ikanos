@@ -338,9 +338,6 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     }
 
     private void normalizeTutorialSharedLocations(IkanosSpec spec) {
-        normalizeBindLocations(spec.getBinds());
-        normalizeConsumesImports(spec.getConsumes());
-
         if (spec.getCapability() == null) {
             return;
         }

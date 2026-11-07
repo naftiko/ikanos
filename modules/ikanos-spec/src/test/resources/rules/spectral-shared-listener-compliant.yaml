@@ -11,13 +11,12 @@ info:
   display: "Shared listener — compliant"
   description: "Positive fixture: adapters share one port with distinct mounts."
 
-binds:
-  - namespace: "deploy"
-    description: "Values injected by the runtime."
-    keys:
-      CUSTOM_DOMAIN: "custom-domain"
-
 capability:
+  binds:
+    - namespace: "deploy"
+      description: "Values injected by the runtime."
+      keys:
+        CUSTOM_DOMAIN: "custom-domain"
   aggregates:
     - namespace: "greeting"
       flows:

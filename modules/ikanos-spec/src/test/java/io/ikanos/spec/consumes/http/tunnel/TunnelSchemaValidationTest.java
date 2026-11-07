@@ -89,13 +89,13 @@ class TunnelSchemaValidationTest {
             info:
               display: "demo"
               description: "demo"
-            binds:
-              - namespace: "secrets"
-                description: "Secret bindings."
-                location: "file:///./shared/secrets.yaml"
-                keys:
-                  ZITI_IDENTITY: "ziti-identity-path"
             capability:
+              binds:
+                - namespace: "secrets"
+                  description: "Secret bindings."
+                  location: "file:///./shared/secrets.yaml"
+                  keys:
+                    ZITI_IDENTITY: "ziti-identity-path"
               consumes:
                 - type: "http"
                   namespace: "crm"

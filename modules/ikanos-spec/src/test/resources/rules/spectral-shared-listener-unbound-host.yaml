@@ -9,13 +9,12 @@ info:
   display: "Shared listener — unbound host"
   description: "Negative fixture: hosts entry references an undeclared key."
 
-binds:
-  - namespace: "deploy"
-    description: "Values injected by the runtime."
-    keys:
-      REGION: "region"
-
 capability:
+  binds:
+    - namespace: "deploy"
+      description: "Values injected by the runtime."
+      keys:
+        REGION: "region"
   aggregates:
     - namespace: "greeting"
       flows:

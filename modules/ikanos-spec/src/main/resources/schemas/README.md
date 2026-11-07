@@ -90,14 +90,13 @@ This is the root object of the Naftiko document.
 | --- | --- | --- |
 | **naftiko** | `string` | **REQUIRED**. Version of the Naftiko schema. MUST be `"1.0.0-beta3"` for this version. |
 | **info** | `Info` | **REQUIRED**. Metadata about the capability. |
-| **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources and adapters. |
-| **binds** | `Bind[]` | List of external sources the capability binds to for variable injection. Each entry declares injected variables via a `keys` map. |
+| **capability** | `Capability` | **REQUIRED**. Technical configuration of the capability including sources, adapters and bindings (`capability.binds`). |
 
 #### 3.1.2 Rules
 
 - The `naftiko` field MUST be present and MUST have the value `"1.0.0-beta3"` for documents conforming to this version of the specification.
 - Both `info` and `capability` objects MUST be present.
-- The `binds` field is OPTIONAL. When present, it MUST contain at least one entry.
+- Root `consumes`, `exposes`, `aggregates` and `binds` MUST NOT appear in a capability document: they are only valid at the root of a standalone source file (§3.5.2). A capability declares its bindings under `capability.binds` (§3.20).
 - No additional properties are allowed at the root level.
 
 ---
@@ -178,6 +177,7 @@ Defines the technical configuration of the capability.
 | --- | --- | --- |
 | **exposes** | `Exposes[]` | **REQUIRED**. List of exposed server adapters. |
 | **consumes** | `Consumes[]`  | **REQUIRED**. List of consumed client adapters. |
+| **binds** | `Bind[]` | List of external sources the capability binds to for variable injection (§3.20). Each entry declares injected variables via a `keys` map. When present, it MUST contain at least one entry. |
 
 #### 3.4.2 Rules
 
@@ -277,7 +277,7 @@ Each section can live in its own YAML file with a root-level `ikanos` version an
 - `*.aggregates.yml` — standalone aggregates
 - `*.binds.yml` — standalone binds
 
-The root-level `oneOf` in the JSON Schema discriminates between capability documents and standalone section documents.
+The root-level `oneOf` in the JSON Schema discriminates between capability documents and standalone section documents. A capability document MUST NOT declare any of these sections at its root: it keeps them under `capability`, and the engine refuses to start a capability that does.
 
 #### 3.5.3 Rules
 
@@ -438,18 +438,18 @@ Example: `https://api.github.com` or `https://api.github.com/v3`
 The host, or the whole value, may come from a binding, so one capability can target several environments (US/EU cloud, self-hosted):
 
 ```yaml
-binds:
-  - namespace: "lago-env"
-    keys:
-      LAGO_API_URL: "LAGO_API_URL"   # e.g. https://api.eu.getlago.com/api/v1
 capability:
+  binds:
+    - namespace: "lago-env"
+      keys:
+        LAGO_API_URL: "LAGO_API_URL"   # e.g. https://api.eu.getlago.com/api/v1
   consumes:
     - type: http
       namespace: lago
       baseUri: "{{LAGO_API_URL}}"    # or "https://{{LAGO_HOST}}/api/v1"
 ```
 
-- Placeholders are resolved **once, at load time, from `binds` only**. Call parameters are never used, so a caller cannot redirect requests to another host, even with an argument of the same name.
+- Placeholders are resolved **once, at load time, from `capability.binds` only**. Call parameters are never used, so a caller cannot redirect requests to another host, even with an argument of the same name.
 - Bound values are substituted as written (not URL-encoded), except that a trailing `/` is removed from a resolved `baseUri`, since a resource path is appended to it.
 - The resolved value MUST be an absolute `http://` or `https://` URI with a host. An unbound placeholder or an invalid result fails the capability at startup; the error names the variables, never the resolved value.
 - Placeholders are not allowed in the base path (`https://api.test/{{x}}`); use `ConsumedHttpResource.path` for per-call segments.
@@ -1510,7 +1510,7 @@ with:
 > **Updated**: `Bind` replaces the former `ExternalRef` discriminated union. The `type` and `resolution` fields have been removed. A single optional `location` URI field determines the provider. Variable names (left side of `keys`) use SCREAMING_SNAKE_CASE for visual distinction from declared parameters.
 > 
 
-Declares that the capability binds to an external source of variables. Bindings are declared at the root level of the Naftiko document via the `binds` array, or as a child of the `capability` object.
+Declares that the capability binds to an external source of variables. A capability declares its bindings in the `binds` array of the `capability` object. Bindings shared by several capabilities live at the root of a standalone binds file (`*.binds.yml`, §3.5.2), which each capability imports from `capability.binds`.
 
 **Fixed Fields:**
 
@@ -1575,33 +1575,36 @@ Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTI
 **File-based binding (development):**
 
 ```yaml
-binds:
-  - namespace: "notion-env"
-    description: "Notion API credentials for local development."
-    location: "file:///path/to/notion_env.json"
-    keys:
-      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
-      NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
-      NOTION_TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
+capability:
+  binds:
+    - namespace: "notion-env"
+      description: "Notion API credentials for local development."
+      location: "file:///path/to/notion_env.json"
+      keys:
+        NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+        NOTION_PROJECTS_DB_ID: "PROJECTS_DATABASE_ID"
+        NOTION_TIME_TRACKER_DB_ID: "TIME_TRACKER_DATABASE_ID"
 ```
 
 **Runtime injection (production — location omitted):**
 
 ```yaml
-binds:
-  - namespace: "secrets"
-    keys:
-      NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
-      GITHUB_TOKEN: "GITHUB_TOKEN"
+capability:
+  binds:
+    - namespace: "secrets"
+      keys:
+        NOTION_TOKEN: "NOTION_INTEGRATION_TOKEN"
+        GITHUB_TOKEN: "GITHUB_TOKEN"
 ```
 
 **Minimal binding (runtime injection):**
 
 ```yaml
-binds:
-  - namespace: "env"
-    keys:
-      API_KEY: "API_KEY"
+capability:
+  binds:
+    - namespace: "env"
+      keys:
+        API_KEY: "API_KEY"
 ```
 
 ---
@@ -1651,11 +1654,12 @@ inputParameters:
     value: "Bearer {{API_KEY}}"
 
 # Corresponding binds declaration
-binds:
-  - namespace: "env"
-    keys:
-      NOTION_TOKEN: "NOTION_TOKEN"
-      API_KEY: "API_KEY"
+capability:
+  binds:
+    - namespace: "env"
+      keys:
+        NOTION_TOKEN: "NOTION_TOKEN"
+        API_KEY: "API_KEY"
 ```
 
 ---
@@ -1777,10 +1781,6 @@ A single exposed operation that directly calls a consumed operation, maps parame
 ```yaml
 ---
 naftiko: "0.4"
-binds:
-  - namespace: "env"
-    keys:
-      GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
   label: "GitHub User Lookup"
   description: "Exposes a simplified endpoint to retrieve GitHub user profiles"
@@ -1791,6 +1791,10 @@ info:
   modified: "2026-02-01"
 
 capability:
+  binds:
+    - namespace: "env"
+      keys:
+        GITHUB_TOKEN: "GITHUB_TOKEN"
   exposes:
     - type: "api"
       port: 3000
@@ -1856,10 +1860,6 @@ An exposed operation that chains two consumed operations using named steps and `
 ```yaml
 ---
 naftiko: "0.4"
-binds:
-  - namespace: "env"
-    keys:
-      NOTION_TOKEN: "NOTION_TOKEN"
 info:
   label: "Database Inspector"
   description: "Retrieves a Notion database then queries its contents in a single exposed operation"
@@ -1870,6 +1870,10 @@ info:
   modified: "2026-02-10"
 
 capability:
+  binds:
+    - namespace: "env"
+      keys:
+        NOTION_TOKEN: "NOTION_TOKEN"
   exposes:
     - type: "api"
       port: 9090
@@ -1965,10 +1969,6 @@ Demonstrates a `lookup` step that cross-references the output of a previous call
 ```yaml
 ---
 naftiko: "0.4"
-binds:
-  - namespace: "env"
-    keys:
-      HR_API_KEY: "HR_API_KEY"
 info:
   label: "Team Member Resolver"
   description: "Resolves team member details by matching email addresses from a project tracker"
@@ -1979,6 +1979,10 @@ info:
   modified: "2026-02-15"
 
 capability:
+  binds:
+    - namespace: "env"
+      keys:
+        HR_API_KEY: "HR_API_KEY"
   exposes:
     - type: "api"
       port: 4000
@@ -2064,11 +2068,6 @@ Combines forward proxy, simple-mode operations, orchestrated multi-step with loo
 ```yaml
 ---
 naftiko: "0.4"
-binds:
-  - namespace: "env"
-    keys:
-      NOTION_TOKEN: "NOTION_TOKEN"
-      GITHUB_TOKEN: "GITHUB_TOKEN"
 info:
   label: "Project Dashboard"
   description: "Aggregates project data from Notion and GitHub into a unified API, with a pass-through proxy for direct access"
@@ -2087,6 +2086,11 @@ info:
       email: "john.smith@example.com"
 
 capability:
+  binds:
+    - namespace: "env"
+      keys:
+        NOTION_TOKEN: "NOTION_TOKEN"
+        GITHUB_TOKEN: "GITHUB_TOKEN"
   exposes:
     - type: "api"
       port: 9090

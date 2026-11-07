@@ -1,9 +1,10 @@
 /**
  * Spectral custom function: unique-namespaces
  *
- * A namespace has one owner across the whole capability: root and capability
- * `consumes`, `capability.exposes`, `capability.aggregates`, and root and
- * capability `binds`. `call: namespace.name` resolves against both consumed
+ * A namespace has one owner across the whole capability: `capability.consumes`,
+ * `capability.exposes`, `capability.aggregates` and `capability.binds`. Root
+ * `consumes` and `binds` only occur in standalone files, where their entries
+ * must be unique too. `call: namespace.name` resolves against both consumed
  * adapters and aggregate flows, so a name shared by two sections would make
  * the target ambiguous.
  *

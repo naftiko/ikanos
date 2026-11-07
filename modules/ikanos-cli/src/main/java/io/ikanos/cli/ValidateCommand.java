@@ -19,11 +19,13 @@ import picocli.CommandLine.Parameters;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
+import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -90,16 +92,21 @@ public class ValidateCommand implements Callable<Integer> {
             Schema schema = factory.getSchema(schemaNode);
             
             // Validate. Adapters of a removed type are reported with their migration message
-            // instead of the schema's mismatch against every remaining adapter type.
+            // instead of the schema's mismatch against every remaining adapter type. Root
+            // sections of a capability document are reported with where to move them, and the
+            // rest of the document is validated without them, for the same reason (#955).
+            List<String> rootSections = misplacedRootSections(dataNode);
             List<String> removedAdapters = removedSkillAdapters(dataNode);
-            List<com.networknt.schema.Error> errors = schema.validate(dataNode).stream()
+            List<com.networknt.schema.Error> errors = schema
+                    .validate(withoutSections(dataNode, rootSections)).stream()
                     .filter(error -> !isWithin(error.getInstanceLocation().toString(),
                             removedAdapters))
                     .toList();
 
             // Compile consumed templates the way the engine renders them (#849), only once the
             // document matches the schema, so the spec can be read.
-            boolean schemaValid = errors.isEmpty() && removedAdapters.isEmpty();
+            boolean schemaValid =
+                    errors.isEmpty() && removedAdapters.isEmpty() && rootSections.isEmpty();
             List<String> templateErrors = schemaValid ? templateErrors(dataNode) : List.of();
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
@@ -120,6 +127,12 @@ public class ValidateCommand implements Callable<Integer> {
                 System.err.println("\nErrors found:");
                 
                 int errorCount = 1;
+                for (String section : rootSections) {
+                    System.err.println("\n  [" + errorCount + "] "
+                            + RootSectionsValidator.message(section));
+                    System.err.println("      Path: $." + section);
+                    errorCount++;
+                }
                 for (String path : removedAdapters) {
                     System.err.println("\n  [" + errorCount + "] "
                             + ServerSpecDeserializer.SKILL_ADAPTER_REMOVED);
@@ -186,6 +199,27 @@ public class ValidateCommand implements Callable<Integer> {
     }
 
     /**
+     * Root sections declared next to {@code capability}: a capability document keeps them under
+     * {@code capability} (#955). A standalone file has no {@code capability} key, so its root
+     * section is never reported.
+     */
+    static List<String> misplacedRootSections(JsonNode dataNode) {
+        if (!dataNode.has("capability")) {
+            return List.of();
+        }
+        return RootSectionsValidator.SECTIONS.stream().filter(dataNode::has).toList();
+    }
+
+    private static JsonNode withoutSections(JsonNode dataNode, List<String> sections) {
+        if (sections.isEmpty() || !(dataNode instanceof ObjectNode object)) {
+            return dataNode;
+        }
+        ObjectNode copy = object.deepCopy();
+        sections.forEach(copy::remove);
+        return copy;
+    }
+
+    /**
      * Paths of the exposed adapters that still declare the removed {@code skill} type, both in a
      * capability and at the root of a standalone exposes file (#898).
      */
@@ -193,7 +227,10 @@ public class ValidateCommand implements Callable<Integer> {
         List<String> paths = new ArrayList<>();
         collectRemovedSkillAdapters(dataNode.path("capability").path("exposes"),
                 "$.capability.exposes", paths);
-        collectRemovedSkillAdapters(dataNode.path("exposes"), "$.exposes", paths);
+        // Root exposes next to capability is reported as a misplaced root section instead.
+        if (!dataNode.has("capability")) {
+            collectRemovedSkillAdapters(dataNode.path("exposes"), "$.exposes", paths);
+        }
         return paths;
     }
 

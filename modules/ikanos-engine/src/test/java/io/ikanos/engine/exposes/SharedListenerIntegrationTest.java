@@ -316,9 +316,10 @@ class SharedListenerIntegrationTest {
                 ikanos: "%s"
                 info:
                   display: "Shared Listener Test"
-                %scapability:
-                %s  exposes:
-                %s""".formatted(VersionHelper.getSchemaVersion(), binds, AGGREGATE, exposes)
+                capability:
+                %s%s  exposes:
+                %s""".formatted(VersionHelper.getSchemaVersion(), binds.indent(2), AGGREGATE,
+                        exposes)
                 .replace("{PORT}", Integer.toString(port));
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         capability = new Capability(spec);
