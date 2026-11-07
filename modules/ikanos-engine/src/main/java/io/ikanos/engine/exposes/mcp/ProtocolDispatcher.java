@@ -116,13 +116,23 @@ public class ProtocolDispatcher {
     /**
      * Dispatch a JSON-RPC request and return the dispatch result.
      *
+     * <p>A notification, a request object with a string {@code method} but no {@code id} member,
+     * gets no response: JSON-RPC forbids one, so the result has no body, which the Streamable
+     * HTTP transport answers with {@code 202 Accepted} (once its headers are valid) and stdio with
+     * nothing. A notification is never executed, even for a method that has a handler. Any other
+     * message without an {@code id}, such as a batch array, is still answered with an error.</p>
+     *
      * @param request the parsed JSON-RPC request.
-     * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}.
+     * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}, with
+     *         no body for a notification.
      */
     public DispatchResult dispatch(JsonNode request) {
         if (request == null) {
             return new DispatchResult(buildJsonRpcError(null, INVALID_REQUEST.getCode(),
                     "Invalid Request: request body is missing"), INVALID_REQUEST);
+        }
+        if (request.isObject() && request.path("method").isString() && !request.has("id")) {
+            return new DispatchResult((ObjectNode) null);
         }
 
         try {
@@ -183,7 +193,8 @@ public class ProtocolDispatcher {
      *
      * @param request     the parsed JSON-RPC request.
      * @param httpRequest the inbound Restlet HTTP request, or {@code null} on stdio.
-     * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}.
+     * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}, with
+     *         no body for a notification (see {@link #dispatch(JsonNode)}).
      */
     public DispatchResult dispatchWithTracing(JsonNode request, Request httpRequest) {
         if (request == null) {

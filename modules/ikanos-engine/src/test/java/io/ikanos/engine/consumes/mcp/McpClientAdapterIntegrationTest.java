@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.consumes.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -384,5 +385,102 @@ class McpClientAdapterIntegrationTest {
 
         assertTrue(error.getMessage().contains("Upstream MCP tools/call failed"),
                 error.getMessage());
+    }
+
+    /**
+     * #949: an upstream built on an MCP SDK refuses a 2026-07-28 request whose {@code _meta}
+     * declares no client capabilities. The consumer must declare them, so that its startup
+     * {@code tools/list} and its calls reach such an upstream.
+     */
+    @Test
+    void consumerShouldReachAnUpstreamThatRequiresClientCapabilities() throws Exception {
+        int strictPort = freePort();
+        Component strict = strictUpstream(strictPort);
+        strict.start();
+        try {
+            consumer = capability("""
+                    ikanos: "%s"
+                    capability:
+                      consumes:
+                        - type: mcp
+                          namespace: strict
+                          description: Upstream requiring client capabilities
+                          endpoint: http://localhost:%d/
+                          discovery: verify
+                          tools:
+                            echo:
+                              description: Echoes text
+                              hints: { readOnly: true }
+                              inputParameters:
+                                text: { type: string, description: Text to echo }
+                      exposes:
+                        - type: mcp
+                          transport: http
+                          address: localhost
+                          port: 0
+                          namespace: relay-mcp
+                          tools:
+                            relay:
+                              description: Relays to the strict upstream
+                              inputParameters:
+                                text: { type: string, description: Text to echo }
+                              call: strict.echo
+                              with:
+                                text: relay-mcp.text
+                    """.formatted(IKANOS, strictPort));
+            assertDoesNotThrow(consumer::start, "#949: the startup tools/list must declare"
+                    + " client capabilities to reach an SDK-based upstream");
+
+            McpSchema.CallToolResult result = callConsumer("relay", Map.of("text", "hi"));
+
+            assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
+            assertEquals("hi", textPayload(result).path("echo").asString(),
+                    "#949: the call must reach the upstream with client capabilities");
+        } finally {
+            strict.stop();
+        }
+    }
+
+    /**
+     * An upstream answering as an SDK-based 2026-07-28 server does: a request without client
+     * capabilities in {@code _meta} gets 400 with -32602; otherwise {@code tools/list} lists
+     * {@code echo} and {@code tools/call} echoes its {@code text} argument.
+     */
+    private static Component strictUpstream(int port) {
+        Component component = new Component();
+        component.getServers().add(Protocol.HTTP, port);
+        component.getDefaultHost().attachDefault(new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                try {
+                    JsonNode rpc = JSON.readTree(request.getEntity().getText());
+                    JsonNode id = rpc.path("id");
+                    JsonNode meta = rpc.path("params").path("_meta");
+                    if (!meta.path("io.modelcontextprotocol/clientCapabilities").isObject()) {
+                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                        response.setEntity(new StringRepresentation("""
+                                {"jsonrpc":"2.0","id":%s,"error":{"code":-32602,"message":\
+                                "_meta['io.modelcontextprotocol/clientCapabilities'] is required"}}\
+                                """.formatted(id), MediaType.APPLICATION_JSON));
+                        return;
+                    }
+                    String result = "tools/list".equals(rpc.path("method").asString())
+                            ? """
+                              {"tools":[{"name":"echo","inputSchema":{"type":"object",\
+                              "properties":{"text":{"type":"string"}},"required":["text"]}}],\
+                              "resultType":"complete","ttlMs":0,"cacheScope":"private"}"""
+                            : """
+                              {"content":[],"structuredContent":{"echo":%s},\
+                              "resultType":"complete"}""".formatted(
+                                      rpc.path("params").path("arguments").path("text"));
+                    response.setEntity(new StringRepresentation(
+                            "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":" + result + "}",
+                            MediaType.APPLICATION_JSON));
+                } catch (Exception e) {
+                    response.setStatus(Status.SERVER_ERROR_INTERNAL, e);
+                }
+            }
+        });
+        return component;
     }
 }
