@@ -579,8 +579,8 @@ public class ResourceRestlet extends Restlet {
                         // Prepare the HTTP client request
                         String path = (String) request.getAttributes().get("path");
                         String normalizedPath = (path == null || path.isEmpty()) ? "" : "/" + path;
-                        String targetRef = httpAdapter.getBaseUri()
-                                + normalizedPath;
+                        String targetRef = forwardTargetRef(httpAdapter.getBaseUri(),
+                                normalizedPath, request.getResourceRef().getQuery());
                         Request clientRequest = new Request(request.getMethod(), targetRef);
                         clientRequest.setEntity(request.getEntity());
 
@@ -646,6 +646,20 @@ public class ResourceRestlet extends Restlet {
             }
         }
         return false;
+    }
+
+    /**
+     * Target of a forwarded request: the consumed adapter's base URI, the captured path, and the
+     * incoming query string as received, neither decoded nor re-encoded, so that the upstream sees
+     * exactly what the caller sent (#953). It is joined with {@code &} when the base URI already
+     * has a query. Query input parameters of the adapter are appended after it.
+     */
+    static String forwardTargetRef(String baseUri, String normalizedPath, String rawQuery) {
+        String targetRef = baseUri + normalizedPath;
+        if (rawQuery == null || rawQuery.isEmpty()) {
+            return targetRef;
+        }
+        return targetRef + (targetRef.indexOf('?') < 0 ? '?' : '&') + rawQuery;
     }
 
     /**

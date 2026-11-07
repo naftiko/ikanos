@@ -1448,6 +1448,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - Header names in `trustedHeaders` are case-insensitive (following HTTP header conventions).
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
 - This includes `Authorization`: the caller's credential reaches the consumed source only when `Authorization` is listed. When the target adapter declares `authentication`, its own credential is sent instead.
+- The method, the path captured by the resource's `{{path}}` placeholder, the query string and the body are forwarded as received. The query string keeps its encoding; the consumed adapter's own query parameters, if any, are added after it.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example
