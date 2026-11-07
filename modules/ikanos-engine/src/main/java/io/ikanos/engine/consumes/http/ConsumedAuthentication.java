@@ -28,6 +28,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -154,9 +155,52 @@ public final class ConsumedAuthentication {
                 }
                 break;
 
+            case "awsSigV4":
+                clientRequest.setChallengeResponse(
+                        awsSigV4((AwsSigV4AuthenticationSpec) authenticationSpec, parameters));
+                break;
+
             default:
                 throw new IllegalArgumentException(unsupported(type));
         }
+    }
+
+    /**
+     * The challenge response signing a request with AWS Signature Version 4 (#954). The signature
+     * itself is computed by {@link AwsSigV4Helper} when the client connector writes the
+     * {@code Authorization} header, after every other header, from the final request.
+     */
+    static ChallengeResponse awsSigV4(AwsSigV4AuthenticationSpec sigV4,
+            Map<String, Object> parameters) {
+        String accessKeyId = render(sigV4.getAccessKeyId(), parameters, "awsSigV4 access key ID");
+        String secret = render(passwordOrEmpty(sigV4.getSecretAccessKey()), parameters,
+                "awsSigV4 secret access key");
+        String region = render(sigV4.getRegion(), parameters, "awsSigV4 region");
+        if (isBlank(accessKeyId) || isBlank(secret) || isBlank(region)) {
+            throw new IllegalArgumentException("awsSigV4 authentication needs an accessKeyId, a "
+                    + "secretAccessKey and a region. The request is not sent.");
+        }
+
+        AwsSigV4Helper.ensureRegistered();
+        ChallengeResponse challengeResponse =
+                new ChallengeResponse(AwsSigV4Helper.SCHEME, accessKeyId, secret);
+        challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_REGION, region);
+        if (sigV4.getService() != null) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_SERVICE,
+                    render(sigV4.getService(), parameters, "awsSigV4 service"));
+        }
+        if (sigV4.getSessionToken() != null) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_SESSION_TOKEN,
+                    render(sigV4.getSessionToken(), parameters, "awsSigV4 session token"));
+        }
+        if (Boolean.TRUE.equals(sigV4.getUnsignedPayload())) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_UNSIGNED_PAYLOAD, "true");
+        }
+        return challengeResponse;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     /**
@@ -202,6 +246,17 @@ public final class ConsumedAuthentication {
         } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
             credentials.put(where + " key", apiKey.getKey());
             credentials.put(where + " value", apiKey.getValue());
+        } else if (authentication instanceof AwsSigV4AuthenticationSpec sigV4) {
+            credentials.put(where + " access key ID", sigV4.getAccessKeyId());
+            credentials.put(where + " secret access key",
+                    passwordOrNull(sigV4.getSecretAccessKey()));
+            credentials.put(where + " region", sigV4.getRegion());
+            if (sigV4.getService() != null) {
+                credentials.put(where + " service", sigV4.getService());
+            }
+            if (sigV4.getSessionToken() != null) {
+                credentials.put(where + " session token", sigV4.getSessionToken());
+            }
         }
         return credentials;
     }

@@ -1330,7 +1330,7 @@ with:
 
 ### 3.17 Authentication Object
 
-Defines authentication configuration. Four types are supported: basic, apikey, bearer, and digest.
+Defines authentication configuration. Five types are supported: basic, apikey, bearer, digest and, on consumed adapters only, awsSigV4.
 
 #### 3.17.1 Basic Authentication
 
@@ -1416,7 +1416,35 @@ authentication:
   password: "secret_password"
 ```
 
-#### 3.17.5 Rules
+#### 3.17.5 AWS Signature Version 4 Authentication
+
+AWS Signature Version 4 (SigV4), for the calls to Amazon S3, the other AWS services and the S3-compatible object stores (MinIO, Ceph, Cloudflare R2…). Each request is signed with HMAC-SHA256 from the secret access key, the date, the region and the service. **Consumed adapters only** (`ConsumesHttp`, `ConsumesMcp`): an exposed adapter declaring it fails to start.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"awsSigV4"`. |
+| **accessKeyId** | `string` | **REQUIRED**. Access key ID. |
+| **secretAccessKey** | `string` | **REQUIRED**. Secret access key. |
+| **region** | `string` | **REQUIRED**. Region signed into the request, e.g. `us-east-1` (MinIO's default). |
+| **service** | `string` | Service name signed into the request. Defaults to `s3`. |
+| **sessionToken** | `string` | Session token of temporary credentials (AWS STS), sent in `X-Amz-Security-Token`. |
+| **unsignedPayload** | `boolean` | S3 only: send `UNSIGNED-PAYLOAD` instead of the SHA-256 hash of the body. |
+
+The engine adds `X-Amz-Date`, and for S3 `X-Amz-Content-Sha256`, then signs every request header except the hop-by-hop ones, `Content-Length` and `User-Agent`. A body that can't be read twice, such as one passed through by `forward`, is sent as `UNSIGNED-PAYLOAD` to S3 and refused for the other services, which require its hash.
+
+**Example:**
+
+```yaml
+authentication:
+  type: awsSigV4
+  accessKeyId: "{{secrets.S3_ACCESS_KEY_ID}}"
+  secretAccessKey: "{{secrets.S3_SECRET_ACCESS_KEY}}"
+  region: us-east-1
+```
+
+#### 3.17.6 Rules
 
 - Only one authentication type can be used per authentication object.
 - On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.

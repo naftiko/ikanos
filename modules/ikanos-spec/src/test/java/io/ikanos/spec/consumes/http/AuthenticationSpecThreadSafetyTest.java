@@ -43,7 +43,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 class AuthenticationSpecThreadSafetyTest {
 
     private static Stream<Class<?>> phase4AuthClasses() {
-        return Stream.of(BasicAuthenticationSpec.class, DigestAuthenticationSpec.class);
+        return Stream.of(BasicAuthenticationSpec.class, DigestAuthenticationSpec.class,
+                AwsSigV4AuthenticationSpec.class);
     }
 
     @ParameterizedTest(name = "{0} should declare no volatile fields")
@@ -140,5 +141,21 @@ class AuthenticationSpecThreadSafetyTest {
                 new char[]{'p', 'w'});
         spec.setPassword(null);
         assertNull(spec.getPassword());
+    }
+
+    @Test
+    @DisplayName("AwsSigV4 secretAccessKey should be defensively cloned on set and get (#954)")
+    void awsSigV4SecretAccessKeyShouldBeDefensivelyCloned() {
+        AwsSigV4AuthenticationSpec spec = new AwsSigV4AuthenticationSpec();
+        char[] caller = {'s', 'e', 'c', 'r', 'e', 't'};
+        spec.setSecretAccessKey(caller);
+        caller[0] = 'X';
+        char[] firstRead = spec.getSecretAccessKey();
+        assertNotSame(firstRead, spec.getSecretAccessKey(),
+                "getSecretAccessKey must return a fresh copy each call");
+        firstRead[1] = 'X';
+        assertArrayEquals(new char[]{'s', 'e', 'c', 'r', 'e', 't'}, spec.getSecretAccessKey());
+        spec.setSecretAccessKey(null);
+        assertNull(spec.getSecretAccessKey());
     }
 }
