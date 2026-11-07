@@ -115,6 +115,11 @@ public class ToolsCallHandler extends McpCallHandler {
         }
     }
 
+    @Override
+    protected boolean mayAsk(String toolName) {
+        return adapter.mayElicit(toolName);
+    }
+
     /** Longest expected duration, in milliseconds, still answered synchronously. */
     static final long SYNC_BUDGET_MS = 30_000;
 

@@ -30,10 +30,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.execution.ExecutionTree;
+import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.NodeRunner;
 import io.ikanos.engine.execution.StepRun;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ExecutionId;
@@ -52,6 +54,49 @@ public class McpTaskServiceTest {
 
     private final McpTaskService service = new McpTaskService(
             Durability.fromSpec(new DurabilitySpec("memory")).runner(), Clock.systemUTC(), null);
+
+    @Test
+    void anInlineCallLeftUnansweredPastItsStateExpiryShouldFail() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        McpTaskService now = new McpTaskService(runner, Clock.systemUTC(), null);
+        McpTaskService.Round round = now.inRounds("mrtr:ops/tools/call/ask", "alice", null, null,
+                null, () -> {
+                    throw new InputRequiredException(List.of(
+                            new InputRequiredException.Question(
+                                    "steps/confirm",
+                                    new OperationStepElicitSpec("confirm",
+                                            "Confirm?", Map.of("ok", Map.of("type", "boolean"))))));
+                });
+        assertEquals(ExecutionStatus.SUSPENDED, runner.status(round.executionId()).orElseThrow());
+
+        // Swept by a process whose clock is past the request state's expiry.
+        new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
+                McpRequestState.TTL.plusMinutes(1)), null).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(round.executionId()).orElseThrow());
+    }
+
+    @Test
+    void anInlineCallStillWithinItsStateExpiryShouldNotBeSwept() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        McpTaskService service = new McpTaskService(runner, Clock.systemUTC(), null);
+        McpTaskService.Round round = service.inRounds("mrtr:ops/tools/call/ask", "alice", null,
+                null, null, () -> {
+                    throw new InputRequiredException(List.of(
+                            new InputRequiredException.Question(
+                                    "steps/confirm",
+                                    new OperationStepElicitSpec("confirm",
+                                            "Confirm?", Map.of("ok", Map.of("type", "boolean"))))));
+                });
+
+        new McpTaskService(runner, Clock.systemUTC(), null).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.SUSPENDED, runner.status(round.executionId()).orElseThrow());
+    }
 
     @Test
     void anotherPrincipalShouldNeitherSeeNorCancelATask() {

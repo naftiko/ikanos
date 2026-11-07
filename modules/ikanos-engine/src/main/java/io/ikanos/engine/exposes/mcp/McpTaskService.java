@@ -36,6 +36,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -89,16 +90,13 @@ import io.ikanos.spec.util.IkanosMappers;
 public final class McpTaskService {
 
     /** Path of a task's tool call; round {@code n} of a task that asks visits it {@code n} times. */
-    static final NodePath TOOL_CALL = NodePath.of("tool-call");
+    static final NodePath TOOL_CALL = InputRounds.CALL;
 
     /** Path of the update that answers the questions of a round. */
-    static final NodePath ANSWERS = NodePath.of("answers");
-
-    /** Field of a tool-call outcome that stopped at questions instead of returning a result. */
-    static final String ASKED = "ikanos:inputRequests";
+    static final NodePath ANSWERS = InputRounds.ANSWERS;
 
     /** Failure class of a call rejected for invalid parameters: a JSON-RPC error, not a tool error. */
-    static final String INVALID_PARAMS = "invalid-params";
+    static final String INVALID_PARAMS = InputRounds.INVALID_PARAMS;
 
     /** Failure class of a task started by another version of the capability. */
     static final String SPEC_CHANGED = "spec-changed";
@@ -111,6 +109,18 @@ public final class McpTaskService {
 
     /** Label holding the SHA-256 of the principal that created the task. */
     static final String PRINCIPAL = "principal";
+
+    /** Label marking the hidden execution of an inline call answered in rounds. */
+    static final String KIND = "kind";
+
+    /** Value of {@link #KIND} for an inline call answered by multi round-trip requests. */
+    static final String MRTR = "mrtr";
+
+    /** Failure class of an inline call whose questions went unanswered past its state's expiry. */
+    static final String EXPIRED = "expired";
+
+    /** Least time between two sweeps of unanswered inline calls. */
+    static final Duration SWEEP_INTERVAL = Duration.ofMinutes(1);
 
     /** Suggested polling interval, in milliseconds. */
     static final long POLL_INTERVAL_MS = 1000;
@@ -131,6 +141,7 @@ public final class McpTaskService {
     private final Map<ExecutionId, Instant> lastUpdated = new ConcurrentHashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean draining = new AtomicBoolean();
+    private volatile Instant lastSweep = Instant.EPOCH;
 
     /**
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
@@ -219,24 +230,8 @@ public final class McpTaskService {
         ExecutionRequest request = ExecutionRequest.of(executionId, null);
         Future<?> future = workers.submit(() -> {
             try {
-                runner.run(request, interpreter(), action -> {
-                    @SuppressWarnings("unchecked")
-                    Map<NodePath, Object> answers = (Map<NodePath, Object>) action.action();
-                    try {
-                        // The flow's steps are journaled one by one under this task's execution,
-                        // so a step that already ran is restored rather than run again; the
-                        // answers so far reach the elicit steps they are keyed for.
-                        return ExecutionInputs.with(answers,
-                                () -> DurableScope.with(runner, executionId, draining::get, work));
-                    } catch (IllegalArgumentException e) {
-                        throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
-                    } catch (InputRequiredException e) {
-                        // The flow asks: this round ends with its questions, and the task waits.
-                        ObjectNode asked = MAPPER.createObjectNode();
-                        asked.set(ASKED, InputRequests.of(e));
-                        return asked;
-                    }
-                });
+                runner.run(request, InputRounds.interpreter(),
+                        InputRounds.executor(runner, executionId, draining::get, work));
             } finally {
                 lastUpdated.put(executionId, clock.instant());
                 running.remove(executionId);
@@ -317,16 +312,8 @@ public final class McpTaskService {
             return true;
         }
         ExecutionView view = runner.view(record.executionId());
-        int round = lastRound(view);
-        ObjectNode questions = questions(view, round);
-        ObjectNode answers = MAPPER.createObjectNode();
-        if (questions != null) {
-            for (String key : questions.propertyNames()) {
-                if (responses.has(key)) {
-                    answers.set(key, responses.get(key));
-                }
-            }
-        }
+        int round = InputRounds.lastRound(view);
+        ObjectNode answers = InputRounds.answersTo(InputRounds.questions(view, round), responses);
         if (answers.isEmpty()) {
             return true;
         }
@@ -353,6 +340,98 @@ public final class McpTaskService {
         }
         lastUpdated.put(record.executionId(), clock.instant());
         return true;
+    }
+
+    /**
+     * The outcome of one round of an inline call: its result, or the questions it stopped at, and
+     * the execution that keeps its progress.
+     */
+    public record Round(ObjectNode result, ObjectNode questions, ExecutionId executionId) {
+    }
+
+    /**
+     * Runs one round of an inline call answered by multi round-trip requests, journal-backed: the
+     * first round starts a hidden execution; a later one, named by the sealed state, receives the
+     * responses to the questions it waits on and resumes, so steps journaled in earlier rounds are
+     * restored, not run again. A round after the end returns the recorded result.
+     *
+     * @param executionId the execution the state names, or {@code null} for the first round
+     * @throws IllegalArgumentException for invalid parameters, or a state naming an execution
+     *         this store does not hold for this principal
+     */
+    public Round inRounds(String entry, String principal, JsonNode arguments,
+            ExecutionId executionId, JsonNode responses, Callable<JsonNode> work) {
+        sweepUnanswered();
+        ExecutionId id = executionId;
+        if (id == null) {
+            id = ExecutionId.random();
+            runner.start(ExecutionRequest.of(id, arguments), entry,
+                    Map.of(KIND, MRTR, PRINCIPAL, digest(principal)));
+        } else {
+            ExecutionRecord record = runner.record(id).orElse(null);
+            if (record == null || !MRTR.equals(record.labels().get(KIND))
+                    || !digest(principal).equals(record.labels().get(PRINCIPAL))) {
+                // Lost with a memory store's process, or removed by retention: start again.
+                throw new IllegalArgumentException("requestState names an unknown call");
+            }
+            if (record.status() == ExecutionStatus.SUSPENDED) {
+                ExecutionView view = runner.view(id);
+                int round = InputRounds.lastRound(view);
+                ObjectNode answers =
+                        InputRounds.answersTo(InputRounds.questions(view, round), responses);
+                if (!answers.isEmpty()) {
+                    runner.deliver(id, ANSWERS.visit(round), answers);
+                }
+            }
+        }
+        // A failure raised in this process reaches the caller as thrown, so the adapter maps it
+        // as it maps a synchronous call's; the journal keeps it as the call's failure.
+        AtomicReference<RuntimeException> raised = new AtomicReference<>();
+        Callable<JsonNode> watched = () -> {
+            try {
+                return work.call();
+            } catch (IllegalArgumentException | InputRequiredException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                raised.set(e);
+                throw e;
+            }
+        };
+        ExecutionResult result = runner.run(ExecutionRequest.of(id, null),
+                InputRounds.interpreter(), InputRounds.executor(runner, id, draining::get, watched));
+        if (result instanceof ExecutionResult.Completed completed) {
+            return new Round((ObjectNode) completed.result(), null, id);
+        }
+        if (result instanceof ExecutionResult.Suspended suspended) {
+            return new Round(null, (ObjectNode) suspended.awaiting().get(0).request(), id);
+        }
+        Failure failure = ((ExecutionResult.Failed) result).failure();
+        if (raised.get() != null) {
+            throw raised.get();
+        }
+        if (INVALID_PARAMS.equals(failure.errorClass())) {
+            throw new IllegalArgumentException(failure.message());
+        }
+        throw new IllegalStateException(failure.message());
+    }
+
+    /**
+     * Fails the inline calls still waiting for answers past the expiry of their sealed state,
+     * at most once per {@link #SWEEP_INTERVAL}: no retry can resume them any more.
+     */
+    void sweepUnanswered() {
+        Instant now = clock.instant();
+        if (now.isBefore(lastSweep.plus(SWEEP_INTERVAL))) {
+            return;
+        }
+        lastSweep = now;
+        Instant cutoff = now.minus(McpRequestState.TTL);
+        for (ExecutionRecord record : runner.list(ExecutionStatus.SUSPENDED, RESUME_LIMIT)) {
+            if (MRTR.equals(record.labels().get(KIND)) && record.createdAt().isBefore(cutoff)) {
+                runner.fail(record.executionId(), new Failure(EXPIRED,
+                        "The call's questions went unanswered past its requestState expiry"));
+            }
+        }
     }
 
     /** Cancels a task; returns {@code false} for an unknown ID or another principal's task. */
@@ -384,30 +463,11 @@ public final class McpTaskService {
     private ObjectNode waiting(String taskId, ExecutionRecord record) {
         ObjectNode node = describe(taskId, record, "input_required");
         ExecutionView view = runner.view(record.executionId());
-        ObjectNode questions = questions(view, lastRound(view));
+        ObjectNode questions = InputRounds.questions(view, InputRounds.lastRound(view));
         if (questions != null) {
             node.set("inputRequests", questions);
         }
         return node;
-    }
-
-    /** The last round of a task with a recorded tool-call outcome; 1 before the first ends. */
-    static int lastRound(ExecutionView view) {
-        int round = 1;
-        while (view.outcome(TOOL_CALL.visit(round + 1)).isPresent()) {
-            round++;
-        }
-        return round;
-    }
-
-    /** The questions a round stopped at, or {@code null} when it did not stop at questions. */
-    static ObjectNode questions(ExecutionView view, int round) {
-        return view.outcome(TOOL_CALL.visit(round))
-                .filter(ActionOutcome.Succeeded.class::isInstance)
-                .map(outcome -> ((ActionOutcome.Succeeded) outcome).value())
-                .filter(value -> value instanceof JsonNode node && node.has(ASKED))
-                .map(value -> (ObjectNode) ((JsonNode) value).get(ASKED))
-                .orElse(null);
     }
 
     private ObjectNode terminal(String taskId, ExecutionRecord record) {
@@ -446,38 +506,6 @@ public final class McpTaskService {
             node.put("pollIntervalMs", POLL_INTERVAL_MS);
         }
         return node;
-    }
-
-    /**
-     * A task's Interpreter. Round 1 calls the tool. A round that stops at questions waits for the
-     * update answering them, then the next round calls the tool again with every answer so far;
-     * a round that returns a result completes the task.
-     */
-    static Interpreter interpreter() {
-        return view -> {
-            Map<NodePath, Object> answers = new LinkedHashMap<>();
-            for (int round = 1;; round++) {
-                NodePath call = TOOL_CALL.visit(round);
-                var outcome = view.outcome(call);
-                if (outcome.isEmpty()) {
-                    return List.of(new Command.ScheduleAction(call, Map.copyOf(answers), null));
-                }
-                if (outcome.get() instanceof ActionOutcome.Failed failed) {
-                    return List.of(new Command.Fail(failed.failure()));
-                }
-                Object value = ((ActionOutcome.Succeeded) outcome.get()).value();
-                if (!(value instanceof JsonNode node && node.has(ASKED))) {
-                    return List.of(new Command.Complete(value));
-                }
-                NodePath answered = ANSWERS.visit(round);
-                var update = view.update(answered);
-                if (update.isEmpty()) {
-                    return List.of(new Command.AwaitUpdate(answered, node.get(ASKED)));
-                }
-                ((JsonNode) update.get()).properties()
-                        .forEach(e -> answers.put(new NodePath(e.getKey()), e.getValue()));
-            }
-        };
     }
 
     /** The SHA-256 of a principal, so the store never holds the caller's identity in clear. */

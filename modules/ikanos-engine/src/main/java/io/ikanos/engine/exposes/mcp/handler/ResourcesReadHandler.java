@@ -126,6 +126,11 @@ public class ResourcesReadHandler extends McpCallHandler {
     }
 
     @Override
+    protected boolean mayAsk(String uri) {
+        return adapter.resourceMayElicit(uri);
+    }
+
+    @Override
     public String getMethodName() {
         return METHOD_NAME;
     }
