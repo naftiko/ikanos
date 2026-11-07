@@ -284,17 +284,34 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public boolean mayElicit(String toolName) {
         McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
-        if (toolSpec == null || toolSpec.getRef() == null) {
+        if (toolSpec == null) {
             return false;
         }
-        return mayElicit(findFlow(toolSpec.getRef()), new HashSet<>());
+        if (toolSpec.getRef() != null) {
+            return mayElicit(findFlow(toolSpec.getRef()), new HashSet<>());
+        }
+        return mayElicit(toolSpec.getSteps(), new HashSet<>());
+    }
+
+    /** Whether the steps of the resource at {@code uri} may ask its caller for input. */
+    public boolean resourceMayElicit(String uri) {
+        return getMcpServerSpec().getResources().values().stream()
+                .filter(resource -> uri.equals(resource.getUri()))
+                .anyMatch(resource -> mayElicit(resource.getSteps(), new HashSet<>()));
     }
 
     private boolean mayElicit(AggregateFlow flow, Set<AggregateFlow> seen) {
-        if (flow == null || !seen.add(flow) || flow.getSteps() == null) {
+        if (flow == null || !seen.add(flow)) {
             return false;
         }
-        for (OperationStepSpec step : flow.getSteps().values()) {
+        return mayElicit(flow.getSteps(), seen);
+    }
+
+    private boolean mayElicit(Map<String, OperationStepSpec> steps, Set<AggregateFlow> seen) {
+        if (steps == null) {
+            return false;
+        }
+        for (OperationStepSpec step : steps.values()) {
             if (step instanceof OperationStepElicitSpec) {
                 return true;
             }

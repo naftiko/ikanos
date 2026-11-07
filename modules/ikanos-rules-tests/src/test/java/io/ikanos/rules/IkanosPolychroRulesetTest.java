@@ -592,12 +592,12 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void elicitSafetyRuleShouldFireUnderADurableModeUntilJournalBackedQuestionsShip() {
-        LintResult result = lintFixture("rules/polychro-durability-memory-violations.yaml");
-        assertTrue(result.output().contains("ikanos-elicit-after-unsafe-requires-durability")
-                && result.output().contains("'memory' mode"),
-            "Expected an answer replay to be reported under the memory mode.\n"
-                + result.output());
+    public void elicitSafetyRuleShouldNotFireUnderADurableMode() {
+        // Under memory and local, a question after a write resumes a journal instead of
+        // replaying the write.
+        LintResult result = lintFixture("rules/polychro-durability-memory-elicit.yaml");
+        assertTrue(!result.output().contains("ikanos-elicit-after-unsafe-requires-durability"),
+            "Expected no replay finding under the memory mode.\n" + result.output());
     }
 
     @Test
