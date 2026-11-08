@@ -205,7 +205,12 @@ public final class McpTaskService {
                     try {
                         // The flow's steps are journaled one by one under this task's execution,
                         // so a step that already ran is restored rather than run again.
-                        return DurableScope.with(runner, executionId, draining::get, work);
+                        // A cancelled task stops at its next step, as a drained one does: cancel
+                        // is cooperative, and a step in flight is not interrupted reliably.
+                        return DurableScope.with(runner, executionId,
+                                () -> draining.get() || runner.status(executionId)
+                                        .orElse(ExecutionStatus.RUNNING) == ExecutionStatus.CANCELLED,
+                                work);
                     } catch (IllegalArgumentException e) {
                         throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
                     } catch (InputRequiredException e) {
