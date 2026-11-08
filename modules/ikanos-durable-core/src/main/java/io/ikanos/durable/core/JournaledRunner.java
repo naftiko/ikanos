@@ -207,15 +207,12 @@ public final class JournaledRunner implements Runner {
 
     /** Marks an execution cancelled, unless it already ended. */
     public void cancel(ExecutionId executionId) {
-        ReentrantLock lock = lockOf(executionId);
-        lock.lock();
-        try {
-            Optional<ExecutionStatus> status = status(executionId);
-            if (status.isPresent() && !status.get().isTerminal()) {
-                stores.index().updateStatus(executionId, ExecutionStatus.CANCELLED);
-            }
-        } finally {
-            lock.unlock();
+        // Not under the execution's lock, which a running execution holds for its whole run: a
+        // cancel must reach it while it runs. The run reads the status at its next loop and at
+        // its next step, and ends as cancelled (see Run#cancelled).
+        Optional<ExecutionStatus> status = status(executionId);
+        if (status.isPresent() && !status.get().isTerminal()) {
+            stores.index().updateStatus(executionId, ExecutionStatus.CANCELLED);
         }
     }
 
@@ -309,6 +306,11 @@ public final class JournaledRunner implements Runner {
                     return fail(new Failure(Failure.DEADLINE_EXCEEDED,
                             "The execution ran past its deadline " + request.deadline()));
                 }
+                if (cancelled()) {
+                    // Cancelled while it ran: it ends as cancelled, whatever the next command.
+                    return new ExecutionResult.Failed(
+                            new Failure("cancelled", "The execution was cancelled"));
+                }
                 List<Command> commands = interpreter.next(this);
                 DirectRunner.checkBatch(commands);
 
@@ -317,6 +319,10 @@ public final class JournaledRunner implements Runner {
                 for (Command command : commands) {
                     switch (command) {
                         case Command.Complete complete -> {
+                            if (cancelled()) {
+                                return new ExecutionResult.Failed(
+                                        new Failure("cancelled", "The execution was cancelled"));
+                            }
                             append(JournalEntry.Kind.EXECUTION_COMPLETED, null,
                                     encodeValue(complete.result()));
                             stores.index().updateStatus(id, ExecutionStatus.COMPLETED);
@@ -387,7 +393,17 @@ public final class JournaledRunner implements Runner {
             }
         }
 
+        /** Whether the execution was cancelled since this run started: a cancel wins. */
+        boolean cancelled() {
+            return status(request.executionId()).orElse(ExecutionStatus.RUNNING)
+                    == ExecutionStatus.CANCELLED;
+        }
+
         ExecutionResult fail(Failure failure) throws ConcurrentAppendException {
+            if (cancelled()) {
+                return new ExecutionResult.Failed(
+                        new Failure("cancelled", "The execution was cancelled"));
+            }
             append(JournalEntry.Kind.EXECUTION_FAILED, null, encodeFailure(failure));
             stores.index().updateStatus(request.executionId(), ExecutionStatus.FAILED);
             return new ExecutionResult.Failed(failure);

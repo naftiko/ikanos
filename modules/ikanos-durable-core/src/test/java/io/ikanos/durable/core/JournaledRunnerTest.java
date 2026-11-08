@@ -208,6 +208,58 @@ public class JournaledRunnerTest {
     }
 
     @Test
+    void cancelShouldReachARunningExecutionAndStopItBeforeTheNextAction() throws Exception {
+        Interpreter screenThenBook = view -> {
+            if (view.outcome(SCREEN).isEmpty()) {
+                return List.of(new Command.ScheduleAction(SCREEN, "screen", null));
+            }
+            if (view.outcome(BOOK).isEmpty()) {
+                return List.of(new Command.ScheduleAction(BOOK, "book-slot", null));
+            }
+            return List.of(new Command.Complete("booked"));
+        };
+        ActionExecutor cancelledFromAnotherThread = request -> {
+            calls.add(request.path().value());
+            // A client cancels while the step runs: the cancel must not wait for the run's end.
+            Thread client = new Thread(() -> runner.cancel(ID));
+            client.start();
+            try {
+                client.join(Duration.ofSeconds(5));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            assertFalse(client.isAlive(), "cancel blocked on the running execution");
+            return "screened";
+        };
+
+        ExecutionResult result = runner.run(ExecutionRequest.of(ID, null), screenThenBook,
+                cancelledFromAnotherThread);
+
+        assertEquals("cancelled",
+                assertInstanceOf(ExecutionResult.Failed.class, result).failure().errorClass());
+        assertEquals(List.of("steps/screen"), calls);
+        assertEquals(ExecutionStatus.CANCELLED, runner.status(ID).orElseThrow());
+    }
+
+    @Test
+    void cancelShouldWinOverAnEndReachedAfterIt() {
+        Interpreter screenThenFail = view -> view.outcome(SCREEN).isEmpty()
+                ? List.of(new Command.ScheduleAction(SCREEN, "screen", null))
+                : List.of(new Command.Fail(new Failure("refused", "Ship in maintenance")));
+        ActionExecutor cancelling = request -> {
+            runner.cancel(ID);
+            return "screened";
+        };
+
+        ExecutionResult result = runner.run(ExecutionRequest.of(ID, null), screenThenFail,
+                cancelling);
+
+        assertEquals("cancelled",
+                assertInstanceOf(ExecutionResult.Failed.class, result).failure().errorClass());
+        assertEquals(ExecutionStatus.CANCELLED, runner.status(ID).orElseThrow());
+    }
+
+    @Test
     void cancelShouldNotChangeAnEndedExecution() {
         runner.run(new ExecutionRequest(ID, null, Map.of(CONFIRM, true), null), CLEARANCE,
                 recording);
