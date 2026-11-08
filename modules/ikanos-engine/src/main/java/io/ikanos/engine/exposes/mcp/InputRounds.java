@@ -28,6 +28,7 @@ import io.ikanos.durable.Failure;
 import io.ikanos.durable.Interpreter;
 import io.ikanos.durable.NodePath;
 import io.ikanos.durable.core.JournaledRunner;
+import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.engine.execution.DurableScope;
 import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
@@ -103,9 +104,14 @@ public final class InputRounds {
         return action -> {
             @SuppressWarnings("unchecked")
             Map<NodePath, Object> answers = (Map<NodePath, Object>) action.action();
+            // A cancelled call stops at its next step, as a shutdown does: cancel is cooperative,
+            // and a step in flight is not interrupted reliably.
+            BooleanSupplier stop = () -> stopping.getAsBoolean()
+                    || runner.status(executionId).orElse(ExecutionStatus.RUNNING)
+                            == ExecutionStatus.CANCELLED;
             try {
                 return ExecutionInputs.with(answers,
-                        () -> DurableScope.with(runner, executionId, stopping, work));
+                        () -> DurableScope.with(runner, executionId, stop, work));
             } catch (IllegalArgumentException e) {
                 throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
             } catch (InputRequiredException e) {
