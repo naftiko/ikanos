@@ -28,6 +28,7 @@ import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.execution.Executions;
+import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
@@ -62,13 +63,27 @@ public class ResourceRestlet extends Restlet {
     private final RestServerSpec serverSpec;
     private final RestServerResourceSpec resourceSpec;
     private final OperationStepExecutor stepExecutor;
+    private final RestInputRequests inputRequests;
+
+    /** Set while an operation runs as a round of input requests: a question ends the round. */
+    private static final ThreadLocal<Boolean> IN_ROUND = ThreadLocal.withInitial(() -> false);
 
     public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
             RestServerResourceSpec resourceSpec) {
+        this(capability, serverSpec, resourceSpec, null);
+    }
+
+    /**
+     * @param inputRequests answers the operations that may ask their caller for input, or
+     *        {@code null} when they answer {@code 501}
+     */
+    public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
+            RestServerResourceSpec resourceSpec, RestInputRequests inputRequests) {
         this.capability = capability;
         this.serverSpec = serverSpec;
         this.resourceSpec = resourceSpec;
         this.stepExecutor = new OperationStepExecutor(capability, serverSpec.getNamespace());
+        this.inputRequests = inputRequests;
     }
 
     @Override
@@ -124,8 +139,6 @@ public class ResourceRestlet extends Restlet {
      * response to indicate a bad request and marks the context as handled.
      */
     private boolean handleFromOperationSpec(Request request, Response response) {
-        ConsumedResult found = null;
-
         for (RestServerOperationSpec serverOp : getResourceSpec().getOperations().values()) {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
@@ -139,112 +152,176 @@ public class ResourceRestlet extends Restlet {
                 OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,
                         getServerSpec().getNamespace());
 
-                // Delegate to aggregate function when ref is set
-                if (serverOp.getRef() != null) {
-                    return executeViaAggregate(serverOp, request, response, inputParameters);
+                // An operation that may ask its caller answers in rounds (202, then answers)
+                if (inputRequests != null && inputRequests.applies(serverOp)) {
+                    inputRequests.first(this, serverOp, request, response, inputParameters);
+                    return true;
                 }
-
-                if (serverOp.getCall() != null) {
-                    ConsumedInvocation invocation;
-                    try {
-                        invocation = stepExecutor.findClientRequestFor(serverOp.getCall(),
-                                inputParameters);
-                    } catch (IllegalArgumentException e) {
-                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
-                                "Error resolving request parameters",
-                                "Error resolving request parameters", e);
-                        return true;
-                    }
-
-                    if (invocation != null) {
-                        try {
-                            // Send the request to the target endpoint
-                            found = Executions.invoke(invocation);
-                            if (found != null && found.noResponseReceived()) {
-                                return sendUpstreamUnreachable(response, found.status(),
-                                        "Call '" + serverOp.getCall().getOperation() + "'", found);
-                            }
-                            response.setStatus(statusOf(found));
-                        } catch (Exception e) {
-                            sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                    "Error while handling a consumed call",
-                                    "Error while handling consumed call in call mode", e);
-                            return true;
-                        }
-
-                        sendResponse(serverOp, response, found);
-                        return true;
-                    } else if (canBuildMockResponse(serverOp)) {
-                        // No HTTP client adapter found, use mock mode with static values
-                        sendMockResponse(serverOp, response, inputParameters);
-                        return true;
-                    } else {
-                        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
-                        response.setEntity("Invalid call format: "
-                                + (serverOp.getCall() != null ? serverOp.getCall().getOperation()
-                                        : "null"),
-                                MediaType.TEXT_PLAIN);
-                        return true;
-                    }
-                } else {
-                    // Orchestrated mode - execute steps in sequence
-                    try {
-                        OperationStepExecutor.StepExecutionResult stepResult =
-                                stepExecutor.executeSteps(serverOp.getSteps(), inputParameters);
-                        found = stepResult.lastResult;
-
-                        // Apply step output mappings if defined
-                        if (serverOp.getMappings() != null
-                                && !serverOp.getMappings().isEmpty()) {
-                            String mapped = stepExecutor.resolveStepMappings(
-                                    serverOp.getMappings(), serverOp.getOutputParameters(),
-                                    stepResult.stepContext);
-                            if (mapped != null) {
-                                response.setStatus(Status.SUCCESS_OK);
-                                response.setEntity(mapped, MediaType.APPLICATION_JSON);
-                                response.commit();
-                                return true;
-                            }
-                        }
-                    } catch (OperationStepExecutor.StepFailedException e) {
-                        sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
-                                "An upstream call failed",
-                                "Orchestrated step failed", e);
-                        return true;
-                    } catch (IllegalArgumentException e) {
-                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
-                                "Invalid request", "Invalid argument in orchestrated steps", e);
-                        return true;
-                    } catch (InputRequiredException e) {
-                        sendInputRequired(response, e);
-                        return true;
-                    } catch (RuntimeException e) {
-                        sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                "Error while handling a consumed call",
-                                "Error while handling orchestrated steps", e);
-                        return true;
-                    } catch (IOException e) {
-                        sendError(response, Status.SERVER_ERROR_INTERNAL,
-                                "Error resolving step output mappings",
-                                "Error resolving step output mappings", e);
-                        return true;
-                    }
-
-                    if (found != null) {
-                        // Return the response based on the last client request
-                        response.setStatus(statusOf(found));
-                        sendResponse(serverOp, response, found);
-                        return true;
-                    } else if (canBuildMockResponse(serverOp)) {
-                        // No HTTP client adapter found, use mock mode with static values
-                        sendMockResponse(serverOp, response, inputParameters);
-                        return true;
-                    }
-                }
+                return runOperation(serverOp, request, response, inputParameters);
             }
         }
 
         return false;
+    }
+
+    /**
+     * Runs an operation with its resolved input parameters and writes its response: the
+     * referenced flow, the singleton call, or the steps.
+     */
+    boolean runOperation(RestServerOperationSpec serverOp, Request request, Response response,
+            Map<String, Object> inputParameters) {
+        ConsumedResult found = null;
+        // Delegate to aggregate function when ref is set
+        if (serverOp.getRef() != null) {
+            return executeViaAggregate(serverOp, request, response, inputParameters);
+        }
+
+        if (serverOp.getCall() != null) {
+            ConsumedInvocation invocation;
+            try {
+                invocation = stepExecutor.findClientRequestFor(serverOp.getCall(),
+                        inputParameters);
+            } catch (IllegalArgumentException e) {
+                sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                        "Error resolving request parameters",
+                        "Error resolving request parameters", e);
+                return true;
+            }
+
+            if (invocation != null) {
+                try {
+                    // Send the request to the target endpoint
+                    found = Executions.invoke(invocation);
+                    if (found != null && found.noResponseReceived()) {
+                        return sendUpstreamUnreachable(response, found.status(),
+                                "Call '" + serverOp.getCall().getOperation() + "'", found);
+                    }
+                    response.setStatus(statusOf(found));
+                } catch (Exception e) {
+                    sendError(response, Status.SERVER_ERROR_INTERNAL,
+                            "Error while handling a consumed call",
+                            "Error while handling consumed call in call mode", e);
+                    return true;
+                }
+
+                sendResponse(serverOp, response, found);
+                return true;
+            } else if (canBuildMockResponse(serverOp)) {
+                // No HTTP client adapter found, use mock mode with static values
+                sendMockResponse(serverOp, response, inputParameters);
+                return true;
+            } else {
+                response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+                response.setEntity("Invalid call format: "
+                        + (serverOp.getCall() != null ? serverOp.getCall().getOperation()
+                                : "null"),
+                        MediaType.TEXT_PLAIN);
+                return true;
+            }
+        } else {
+            // Orchestrated mode - execute steps in sequence
+            try {
+                OperationStepExecutor.StepExecutionResult stepResult =
+                        stepExecutor.executeSteps(serverOp.getSteps(), inputParameters);
+                found = stepResult.lastResult;
+
+                // Apply step output mappings if defined
+                if (serverOp.getMappings() != null
+                        && !serverOp.getMappings().isEmpty()) {
+                    String mapped = stepExecutor.resolveStepMappings(
+                            serverOp.getMappings(), serverOp.getOutputParameters(),
+                            stepResult.stepContext);
+                    if (mapped != null) {
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity(mapped, MediaType.APPLICATION_JSON);
+                        response.commit();
+                        return true;
+                    }
+                }
+            } catch (OperationStepExecutor.StepFailedException e) {
+                sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
+                        "An upstream call failed",
+                        "Orchestrated step failed", e);
+                return true;
+            } catch (IllegalArgumentException e) {
+                sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                        "Invalid request", "Invalid argument in orchestrated steps", e);
+                return true;
+            } catch (InputRequiredException e) {
+                sendInputRequired(response, e);
+                return true;
+            } catch (InputDeclinedException e) {
+                sendError(response, Status.CLIENT_ERROR_CONFLICT,
+                        "The caller declined the question", "Caller declined", e);
+                return true;
+            } catch (RuntimeException e) {
+                sendError(response, Status.SERVER_ERROR_INTERNAL,
+                        "Error while handling a consumed call",
+                        "Error while handling orchestrated steps", e);
+                return true;
+            } catch (IOException e) {
+                sendError(response, Status.SERVER_ERROR_INTERNAL,
+                        "Error resolving step output mappings",
+                        "Error resolving step output mappings", e);
+                return true;
+            }
+
+            if (found != null) {
+                // Return the response based on the last client request
+                response.setStatus(statusOf(found));
+                sendResponse(serverOp, response, found);
+                return true;
+            } else if (canBuildMockResponse(serverOp)) {
+                // No HTTP client adapter found, use mock mode with static values
+                sendMockResponse(serverOp, response, inputParameters);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Runs an operation as one round of input requests and returns what it answered, as JSON
+     * the journal can keep: {@code status}, {@code mediaType} and a text {@code body}. A question
+     * ends the round with an {@link InputRequiredException}, propagated to the caller.
+     *
+     * @throws IllegalStateException when the operation answers with a body that is not text,
+     *         which a round cannot keep
+     */
+    JsonNode runForRounds(RestServerOperationSpec serverOp, Map<String, Object> inputParameters) {
+        Request request = new Request();
+        Response scratch = new Response(request);
+        IN_ROUND.set(true);
+        try {
+            runOperation(serverOp, request, scratch, inputParameters);
+        } finally {
+            IN_ROUND.remove();
+        }
+        tools.jackson.databind.node.ObjectNode outcome =
+                IkanosMappers.json().createObjectNode();
+        outcome.put("status", scratch.getStatus() != null ? scratch.getStatus().getCode() : 200);
+        Representation entity = scratch.getEntity();
+        if (entity != null && entity.isAvailable()) {
+            MediaType type = entity.getMediaType();
+            if (type != null && !isText(type)) {
+                throw new IllegalStateException("The operation answered with a body that is not "
+                        + "text (" + type + "), which an operation that asks cannot keep");
+            }
+            try {
+                outcome.put("body", entity.getText());
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot read the operation's response", e);
+            }
+            outcome.put("mediaType", type != null ? type.toString()
+                    : MediaType.APPLICATION_JSON.toString());
+        }
+        return outcome;
+    }
+
+    private static boolean isText(MediaType type) {
+        return MediaType.TEXT_ALL.includes(type) || MediaType.APPLICATION_JSON.includes(type)
+                || MediaType.APPLICATION_XML.includes(type)
+                || type.getSubType().endsWith("+json") || type.getSubType().endsWith("+xml");
     }
 
     /**
@@ -303,6 +380,10 @@ public class ResourceRestlet extends Restlet {
             return true;
         } catch (InputRequiredException e) {
             sendInputRequired(response, e);
+            return true;
+        } catch (InputDeclinedException e) {
+            sendError(response, Status.CLIENT_ERROR_CONFLICT, "The caller declined the question",
+                    "Caller declined", e);
             return true;
         } catch (Exception e) {
             sendError(response, Status.SERVER_ERROR_INTERNAL, "Error in aggregate function call",
@@ -408,6 +489,9 @@ public class ResourceRestlet extends Restlet {
      * {@code 501 Not Implemented}, naming the step, rather than a generic server error.
      */
     void sendInputRequired(Response response, InputRequiredException e) {
+        if (IN_ROUND.get()) {
+            throw e;
+        }
         String steps = e.questions().stream()
                 .map(InputRequiredException.Question::key)
                 .collect(java.util.stream.Collectors.joining(", "));

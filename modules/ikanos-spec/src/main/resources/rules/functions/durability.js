@@ -8,20 +8,17 @@
  *   - "task-mode":      a flow declares `semantics.interaction.mode: task` while
  *                       the capability runs under `none`: there is nowhere to
  *                       keep the task;
- *   - "elicit-safety":  an `elicit` step follows a call step whose target is not
- *                       read-only. An answer replays the steps from the start, so
- *                       that call would run again: without a journal under `none`,
- *                       and in every mode until journal-backed questions ship. A target is read-only when it is a consumed HTTP
+ *   - "elicit-safety":  under `none`, an `elicit` step follows a call step whose
+ *                       target is not read-only. Without a journal, an answer
+ *                       replays the steps from the start, so that call would run
+ *                       again. A target is read-only when it is a consumed HTTP
  *                       operation with a safe method (RFC 9110), a consumed MCP
  *                       tool with `hints.readOnly: true`, or a flow declaring
  *                       `semantics.safe: true`. Targets in an imported namespace
  *                       are out of reach of a single-document lint and skipped;
  *   - "sealing-key-binds": `durability.sealingKey` is not a single Mustache
  *                       expression naming a key declared in `binds` or
- *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`);
- *   - "elicit-over-rest": a REST operation whose steps, or whose `ref:` or
- *                       `call:` flow (and the flows it calls), include an
- *                       `elicit` step, which REST cannot serve yet.
+ *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`).
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
@@ -44,14 +41,10 @@ export default function durability(targetVal, options) {
     return control.mode === "none" ? checkTaskMode(capability) : [];
   }
   if (check === "elicit-safety") {
-    // Every mode: until journal-backed questions ship, an answer replays the steps.
-    return checkElicitSafety(capability, control.mode);
+    return control.mode === "none" ? checkElicitSafety(capability) : [];
   }
   if (check === "sealing-key-binds") {
     return checkSealingKey(targetVal, control);
-  }
-  if (check === "elicit-over-rest") {
-    return checkElicitOverRest(capability);
   }
   return;
 }
@@ -130,80 +123,6 @@ function collectBindings(doc) {
   return result;
 }
 
-function hasElicit(steps) {
-  return entries(steps).some((s) => s.value && s.value.type === "elicit");
-}
-
-// Flows that ask for input, directly or through the flows they call.
-function elicitingFlows(capability) {
-  const flows = new Map();
-  for (const { key, flow } of flowsOf(capability)) {
-    flows.set(key, flow);
-  }
-  const memo = new Map();
-  const asks = (key, visiting) => {
-    if (memo.has(key)) {
-      return memo.get(key);
-    }
-    const flow = flows.get(key);
-    if (!flow || visiting.has(key)) {
-      return false;
-    }
-    visiting.add(key);
-    let result = hasElicit(flow.steps);
-    for (const s of entries(flow.steps)) {
-      const step = s.value;
-      if (!result && step && step.type === "call" && typeof step.call === "string") {
-        result = asks(step.call, visiting);
-      }
-    }
-    visiting.delete(key);
-    memo.set(key, result);
-    return result;
-  };
-  return (key) => typeof key === "string" && asks(key, new Set());
-}
-
-function checkElicitOverRest(capability) {
-  const asks = elicitingFlows(capability);
-  const results = [];
-  for (const e of entries(capability.exposes)) {
-    const adapter = e.value;
-    if (!adapter || adapter.type !== "rest") {
-      continue;
-    }
-    const base = ["capability", "exposes", ...e.locator];
-    for (const r of entries(adapter.resources)) {
-      for (const o of entries(r.value && r.value.operations)) {
-        const op = o.value;
-        if (!op || typeof op !== "object") {
-          continue;
-        }
-        const opPath = base.concat("resources", ...r.locator, "operations", ...o.locator);
-        let target = null;
-        if (hasElicit(op.steps)
-            || entries(op.steps).some((s) => s.value && s.value.type === "call"
-              && asks(s.value.call))) {
-          target = opPath.concat("steps");
-        } else if (asks(op.ref)) {
-          target = opPath.concat("ref");
-        } else if (asks(op.call)) {
-          target = opPath.concat("call");
-        }
-        if (target) {
-          results.push({
-            message: "Operation '" + o.key + "' reaches an elicit step, which REST cannot "
-              + "serve yet: a call that reaches it answers 501 Not Implemented. Expose the "
-              + "same steps as an MCP tool to ask the caller.",
-            path: target,
-          });
-        }
-      }
-    }
-  }
-  return results;
-}
-
 function entries(collection) {
   if (Array.isArray(collection)) {
     return collection.map((value, index) => ({
@@ -273,6 +192,7 @@ function checkTaskMode(capability) {
 function buildSafety(capability) {
   const safe = new Map(); // "ns.name" -> true | false
   const imported = new Set();
+  const asks = new Set(); // "ns.tool" of consumed MCP tools declared mayElicit: true
   for (const c of entries(capability.consumes)) {
     const consumed = c.value;
     if (consumed && typeof consumed.import === "string") {
@@ -286,6 +206,9 @@ function buildSafety(capability) {
       for (const t of entries(consumed.tools)) {
         const hints = t.value && t.value.hints;
         safe.set(consumed.namespace + "." + t.key, !!(hints && hints.readOnly === true));
+        if (t.value && t.value.mayElicit === true) {
+          asks.add(consumed.namespace + "." + t.key);
+        }
       }
     } else {
       for (const r of entries(consumed.resources)) {
@@ -300,7 +223,7 @@ function buildSafety(capability) {
   for (const { key, flow } of flowsOf(capability)) {
     safe.set(key, !!(flow.semantics && flow.semantics.safe === true));
   }
-  return { safe, imported };
+  return { safe, imported, asks };
 }
 
 function stepContainers(capability) {
@@ -334,8 +257,8 @@ function stepContainers(capability) {
   return containers;
 }
 
-function checkElicitSafety(capability, mode) {
-  const { safe, imported } = buildSafety(capability);
+function checkElicitSafety(capability) {
+  const { safe, imported, asks } = buildSafety(capability);
   const results = [];
   for (const container of stepContainers(capability)) {
     let unsafeCall = null;
@@ -344,26 +267,25 @@ function checkElicitSafety(capability, mode) {
       if (!step || typeof step !== "object") {
         continue;
       }
+      // A call to a consumed MCP tool that may ask is a question too: its upstream's questions
+      // pass through, and the answer replays the steps before it.
+      const asksHere = step.type === "elicit"
+        || (step.type === "call" && typeof step.call === "string" && asks.has(step.call));
+      if (asksHere && unsafeCall) {
+        results.push({
+          message: container.label + " asks for input in step '" + s.key + "' after step '"
+            + unsafeCall + "', which is not read-only. Without a journal the answer replays "
+            + "the steps, so that call would run again. Declare a durability mode on the "
+            + "control port, or move the question before it.",
+          path: container.path.concat(...s.locator),
+        });
+      }
       if (step.type === "call" && typeof step.call === "string" && !unsafeCall) {
         const dot = step.call.indexOf(".");
         const namespace = dot > 0 ? step.call.substring(0, dot) : step.call;
         if (!imported.has(namespace) && safe.get(step.call) === false) {
           unsafeCall = s.key;
         }
-      }
-      if (step.type === "elicit" && unsafeCall) {
-        results.push({
-          message: container.label + " asks for input in step '" + s.key + "' after step '"
-            + unsafeCall + "', which is not read-only. "
-            + (mode === "none"
-              ? "Without a journal the answer replays the steps, so that call would run "
-                + "again. Move the question before it; a durability mode alone is not "
-                + "enough yet."
-              : "The answer still replays the steps in the '" + mode + "' mode, until "
-                + "journal-backed questions ship, so that call would run again. Move the "
-                + "question before it."),
-          path: container.path.concat(...s.locator),
-        });
       }
     }
   }

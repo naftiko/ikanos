@@ -31,12 +31,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.execution.Elicitation;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -249,8 +253,16 @@ public class McpServerAdapter extends ServerAdapter {
         if (taskService == null) {
             return 0;
         }
+        return taskService.resume(taskWork());
+    }
+
+    /**
+     * The tool call of a task of this adapter, from the task's entry and recorded arguments, or
+     * {@code null} for an entry of another adapter: what a resumed or answered task runs.
+     */
+    public BiFunction<String, JsonNode, Callable<JsonNode>> taskWork() {
         String prefix = "mcp:" + getMcpServerSpec().getNamespace() + "/";
-        return taskService.resume((entry, arguments) -> {
+        return (entry, arguments) -> {
             if (!entry.startsWith(prefix)) {
                 return null;
             }
@@ -259,7 +271,25 @@ public class McpServerAdapter extends ServerAdapter {
             Map<String, Object> callArguments = arguments == null || !arguments.isObject()
                     ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
             return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
-        });
+        };
+    }
+
+    /**
+     * Whether the tool's flow may ask its caller for input: it has an {@code elicit} step, or
+     * calls a flow that may, at any depth.
+     */
+    public boolean mayElicit(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        return toolSpec != null
+                && Elicitation.mayAsk(getCapability(), toolSpec.getRef(), toolSpec.getSteps());
+    }
+
+    /** Whether the steps of the resource at {@code uri} may ask its caller for input. */
+    public boolean resourceMayElicit(String uri) {
+        return getMcpServerSpec().getResources().values().stream()
+                .filter(resource -> uri.equals(resource.getUri()))
+                .anyMatch(resource -> Elicitation.mayAsk(getCapability(), null,
+                        resource.getSteps()));
     }
 
     /**

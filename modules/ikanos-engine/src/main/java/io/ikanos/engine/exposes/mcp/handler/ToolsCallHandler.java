@@ -80,6 +80,15 @@ public class ToolsCallHandler extends McpCallHandler {
             // declares the tasks extension; otherwise the call is answered synchronously.
             if (adapter.getTaskService() != null && adapter.isTaskTool(toolName)) {
                 if (capabilities.supportsTasks()) {
+                    // A task that may ask needs a client that can answer: fail before creating
+                    // one that could never be answered (SEP-2663 input requests).
+                    if (!capabilities.supportsElicitation() && adapter.mayElicit(toolName)) {
+                        ObjectNode required = MAPPER.createObjectNode();
+                        required.putObject("elicitation");
+                        return missingCapability(idNode, "Tool '" + toolName
+                                + "' asks for input; it needs the elicitation capability",
+                                required);
+                    }
                     String entry =
                             "mcp:" + adapter.getMcpServerSpec().getNamespace() + "/" + toolName;
                     return new HandlerSuccessResult(adapter.getTaskService().create(entry,
@@ -104,6 +113,11 @@ public class ToolsCallHandler extends McpCallHandler {
             String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
             return new HandlerSuccessResult(toolError(ref));
         }
+    }
+
+    @Override
+    protected boolean mayAsk(String toolName) {
+        return adapter.mayElicit(toolName);
     }
 
     /** Longest expected duration, in milliseconds, still answered synchronously. */

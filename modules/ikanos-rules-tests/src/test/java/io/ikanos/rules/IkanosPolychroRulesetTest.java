@@ -592,12 +592,18 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void elicitSafetyRuleShouldFireUnderADurableModeUntilJournalBackedQuestionsShip() {
-        LintResult result = lintFixture("rules/polychro-durability-memory-violations.yaml");
-        assertTrue(result.output().contains("ikanos-elicit-after-unsafe-requires-durability")
-                && result.output().contains("'memory' mode"),
-            "Expected an answer replay to be reported under the memory mode.\n"
-                + result.output());
+    public void elicitSafetyRuleShouldCountACallToAConsumedToolThatMayAsk() {
+        assertRuleFires("rules/polychro-durability-upstream-elicit.yaml",
+            "ikanos-elicit-after-unsafe-requires-durability");
+    }
+
+    @Test
+    public void elicitSafetyRuleShouldNotFireUnderADurableMode() {
+        // Under memory and local, a question after a write resumes a journal instead of
+        // replaying the write.
+        LintResult result = lintFixture("rules/polychro-durability-memory-elicit.yaml");
+        assertTrue(!result.output().contains("ikanos-elicit-after-unsafe-requires-durability"),
+            "Expected no replay finding under the memory mode.\n" + result.output());
     }
 
     @Test
@@ -631,15 +637,11 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void elicitOverRestRuleShouldWarnOnEveryOperationThatReachesAQuestion() {
-        String fixture = "rules/polychro-durability-warnings.yaml";
-        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'confirm-inline'");
-        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'confirm-by-ref'");
-        assertWarnsOn(fixture, "ikanos-elicit-not-served-over-rest", "'clear-by-ref'");
-        String output = lintFixture(fixture).output();
-        assertTrue(output.lines().noneMatch(line -> line.contains("ikanos-elicit-not-served")
-                && line.contains("'get-voyage'")),
-            "Expected no elicit warning on an operation that asks nothing.\n" + output);
+    public void restOperationsThatAskShouldNoLongerBeWarnedAbout() {
+        // REST serves input requests (202, then answers POSTed to the Location).
+        String output = lintFixture("rules/polychro-durability-warnings.yaml").output();
+        assertTrue(!output.contains("ikanos-elicit-not-served-over-rest"),
+            "Expected no REST elicit warning.\n" + output);
     }
 
     @Test

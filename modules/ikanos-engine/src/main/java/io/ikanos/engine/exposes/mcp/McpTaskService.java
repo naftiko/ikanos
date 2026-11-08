@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +36,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -51,7 +53,9 @@ import io.ikanos.durable.NodePath;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
+import io.ikanos.durable.ExecutionView;
 import io.ikanos.engine.execution.DurableScope;
+import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
@@ -74,19 +78,25 @@ import io.ikanos.spec.util.IkanosMappers;
  * the {@code local} mode: steps already journaled are restored, not run again. A task started by
  * another version of the capability fails instead, since its steps may no longer exist.</p>
  *
- * <p>The task ID is a random 128-bit value, distinct from the execution ID. Input requests and
- * {@code tasks/update} arrive with a later increment.</p>
+ * <p>A task whose flow asks for input ({@code elicit}) does not fail: its tool-call action ends
+ * with the questions as its outcome, and the task's execution waits for an update holding the
+ * answers, which {@link #update} delivers. The task then reports {@code input_required} with
+ * those questions, from the journal, on any replica and after a restart. Once answered, the next
+ * round calls the tool again with every answer so far: the steps journaled in earlier rounds are
+ * restored, the answered {@code elicit} steps pass, and the flow goes on.</p>
+ *
+ * <p>The task ID is a random 128-bit value, distinct from the execution ID.</p>
  */
 public final class McpTaskService {
 
-    /** Path of the single action a task runs. */
-    static final NodePath TOOL_CALL = NodePath.of("tool-call");
+    /** Path of a task's tool call; round {@code n} of a task that asks visits it {@code n} times. */
+    static final NodePath TOOL_CALL = InputRounds.CALL;
+
+    /** Path of the update that answers the questions of a round. */
+    static final NodePath ANSWERS = InputRounds.ANSWERS;
 
     /** Failure class of a call rejected for invalid parameters: a JSON-RPC error, not a tool error. */
-    static final String INVALID_PARAMS = "invalid-params";
-
-    /** Failure class of a task whose flow asked for input: tasks/update is not served yet. */
-    static final String INPUT_REQUIRED = "input-required";
+    static final String INVALID_PARAMS = InputRounds.INVALID_PARAMS;
 
     /** Failure class of a task started by another version of the capability. */
     static final String SPEC_CHANGED = "spec-changed";
@@ -100,8 +110,17 @@ public final class McpTaskService {
     /** Label holding the SHA-256 of the principal that created the task. */
     static final String PRINCIPAL = "principal";
 
+    /** Label marking the hidden execution of an inline call answered in rounds. */
+    static final String KIND = InlineRounds.KIND;
+
+    /** Value of {@link #KIND} for an inline call answered by multi round-trip requests. */
+    static final String MRTR = InlineRounds.MRTR;
+
     /** Suggested polling interval, in milliseconds. */
     static final long POLL_INTERVAL_MS = 1000;
+
+    /** Longest wait, in milliseconds, for a round that asked to end before answers resume it. */
+    static final long ROUND_END_WAIT_MS = 5000;
 
     /** Most unfinished tasks resumed at once. */
     static final int RESUME_LIMIT = 10_000;
@@ -116,6 +135,7 @@ public final class McpTaskService {
     private final Map<ExecutionId, Instant> lastUpdated = new ConcurrentHashMap<>();
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean draining = new AtomicBoolean();
+    private final InlineRounds inline;
 
     /**
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
@@ -125,6 +145,7 @@ public final class McpTaskService {
         this.runner = runner;
         this.clock = clock;
         this.ttlMs = ttlMs;
+        this.inline = new InlineRounds(runner, clock, draining::get);
     }
 
     /**
@@ -168,6 +189,9 @@ public final class McpTaskService {
         int resumed = 0;
         List<ExecutionRecord> unfinished = new ArrayList<>(
                 runner.list(ExecutionStatus.RUNNING, RESUME_LIMIT));
+        // A waiting task resumes too: answers delivered just before the process stopped are in
+        // its inbox; without them, it waits again at once, running nothing.
+        unfinished.addAll(runner.list(ExecutionStatus.SUSPENDED, RESUME_LIMIT));
         for (ExecutionRecord record : unfinished) {
             if (!record.labels().containsKey(TASK_ID) || running.containsKey(record.executionId())
                     || record.entry() == null) {
@@ -201,19 +225,8 @@ public final class McpTaskService {
         ExecutionRequest request = ExecutionRequest.of(executionId, null);
         Future<?> future = workers.submit(() -> {
             try {
-                runner.run(request, interpreter(), action -> {
-                    try {
-                        // The flow's steps are journaled one by one under this task's execution,
-                        // so a step that already ran is restored rather than run again.
-                        return DurableScope.with(runner, executionId, draining::get, work);
-                    } catch (IllegalArgumentException e) {
-                        throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
-                    } catch (InputRequiredException e) {
-                        // Input requests on a task (tasks/update) arrive with the next increment.
-                        throw new ActionFailedException(new Failure(INPUT_REQUIRED,
-                                "This task asks for input, which tasks do not support yet"), e);
-                    }
-                });
+                runner.run(request, InputRounds.interpreter(),
+                        InputRounds.executor(runner, executionId, draining::get, work));
             } finally {
                 lastUpdated.put(executionId, clock.instant());
                 running.remove(executionId);
@@ -263,12 +276,79 @@ public final class McpTaskService {
         }
         ObjectNode node = switch (record.status()) {
             case RUNNING -> describe(taskId, record, "working");
-            case SUSPENDED -> describe(taskId, record, "input_required");
+            // Answered and resubmitted, but its worker has not picked it up yet: working.
+            case SUSPENDED -> running.containsKey(record.executionId())
+                    ? describe(taskId, record, "working") : waiting(taskId, record);
             case CANCELLED -> describe(taskId, record, "cancelled");
             case COMPLETED, FAILED -> terminal(taskId, record);
         };
         node.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
         return Optional.of(node);
+    }
+
+    /**
+     * Answers a task's questions, for {@code tasks/update}: the responses to the questions the
+     * task waits on are delivered once, and the task resumes with them; responses to other keys,
+     * or to a task that is not waiting, are ignored. A response delivered before, by a retried
+     * update, is not delivered again.
+     *
+     * @param responses the {@code inputResponses}, keyed as the questions are
+     * @param workFor the tool call for a task's entry and arguments, as {@link #resume} takes
+     * @return {@code false} for an unknown ID or another principal's task
+     */
+    public boolean update(String taskId, String principal, JsonNode responses,
+            BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        ExecutionRecord record = find(taskId, principal);
+        if (record == null) {
+            return false;
+        }
+        if (record.status() != ExecutionStatus.SUSPENDED || responses == null
+                || !responses.isObject()) {
+            return true;
+        }
+        ExecutionView view = runner.view(record.executionId());
+        int round = InputRounds.lastRound(view);
+        ObjectNode answers = InputRounds.answersTo(InputRounds.questions(view, round), responses);
+        if (answers.isEmpty()) {
+            return true;
+        }
+        // Into the inbox first: a crash after it leaves the answers for the next run to read.
+        runner.deliver(record.executionId(), ANSWERS.visit(round), answers);
+        // The round that asked may still be finishing on its worker: let it end, so the answers
+        // are not left in the inbox with nothing running to read them.
+        Future<?> ending = running.get(record.executionId());
+        if (ending != null) {
+            try {
+                ending.get(ROUND_END_WAIT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException | CancellationException | TimeoutException e) {
+                // Ended one way or another, or still running: either way, go on.
+            }
+        }
+        if (!running.containsKey(record.executionId()) && !draining.get()) {
+            Callable<JsonNode> work = workFor.apply(record.entry(),
+                    runner.input(record.executionId()).map(JsonNode.class::cast).orElse(null));
+            if (work != null) {
+                submit(record.executionId(), work);
+            }
+        }
+        lastUpdated.put(record.executionId(), clock.instant());
+        return true;
+    }
+
+    /**
+     * Runs one round of an inline call answered by multi round-trip requests, journal-backed
+     * ({@link InlineRounds#run}).
+     */
+    public InlineRounds.Round inRounds(String entry, String principal, JsonNode arguments,
+            ExecutionId executionId, JsonNode responses, Callable<JsonNode> work) {
+        return inline.run(entry, principal, arguments, executionId, responses, work);
+    }
+
+    /** Fails the inline calls left unanswered past their state's expiry. */
+    void sweepUnanswered() {
+        inline.sweepUnanswered();
     }
 
     /** Cancels a task; returns {@code false} for an unknown ID or another principal's task. */
@@ -296,6 +376,17 @@ public final class McpTaskService {
                 .findFirst().orElse(null);
     }
 
+    /** A task waiting on input: {@code input_required}, with the questions of its last round. */
+    private ObjectNode waiting(String taskId, ExecutionRecord record) {
+        ObjectNode node = describe(taskId, record, "input_required");
+        ExecutionView view = runner.view(record.executionId());
+        ObjectNode questions = InputRounds.questions(view, InputRounds.lastRound(view));
+        if (questions != null) {
+            node.set("inputRequests", questions);
+        }
+        return node;
+    }
+
     private ObjectNode terminal(String taskId, ExecutionRecord record) {
         ExecutionResult result = runner.result(record.executionId()).orElse(null);
         if (result instanceof ExecutionResult.Completed completed) {
@@ -311,9 +402,8 @@ public final class McpTaskService {
                 ? JsonRpcError.INVALID_PARAMS.getCode() : JsonRpcError.INTERNAL_ERROR.getCode());
         error.put("message", INVALID_PARAMS.equals(failure.errorClass())
                 ? "Invalid params: " + failure.message()
-                : INPUT_REQUIRED.equals(failure.errorClass())
-                        || SPEC_CHANGED.equals(failure.errorClass()) ? failure.message()
-                                : "Task execution failed");
+                : SPEC_CHANGED.equals(failure.errorClass()) ? failure.message()
+                        : "Task execution failed");
         return node;
     }
 
@@ -333,19 +423,6 @@ public final class McpTaskService {
             node.put("pollIntervalMs", POLL_INTERVAL_MS);
         }
         return node;
-    }
-
-    private static Interpreter interpreter() {
-        return view -> {
-            var outcome = view.outcome(TOOL_CALL);
-            if (outcome.isEmpty()) {
-                return List.of(new Command.ScheduleAction(TOOL_CALL, "tools/call", null));
-            }
-            if (outcome.get() instanceof ActionOutcome.Failed failed) {
-                return List.of(new Command.Fail(failed.failure()));
-            }
-            return List.of(new Command.Complete(((ActionOutcome.Succeeded) outcome.get()).value()));
-        };
     }
 
     /** The SHA-256 of a principal, so the store never holds the caller's identity in clear. */

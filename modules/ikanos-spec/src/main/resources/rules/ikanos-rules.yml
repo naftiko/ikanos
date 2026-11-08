@@ -235,15 +235,15 @@ rules:
         check: task-mode
 
   ikanos-elicit-after-unsafe-requires-durability:
-    message: "{{error}}"
+    message: "An `elicit` step after a call that is not read-only needs a durability mode."
     description: >
-      An answer to an `elicit` step replays the steps from the start with the
-      answers collected so far (a stateless multi round-trip request), in every
-      durability mode until journal-backed questions ship. Every call before
-      the question therefore runs again on each answer, which is only harmless
-      when it is read-only: a consumed HTTP operation with a safe method, a
-      consumed MCP tool with `hints.readOnly: true`, or a flow with
-      `semantics.safe: true`. Ask the question before the first write.
+      Under the `none` durability mode, an answer to an `elicit` step replays
+      the steps from the start with the answers collected so far (a stateless
+      multi round-trip request). Every call before the question therefore runs
+      again on each answer, which is only harmless when it is read-only: a
+      consumed HTTP operation with a safe method, a consumed MCP tool with
+      `hints.readOnly: true`, or a flow with `semantics.safe: true`. Declare a
+      durability mode, or ask the question before the first write.
     severity: error
     recommended: true
     given: "$"
@@ -268,21 +268,6 @@ rules:
       function: durability
       functionOptions:
         check: sealing-key-binds
-
-  ikanos-elicit-not-served-over-rest:
-    message: "{{error}}"
-    description: >
-      An `elicit` step asks the caller for input. MCP serves it through a
-      multi round-trip request or a task; REST has no way to carry the question
-      yet, so a REST call that reaches the step answers `501 Not Implemented`.
-      The same steps work when exposed as an MCP tool.
-    severity: warn
-    recommended: true
-    given: "$"
-    then:
-      function: durability
-      functionOptions:
-        check: elicit-over-rest
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

@@ -1,10 +1,9 @@
 ikanos: 1.0.0-beta9
 info:
-  display: Durability violations under memory
+  display: Question after a write under memory
   description: >-
-    Negative fixture: under the memory mode, an inline tool asks for input after
-    a write. The answer still replays the steps until journal-backed questions
-    ship, so the booking would run again.
+    Positive fixture: under the memory mode, an inline tool asks for input after
+    a write. The answer resumes the journal, so the booking is not made again.
 capability:
   consumes:
   - type: http

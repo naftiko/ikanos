@@ -45,6 +45,14 @@ public final class ExecutionInputs {
     }
 
     /** The answers of the current request; empty outside {@link #with}. */
+    /**
+     * The caller's answers available on this thread, by key: those a multi round-trip request or
+     * a round of a journaled call carried. Empty when there are none.
+     */
+    public static Map<NodePath, Object> answers() {
+        return current();
+    }
+
     static Map<NodePath, Object> current() {
         Map<NodePath, Object> answers = CURRENT.get();
         return answers != null ? answers : Map.of();

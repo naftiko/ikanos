@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.execution;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import io.ikanos.durable.ActionFailedException;
 import io.ikanos.durable.ActionOutcome;
@@ -44,6 +46,28 @@ public final class Executions {
     private static final Runner DIRECT = new DirectRunner();
     private static final AtomicLong SEQUENCE = new AtomicLong();
 
+    /**
+     * The input request key prefix of the run in progress on this thread: the path of each step
+     * that called a flow on the way down, each followed by {@code /}; empty at the top.
+     */
+    private static final ThreadLocal<String> KEY_PREFIX = ThreadLocal.withInitial(() -> "");
+
+    /**
+     * Carries a nested flow's question out of the calling step without it being recorded as that
+     * step's failure: an action that throws an {@link Error} has no outcome, so a later run with
+     * the answer invokes it again. The run that called the step turns it back into the
+     * {@link InputRequiredException}.
+     */
+    private static final class Asked extends Error {
+        private static final long serialVersionUID = 1L;
+        private final transient InputRequiredException question;
+
+        Asked(InputRequiredException question) {
+            super(question.getMessage(), null, false, false);
+            this.question = question;
+        }
+    }
+
     private Executions() {
     }
 
@@ -58,28 +82,35 @@ public final class Executions {
         }
         DurableScope scope = DurableScope.current();
         StepInterpreter interpreter = new StepInterpreter(tree, run, nodeRunner);
+        String prefix = KEY_PREFIX.get();
+        // This run's answers only: those whose key starts with its prefix, the prefix removed.
+        Map<NodePath, Object> answers = answersFor(prefix, ExecutionInputs.current());
         ExecutionResult result;
-        if (scope == null) {
-            result = DIRECT.run(
-                    new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
-                    interpreter, request -> runNode(request.action(), run, nodeRunner));
-        } else {
-            // A task: each step is journaled, and one recorded by an earlier run is restored.
-            ExecutionId id = scope.nextExecutionId();
-            result = scope.runner().run(
-                    new ExecutionRequest(id, null, ExecutionInputs.current(), null),
-                    interpreter, request -> {
-                        // Shutting down: stop before this action, leaving it to the next process.
-                        scope.checkNotStopping();
-                        return DurableScope.within(
-                                scope.child(request.executionId(), request.path()),
-                                () -> runJournaledNode(request.action(), run, nodeRunner));
-                    });
-            if (result instanceof ExecutionResult.Completed) {
-                // Recorded before this run started: walk the tree once against the journal, so
-                // the outputs mappings read are restored.
-                interpreter.next(scope.runner().view(id));
+        try {
+            if (scope == null) {
+                result = DIRECT.run(new ExecutionRequest(nextId(), null, answers, null),
+                        interpreter, request -> runNode(request.action(), run, nodeRunner));
+            } else {
+                // A task: each step is journaled, and one recorded by an earlier run is restored.
+                ExecutionId id = scope.nextExecutionId();
+                result = scope.runner().run(new ExecutionRequest(id, null, answers, null),
+                        interpreter, request -> {
+                            // Shutting down: stop before this action, leaving it to the next
+                            // process.
+                            scope.checkNotStopping();
+                            return DurableScope.within(
+                                    scope.child(request.executionId(), request.path()),
+                                    () -> runJournaledNode(request.action(), run, nodeRunner));
+                        });
+                if (result instanceof ExecutionResult.Completed) {
+                    // Recorded before this run started: walk the tree once against the journal,
+                    // so the outputs mappings read are restored.
+                    interpreter.next(scope.runner().view(id));
+                }
             }
+        } catch (Asked asked) {
+            // A flow called by one of these steps asks: its keys already carry their prefix.
+            throw asked.question;
         }
         if (result instanceof ExecutionResult.Completed) {
             return run;
@@ -87,11 +118,38 @@ public final class Executions {
         if (result instanceof ExecutionResult.Suspended suspended) {
             // Only elicit steps await an update: the caller must answer them.
             throw new InputRequiredException(suspended.awaiting().stream()
-                    .map(await -> new InputRequiredException.Question(await.path().value(),
+                    .map(await -> new InputRequiredException.Question(
+                            prefix + await.path().value(),
                             (OperationStepElicitSpec) ((StepNode) await.request()).step()))
                     .toList());
         }
         throw rethrowable(run, result);
+    }
+
+    /**
+     * The key prefix of the step running on this thread: the path of each flow-call step on the
+     * way, then the step's own path, each followed by {@code /}. A consumed call that passes an
+     * upstream's questions through keys them under it.
+     */
+    public static String currentKeyPrefix() {
+        return KEY_PREFIX.get();
+    }
+
+    /**
+     * The answers addressed to a run whose keys start with {@code prefix}, keyed by the run's own
+     * paths. At the top, the prefix is empty and every answer passes.
+     */
+    static Map<NodePath, Object> answersFor(String prefix, Map<NodePath, Object> answers) {
+        if (prefix.isEmpty()) {
+            return answers;
+        }
+        Map<NodePath, Object> own = new LinkedHashMap<>();
+        answers.forEach((path, value) -> {
+            if (path.value().startsWith(prefix)) {
+                own.put(new NodePath(path.value().substring(prefix.length())), value);
+            }
+        });
+        return own;
     }
 
     /**
@@ -131,13 +189,20 @@ public final class Executions {
     private static Object runNode(Object action, StepRun run, NodeRunner nodeRunner)
             throws ActionFailedException {
         StepNode node = (StepNode) action;
+        String prefix = KEY_PREFIX.get();
+        // A flow this step calls asks under the step's path.
+        KEY_PREFIX.set(prefix + node.path().value() + "/");
         try {
             Object output = nodeRunner.run(node, run);
             run.markEvaluated(node.path());
             return output;
+        } catch (InputRequiredException e) {
+            throw new Asked(e);
         } catch (RuntimeException e) {
             run.fail(e);
             throw new ActionFailedException(StepInterpreter.failureOf(e), e);
+        } finally {
+            KEY_PREFIX.set(prefix);
         }
     }
 
