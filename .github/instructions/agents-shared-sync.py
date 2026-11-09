@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync agents-shared skills from the agents-shared MCP server into .agents/skills/.
 
-Version 1.1.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
+Version 1.2.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
 agents-shared/instructions/agents-shared-sync.py. Consumer repos copy this file verbatim and
 never edit their copy; the server also publishes it as the ``agents-shared-sync`` skill, so
 each copy can tell when it is outdated (see --check-helper).
@@ -53,7 +53,7 @@ DEFAULT_URL = "http://localhost:9700"
 SCHEME = "skill://"
 
 # Keep equal to metadata.version of the agents-shared-sync skill in agents-shared.yml.
-HELPER_VERSION = "1.1.0"
+HELPER_VERSION = "1.2.0"
 HELPER_SKILL = "agents-shared-sync"
 HELPER_URI = f"{SCHEME}{HELPER_SKILL}/agents-shared-sync.py"
 
@@ -221,10 +221,20 @@ def dot_entries(target):
 def write_skill(target, files):
     """Replace the local copy with the verified files, keeping its dot-entries.
 
-    The files are written into a staging directory beside the copy, which then replaces it, so
-    a failed write (disk full, a file locked on Windows) leaves the copy as it was, and a path
-    that changed between file and directory needs no manual cleanup.
+    The files are written into a staging directory beside the copy. The copy's dot-entries are
+    moved into it, then it replaces the copy in one rename. Any failure puts the original copy
+    back as it was: a failed write (disk full, a file locked on Windows) or a failed move leaves
+    nothing half-applied, and a path that changed between file and directory needs no cleanup.
     """
+    kept = dot_entries(target)
+    # A dot-entry under a path that is now a published file has nowhere to go: say so before
+    # touching anything (e.g. references/.work/ when references/ becomes a file).
+    blocked = [rel for rel in kept if any(parent in files for parent in rel.parents)]
+    if blocked:
+        names = ", ".join(rel.as_posix() for rel in blocked)
+        raise SyncError(f"{names} would end up under a path the server now publishes as a file; "
+                        f"move it out of {target.as_posix()}/ and retry. The local copy is "
+                        "unchanged")
     staging = target.parent / f".{target.name}.sync-{os.getpid()}"
     backup = target.parent / f".{target.name}.old-{os.getpid()}"
     try:
@@ -235,25 +245,29 @@ def write_skill(target, files):
     except OSError as e:
         shutil.rmtree(staging, ignore_errors=True)
         raise SyncError(f"cannot write {staging.as_posix()}/ ({e}); the local copy is unchanged")
-    kept = dot_entries(target)
-    if target.exists():
-        try:
-            target.rename(backup)
-        except OSError as e:
-            shutil.rmtree(staging, ignore_errors=True)
-            raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); is a file in it open? "
-                            "The local copy is unchanged")
+    moved = []
     try:
+        for rel in kept:
+            (staging / rel).parent.mkdir(parents=True, exist_ok=True)
+            (target / rel).rename(staging / rel)
+            moved.append(rel)
+        if target.exists():
+            target.rename(backup)
         staging.rename(target)
     except OSError as e:
-        if backup.exists():
-            backup.rename(target)
-        shutil.rmtree(staging, ignore_errors=True)
-        raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); the local copy is unchanged")
-    for rel in kept:
-        (target / rel).parent.mkdir(parents=True, exist_ok=True)
-        (backup / rel).rename(target / rel)
+        restore_copy(target, staging, backup, moved)
+        raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); is a file in it open? "
+                        "The local copy is unchanged")
     shutil.rmtree(backup, ignore_errors=True)
+
+
+def restore_copy(target, staging, backup, moved):
+    """Undo a failed replacement: put the original copy and its dot-entries back."""
+    if backup.exists() and not target.exists():
+        backup.rename(target)
+    for rel in reversed(moved):
+        (staging / rel).rename(target / rel)
+    shutil.rmtree(staging, ignore_errors=True)
 
 
 def check_skill(target, manifest, name):
