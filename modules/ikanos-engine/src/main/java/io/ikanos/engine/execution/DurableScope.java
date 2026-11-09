@@ -133,6 +133,16 @@ public final class DurableScope {
         return current() != null;
     }
 
+    /**
+     * The identity of the action in progress, its execution ID and path, or empty when no journal
+     * is kept. Every attempt of the action, also after a restart, has the same identity.
+     */
+    public static java.util.Optional<String> actionIdentity() {
+        DurableScope scope = current();
+        return scope == null ? java.util.Optional.empty()
+                : java.util.Optional.of(scope.next.value());
+    }
+
     JournaledRunner runner() {
         return runner;
     }

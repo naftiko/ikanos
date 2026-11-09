@@ -25,6 +25,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
+import io.ikanos.engine.execution.IdempotencyKeys;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
@@ -300,6 +301,11 @@ public class HttpClientAdapter extends ClientAdapter {
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
         setHeaders(clientRequest, replaced);
+        String keyHeader = clientOp.idempotencyKeyHeader();
+        if (keyHeader != null) {
+            // The same key on every attempt of a journaled step, so the upstream writes once.
+            clientRequest.getHeaders().set(keyHeader, IdempotencyKeys.forCurrentCall());
+        }
         return new HttpInvocation(this, clientOp, clientRequest);
     }
 

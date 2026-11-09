@@ -1,0 +1,45 @@
+ikanos: 1.0.0-beta9
+info:
+  display: Consumed HTTP warnings
+  description: >-
+    Mixed fixture: a read declares an idempotency key (warned), a write
+    declares one (not warned).
+capability:
+  consumes:
+  - type: http
+    namespace: port
+    description: Port Authority API
+    baseUri: https://port.example.com
+    resources:
+      slots:
+        path: /departure-slots
+        operations:
+          list-departure-slots:
+            method: GET
+            idempotencyKey: true
+          book-departure-slot:
+            method: POST
+            idempotencyKey: true
+          register-arrival:
+            method: POST
+            idempotencyKey: X-Request-Id
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      book:
+        description: Books a departure slot
+        steps:
+          book-slot:
+            type: call
+            call: port.book-departure-slot
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9318
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      book:
+        description: Book a departure slot
+        ref: departure.book

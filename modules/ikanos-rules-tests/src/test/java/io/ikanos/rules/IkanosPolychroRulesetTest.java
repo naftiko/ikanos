@@ -645,6 +645,21 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void idempotencyKeyRuleShouldWarnOnARead() {
+        assertWarnsOn("rules/polychro-consumed-http-warnings.yaml",
+            "ikanos-idempotency-key-on-safe-method", "'port.list-departure-slots'");
+    }
+
+    @Test
+    public void idempotencyKeyRuleShouldNotWarnOnAWrite() {
+        String output = lintFixture("rules/polychro-consumed-http-warnings.yaml").output();
+        assertTrue(output.lines().filter(line -> line.contains("ikanos-idempotency-key-"))
+                .noneMatch(line -> line.contains("book-departure-slot")
+                    || line.contains("register-arrival")),
+            "Expected no idempotency-key finding on a write.\n" + output);
+    }
+
+    @Test
     public void elicitSafetyRuleShouldNotFireWhenTheQuestionComesBeforeAnyWrite() {
         String output = lintFixture("rules/polychro-durability-none-compliant.yaml").output();
         assertTrue(!output.contains("ikanos-elicit-"),

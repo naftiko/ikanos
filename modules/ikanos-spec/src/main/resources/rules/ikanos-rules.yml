@@ -43,6 +43,7 @@ functions:
   - shared-listener-mounts
   - exposes-hosts-binds-ref
   - durability
+  - consumed-http
 
 rules:
 
@@ -268,6 +269,21 @@ rules:
       function: durability
       functionOptions:
         check: sealing-key-binds
+
+  ikanos-idempotency-key-on-safe-method:
+    message: "{{error}}"
+    description: >
+      `idempotencyKey` tells Ikanos that the upstream deduplicates a write by
+      key, so a retried booking or payment is made once. A `GET` reads, and is
+      safe to repeat without it: the header is noise for the upstream. Remove
+      `idempotencyKey`, or check the operation's method.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: consumed-http
+      functionOptions:
+        check: idempotency-key-safe-method
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

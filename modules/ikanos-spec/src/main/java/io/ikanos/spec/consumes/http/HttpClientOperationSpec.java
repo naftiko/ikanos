@@ -55,6 +55,14 @@ public class HttpClientOperationSpec extends OperationSpec {
      */
     private final AtomicReference<String> maxBinarySize = new AtomicReference<>();
 
+    /**
+     * Whether calls to this operation carry an idempotency key, and under which header:
+     * {@code true} for {@code Idempotency-Key}, a header name for an upstream that predates the
+     * IETF draft, {@code false} or absent for none. The key is stable across the attempts of one
+     * journaled action (Execution &amp; Resolution Model §7.4.1).
+     */
+    private final AtomicReference<Object> idempotencyKey = new AtomicReference<>();
+
     public HttpClientOperationSpec() {
         this(null, null, null, null, null, null, null);
     }
@@ -96,6 +104,30 @@ public class HttpClientOperationSpec extends OperationSpec {
 
     public void setMaxBinarySize(String maxBinarySize) {
         this.maxBinarySize.set(maxBinarySize);
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Object getIdempotencyKey() {
+        return idempotencyKey.get();
+    }
+
+    public void setIdempotencyKey(Object idempotencyKey) {
+        this.idempotencyKey.set(idempotencyKey);
+    }
+
+    /**
+     * The header that carries this operation's idempotency key, or {@code null} when it sends
+     * none.
+     */
+    public String idempotencyKeyHeader() {
+        Object value = idempotencyKey.get();
+        if (Boolean.TRUE.equals(value)) {
+            return "Idempotency-Key";
+        }
+        if (value instanceof String name && !name.isBlank()) {
+            return name.trim();
+        }
+        return null;
     }
 
 }
