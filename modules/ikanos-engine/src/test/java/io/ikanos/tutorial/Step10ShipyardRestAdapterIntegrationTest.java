@@ -34,6 +34,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.utils.TestUtils;
 
 /**
  * End-to-end integration test for {@code step-10-shipyard-rest-adapter.yml}
@@ -70,8 +71,9 @@ public class Step10ShipyardRestAdapterIntegrationTest
         useMcpServerToken(SECRETS_FILE);
 
 
-        restPort = findFreePort();
-        int mcpPort = findFreePort();
+        int[] ports = TestUtils.freePorts(2);
+        restPort = ports[0];
+        int mcpPort = ports[1];
 
         spec.getCapability().getExposes().getFirst().setPort(mcpPort);
         spec.getCapability().getExposes().getFirst().setAddress("localhost");
