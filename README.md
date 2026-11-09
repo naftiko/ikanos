@@ -54,7 +54,7 @@ For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/1.0.
 
 ## Continue reading
 
-- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/installation/) — install via Docker or native binary
+- [Installation](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/installation/) — install with the installer script or Docker
 - [Use Cases](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/concepts/use-cases/) — typical integration scenarios
 - [Schema](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/spec/) — the full reference for every keyword
 - [Linting Guide](https://shipyard.naftiko.io/ikanos/1.0.0-beta2/guide/linting/) — pair Ikanos with Polychro

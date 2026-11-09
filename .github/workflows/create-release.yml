@@ -6,11 +6,6 @@ on:
       - 'v*'
 
 jobs:
-  native-bin:
-    name: Publish CLI Binaries (native)
-    uses: ./.github/workflows/publish-cli-bin.yml
-    secrets: inherit
-
   jlink-packages:
     name: Publish CLI Packages (jlink)
     uses: ./.github/workflows/publish-cli-packages.yml
@@ -19,7 +14,6 @@ jobs:
   release:
     name: Create GitHub Release
     needs:
-      - native-bin
       - jlink-packages
     runs-on: ubuntu-latest
     permissions:
