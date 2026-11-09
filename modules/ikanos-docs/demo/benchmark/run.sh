@@ -53,6 +53,13 @@ docker_server={{.ServerVersion}} {{.OperatingSystem}}' | awk -F= '$1 == "docker_
   echo "ikanos_cpus=$IKANOS_CPUS"
   echo "ikanos_memory=$IKANOS_MEMORY (no swap)"
   echo "image=$(docker inspect "$container" --format '{{.Config.Image}}')"
+  # The engine the figures belong to: the released image, or the commit of this checkout, which the jar must be
+  # built from ("-dirty" when the checkout has local changes).
+  if [ -n "${IKANOS_IMAGE:-}" ]; then
+    echo "engine=$IKANOS_IMAGE"
+  else
+    echo "engine=$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- ../../../.. 2>/dev/null || echo -dirty)"
+  fi
   echo "java_options=${IKANOS_JAVA_OPTIONS:-none}"
   echo "warmup=$FIRST_WARMUP at $WARMUP_RATE req/s after each start, then $WARMUP at the step rate; measured=$DURATION"
 } > "$results/environment.txt"

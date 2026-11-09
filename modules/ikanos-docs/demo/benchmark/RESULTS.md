@@ -1,8 +1,13 @@
 # Ikanos CPU/RAM benchmark: first results
 
-A first baseline from [`run.sh`](run.sh), on 2026-11-04 (2 CPUs) and 2026-11-06 (1 CPU), with the jar of
-`main` plus the JVM metrics of issue #737 (Java 21, Temurin, Alpine image). Every table comes from the `run.sh`
-in this directory.
+A first baseline from [`run.sh`](run.sh), on 2026-11-04 (2 CPUs) and 2026-11-06 (1 CPU) (Java 21, Temurin,
+Alpine image). Every table comes from the `run.sh` in this directory.
+
+**Engine measured:** `main` at `ef08f405`, before the limit on requests in progress (#920), plus this PR's commit
+"feat: expose the JVM's CPU, memory, GC and thread metrics on the Control Port", which `run.sh` needs for its heap
+and GC columns. The runs' `environment` blocks predate the `engine` line that `run.sh` now writes. To measure
+that engine again: `git checkout ef08f405`, cherry-pick that commit, build the jar (`mvn package -DskipTests`),
+then run `run.sh`. On a later engine, the overload results differ: see finding 5 and #920.
 
 **Where it ran:** Docker Desktop on an Apple Silicon Mac. The Docker VM has 15 CPUs and 7.7 GiB, and k6 and nginx
 run in the same VM as Ikanos, so at high rates they compete with it for the VM's CPUs. Ikanos had fixed CPU and
@@ -106,7 +111,8 @@ The highest step tried, 75 req/s, held: the edge at 2 CPUs is above it.
    most 200 requests in progress, and 200 × 17 ms is 3.4 s of CPU). Two minutes after the load, a thread dump showed 51 requests still being mapped for
    clients that had left, the heap after GC stayed at about 120 of 128 MiB with no load, and full GCs kept
    running: the requests in progress hold the memory they need to finish, so Ikanos completed about one a
-   minute (#944). With the limit on requests in progress from #920, the same run recovered at once.
+   minute (#944). With `main`'s engine of 2026-11-06, which has the limit on requests in progress from #920,
+   the same run recovered at once.
    The Control Port isn't a reliable signal of it: in separate tests `/health/live` sometimes still answered 200
    (after up to 13 s) while the API answered nothing, and sometimes timed out too.
 6. **A bigger heap isn't needed below the edge.** With 75% of 1 GB, 30 and 40 req/s held as with the default heap,
@@ -138,9 +144,9 @@ These hold until Ikanos limits the requests it works on at once; see Next.
   a burst or a GC pause past it takes the pod down for good, CPU-based autoscaling can't react in time, and the
   pod doesn't come back by itself. For large answers at 2 CPUs the measured edge is 60 req/s (in a test that
   shared the VM) to more than 75 (alone); 40 req/s is a third below the lower figure.
-- **Enforce the ceiling in front of the pods.** Released Ikanos versions can't refuse the excess themselves
-  (that's #920, merged for 1.0.0-beta9 as `maxRequestsInProgress`), so until then a rate limit at the gateway
-  or ingress is what keeps a pod under its ceiling.
+- **Enforce the ceiling in front of the pods.** The engine measured here has no limit on requests in progress;
+  from engine 1.0.0-beta9, `maxRequestsInProgress` adds one (#920). Before that version, a rate limit at the
+  gateway or ingress is what keeps a pod under its ceiling.
 - **Raise the heap only with the memory to match.** `-XX:MaxRAMPercentage=75` fits a 1Gi limit (768 MiB of heap
   plus about 140 MiB outside it), not 512Mi. At 512Mi, keep the default.
 - **Probe the API, not only `/health`, but never the upstream.** `/health` doesn't reliably see the collapse. A
@@ -155,7 +161,7 @@ These hold until Ikanos limits the requests it works on at once; see Next.
 - Run the same benchmark on a dedicated, resource-fixed machine for the reference figures.
 - Separate issues, found while measuring:
   - #920: a limit on requests in progress (with a fast 503 for the excess), so overload degrades instead of
-    collapsing; merged for 1.0.0-beta9;
+    collapsing; in the engine from 1.0.0-beta9;
   - #919: building the JSON mapper and JSONPath configuration once in `Converter.jsonPathFind`;
   - #944: after an overload, Ikanos stays unresponsive for tens of minutes (finding 5);
   - #897: a REST request with `Connection: close` (sent by HTTPie Desktop, for instance) hangs instead of being
