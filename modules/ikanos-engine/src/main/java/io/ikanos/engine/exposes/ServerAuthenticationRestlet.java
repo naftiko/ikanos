@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes;
 
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
@@ -23,8 +24,6 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
 
@@ -88,7 +87,7 @@ public class ServerAuthenticationRestlet extends Restlet {
             return false;
         }
 
-        String expectedToken = resolveSecretTemplate(bearerAuth.getToken());
+        String expectedToken = Secrets.resolve(bearerAuth.getToken(), bindings);
 
         if (expectedToken == null || expectedToken.isBlank()) {
             return false;
@@ -109,7 +108,7 @@ public class ServerAuthenticationRestlet extends Restlet {
             }
         }
 
-        return secureEquals(expectedToken, actualToken);
+        return Secrets.matches(expectedToken, actualToken);
     }
 
     private boolean authenticateApiKey(Request request) {
@@ -117,8 +116,8 @@ public class ServerAuthenticationRestlet extends Restlet {
             return false;
         }
 
-        String key = resolveSecretTemplate(apiKeyAuth.getKey());
-        String value = resolveSecretTemplate(apiKeyAuth.getValue());
+        String key = Secrets.resolve(apiKeyAuth.getKey(), bindings);
+        String value = Secrets.resolve(apiKeyAuth.getValue(), bindings);
 
         // A blank expected value would match a blank header or query value (#856)
         if (key == null || key.isBlank() || value == null || value.isBlank()) {
@@ -136,7 +135,7 @@ public class ServerAuthenticationRestlet extends Restlet {
             actualValue = request.getHeaders().getFirstValue(key, true);
         }
 
-        return secureEquals(value, actualValue);
+        return Secrets.matches(value, actualValue);
     }
 
     /**
@@ -168,9 +167,7 @@ public class ServerAuthenticationRestlet extends Restlet {
     private static void requireNotBlank(String credential, String template,
             Map<String, Object> bindings, String adapter) {
         Map<String, Object> values = bindings != null ? bindings : Map.of();
-        String resolved = template != null
-                ? Resolver.resolveMustacheTemplate(template, values)
-                : null;
+        String resolved = Secrets.resolve(template, values);
         List<String> empty = Resolver.emptyVariables(template, values);
         boolean blank = resolved == null || resolved.isBlank();
         if (!blank && empty.isEmpty()) {
@@ -181,24 +178,6 @@ public class ServerAuthenticationRestlet extends Restlet {
                 + (empty.isEmpty() ? ""
                         : ": bind " + String.join(", ", empty) + " to a non-empty value")
                 + ". To expose it without a credential, remove its authentication block.");
-    }
-
-    private String resolveSecretTemplate(String rawValue) {
-        if (rawValue == null) {
-            return null;
-        }
-
-        return Resolver.resolveMustacheTemplate(rawValue, bindings);
-    }
-
-    private boolean secureEquals(String expected, String actual) {
-        if (expected == null || actual == null) {
-            return false;
-        }
-
-        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
-        byte[] actualBytes = actual.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(expectedBytes, actualBytes);
     }
 
 }

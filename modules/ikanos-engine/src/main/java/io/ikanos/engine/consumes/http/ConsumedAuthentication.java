@@ -23,6 +23,7 @@ import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
@@ -100,7 +101,7 @@ public final class ConsumedAuthentication {
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
                 challengeResponse.setIdentifier(
                         render(basicAuth.getUsername(), parameters, "basic username"));
-                challengeResponse.setSecret(render(passwordOrEmpty(basicAuth.getPassword()),
+                challengeResponse.setSecret(render(Secrets.password(basicAuth.getPassword()),
                         parameters, "basic password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
@@ -110,7 +111,7 @@ public final class ConsumedAuthentication {
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_DIGEST);
                 challengeResponse.setIdentifier(
                         render(digestAuth.getUsername(), parameters, "digest username"));
-                challengeResponse.setSecret(render(passwordOrEmpty(digestAuth.getPassword()),
+                challengeResponse.setSecret(render(Secrets.password(digestAuth.getPassword()),
                         parameters, "digest password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
@@ -176,7 +177,7 @@ public final class ConsumedAuthentication {
             throw new IllegalArgumentException("Missing or empty template parameters in the "
                     + credential + ": " + empty + ". The credential is not sent.");
         }
-        return Resolver.resolveMustacheTemplate(template, parameters);
+        return Secrets.resolve(template, parameters);
     }
 
     /**
@@ -294,9 +295,5 @@ public final class ConsumedAuthentication {
     private static String unsupported(String type) {
         return "Unsupported consumed authentication type '" + type
                 + "': the engine can send apikey, basic, bearer or digest credentials";
-    }
-
-    private static String passwordOrEmpty(char[] password) {
-        return password == null ? "" : new String(password);
     }
 }
