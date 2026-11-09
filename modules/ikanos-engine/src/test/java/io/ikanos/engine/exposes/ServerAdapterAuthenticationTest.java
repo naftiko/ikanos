@@ -384,6 +384,81 @@ class ServerAdapterAuthenticationTest {
         assertInstanceOf(ServerAuthenticationRestlet.class, adapter.buildServerChain(new Router()));
     }
 
+    // #844: what the basic and digest verifier accepts, pinned before its template rendering and
+    // constant-time comparison move to the helper the bearer and apikey restlet uses.
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void challengeVerifierShouldResolveCredentialsFromBindings(String type) throws Exception {
+        SecretVerifier verifier = verifier(adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                      authentication:
+                        type: "%s"
+                        username: "{{API_KEY}}-user"
+                        password: "sk-{{API_KEY}}"
+                """.formatted(type)));
+
+        assertEquals(Verifier.RESULT_VALID, verifier.verify("s3cr3t-user", "sk-s3cr3t".toCharArray()));
+        assertEquals(Verifier.RESULT_INVALID,
+                verifier.verify("{{API_KEY}}-user", "sk-{{API_KEY}}".toCharArray()),
+                "the template text is not the credential");
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void challengeVerifierShouldRejectACredentialThatOnlyPartlyMatches(String type)
+            throws Exception {
+        SecretVerifier verifier = verifier(type, "admin", "pa55word");
+
+        assertEquals(Verifier.RESULT_VALID, verifier.verify("admin", "pa55word".toCharArray()));
+        for (String password : new String[] {"pa55wor", "pa55word!", "PA55WORD", ""}) {
+            assertEquals(Verifier.RESULT_INVALID, verifier.verify("admin", password.toCharArray()),
+                    "password '" + password + "'");
+        }
+        for (String username : new String[] {"admi", "admin2", "ADMIN", ""}) {
+            assertEquals(Verifier.RESULT_INVALID,
+                    verifier.verify(username, "pa55word".toCharArray()),
+                    "username '" + username + "'");
+        }
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void challengeVerifierShouldRejectAMissingUsernameOrPassword(String type) throws Exception {
+        SecretVerifier verifier = verifier(type, "admin", "pa55word");
+
+        assertEquals(Verifier.RESULT_INVALID, verifier.verify(null, "pa55word".toCharArray()));
+        assertEquals(Verifier.RESULT_INVALID, verifier.verify("admin", null));
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void challengeVerifierShouldCompareNonAsciiCredentialsExactly(String type) throws Exception {
+        SecretVerifier verifier = verifier(type, "jos\u00e9", "p\u00e4ssw\u00f6rd-\u5bc6\u7801");
+
+        assertEquals(Verifier.RESULT_VALID,
+                verifier.verify("jos\u00e9", "p\u00e4ssw\u00f6rd-\u5bc6\u7801".toCharArray()));
+        assertEquals(Verifier.RESULT_INVALID,
+                verifier.verify("jose", "p\u00e4ssw\u00f6rd-\u5bc6\u7801".toCharArray()));
+        assertEquals(Verifier.RESULT_INVALID,
+                verifier.verify("jos\u00e9", "p\u00e4ssw\u00f6rd-\u5bc6".toCharArray()));
+    }
+
+    private SecretVerifier verifier(String type, String username, String password)
+            throws Exception {
+        return verifier(adapterFromYaml(REST_YAML.formatted(schemaVersion, """
+                      authentication:
+                        type: "%s"
+                        username: "%s"
+                        password: "%s"
+                """.formatted(type, username, password))));
+    }
+
+    private static SecretVerifier verifier(ServerAdapter adapter) {
+        ChallengeAuthenticator chain =
+                (ChallengeAuthenticator) adapter.buildServerChain(new Router());
+        return (SecretVerifier) chain.getVerifier();
+    }
+
     /** A REST adapter whose API_KEY binding comes from a secrets file with the given content. */
     private ServerAdapter adapterWithSecrets(String secretsYaml, String authBlock) throws Exception {
         Path file = Files.writeString(secrets.resolve("secrets.yaml"), secretsYaml);

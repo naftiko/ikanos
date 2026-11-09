@@ -13,9 +13,8 @@
  */
 package io.ikanos.engine.exposes;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.List;
+import java.util.Map;
 import org.restlet.Context;
 import org.restlet.Response;
 import org.restlet.Restlet;
@@ -27,7 +26,7 @@ import org.restlet.security.SecretVerifier;
 import org.restlet.security.Verifier;
 import io.ikanos.Capability;
 import io.ikanos.engine.Adapter;
-import io.ikanos.engine.util.Resolver;
+import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -253,20 +252,23 @@ public abstract class ServerAdapter extends Adapter {
                 String expectedUsername = null;
                 char[] expectedPassword = null;
 
+                Map<String, Object> bindings = getCapability().getBindings();
                 if (authentication instanceof BasicAuthenticationSpec basic) {
-                    expectedUsername = resolveTemplate(basic.getUsername());
-                    expectedPassword = resolveTemplateChars(basic.getPassword());
+                    expectedUsername = Secrets.resolve(basic.getUsername(), bindings);
+                    expectedPassword = Secrets.resolve(Secrets.password(basic.getPassword()),
+                            bindings).toCharArray();
                 } else if (authentication instanceof DigestAuthenticationSpec digest) {
-                    expectedUsername = resolveTemplate(digest.getUsername());
-                    expectedPassword = resolveTemplateChars(digest.getPassword());
+                    expectedUsername = Secrets.resolve(digest.getUsername(), bindings);
+                    expectedPassword = Secrets.resolve(Secrets.password(digest.getPassword()),
+                            bindings).toCharArray();
                 }
 
                 if (expectedUsername == null || identifier == null || secret == null) {
                     return Verifier.RESULT_INVALID;
                 }
 
-                boolean usernameMatches = secureEquals(expectedUsername, identifier);
-                boolean passwordMatches = secureEquals(expectedPassword, secret);
+                boolean usernameMatches = Secrets.matches(expectedUsername, identifier);
+                boolean passwordMatches = Secrets.matches(expectedPassword, secret);
 
                 return (usernameMatches && passwordMatches) ? Verifier.RESULT_VALID
                         : Verifier.RESULT_INVALID;
@@ -274,37 +276,6 @@ public abstract class ServerAdapter extends Adapter {
         });
         authenticator.setNext(next);
         return authenticator;
-    }
-
-    private String resolveTemplate(String value) {
-        if (value == null) {
-            return null;
-        }
-
-        return Resolver.resolveMustacheTemplate(value, getCapability().getBindings());
-    }
-
-    private char[] resolveTemplateChars(char[] value) {
-        String resolved = resolveTemplate(new String(value == null ? new char[0] : value));
-        return resolved.toCharArray();
-    }
-
-    private static boolean secureEquals(String expected, String actual) {
-        if (expected == null || actual == null) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8),
-                actual.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static boolean secureEquals(char[] expected, char[] actual) {
-        if (expected == null || actual == null) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-                new String(expected).getBytes(StandardCharsets.UTF_8),
-                new String(actual).getBytes(StandardCharsets.UTF_8));
     }
 
 }

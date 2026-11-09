@@ -25,6 +25,7 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 
 public class ServerAuthenticationRestletTest {
@@ -398,6 +399,66 @@ public class ServerAuthenticationRestletTest {
     void apiKeyShouldRejectEmptyValueWhenVariableIsMisspelled(String placement) {
         assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
                 statusForEmptyApiKey(placement, "{{API_KY}}", Map.of("API_KEY", "s3cr3t")));
+    }
+
+    // #844: what bearer and apikey accept, pinned before the constant-time comparison moves to the
+    // helper the basic and digest verifier uses.
+
+    @ParameterizedTest(name = "token: {0}")
+    @ValueSource(strings = {"token-12", "token-1234", "TOKEN-123", "token-124", "x"})
+    void bearerShouldRejectATokenThatOnlyPartlyMatches(String token) {
+        BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
+        auth.setToken("token-123");
+
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
+                status(auth, Map.of(), withHeader("Authorization", "Bearer " + token)));
+    }
+
+    @Test
+    void bearerShouldCompareNonAsciiTokensExactly() {
+        BearerAuthenticationSpec auth = new BearerAuthenticationSpec();
+        auth.setToken("{{TOKEN}}");
+        Map<String, Object> bindings = Map.of("TOKEN", "j\u00e9ton-\u5bc6\u94a5");
+
+        assertEquals(Status.SUCCESS_OK, status(auth, bindings,
+                withHeader("Authorization", "Bearer j\u00e9ton-\u5bc6\u94a5")));
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, status(auth, bindings,
+                withHeader("Authorization", "Bearer jeton-\u5bc6\u94a5")));
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, status(auth, bindings,
+                withHeader("Authorization", "Bearer j\u00e9ton-\u5bc6")));
+    }
+
+    @ParameterizedTest(name = "value: {0}")
+    @ValueSource(strings = {"s3cr3", "s3cr3t!", "S3CR3T", "s3cr3u"})
+    void apiKeyShouldRejectAValueThatOnlyPartlyMatches(String value) {
+        ApiKeyAuthenticationSpec auth = new ApiKeyAuthenticationSpec();
+        auth.setKey("X-API-Key");
+        auth.setValue("sk-{{API_KEY}}");
+        Map<String, Object> bindings = Map.of("API_KEY", "s3cr3t");
+
+        assertEquals(Status.SUCCESS_OK,
+                status(auth, bindings, withHeader("X-API-Key", "sk-s3cr3t")));
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED,
+                status(auth, bindings, withHeader("X-API-Key", "sk-" + value)));
+    }
+
+    private static Request withHeader(String name, String value) {
+        Request request = new Request(Method.GET, "http://localhost/test");
+        request.getHeaders().set(name, value);
+        return request;
+    }
+
+    private static Status status(AuthenticationSpec auth,
+            Map<String, Object> bindings, Request request) {
+        Restlet next = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+        Response response = new Response(request);
+        new ServerAuthenticationRestlet(auth, next, bindings).handle(request, response);
+        return response.getStatus();
     }
 
     private static Status statusForEmptyApiKey(String placement, String expectedValue,

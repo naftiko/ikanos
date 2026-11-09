@@ -94,7 +94,7 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.consumes.http` | `HttpClientAdapter`: calls an upstream HTTP API. Also `ConsumedAuthentication`, which applies the outgoing credentials for every client adapter. |
 | `io.ikanos.engine.consumes.mcp` | `McpClientAdapter`: calls the declared tools of an upstream MCP server, through a stateless Streamable HTTP transport (`McpStreamableHttpTransport`). |
 | `io.ikanos.engine.consumes.tunnel` | The reverse-tunnel SPI (`Tunnel`) and its bootstrap. |
-| `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`. |
+| `io.ikanos.engine.util` | The orchestration core: `OperationStepExecutor` (runs calls and steps), `Resolver` (Mustache templates, parameter extraction, output mapping), `Converter` (non-JSON formats to JSON), `LookupExecutor`, `BindingResolver`, `Secrets` (renders and compares credentials, for server and client adapters alike). |
 | `io.ikanos.engine.aggregates` | Reusable domain flows (`Aggregate`, `AggregateFlow`), the load-time `ref` resolution (`AggregateRefResolver`), flow-to-flow calls (`FlowInvocation`, `FlowConsumedResult`) and their load-time checks (`FlowCallValidator`). |
 | `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed script steps. |
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
@@ -296,6 +296,8 @@ Inside the engine, **all structured data is JSON**: Jackson `JsonNode` for trees
 ## Exposes: the server adapters
 
 All server adapters extend `ServerAdapter`, which owns the Restlet `Server` lifecycle and builds the **authentication chain** in front of the adapter's router (`buildServerChain`). The filter is chosen by the authentication type: a Restlet `ChallengeAuthenticator` (with constant-time comparison), `ServerAuthenticationRestlet` or `OAuth2AuthenticationRestlet`. The MCP adapter uses `McpOAuth2Restlet`, which also serves the OAuth Protected Resource Metadata that MCP clients look for.
+
+Every credential is rendered and compared in one place, `Secrets`, on the server side (the basic and digest verifier in `ServerAdapter`, and `ServerAuthenticationRestlet`) and the client side (`ConsumedAuthentication`) alike: `resolve` renders a template such as `sk-{{API_KEY}}`, `password` treats an omitted basic or digest password as an empty one, and `matches` compares in constant time. Each side used to keep private copies, which drifted (#482, #654). `SecretsTest` fails when another class compares credentials itself (#844).
 
 Authentication runs **before** any protocol handling: an unauthenticated request never reaches the MCP dispatcher or a REST operation.
 
