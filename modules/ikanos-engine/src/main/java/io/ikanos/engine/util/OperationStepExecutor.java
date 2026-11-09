@@ -915,25 +915,40 @@ public class OperationStepExecutor {
      * {@code Location}. None of these carries the step output, so the sequence fails rather
      * than letting later steps read an empty or unrelated body.</p>
      */
-    static void failIfUnsuccessful(String stepName, ConsumedResult result) {
+    public static void failIfUnsuccessful(String stepName, ConsumedResult result) {
         if (result != null && result.isSuccessful()) {
             return;
         }
         int code = result != null ? result.status() : 0;
         Throwable cause = null;
+        String body = null;
         if (result != null) {
             cause = result.failureCause();
+            body = upstreamBody(result);
             result.release();
         }
-        throw new StepFailedException(stepName, code, cause);
+        throw new StepFailedException(stepName, code, cause, body);
+    }
+
+    /** The body of an upstream HTTP error, or {@code null} when there is none to keep. */
+    private static String upstreamBody(ConsumedResult result) {
+        if (result.noResponseReceived() || !result.hasBody()) {
+            return null;
+        }
+        try {
+            return result.text();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /**
      * Thrown when a call step in an orchestrated sequence receives a non-2xx response (or no
      * response at all). The remaining steps are not executed (#739).
      *
-     * <p>The message names the step and the HTTP status. The upstream body is not carried, so
-     * adapters cannot disclose it by accident.</p>
+     * <p>The message names the step and the HTTP status, never the upstream body. The body of an
+     * upstream HTTP error is kept in {@link #getUpstreamBody()} for MCP tools, which return it to
+     * the agent as a {@code call:} does (#925, #879); REST never returns it.</p>
      */
     public static class StepFailedException extends IllegalStateException {
 
@@ -941,6 +956,7 @@ public class OperationStepExecutor {
 
         private final String stepName;
         private final int statusCode;
+        private final transient String upstreamBody;
 
         StepFailedException(String stepName, int statusCode) {
             this(stepName, statusCode, (Throwable) null);
@@ -951,19 +967,25 @@ public class OperationStepExecutor {
          *        logged under the error reference, never returned to the caller
          */
         StepFailedException(String stepName, int statusCode, Throwable cause) {
-            this(stepName, statusCode, message(stepName, statusCode), cause);
+            this(stepName, statusCode, cause, null);
+        }
+
+        StepFailedException(String stepName, int statusCode, Throwable cause,
+                String upstreamBody) {
+            this(stepName, statusCode, message(stepName, statusCode), cause, upstreamBody);
         }
 
         private StepFailedException(String stepName, int statusCode, String message,
-                Throwable cause) {
+                Throwable cause, String upstreamBody) {
             super(message, cause);
             this.stepName = stepName;
             this.statusCode = statusCode;
+            this.upstreamBody = upstreamBody;
         }
 
         /**
          * Wrap a failure raised inside a called flow so that it names the calling step too.
-         * The status code of the innermost failure is kept, and no upstream body is added.
+         * The status code and the upstream body of the innermost failure are kept.
          *
          * @param callerStep the name of the step that called the flow
          * @param target     the qualified name of the called flow
@@ -972,7 +994,7 @@ public class OperationStepExecutor {
         public StepFailedException calledFrom(String callerStep, String target) {
             return new StepFailedException(callerStep, statusCode,
                     "Step '" + callerStep + "' failed calling '" + target + "': " + getMessage(),
-                    this);
+                    this, upstreamBody);
         }
 
         private static String message(String stepName, int statusCode) {
@@ -999,6 +1021,14 @@ public class OperationStepExecutor {
          * @return the upstream HTTP status, a Restlet connector error code (1000-1099) when the
          *         connection failed, or 0 when no response was received
          */
+        /**
+         * @return the body of the upstream HTTP error, or {@code null}; for MCP tools only, never
+         *         for a REST answer or a log line
+         */
+        public String getUpstreamBody() {
+            return upstreamBody;
+        }
+
         public int getStatusCode() {
             return statusCode;
         }
