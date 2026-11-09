@@ -559,105 +559,109 @@ jobs:
             echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
             echo "| CLI Smoke Tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
             
-  notify-on-failure-or-vulnerabilities:
-      name: Slack notification on failure or vulnerability finding
-      needs:
-        - test-and-analyze
-        - integration-tests
-        - smoke-tests
-      # The CVE gate fails test-and-analyze, so `failure` covers findings and infrastructure errors.
-      if: |
-        always() && !startsWith(github.ref_name, 'dependabot/') && (
-          needs.test-and-analyze.result == 'failure' ||
-          needs.integration-tests.result == 'failure' ||
-          needs.smoke-tests.result == 'failure'
-        )
-      runs-on: ubuntu-latest
-      timeout-minutes: 5
-      permissions:
-        pull-requests: read
-      steps:
-        # Drafts are still tested nightly, but their failures no longer alert Slack.
-        - name: Detect draft pull request
-          id: draft
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            REPO: ${{ github.repository }}
-            OWNER: ${{ github.repository_owner }}
-            BRANCH: ${{ github.ref_name }}
-          run: |
-            IS_DRAFT=$(gh api -X GET "repos/$REPO/pulls" \
-              -f head="$OWNER:$BRANCH" \
-              -f state=open \
-              --jq 'length > 0 and all(.[]; .draft)') || {
-              echo "::warning::Draft detection failed, notifying anyway"
-              IS_DRAFT=false
-            }
-            echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
+  # The per-branch Slack notification below is disabled: CVE findings and nightly
+  # failures of every repository are now reported in a single daily digest posted by
+  # the "Nightly CVE digest" Claude routine (05:00 UTC, Monday to Friday).
+  # To restore per-branch alerts, uncomment this job.
+  # notify-on-failure-or-vulnerabilities:
+  #     name: Slack notification on failure or vulnerability finding
+  #     needs:
+  #       - test-and-analyze
+  #       - integration-tests
+  #       - smoke-tests
+  #     # The CVE gate fails test-and-analyze, so `failure` covers findings and infrastructure errors.
+  #     if: |
+  #       always() && !startsWith(github.ref_name, 'dependabot/') && (
+  #         needs.test-and-analyze.result == 'failure' ||
+  #         needs.integration-tests.result == 'failure' ||
+  #         needs.smoke-tests.result == 'failure'
+  #       )
+  #     runs-on: ubuntu-latest
+  #     timeout-minutes: 5
+  #     permissions:
+  #       pull-requests: read
+  #     steps:
+  #       # Drafts are still tested nightly, but their failures no longer alert Slack.
+  #       - name: Detect draft pull request
+  #         id: draft
+  #         env:
+  #           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #           REPO: ${{ github.repository }}
+  #           OWNER: ${{ github.repository_owner }}
+  #           BRANCH: ${{ github.ref_name }}
+  #         run: |
+  #           IS_DRAFT=$(gh api -X GET "repos/$REPO/pulls" \
+  #             -f head="$OWNER:$BRANCH" \
+  #             -f state=open \
+  #             --jq 'length > 0 and all(.[]; .draft)') || {
+  #             echo "::warning::Draft detection failed, notifying anyway"
+  #             IS_DRAFT=false
+  #           }
+  #           echo "is_draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
 
-        - name: Send Slack notification
-          if: steps.draft.outputs.is_draft != 'true'
-          env:
-            REPOSITORY: ${{ github.repository }}
-            BRANCH: ${{ github.ref_name }}
-            QUALITY_GATE_RESULT: ${{ needs.test-and-analyze.result }}
-            INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
-            SMOKE_TESTS_RESULT: ${{ needs.smoke-tests.result }}
-            TRIVY_CRITICAL: ${{ needs.test-and-analyze.outputs.trivy_critical }}
-            TRIVY_HIGH: ${{ needs.test-and-analyze.outputs.trivy_high }}
-            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          run: |
-            if [ -z "$SLACK_WEBHOOK_URL" ]; then
-              echo "::error::SLACK_WEBHOOK_URL secret is not set: cannot deliver this notification."
-              exit 1
-            fi
+  #       - name: Send Slack notification
+  #         if: steps.draft.outputs.is_draft != 'true'
+  #         env:
+  #           REPOSITORY: ${{ github.repository }}
+  #           BRANCH: ${{ github.ref_name }}
+  #           QUALITY_GATE_RESULT: ${{ needs.test-and-analyze.result }}
+  #           INTEGRATION_TESTS_RESULT: ${{ needs.integration-tests.result }}
+  #           SMOKE_TESTS_RESULT: ${{ needs.smoke-tests.result }}
+  #           TRIVY_CRITICAL: ${{ needs.test-and-analyze.outputs.trivy_critical }}
+  #           TRIVY_HIGH: ${{ needs.test-and-analyze.outputs.trivy_high }}
+  #           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  #           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  #         run: |
+  #           if [ -z "$SLACK_WEBHOOK_URL" ]; then
+  #             echo "::error::SLACK_WEBHOOK_URL secret is not set: cannot deliver this notification."
+  #             exit 1
+  #           fi
 
-            if [ "${TRIVY_CRITICAL:-0}" -gt 0 ] || [ "${TRIVY_HIGH:-0}" -gt 0 ]; then
-              TEXT="❌ *Nightly Quality Gate: security findings*"
-            else
-              TEXT="❌ *Nightly Quality Gate failed*"
-            fi
-            COLOR="danger"
+  #           if [ "${TRIVY_CRITICAL:-0}" -gt 0 ] || [ "${TRIVY_HIGH:-0}" -gt 0 ]; then
+  #             TEXT="❌ *Nightly Quality Gate: security findings*"
+  #           else
+  #             TEXT="❌ *Nightly Quality Gate failed*"
+  #           fi
+  #           COLOR="danger"
 
-            # Context values (BRANCH may legally contain characters like `'` in a Git ref name) go through
-            # `env` and are encoded with jq --arg, never interpolated into the JSON literal or the shell.
-            PAYLOAD=$(jq -n \
-              --arg text "$TEXT" \
-              --arg color "$COLOR" \
-              --arg repository "$REPOSITORY" \
-              --arg branch "$BRANCH" \
-              --arg qualityGateResult "$QUALITY_GATE_RESULT" \
-              --arg integrationTestsResult "$INTEGRATION_TESTS_RESULT" \
-              --arg smokeTestsResult "$SMOKE_TESTS_RESULT" \
-              --arg trivyCritical "$TRIVY_CRITICAL" \
-              --arg trivyHigh "$TRIVY_HIGH" \
-              --arg runUrl "$RUN_URL" \
-              '{
-                text: $text,
-                attachments: [
-                  {
-                    color: $color,
-                    fallback: $text,
-                    fields: [
-                      { title: "Repository", value: $repository, short: true },
-                      { title: "Branch", value: $branch, short: true },
-                      { title: "Quality Gate", value: $qualityGateResult, short: true },
-                      { title: "Integration Tests", value: $integrationTestsResult, short: true },
-                      { title: "CLI Smoke Tests", value: $smokeTestsResult, short: true },
-                      { title: "Trivy Critical", value: $trivyCritical, short: true },
-                      { title: "Trivy High", value: $trivyHigh, short: true }
-                    ],
-                    actions: [
-                      { type: "button", name: "view_run", text: "View Run", url: $runUrl }
-                    ]
-                  }
-                ]
-              }')
+  #           # Context values (BRANCH may legally contain characters like `'` in a Git ref name) go through
+  #           # `env` and are encoded with jq --arg, never interpolated into the JSON literal or the shell.
+  #           PAYLOAD=$(jq -n \
+  #             --arg text "$TEXT" \
+  #             --arg color "$COLOR" \
+  #             --arg repository "$REPOSITORY" \
+  #             --arg branch "$BRANCH" \
+  #             --arg qualityGateResult "$QUALITY_GATE_RESULT" \
+  #             --arg integrationTestsResult "$INTEGRATION_TESTS_RESULT" \
+  #             --arg smokeTestsResult "$SMOKE_TESTS_RESULT" \
+  #             --arg trivyCritical "$TRIVY_CRITICAL" \
+  #             --arg trivyHigh "$TRIVY_HIGH" \
+  #             --arg runUrl "$RUN_URL" \
+  #             '{
+  #               text: $text,
+  #               attachments: [
+  #                 {
+  #                   color: $color,
+  #                   fallback: $text,
+  #                   fields: [
+  #                     { title: "Repository", value: $repository, short: true },
+  #                     { title: "Branch", value: $branch, short: true },
+  #                     { title: "Quality Gate", value: $qualityGateResult, short: true },
+  #                     { title: "Integration Tests", value: $integrationTestsResult, short: true },
+  #                     { title: "CLI Smoke Tests", value: $smokeTestsResult, short: true },
+  #                     { title: "Trivy Critical", value: $trivyCritical, short: true },
+  #                     { title: "Trivy High", value: $trivyHigh, short: true }
+  #                   ],
+  #                   actions: [
+  #                     { type: "button", name: "view_run", text: "View Run", url: $runUrl }
+  #                   ]
+  #                 }
+  #               ]
+  #             }')
 
-            # --fail-with-body makes curl exit non-zero on an HTTP 4xx/5xx response (and prints Slack's
-            # error body), so a rejected webhook fails the job instead of looking successful.
-            # --max-time bounds a stalled connection.
-            curl --fail-with-body --max-time 15 -sS -X POST "$SLACK_WEBHOOK_URL" \
-              -H "Content-Type: application/json" \
-              -d "$PAYLOAD"
+  #           # --fail-with-body makes curl exit non-zero on an HTTP 4xx/5xx response (and prints Slack's
+  #           # error body), so a rejected webhook fails the job instead of looking successful.
+  #           # --max-time bounds a stalled connection.
+  #           curl --fail-with-body --max-time 15 -sS -X POST "$SLACK_WEBHOOK_URL" \
+  #             -H "Content-Type: application/json" \
+  #             -d "$PAYLOAD"
