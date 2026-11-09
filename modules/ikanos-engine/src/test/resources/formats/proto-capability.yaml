@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta10
 info:
   display: Protobuf Test Capability
   description: Test capability for Protobuf message decoding from API responses
