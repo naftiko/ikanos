@@ -291,11 +291,17 @@ class FakeAdapterAcceptanceTest {
         assertEquals("u-rest", JSON.readTree(response.getEntity().getText()).path("id").asString());
     }
 
+    /**
+     * #879: a REST {@code call:} answers an upstream error as {@code steps:} does, with a
+     * {@code 502} and an error reference. This test used to expect the upstream 404 passed
+     * through.
+     */
     @Test
-    void restOperationShouldCopyNonSuccessStatusFromFakeResult() {
+    void restOperationShouldAnswer502ForANonSuccessFakeResult() throws Exception {
         Response response = restGet("/missing");
 
-        assertEquals(404, response.getStatus().getCode());
+        assertEquals(502, response.getStatus().getCode());
+        assertTrue(response.getEntity().getText().startsWith("An upstream call failed"));
     }
 
     @Test

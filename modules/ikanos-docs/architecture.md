@@ -210,12 +210,18 @@ What this path shows about the MCP adapter:
 
 ### Errors
 
-Every adapter keeps internal detail out of its responses: an unexpected failure returns a generic message with a reference id, and the detail is logged under that id (`ErrorReference`). How the failure is reported depends on the adapter:
+Every adapter keeps internal detail out of its responses: an unexpected failure returns a generic message with a reference id, and the detail is logged under that id (`ErrorReference`). The one exception is the body of an upstream HTTP error, which MCP tools return to the agent (see below). How the failure is reported depends on the adapter:
 
 - **MCP**: a bad argument (`IllegalArgumentException`) becomes a JSON-RPC `invalid params` error. Any other failure while running a tool becomes a tool result with `isError: true` (`ToolsCallHandler`).
-- **REST**: a bad input becomes `400`, a failed upstream step (`StepFailedException`) `502`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
+- **REST**: a bad input becomes `400`, a failed upstream call (`StepFailedException`) `502`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
 
-A consumed call that gets no HTTP answer (a connection failure, which Restlet reports with a connector code from 1000 to 1099 instead of an HTTP status) is an upstream failure in every mode, not only in `steps:`. With a single `call:`, a `ref` to an aggregate flow or a REST `forward`, REST answers `502` and an MCP tool an error result, both with "An upstream call failed" and a reference, instead of forwarding the connector code (`ConsumedResult.noResponseReceived`, #873). An MCP dynamic resource, which has no error result, answers `resources/read` with a JSON-RPC internal error carrying the same message (`ResourceHandler.UpstreamUnreachableException`, `McpErrors.upstreamError`), and so does a resource whose `steps:` fail, instead of empty contents or a generic "Internal error". The log line under that reference carries the connection failure Restlet keeps on the status (`ConsumedResult.failureCause`), such as a refused connection, a timeout or an unknown host, so an operator can tell them apart; with `steps:`, `StepFailedException` carries it as its cause. An HTTP error status from the upstream, such as `404`, is still forwarded as is in single-call mode.
+**An upstream error gets the same answer in every mode.** When a consumed call answers an HTTP error, or no HTTP answer at all, a single `call:`, `steps:` and a `ref:` to an aggregate flow answer the same way within each adapter (#879); only `2xx` counts as success (`OperationStepExecutor.failIfUnsuccessful`, the rule of a call step):
+
+- **REST**: `502` "An upstream call failed (reference: …)". The upstream status, and the connection failure if any, are logged under the reference; the upstream body is never returned. `ResourceRestlet` applies `failIfUnsuccessful` to a single call and to the last result of a flow, so `call:` and `ref:` no longer pass the upstream status and body through.
+- **MCP tools**: for an HTTP error, an error result (`isError: true`) carrying the upstream body, or "No response entity received (HTTP …)" when there is none, so the agent can tell an expired key from a missing scope or a rate limit (#925). `steps:` and `ref:` give the same answer as `call:`: `StepFailedException` keeps the body of the failing step (`getUpstreamBody`) for MCP only (`ToolHandler.stepFailedResult`). With no answer at all, the result is "An upstream call failed" with a reference (#873).
+- **MCP resources**, which have no `isError`: `resources/read` answers a JSON-RPC internal error with "An upstream call failed" and a reference (`McpErrors.upstreamError`), never the error body as contents.
+
+A flow with a single `call:` doesn't map an upstream error through its `outputParameters`: it returns the failing result, which each adapter then answers as above. A connection failure is reported by Restlet with a connector code from 1000 to 1099 instead of an HTTP status (`ConsumedResult.noResponseReceived`); the log line under the reference carries the failure Restlet keeps on the status (`ConsumedResult.failureCause`), such as a refused connection, a timeout or an unknown host, so an operator can tell them apart. The REST `forward` mode is a proxy: it still passes an upstream HTTP error through as is, and answers `502` with a reference only when no HTTP answer came back.
 
 ### Other entry points
 
@@ -275,7 +281,7 @@ In the code, the same decision is made in three places: `ToolHandler`, `Resource
 
 Each step gets its own span and step metric. Its output is added to the parameters under the step's name, which is how later steps and templates read it.
 
-A call step whose upstream response is not 2xx, or that gets no response, stops the sequence: `failIfUnsuccessful` throws a `StepFailedException` naming the step, and the remaining steps do not run. Each adapter turns that exception into its own error (see [Errors](#errors)).
+A call step whose upstream response is not 2xx, or that gets no response, stops the sequence: `failIfUnsuccessful` throws a `StepFailedException` naming the step, and the remaining steps do not run. A single `call:` is held to the same rule. Each adapter turns that exception into its own error, the same for every mode (see [Errors](#errors)).
 
 ### Parameters and templates
 

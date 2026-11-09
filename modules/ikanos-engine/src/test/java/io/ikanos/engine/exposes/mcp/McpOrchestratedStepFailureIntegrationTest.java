@@ -83,16 +83,23 @@ public class McpOrchestratedStepFailureIntegrationTest {
         }
     }
 
+    /**
+     * #879: a tool with {@code steps:} answers an upstream error as a tool with {@code call:} does
+     * (#925): an error result carrying the upstream body, so the agent can react to it. This test
+     * used to expect the body hidden (#739), which made the two modes answer differently.
+     */
     @Test
-    public void toolCallShouldNotDiscloseUpstreamBodyWhenStepFails() throws Exception {
+    public void toolCallShouldCarryTheUpstreamBodyWhenStepFails() throws Exception {
         int port = findFreePort();
         Component upstream = createUpstream(port, Status.SUCCESS_OK,
                 Status.SERVER_ERROR_INTERNAL, new AtomicInteger());
         upstream.start();
         try {
-            String text = callPay(port).path("content").get(0).path("text").asString();
+            JsonNode result = callPay(port);
+            String text = result.path("content").get(0).path("text").asString();
 
-            assertFalse(text.contains(UPSTREAM_MARKER), "upstream body leaked: " + text);
+            assertTrue(result.path("isError").asBoolean(), result.toString());
+            assertTrue(text.contains(UPSTREAM_MARKER), "the upstream body is returned: " + text);
         } finally {
             upstream.stop();
         }

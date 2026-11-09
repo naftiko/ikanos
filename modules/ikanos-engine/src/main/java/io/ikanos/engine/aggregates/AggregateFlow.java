@@ -216,9 +216,10 @@ public class AggregateFlow {
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), merged,
                         "Flow '" + spec.getName() + "'", namespace);
 
-        // Apply output parameter mappings if defined on the flow
+        // Apply output parameter mappings if defined on the flow. An upstream error is not
+        // mapped: each adapter answers it as for a single call (#879)
         if (spec.getOutputParameters() != null && !spec.getOutputParameters().isEmpty()
-                && found != null && found.hasBody()) {
+                && found != null && found.isSuccessful() && found.hasBody()) {
             String mapped = stepExecutor.mapResult(found,
                     spec.getOutputParameters());
             if (mapped != null) {
