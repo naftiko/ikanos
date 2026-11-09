@@ -211,9 +211,11 @@ public final class TunnelTransport implements Transport {
 
         @Override
         protected Action process() throws Throwable {
-            BufferUtil.clearToFill(buffer);
+            // EndPoint.fill appends to a buffer in flush mode. A buffer left in fill mode
+            // (clearToFill) looks full to it, so fill returned 0 while bytes were pending and
+            // the pump spun forever (#940).
+            BufferUtil.clear(buffer);
             int filled = endPoint.fill(buffer);
-            BufferUtil.flipToFlush(buffer, 0);
             if (filled < 0) {
                 // EOS on the Jetty side: the local endpoint has signalled that the application
                 // has finished writing the request body. The pump finishes successfully, which
@@ -235,7 +237,12 @@ public final class TunnelTransport implements Transport {
             channel.write(buffer, this, new CompletionHandler<Integer, EndPointToChannelPump>() {
                 @Override
                 public void completed(Integer result, EndPointToChannelPump cb) {
-                    cb.succeeded();
+                    if (buffer.hasRemaining()) {
+                        // A partial write: send the rest before reading more.
+                        channel.write(buffer, cb, this);
+                    } else {
+                        cb.succeeded();
+                    }
                 }
 
                 @Override

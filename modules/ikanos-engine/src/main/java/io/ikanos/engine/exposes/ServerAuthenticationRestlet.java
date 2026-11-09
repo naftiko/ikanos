@@ -25,6 +25,7 @@ import org.restlet.data.Status;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -118,15 +119,15 @@ public class ServerAuthenticationRestlet extends Restlet {
 
         String key = resolveSecretTemplate(apiKeyAuth.getKey());
         String value = resolveSecretTemplate(apiKeyAuth.getValue());
-        String placement = apiKeyAuth.getPlacement() != null ? apiKeyAuth.getPlacement() : "header";
 
-        if (key == null || key.isBlank() || value == null) {
+        // A blank expected value would match a blank header or query value (#856)
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
             return false;
         }
 
         String actualValue = null;
 
-        if ("query".equalsIgnoreCase(placement)) {
+        if (apiKeyAuth.isQueryPlacement()) {
             if (request.getResourceRef() != null
                     && request.getResourceRef().getQueryAsForm() != null) {
                 actualValue = request.getResourceRef().getQueryAsForm().getFirstValue(key);
@@ -136,6 +137,50 @@ public class ServerAuthenticationRestlet extends Restlet {
         }
 
         return secureEquals(value, actualValue);
+    }
+
+    /**
+     * Checks, when the adapter is built, that the credentials a bearer or apikey authentication
+     * expects are not blank, not even in part: an empty expected credential would accept an empty
+     * one, and a partly empty one a guessable one (#856). Someone who wants no credential removes
+     * the authentication block instead.
+     *
+     * @param authentication the adapter's authentication, may be null
+     * @param bindings the capability's bindings, may be null
+     * @param adapter how the error names the adapter, such as "the rest adapter 'shop' on port 8080"
+     * @throws IllegalArgumentException naming the credential and its variables, never its value
+     */
+    static void requireCredentials(AuthenticationSpec authentication, Map<String, Object> bindings,
+            String adapter) {
+        if (authentication instanceof BearerAuthenticationSpec bearer) {
+            requireNotBlank("bearer token", bearer.getToken(), bindings, adapter);
+        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            requireNotBlank("apikey key", apiKey.getKey(), bindings, adapter);
+            requireNotBlank("apikey value", apiKey.getValue(), bindings, adapter);
+        }
+    }
+
+    /**
+     * Fails when the credential renders blank, and also when any of its variables is unbound or
+     * bound to a blank value: {@code "sk-{{API_KY}}"} renders {@code "sk-"}, a value an attacker
+     * can guess when the prefix is public.
+     */
+    private static void requireNotBlank(String credential, String template,
+            Map<String, Object> bindings, String adapter) {
+        Map<String, Object> values = bindings != null ? bindings : Map.of();
+        String resolved = template != null
+                ? Resolver.resolveMustacheTemplate(template, values)
+                : null;
+        List<String> empty = Resolver.emptyVariables(template, values);
+        boolean blank = resolved == null || resolved.isBlank();
+        if (!blank && empty.isEmpty()) {
+            return;
+        }
+        throw new IllegalArgumentException("The " + credential + " of " + adapter
+                + (blank ? " is empty" : " has an empty part")
+                + (empty.isEmpty() ? ""
+                        : ": bind " + String.join(", ", empty) + " to a non-empty value")
+                + ". To expose it without a credential, remove its authentication block.");
     }
 
     private String resolveSecretTemplate(String rawValue) {

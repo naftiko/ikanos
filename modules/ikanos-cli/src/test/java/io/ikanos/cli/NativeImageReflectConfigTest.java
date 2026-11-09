@@ -108,6 +108,25 @@ public class NativeImageReflectConfigTest {
                 "reflect-config.json is missing authentication spec classes: " + missing);
     }
 
+    /**
+     * Restlet instantiates an Ikanos client connector helper reflectively, through its
+     * {@code (Client)} constructor, once it has resolved the helper by class name. Without the
+     * constructor in the native metadata, the native CLI has no connector for HTTP adapters
+     * (#925), or for tunneled ones (#940).
+     */
+    @Test
+    void reflectConfigShouldRegisterTheClientConnectorHelpers() throws Exception {
+        for (String name : List.of("io.ikanos.engine.consumes.http.IkanosHttpClientHelper",
+                "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper")) {
+            ReflectEntry entry = entriesByName.get(name);
+            assertNotNull(entry, "reflect-config.json is missing " + name);
+            assertTrue(entry.allDeclaredConstructors,
+                    name + " needs allDeclaredConstructors for Restlet's reflective lookup");
+            assertNotNull(Class.forName(name).getConstructor(org.restlet.Client.class),
+                    name + " must keep its public (Client) constructor");
+        }
+    }
+
     @Test
     void reflectConfigShouldContainCustomSerializers() {
         List<String> requiredClasses = List.of(

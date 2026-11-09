@@ -34,8 +34,13 @@ import static org.restlet.data.Protocol.HTTP;
 import static org.restlet.data.Protocol.HTTPS;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
 
@@ -45,6 +50,13 @@ import tools.jackson.core.JacksonException;
 public class HttpClientAdapter extends ClientAdapter {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+
+    /**
+     * Fully-qualified class name of the {@link IkanosHttpClientHelper} that Restlet instantiates
+     * reflectively for every adapter that does not route through a tunnel (#925).
+     */
+    static final String HTTP_CLIENT_HELPER_CLASS_NAME =
+            "io.ikanos.engine.consumes.http.IkanosHttpClientHelper";
 
     /**
      * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
@@ -69,8 +81,8 @@ public class HttpClientAdapter extends ClientAdapter {
      * <p>When {@code spec.getTunnel()} is non-null AND {@code tunnels} contains an entry for
      * the tunnel's type, the underlying Restlet {@link Client} is created with a custom
      * {@link TunnelAwareHttpClientHelper} that installs a Jetty request listener routing
-     * matching hosts through the tunnel. Otherwise this behaves identically to the 2-arg
-     * constructor (direct internet path).
+     * matching hosts through the tunnel. Otherwise it uses {@link IkanosHttpClientHelper} on the
+     * direct internet path, as the 2-arg constructor does.
      *
      * @param capability the owning capability
      * @param spec the consumed-HTTP spec
@@ -84,12 +96,16 @@ public class HttpClientAdapter extends ClientAdapter {
                 capability != null ? capability.getBindings() : null);
         Tunnel tunnel = selectTunnel(spec, tunnels);
         if (tunnel == null) {
-            this.httpClient = new Client(HTTP, HTTPS);
+            IkanosHttpClientHelper.ensureRegistered();
+            this.httpClient = new Client(
+                    new Context(), List.of(HTTP, HTTPS), HTTP_CLIENT_HELPER_CLASS_NAME);
         } else {
             TunnelRouteTable routes = new TunnelRouteTable();
             routes.register(extractHost(this.baseUri), tunnel);
             Context restletContext = new Context();
             restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
+            IkanosHttpClientHelper.ensureRegistered(TunnelAwareHttpClientHelper.class,
+                    TunnelAwareHttpClientHelper::new);
             this.httpClient = new Client(
                     restletContext, List.of(HTTP, HTTPS), TUNNEL_AWARE_HELPER_CLASS_NAME);
         }
@@ -190,7 +206,7 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Build a Restlet request for one consumed operation: URI templating, client- and
+     * Build a Restlet request for one consumed operation: URI templating, client-, resource- and
      * operation-level input parameters, body, authentication and default headers.
      *
      * @return the prepared invocation, or {@code null} when the operation is not declared
@@ -214,13 +230,15 @@ public class HttpClientAdapter extends ClientAdapter {
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
         clientRequest.setResourceRef(new Reference(clientResUri));
 
-        // Apply client-level and operation-level input parameters
+        // Apply client-level, resource-level and operation-level input parameters
         // NOTE: setResourceRef must be called first so that query params
         // (in: query) are appended to the correct base URI, not to null.
-        Resolver.resolveInputParametersToRequest(clientRequest,
-                getHttpClientSpec().getInputParameters(), parameters);
-        Resolver.resolveInputParametersToRequest(clientRequest,
-                clientOp.getInputParameters(), parameters);
+        List<InputParameterSpec> declared = declaredInputParameters(
+                getHttpClientSpec().getInputParameters(),
+                clientOp.getParentResource().getInputParameters(),
+                clientOp.getInputParameters());
+        Set<InputParameterSpec> replaced = replacedInputParameters(declared);
+        Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters, replaced);
 
         List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
@@ -281,8 +299,42 @@ public class HttpClientAdapter extends ClientAdapter {
         // Set authentication and headers
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
-        setHeaders(clientRequest);
+        setHeaders(clientRequest, replaced);
         return new HttpInvocation(this, clientOp, clientRequest);
+    }
+
+    /**
+     * The adapter-, resource- and operation-level input parameters, in that order (#909).
+     * Parameters are resolved in this order, so a template can use any earlier parameter.
+     */
+    @SafeVarargs
+    static List<InputParameterSpec> declaredInputParameters(List<InputParameterSpec>... levels) {
+        List<InputParameterSpec> declared = new ArrayList<>();
+        for (List<InputParameterSpec> level : levels) {
+            if (level != null) {
+                declared.addAll(level);
+            }
+        }
+        return declared;
+    }
+
+    /**
+     * The parameters replaced by a later one with the same name and location, as in OpenAPI: a
+     * narrower level replaces a broader one (#909). They are still resolved in their position, so
+     * a template that uses them sees the same value as before, but they are not sent, so a query
+     * parameter is sent once.
+     */
+    static Set<InputParameterSpec> replacedInputParameters(List<InputParameterSpec> declared) {
+        Set<InputParameterSpec> replaced = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<String, InputParameterSpec> last = new HashMap<>();
+        for (InputParameterSpec spec : declared) {
+            String in = spec.getIn() == null ? "body" : spec.getIn().toLowerCase();
+            InputParameterSpec previous = last.put(in + ":" + spec.getName(), spec);
+            if (previous != null) {
+                replaced.add(previous);
+            }
+        }
+        return replaced;
     }
 
     /**
@@ -328,9 +380,17 @@ public class HttpClientAdapter extends ClientAdapter {
      * Set any default headers from the input parameters on the client request
      */
     public void setHeaders(Request request) {
-        // Set any default headers from the input parameters
+        setHeaders(request, Set.of());
+    }
+
+    /**
+     * Same, but skips the adapter headers that a narrower parameter replaces, so that the
+     * narrower value is the one sent (#909).
+     */
+    void setHeaders(Request request, Set<InputParameterSpec> replaced) {
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
-            if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null) {
+            if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
+                    && !replaced.contains(param)) {
                 request.getHeaders().set(param.getName(), param.getValue());
             }
         }

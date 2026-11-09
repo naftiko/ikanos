@@ -31,9 +31,10 @@ INCLUDE='^modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|i
 # Not capabilities, or fixtures that must fail on purpose:
 # - secrets / sample data, OpenAPI documents, partial import sources
 # - capability-spurious-name.yml: invalid on purpose (schema test)
+# - yaml-aliases/: YAML aliases, which Ikanos rejects on purpose (#923)
 # - ikanos-spec/src/test/resources/rules/: ruleset test fixtures, some must fail
 #   (checked by IkanosPolychroRulesetTest instead)
-EXCLUDE='(secrets|sample-users|/openapi/|/imports/|/capability-spurious-name\.yml$|^modules/ikanos-spec/src/test/resources/rules/)'
+EXCLUDE='(secrets|sample-users|/openapi/|/imports/|/capability-spurious-name\.yml$|/yaml-aliases/|^modules/ikanos-spec/src/test/resources/rules/)'
 
 if ! TRACKED=$(git ls-files); then
   echo "Could not list the repository files with git." >&2

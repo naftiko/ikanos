@@ -26,6 +26,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.util.OperationStepExecutor;
 import org.restlet.Context;
 
 import java.util.List;
@@ -86,6 +87,12 @@ public class ResourcesReadHandler extends McpCallHandler {
 
             result.put("resultType", "complete");
             return new HandlerSuccessResult(result);
+        } catch (ResourceHandler.UpstreamUnreachableException e) {
+            return new HandlerFailureResult(INTERNAL_ERROR,
+                    McpErrors.upstreamError(idNode, e.getMessage(), e));
+        } catch (OperationStepExecutor.StepFailedException e) {
+            return new HandlerFailureResult(INTERNAL_ERROR, McpErrors.upstreamError(idNode,
+                    "Step failed for resource '" + uri + "'", e));
         } catch (IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling resources/read", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));

@@ -920,10 +920,12 @@ public class OperationStepExecutor {
             return;
         }
         int code = result != null ? result.status() : 0;
+        Throwable cause = null;
         if (result != null) {
+            cause = result.failureCause();
             result.release();
         }
-        throw new StepFailedException(stepName, code);
+        throw new StepFailedException(stepName, code, cause);
     }
 
     /**
@@ -941,13 +943,19 @@ public class OperationStepExecutor {
         private final int statusCode;
 
         StepFailedException(String stepName, int statusCode) {
-            super(message(stepName, statusCode));
-            this.stepName = stepName;
-            this.statusCode = statusCode;
+            this(stepName, statusCode, (Throwable) null);
+        }
+
+        /**
+         * @param cause why no response came back (e.g. a refused connection), or {@code null};
+         *        logged under the error reference, never returned to the caller
+         */
+        StepFailedException(String stepName, int statusCode, Throwable cause) {
+            this(stepName, statusCode, message(stepName, statusCode), cause);
         }
 
         private StepFailedException(String stepName, int statusCode, String message,
-                StepFailedException cause) {
+                Throwable cause) {
             super(message, cause);
             this.stepName = stepName;
             this.statusCode = statusCode;

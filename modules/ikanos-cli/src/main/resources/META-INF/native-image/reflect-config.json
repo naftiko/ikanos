@@ -1292,6 +1292,32 @@
     ]
   },
   {
+    "name": "io.ikanos.engine.consumes.http.IkanosHttpClientHelper",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Client"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "org.restlet.Client"
+        ]
+      }
+    ]
+  },
+  {
     "name": "org.restlet.engine.connector.HttpServerHelper",
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,

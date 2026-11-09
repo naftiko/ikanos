@@ -23,7 +23,7 @@ A Naftiko capability focuses on declaring the **integration intent** — what a 
 
 The JSON Schema for the Naftiko Specification is available in two forms:
 
-- **Raw file** — The schema source file is hosted on GitHub: [capability-schema.json](https://github.com/naftiko/framework/blob/main/src/main/resources/schemas/capability-schema.json)
+- **Raw file** — The schema source file is hosted on GitHub: [ikanos-schema.json](https://github.com/naftiko/ikanos/blob/main/modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json)
 - **Interactive viewer** — A human-friendly viewer is available at: [Schema Viewer](https://naftiko.github.io/schema-viewer/)
 
 ### 1.2 Core Objects
@@ -1338,7 +1338,7 @@ API Key authentication via header or query parameter.
 | **type** | `string` | **REQUIRED**. MUST be `"apikey"`. |
 | **key** | `string` | API key name (header name or query parameter name). |
 | **value** | `string` | API key value. |
-| **placement** | `string` | Where to place the key. Valid values: `"header"`, `"query"`. |
+| **placement** | `string` | Where to place the key. Valid values: `"header"`, `"query"`. Defaults to `"header"` when omitted, on exposed and consumed adapters alike. |
 
 **Example:**
 
@@ -1395,6 +1395,8 @@ authentication:
 - Only one authentication type can be used per authentication object.
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
+- On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.
+- On a consumed adapter, a credential that uses a variable with no value (unbound, misspelled, or bound to an empty value) is never sent: the call fails with an error naming the variable, and a warning names it when the capability loads.
 
 ---
 

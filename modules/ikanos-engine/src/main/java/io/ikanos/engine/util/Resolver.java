@@ -16,8 +16,10 @@ package io.ikanos.engine.util;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
@@ -329,6 +331,69 @@ public class Resolver {
     }
 
     /**
+     * Lists the variables of a credential template that have no usable value: absent, null or
+     * blank in {@code values}, in template order. Each is named by its full reference, so
+     * {@code {{secrets.CRM_TOKEN}}} is reported as {@code secrets.CRM_TOKEN}, not {@code secrets}.
+     * Variables inside a section or an inverted section are not listed, as in
+     * {@link #missingVariables(String, Map)}.
+     *
+     * <p>This is the one rule both sides apply to credentials: an exposed adapter refuses to
+     * start with such a credential (#856), and a consumed adapter refuses to send one (#843). A
+     * blank value counts as missing because rendering it would give an empty or guessable
+     * credential, such as {@code sk-} for {@code sk-{{API_KEY}}}.</p>
+     *
+     * @param template the credential template, may be null
+     * @param values the values available to it, may be null (then every variable is listed)
+     * @return the variables with no usable value, or an empty list (also for an invalid template,
+     *         which rendering reports on its own)
+     */
+    public static List<String> emptyVariables(String template, Map<String, Object> values) {
+        if (template == null || !template.contains("{{")) {
+            return List.of();
+        }
+        java.util.Set<String> empty = new java.util.LinkedHashSet<>();
+        try {
+            compileTemplate(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    String reference = name.trim();
+                    if (reference.isEmpty() || ".".equals(reference)) {
+                        return;
+                    }
+                    Object value = values == null ? null : lookupVariable(reference, values);
+                    if (value == null || value.toString().isBlank()) {
+                        empty.add(reference);
+                    }
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    return false;
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return List.of();
+        }
+        return List.copyOf(empty);
+    }
+
+    /**
      * Compiles a template through {@link #compileTemplate(String)}, as rendering does, without
      * rendering it, and reports why it cannot be parsed (#849).
      *
@@ -475,10 +540,24 @@ public class Resolver {
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
+        resolveInputParametersToRequest(clientRequest, specs, parameters, Set.of());
+    }
+
+    /**
+     * Same, but the parameters in {@code notSent} are only resolved: their value is added to
+     * {@code parameters}, for the templates that use it, and they are not sent (#909). Such a
+     * value never overwrites one the caller supplied, so that the narrower parameter that
+     * replaces it still sends the caller's value.
+     */
+    public static void resolveInputParametersToRequest(Request clientRequest,
+            List<InputParameterSpec> specs, Map<String, Object> parameters,
+            Set<InputParameterSpec> notSent) {
 
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
         }
+        Set<String> supplied = parameters == null ? Set.of()
+                : new HashSet<>(parameters.keySet());
 
         for (InputParameterSpec spec : specs) {
             try {
@@ -505,7 +584,14 @@ public class Resolver {
 
                 if (val == null) {
                     continue;
-                } else if (parameters != null) {
+                }
+                if (notSent.contains(spec)) {
+                    if (parameters != null && !supplied.contains(spec.getName())) {
+                        parameters.put(spec.getName(), val);
+                    }
+                    continue;
+                }
+                if (parameters != null) {
                     parameters.put(spec.getName(), val);
                 }
 

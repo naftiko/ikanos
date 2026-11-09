@@ -17,15 +17,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
-import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
-import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -72,14 +69,7 @@ public final class ConsumedTemplateValidator {
         if (spec == null) {
             return errors;
         }
-        List<ClientSpec> clients = new ArrayList<>();
-        if (spec.getConsumes() != null) {
-            clients.addAll(spec.getConsumes());
-        }
-        if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
-            clients.addAll(spec.getCapability().getConsumes());
-        }
-        for (ClientSpec client : clients) {
+        for (ClientSpec client : clients(spec)) {
             if (client instanceof HttpClientSpec http) {
                 checkAdapter(http, errors);
                 checkAuthentication(http.getAuthentication(), http.getNamespace(), errors);
@@ -88,6 +78,20 @@ public final class ConsumedTemplateValidator {
             }
         }
         return errors;
+    }
+
+    private static List<ClientSpec> clients(IkanosSpec spec) {
+        List<ClientSpec> clients = new ArrayList<>();
+        if (spec == null) {
+            return clients;
+        }
+        if (spec.getConsumes() != null) {
+            clients.addAll(spec.getConsumes());
+        }
+        if (spec.getCapability() != null && spec.getCapability().getConsumes() != null) {
+            clients.addAll(spec.getCapability().getConsumes());
+        }
+        return clients;
     }
 
     private static void checkAdapter(HttpClientSpec http, List<String> errors) {
@@ -128,23 +132,39 @@ public final class ConsumedTemplateValidator {
     /** Checks the values {@code ConsumedAuthentication} renders as templates on every request. */
     private static void checkAuthentication(AuthenticationSpec authentication, String ns,
             List<String> errors) {
-        String where = ns + " authentication";
-        if (authentication instanceof BasicAuthenticationSpec basic) {
-            check(basic.getUsername(), where + " username", errors);
-            check(asString(basic.getPassword()), where + " password", errors);
-        } else if (authentication instanceof DigestAuthenticationSpec digest) {
-            check(digest.getUsername(), where + " username", errors);
-            check(asString(digest.getPassword()), where + " password", errors);
-        } else if (authentication instanceof BearerAuthenticationSpec bearer) {
-            check(bearer.getToken(), where + " token", errors);
-        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
-            check(apiKey.getKey(), where + " key", errors);
-            check(apiKey.getValue(), where + " value", errors);
-        }
+        ConsumedAuthentication.credentials(authentication, ns + " authentication")
+                .forEach((where, template) -> check(template, where, errors));
     }
 
-    private static String asString(char[] value) {
-        return value == null ? null : new String(value);
+    /**
+     * Finds the consumed credentials that use a variable the bindings leave unbound or empty,
+     * such as a misspelled {@code {{TOKN}}}. {@code ConsumedAuthentication} refuses to send such a
+     * credential, so the capability warns when it loads rather than on the first call. It is a
+     * warning, not an error, because a call parameter can still provide the variable (#843).
+     *
+     * @param spec the capability spec, may be null
+     * @param bindings the capability's bindings, may be null
+     * @return one message per credential, naming its variables and never a value
+     */
+    public static List<String> findUnboundCredentials(IkanosSpec spec,
+            Map<String, Object> bindings) {
+        List<String> warnings = new ArrayList<>();
+        for (ClientSpec client : clients(spec)) {
+            AuthenticationSpec authentication = client instanceof HttpClientSpec http
+                    ? http.getAuthentication()
+                    : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
+            ConsumedAuthentication.credentials(authentication,
+                    client.getNamespace() + " authentication").forEach((where, template) -> {
+                List<String> unbound =
+                        Resolver.emptyVariables(template, bindings);
+                if (!unbound.isEmpty()) {
+                    warnings.add(where + " uses " + String.join(", ", unbound)
+                            + ", which no binding gives a value: unless the call provides it,"
+                            + " the credential is not sent");
+                }
+            });
+        }
+        return warnings;
     }
 
     /**

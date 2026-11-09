@@ -14,6 +14,7 @@
 package io.ikanos.bootstrap;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import tools.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 
 public class CapabilityRuntime {
 
@@ -59,7 +61,8 @@ public class CapabilityRuntime {
         logger.info("Reading configuration from: {}", file.getAbsolutePath());
 
         ObjectMapper mapper = IkanosMappers.lenientYaml();
-        IkanosSpec spec = mapper.readValue(file, IkanosSpec.class);
+        IkanosSpec spec = mapper.readValue(YamlAliases.reject(Files.readAllBytes(file.toPath())),
+                IkanosSpec.class);
 
         String serviceName = "ikanos";
         if (spec.getInfo() != null && spec.getInfo().getDisplay() != null) {

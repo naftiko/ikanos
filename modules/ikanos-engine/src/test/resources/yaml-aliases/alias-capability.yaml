@@ -1,0 +1,37 @@
+ikanos: "1.0.0-beta9"
+info:
+  display: "Probe"
+  description: "YAML alias."
+capability:
+  consumes:
+    - type: "http"
+      namespace: "api"
+      baseUri: "https://probe.example/v1"
+      resources:
+        things:
+          path: "/things"
+          operations:
+            list-things:
+              method: "GET"
+  exposes:
+    - type: "mcp"
+      address: "localhost"
+      port: 3000
+      namespace: "probe-mcp"
+      tools:
+        list-a:
+          description: "List A."
+          inputParameters: &list-inputs
+            filter:
+              type: "string"
+              required: false
+              description: "Filter."
+            top:
+              type: "integer"
+              required: false
+              description: "Maximum rows."
+          call: "api.list-things"
+        list-b:
+          description: "List B."
+          inputParameters: *list-inputs
+          call: "api.list-things"

@@ -245,6 +245,21 @@ class McpClientAdapterIntegrationTest {
         return JSON.readTree(((McpSchema.TextContent) result.content().get(0)).text());
     }
 
+    /**
+     * #843: a token that only a call parameter fills cannot be rendered for {@code tools/list}
+     * at startup, which has no call. Discovery lists the tools without a credential, rather than
+     * failing the capability or sending a half-rendered one.
+     */
+    @Test
+    void discoveryShouldListToolsWithoutACredentialThatOnlyACallFills() throws Exception {
+        consumer = capability(consumerYaml("verify", "")
+                .replace("token: vendor-secret-token", "token: \"{{token}}\""));
+
+        consumer.start();
+
+        assertInstanceOf(McpClientAdapter.class, consumer.getClientAdapters().get(0));
+    }
+
     @Test
     void consumerShouldInstantiateMcpClientAdapter() throws Exception {
         startConsumer("verify", "");

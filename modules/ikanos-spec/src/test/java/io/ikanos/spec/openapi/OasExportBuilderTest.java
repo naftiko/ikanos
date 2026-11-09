@@ -804,8 +804,12 @@ public class OasExportBuilderTest {
                 .anyMatch(w -> w.contains("Unsupported authentication type")));
     }
 
+    /**
+     * #840: an apikey without placement is read from a header, so the exported scheme says so.
+     * OpenAPI requires {@code in} on an apiKey scheme; this test used to expect none.
+     */
     @Test
-    void buildShouldMapApiKeyAuthWithNullPlacement() {
+    void buildShouldMapApiKeyAuthWithNullPlacementToAHeader() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
         ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
@@ -819,7 +823,7 @@ public class OasExportBuilderTest {
         SecurityScheme scheme = result.getOpenApi().getComponents()
                 .getSecuritySchemes().get("apiKeyAuth");
         assertNotNull(scheme);
-        assertNull(scheme.getIn());
+        assertEquals(SecurityScheme.In.HEADER, scheme.getIn());
     }
 
     @Test

@@ -302,6 +302,10 @@ public class McpClientAdapter extends ClientAdapter {
         int pages = 0;
         Map<String, Object> templates = ConsumedAuthentication.withBindings(null,
                 getCapability() != null ? getCapability().getBindings() : null);
+        // Listing has no call parameters: a credential that takes its value from one cannot be
+        // rendered here, so tools/list goes without it rather than with a half-rendered one (#843)
+        boolean withCredential =
+                ConsumedAuthentication.canRender(getMcpClientSpec().getAuthentication(), templates);
         do {
             if (++pages > MAX_LIST_PAGES) {
                 throw new McpClientException("Upstream MCP server " + getEndpoint()
@@ -311,7 +315,8 @@ public class McpClientAdapter extends ClientAdapter {
             if (cursor != null) {
                 params.put("cursor", cursor);
             }
-            JsonNode result = transport.call("tools/list", null, params, templates);
+            JsonNode result =
+                    transport.call("tools/list", null, params, templates, withCredential);
             result.path("tools").forEach(tools::add);
             JsonNode next = result.get("nextCursor");
             cursor = next != null && !next.isNull() && !next.asString().isEmpty()

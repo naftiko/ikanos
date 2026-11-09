@@ -14,6 +14,7 @@
 package io.ikanos.engine.aggregates;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import org.restlet.Context;
@@ -43,7 +44,9 @@ import io.ikanos.spec.exposes.ServerSpec;
  * <p>
  * Execution fields ({@code call}, {@code steps}, {@code with}, {@code inputParameters},
  * {@code outputParameters}, {@code mappings}) are <b>not</b> copied — at runtime, adapters
- * delegate to {@link AggregateFlow} instances held by the {@link io.ikanos.Capability}.
+ * delegate to {@link AggregateFlow} instances held by the {@link io.ikanos.Capability}. A unit
+ * that uses {@code ref} must not declare its own {@code call}, {@code steps} or
+ * {@code mappings}, since the flow runs instead of them.
  */
 public class AggregateRefResolver {
 
@@ -113,6 +116,8 @@ public class AggregateRefResolver {
     void resolveMcpToolRef(McpServerToolSpec tool,
             Map<String, AggregateFlowSpec> flowMap) {
         AggregateFlowSpec flow = lookupFlow(tool.getRef(), flowMap);
+        rejectExecutionFields("MCP tool", tool.getName(), tool.getRef(), tool.getCall() != null,
+                tool.getSteps(), tool.getMappings());
 
         // Inherit name (adapter-specific metadata)
         if (tool.getName() == null || tool.getName().isEmpty()) {
@@ -139,6 +144,8 @@ public class AggregateRefResolver {
     void resolveRestOperationRef(RestServerOperationSpec op,
             Map<String, AggregateFlowSpec> flowMap) {
         AggregateFlowSpec flow = lookupFlow(op.getRef(), flowMap);
+        rejectExecutionFields("REST operation", op.getName(), op.getRef(), op.getCall() != null,
+                op.getSteps(), op.getMappings());
 
         // Inherit name
         if (op.getName() == null || op.getName().isEmpty()) {
@@ -148,6 +155,23 @@ public class AggregateRefResolver {
         // Inherit description
         if (op.getDescription() == null || op.getDescription().isEmpty()) {
             op.setDescription(flow.getDescription());
+        }
+    }
+
+    /**
+     * Rejects {@code call}, {@code steps} and {@code mappings} on a unit that uses {@code ref}: the
+     * flow runs instead, so they would be silently ignored (#911). {@code with},
+     * {@code inputParameters} and {@code outputParameters} adapt the flow and stay allowed.
+     */
+    static void rejectExecutionFields(String kind, String name, String ref, boolean hasCall,
+            Map<String, ?> steps, List<?> mappings) {
+        String field = hasCall ? "call"
+                : steps != null && !steps.isEmpty() ? "steps"
+                        : mappings != null && !mappings.isEmpty() ? "mappings" : null;
+        if (field != null) {
+            throw new IllegalArgumentException(kind + " '" + name + "' uses 'ref: " + ref
+                    + "', so it cannot also declare '" + field + ":'. The flow runs instead:"
+                    + " remove '" + field + ":' or 'ref:'.");
         }
     }
 

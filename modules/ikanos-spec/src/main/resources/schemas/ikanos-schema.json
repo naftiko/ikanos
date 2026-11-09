@@ -1431,7 +1431,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. Inherited fields are merged; explicit fields override.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` or `hints` overrides the inherited one.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {
@@ -1469,6 +1469,34 @@
         "outputParameters": true
       },
       "required": [],
+      "dependentSchemas": {
+        "ref": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              },
+              {
+                "required": [
+                  "mappings"
+                ],
+                "properties": {
+                  "mappings": {
+                    "minItems": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
       "anyOf": [
         {
           "required": [
@@ -2210,7 +2238,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. Inherited fields are merged; explicit fields override.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` overrides the inherited one.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {
@@ -2318,6 +2346,34 @@
           "responses",
           "responseBinary"
         ]
+      },
+      "dependentSchemas": {
+        "ref": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              },
+              {
+                "required": [
+                  "mappings"
+                ],
+                "properties": {
+                  "mappings": {
+                    "minItems": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
       },
       "anyOf": [
         {

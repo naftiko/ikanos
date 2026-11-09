@@ -14,6 +14,8 @@
 package io.ikanos.engine.consumes.http;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
@@ -82,11 +84,9 @@ public final class ConsumedAuthentication {
                 BasicAuthenticationSpec basicAuth = (BasicAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_BASIC);
                 challengeResponse.setIdentifier(
-                        Resolver.resolveMustacheTemplate(basicAuth.getUsername(), parameters));
-                challengeResponse.setSecret(Resolver
-                        .resolveMustacheTemplate(passwordOrEmpty(basicAuth.getPassword()),
-                                parameters)
-                        .toCharArray());
+                        render(basicAuth.getUsername(), parameters, "basic username"));
+                challengeResponse.setSecret(render(passwordOrEmpty(basicAuth.getPassword()),
+                        parameters, "basic password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
@@ -94,9 +94,9 @@ public final class ConsumedAuthentication {
                 DigestAuthenticationSpec digestAuth = (DigestAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_DIGEST);
                 challengeResponse.setIdentifier(
-                        Resolver.resolveMustacheTemplate(digestAuth.getUsername(), parameters));
-                challengeResponse.setSecret(Resolver.resolveMustacheTemplate(
-                        passwordOrEmpty(digestAuth.getPassword()), parameters).toCharArray());
+                        render(digestAuth.getUsername(), parameters, "digest username"));
+                challengeResponse.setSecret(render(passwordOrEmpty(digestAuth.getPassword()),
+                        parameters, "digest password").toCharArray());
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
@@ -104,44 +104,100 @@ public final class ConsumedAuthentication {
                 BearerAuthenticationSpec bearerAuth = (BearerAuthenticationSpec) authenticationSpec;
                 challengeResponse = new ChallengeResponse(ChallengeScheme.HTTP_OAUTH_BEARER);
                 challengeResponse.setRawValue(
-                        Resolver.resolveMustacheTemplate(bearerAuth.getToken(), parameters));
+                        render(bearerAuth.getToken(), parameters, "bearer token"));
                 clientRequest.setChallengeResponse(challengeResponse);
                 break;
 
             case "apikey":
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
-                String key = Resolver.resolveMustacheTemplate(apiKeyAuth.getKey(), parameters);
-                String value = Resolver.resolveMustacheTemplate(apiKeyAuth.getValue(), parameters);
-                String placement = apiKeyAuth.getPlacement();
+                String key = render(apiKeyAuth.getKey(), parameters, "apikey key");
+                String value = render(apiKeyAuth.getValue(), parameters, "apikey value");
 
-                if (placement == null) {
-                    throw new IllegalArgumentException(
-                            "Placement is required for apikey authentication (expected: header or query)");
-                }
-
-                if (placement.equals("header")) {
-                    if ("Authorization".equalsIgnoreCase(key)) {
-                        ApiKeyAuthorizationHeaderHelper.ensureRegistered();
-                        ChallengeResponse rawChallenge =
-                                new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
-                        // setIdentifier (not setRawValue): formatResponse() short-circuits to
-                        // the raw value when it is set and never calls the registered helper,
-                        // which is what strips the technicalName + separator Restlet would
-                        // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
-                        rawChallenge.setIdentifier(value);
-                        clientRequest.setChallengeResponse(rawChallenge);
-                    } else {
-                        clientRequest.getHeaders().add(key, value);
-                    }
-                } else if (placement.equals("query")) {
+                if (apiKeyAuth.isQueryPlacement()) {
                     String separator = targetRef.contains("?") ? "&" : "?";
                     clientRequest.setResourceRef(targetRef + separator + key + "=" + value);
+                } else if ("Authorization".equalsIgnoreCase(key)) {
+                    ApiKeyAuthorizationHeaderHelper.ensureRegistered();
+                    ChallengeResponse rawChallenge =
+                            new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
+                    // setIdentifier (not setRawValue): formatResponse() short-circuits to
+                    // the raw value when it is set and never calls the registered helper,
+                    // which is what strips the technicalName + separator Restlet would
+                    // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
+                    rawChallenge.setIdentifier(value);
+                    clientRequest.setChallengeResponse(rawChallenge);
+                } else {
+                    // A header, also when placement is omitted, as the schema says (#840)
+                    clientRequest.getHeaders().add(key, value);
                 }
                 break;
 
             default:
                 break;
         }
+    }
+
+    /**
+     * Renders a credential template, refusing one that uses a variable with no value: unbound (a
+     * typo such as {@code {{TOKN}}}) or bound to a blank value. Rendering alone would turn it into
+     * an empty string, or keep the placeholder when there are no parameters, and send that as the
+     * credential (#843). The error names the variables, never a value.
+     *
+     * @param template the credential template, may be null
+     * @param parameters template parameters, already merged with the bindings
+     * @param credential how the error names the credential, such as "bearer token"
+     * @return the rendered credential, or {@code null} if {@code template} is null
+     * @throws IllegalArgumentException when a variable of the template has no value
+     */
+    static String render(String template, Map<String, Object> parameters, String credential) {
+        List<String> empty = Resolver.emptyVariables(template, parameters);
+        if (!empty.isEmpty()) {
+            throw new IllegalArgumentException("Missing or empty template parameters in the "
+                    + credential + ": " + empty + ". The credential is not sent.");
+        }
+        return Resolver.resolveMustacheTemplate(template, parameters);
+    }
+
+    /**
+     * The values {@link #apply} renders as credential templates, keyed by where they are, such as
+     * {@code "<where> token"}.
+     *
+     * @param authentication the consumed-side credential, may be null
+     * @param where the prefix of each key, such as {@code "crm authentication"}
+     * @return the templates in declaration order; empty for no authentication
+     */
+    public static Map<String, String> credentials(AuthenticationSpec authentication,
+            String where) {
+        Map<String, String> credentials = new LinkedHashMap<>();
+        if (authentication instanceof BasicAuthenticationSpec basic) {
+            credentials.put(where + " username", basic.getUsername());
+            credentials.put(where + " password", passwordOrNull(basic.getPassword()));
+        } else if (authentication instanceof DigestAuthenticationSpec digest) {
+            credentials.put(where + " username", digest.getUsername());
+            credentials.put(where + " password", passwordOrNull(digest.getPassword()));
+        } else if (authentication instanceof BearerAuthenticationSpec bearer) {
+            credentials.put(where + " token", bearer.getToken());
+        } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            credentials.put(where + " key", apiKey.getKey());
+            credentials.put(where + " value", apiKey.getValue());
+        }
+        return credentials;
+    }
+
+    /**
+     * @param authentication the consumed-side credential, may be null
+     * @param parameters template parameters, already merged with the bindings
+     * @return {@code true} when every variable of the credential has a value, so {@link #apply}
+     *         can send it; also {@code true} with no authentication
+     */
+    public static boolean canRender(AuthenticationSpec authentication,
+            Map<String, Object> parameters) {
+        return credentials(authentication, "").values().stream()
+                .allMatch(template -> Resolver.emptyVariables(template, parameters).isEmpty());
+    }
+
+    private static String passwordOrNull(char[] password) {
+        return password == null ? null : new String(password);
     }
 
     private static String passwordOrEmpty(char[] password) {

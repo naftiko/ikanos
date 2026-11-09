@@ -45,11 +45,14 @@ import com.jayway.jsonpath.spi.mapper.Jackson3MappingProvider;
 import io.ikanos.spec.OutputParameterSpec;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableBody;
@@ -79,6 +82,12 @@ public class Converter {
 
     private static final Logger logger = LoggerFactory.getLogger(Converter.class);
 
+    /**
+     * Upper bound on a single {@code colspan}/{@code rowspan}, so that an oversized attribute cannot
+     * make the grid allocate a large number of cells before it is clamped to the header count.
+     */
+    private static final int MAX_MERGED_CELL_SPAN = 1000;
+
     /** Convert various formats to JSON */
     public static JsonNode convertToJson(String format, String schema, Representation entity)
             throws IOException {
@@ -94,7 +103,6 @@ public class Converter {
         }
 
         return switch (fmt) {
-            case XML -> Converter.convertXmlToJson(entity.getReader());
             case PROTOBUF -> {
                 if (schema == null || schema.isEmpty()) {
                     throw new IOException(
@@ -109,13 +117,10 @@ public class Converter {
                 }
                 yield Converter.convertAvroToJson(entity.getStream(), schema);
             }
-            case YAML -> Converter.convertYamlToJson(entity.getReader());
-            case CSV -> Converter.convertDelimitedToJson(entity.getReader(), ',');
-            case TSV -> Converter.convertDelimitedToJson(entity.getReader(), '\t');
-            case PSV -> Converter.convertDelimitedToJson(entity.getReader(), '|');
-            case HTML -> Converter.convertHtmlToJson(entity.getReader(), schema);
-            case MARKDOWN -> Converter.convertMarkdownToJson(entity.getReader(), schema);
-            case JSON -> IkanosMappers.json().readTree(entity.getReader());
+            // Only the text formats go through the reader: reading it consumes the representation's
+            // stream (Restlet returns null from getStream() afterwards), which the two binary formats
+            // above still need.
+            default -> Converter.convertTextToJson(fmt, schema, entity.getReader());
         };
     }
 
@@ -146,18 +151,60 @@ public class Converter {
         }
 
         return switch (fmt) {
-            case XML -> Converter.convertXmlToJson(new StringReader(text));
-            case YAML -> Converter.convertYamlToJson(new StringReader(text));
-            case CSV -> Converter.convertDelimitedToJson(new StringReader(text), ',');
-            case TSV -> Converter.convertDelimitedToJson(new StringReader(text), '\t');
-            case PSV -> Converter.convertDelimitedToJson(new StringReader(text), '|');
-            case HTML -> Converter.convertHtmlToJson(new StringReader(text), schema);
-            case MARKDOWN -> Converter.convertMarkdownToJson(new StringReader(text), schema);
             case PROTOBUF, AVRO -> throw new IOException(fmt.display
                     + " format cannot be converted from a text string; "
                     + "use the Representation-based overload instead");
-            case JSON -> IkanosMappers.json().readTree(text);
+            default -> Converter.convertTextToJson(fmt, schema, new StringReader(text));
         };
+    }
+
+    /**
+     * Convert a text body to JSON, dropping a leading byte-order mark first.
+     *
+     * <p>A UTF-8 BOM survives text decoding as the character U+FEFF, which the text parsers treat as
+     * content: JSON refuses such a body outright, and the delimited formats fold the mark into the
+     * first column name. The XML and YAML parsers consume the mark themselves, so their body is read
+     * as it is.</p>
+     *
+     * <p>Called for the text formats only: the binary ones (Protobuf, Avro) must be handed the raw
+     * representation stream, which reading a reader would consume.</p>
+     */
+    private static JsonNode convertTextToJson(ConversionFormat fmt, String schema, Reader reader)
+            throws IOException {
+        Reader body = fmt == ConversionFormat.XML || fmt == ConversionFormat.YAML
+                ? reader
+                : Converter.skipByteOrderMark(reader);
+
+        return switch (fmt) {
+            case XML -> Converter.convertXmlToJson(body);
+            case YAML -> Converter.convertYamlToJson(body);
+            case CSV -> Converter.convertDelimitedToJson(body, ',');
+            case TSV -> Converter.convertDelimitedToJson(body, '\t');
+            case PSV -> Converter.convertDelimitedToJson(body, '|');
+            case HTML -> Converter.convertHtmlToJson(body, schema);
+            case MARKDOWN -> Converter.convertMarkdownToJson(body, schema);
+            case JSON -> IkanosMappers.json().readTree(body);
+            case PROTOBUF, AVRO -> throw new IOException(fmt.display
+                    + " format cannot be converted from a text string; "
+                    + "use the Representation-based overload instead");
+        };
+    }
+
+    /**
+     * Drops one leading byte-order mark from a text body.
+     *
+     * <p>A UTF-8 BOM survives text decoding as the character U+FEFF, which the JSON and delimited
+     * parsers treat as content. A body that does not start with the mark is pushed back untouched,
+     * so it parses exactly as before.</p>
+     */
+    private static Reader skipByteOrderMark(Reader reader) throws IOException {
+        PushbackReader pushback = new PushbackReader(reader, 1);
+        int first = pushback.read();
+        if (first != -1 && first != '\uFEFF') {
+            pushback.unread(first);
+        }
+
+        return pushback;
     }
 
     /**
@@ -553,10 +600,7 @@ public class Converter {
     }
 
     private static List<String> extractHtmlHeaders(Element table) {
-        Elements headerCells = table.select("thead tr:first-child th");
-        if (headerCells.isEmpty()) {
-            headerCells = table.select("tr:first-child th");
-        }
+        Elements headerCells = directChildren(firstHeaderRow(table), "th");
 
         List<String> headers = new ArrayList<>();
         for (Element headerCell : headerCells) {
@@ -566,32 +610,202 @@ public class Converter {
         return sanitizeHeaders(headers);
     }
 
+    /**
+     * The row that names the table's columns: the first row of the table's own {@code thead} that
+     * carries {@code th} cells, else the first of the table's own rows that does.
+     *
+     * <p>Only the table's direct children are inspected. A {@code table} nested inside a cell is a
+     * different table: its header row belongs to it, and must not name the outer columns.</p>
+     */
+    private static Element firstHeaderRow(Element table) {
+        for (Element thead : directChildren(table, "thead")) {
+            for (Element headerRow : directChildren(thead, "tr")) {
+                if (!directChildren(headerRow, "th").isEmpty()) {
+                    return headerRow;
+                }
+            }
+        }
+
+        for (Element row : tableRows(table)) {
+            if (!directChildren(row, "th").isEmpty()) {
+                return row;
+            }
+        }
+
+        return null;
+    }
+
     private static List<List<String>> extractHtmlRows(Element table, List<String> headers) {
-        List<List<String>> rows = new ArrayList<>();
-        Elements rowElements = table.select("tbody tr");
+        Elements rowElements = new Elements();
+        for (Element body : directChildren(table, "tbody")) {
+            rowElements.addAll(directChildren(body, "tr"));
+        }
         if (rowElements.isEmpty()) {
-            rowElements = table.select("tr");
+            rowElements = tableRows(table);
         }
 
+        List<Element> dataRows = new ArrayList<>();
         for (Element rowElement : rowElements) {
-            // Skip any row containing at least one <th> — it is a header row.
-            if (!rowElement.select("th").isEmpty()) {
+            // Skip any row whose own cells are headers — it is a header row. A header row of a
+            // nested table is not this row's: it lives in a cell, not among this row's children.
+            if (!directChildren(rowElement, "th").isEmpty()) {
                 continue;
             }
 
-            Elements cells = rowElement.select("td");
-            if (cells.isEmpty()) {
+            if (directChildren(rowElement, "td").isEmpty()) {
                 continue;
             }
 
-            List<String> values = new ArrayList<>();
-            for (Element cell : cells) {
-                values.add(cell.text().trim());
-            }
-            rows.add(values);
+            dataRows.add(rowElement);
         }
 
+        return expandMergedCells(dataRows, headers.size());
+    }
+
+    /**
+     * Lay the data rows out on a grid, honouring {@code rowspan} and {@code colspan}.
+     *
+     * <p>Without this, a merged cell makes its row one cell shorter than the header row, and every
+     * value after it is written under its left neighbour's header. A cell spanning several rows
+     * keeps its value on every row and column it covers, so each row stays self-describing. A cell
+     * spanning several columns fills its first column and leaves the rest of its span empty: the
+     * value covers the merged block as a whole, and copying it into each column would invent
+     * per-column data that is not there.</p>
+     *
+     * <p>Nothing past the last header is kept, which is what {@code mapRowsToTable} would drop
+     * anyway; clamping each span to the columns left keeps an oversized attribute from allocating a
+     * grid proportional to the attribute value rather than to the table.</p>
+     *
+     * <p>Only a row's own {@code td} children are laid out, so a {@code table} nested inside a cell
+     * does not contribute cells to its host's grid.</p>
+     *
+     * @param dataRows the data rows, in document order
+     * @param columnCount the number of columns the header row defines
+     * @return one list of cell texts per row, each already positioned on the grid
+     */
+    static List<List<String>> expandMergedCells(List<Element> dataRows, int columnCount) {
+        List<List<String>> grid = new ArrayList<>();
+        Map<Integer, String> coveredValue = new HashMap<>();
+        Map<Integer, Integer> coveredRowsLeft = new HashMap<>();
+
+        for (Element rowElement : dataRows) {
+            List<String> values = new ArrayList<>();
+            int column = 0;
+
+            for (Element cell : directChildren(rowElement, "td")) {
+                column = fillCoveredColumns(values, column, columnCount, coveredValue, coveredRowsLeft);
+                if (column >= columnCount) {
+                    // every header column is filled: the remaining cells would be dropped anyway
+                    break;
+                }
+
+                String value = cell.text().trim();
+                int columnSpan = Math.min(spanOf(cell, "colspan"), columnCount - column);
+                int rowSpan = spanOf(cell, "rowspan");
+
+                for (int i = 0; i < columnSpan; i++) {
+                    values.add(i == 0 ? value : "");
+                }
+
+                if (rowSpan > 1) {
+                    for (int i = 0; i < columnSpan; i++) {
+                        coveredValue.put(column + i, i == 0 ? value : "");
+                        coveredRowsLeft.put(column + i, rowSpan - 1);
+                    }
+                }
+
+                column += columnSpan;
+            }
+
+            // A short row can end before a column that a previous row still covers.
+            fillCoveredColumns(values, column, columnCount, coveredValue, coveredRowsLeft);
+            grid.add(values);
+        }
+
+        return grid;
+    }
+
+    /**
+     * Append the values carried down from a {@code rowspan} that occupy {@code column} onwards.
+     *
+     * @return the first column not covered by a rowspan
+     */
+    private static int fillCoveredColumns(List<String> values, int column, int columnCount,
+            Map<Integer, String> coveredValue, Map<Integer, Integer> coveredRowsLeft) {
+        while (column < columnCount && coveredRowsLeft.getOrDefault(column, 0) > 0) {
+            values.add(coveredValue.get(column));
+
+            int rowsLeft = coveredRowsLeft.get(column) - 1;
+            if (rowsLeft == 0) {
+                coveredRowsLeft.remove(column);
+                coveredValue.remove(column);
+            } else {
+                coveredRowsLeft.put(column, rowsLeft);
+            }
+
+            column++;
+        }
+        return column;
+    }
+
+    /**
+     * Read a span attribute, treating anything that is not a positive number as no span.
+     *
+     * @param cell the cell holding the attribute
+     * @param attribute {@code colspan} or {@code rowspan}
+     * @return the span, or 1 when the attribute is absent, not a number, or not positive
+     */
+    private static int spanOf(Element cell, String attribute) {
+        String raw = cell.attr(attribute).trim();
+        if (raw.isEmpty()) {
+            return 1;
+        }
+
+        try {
+            int span = Integer.parseInt(raw);
+            if (span < 1) {
+                return 1;
+            }
+            return Math.min(span, MAX_MERGED_CELL_SPAN);
+        } catch (NumberFormatException nfe) {
+            return 1;
+        }
+    }
+
+    /**
+     * The table's own rows, in document order: {@code tr} children of the table itself plus those
+     * of its own {@code thead}/{@code tbody}/{@code tfoot}. Rows of a nested table are excluded.
+     */
+    private static Elements tableRows(Element table) {
+        Elements rows = new Elements();
+        for (Element section : table.children()) {
+            String tag = section.normalName();
+            if ("tr".equals(tag)) {
+                rows.add(section);
+            } else if ("thead".equals(tag) || "tbody".equals(tag) || "tfoot".equals(tag)) {
+                rows.addAll(directChildren(section, "tr"));
+            }
+        }
         return rows;
+    }
+
+    /**
+     * The children of {@code parent} whose tag is {@code tagName}. Selecting by child rather than
+     * by descendant keeps a nested {@code table}'s rows and cells out of its host table's shape.
+     */
+    private static Elements directChildren(Element parent, String tagName) {
+        Elements children = new Elements();
+        if (parent == null) {
+            return children;
+        }
+
+        for (Element child : parent.children()) {
+            if (tagName.equals(child.normalName())) {
+                children.add(child);
+            }
+        }
+
+        return children;
     }
 
     private static ArrayNode extractTablesFromAst(Node document, ObjectMapper mapper) {

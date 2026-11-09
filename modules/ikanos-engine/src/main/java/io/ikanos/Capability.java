@@ -15,6 +15,7 @@ package io.ikanos;
 
 import java.io.File;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import tools.jackson.databind.ObjectMapper;
+import org.restlet.Context;
 import io.ikanos.engine.aggregates.Aggregate;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
@@ -63,6 +66,7 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 
 /**
  * Main Capability class that initializes and manages adapters based on configuration
@@ -220,6 +224,10 @@ public class Capability {
         // §6.5 design in blueprints/reverse-tunnel-private-network.md.
         // Templates are checked first, so a capability that cannot work never starts a tunnel.
         ConsumedTemplateValidator.validate(spec);
+        for (String warning : ConsumedTemplateValidator.findUnboundCredentials(spec,
+                this.bindings.get())) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
         Map<String, Tunnel> tunnels = TunnelBootstrap.discoverAndStart(
                 spec.getCapability().getConsumes(),
                 java.time.Duration.ofSeconds(30),
@@ -426,7 +434,7 @@ public class Capability {
                             "Classpath resource not found: " + resourcePath);
                 }
                 ObjectMapper mapper = IkanosMappers.lenientYaml();
-                this.spec = mapper.readValue(is, IkanosSpec.class);
+                this.spec = mapper.readValue(YamlAliases.reject(is.readAllBytes()), IkanosSpec.class);
                 this.capabilityDir = null;
             } catch (IllegalArgumentException e) {
                 throw e;
@@ -445,7 +453,8 @@ public class Capability {
             }
             try {
                 ObjectMapper mapper = IkanosMappers.lenientYaml();
-                this.spec = mapper.readValue(file, IkanosSpec.class);
+                this.spec = mapper.readValue(YamlAliases.reject(Files.readAllBytes(yamlPath)),
+                        IkanosSpec.class);
                 this.capabilityDir = file.getParent();
             } catch (Exception e) {
                 throw new IllegalArgumentException(

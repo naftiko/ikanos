@@ -38,6 +38,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 
 @Command(
     name = "validate",
@@ -193,7 +194,7 @@ public class ValidateCommand implements Callable<Integer> {
         if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
             // Parse YAML
             ObjectMapper yamlMapper = IkanosMappers.yaml();
-            return yamlMapper.readTree(file);
+            return yamlMapper.readTree(YamlAliases.reject(Files.readAllBytes(file.toPath())));
         } else {
             throw new IllegalArgumentException(
                 "Unsupported file format. Only .yaml and .yml are supported."

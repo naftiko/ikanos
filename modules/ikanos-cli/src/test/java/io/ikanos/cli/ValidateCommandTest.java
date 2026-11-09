@@ -175,6 +175,48 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
+        Path yaml = tempDir.resolve("alias.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      tools:
+                        list-a:
+                          description: "List A"
+                          inputParameters: &inputs
+                            - name: "filter"
+                              type: "string"
+                              description: "Filter"
+                          call: "svc.list"
+                        list-b:
+                          description: "List B"
+                          inputParameters: *inputs
+                          call: "svc.list"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode);
+        String err = errCapture.toString();
+        assertTrue(err.contains("YAML alias '*inputs' is not supported"), err);
+        assertTrue(err.contains("line: 27"), err);
+    }
+
+    @Test
     public void callShouldReportTheMigrationForARemovedSkillAdapter() {
         Path yaml = tempDir.resolve("skill-adapter.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """
