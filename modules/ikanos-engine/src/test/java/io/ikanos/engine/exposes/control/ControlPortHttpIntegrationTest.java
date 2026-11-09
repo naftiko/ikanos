@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -41,6 +40,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 
 /**
  * End-to-end tests of the control port over real HTTP (issue #608): a capability is started
@@ -264,7 +264,8 @@ class ControlPortHttpIntegrationTest {
     }
 
     private void start(Setup setup) throws Exception {
-        controlPort = freePort();
+        int[] ports = TestUtils.freePorts(2);
+        controlPort = ports[0];
         StringBuilder yaml = new StringBuilder("""
                 ikanos: "%s"
                 info:
@@ -287,7 +288,7 @@ class ControlPortHttpIntegrationTest {
         }
         if (setup.rest) {
             int upstreamPort = startUpstream();
-            restPort = freePort();
+            restPort = ports[1];
             yaml.append("""
                         - type: "rest"
                           address: "localhost"
@@ -388,11 +389,5 @@ class ControlPortHttpIntegrationTest {
             }
         }
         throw new AssertionError("No '" + type + "' server adapter");
-    }
-
-    private static int freePort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
     }
 }

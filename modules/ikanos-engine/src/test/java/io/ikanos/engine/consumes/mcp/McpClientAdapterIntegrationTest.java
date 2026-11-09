@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -46,6 +45,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.utils.TestUtils;
 
 /**
  * Ikanos-to-Ikanos composition over MCP (design doc {@code mcp-client-adapter.md} §6).
@@ -68,8 +68,9 @@ class McpClientAdapterIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        int erpPort = freePort();
-        mcpPort = freePort();
+        int[] ports = TestUtils.freePorts(2);
+        int erpPort = ports[0];
+        mcpPort = ports[1];
         erp = erpStub(erpPort);
         erp.start();
         publisher = capability(publisherYaml(erpPort, mcpPort));
@@ -89,11 +90,6 @@ class McpClientAdapterIntegrationTest {
         return new Capability(YAML.readValue(yaml, IkanosSpec.class));
     }
 
-    private static int freePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
-    }
 
     private Component erpStub(int port) {
         Component component = new Component();
@@ -394,7 +390,7 @@ class McpClientAdapterIntegrationTest {
      */
     @Test
     void consumerShouldReachAnUpstreamThatRequiresClientCapabilities() throws Exception {
-        int strictPort = freePort();
+        int strictPort = TestUtils.freePorts(1)[0];
         Component strict = strictUpstream(strictPort);
         strict.start();
         try {

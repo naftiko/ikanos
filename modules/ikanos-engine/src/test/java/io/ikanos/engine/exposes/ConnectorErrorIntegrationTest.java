@@ -15,7 +15,6 @@ package io.ikanos.engine.exposes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -41,6 +40,7 @@ import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 
 /**
  * #873: when a consumed call gets no HTTP answer (connection refused), every exposed path answers
@@ -61,10 +61,11 @@ class ConnectorErrorIntegrationTest {
 
     @BeforeEach
     void startCapabilityAgainstAClosedPort() throws Exception {
-        int closedPort = freePort();
-        restPort = freePort();
+        int[] ports = TestUtils.freePorts(3);
+        int closedPort = ports[0];
+        restPort = ports[1];
         capability = new Capability(IkanosMappers.lenientYaml().readValue(
-                yaml(closedPort, restPort, freePort()), IkanosSpec.class));
+                yaml(closedPort, restPort, ports[2]), IkanosSpec.class));
         capability.start();
     }
 
@@ -275,11 +276,5 @@ class ConnectorErrorIntegrationTest {
                           description: "Aggregate"
                           ref: agg.get-item
                 """.formatted(IKANOS, closedPort, restPort, mcpPort);
-    }
-
-    private static int freePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
     }
 }

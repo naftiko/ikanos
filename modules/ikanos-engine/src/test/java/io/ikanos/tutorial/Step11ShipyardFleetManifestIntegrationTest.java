@@ -31,6 +31,7 @@ import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.utils.TestUtils;
 
 /**
  * End-to-end integration test for {@code step-11-shipyard-fleet-manifest.yml}
@@ -68,8 +69,9 @@ public class Step11ShipyardFleetManifestIntegrationTest
         useMcpServerToken(SECRETS_FILE);
         disableMcpAuthentication(spec);
 
-        restPort = findFreePort();
-        int mcpPort = findFreePort();
+        int[] ports = TestUtils.freePorts(2);
+        restPort = ports[0];
+        int mcpPort = ports[1];
 
         spec.getCapability().getExposes().getFirst().setPort(mcpPort);
         spec.getCapability().getExposes().getFirst().setAddress("localhost");

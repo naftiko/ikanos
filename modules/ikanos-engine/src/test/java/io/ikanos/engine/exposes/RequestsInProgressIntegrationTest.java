@@ -44,6 +44,7 @@ import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 
 /**
  * A capability past its {@code maxRequestsInProgress} refuses the excess with a 503, keeps
@@ -65,9 +66,10 @@ class RequestsInProgressIntegrationTest {
 
     @BeforeEach
     void startCapability() throws Exception {
-        int upstreamPort = freePort();
-        restPort = freePort();
-        controlPort = freePort();
+        int[] ports = TestUtils.freePorts(3);
+        int upstreamPort = ports[0];
+        restPort = ports[1];
+        controlPort = ports[2];
         upstream = slowUpstream(upstreamPort);
         upstream.start();
         capability = capabilityFromYaml(yaml(upstreamPort, restPort, controlPort, "maxRequestsInProgress: 2"));
@@ -133,7 +135,8 @@ class RequestsInProgressIntegrationTest {
 
     @Test
     void adapterShouldDefaultTo16RequestsPerCpu() throws Exception {
-        Capability unset = capabilityFromYaml(yaml(freePort(), freePort(), freePort(), ""));
+        int[] ports = TestUtils.freePorts(3);
+        Capability unset = capabilityFromYaml(yaml(ports[0], ports[1], ports[2], ""));
 
         assertEquals(ServerAdapter.DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU
                 * Runtime.getRuntime().availableProcessors(),
@@ -142,9 +145,10 @@ class RequestsInProgressIntegrationTest {
 
     @Test
     void adapterShouldGetEnoughJettyThreadsForALimitAbove200() throws Exception {
-        Capability large = capabilityFromYaml(yaml(freePort(), freePort(), freePort(),
+        int[] ports = TestUtils.freePorts(6);
+        Capability large = capabilityFromYaml(yaml(ports[0], ports[1], ports[2],
                 "maxRequestsInProgress: 300"));
-        Capability small = capabilityFromYaml(yaml(freePort(), freePort(), freePort(),
+        Capability small = capabilityFromYaml(yaml(ports[3], ports[4], ports[5],
                 "maxRequestsInProgress: 4"));
 
         assertEquals("350", maxThreads(large.getServerAdapters().get(0).getServer()));
@@ -198,11 +202,12 @@ class RequestsInProgressIntegrationTest {
 
     @Test
     void requestsRefusedByAuthenticationShouldNotTakeASlot() throws Exception {
-        int upstreamPort = freePort();
-        int port = freePort();
+        int[] ports = TestUtils.freePorts(3);
+        int upstreamPort = ports[0];
+        int port = ports[1];
         Component secured = slowUpstream(upstreamPort);
         secured.start();
-        Capability withKey = capabilityFromYaml(yaml(upstreamPort, port, freePort(), """
+        Capability withKey = capabilityFromYaml(yaml(upstreamPort, port, ports[2], """
                 maxRequestsInProgress: 1
                       authentication:
                         type: apikey
