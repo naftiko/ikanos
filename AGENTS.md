@@ -83,8 +83,9 @@ mvn clean test -pl modules/ikanos-spec,modules/ikanos-engine -am --no-transfer-p
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
 docker build -f deployment/Dockerfile -t ikanos .
 
-# Build native CLI binary (requires GraalVM 21 — triggered by version tags in CI)
-mvn -B clean package -Pnative -pl modules/ikanos-cli -am
+# Build the CLI jar (modules/ikanos-cli/target/ikanos.jar); CI packages it with a jlink JRE
+# (publish-cli-packages.yml), installed by docs/install.sh and docs/install.ps1
+mvn -B clean package -DskipTests -pl modules/ikanos-cli -am
 
 # Pre-PR validation (Windows)
 .\scripts\pr-check-wind.ps1

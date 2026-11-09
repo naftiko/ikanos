@@ -532,7 +532,7 @@ jobs:
     secrets: inherit
 
   smoke-tests:
-    uses: ./.github/workflows/publish-cli-bin.yml
+    uses: ./.github/workflows/publish-cli-packages.yml
     secrets: inherit
 
   nightly-report:

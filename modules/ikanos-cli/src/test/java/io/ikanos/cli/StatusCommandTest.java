@@ -55,7 +55,7 @@ public class StatusCommandTest {
     void statusShouldDisplayCapabilityInfo() {
         String json = """
                 {"capability":{"display":"Weather Service","specVersion":"1.0.0-alpha2"},
-                 "engine":{"version":"1.0.0-alpha2","java":"21.0.3","native":false},
+                 "engine":{"version":"1.0.0-alpha2","java":"21.0.3"},
                  "uptime":"PT2H34M12S",
                  "otel":{"status":"inactive"},
                  "adapters":[
@@ -89,7 +89,7 @@ public class StatusCommandTest {
     void statusShouldShowDegradedWhenAdapterStopped() {
         String json = """
                 {"capability":{"display":"Test"},
-                 "engine":{"version":"1.0.0","java":"21","native":false},
+                 "engine":{"version":"1.0.0","java":"21"},
                  "uptime":"PT5S",
                  "otel":{"status":"inactive"},
                  "adapters":[
@@ -144,7 +144,7 @@ public class StatusCommandTest {
     void statusShouldDisplayActiveOtelExporterWhenPresent() {
         String json = """
                 {"capability":{"display":"Weather Service"},
-                 "engine":{"version":"1.0.0","java":"21","native":false},
+                 "engine":{"version":"1.0.0","java":"21"},
                  "uptime":"PT15S",
                  "otel":{"status":"active","exporter":"otlp","endpoint":"http://otel:4317"},
                  "adapters":[]}""";
@@ -184,10 +184,14 @@ public class StatusCommandTest {
         assertEquals("invalid", StatusCommand.formatDuration("invalid"));
     }
 
+    /**
+     * #914: there is no native binary any more, and the engine no longer reports it. An older
+     * engine that still sends {@code "native"} is shown the same way, without it.
+     */
     @Test
-    void statusShouldDisplayNativeEngineIndicator() {
+    void statusShouldShowTheEngineVersionAndJavaWithoutNative() {
         String json = """
-                {"capability":{"display":"Native App"},
+                {"capability":{"display":"Older Engine"},
                  "engine":{"version":"1.0.0","java":"21","native":true},
                  "uptime":"PT1S",
                  "otel":{"status":"inactive"},
@@ -205,14 +209,15 @@ public class StatusCommandTest {
         int exitCode = cmd.execute("status", "--port", String.valueOf(port));
 
         assertEquals(0, exitCode);
-        assertTrue(outCapture.toString().contains("native"));
+        assertTrue(outCapture.toString().contains("1.0.0 (Java 21)"), outCapture.toString());
+        assertFalse(outCapture.toString().contains("native"), outCapture.toString());
     }
 
     @Test
     void statusShouldHandleOtelInactiveWithoutExporter() {
         String json = """
                 {"capability":{"display":"Test"},
-                 "engine":{"version":"1.0.0","java":"21","native":false},
+                 "engine":{"version":"1.0.0","java":"21"},
                  "uptime":"PT10S",
                  "otel":{"status":"inactive"},
                  "adapters":[]}""";
@@ -236,7 +241,7 @@ public class StatusCommandTest {
     void statusShouldDisplayMultipleAdapters() {
         String json = """
                 {"capability":{"display":"Multi-adapter"},
-                 "engine":{"version":"1.0.0","java":"21","native":false},
+                 "engine":{"version":"1.0.0","java":"21"},
                  "uptime":"PT20S",
                  "otel":{"status":"inactive"},
                  "adapters":[

@@ -24,8 +24,8 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
 /**
  * Registry of {@code consumes} types known to the spec module.
  *
- * <p>{@code http} and {@code mcp} are core types, registered statically so that the native CLI
- * never depends on service discovery to load them. Additional types are discovered once, lazily,
+ * <p>{@code http} and {@code mcp} are core types, registered statically so that loading them never
+ * depends on service discovery. Additional types are discovered once, lazily,
  * through {@link ClientSpecType} providers. A provider that claims an already registered type is
  * rejected.</p>
  */

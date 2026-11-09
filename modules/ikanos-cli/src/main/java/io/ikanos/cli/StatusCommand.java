@@ -71,8 +71,7 @@ public class StatusCommand implements Callable<Integer> {
             // Engine
             JsonNode engine = root.path("engine");
             System.out.println("  Engine:    " + engine.path("version").asString()
-                    + " (Java " + engine.path("java").asString()
-                    + ", native: " + engine.path("native").asBoolean() + ")");
+                    + " (Java " + engine.path("java").asString() + ")");
 
             // Uptime
             String uptime = root.path("uptime").asString();

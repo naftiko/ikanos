@@ -136,7 +136,8 @@ class ControlPortHttpIntegrationTest {
         assertEquals(VersionHelper.getSchemaVersion(),
                 body.path("capability").path("specVersion").asString());
         assertFalse(body.path("engine").path("version").asString().isEmpty(), response.body());
-        assertFalse(body.path("engine").path("native").asBoolean(), response.body());
+        // #914: there is no native binary any more, so the engine no longer reports one
+        assertTrue(body.path("engine").path("native").isMissingNode(), response.body());
         assertTrue(body.path("uptime").asString().startsWith("PT"), response.body());
         assertEquals("inactive", body.path("otel").path("status").asString());
         assertEquals("started", adapter(body, "rest").path("state").asString());
