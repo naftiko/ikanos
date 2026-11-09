@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.http;
 
 import java.net.URI;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +31,14 @@ import org.restlet.data.Status;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
 
+import io.ikanos.durable.ActionFailedException;
+import io.ikanos.durable.ActionOutcome;
+import io.ikanos.durable.Command;
+import io.ikanos.durable.ExecutionResult;
+import io.ikanos.durable.Failure;
+import io.ikanos.durable.NodePath;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.execution.DurableScope;
 import io.ikanos.engine.observability.OtelNullSafety;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -64,6 +72,15 @@ import tools.jackson.databind.node.ObjectNode;
 public class PaginatedHttpInvocation extends HttpInvocation {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+
+    /** Path of the page actions of a journaled drain; page {@code n} is {@code page@n}. */
+    static final NodePath PAGE = NodePath.of("page");
+
+    /** Failure class of a drain that reached a bound or looped (resolution doc §2.3). */
+    static final String BOUND_FAILURE = "client-error";
+
+    /** Failure class of a page of the wrong shape or a foreign next link. */
+    static final String PAGE_FAILURE = "permanent-upstream";
 
     /** One link of an RFC 8288 {@code Link} header: its target and its parameters. */
     private static final Pattern LINK = Pattern.compile("<([^>]*)>\\s*((?:;[^,<]*)*)");
@@ -99,6 +116,9 @@ public class PaginatedHttpInvocation extends HttpInvocation {
 
     @Override
     protected ConsumedResult doInvoke() {
+        if (DurableScope.isJournaled()) {
+            return journaled();
+        }
         ArrayNode items = JSON.createArrayNode();
         Set<String> seen = new HashSet<>();
         ObjectNode checkpoint = null;
@@ -113,6 +133,59 @@ public class PaginatedHttpInvocation extends HttpInvocation {
             }
             checkpoint = next;
         }
+    }
+
+    /**
+     * Drains the list inside a journaled run: each page is an action of its own sub-run,
+     * {@code page@n}, scheduled with the checkpoint of the page before it. A drain cut short by a
+     * crash or a shutdown resumes from the last journaled page: the pages already fetched are
+     * restored, not fetched again (Execution &amp; Resolution Model §9.4).
+     */
+    private ConsumedResult journaled() {
+        ExecutionResult result = DurableScope.runJournaled(view -> {
+            ArrayNode items = JSON.createArrayNode();
+            Set<String> seen = new HashSet<>();
+            ObjectNode checkpoint = JSON.createObjectNode();
+            for (int n = 1;; n++) {
+                NodePath path = PAGE.visit(n);
+                var outcome = view.outcome(path);
+                if (outcome.isEmpty()) {
+                    return List.of(new Command.ScheduleAction(path, checkpoint, null));
+                }
+                if (outcome.get() instanceof ActionOutcome.Failed failed) {
+                    return List.of(new Command.Fail(failed.failure()));
+                }
+                ObjectNode page = (ObjectNode) ((ActionOutcome.Succeeded) outcome.get()).value();
+                if (page.path("failed").asBoolean()) {
+                    return List.of(new Command.Complete(page));
+                }
+                ObjectNode next;
+                try {
+                    next = accept(page, items, seen);
+                } catch (PaginationException e) {
+                    return List.of(new Command.Fail(new Failure(BOUND_FAILURE, e.getMessage())));
+                }
+                if (next == null) {
+                    return List.of(new Command.Complete(items));
+                }
+                checkpoint = next;
+            }
+        }, action -> {
+            ObjectNode checkpoint = (ObjectNode) action.action();
+            try {
+                return fetch(checkpoint.isEmpty() ? null : checkpoint);
+            } catch (PaginationException e) {
+                throw new ActionFailedException(new Failure(PAGE_FAILURE, e.getMessage()), e);
+            }
+        }).orElseThrow();
+        if (result instanceof ExecutionResult.Completed completed) {
+            JsonNode value = (JsonNode) completed.result();
+            return value.isArray() ? drained((ArrayNode) value) : failedPage((ObjectNode) value);
+        }
+        if (result instanceof ExecutionResult.Failed failed) {
+            throw new PaginationException(failed.failure().message());
+        }
+        throw new PaginationException("Paginated call '" + label + "' did not finish: " + result);
     }
 
     /**
