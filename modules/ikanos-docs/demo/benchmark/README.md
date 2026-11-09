@@ -34,7 +34,9 @@ RATES="100 1000" ENDPOINTS="/ships" DURATION=120s ./run.sh
 ```
 
 Each run writes `results/<time>-<cpus>cpu-<memory>/summary.md` (one row per load step, with the environment
-and what each column means), with the raw samples and k6's summaries next to it. The summaries that
+and what each column means), with the raw samples and k6's summaries next to it. The environment names the
+engine measured (`engine=`): the commit of this checkout, which the jar must be built from (`-dirty` with local
+changes), or `IKANOS_IMAGE` when set. The summaries that
 [RESULTS.md](RESULTS.md) cites are copied unedited to [`runs/`](runs/). To watch a run live, start the [observability demo](../observability) as well:
 its Prometheus scrapes the Control Port on `localhost:9090`, and its Grafana dashboard has a **JVM Resources**
 row (CPU, heap, non-heap, GC, threads).
