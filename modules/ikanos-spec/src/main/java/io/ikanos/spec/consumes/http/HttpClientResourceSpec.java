@@ -35,6 +35,10 @@ public class HttpClientResourceSpec extends ResourceSpec {
     private final Map<String, HttpClientOperationSpec> operations =
             Collections.synchronizedMap(new LinkedHashMap<>());
 
+    /** How the operations page, unless a narrower level says otherwise (HTTP Pagination §3.1). */
+    private final java.util.concurrent.atomic.AtomicReference<HttpClientPaginationSpec> pagination =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     public HttpClientResourceSpec() {
         this(null, null, null, null);
     }
@@ -61,5 +65,14 @@ public class HttpClientResourceSpec extends ResourceSpec {
                 this.operations.put(name, op);
             });
         }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public HttpClientPaginationSpec getPagination() {
+        return pagination.get();
+    }
+
+    public void setPagination(HttpClientPaginationSpec pagination) {
+        this.pagination.set(pagination);
     }
 }

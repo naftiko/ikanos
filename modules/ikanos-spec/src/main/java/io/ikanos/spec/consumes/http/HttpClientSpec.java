@@ -41,6 +41,10 @@ public class HttpClientSpec extends ClientSpec {
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
     private final AtomicReference<TunnelConfigSpec> tunnel = new AtomicReference<>();
 
+    /** How the operations page, unless a narrower level says otherwise (HTTP Pagination §3.1). */
+    private final AtomicReference<HttpClientPaginationSpec> pagination =
+            new AtomicReference<>();
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = io.ikanos.spec.InputParameterMapDeserializer.class)
     private final AtomicReference<Map<String, InputParameterSpec>> inputParameters =
@@ -119,5 +123,14 @@ public class HttpClientSpec extends ClientSpec {
 
     public void setTunnel(TunnelConfigSpec tunnel) {
         this.tunnel.set(tunnel);
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public HttpClientPaginationSpec getPagination() {
+        return pagination.get();
+    }
+
+    public void setPagination(HttpClientPaginationSpec pagination) {
+        this.pagination.set(pagination);
     }
 }
