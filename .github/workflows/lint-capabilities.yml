@@ -2,6 +2,7 @@ name: Lint Ikanos Capabilities
 
 on:
   push:
+    branches: [main]
     paths:
       - 'modules/ikanos-spec/src/main/resources/schemas/**'
       - 'modules/ikanos-spec/src/main/resources/rules/**'

@@ -1,10 +1,12 @@
 name: Quality Gate
 
+# push is limited to main and pull_request has no branch filter, so a change runs the
+# Quality Gate once: on its PR (any base, stacked PRs included), then on main after merge.
+# A branch with no PR: open a draft PR, or run it manually (workflow_dispatch).
 on:
   push:
+    branches: [main]
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
   workflow_call:
 

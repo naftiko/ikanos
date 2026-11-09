@@ -5,6 +5,7 @@ name: MCP Skills conformance
 # modules/ikanos-engine/src/test/resources/conformance/sep-2640/.
 on:
   push:
+    branches: [main]
     paths:
       - 'modules/ikanos-engine/src/main/java/io/ikanos/engine/exposes/mcp/**'
       - 'modules/ikanos-engine/src/test/resources/conformance/sep-2640/**'
