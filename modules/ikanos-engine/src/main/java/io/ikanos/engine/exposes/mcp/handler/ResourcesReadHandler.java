@@ -87,9 +87,6 @@ public class ResourcesReadHandler extends McpCallHandler {
 
             result.put("resultType", "complete");
             return new HandlerSuccessResult(result);
-        } catch (ResourceHandler.UpstreamUnreachableException e) {
-            return new HandlerFailureResult(INTERNAL_ERROR,
-                    McpErrors.upstreamError(idNode, e.getMessage(), e));
         } catch (OperationStepExecutor.StepFailedException e) {
             return new HandlerFailureResult(INTERNAL_ERROR, McpErrors.upstreamError(idNode,
                     "Step failed for resource '" + uri + "'", e));

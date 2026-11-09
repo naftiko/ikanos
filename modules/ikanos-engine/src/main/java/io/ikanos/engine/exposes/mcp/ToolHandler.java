@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Context;
+import org.restlet.data.Status;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.Capability;
@@ -322,8 +323,7 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (OperationStepExecutor.StepFailedException e) {
-            return errorResult("An upstream call failed",
-                    "Step failed for tool '" + toolName + "'", e);
+            return stepFailedResult(e, "Step failed for tool '" + toolName + "'");
         } catch (Exception e) {
             return errorResult("Error during consumed call",
                     "Error during consumed call for tool '" + toolName + "'", e);
@@ -410,8 +410,8 @@ public class ToolHandler {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (OperationStepExecutor.StepFailedException e) {
-            return errorResult("An upstream call failed",
-                    "Aggregate flow step failed for tool '" + toolName + "'", e);
+            return stepFailedResult(e,
+                    "Aggregate flow step failed for tool '" + toolName + "'");
         } catch (Exception e) {
             return errorResult("Error during aggregate function call",
                     "Error during aggregate function call for tool '" + toolName + "'", e);
@@ -440,6 +440,25 @@ public class ToolHandler {
             Throwable cause) {
         String ref = ErrorReference.record(Level.WARNING, logContext, cause);
         return textResult(ErrorReference.withReference(publicMessage, ref), true);
+    }
+
+    /**
+     * The result of a tool whose step failed. An upstream HTTP error gives the agent the same
+     * answer as a {@code call:}: an error result with the upstream body, so it can tell an expired
+     * key from a missing scope or a rate limit (#925, #879). No answer at all is reported with an
+     * error reference, the cause staying in the log (#873).
+     */
+    static McpSchema.CallToolResult stepFailedResult(
+            OperationStepExecutor.StepFailedException e, String logContext) {
+        int status = e.getStatusCode();
+        if (ConsumedResult.noResponseReceived(status)) {
+            return errorResult("An upstream call failed", logContext, e);
+        }
+        if (e.getUpstreamBody() == null || e.getUpstreamBody().isEmpty()) {
+            return textResult("No response entity received (HTTP " + status + " "
+                    + Status.valueOf(status).getReasonPhrase() + ")", true);
+        }
+        return textResult(e.getUpstreamBody(), true);
     }
 
     /**
