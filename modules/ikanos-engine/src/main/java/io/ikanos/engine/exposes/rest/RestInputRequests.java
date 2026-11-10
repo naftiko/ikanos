@@ -30,6 +30,7 @@ import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.NodePath;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
+import io.ikanos.engine.consumes.mcp.UpstreamTasks;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.execution.Elicitation;
 import io.ikanos.engine.execution.ExecutionInputs;
@@ -70,21 +71,29 @@ public final class RestInputRequests {
 
     private final Capability capability;
     private final String namespace;
+    private final String mount;
     private final McpRequestState requestState;
     private final InlineRounds inline;
     private final Map<String, ResourceRestlet> restlets = new LinkedHashMap<>();
 
     /**
+     * @param mount the path the adapter is mounted under ({@code path:}), or {@code null} or
+     *        {@code /} at the root: the {@code Location} of an answer starts with it
      * @param stopping whether the process is shutting down
      */
-    public RestInputRequests(Capability capability, String namespace, BooleanSupplier stopping) {
+    public RestInputRequests(Capability capability, String namespace, String mount,
+            BooleanSupplier stopping) {
         this.capability = capability;
         this.namespace = namespace;
+        this.mount = mount == null || "/".equals(mount) ? "" : mount;
         this.requestState = McpRequestState.withKey(capability.getSealingKey(),
                 capability.getSpecDigest());
         Durability durability = capability.getDurability();
         this.inline = durability != null && durability.isDurable()
-                ? new InlineRounds(durability.runner(), Clock.systemUTC(), stopping) : null;
+                ? new InlineRounds(durability.runner(), Clock.systemUTC(), stopping)
+                        .whenCancelled(id -> UpstreamTasks.cancelUnder(capability,
+                                durability.runner(), id))
+                : null;
     }
 
     /** Registers the restlet of a resource, so an answer can reach its operations. */
@@ -94,7 +103,8 @@ public final class RestInputRequests {
 
     /** Whether the operation may ask its caller for input. */
     boolean applies(RestServerOperationSpec operation) {
-        return Elicitation.mayAsk(capability, operation.getRef(), operation.getSteps());
+        return Elicitation.mayAsk(capability, operation.getRef(), operation.getCall(),
+                operation.getSteps());
     }
 
     /** Runs the first round of an operation that may ask. */
@@ -135,8 +145,11 @@ public final class RestInputRequests {
             return;
         }
         JsonNode bound = state.bound();
-        ResourceRestlet restlet = bound != null ? restlets.get(bound.path("resource").asString())
-                : null;
+        // Adapters of one capability share the sealing key: a handle of another adapter, which
+        // may serve the same path and method with other work, is not this adapter's.
+        ResourceRestlet restlet = bound != null
+                && namespace.equals(bound.path("namespace").asString(null))
+                        ? restlets.get(bound.path("resource").asString()) : null;
         RestServerOperationSpec operation = restlet == null ? null
                 : restlet.getResourceSpec().getOperations().values().stream()
                         .filter(op -> op.getMethod().equals(bound.path("method").asString()))
@@ -166,7 +179,10 @@ public final class RestInputRequests {
             return;
         }
         ExecutionId id = new ExecutionId(state.executionId());
-        ExecutionRecord record = inline == null ? null : inline.find(id, principal).orElse(null);
+        ExecutionRecord record = inline == null ? null
+                : inline.find(id, principal)
+                        .filter(found -> entry(restlet, operation).equals(found.entry()))
+                        .orElse(null);
         if (record == null) {
             gone(response);
             return;
@@ -249,12 +265,12 @@ public final class RestInputRequests {
         accepted(response, handle, round.questions());
     }
 
-    private static void accepted(Response response, String handle, ObjectNode questions) {
+    private void accepted(Response response, String handle, ObjectNode questions) {
         ObjectNode body = MAPPER.createObjectNode();
         body.put("status", "input_required");
         body.set("inputRequests", questions);
         response.setStatus(Status.SUCCESS_ACCEPTED);
-        response.setLocationRef(PREFIX + handle);
+        response.setLocationRef(mount + PREFIX + handle);
         response.setEntity(body.toString(), MediaType.APPLICATION_JSON);
     }
 
@@ -274,6 +290,7 @@ public final class RestInputRequests {
 
     private ObjectNode bound(ResourceRestlet restlet, RestServerOperationSpec operation) {
         ObjectNode bound = MAPPER.createObjectNode();
+        bound.put("namespace", namespace);
         bound.put("resource", restlet.getResourceSpec().getPath());
         bound.put("method", operation.getMethod());
         return bound;

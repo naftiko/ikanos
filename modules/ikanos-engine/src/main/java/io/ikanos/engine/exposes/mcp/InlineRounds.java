@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionRequest;
 import io.ikanos.durable.ExecutionResult;
@@ -64,6 +65,8 @@ public final class InlineRounds {
     private final Clock clock;
     private final BooleanSupplier stopping;
     private volatile Instant lastSweep = Instant.EPOCH;
+    private volatile Consumer<ExecutionId> onCancel = id -> {
+    };
 
     /**
      * @param stopping whether the process is shutting down: a round then stops before its next
@@ -73,6 +76,17 @@ public final class InlineRounds {
         this.runner = runner;
         this.clock = clock;
         this.stopping = stopping;
+    }
+
+    /**
+     * Runs {@code hook} after a call is cancelled, with its execution: to cancel what it waits on
+     * outside this process, such as an upstream task.
+     *
+     * @return this
+     */
+    public InlineRounds whenCancelled(Consumer<ExecutionId> hook) {
+        this.onCancel = hook;
+        return this;
     }
 
     /**
@@ -130,7 +144,8 @@ public final class InlineRounds {
             }
         };
         ExecutionResult result = runner.run(ExecutionRequest.of(id, null),
-                InputRounds.interpreter(), InputRounds.executor(runner, id, stopping, watched));
+                InputRounds.interpreter(),
+                InputRounds.executor(runner, id, stopping, clock, watched));
         if (result instanceof ExecutionResult.Completed completed) {
             return new Round((ObjectNode) completed.result(), null, id);
         }
@@ -168,9 +183,10 @@ public final class InlineRounds {
                 .map(result -> (ObjectNode) ((ExecutionResult.Completed) result).result());
     }
 
-    /** Cancels a call, unless it already ended. */
+    /** Cancels a call, unless it already ended, and what it waits on ({@link #whenCancelled}). */
     public void cancel(ExecutionId executionId) {
         runner.cancel(executionId);
+        onCancel.accept(executionId);
     }
 
     /** The arguments the first round recorded. */
@@ -180,7 +196,8 @@ public final class InlineRounds {
 
     /**
      * Fails the calls still waiting for answers past the expiry of their sealed state, at most
-     * once per {@link #SWEEP_INTERVAL}: no retry can resume them any more.
+     * once per {@link #SWEEP_INTERVAL}: no retry can resume them any more. Each round issues a
+     * new state, so a call expires from when its last round asked, not from when it started.
      */
     void sweepUnanswered() {
         Instant now = clock.instant();
@@ -190,7 +207,11 @@ public final class InlineRounds {
         lastSweep = now;
         Instant cutoff = now.minus(McpRequestState.TTL);
         for (ExecutionRecord record : runner.list(ExecutionStatus.SUSPENDED, SWEEP_LIMIT)) {
-            if (MRTR.equals(record.labels().get(KIND)) && record.createdAt().isBefore(cutoff)) {
+            // A round asks after the call starts: a call started after the cutoff cannot be
+            // expired, and the journal is read only for the others.
+            if (MRTR.equals(record.labels().get(KIND)) && record.createdAt().isBefore(cutoff)
+                    && InputRounds.askedAt(runner.view(record.executionId()))
+                            .orElse(record.createdAt()).isBefore(cutoff)) {
                 runner.fail(record.executionId(), new Failure(EXPIRED,
                         "The call's questions went unanswered past its state's expiry"));
             }

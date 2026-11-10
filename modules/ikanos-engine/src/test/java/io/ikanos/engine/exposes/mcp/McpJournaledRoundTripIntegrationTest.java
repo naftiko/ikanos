@@ -174,6 +174,20 @@ public class McpJournaledRoundTripIntegrationTest {
                               confirmed:
                                 type: boolean
                                 description: Whether the note is published
+                      slot-note-by-id:
+                        uri: shipyard://slots/{slot}/note
+                        description: Book a slot and publish its note, once confirmed.
+                        steps:
+                          book-slot:
+                            type: call
+                            call: port.book-slot
+                          confirm:
+                            type: elicit
+                            message: Publish the slot note?
+                            fields:
+                              confirmed:
+                                type: boolean
+                                description: Whether the note is published
                   - type: control
                     address: localhost
                     port: 0
@@ -297,6 +311,20 @@ public class McpJournaledRoundTripIntegrationTest {
                 retry(read, asked.path("requestState").asString())).path("result");
         assertEquals("complete", done.path("resultType").asString(), done.toString());
         assertEquals(1, bookings.get());
+    }
+
+    @Test
+    void aTemplatedResourceShouldAskAfterAWriteWithoutRepeatingIt() throws Exception {
+        McpServerAdapter adapter = mcp(load(MEMORY));
+        String read = "{\"uri\":\"shipyard://slots/7/note\"}";
+
+        JsonNode asked = send(adapter, "resources/read", params(read)).path("result");
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+
+        JsonNode done = send(adapter, "resources/read",
+                retry(read, asked.path("requestState").asString())).path("result");
+        assertEquals("complete", done.path("resultType").asString(), done.toString());
+        assertEquals(1, bookings.get(), "The slot booked before the question is booked once");
     }
 
     @Test

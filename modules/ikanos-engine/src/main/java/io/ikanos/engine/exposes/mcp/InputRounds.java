@@ -13,6 +13,8 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,9 @@ public final class InputRounds {
     /** Field of a call outcome that stopped at questions instead of returning a result. */
     static final String ASKED = "ikanos:inputRequests";
 
+    /** Field of such an outcome: when the round asked, in epoch milliseconds. */
+    static final String ASKED_AT = "ikanos:askedAt";
+
     /** Failure class of a call rejected for invalid parameters: a JSON-RPC error. */
     public static final String INVALID_PARAMS = "invalid-params";
 
@@ -66,15 +71,25 @@ public final class InputRounds {
     private InputRounds() {
     }
 
+    /**
+     * What round {@code n} runs with: every answer so far, and those of round {@code n - 1},
+     * the latest, with that round's number (0 for the first round).
+     */
+    record RoundInput(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
+            int latestRound) {
+    }
+
     /** The Interpreter of a call in rounds. */
     public static Interpreter interpreter() {
         return view -> {
             Map<NodePath, Object> answers = new LinkedHashMap<>();
+            Map<NodePath, Object> latest = Map.of();
             for (int round = 1;; round++) {
                 NodePath call = CALL.visit(round);
                 var outcome = view.outcome(call);
                 if (outcome.isEmpty()) {
-                    return List.of(new Command.ScheduleAction(call, Map.copyOf(answers), null));
+                    return List.of(new Command.ScheduleAction(call,
+                            new RoundInput(Map.copyOf(answers), latest, round - 1), null));
                 }
                 if (outcome.get() instanceof ActionOutcome.Failed failed) {
                     return List.of(new Command.Fail(failed.failure()));
@@ -88,35 +103,39 @@ public final class InputRounds {
                 if (update.isEmpty()) {
                     return List.of(new Command.AwaitUpdate(answered, node.get(ASKED)));
                 }
+                Map<NodePath, Object> received = new LinkedHashMap<>();
                 ((JsonNode) update.get()).properties()
-                        .forEach(e -> answers.put(new NodePath(e.getKey()), e.getValue()));
+                        .forEach(e -> received.put(new NodePath(e.getKey()), e.getValue()));
+                answers.putAll(received);
+                latest = Map.copyOf(received);
             }
         };
     }
 
     /**
      * The executor of a call in rounds: {@code work} runs with the answers so far, its steps
-     * journaled under {@code executionId}. Questions end the round; an
-     * {@link IllegalArgumentException} fails it with {@link #INVALID_PARAMS}.
+     * journaled under {@code executionId}. Questions end the round, recorded with when it asked
+     * ({@link #askedAt}); an {@link IllegalArgumentException} fails it with
+     * {@link #INVALID_PARAMS}.
      */
     public static ActionExecutor executor(JournaledRunner runner, ExecutionId executionId,
-            BooleanSupplier stopping, Callable<JsonNode> work) {
+            BooleanSupplier stopping, Clock clock, Callable<JsonNode> work) {
         return action -> {
-            @SuppressWarnings("unchecked")
-            Map<NodePath, Object> answers = (Map<NodePath, Object>) action.action();
+            RoundInput input = (RoundInput) action.action();
             // A cancelled call stops at its next step, as a shutdown does: cancel is cooperative,
             // and a step in flight is not interrupted reliably.
             BooleanSupplier stop = () -> stopping.getAsBoolean()
                     || runner.status(executionId).orElse(ExecutionStatus.RUNNING)
                             == ExecutionStatus.CANCELLED;
             try {
-                return ExecutionInputs.with(answers,
+                return ExecutionInputs.with(input.answers(), input.latest(), input.latestRound(),
                         () -> DurableScope.with(runner, executionId, stop, work));
             } catch (IllegalArgumentException e) {
                 throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
             } catch (InputRequiredException e) {
                 ObjectNode asked = MAPPER.createObjectNode();
                 asked.set(ASKED, InputRequests.of(e));
+                asked.put(ASKED_AT, clock.millis());
                 return asked;
             }
         };
@@ -129,6 +148,18 @@ public final class InputRounds {
             round++;
         }
         return round;
+    }
+
+    /**
+     * When the last round of the call asked, or empty when it did not stop at questions or was
+     * recorded without the time.
+     */
+    public static java.util.Optional<Instant> askedAt(ExecutionView view) {
+        return view.outcome(CALL.visit(lastRound(view)))
+                .filter(ActionOutcome.Succeeded.class::isInstance)
+                .map(outcome -> ((ActionOutcome.Succeeded) outcome).value())
+                .filter(value -> value instanceof JsonNode node && node.has(ASKED_AT))
+                .map(value -> Instant.ofEpochMilli(((JsonNode) value).get(ASKED_AT).asLong()));
     }
 
     /** The questions a round stopped at, or {@code null} when it did not stop at questions. */

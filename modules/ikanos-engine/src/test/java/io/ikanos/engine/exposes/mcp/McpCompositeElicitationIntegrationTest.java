@@ -37,6 +37,8 @@ import org.restlet.data.Status;
 import org.restlet.routing.Router;
 
 import io.ikanos.Capability;
+import io.ikanos.durable.core.JournaledRunner;
+import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -398,6 +400,23 @@ public class McpCompositeElicitationIntegrationTest {
         consumer = null;
 
         answerThroughAnUpstreamTask(start(local(), true), taskId);
+    }
+
+    @Test
+    void cancellingATaskWaitingOnAnUpstreamQuestionShouldCancelTheUpstreamTask()
+            throws Exception {
+        McpServerAdapter adapter = start(MEMORY, true);
+        String taskId = askThroughAnUpstreamTask(adapter);
+        JournaledRunner upstreamRunner = upstream.getDurability().runner();
+        assertTrue(upstreamRunner.list(ExecutionStatus.CANCELLED, 10).isEmpty());
+
+        send(adapter, "tasks/cancel", params("{\"taskId\":\"" + taskId + "\"}"));
+
+        assertEquals("cancelled", send(adapter, "tasks/get",
+                params("{\"taskId\":\"" + taskId + "\"}")).path("result").path("status")
+                .asString());
+        assertEquals(1, upstreamRunner.list(ExecutionStatus.CANCELLED, 10).size(),
+                "The upstream task the consumer task waited on is cancelled too");
     }
 
     @Test
