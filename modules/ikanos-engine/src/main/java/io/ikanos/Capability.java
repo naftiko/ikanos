@@ -58,6 +58,7 @@ import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.engine.util.QualifiedName;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
@@ -231,6 +232,10 @@ public class Capability {
         // §6.5 design in blueprints/reverse-tunnel-private-network.md.
         // Templates are checked first, so a capability that cannot work never starts a tunnel.
         ConsumedTemplateValidator.validate(spec);
+        InputDefaults.validate(spec);
+        for (String warning : InputDefaults.findWarnings(spec)) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
         List<String> unsupportedAuthentication = ConsumedAuthentication.findUnsupported(spec);
         if (!unsupportedAuthentication.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));

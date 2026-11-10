@@ -8,6 +8,10 @@
 # Only stateless upstreams (MCP protocol 2026-07-28, no `initialize` and no
 # `Mcp-Session-Id`) are supported in phase 1. Consumed tool `hints` are
 # authored locally and never derived from the upstream's annotations.
+#
+# The `list-invoices` tool shows input defaults: an optional input with a
+# `default` is advertised in the tool's inputSchema, and the default is used
+# when a call leaves the input out.
 ikanos: "1.0.0-beta10"
 
 info:
@@ -50,6 +54,23 @@ capability:
             status:
               type: "string"
               value: "$.status"
+        list-invoices:
+          description: "List the invoices of one account, one page at a time."
+          hints:
+            readOnly: true
+            idempotent: true
+          inputParameters:
+            account-id:
+              type: "string"
+              description: "CRM account identifier."
+            status:
+              type: "string"
+              description: "Invoice status to list."
+              required: false
+            size:
+              type: "integer"
+              description: "Page size."
+              required: false
 
     - type: "http"
       namespace: "crm"
@@ -119,3 +140,23 @@ capability:
         account-exposure:
           description: "Invoice status and account owner for one customer."
           ref: "collections.account-exposure"
+        list-invoices:
+          description: "List the invoices of one account."
+          inputParameters:
+            account-id:
+              type: "string"
+              description: "CRM account identifier."
+            status:
+              type: "string"
+              description: "Invoice status to list."
+              required: false
+              enum: ["open", "paid", "void"]
+              default: "open"
+            size:
+              type: "integer"
+              description: "Page size."
+              required: false
+              minimum: 1
+              maximum: 200
+              default: 50
+          call: "billing.list-invoices"

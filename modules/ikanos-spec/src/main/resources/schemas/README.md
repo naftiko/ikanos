@@ -910,6 +910,50 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
   description: Number of results per page (max 100)
 ```
 
+#### 3.12.3 McpToolInputParameter Object
+
+Used in the `inputParameters` map of MCP tools (exposed and consumed) and of aggregate flows, keyed by parameter name. The parameters become the properties of the tool's `inputSchema`.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. One of `string`, `number`, `integer`, `boolean`, `array`, `object`. |
+| **description** | `string` | **REQUIRED**. Description of the parameter, for agent discovery. |
+| **required** | `boolean` | Whether the caller must send the parameter. |
+| **default** | any | Value used when a call leaves this optional input out or passes `null`, written with the input's JSON type. Advertised in the tool's `inputSchema`, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. |
+| **enum** | `string[]` | Allowed values, written as strings and emitted with the parameter's type. |
+| **format** | `string` | JSON Schema format hint (for example `date`, `uuid`). |
+| **minimum**, **maximum** | `number` | Inclusive bounds of a `number` or `integer` parameter. |
+| **items** | `McpToolInputSchema` | Schema of each element of an `array` parameter. |
+| **properties** | map of `McpToolInputSchema` | Properties of an `object` parameter. |
+| **requiredProperties** | `string[]` | Required property names of an `object` parameter, emitted as `required` in its schema. |
+| **additionalProperties** | `boolean` | Whether an `object` parameter accepts other properties. |
+
+**Rules:**
+
+- `enum`, `format`, `minimum`, `maximum`, `requiredProperties` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.
+- `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
+- A `default` on a `required: true` parameter never applies, since the caller must send it: `ikanos validate` and the engine report it as a warning.
+- `default` is only allowed on the parameter itself, not inside `items` or `properties`.
+
+**McpToolInputParameter Example:**
+
+```yaml
+inputParameters:
+  timePeriod:
+    type: "string"
+    description: "Calls and emails to use."
+    required: false
+    enum: ["LAST_7DAYS", "LAST_30DAYS", "LAST_90DAYS"]
+    default: "LAST_90DAYS"
+  size:
+    type: "integer"
+    description: "Page size."
+    required: false
+    default: 200
+```
+
 ---
 
 ### 3.13 OutputParameter Objects
