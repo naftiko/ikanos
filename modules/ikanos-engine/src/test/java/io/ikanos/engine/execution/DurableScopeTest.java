@@ -14,6 +14,7 @@
 package io.ikanos.engine.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +29,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import io.ikanos.durable.ActionOutcome;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionStatus;
@@ -177,6 +179,47 @@ public class DurableScopeTest {
 
         assertTrue(second.invoked.isEmpty());
         assertEquals(original.getMessage(), replayed.getMessage());
+    }
+
+    @Test
+    void aRestoredCallShouldKeepTheResponseApartFromItsProjectedOutput() throws Exception {
+        JsonNode raw = JSON.createObjectNode().put("rawId", 7).put("extra", true);
+        JsonNode projected = JSON.createObjectNode().put("id", 7);
+        NodeRunner projecting = (node, run) -> {
+            // As output parameters do: the step output is a projection of the response body.
+            run.setLastResult(new RestoredResult(201, "application/vnd.port+json", raw));
+            run.stepContext().storeStepOutput(node.step().getName(), projected);
+            return projected;
+        };
+        DurableScope.with(runner, ROOT,
+                () -> Executions.runSteps(tree("book-slot"), new StepRun(null), projecting));
+
+        StepRun restored = DurableScope.with(runner, ROOT, () -> Executions.runSteps(
+                tree("book-slot"), new StepRun(null), (node, run) -> {
+                    throw new AssertionError("restored, not run");
+                }));
+
+        assertEquals(projected, restored.stepContext().getStepOutput("book-slot"));
+        assertEquals(201, restored.lastResult().status());
+        assertEquals("application/vnd.port+json", restored.lastResult().mediaType());
+        assertEquals(raw, restored.lastResult().document());
+    }
+
+    @Test
+    void aRestoredCallWhoseOutputIsItsBodyShouldJournalTheBodyOnce() throws Exception {
+        JsonNode body = JSON.createObjectNode().put("id", 7);
+        NodeRunner plain = (node, run) -> {
+            run.setLastResult(new RestoredResult(body));
+            return body;
+        };
+        DurableScope.with(runner, ROOT,
+                () -> Executions.runSteps(tree("book-slot"), new StepRun(null), plain));
+
+        JsonNode journaled = (JsonNode) ((ActionOutcome.Succeeded) runner
+                .view(new ExecutionId("task-1/steps"))
+                .outcome(ExecutionTree.STEPS.child("book-slot")).orElseThrow()).value();
+        assertFalse(journaled.has(RestoredResult.BODY), journaled.toString());
+        assertEquals(body, RestoredResult.responseOf(journaled).document());
     }
 
     @Test

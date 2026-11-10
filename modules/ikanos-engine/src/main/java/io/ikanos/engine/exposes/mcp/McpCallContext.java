@@ -17,8 +17,8 @@ import java.util.function.Supplier;
 
 /**
  * The principal of the MCP request being dispatched, for state that must be bound to it: a
- * multi round-trip {@code requestState}, a task. It is the agent identity the dispatcher resolved
- * (verified first, then forwarded by a trusted peer), or {@value #ANONYMOUS} when there is none.
+ * multi round-trip {@code requestState}, a task. It is the caller the authentication names (see
+ * {@link AgentIdentityResolver#ownerOf}), or {@value #ANONYMOUS} when it names none.
  */
 public final class McpCallContext {
 
