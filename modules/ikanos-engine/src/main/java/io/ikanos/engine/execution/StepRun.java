@@ -87,12 +87,15 @@ public final class StepRun {
      * Records the output of a step restored from the journal, as running it recorded it: in the
      * step context, and as a runtime parameter named after the step. A {@code null} or JSON
      * {@code null} output records nothing, like a step that produced no JSON output. A restored
-     * call step also becomes the last result, as a live call would: a flow without output
-     * mappings returns it.
+     * call step journaled its output with the response it read: the response becomes the last
+     * result, as the live call's did, since a flow without output mappings returns it.
      */
-    void restoreOutput(String stepName, Object output, boolean call) {
+    void restoreOutput(String stepName, Object journaled, boolean call) {
+        Object output = journaled;
         if (call) {
-            lastResult = new RestoredResult(output instanceof JsonNode json ? json : null);
+            JsonNode outcome = journaled instanceof JsonNode json ? json : null;
+            lastResult = RestoredResult.responseOf(outcome);
+            output = RestoredResult.outputOf(outcome);
         }
         if (stepName == null || !(output instanceof JsonNode json) || json.isNull()
                 || json.isMissingNode()) {

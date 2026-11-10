@@ -36,6 +36,7 @@ import org.restlet.Request;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INTERNAL_ERROR;
@@ -200,13 +201,13 @@ public class ProtocolDispatcher {
                 extractedContext, null, capabilityName);
         try (Scope scope = span.makeCurrent()) {
             TelemetryBootstrap.populateMdc(span);
-            String principal = identityResolver.resolve(httpRequest).map(identity -> {
-                TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
-                        identity.actor());
-                return identity.id();
-            }).orElse(McpCallContext.ANONYMOUS);
-            // State bound to the caller (requestState, tasks) reads the principal from here.
-            return McpCallContext.as(principal, () -> dispatch(request));
+            Optional<AgentIdentity> identity = identityResolver.resolve(httpRequest);
+            identity.ifPresent(id -> TelemetryBootstrap.recordAgentIdentity(span, id.id(),
+                    id.source(), id.actor()));
+            // State bound to the caller (requestState, tasks) reads the owner from here. It
+            // comes from the authentication, not from the audit identity, which trust may turn off.
+            String owner = identityResolver.ownerOf(httpRequest, identity);
+            return McpCallContext.as(owner, () -> dispatch(request));
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;

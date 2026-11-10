@@ -27,6 +27,7 @@ import io.ikanos.durable.core.DirectRunner;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.spec.util.OperationStepElicitSpec;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The one entry point through which steps and single calls run, whatever exposed them.
@@ -142,10 +143,11 @@ public final class Executions {
     }
 
     /**
-     * Runs one action node of a journaled execution. A call step whose response has a body but no
-     * JSON output, such as a binary body, fails: its outcome could not be journaled, and a restart
-     * would restore it as a response without a body. The failure is journaled, so a replay fails
-     * the same way.
+     * Runs one action node of a journaled execution. A call step journals its output and the
+     * response it read ({@link RestoredResult#journal}), so a restart restores both. A call step
+     * whose response has a body but no JSON output, such as a binary body, fails: its outcome
+     * could not be journaled, and a restart would restore it as a response without a body. The
+     * failure is journaled, so a replay fails the same way.
      */
     private static Object runJournaledNode(Object action, StepRun run, NodeRunner nodeRunner)
             throws ActionFailedException {
@@ -158,6 +160,10 @@ public final class Executions {
                     + "durable task cannot journal; call it outside the task, or map it to JSON");
             run.fail(e);
             throw new ActionFailedException(StepInterpreter.failureOf(e), e);
+        }
+        if (node.kind() == StepNode.Kind.CALL) {
+            return RestoredResult.journal(output instanceof JsonNode json ? json : null,
+                    run.lastResult());
         }
         return output;
     }

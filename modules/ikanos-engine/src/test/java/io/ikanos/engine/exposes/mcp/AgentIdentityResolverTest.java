@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -214,6 +215,78 @@ class AgentIdentityResolverTest {
         request.getHeaders().add("X-Agent-Id", "agent-42");
         assertTrue(new AgentIdentityResolver(new McpTrustSpec(McpTrustSpec.MODE_VERIFY))
                 .resolve(request).isEmpty());
+    }
+
+    private static Request authenticated(JWTClaimsSet claims) {
+        Request request = request("85.12.4.9");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE, claims);
+        return request;
+    }
+
+    private static Request authenticated(JWTClaimsSet claims, String token) {
+        Request request = authenticated(claims);
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_TOKEN_ATTRIBUTE, token);
+        return request;
+    }
+
+    private static String ownerOf(McpTrustSpec trust, Request request) {
+        AgentIdentityResolver resolver = new AgentIdentityResolver(trust);
+        return resolver.ownerOf(request, resolver.resolve(request));
+    }
+
+    @Test
+    void ownerShouldBeTheTokenSubjectWhateverTheTrustMode() {
+        Request request = authenticated(new JWTClaimsSet.Builder().subject("alice").build());
+
+        assertEquals("alice", ownerOf(null, request));
+        assertEquals("alice", ownerOf(new McpTrustSpec(McpTrustSpec.MODE_NONE), request));
+        assertEquals("alice", ownerOf(new McpTrustSpec(McpTrustSpec.MODE_VERIFY), request));
+        assertEquals("alice", ownerOf(forwarded(), request));
+    }
+
+    @Test
+    void ownerShouldTellTwoAuthenticatedCallersApartWithoutTrust() {
+        assertFalse(ownerOf(null, authenticated(new JWTClaimsSet.Builder().subject("alice").build()))
+                .equals(ownerOf(null,
+                        authenticated(new JWTClaimsSet.Builder().subject("bob").build()))));
+    }
+
+    @Test
+    void ownerShouldFallBackToTheClientIdApartFromSubjects() {
+        Request request = authenticated(
+                new JWTClaimsSet.Builder().claim("client_id", "alice").build());
+
+        assertEquals("client_id:alice", ownerOf(null, request));
+    }
+
+    @Test
+    void aTokenThatNamesNoCallerShouldOwnItsStateAlone() {
+        // Two tokens with the same claims, issued in the same second, differ by their signature.
+        JWTClaimsSet claims = new JWTClaimsSet.Builder().issueTime(new Date(1_000_000L)).build();
+
+        String owner = ownerOf(null, authenticated(claims, "header.claims.signature-1"));
+        assertTrue(owner.startsWith("token:"), owner);
+        assertFalse(owner.contains("signature"), owner);
+        assertEquals(owner, ownerOf(null, authenticated(claims, "header.claims.signature-1")));
+        assertFalse(owner.equals(
+                ownerOf(null, authenticated(claims, "header.claims.signature-2"))));
+    }
+
+    @Test
+    void ownerShouldBeTheForwardedIdentityWithoutAToken() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42");
+
+        assertEquals("agent-42", ownerOf(forwarded(), request));
+    }
+
+    @Test
+    void ownerShouldBeAnonymousWithoutATokenOrAForwardedIdentity() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "agent-42");
+
+        assertEquals(McpCallContext.ANONYMOUS, ownerOf(null, request));
+        assertEquals(McpCallContext.ANONYMOUS, ownerOf(forwarded(), null));
     }
 
     @Test

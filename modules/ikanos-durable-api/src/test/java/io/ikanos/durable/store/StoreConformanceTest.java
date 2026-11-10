@@ -305,6 +305,18 @@ public abstract class StoreConformanceTest {
         assertArrayEquals(new byte[] {9}, stores.blobs().get(other));
     }
 
+    @Test
+    void deletingTheBlobsOfAnExecutionShouldKeepThoseOfItsSubRuns() {
+        ExecutionId subRun = new ExecutionId(ID.value() + "/steps/book");
+        BlobRef ref = stores.blobs().put(ID, new byte[] {1});
+        BlobRef nested = stores.blobs().put(subRun, new byte[] {2});
+
+        stores.blobs().deleteAll(ID);
+
+        assertThrows(IllegalArgumentException.class, () -> stores.blobs().get(ref));
+        assertArrayEquals(new byte[] {2}, stores.blobs().get(nested));
+    }
+
     // Durability
 
     @Test

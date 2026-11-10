@@ -13,7 +13,11 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -116,6 +120,51 @@ public class AgentIdentityResolver {
             case McpTrustSpec.MODE_VERIFY -> resolveVerified(request);
             default -> Optional.empty();
         };
+    }
+
+    /**
+     * The principal that owns the state a request creates and reads back, such as a task or a
+     * multi round-trip {@code requestState}. Unlike {@link #resolve}, which serves the audit and
+     * follows the {@code trust} mode, it never depends on that mode for an authenticated caller: a
+     * request authenticated by OAuth2 is owned by its token's {@code sub}, or its
+     * {@code client_id} for a token without one, whatever the mode. A token that names neither is
+     * owned by the token itself, so only its holder reads the state back, never another caller.
+     * Without a token it is the identity a trusted gateway forwarded, or
+     * {@value McpCallContext#ANONYMOUS}, as for bearer and apikey authentication, whose one shared
+     * credential names no caller.
+     *
+     * @param request the inbound HTTP request, or {@code null} on stdio
+     * @param identity what {@link #resolve} returned for it
+     */
+    String ownerOf(Request request, Optional<AgentIdentity> identity) {
+        Object claims = request != null
+                ? request.getAttributes().get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE)
+                : null;
+        if (claims instanceof JWTClaimsSet claimsSet) {
+            String subject = claimsSet.getSubject();
+            if (subject != null && !subject.isBlank()) {
+                return subject;
+            }
+            Object clientId = claimsSet.getClaim("client_id");
+            if (clientId instanceof String value && !value.isBlank()) {
+                return "client_id:" + value;
+            }
+            // Bound to the token itself: its signature sets it apart from any other token.
+            Object token = request.getAttributes()
+                    .get(OAuth2AuthenticationRestlet.VALIDATED_TOKEN_ATTRIBUTE);
+            return "token:" + sha256(token instanceof String raw ? raw : claimsSet.toString());
+        }
+        return identity.filter(id -> AgentIdentity.SOURCE_FORWARDED.equals(id.source()))
+                .map(AgentIdentity::id).orElse(McpCallContext.ANONYMOUS);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
     }
 
     Optional<AgentIdentity> resolveForwarded(Request request) {
