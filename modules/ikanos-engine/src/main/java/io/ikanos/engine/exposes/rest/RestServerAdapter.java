@@ -36,7 +36,7 @@ public class RestServerAdapter extends ServerAdapter {
         super(capability, serverSpec);
         this.router = new Router();
         this.inputRequests = new RestInputRequests(capability, serverSpec.getNamespace(),
-                () -> false);
+                serverSpec.getPath(), () -> false);
 
         // Answers to input requests, before the declared resources so none can shadow them.
         getRouter().attach(RestInputRequests.PREFIX + "{handle}", inputRequests.answerResource(),

@@ -157,6 +157,15 @@ public class RestInputRequestIntegrationTest {
                         outputParameters:
                           confirmed:
                             type: boolean
+                      book-through-a-call:
+                        description: Book and ask through the flow that does, as its call.
+                        call: departure.book-then-confirm
+                      confirm-through-a-call:
+                        description: Ask through the flow that asks.
+                        steps:
+                          ask:
+                            type: call
+                            call: departure.confirm-departure
                   exposes:
                   - type: rest
                     address: localhost
@@ -175,6 +184,18 @@ public class RestInputRequestIntegrationTest {
                           book:
                             method: POST
                             ref: departure.book-then-confirm
+                      called:
+                        path: /called
+                        operations:
+                          called:
+                            method: POST
+                            ref: departure.book-through-a-call
+                      nested:
+                        path: /nested
+                        operations:
+                          nested:
+                            method: POST
+                            ref: departure.confirm-through-a-call
                 %s
                   - type: control
                     address: localhost
@@ -194,8 +215,28 @@ public class RestInputRequestIntegrationTest {
     }
 
     private Capability load(String control) throws Exception {
-        return new Capability(IkanosMappers.yaml().readValue(capability(control, ""),
-                IkanosSpec.class));
+        return loadYaml(capability(control, ""));
+    }
+
+    private static Capability loadYaml(String yaml) throws Exception {
+        return new Capability(IkanosMappers.yaml().readValue(yaml, IkanosSpec.class));
+    }
+
+    private static RestServerAdapter rest(Capability capability, String namespace) {
+        for (ServerAdapter adapter : capability.getServerAdapters()) {
+            if (adapter instanceof RestServerAdapter rest
+                    && namespace.equals(rest.getRestServerSpec().getNamespace())) {
+                return rest;
+            }
+        }
+        throw new IllegalStateException("No REST adapter " + namespace);
+    }
+
+    /** The answer to the only question of {@code asked}, under the key it was asked with. */
+    private String answer(Response asked, String action) throws Exception {
+        String key = body(asked).path("inputRequests").propertyNames().iterator().next();
+        return "{\"inputResponses\":{\"" + key + "\":{\"action\":\"" + action
+                + "\",\"content\":{\"confirmed\":true}}}}";
     }
 
     private static RestServerAdapter rest(Capability capability) {
@@ -335,5 +376,83 @@ public class RestInputRequestIntegrationTest {
 
         assertThrows(Exception.class, () -> new Capability(
                 IkanosMappers.yaml().readValue(yaml, IkanosSpec.class)));
+    }
+
+    @Test
+    void aFlowWhoseCallAsksShouldAskAndBookOnceInADurableMode() throws Exception {
+        RestServerAdapter adapter = rest(load(MEMORY));
+        Response asked = send(adapter, Method.POST, "/called", null);
+        assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus(), String.valueOf(asked
+                .getEntityAsText()));
+
+        Response done = send(adapter, Method.POST, asked.getLocationRef().getPath(),
+                answer(asked, "accept"));
+
+        assertEquals(Status.SUCCESS_OK, done.getStatus());
+        assertEquals(1, bookings.get(), "The slot booked before the question is booked once");
+    }
+
+    @Test
+    void aFlowWhoseCallAsksShouldAskUnderNone() throws Exception {
+        Response asked = send(rest(load(NONE)), Method.POST, "/called", null);
+
+        assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus(), String.valueOf(asked
+                .getEntityAsText()));
+    }
+
+    @Test
+    void aQuestionDeclinedInACalledFlowShouldAnswer409() throws Exception {
+        RestServerAdapter adapter = rest(load(NONE));
+        Response asked = send(adapter, Method.POST, "/nested", null);
+        assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus());
+
+        Response declined = send(adapter, Method.POST, asked.getLocationRef().getPath(),
+                answer(asked, "decline"));
+
+        assertEquals(Status.CLIENT_ERROR_CONFLICT, declined.getStatus());
+    }
+
+    @Test
+    void theLocationShouldKeepTheAdaptersMountPath() throws Exception {
+        String yaml = capability(MEMORY, "").replace("    namespace: departures\n",
+                "    namespace: departures\n    path: /api\n");
+        RestServerAdapter adapter = rest(loadYaml(yaml));
+
+        Response asked = send(adapter, Method.POST, "/confirm", null);
+
+        String location = asked.getLocationRef().getPath();
+        assertTrue(location.startsWith("/api" + RestInputRequests.PREFIX), location);
+        assertEquals(Status.SUCCESS_OK, send(adapter, Method.POST,
+                location.substring("/api".length()), ANSWER).getStatus());
+    }
+
+    @Test
+    void aHandleShouldOnlyBeAnsweredByTheAdapterThatIssuedIt() throws Exception {
+        for (String control : new String[] {NONE, MEMORY}) {
+            String yaml = capability(control, "").replace("  - type: control\n", """
+                      - type: rest
+                        address: localhost
+                        port: 0
+                        namespace: others
+                        resources:
+                          confirm:
+                            path: /confirm
+                            operations:
+                              confirm:
+                                method: POST
+                                ref: departure.book-then-confirm
+                      - type: control
+                    """);
+            Capability capability = loadYaml(yaml);
+            String location = send(rest(capability, "departures"), Method.POST, "/confirm", null)
+                    .getLocationRef().getPath();
+
+            Response other = send(rest(capability, "others"), Method.POST, location, ANSWER);
+
+            assertEquals(Status.CLIENT_ERROR_GONE, other.getStatus(), control);
+            assertEquals(0, bookings.get(), "The other adapter's work never runs");
+            assertEquals(Status.SUCCESS_OK, send(rest(capability, "departures"), Method.POST,
+                    location, ANSWER).getStatus(), control);
+        }
     }
 }

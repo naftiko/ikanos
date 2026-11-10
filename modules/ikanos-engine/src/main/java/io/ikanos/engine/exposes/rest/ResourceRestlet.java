@@ -212,9 +212,12 @@ public class ResourceRestlet extends Restlet {
                             "An upstream call failed", "Call failed", e);
                     return true;
                 } catch (InputRequiredException e) {
-                    // Unreachable while FlowCallValidator rejects a `call:` to a flow;
-                    // answers as the ref and steps branches do if that ever changes.
+                    // The target, a flow or a consumed MCP tool that may ask, asked the caller.
                     sendInputRequired(response, e);
+                    return true;
+                } catch (InputDeclinedException e) {
+                    sendError(response, Status.CLIENT_ERROR_CONFLICT,
+                            "The caller declined the question", "Caller declined", e);
                     return true;
                 } catch (Exception e) {
                     sendError(response, Status.SERVER_ERROR_INTERNAL,
