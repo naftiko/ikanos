@@ -115,7 +115,7 @@ public final class RestInputRequests {
         JsonNode arguments = MAPPER.valueToTree(parameters);
         if (inline != null) {
             InlineRounds.Round round = inline.run(entry(restlet, operation), principal, arguments,
-                    null, null, () -> restlet.runForRounds(operation, parameters));
+                    null, 0, null, () -> restlet.runForRounds(operation, parameters));
             render(round, principal, bound, response);
         } else {
             bound.set("parameters", arguments);
@@ -217,7 +217,8 @@ public final class RestInputRequests {
                 .map(arguments -> (Map<String, Object>) MAPPER.convertValue(arguments, Map.class))
                 .orElseGet(LinkedHashMap::new);
         InlineRounds.Round round = inline.run(entry(restlet, operation), principal, null, id,
-                responses(request), () -> restlet.runForRounds(operation, parameters));
+                state.round(), responses(request),
+                () -> restlet.runForRounds(operation, parameters));
         render(round, principal, (ObjectNode) bound, response);
     }
 
@@ -236,7 +237,7 @@ public final class RestInputRequests {
             e.questions().forEach(question -> pending.add(question.key()));
             // State a replay needs, such as an upstream's requestState, travels with the answers.
             e.carry().forEach(answers::set);
-            String handle = requestState.seal(principal, DIGEST, answers, pending, null, bound);
+            String handle = requestState.seal(principal, DIGEST, answers, pending, null, 0, bound);
             if (handle.length() > MAX_HANDLE) {
                 restlet.sendError(response, Status.CLIENT_ERROR_REQUEST_ENTITY_TOO_LARGE,
                         "This operation asks for input, and its request is too large to carry "
@@ -261,7 +262,7 @@ public final class RestInputRequests {
         List<String> pending = new ArrayList<>();
         round.questions().propertyNames().forEach(pending::add);
         String handle = requestState.seal(principal, DIGEST, MAPPER.createObjectNode(), pending,
-                round.executionId().value(), bound);
+                round.executionId().value(), round.round(), bound);
         accepted(response, handle, round.questions());
     }
 

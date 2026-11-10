@@ -31,7 +31,9 @@ import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -60,6 +62,8 @@ public final class InlineRounds {
 
     /** Most unanswered calls examined by one sweep. */
     static final int SWEEP_LIMIT = 10_000;
+
+    private static final ObjectMapper MAPPER = IkanosMappers.json();
 
     private final JournaledRunner runner;
     private final Clock clock;
@@ -90,10 +94,14 @@ public final class InlineRounds {
     }
 
     /**
-     * The outcome of one round of an inline call: its result, or the questions it stopped at, and
-     * the execution that keeps its progress.
+     * The outcome of one round of an inline call: its result, or the questions it stopped at and
+     * the round that asked them, and the execution that keeps its progress.
+     *
+     * @param round the round that asked {@code questions}, sealed into the caller's state so
+     *        that state answers this round only; 0 with a result
      */
-    public record Round(ObjectNode result, ObjectNode questions, ExecutionId executionId) {
+    public record Round(ObjectNode result, ObjectNode questions, ExecutionId executionId,
+            int round) {
     }
 
     /**
@@ -101,13 +109,21 @@ public final class InlineRounds {
      * caller's sealed state, receives the responses to the questions it waits on and resumes. A
      * round after the end returns the recorded result.
      *
+     * <p>A state answers the round it was issued for only. Retried after the call asked again,
+     * an earlier round's state delivers nothing, so an answer is never taken for a later question
+     * that reuses its key, an upstream's asked again after rejecting it included: the round
+     * returns the questions the call waits on now, with a state for them.</p>
+     *
+     * @param entry what the call is, such as the adapter, method and tool: a state naming an
+     *        execution started for another entry is rejected
      * @param executionId the execution the state names, or {@code null} for the first round
+     * @param round the round the state was issued for; ignored for the first round
      * @param arguments the call's arguments, recorded by the first round
      * @throws IllegalArgumentException for invalid parameters, or a state naming an execution
-     *         this store does not hold for this principal
+     *         this store does not hold for this principal and entry
      */
     public Round run(String entry, String principal, JsonNode arguments,
-            ExecutionId executionId, JsonNode responses, Callable<JsonNode> work) {
+            ExecutionId executionId, int round, JsonNode responses, Callable<JsonNode> work) {
         sweepUnanswered();
         ExecutionId id = executionId;
         if (id == null) {
@@ -115,18 +131,22 @@ public final class InlineRounds {
             runner.start(ExecutionRequest.of(id, arguments), entry,
                     Map.of(KIND, MRTR, PRINCIPAL, McpTaskService.digest(principal)));
         } else {
-            ExecutionRecord record = find(id, principal).orElse(null);
+            // Adapters of a capability share its sealing key: a state issued by another adapter,
+            // for the same name and arguments, names an execution of other work.
+            ExecutionRecord record = find(id, principal)
+                    .filter(found -> entry.equals(found.entry())).orElse(null);
             if (record == null) {
                 // Lost with a memory store's process, or removed by retention: start again.
                 throw new IllegalArgumentException("The state names an unknown call");
             }
             if (record.status() == ExecutionStatus.SUSPENDED) {
                 ExecutionView view = runner.view(id);
-                int round = InputRounds.lastRound(view);
-                ObjectNode answers =
-                        InputRounds.answersTo(InputRounds.questions(view, round), responses);
+                int last = InputRounds.lastRound(view);
+                ObjectNode answers = round == last
+                        ? InputRounds.answersTo(InputRounds.questions(view, last), responses)
+                        : MAPPER.createObjectNode();
                 if (!answers.isEmpty()) {
-                    runner.deliver(id, InputRounds.ANSWERS.visit(round), answers);
+                    runner.deliver(id, InputRounds.ANSWERS.visit(last), answers);
                 }
             }
         }
@@ -147,10 +167,11 @@ public final class InlineRounds {
                 InputRounds.interpreter(),
                 InputRounds.executor(runner, id, stopping, clock, watched));
         if (result instanceof ExecutionResult.Completed completed) {
-            return new Round((ObjectNode) completed.result(), null, id);
+            return new Round((ObjectNode) completed.result(), null, id, 0);
         }
         if (result instanceof ExecutionResult.Suspended suspended) {
-            return new Round(null, (ObjectNode) suspended.awaiting().get(0).request(), id);
+            return new Round(null, (ObjectNode) suspended.awaiting().get(0).request(), id,
+                    InputRounds.lastRound(runner.view(id)));
         }
         if (raised.get() != null) {
             throw raised.get();

@@ -205,6 +205,9 @@ final class UpstreamCall {
                             if (task) {
                                 payload.put("taskId", reply.path("taskId").asString());
                                 payload.set("namespace", reply.get("namespace"));
+                                if (reply.has("credentials")) {
+                                    payload.set("credentials", reply.get("credentials"));
+                                }
                                 payload.set("pollIntervalMs", reply.get("pollIntervalMs"));
                                 payload.set("ttlMs", reply.get("ttlMs"));
                             } else {
@@ -295,6 +298,11 @@ final class UpstreamCall {
             reply.put("taskId", result.path("taskId").asString());
             // Names the adapter, so cancelling the caller can cancel this task (UpstreamTasks).
             reply.put("namespace", adapter.getNamespace());
+            // And what its credentials take from this invocation, sealed, for that cancel.
+            String credentials = adapter.sealCredentials(templates);
+            if (credentials != null) {
+                reply.put("credentials", credentials);
+            }
             reply.set("pollIntervalMs", result.get("pollIntervalMs"));
             reply.set("ttlMs", result.get("ttlMs"));
         } else if (McpResultType.INPUT_REQUIRED.wireValue().equals(type)) {
