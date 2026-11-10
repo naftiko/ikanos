@@ -186,4 +186,28 @@ public class McpUpstreamRoundsIntegrationTest {
         assertEquals("second", received.get(2).path("confirm").path("content").path("note")
                 .asString());
     }
+
+    @Test
+    void theFirstAnswerRetriedAfterTheUpstreamAskedAgainShouldNotAnswerTheNewQuestion()
+            throws Exception {
+        McpServerAdapter adapter = start();
+        String first = "{\"action\":\"accept\",\"content\":{\"note\":\"first\"}}";
+
+        JsonNode asked = call(adapter, null, null);
+        JsonNode askedAgain = call(adapter, asked, first);
+        assertEquals("input_required", askedAgain.path("resultType").asString());
+
+        // A client retrying the first round, with its still valid state and the same answer.
+        JsonNode retried = call(adapter, asked, first);
+
+        assertEquals("input_required", retried.path("resultType").asString(),
+                "The retry gets the question asked now, not a completion: " + retried);
+        assertEquals(2, received.size(),
+                "The upstream never got the first answer for its second question: " + received);
+        JsonNode done = call(adapter, retried, "{\"action\":\"accept\",\"content\":"
+                + "{\"note\":\"second\"}}");
+        assertEquals("complete", done.path("resultType").asString(), done.toString());
+        assertEquals("second", received.get(2).path("confirm").path("content").path("note")
+                .asString());
+    }
 }

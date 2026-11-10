@@ -62,7 +62,7 @@ public class McpTaskServiceTest {
                 Clock.systemUTC(), "test");
         McpTaskService now = new McpTaskService(runner, Clock.systemUTC(), null);
         InlineRounds.Round round = now.inRounds("mrtr:ops/tools/call/ask", "alice", null, null,
-                null, () -> {
+                0, null, () -> {
                     throw new InputRequiredException(List.of(
                             new InputRequiredException.Question(
                                     "steps/confirm",
@@ -85,7 +85,7 @@ public class McpTaskServiceTest {
                 Clock.systemUTC(), "test");
         McpTaskService service = new McpTaskService(runner, Clock.systemUTC(), null);
         InlineRounds.Round round = service.inRounds("mrtr:ops/tools/call/ask", "alice", null,
-                null, null, () -> {
+                null, 0, null, () -> {
                     throw new InputRequiredException(List.of(
                             new InputRequiredException.Question(
                                     "steps/confirm",
@@ -112,13 +112,13 @@ public class McpTaskServiceTest {
                             Map.of("ok", Map.of("type", "boolean"))))));
         };
         InlineRounds.Round first = new McpTaskService(runner, Clock.systemUTC(), null)
-                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, null, work);
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, 0, null, work);
 
         // Nine minutes later, the answer comes, and the call asks again: a new state, valid
         // for another ten minutes.
         Clock later = Clock.offset(Clock.systemUTC(), java.time.Duration.ofMinutes(9));
         new McpTaskService(runner, later, null).inRounds("mrtr:ops/tools/call/ask", "alice",
-                null, first.executionId(), IkanosMappers.json().createObjectNode()
+                null, first.executionId(), first.round(), IkanosMappers.json().createObjectNode()
                         .set("steps/confirm", IkanosMappers.json().createObjectNode()
                                 .put("action", "accept")),
                 work);
@@ -134,6 +134,61 @@ public class McpTaskServiceTest {
                 McpRequestState.TTL.plusMinutes(10)), null).sweepUnanswered();
 
         assertEquals(ExecutionStatus.FAILED, runner.status(first.executionId()).orElseThrow());
+    }
+
+    /** Work that asks the same question every round, as an upstream rejecting answers does. */
+    private static Callable<JsonNode> askingAgain(AtomicInteger rounds) {
+        return () -> {
+            rounds.incrementAndGet();
+            throw new InputRequiredException(List.of(new InputRequiredException.Question(
+                    "steps/confirm", new OperationStepElicitSpec("confirm", "Confirm?",
+                            Map.of("ok", Map.of("type", "boolean"))))));
+        };
+    }
+
+    private static JsonNode accept() {
+        return IkanosMappers.json().createObjectNode().set("steps/confirm",
+                IkanosMappers.json().createObjectNode().put("action", "accept"));
+    }
+
+    @Test
+    void aStateOfAnEarlierRoundShouldNotAnswerALaterQuestionWithTheSameKey() {
+        AtomicInteger rounds = new AtomicInteger();
+        Callable<JsonNode> work = askingAgain(rounds);
+        String entry = "mrtr:ops/tools/call/ask";
+        InlineRounds.Round first = service.inRounds(entry, "alice", null, null, 0, null, work);
+        InlineRounds.Round second = service.inRounds(entry, "alice", null, first.executionId(),
+                first.round(), accept(), work);
+        assertEquals(2, rounds.get());
+        assertEquals(first.round() + 1, second.round());
+
+        // The first answer retried with its own, still valid, state.
+        InlineRounds.Round retried = service.inRounds(entry, "alice", null,
+                first.executionId(), first.round(), accept(), work);
+
+        assertEquals(2, rounds.get(), "The earlier answer is not taken for the new question");
+        assertEquals(second.round(), retried.round(), "The retry gets the question asked now");
+        assertTrue(retried.questions().has("steps/confirm"));
+
+        service.inRounds(entry, "alice", null, first.executionId(), retried.round(), accept(),
+                work);
+        assertEquals(3, rounds.get(), "The state of the current round answers it");
+    }
+
+    @Test
+    void aStateShouldNotResumeACallStartedForAnotherEntry() {
+        AtomicInteger rounds = new AtomicInteger();
+        Callable<JsonNode> work = askingAgain(rounds);
+        InlineRounds.Round first = service.inRounds("mrtr:ops-a/tools/call/ask", "alice", null,
+                null, 0, null, work);
+
+        assertThrows(IllegalArgumentException.class, () -> service.inRounds(
+                "mrtr:ops-b/tools/call/ask", "alice", null, first.executionId(), first.round(),
+                accept(), work), "Another adapter, same tool name and arguments");
+        assertEquals(1, rounds.get());
+        assertTrue(service.inRounds("mrtr:ops-a/tools/call/ask", "alice", null,
+                first.executionId(), first.round(), null, work).questions() != null,
+                "The call is still waiting for its own adapter's answer");
     }
 
     @Test

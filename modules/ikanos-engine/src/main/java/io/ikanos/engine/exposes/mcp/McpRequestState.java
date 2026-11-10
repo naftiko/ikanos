@@ -71,11 +71,13 @@ public final class McpRequestState {
      * @param pending the keys asked in the last round, still outstanding
      * @param executionId the journal-backed execution the call resumes, or {@code null} when the
      *        call replays from the start with the answers
+     * @param round the round of that execution whose questions the state answers; 0 when the
+     *        state names no execution
      * @param bound what the call was bound to beyond the request digest, such as the REST
      *        operation and its input parameters; {@code null} when nothing was
      */
     public record Content(ObjectNode answers, List<String> pending, String executionId,
-            JsonNode bound) {
+            int round, JsonNode bound) {
     }
 
     McpRequestState(SecretKey key, Clock clock) {
@@ -144,27 +146,25 @@ public final class McpRequestState {
     /** Seals the answers so far and the outstanding keys, bound to a principal and a request. */
     public String seal(String principal, String requestDigest, ObjectNode answers,
             List<String> pending) {
-        return seal(principal, requestDigest, answers, pending, null);
+        return seal(principal, requestDigest, answers, pending, null, 0, null);
     }
 
     /**
      * Seals the outstanding keys and, for a journal-backed call, the execution that keeps its
-     * progress, bound to a principal and a request.
+     * progress and the round whose questions they are, so the state answers that round only.
+     * It may also carry what the call is bound to, such as a REST operation and its input
+     * parameters, for a later request that does not repeat them.
+     *
+     * @param executionId the journal-backed execution, or {@code null} for a call that replays
+     * @param round the round of that execution that asked; ignored without an execution
+     * @param bound what the call is bound to, or {@code null}
      */
     public String seal(String principal, String requestDigest, ObjectNode answers,
-            List<String> pending, String executionId) {
-        return seal(principal, requestDigest, answers, pending, executionId, null);
-    }
-
-    /**
-     * Seals a state that also carries what the call is bound to, such as a REST operation and
-     * its input parameters, for a later request that does not repeat them.
-     */
-    public String seal(String principal, String requestDigest, ObjectNode answers,
-            List<String> pending, String executionId, JsonNode bound) {
+            List<String> pending, String executionId, int round, JsonNode bound) {
         ObjectNode payload = MAPPER.createObjectNode();
         if (executionId != null) {
             payload.put("x", executionId);
+            payload.put("r", round);
         }
         if (bound != null) {
             payload.set("b", bound);
@@ -218,7 +218,7 @@ public final class McpRequestState {
         payload.path("k").forEach(key -> pending.add(key.asString()));
         JsonNode answers = payload.path("a");
         return new Content(answers.isObject() ? (ObjectNode) answers : MAPPER.createObjectNode(),
-                pending, payload.path("x").asString(null),
+                pending, payload.path("x").asString(null), payload.path("r").asInt(0),
                 payload.has("b") ? payload.get("b") : null);
     }
 

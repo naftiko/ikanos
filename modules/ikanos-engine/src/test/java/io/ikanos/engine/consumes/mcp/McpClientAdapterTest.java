@@ -36,11 +36,14 @@ import org.restlet.data.Status;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Unit tests for {@link McpClientAdapter}: request shape on the wire, response body selection,
@@ -664,5 +667,71 @@ class McpClientAdapterTest {
         assertTrue(error.getMessage().contains("billing"), error.getMessage());
         assertTrue(error.getMessage().contains("endpoint"), error.getMessage());
         assertTrue(error.getMessage().contains("HOST"), error.getMessage());
+    }
+    private static Capability capabilityWithBearerToken() throws Exception {
+        return new Capability(IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: mcp
+                      namespace: billing
+                      endpoint: https://billing.example.com/mcp
+                      authentication: { type: bearer, token: "{{token}}" }
+                      discovery: off
+                      tools:
+                        get-invoice: { description: Retrieve one invoice }
+                  exposes:
+                    - type: mcp
+                      transport: http
+                      address: localhost
+                      port: 0
+                      namespace: billing-mcp
+                      tools:
+                        invoice: { description: Invoice, call: billing.get-invoice }
+                """.formatted(VersionHelper.getSchemaVersion()), IkanosSpec.class));
+    }
+
+    @Test
+    void aCancelWithNoWorkerLeftShouldAuthenticateWithTheTokenOfTheInvocation()
+            throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req, "{}"));
+        McpClientAdapter adapter =
+                new McpClientAdapter(capabilityWithBearerToken(), spec(""), client);
+
+        String sealed = adapter.sealCredentials(
+                Map.of("token", "t-123", "invoice-id", "INV-1"));
+        assertFalse(sealed.contains("t-123"), "The journal never holds the token in clear");
+        adapter.cancelTask("task-1", sealed);
+
+        assertEquals("tasks/cancel", JSON.readTree(client.bodies.get(0)).path("method")
+                .asString());
+        assertEquals("t-123", client.requests.get(0).getChallengeResponse().getRawValue());
+    }
+
+    @Test
+    void onlyTheParametersTheCredentialsUseShouldBeSealed() throws Exception {
+        Capability capability = capabilityWithBearerToken();
+        McpClientAdapter adapter = new McpClientAdapter(capability, spec(""), new StubClient());
+
+        String sealed = adapter.sealCredentials(Map.of("token", "t-123", "invoice-id", "INV-1"));
+
+        assertEquals(Map.of("token", "t-123"), SealedCredentials.open(
+                capability.getSealingKey(), "billing", sealed));
+        assertNull(adapter.sealCredentials(Map.of("invoice-id", "INV-1")),
+                "Nothing to seal when the credentials use no parameter of the invocation");
+    }
+
+    @Test
+    void sealedCredentialsShouldOpenOnlyUnderTheirKeyAndNamespace() {
+        javax.crypto.SecretKey key = io.ikanos.engine.exposes.mcp.McpRequestState.randomKey();
+        String sealed = SealedCredentials.seal(key, "billing", Map.of("token", "t-123"));
+
+        assertEquals(Map.of("token", "t-123"), SealedCredentials.open(key, "billing", sealed));
+        assertTrue(SealedCredentials.open(key, "shipping", sealed).isEmpty());
+        assertTrue(SealedCredentials.open(
+                io.ikanos.engine.exposes.mcp.McpRequestState.randomKey(), "billing", sealed)
+                .isEmpty(), "Sealed by an earlier process with a random key");
+        assertTrue(SealedCredentials.open(key, "billing", "not-sealed").isEmpty());
     }
 }

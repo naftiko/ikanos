@@ -20,6 +20,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +44,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
@@ -185,12 +187,49 @@ public class McpClientAdapter extends ClientAdapter {
     }
 
     /**
+     * The invocation parameters this upstream's credential templates use, such as a
+     * {@code {{token}}} taken from a step's input, sealed for this adapter
+     * ({@link SealedCredentials}): journaled with an upstream task, they let a cancel with no
+     * worker left authenticate. Bindings are left out, as they resolve again.
+     *
+     * @param templates the invocation's template parameters, merged with the bindings
+     * @return the sealed parameters, or {@code null} when the credentials use none
+     */
+    String sealCredentials(Map<String, Object> templates) {
+        Capability capability = getCapability();
+        if (capability == null || templates == null) {
+            return null;
+        }
+        Map<String, Object> bindings =
+                capability.getBindings() != null ? capability.getBindings() : Map.of();
+        Map<String, Object> used = new LinkedHashMap<>();
+        for (String template : ConsumedAuthentication
+                .credentials(getMcpClientSpec().getAuthentication(), "").values()) {
+            // With no values, every variable of the template is reported.
+            for (String reference : Resolver.emptyVariables(template, null)) {
+                String name = reference.split("\\.", 2)[0].trim();
+                if (!bindings.containsKey(name) && templates.get(name) != null) {
+                    used.put(name, templates.get(name));
+                }
+            }
+        }
+        return used.isEmpty() ? null
+                : SealedCredentials.seal(capability.getSealingKey(), getNamespace(), used);
+    }
+
+    /**
      * Cancels a task of this upstream, best effort: it may have ended, or be unreachable, and
      * either way nothing more can be done.
+     *
+     * @param credentials the invocation parameters its credentials use, as
+     *        {@link #sealCredentials} sealed them, or {@code null}: the bindings alone then
      */
-    void cancelTask(String taskId) {
-        Map<String, Object> templates = ConsumedAuthentication.withBindings(null,
-                getCapability() != null ? getCapability().getBindings() : null);
+    void cancelTask(String taskId, String credentials) {
+        Capability capability = getCapability();
+        Map<String, Object> parameters = credentials == null || capability == null ? null
+                : SealedCredentials.open(capability.getSealingKey(), getNamespace(), credentials);
+        Map<String, Object> templates = ConsumedAuthentication.withBindings(parameters,
+                capability != null ? capability.getBindings() : null);
         ObjectNode params = JSON.createObjectNode();
         params.put("taskId", taskId);
         try {

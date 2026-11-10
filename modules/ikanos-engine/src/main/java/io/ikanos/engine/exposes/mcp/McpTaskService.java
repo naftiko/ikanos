@@ -358,8 +358,8 @@ public final class McpTaskService {
      * ({@link InlineRounds#run}).
      */
     public InlineRounds.Round inRounds(String entry, String principal, JsonNode arguments,
-            ExecutionId executionId, JsonNode responses, Callable<JsonNode> work) {
-        return inline.run(entry, principal, arguments, executionId, responses, work);
+            ExecutionId executionId, int round, JsonNode responses, Callable<JsonNode> work) {
+        return inline.run(entry, principal, arguments, executionId, round, responses, work);
     }
 
     /** Fails the inline calls left unanswered past their state's expiry. */

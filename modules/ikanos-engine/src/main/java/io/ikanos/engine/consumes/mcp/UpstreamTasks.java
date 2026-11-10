@@ -59,7 +59,8 @@ public final class UpstreamTasks {
             McpClientAdapter adapter = task == null ? null
                     : adapterOf(capability, task.path("namespace").asString(null));
             if (adapter != null) {
-                adapter.cancelTask(task.path("taskId").asString());
+                adapter.cancelTask(task.path("taskId").asString(),
+                        task.path("credentials").asString(null));
                 runner.cancel(record.executionId());
                 cancelled++;
             }

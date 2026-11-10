@@ -156,6 +156,7 @@ public abstract class McpCallHandler {
             JsonNode params, String label, String name, JsonNode arguments,
             Supplier<ObjectNode> run, String principal, String digest) throws Exception {
         ExecutionId executionId = null;
+        int round = 0;
         String token = params.path("requestState").asString(null);
         if (token != null && !token.isEmpty()) {
             McpRequestState.Content state =
@@ -165,13 +166,14 @@ public abstract class McpCallHandler {
                         "requestState belongs to a call that replays its steps");
             }
             executionId = new ExecutionId(state.executionId());
+            round = state.round();
         }
         String entry = "mrtr:" + adapter.getMcpServerSpec().getNamespace() + "/"
                 + getMethodName() + "/" + name;
-        InlineRounds.Round round = journal.inRounds(entry, principal, arguments, executionId,
-                params.get("inputResponses"), run::get);
-        if (round.result() != null) {
-            return new HandlerSuccessResult(round.result());
+        InlineRounds.Round outcome = journal.inRounds(entry, principal, arguments, executionId,
+                round, params.get("inputResponses"), run::get);
+        if (outcome.result() != null) {
+            return new HandlerSuccessResult(outcome.result());
         }
         if (!RequestClientCapabilities.from(params).supportsElicitation()) {
             ObjectNode required = MAPPER.createObjectNode();
@@ -181,11 +183,12 @@ public abstract class McpCallHandler {
         }
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
-        result.set("inputRequests", round.questions());
+        result.set("inputRequests", outcome.questions());
         List<String> pending = new ArrayList<>();
-        round.questions().propertyNames().forEach(pending::add);
+        outcome.questions().propertyNames().forEach(pending::add);
         result.put("requestState", adapter.getRequestState().seal(principal, digest,
-                MAPPER.createObjectNode(), pending, round.executionId().value()));
+                MAPPER.createObjectNode(), pending, outcome.executionId().value(),
+                outcome.round(), null));
         return new HandlerSuccessResult(result);
     }
 
