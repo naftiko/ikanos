@@ -43,6 +43,9 @@ final class MemoryBlobStore implements BlobStore {
 
     @Override
     public void deleteAll(ExecutionId executionId) {
-        blobs.keySet().removeIf(key -> key.startsWith(executionId.value() + "/"));
+        // The UUID suffix has no slash, but an execution ID may (a sub-run's is "<root>/steps/..."),
+        // so compare the whole ID before the last separator, not a prefix.
+        blobs.keySet().removeIf(
+                key -> key.substring(0, key.lastIndexOf('/')).equals(executionId.value()));
     }
 }
