@@ -528,6 +528,36 @@ public class AggregateRefResolverTest {
         assertEquals(true, tool.getHints().getOpenWorld());
     }
 
+    @Test
+    void resolvedToolHintsShouldPreferToolThenSemanticsThenServerWhenToolUsesRef() {
+        // semantics safe: false, idempotent: true -> readOnly: false, idempotent: true
+        McpToolHintsSpec toolHints = new McpToolHintsSpec(null, true, null, null);
+        IkanosSpec spec = buildSpecWithMcpRef(new SemanticsSpec(false, true, null), toolHints);
+        McpServerSpec mcpSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        mcpSpec.setHints(new McpToolHintsSpec(true, false, false, true));
+
+        resolver.resolve(spec);
+        McpToolHintsSpec resolved = mcpSpec.resolveToolHints(mcpSpec.getTools().get("read"));
+
+        assertEquals(false, resolved.getReadOnly(), "semantics win over the server");
+        assertEquals(true, resolved.getDestructive(), "the tool wins over the server");
+        assertEquals(true, resolved.getIdempotent(), "semantics win over the server");
+        assertEquals(true, resolved.getOpenWorld(), "the server fills what nothing else sets");
+    }
+
+    @Test
+    void resolveShouldLeaveServerHintsUnchangedWhenToolUsesRef() {
+        IkanosSpec spec = buildSpecWithMcpRef(new SemanticsSpec(false, true, null), null);
+        McpServerSpec mcpSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        mcpSpec.setHints(new McpToolHintsSpec(true, null, null, true));
+
+        resolver.resolve(spec);
+        mcpSpec.resolveToolHints(mcpSpec.getTools().get("read"));
+
+        assertEquals(true, mcpSpec.getHints().getReadOnly());
+        assertNull(mcpSpec.getHints().getIdempotent());
+    }
+
     // ── helpers ──
 
     private IkanosSpec buildSpecWithMcpRef(SemanticsSpec semantics,

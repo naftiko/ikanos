@@ -1,0 +1,128 @@
+# MCP server default hints example.
+#
+# Most tools of a capability are read-only, so the MCP exposes block declares
+# `hints` once, as the default for every tool of the server. Each hint field is
+# resolved on its own, from the most specific source to the broadest:
+#
+#   1. the tool's own `hints`
+#   2. the hints derived from the `semantics` of the aggregate flow, for a tool
+#      with `ref`
+#   3. the server's `hints`
+#
+# A tool only declares the fields that differ. The resolved hints are what
+# `tools/list` advertises as the tool's annotations.
+ikanos: "1.0.0-beta10"
+
+info:
+  display: "Gong — MCP server default hints example"
+  description: "Declare read-only hints once on the server and override them on the write tools only."
+
+binds:
+  - namespace: "secrets"
+    description: "Credentials for the Gong API."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      GONG_TOKEN: "gong-bearer-token"
+
+capability:
+  consumes:
+    - type: "http"
+      namespace: "gong"
+      description: "Gong REST API."
+      baseUri: "https://api.gong.example/v2"
+      authentication:
+        type: "bearer"
+        token: "{{secrets.GONG_TOKEN}}"
+      resources:
+        calls:
+          description: "Recorded calls."
+          path: "/calls"
+          operations:
+            list-calls:
+              method: "GET"
+              description: "List calls in a date range."
+              inputParameters:
+                fromDateTime:
+                  in: "query"
+                toDateTime:
+                  in: "query"
+        tasks:
+          description: "Engage tasks."
+          path: "/tasks/{{task-id}}"
+          operations:
+            update-task:
+              method: "PUT"
+              description: "Update an Engage task."
+              inputParameters:
+                task-id:
+                  in: "path"
+            delete-task:
+              method: "DELETE"
+              description: "Delete an Engage task."
+              inputParameters:
+                task-id:
+                  in: "path"
+
+  aggregates:
+    - display: "Tasks"
+      namespace: "tasks"
+      flows:
+        delete-task:
+          description: "Delete an Engage task."
+          semantics:
+            safe: false
+            idempotent: true
+          inputParameters:
+            task-id:
+              type: "string"
+              description: "Task identifier."
+          call: "gong.delete-task"
+          with:
+            task-id: "tasks.task-id"
+
+  exposes:
+    - type: "mcp"
+      namespace: "gong-mcp"
+      port: 3001
+      description: "Gong calls and Engage tasks."
+      hints:
+        readOnly: true            # default for every tool below
+        openWorld: true
+      tools:
+        list-calls:
+          description: "List calls in a date range."
+          # Resolved: readOnly: true, openWorld: true (all from the server)
+          inputParameters:
+            from:
+              type: "string"
+              description: "Start of the range (ISO 8601)."
+              required: true
+            to:
+              type: "string"
+              description: "End of the range (ISO 8601)."
+              required: true
+          call: "gong.list-calls"
+          with:
+            fromDateTime: "gong-mcp.from"
+            toDateTime: "gong-mcp.to"
+        update-task:
+          description: "Update an Engage task."
+          # Resolved: readOnly: false, idempotent: true (tool), openWorld: true (server)
+          hints:
+            readOnly: false         # overrides one server field; openWorld stays true
+            idempotent: true
+          inputParameters:
+            task-id:
+              type: "string"
+              description: "Task identifier."
+              required: true
+          call: "gong.update-task"
+          with:
+            task-id: "gong-mcp.task-id"
+        delete-task:
+          description: "Delete an Engage task."
+          # Resolved: readOnly: false, idempotent: true (flow semantics),
+          # destructive: true (tool), openWorld: true (server)
+          ref: "tasks.delete-task"
+          hints:
+            destructive: true

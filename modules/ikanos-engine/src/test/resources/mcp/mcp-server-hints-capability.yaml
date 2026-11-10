@@ -1,0 +1,68 @@
+ikanos: 1.0.0-beta10
+info:
+  display: MCP Server Hints Test Capability
+  description: Test capability for default tool hints declared on the MCP server
+  tags:
+  - Test
+  - MCP
+  created: '2026-11-09'
+  modified: '2026-11-09'
+capability:
+  aggregates:
+  - display: Tasks
+    namespace: tasks
+    flows:
+      delete-task:
+        description: Delete a task.
+        semantics:
+          safe: false
+          idempotent: true
+        inputParameters:
+          task-id:
+            type: string
+            description: ID of the task to delete
+        call: mock-api.delete-task
+        with:
+          id: task-id
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9103
+    namespace: server-hints-mcp
+    description: Test MCP server declaring default hints for all of its tools.
+    hints:
+      readOnly: true
+      idempotent: false
+      openWorld: true
+    tools:
+      list-calls:
+        description: Tool without hints, inherits every server hint.
+        call: mock-api.list-calls
+      update-task:
+        description: Tool overriding two server hints.
+        hints:
+          readOnly: false
+          idempotent: true
+        call: mock-api.update-task
+      delete-task:
+        description: Tool using ref, with semantics and its own hints.
+        ref: tasks.delete-task
+        hints:
+          destructive: true
+  consumes:
+  - type: http
+    namespace: mock-api
+    baseUri: http://localhost:8080/v1
+    resources:
+      calls:
+        path: calls
+        operations:
+          list-calls:
+            method: GET
+      tasks:
+        path: tasks
+        operations:
+          update-task:
+            method: PUT
+          delete-task:
+            method: DELETE
