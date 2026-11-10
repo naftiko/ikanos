@@ -354,12 +354,6 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * The parameters replaced by a later one with the same name and location, as in OpenAPI: a
-     * narrower level replaces a broader one (#909). They are still resolved in their position, so
-     * a template that uses them sees the same value as before, but they are not sent, so a query
-     * parameter is sent once.
-     */
-    /**
      * Writes the {@code value} (or {@code template}) of each {@code in: path} parameter into
      * {@code parameters}, so that the resource path template uses it (#978). Parameters are taken
      * in declaration order, adapter level first, so a narrower level wins, and a declared value
@@ -388,6 +382,12 @@ public class HttpClientAdapter extends ClientAdapter {
         }
     }
 
+    /**
+     * The parameters replaced by a later one with the same name and location, as in OpenAPI: a
+     * narrower level replaces a broader one (#909). They are still resolved in their position, so
+     * a template that uses them sees the same value as before, but they are not sent, so a query
+     * parameter is sent once.
+     */
     static Set<InputParameterSpec> replacedInputParameters(List<InputParameterSpec> declared) {
         Set<InputParameterSpec> replaced = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<String, InputParameterSpec> last = new HashMap<>();
