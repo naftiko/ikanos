@@ -29,9 +29,6 @@ consumes:
       operations:
         get-ship:
           method: GET
-          inputParameters:
-            imo_number:
-              in: path
     voyages:
       path: "/voyages"
       operations:
@@ -52,9 +49,6 @@ consumes:
       operations:
         get-voyage:
           method: GET
-          inputParameters:
-            voyageId:
-              in: path
     crew:
       path: "/crew"
       operations:

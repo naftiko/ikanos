@@ -780,6 +780,90 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldDerivePathParametersFromTemplateWhenUndeclared() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        addResource(rest, resourceWithOperation("/ships/{{imo}}/crew/{{crew-id}}", "crew",
+                "GET", "get-crew-member", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}/crew/{crew-id}").getGet();
+        assertNotNull(op.getParameters(),
+                "#978: OpenAPI requires a parameter for every {name} of the path");
+        assertEquals(List.of("imo", "crew-id"),
+                op.getParameters().stream().map(p -> p.getName()).toList());
+        assertTrue(op.getParameters().stream()
+                .allMatch(p -> "path".equals(p.getIn()) && Boolean.TRUE.equals(p.getRequired())
+                        && "string".equals(p.getSchema().getType())));
+    }
+
+    @Test
+    void buildShouldKeepDeclaredPathParameterInsteadOfDerivingIt() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ships",
+                "GET", "get-ship", null);
+        InputParameterSpec imo = new InputParameterSpec();
+        imo.setName("imo");
+        imo.setIn("path");
+        imo.setType("number");
+        imo.setDescription("IMO number of the ship");
+        firstOp(resource).setInputParameters(Map.of("imo", imo));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}").getGet();
+        assertEquals(1, op.getParameters().size(),
+                "#978: a declared path parameter should not be exported a second time");
+        assertEquals("IMO number of the ship", op.getParameters().get(0).getDescription());
+        assertEquals("number", op.getParameters().get(0).getSchema().getType());
+    }
+
+    @Test
+    void buildShouldUseResourceLevelPathParameterDeclaration() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ships",
+                "GET", "get-ship", null);
+        InputParameterSpec imo = new InputParameterSpec();
+        imo.setName("imo");
+        imo.setIn("path");
+        imo.setType("string");
+        imo.setDescription("IMO number of the ship");
+        resource.setInputParameters(Map.of("imo", imo));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}").getGet();
+        assertEquals(1, op.getParameters().size());
+        assertEquals("IMO number of the ship", op.getParameters().get(0).getDescription(),
+                "#978: a path variable declared on the resource keeps its description");
+    }
+
+    @Test
+    void buildShouldExportDeclaredPathParameterAsRequired() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ships",
+                "GET", "get-ship", null);
+        InputParameterSpec imo = new InputParameterSpec();
+        imo.setName("imo");
+        imo.setIn("path");
+        imo.setRequired(false);
+        firstOp(resource).setInputParameters(Map.of("imo", imo));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}").getGet();
+        assertTrue(op.getParameters().get(0).getRequired(),
+                "#978: OpenAPI requires every path parameter to be required");
+    }
+
+    @Test
     void buildShouldMapAllHttpMethods() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
