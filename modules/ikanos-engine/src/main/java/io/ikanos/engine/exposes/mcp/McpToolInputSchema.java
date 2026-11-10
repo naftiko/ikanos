@@ -21,12 +21,16 @@ import java.util.List;
 import java.util.Map;
 
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Builds the JSON Schema advertised as a tool's {@code inputSchema} in {@code tools/list} from its
  * declared input parameters.
  */
 final class McpToolInputSchema {
+
+    private static final ObjectMapper JSON = IkanosMappers.json();
 
     private McpToolInputSchema() {}
 
@@ -36,7 +40,14 @@ final class McpToolInputSchema {
 
         if (inputParams != null) {
             for (InputParameterSpec param : inputParams) {
-                schemaProperties.put(param.getName(), propertySchema(param));
+                Map<String, Object> property = propertySchema(param);
+                // A default applies to a whole argument only (#979), so it is advertised at
+                // this level and never inside items or properties.
+                if (param.getDefaultValue() != null) {
+                    property.put("default", JSON.treeToValue(param.getDefaultValue(),
+                            Object.class));
+                }
+                schemaProperties.put(param.getName(), property);
                 if (param.isRequired()) {
                     required.add(param.getName());
                 }

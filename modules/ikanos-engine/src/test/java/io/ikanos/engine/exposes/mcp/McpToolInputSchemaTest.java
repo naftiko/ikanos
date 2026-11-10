@@ -182,4 +182,55 @@ class McpToolInputSchemaTest {
         assertEquals(JSON.readTree("{\"type\":\"string\",\"enum\":[\"a\",\"b\"]}"),
                 schema.path("properties").path("tags").path("items"));
     }
+
+    @Test
+    void forParametersShouldAdvertiseDefaultWithItsJsonType() throws Exception {
+        JsonNode properties = schemaOf("""
+                - name: period
+                  type: string
+                  description: "Period."
+                  required: false
+                  default: LAST_90DAYS
+                - name: size
+                  type: integer
+                  description: "Page size."
+                  required: false
+                  default: 200
+                - name: draft
+                  type: boolean
+                  description: "Draft."
+                  required: false
+                  default: true
+                - name: tags
+                  type: array
+                  description: "Tags."
+                  required: false
+                  items: { type: string }
+                  default: [a, b]
+                - name: filter
+                  type: object
+                  description: "Filter."
+                  required: false
+                  default: { status: open }
+                """).path("properties");
+
+        assertEquals(JSON.readTree("\"LAST_90DAYS\""), properties.path("period").path("default"));
+        assertEquals(JSON.readTree("200"), properties.path("size").path("default"));
+        assertEquals(JSON.readTree("true"), properties.path("draft").path("default"));
+        assertEquals(JSON.readTree("[\"a\",\"b\"]"), properties.path("tags").path("default"));
+        assertEquals(JSON.readTree("{\"status\":\"open\"}"),
+                properties.path("filter").path("default"));
+    }
+
+    @Test
+    void forParametersShouldNotAdvertiseDefaultWhenNoneIsDeclared() throws Exception {
+        JsonNode properties = schemaOf("""
+                - name: size
+                  type: integer
+                  description: "Page size."
+                  required: false
+                """).path("properties");
+
+        assertFalse(properties.path("size").has("default"), properties.toString());
+    }
 }

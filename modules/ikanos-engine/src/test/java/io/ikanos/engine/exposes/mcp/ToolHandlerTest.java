@@ -15,14 +15,18 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
+import io.modelcontextprotocol.spec.McpSchema;
 
 public class ToolHandlerTest {
 
@@ -130,6 +134,92 @@ public class ToolHandlerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> handler.handleToolCall("   ", Map.of()));
     }
+
+    // ── Input defaults (#979) ──
+
+    /**
+     * A mock tool (no call, no steps) that echoes its parameters, so a test can observe the
+     * parameters the tool runs with.
+     */
+    private static ToolHandler echoToolHandler() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: echo
+                      tools:
+                        echo:
+                          description: "Echo the parameters."
+                          inputParameters:
+                            period:
+                              type: string
+                              description: "Period."
+                              required: false
+                              default: LAST_90DAYS
+                            id:
+                              type: string
+                              description: "Identifier."
+                              required: true
+                              default: never-used
+                          with:
+                            range: "{{period}}"
+                          outputParameters:
+                            - name: period
+                              type: string
+                              value: "{{period}}"
+                            - name: range
+                              type: string
+                              value: "{{range}}"
+                            - name: id
+                              type: string
+                              value: "{{id}}"
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        McpServerSpec mcpSpec = (McpServerSpec) spec.getCapability().getExposes().get(0);
+        return new ToolHandler(null, mcpSpec.getTools());
+    }
+
+    private static JsonNode echo(Map<String, Object> arguments) throws Exception {
+        McpSchema.CallToolResult result = echoToolHandler().handleToolCall("echo", arguments);
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        return IkanosMappers.json().readTree(text);
+    }
+
+    @Test
+    public void handleToolCallShouldUseDefaultWhenArgumentIsAbsent() throws Exception {
+        assertEquals("LAST_90DAYS", echo(Map.of("id", "42")).path("period").asString());
+    }
+
+    @Test
+    public void handleToolCallShouldUseDefaultWhenArgumentIsNull() throws Exception {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("id", "42");
+        arguments.put("period", null);
+
+        assertEquals("LAST_90DAYS", echo(arguments).path("period").asString());
+    }
+
+    @Test
+    public void handleToolCallShouldUseDefaultWhenArgumentsAreMissing() throws Exception {
+        assertEquals("LAST_90DAYS", echo(null).path("period").asString());
+    }
+
+    @Test
+    public void handleToolCallShouldKeepCallerValueWhenArgumentIsPresent() throws Exception {
+        assertEquals("LAST_7DAYS",
+                echo(Map.of("id", "42", "period", "LAST_7DAYS")).path("period").asString());
+    }
+
+    @Test
+    public void handleToolCallShouldResolveWithMappingAgainstDefault() throws Exception {
+        assertEquals("LAST_90DAYS", echo(Map.of("id", "42")).path("range").asString());
+    }
+
+    @Test
+    public void handleToolCallShouldNotApplyDefaultOfRequiredParameter() throws Exception {
+        assertEquals("", echo(Map.of()).path("id").asString(),
+                "a default on a required input never applies");
+    }
 }
-
-

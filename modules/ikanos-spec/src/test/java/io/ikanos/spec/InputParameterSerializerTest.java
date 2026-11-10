@@ -15,6 +15,7 @@ package io.ikanos.spec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.StringWriter;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.JsonGenerator;
@@ -92,6 +93,29 @@ class InputParameterSerializerTest {
         assertEquals("string", json.get("properties").get("customerId").get("type").asString());
         assertFalse(json.get("properties").has("null"));
         assertFalse(json.get("properties").get("customerId").has("name"));
+    }
+
+    @Test
+    void serializeShouldWriteDefaultWithItsJsonType() throws Exception {
+        InputParameterSpec spec = new InputParameterSpec();
+        spec.setName("flag");
+        spec.setType("boolean");
+        spec.setDefaultValue(objectMapper.readTree("true"));
+
+        JsonNode node = objectMapper.readTree(objectMapper.writeValueAsString(spec));
+
+        assertTrue(node.path("default").isBoolean(), node.toString());
+    }
+
+    @Test
+    void serializeShouldOmitDefaultWhenUnset() throws Exception {
+        InputParameterSpec spec = new InputParameterSpec();
+        spec.setName("flag");
+        spec.setType("boolean");
+
+        JsonNode node = objectMapper.readTree(objectMapper.writeValueAsString(spec));
+
+        assertFalse(node.has("default"), node.toString());
     }
 
     @Test

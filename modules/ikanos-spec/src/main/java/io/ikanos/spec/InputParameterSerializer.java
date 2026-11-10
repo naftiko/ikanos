@@ -318,7 +318,7 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
 
     /**
      * Write the MCP tool input schema hints ({@code format}, {@code minimum}, {@code maximum},
-     * {@code additionalProperties}).
+     * {@code additionalProperties}) and the input {@code default}, with its JSON type.
      */
     private void writeSchemaHints(InputParameterSpec spec, ObjectNode node) {
         if (spec.getFormat() != null) {
@@ -332,6 +332,9 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
         }
         if (spec.getAdditionalProperties() != null) {
             node.put("additionalProperties", spec.getAdditionalProperties());
+        }
+        if (spec.getDefaultValue() != null) {
+            node.set("default", spec.getDefaultValue().deepCopy());
         }
     }
 

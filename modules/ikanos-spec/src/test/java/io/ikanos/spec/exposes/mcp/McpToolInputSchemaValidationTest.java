@@ -191,6 +191,57 @@ class McpToolInputSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldAcceptDefaultOfEveryJsonTypeOnToolParameter() throws Exception {
+        List<Error> errors = validateTool("""
+                period:
+                  type: "string"
+                  description: "Period."
+                  required: false
+                  default: "LAST_90DAYS"
+                size:
+                  type: "integer"
+                  description: "Page size."
+                  required: false
+                  default: 200
+                ratio:
+                  type: "number"
+                  description: "Ratio."
+                  required: false
+                  default: 0.5
+                draft:
+                  type: "boolean"
+                  description: "Draft."
+                  required: false
+                  default: false
+                tags:
+                  type: "array"
+                  description: "Tags."
+                  required: false
+                  items: { type: "string" }
+                  default: ["a", "b"]
+                filter:
+                  type: "object"
+                  description: "Filter."
+                  required: false
+                  default: { status: "open" }
+                """);
+        assertTrue(errors.isEmpty(), "#979: expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldRejectDefaultInsideNestedSchema() throws Exception {
+        List<Error> errors = validateTool("""
+                filter:
+                  type: "object"
+                  description: "Filter."
+                  properties:
+                    status: { type: "string", default: "open" }
+                """);
+        assertFalse(errors.isEmpty(),
+                "#979: default applies to a whole tool argument only, not to a nested property");
+    }
+
+    @Test
     void schemaShouldRejectItemsWrittenAsList() throws Exception {
         List<Error> errors = validateTool("""
                 tags:
