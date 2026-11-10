@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
@@ -57,6 +59,9 @@ import io.ikanos.spec.exposes.ServerSpec;
  * Builds an OpenAPI {@link OpenAPI} POJO from a Ikanos capability spec's REST adapter.
  */
 public class OasExportBuilder {
+
+    /** A Mustache path variable, {@code {{name}}}; the name follows the parameter key pattern. */
+    private static final Pattern PATH_VARIABLE = Pattern.compile("\\{\\{([\\w-]+)\\}\\}");
 
     /**
      * Build an OpenAPI document from an Ikanos specification's REST adapter.
@@ -173,7 +178,7 @@ public class OasExportBuilder {
             basePath = "/" + resource.getName();
             }
             // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+            basePath = PATH_VARIABLE.matcher(basePath).replaceAll("{$1}");
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
@@ -231,17 +236,10 @@ public class OasExportBuilder {
                     bodyRequired.add(inputParam.getName());
                 }
             } else {
-                Parameter param = new Parameter();
-                param.setName(inputParam.getName());
-                param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
-                param.setRequired(inputParam.isRequired());
-                param.setSchema(buildInputSchema(inputParam));
-                if (inputParam.getDescription() != null) {
-                    param.setDescription(inputParam.getDescription());
-                }
-                params.add(param);
+                params.add(buildParameter(inputParam));
             }
         }
+        addPathParameters(resource, params);
 
         if (!params.isEmpty()) {
             operation.setParameters(params);
@@ -276,6 +274,49 @@ public class OasExportBuilder {
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    Parameter buildParameter(InputParameterSpec inputParam) {
+        Parameter param = new Parameter();
+        param.setName(inputParam.getName());
+        param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
+        // OpenAPI requires every path parameter to be required
+        param.setRequired("path".equals(param.getIn()) || inputParam.isRequired());
+        param.setSchema(buildInputSchema(inputParam));
+        if (inputParam.getDescription() != null) {
+            param.setDescription(inputParam.getDescription());
+        }
+        return param;
+    }
+
+    /**
+     * Adds a path parameter for each {@code {{name}}} variable of the resource path that the
+     * operation does not declare (#978): OpenAPI requires one per path template variable. A
+     * resource-level {@code in: path} declaration gives its type and description; otherwise the
+     * parameter is a required string.
+     */
+    void addPathParameters(RestServerResourceSpec resource, List<Parameter> params) {
+        if (resource.getPath() == null) {
+            return;
+        }
+        Matcher variable = PATH_VARIABLE.matcher(resource.getPath());
+        while (variable.find()) {
+            String name = variable.group(1);
+            boolean present = params.stream()
+                    .anyMatch(p -> "path".equals(p.getIn()) && name.equals(p.getName()));
+            if (present) {
+                continue;
+            }
+            InputParameterSpec declared = resource.getInputParameters().stream()
+                    .filter(p -> "path".equals(p.getIn()) && name.equals(p.getName()))
+                    .findFirst().orElse(null);
+            if (declared != null) {
+                params.add(buildParameter(declared));
+            } else {
+                params.add(new Parameter().name(name).in("path").required(true)
+                        .schema(typedSchema("string")));
+            }
+        }
     }
 
     /**

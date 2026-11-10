@@ -41,7 +41,8 @@ import io.ikanos.spec.util.VersionHelper;
  *       property;</li>
  *   <li>input parameters keep only {@code in}, {@code value} and the query serialization
  *       fields {@code wireName}, {@code style} and {@code explode}
- *       ({@code ConsumedInputParameter});</li>
+ *       ({@code ConsumedInputParameter}); an {@code in: path} parameter without a {@code value}
+ *       is left out, since the path variable takes the call parameter of the same name;</li>
  *   <li>named output parameters become {@code {type, value}} with the JsonPath as {@code value}
  *       ({@code ConsumedOutputParameter}); unnamed outputs (a whole-response array or scalar) are
  *       dropped, since the raw response is already returned when none are declared.</li>
@@ -150,8 +151,11 @@ public class OasImportWriter {
         if (params == null || params.isEmpty()) {
             return;
         }
-        ObjectNode inputs = parent.putObject("inputParameters");
+        ObjectNode inputs = NODES.objectNode();
         for (InputParameterSpec param : params) {
+            if (isLocationOnlyPathParameter(param)) {
+                continue;
+            }
             ObjectNode input = NODES.objectNode();
             putIfPresent(input, "in", param.getIn());
             putIfPresent(input, "value", param.getValue());
@@ -162,6 +166,19 @@ public class OasImportWriter {
             }
             inputs.set(param.getName(), input);
         }
+        if (!inputs.isEmpty()) {
+            parent.set("inputParameters", inputs);
+        }
+    }
+
+    /**
+     * A {@code {{name}}} variable of the resource path takes the call parameter of the same name
+     * (#978), so an {@code in: path} parameter without a {@code value} says nothing the path does
+     * not already say. {@code wireName}, {@code style} and {@code explode} only apply to a query
+     * parameter.
+     */
+    static boolean isLocationOnlyPathParameter(InputParameterSpec param) {
+        return "path".equalsIgnoreCase(param.getIn()) && param.getValue() == null;
     }
 
     private static void putTags(ObjectNode parent, List<String> tags) {
