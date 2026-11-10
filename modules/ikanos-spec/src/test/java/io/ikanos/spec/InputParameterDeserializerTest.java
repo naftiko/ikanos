@@ -211,6 +211,32 @@ class InputParameterDeserializerTest {
         assertEquals("active", result.getEnumeration().get(0));
     }
 
+    // ── Default (#979) ──
+
+    @Test
+    void deserializeShouldMapNumberDefaultWithItsJsonType() throws IOException {
+        String json = "{\"name\": \"size\", \"type\": \"integer\", \"default\": 200}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertTrue(result.getDefaultValue().isIntegralNumber());
+        assertEquals(200, result.getDefaultValue().intValue());
+    }
+
+    @Test
+    void deserializeShouldMapObjectDefaultAsJsonTree() throws IOException {
+        String json = "{\"name\": \"filter\", \"type\": \"object\","
+                + " \"default\": {\"status\": \"open\", \"tags\": [\"a\"]}}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertEquals("{\"status\":\"open\",\"tags\":[\"a\"]}",
+                result.getDefaultValue().toString());
+    }
+
+    @Test
+    void deserializeShouldLeaveDefaultUnsetWhenItIsNull() throws IOException {
+        String json = "{\"name\": \"x\", \"type\": \"string\", \"default\": null}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertNull(result.getDefaultValue());
+    }
+
     // ── Numeric properties ──
 
     @Test

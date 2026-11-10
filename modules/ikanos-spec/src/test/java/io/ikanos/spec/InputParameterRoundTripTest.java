@@ -283,6 +283,26 @@ public class InputParameterRoundTripTest {
         return yamlMapper.readValue(serialized, InputParameterSpec.class);
     }
 
+    @Test
+    public void roundTripShouldKeepDefaultOfEachJsonType() throws Exception {
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        String[] defaults = {"\"LAST_90DAYS\"", "200", "0.5", "true", "[a, b]", "{k: v}"};
+        String[] expected = {"\"LAST_90DAYS\"", "200", "0.5", "true", "[\"a\",\"b\"]",
+                "{\"k\":\"v\"}"};
+
+        for (int i = 0; i < defaults.length; i++) {
+            InputParameterSpec original = yamlMapper.readValue(
+                    "name: x\ntype: string\nrequired: false\ndefault: " + defaults[i] + "\n",
+                    InputParameterSpec.class);
+            InputParameterSpec roundTrip = jsonMapper.readValue(
+                    jsonMapper.writeValueAsString(original), InputParameterSpec.class);
+
+            assertEquals(expected[i], roundTrip.getDefaultValue().toString(),
+                    "Default mismatch for " + defaults[i]);
+        }
+    }
+
     private static InputParameterSpec findPropertyByName(
             java.util.List<InputParameterSpec> properties, String name) {
         for (InputParameterSpec prop : properties) {

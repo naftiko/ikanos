@@ -21,8 +21,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link AggregateFlow} — namespace-qualified reference resolution
@@ -68,5 +70,43 @@ public class AggregateFlowTest {
         assertEquals("VOY-2026-042", outputValue,
                 "Namespace-qualified 'with' should resolve to caller's argument, "
                         + "not the literal 'shipyard.voyage-id'");
+    }
+
+    /**
+     * A flow's input default fills a parameter its caller left out (#979), whatever the caller:
+     * an MCP tool, a REST operation or another flow.
+     */
+    @Test
+    void executeShouldUseFlowInputDefaultWhenParameterIsAbsent() throws Exception {
+        assertEquals("LAST_90DAYS", echoPeriod(new HashMap<>()));
+    }
+
+    @Test
+    void executeShouldKeepCallerValueOverFlowInputDefault() throws Exception {
+        Map<String, Object> callerParams = new HashMap<>();
+        callerParams.put("period", "LAST_7DAYS");
+
+        assertEquals("LAST_7DAYS", echoPeriod(callerParams));
+    }
+
+    private static String echoPeriod(Map<String, Object> callerParams) throws Exception {
+        AggregateFlowSpec spec = new AggregateFlowSpec();
+        spec.setName("ask");
+        spec.setDescription("Ask.");
+        InputParameterSpec period = new InputParameterSpec();
+        period.setName("period");
+        period.setType("string");
+        period.setRequired(false);
+        period.setDefaultValue(IkanosMappers.json().readTree("\"LAST_90DAYS\""));
+        spec.setInputParameters(Map.of("period", period));
+        OutputParameterSpec outParam = new OutputParameterSpec();
+        outParam.setName("period");
+        outParam.setType("string");
+        outParam.setValue("{{period}}");
+        spec.setOutputParameters(List.of(outParam));
+
+        FlowResult result = new AggregateFlow(spec, null, "crm").execute(callerParams);
+
+        return result.mockOutput.get("period").asString();
     }
 }

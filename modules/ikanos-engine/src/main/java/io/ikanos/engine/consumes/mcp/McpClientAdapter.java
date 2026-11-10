@@ -44,6 +44,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
@@ -171,7 +172,9 @@ public class McpClientAdapter extends ClientAdapter {
         }
         ObjectNode arguments = JSON.createObjectNode();
         for (InputParameterSpec param : tool.getInputParameters()) {
-            Object value = parameters != null ? parameters.get(param.getName()) : null;
+            // The declared default when the calling step leaves the argument out (#979)
+            Object value = InputDefaults.valueOrDefault(param,
+                    parameters != null ? parameters.get(param.getName()) : null);
             if (value == null) {
                 if (param.isRequired()) {
                     throw new IllegalArgumentException("Missing required argument '"

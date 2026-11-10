@@ -28,6 +28,7 @@ import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.imports.RootSectionsValidator;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -109,31 +110,44 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             boolean schemaValid =
                     errors.isEmpty() && removedAdapters.isEmpty() && rootSections.isEmpty();
-            List<String> templateErrors = schemaValid ? templateErrors(dataNode) : List.of();
-            List<String> queryParameterErrors = schemaValid ? queryParameterErrors(dataNode)
-                    : List.of();
+            IkanosSpec spec = schemaValid
+                    ? IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class)
+                    : null;
+            List<String> templateErrors = spec != null
+                    ? ConsumedTemplateValidator.findErrors(spec) : List.of();
+            List<String> queryParameterErrors = spec != null
+                    ? ConsumedQueryParameterValidator.findErrors(spec) : List.of();
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
-            IkanosSpec spec = schemaValid
-                    ? IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class) : null;
-            DefinitionsExpander.Result definitions = schemaValid
+            DefinitionsExpander.Result definitions = spec != null
                     ? DefinitionsExpander.expandAll(spec)
                     : new DefinitionsExpander.Result(List.of(), List.of());
 
             // An MCP tool without call, steps, ref or mock outputs calls the consumed operation
             // named like the tool: exactly one consumed namespace must have it (#988). Checked on
             // the expanded tools, in the engine's order.
-            List<String> inferredCallErrors = schemaValid && definitions.errors().isEmpty()
+            List<String> inferredCallErrors = spec != null && definitions.errors().isEmpty()
                     ? InferredToolCallResolver.findErrors(spec) : List.of();
+
+            // Check MCP tool input defaults against their type and enum (#979), which the
+            // schema cannot express, on the expanded inputs. A default on a required input is a
+            // warning only.
+            List<String> defaultErrors =
+                    spec != null ? InputDefaults.findErrors(spec) : List.of();
+            List<String> warnings = new ArrayList<>(definitions.warnings());
+            if (spec != null) {
+                warnings.addAll(InputDefaults.findWarnings(spec));
+            }
 
             // Display validation result.
             if (schemaValid && templateErrors.isEmpty() && queryParameterErrors.isEmpty()
-                    && definitions.errors().isEmpty() && inferredCallErrors.isEmpty()) {
+                    && definitions.errors().isEmpty() && inferredCallErrors.isEmpty()
+                    && defaultErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
-                printWarnings(definitions.warnings());
+                printWarnings(warnings);
                 return 0;
             } else {
                 System.err.println("✗ Validation failed!");
@@ -176,7 +190,12 @@ public class ValidateCommand implements Callable<Integer> {
                     System.err.println("\n  [" + errorCount + "] " + error);
                     errorCount++;
                 }
-                printWarnings(definitions.warnings());
+                for (String error : defaultErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid input default: "
+                            + error);
+                    errorCount++;
+                }
+                printWarnings(warnings);
                 return 1;
             }
             
@@ -192,33 +211,17 @@ public class ValidateCommand implements Callable<Integer> {
     }
     
     /**
-     * Template errors of the consumed HTTP adapters, read from the YAML tree (#849). Imported
-     * adapters are not resolved here; they are checked when the capability loads.
+     * Print warnings to standard output: they do not fail the validation.
      */
-    List<String> templateErrors(JsonNode dataNode) {
-        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return ConsumedTemplateValidator.findErrors(spec);
-    }
-
-    /**
-     * Names of a consumed {@code queryParameters} list that are also declared in the
-     * {@code inputParameters} of the same resource or operation (#987). A name listed twice is
-     * already a schema error.
-     */
-    List<String> queryParameterErrors(JsonNode dataNode) {
-        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return ConsumedQueryParameterValidator.findErrors(spec);
-    }
-
     private static void printWarnings(List<String> warnings) {
         if (warnings.isEmpty()) {
             return;
         }
         System.out.println("\nWarnings:");
-        int count = 1;
+        int warningCount = 1;
         for (String warning : warnings) {
-            System.out.println("\n  [" + count + "] " + warning);
-            count++;
+            System.out.println("\n  [" + warningCount + "] " + warning);
+            warningCount++;
         }
     }
 
