@@ -17,6 +17,7 @@ capability:
         inputParameters:
           name:
             type: string
+            required: true
             description: Name to greet
         outputParameters:
           message:

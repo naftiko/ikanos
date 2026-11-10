@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -117,8 +118,8 @@ class McpClientAdapterTest {
                     description: Retrieve one invoice
                     hints: { readOnly: true }
                     inputParameters:
-                      invoice-id: { type: string, description: Invoice identifier }
-                      locale: { type: string, description: Locale, required: false }
+                      invoice-id: { type: string, description: Invoice identifier, required: true }
+                      locale: { type: string, description: Locale }
                     outputParameters:
                       total: { type: number, value: $.amount.total }
                 %s
@@ -188,6 +189,13 @@ class McpClientAdapterTest {
                 () -> adapter(new StubClient(), "").prepare("get-invoice", Map.of()));
 
         assertTrue(error.getMessage().contains("'invoice-id'"), error.getMessage());
+    }
+
+    @Test
+    void prepareShouldLeaveOutMissingArgumentWhenRequiredIsNotDeclared() throws Exception {
+        // `locale` does not declare `required`: an MCP tool input is optional by default (#977).
+        assertNotNull(adapter(new StubClient(), "").prepare("get-invoice",
+                Map.of("invoice-id", "1")));
     }
 
     @Test

@@ -282,14 +282,15 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
      * when the parameter is optional, since one key cannot hold both.
      */
     private void writeRequired(InputParameterSpec spec, ObjectNode node) {
-        if (!spec.isRequired()) {
-            node.put("required", false);
-        }
         if (spec.getRequired().isEmpty()) {
             return;
         }
-        ArrayNode requiredArray =
-                node.putArray(spec.isRequired() ? "required" : "requiredProperties");
+        // A nested schema has no boolean flag, so only an explicit `required: false` moves the list.
+        boolean optional = !spec.isRequiredOrDefault(true);
+        if (optional) {
+            node.put("required", false);
+        }
+        ArrayNode requiredArray = node.putArray(optional ? "requiredProperties" : "required");
         for (String val : spec.getRequired()) {
             requiredArray.add(val);
         }

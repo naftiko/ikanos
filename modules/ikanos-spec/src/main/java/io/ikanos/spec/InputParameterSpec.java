@@ -29,11 +29,12 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String template;
 
     /**
-     * Whether this parameter is required. Defaults to {@code true} so that parameters without
-     * an explicit {@code required} field are treated as mandatory, preserving backward
-     * compatibility.
+     * Whether this parameter is required, or {@code null} when the parameter does not say. Only
+     * {@code McpToolInputParameter} (MCP tool inputs, consumed MCP tool arguments and aggregate
+     * flow inputs) can declare it, and there it defaults to {@code false} (#977). Readers of other
+     * parameter kinds pick their own default with {@link #isRequiredOrDefault(boolean)}.
      */
-    private volatile boolean required = true;
+    private volatile Boolean required;
 
     /**
      * Value of the parameter. Supports Mustache template syntax ({{paramName}}) for dynamic
@@ -105,8 +106,21 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         this.template = template;
     }
 
+    /**
+     * @return {@code true} only when the parameter declares {@code required: true}: the default of
+     *         an MCP tool input is {@code false}, as in JSON Schema
+     */
     public boolean isRequired() {
-        return required;
+        return isRequiredOrDefault(false);
+    }
+
+    /**
+     * @param defaultValue the value to use when the parameter does not declare {@code required}
+     * @return the declared {@code required} value, or {@code defaultValue}
+     */
+    public boolean isRequiredOrDefault(boolean defaultValue) {
+        Boolean declared = required;
+        return declared != null ? declared : defaultValue;
     }
 
     public void setRequired(boolean required) {

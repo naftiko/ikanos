@@ -13,6 +13,7 @@ capability:
         inputParameters:
           city:
             type: string
+            required: true
             description: City name
         outputParameters:
         - type: string

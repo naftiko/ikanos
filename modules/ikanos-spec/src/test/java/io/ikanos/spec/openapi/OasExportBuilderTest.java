@@ -165,6 +165,51 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldMarkRestParameterRequiredWhenRequiredIsNotDeclared() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null);
+
+        // A REST exposed parameter cannot declare `required`: it keeps the previous default
+        // (required) when exported, unlike an MCP tool input (#977).
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("species");
+        param.setIn("query");
+        param.setType("string");
+        firstOp(resource).setInputParameters(Map.of(param.getName(), param));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/pets").getGet();
+        assertTrue(op.getParameters().get(0).getRequired());
+    }
+
+    @Test
+    void buildShouldListRestBodyParameterAsRequiredWhenRequiredIsNotDeclared() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets", "pets",
+                "POST", "create-pet", null);
+
+        InputParameterSpec nameParam = new InputParameterSpec();
+        nameParam.setName("name");
+        nameParam.setIn("body");
+        nameParam.setType("string");
+        firstOp(resource).setInputParameters(Map.of(nameParam.getName(), nameParam));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        @SuppressWarnings("unchecked")
+        List<String> required = (List<String>) result.getOpenApi().getPaths().get("/pets")
+                .getPost().getRequestBody().getContent().get("application/json").getSchema()
+                .getRequired();
+        assertEquals(List.of("name"), required);
+    }
+
+    @Test
     void buildShouldMapBodyParametersToRequestBody() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
