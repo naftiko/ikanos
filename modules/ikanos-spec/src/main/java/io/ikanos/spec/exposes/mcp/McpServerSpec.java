@@ -66,6 +66,9 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<DefinitionsSpec> definitions = new AtomicReference<>();
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpToolHintsSpec> hints = new AtomicReference<>();
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -175,6 +178,30 @@ public class McpServerSpec extends ServerSpec {
 
     public void setDefinitions(DefinitionsSpec definitions) {
         this.definitions.set(definitions);
+    }
+
+    /**
+     * @return the default {@code hints} of every tool of this server, or {@code null} when none
+     *         are declared
+     */
+    public McpToolHintsSpec getHints() {
+        return hints.get();
+    }
+
+    public void setHints(McpToolHintsSpec hints) {
+        this.hints.set(hints);
+    }
+
+    /**
+     * Resolve the hints a tool advertises. Each field comes from the tool's own {@code hints},
+     * else from the server's {@code hints}. For a tool with {@code ref}, the engine has already
+     * merged the hints derived from the flow's {@code semantics} under the tool's own hints, so
+     * the order is: tool, then semantics, then server. The tool spec is left unchanged.
+     *
+     * @return the resolved hints, or {@code null} when neither the tool nor the server declares any
+     */
+    public McpToolHintsSpec resolveToolHints(McpServerToolSpec tool) {
+        return McpToolHintsSpec.merge(getHints(), tool.getHints());
     }
 
     public Map<String, McpServerToolSpec> getTools() {

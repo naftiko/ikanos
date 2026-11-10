@@ -187,11 +187,12 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Build MCP ToolAnnotations from the tool spec's hints and label. Returns null if neither hints
-     * nor label are present.
+     * Build MCP ToolAnnotations from the tool's resolved hints and label. Each hint comes from the
+     * tool (already merged over its flow's semantics for a {@code ref}), else from the server's
+     * default {@code hints}. Returns null if neither hints nor label are present.
      */
     McpSchema.ToolAnnotations buildToolAnnotations(McpServerToolSpec toolSpec) {
-        McpToolHintsSpec hints = toolSpec.getHints();
+        McpToolHintsSpec hints = getMcpServerSpec().resolveToolHints(toolSpec);
         String display = toolSpec.getDisplay();
 
         if (hints == null && display == null) {

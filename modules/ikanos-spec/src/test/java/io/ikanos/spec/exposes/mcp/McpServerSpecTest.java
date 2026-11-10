@@ -17,9 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.util.IkanosMappers;
 
@@ -107,5 +109,104 @@ public class McpServerSpecTest {
         assertEquals("pets-mcp", spec.getNamespace());
         assertEquals("MCP server for the Pets API", spec.getDescription());
         assertEquals("http", spec.getTransport());
+    }
+
+    @Test
+    public void deserializeShouldReadHintsWhenDeclaredOnServer() throws Exception {
+        String yaml = """
+                namespace: gong-mcp
+                hints:
+                  readOnly: true
+                  openWorld: true
+                """;
+
+        McpServerSpec spec = IkanosMappers.yaml().readValue(yaml, McpServerSpec.class);
+
+        assertNotNull(spec.getHints());
+        assertEquals(Boolean.TRUE, spec.getHints().getReadOnly());
+        assertNull(spec.getHints().getDestructive());
+        assertNull(spec.getHints().getIdempotent());
+        assertEquals(Boolean.TRUE, spec.getHints().getOpenWorld());
+    }
+
+    @Test
+    public void getHintsShouldBeNullWhenServerDeclaresNone() {
+        assertNull(new McpServerSpec().getHints());
+    }
+
+    @Test
+    public void serializeShouldWriteHintsWhenDeclaredOnServer() {
+        McpServerSpec spec = new McpServerSpec(null, 0, "gong-mcp", null);
+        spec.setHints(new McpToolHintsSpec(true, null, null, true));
+
+        JsonNode node = IkanosMappers.json().valueToTree(spec);
+
+        assertTrue(node.path("hints").path("readOnly").asBoolean());
+        assertTrue(node.path("hints").path("openWorld").asBoolean());
+    }
+
+    @Test
+    public void serializeShouldOmitHintsWhenServerDeclaresNone() {
+        JsonNode node = IkanosMappers.json().valueToTree(new McpServerSpec(null, 0, "gong-mcp", null));
+
+        assertTrue(node.path("hints").isMissingNode());
+    }
+
+    @Test
+    public void resolveToolHintsShouldReturnServerHintsWhenToolDeclaresNone() {
+        McpServerSpec server = new McpServerSpec();
+        server.setHints(new McpToolHintsSpec(true, null, null, true));
+        McpServerToolSpec tool = new McpServerToolSpec("list-calls", null, "List calls");
+
+        McpToolHintsSpec resolved = server.resolveToolHints(tool);
+
+        assertEquals(Boolean.TRUE, resolved.getReadOnly());
+        assertNull(resolved.getDestructive());
+        assertNull(resolved.getIdempotent());
+        assertEquals(Boolean.TRUE, resolved.getOpenWorld());
+    }
+
+    @Test
+    public void resolveToolHintsShouldOverrideOnlyDeclaredFieldsWhenToolDeclaresHints() {
+        McpServerSpec server = new McpServerSpec();
+        server.setHints(new McpToolHintsSpec(true, null, null, true));
+        McpServerToolSpec tool = new McpServerToolSpec("update-task", null, "Update a task");
+        tool.setHints(new McpToolHintsSpec(false, null, true, null));
+
+        McpToolHintsSpec resolved = server.resolveToolHints(tool);
+
+        assertEquals(Boolean.FALSE, resolved.getReadOnly());
+        assertNull(resolved.getDestructive());
+        assertEquals(Boolean.TRUE, resolved.getIdempotent());
+        assertEquals(Boolean.TRUE, resolved.getOpenWorld());
+    }
+
+    @Test
+    public void resolveToolHintsShouldReturnToolHintsWhenServerDeclaresNone() {
+        McpServerSpec server = new McpServerSpec();
+        McpServerToolSpec tool = new McpServerToolSpec("update-task", null, "Update a task");
+        McpToolHintsSpec toolHints = new McpToolHintsSpec(false, true, null, null);
+        tool.setHints(toolHints);
+
+        assertSame(toolHints, server.resolveToolHints(tool));
+    }
+
+    @Test
+    public void resolveToolHintsShouldReturnNullWhenNeitherServerNorToolDeclaresHints() {
+        McpServerSpec server = new McpServerSpec();
+        McpServerToolSpec tool = new McpServerToolSpec("list-calls", null, "List calls");
+
+        assertNull(server.resolveToolHints(tool));
+    }
+
+    @Test
+    public void resolveToolHintsShouldLeaveToolSpecUnchangedWhenServerDeclaresHints() {
+        McpServerSpec server = new McpServerSpec();
+        server.setHints(new McpToolHintsSpec(true, null, null, true));
+        McpServerToolSpec tool = new McpServerToolSpec("list-calls", null, "List calls");
+
+        server.resolveToolHints(tool);
+
+        assertNull(tool.getHints(), "server defaults must not be copied into the tool spec");
     }
 }

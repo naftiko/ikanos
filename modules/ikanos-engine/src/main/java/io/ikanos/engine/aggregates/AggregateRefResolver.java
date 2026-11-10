@@ -224,32 +224,16 @@ public class AggregateRefResolver {
 
     /**
      * Merge derived hints with explicit tool-level overrides. Each non-null explicit field wins over
-     * the derived value.
-     * 
+     * the derived value. The server-level default {@code hints} are not applied here: they rank
+     * below both and are applied when the adapter advertises the tool
+     * ({@link McpServerSpec#resolveToolHints}).
+     *
      * @param derived Hints derived from semantics (never null)
      * @param explicit Explicit tool-level hints (may be null)
      * @return Merged hints
      */
     McpToolHintsSpec mergeHints(McpToolHintsSpec derived, McpToolHintsSpec explicit) {
-        if (explicit == null) {
-            return derived;
-        }
-
-        // Each explicit non-null field overrides the derived value
-        if (explicit.getReadOnly() != null) {
-            derived.setReadOnly(explicit.getReadOnly());
-        }
-        if (explicit.getDestructive() != null) {
-            derived.setDestructive(explicit.getDestructive());
-        }
-        if (explicit.getIdempotent() != null) {
-            derived.setIdempotent(explicit.getIdempotent());
-        }
-        if (explicit.getOpenWorld() != null) {
-            derived.setOpenWorld(explicit.getOpenWorld());
-        }
-
-        return derived;
+        return McpToolHintsSpec.merge(derived, explicit);
     }
 
 }

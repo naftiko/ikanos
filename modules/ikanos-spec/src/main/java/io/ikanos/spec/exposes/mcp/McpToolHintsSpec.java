@@ -68,4 +68,28 @@ public class McpToolHintsSpec {
         this.openWorld = openWorld;
     }
 
+    /**
+     * Merge two hint sets field by field: each non-null field of {@code override} wins over the
+     * same field of {@code base}. Neither argument is modified.
+     *
+     * @param base the broader hints (e.g. the server defaults, or hints derived from semantics),
+     *        may be null
+     * @param override the more specific hints, may be null
+     * @return {@code base} when {@code override} is null, {@code override} when {@code base} is
+     *         null, otherwise a new merged instance
+     */
+    public static McpToolHintsSpec merge(McpToolHintsSpec base, McpToolHintsSpec override) {
+        if (override == null) {
+            return base;
+        }
+        if (base == null) {
+            return override;
+        }
+        return new McpToolHintsSpec(
+                override.readOnly != null ? override.readOnly : base.readOnly,
+                override.destructive != null ? override.destructive : base.destructive,
+                override.idempotent != null ? override.idempotent : base.idempotent,
+                override.openWorld != null ? override.openWorld : base.openWorld);
+    }
+
 }

@@ -1255,6 +1255,10 @@
           "$ref": "#/$defs/Definitions",
           "description": "Shared input parameter sets and schemas, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
         },
+        "hints": {
+          "$ref": "#/$defs/McpToolHints",
+          "description": "Default hints for every tool of this server. Each field is resolved on its own, from the most specific source to the broadest: the tool's own `hints`, then the hints derived from the `semantics` of the aggregate flow for a tool with `ref`, then these server `hints`. A tool only declares the fields that differ. The resolved hints are what `tools/list` advertises."
+        },
         "tools": {
           "type": "object",
           "propertyNames": {
@@ -1526,7 +1530,8 @@
           }
         },
         "hints": {
-          "$ref": "#/$defs/McpToolHints"
+          "$ref": "#/$defs/McpToolHints",
+          "description": "Hints for this tool. Each declared field wins over the hints derived from the flow's `semantics` (for a tool with `ref`) and over the server's default `hints`."
         },
         "ui": {
           "$ref": "#/$defs/McpToolUi"

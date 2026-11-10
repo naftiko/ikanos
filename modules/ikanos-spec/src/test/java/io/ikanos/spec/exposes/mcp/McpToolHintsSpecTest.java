@@ -15,6 +15,7 @@ package io.ikanos.spec.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 
 import tools.jackson.databind.ObjectMapper;
@@ -76,5 +77,51 @@ public class McpToolHintsSpecTest {
         assertEquals(Boolean.FALSE, spec.getDestructive());
         assertEquals(Boolean.TRUE, spec.getIdempotent());
         assertEquals(Boolean.FALSE, spec.getOpenWorld());
+    }
+
+    @Test
+    public void mergeShouldReturnNullWhenBothSidesAreNull() {
+        assertNull(McpToolHintsSpec.merge(null, null));
+    }
+
+    @Test
+    public void mergeShouldReturnBaseWhenOverrideIsNull() {
+        McpToolHintsSpec base = new McpToolHintsSpec(true, null, null, true);
+
+        assertSame(base, McpToolHintsSpec.merge(base, null));
+    }
+
+    @Test
+    public void mergeShouldReturnOverrideWhenBaseIsNull() {
+        McpToolHintsSpec override = new McpToolHintsSpec(false, true, null, null);
+
+        assertSame(override, McpToolHintsSpec.merge(null, override));
+    }
+
+    @Test
+    public void mergeShouldLetEachDeclaredOverrideFieldWinWhenBothSidesAreSet() {
+        McpToolHintsSpec base = new McpToolHintsSpec(true, false, false, true);
+        McpToolHintsSpec override = new McpToolHintsSpec(false, null, true, null);
+
+        McpToolHintsSpec merged = McpToolHintsSpec.merge(base, override);
+
+        assertEquals(Boolean.FALSE, merged.getReadOnly());
+        assertEquals(Boolean.FALSE, merged.getDestructive());
+        assertEquals(Boolean.TRUE, merged.getIdempotent());
+        assertEquals(Boolean.TRUE, merged.getOpenWorld());
+    }
+
+    @Test
+    public void mergeShouldLeaveBaseUnchangedWhenOverrideDeclaresFields() {
+        // Server hints are shared by every tool of the server: resolving one tool must not
+        // leak its overrides into the next one.
+        McpToolHintsSpec base = new McpToolHintsSpec(true, null, null, true);
+
+        McpToolHintsSpec.merge(base, new McpToolHintsSpec(false, true, true, false));
+
+        assertEquals(Boolean.TRUE, base.getReadOnly());
+        assertNull(base.getDestructive());
+        assertNull(base.getIdempotent());
+        assertEquals(Boolean.TRUE, base.getOpenWorld());
     }
 }
