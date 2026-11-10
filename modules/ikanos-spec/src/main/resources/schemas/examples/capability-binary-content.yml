@@ -35,7 +35,7 @@ capability:
       resources:
         photos:
           description: "Photo binary resource."
-          path: "/photos/{id}/binary"
+          path: "/photos/{{id}}/binary"
           operations:
             download-photo:
               method: "GET"
@@ -43,9 +43,6 @@ capability:
               outputRawFormat: "binary"
               outputMediaType: "image/jpeg"
               maxBinarySize: "5MiB"
-              inputParameters:
-                id:
-                  in: "path"
 
   aggregates:
     - display: "Photos"

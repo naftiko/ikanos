@@ -230,6 +230,15 @@ public class HttpClientAdapter extends ClientAdapter {
                 parameters);
         Resolver.applyEnvironmentParameters(clientOp.getInputParameters(), parameters);
 
+        List<InputParameterSpec> declared = declaredInputParameters(
+                getHttpClientSpec().getInputParameters(),
+                clientOp.getParentResource().getInputParameters(),
+                clientOp.getInputParameters());
+
+        // A path variable needs no declaration: it takes the call parameter of the same name. An
+        // explicit in: path entry with a value sets it, before the URI is rendered (#978).
+        applyPathParameterValues(declared, parameters);
+
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
         rejectUnresolved("URI", clientResUri, parameters);
@@ -249,10 +258,6 @@ public class HttpClientAdapter extends ClientAdapter {
         // Apply client-level, resource-level and operation-level input parameters
         // NOTE: setResourceRef must be called first so that query params
         // (in: query) are appended to the correct base URI, not to null.
-        List<InputParameterSpec> declared = declaredInputParameters(
-                getHttpClientSpec().getInputParameters(),
-                clientOp.getParentResource().getInputParameters(),
-                clientOp.getInputParameters());
         Set<InputParameterSpec> replaced = replacedInputParameters(declared);
         Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters, replaced);
 
@@ -354,6 +359,35 @@ public class HttpClientAdapter extends ClientAdapter {
      * a template that uses them sees the same value as before, but they are not sent, so a query
      * parameter is sent once.
      */
+    /**
+     * Writes the {@code value} (or {@code template}) of each {@code in: path} parameter into
+     * {@code parameters}, so that the resource path template uses it (#978). Parameters are taken
+     * in declaration order, adapter level first, so a narrower level wins, and a declared value
+     * replaces a call parameter of the same name, as it does for a query or header parameter. A
+     * path parameter without a value changes nothing: the path variable already takes the call
+     * parameter of its name.
+     */
+    static void applyPathParameterValues(List<InputParameterSpec> declared,
+            Map<String, Object> parameters) {
+        if (parameters == null) {
+            return;
+        }
+        for (InputParameterSpec spec : declared) {
+            String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
+            if (!"path".equalsIgnoreCase(spec.getIn()) || template == null) {
+                continue;
+            }
+            if (parameters.isEmpty()
+                    && !Resolver.missingVariables(template, parameters).isEmpty()) {
+                continue;
+            }
+            Object value = Resolver.resolveValue(template, parameters);
+            if (value != null) {
+                parameters.put(spec.getName(), value);
+            }
+        }
+    }
+
     static Set<InputParameterSpec> replacedInputParameters(List<InputParameterSpec> declared) {
         Set<InputParameterSpec> replaced = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<String, InputParameterSpec> last = new HashMap<>();

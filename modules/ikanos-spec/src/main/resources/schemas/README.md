@@ -225,9 +225,6 @@ capability:
             - name: create-task
               label: Create Task
               method: POST
-              inputParameters:
-                - name: task_id
-                  in: path
               outputParameters:
                 - name: taskId
                   type: string
@@ -471,28 +468,22 @@ inputParameters:
 resources:
   - name: users
     label: Users API
-    path: /users/{username}
+    path: /users/{{username}}
     operations:
       - name: get-user
         label: Get User
         method: GET
-        inputParameters:
-          - name: username
-            in: path
         outputParameters:
           - name: userId
             type: string
             value: $.id
   - name: repos
     label: Repositories API
-    path: /users/{username}/repos
+    path: /users/{{username}}/repos
     operations:
       - name: list-repos
         label: List Repositories
         method: GET
-        inputParameters:
-          - name: username
-            in: path
         outputParameters:
           - name: repos
             type: array
@@ -512,7 +503,7 @@ Describes an API resource that can be consumed from an external API.
 | **name** | `string` | **REQUIRED**. Technical name for the resource. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **label** | `string` | Display name of the resource. |
 | **description** | `string` | Description of the resource. |
-| **path** | `string` | **REQUIRED**. Path of the resource, relative to the consumes `baseUri`. |
+| **path** | `string` | **REQUIRED**. Path of the resource, relative to the consumes `baseUri`. May include `{{name}}` path variables, see §3.8.2. |
 | **inputParameters** | `ConsumedInputParameter[]` | Input parameters for this resource. |
 | **operations** | `ConsumedHttpOperation[]` | **REQUIRED**. List of operations for this resource. |
 
@@ -521,6 +512,8 @@ Describes an API resource that can be consumed from an external API.
 - The `name` field MUST be unique within the parent consumes object's resources array.
 - The `name` field MUST match the pattern `^[a-zA-Z0-9-]+$` (alphanumeric and hyphens only).
 - The `path` field will be appended to the parent consumes object's `baseUri`.
+- **Path variables.** A `{{name}}` variable in the `path` takes the call parameter of the same name: a tool or operation argument, or a `with` value. It is percent-encoded as one path segment, so a value such as `a/../b` cannot reach another endpoint, and a segment made only of an empty, `.` or `..` value fails the call. The variable needs no `inputParameters` entry. An explicit `in: path` entry stays valid, for example to give the variable a fixed `value`, which replaces a call parameter of the same name.
+- Query and header parameters are not inferred: they MUST be declared in `inputParameters`.
 - The `operations` array MUST contain at least one entry.
 - No additional properties are allowed.
 
@@ -529,10 +522,7 @@ Describes an API resource that can be consumed from an external API.
 ```yaml
 name: users
 label: Users API
-path: /users/{username}
-inputParameters:
-  - name: username
-    in: path
+path: /users/{{username}}   # username comes from the call; no inputParameters entry needed
 operations:
   - name: get-user
     label: Get User
@@ -576,9 +566,6 @@ Describes an operation that can be performed on a consumed resource.
 name: get-user
 label: Get User Profile
 method: GET
-inputParameters:
-  - name: username
-    in: path
 outputParameters:
   - name: userId
     type: string
@@ -851,6 +838,7 @@ Used in consumed resources and operations.
 - The `in` field MUST be one of: `"query"`, `"header"`, `"path"`, `"cookie"`, `"body"`.
 - A unique parameter is defined by the combination of `name` and `in`.
 - No additional properties are allowed.
+- An `in: path` parameter is optional: a `{{name}}` variable of the resource path already takes the call parameter of the same name (see §3.8.2). Declare one only to give the variable a `value`.
 - **List values in a query parameter.** A list argument (for example an MCP `array` input) is serialized by `style` and `explode`: `["a","b"]` becomes `status[]=a&status[]=b` with `wireName: "status[]"` and the defaults, `ids=a,b` with `explode: false`, `tags=a%20b` with `spaceDelimited`, `tags=a|b` with `pipeDelimited`. An empty list leaves the parameter out.
   - The list keeps its elements when it reaches the parameter under the same name, through a namespace reference (`lago-tools.statuses`), or through a **whole-value placeholder**: a `with:` value, `value` or `template` that is exactly one variable (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path such as `"{{step.ids}}"`). If that variable is absent, the `with:` key is not set and the parameter is left out.
   - Any other template is rendered to text, so a list in it becomes its JSON text: `"x-{{statuses}}"` gives `x-["a","b"]`, and a template with sections gives a single string.
@@ -858,8 +846,9 @@ Used in consumed resources and operations.
 **ConsumedInputParameter Example:**
 
 ```yaml
-- name: username
+- name: version
   in: path
+  value: "v2"            # fixed value for the {{version}} path variable
 - name: page
   in: query
 - name: status
@@ -1828,15 +1817,12 @@ capability:
         token: "{{GITHUB_TOKEN}}"
       resources:
         - name: "users"
-          path: "/users/{username}"
+          path: "/users/{{username}}"
           label: "Users"
           operations:
             - name: "get-user"
               label: "Get User"
               method: "GET"
-              inputParameters:
-                - name: "username"
-                  in: "path"
               outputParameters:
                 - name: "login"
                   type: "string"
@@ -1923,15 +1909,12 @@ capability:
           value: "2022-06-28"
       resources:
         - name: "databases"
-          path: "/databases/{database_id}"
+          path: "/databases/{{database_id}}"
           label: "Databases"
           operations:
             - name: "get-database"
               label: "Get Database"
               method: "GET"
-              inputParameters:
-                - name: "database_id"
-                  in: "path"
               outputParameters:
                 - name: "dbName"
                   type: "string"
@@ -1940,15 +1923,12 @@ capability:
                   type: "string"
                   value: "$.id"
         - name: "queries"
-          path: "/databases/{database_id}/query"
+          path: "/databases/{{database_id}}/query"
           label: "Database queries"
           operations:
             - name: "query-database"
               label: "Query Database"
               method: "POST"
-              inputParameters:
-                - name: "database_id"
-                  in: "path"
               outputParameters:
                 - name: "resultCount"
                   type: "number"
@@ -2191,15 +2171,12 @@ capability:
           value: "2022-06-28"
       resources:
         - name: "db-query"
-          path: "/databases/{database_id}/query"
+          path: "/databases/{{database_id}}/query"
           label: "Database Query"
           operations:
             - name: "query-database"
               label: "Query Database"
               method: "POST"
-              inputParameters:
-                - name: "database_id"
-                  in: "path"
               outputParameters:
                 - name: "assignee"
                   type: "string"
@@ -2217,17 +2194,12 @@ capability:
         token: "{{GITHUB_TOKEN}}"
       resources:
         - name: "repos"
-          path: "/repos/{owner}/{repo}"
+          path: "/repos/{{owner}}/{{repo}}"
           label: "Repositories"
           operations:
             - name: "get-repo"
               label: "Get Repository"
               method: "GET"
-              inputParameters:
-                - name: "owner"
-                  in: "path"
-                - name: "repo"
-                  in: "path"
               outputParameters:
                 - name: "full_name"
                   type: "string"
@@ -2239,15 +2211,12 @@ capability:
                   type: "string"
                   value: "$.language"
         - name: "org-members"
-          path: "/orgs/{org}/members"
+          path: "/orgs/{{org}}/members"
           label: "Organization Members"
           operations:
             - name: "list-org-members"
               label: "List Organization Members"
               method: "GET"
-              inputParameters:
-                - name: "org"
-                  in: "path"
               outputParameters:
                 - name: "login"
                   type: "string"

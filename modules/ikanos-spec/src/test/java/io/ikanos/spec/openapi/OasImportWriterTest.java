@@ -168,6 +168,84 @@ public class OasImportWriterTest {
     }
 
     @Test
+    void toDocumentShouldOmitPathParameterThatOnlyGivesItsLocation() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec petId = new InputParameterSpec();
+        petId.setName("petId");
+        petId.setIn("path");
+        petId.setType("string");
+        petId.setDescription("The pet identifier.");
+        InputParameterSpec fields = new InputParameterSpec();
+        fields.setName("fields");
+        fields.setIn("query");
+        operation.setInputParameters(Map.of("petId", petId, "fields", fields));
+
+        JsonNode inputs = operationNode(writer.toDocument(adapterWithOperation(operation)))
+                .path("inputParameters");
+
+        assertFalse(inputs.has("petId"),
+                "#978: a {{name}} path variable takes the call parameter of the same name, so a"
+                        + " location-only in: path entry is not written");
+        assertEquals("query", inputs.path("fields").path("in").asString());
+    }
+
+    @Test
+    void toDocumentShouldOmitInputParametersWhenOnlyLocationOnlyPathParametersExist() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec petId = new InputParameterSpec();
+        petId.setName("petId");
+        petId.setIn("path");
+        operation.setInputParameters(Map.of("petId", petId));
+
+        JsonNode document = writer.toDocument(adapterWithOperation(operation));
+
+        assertFalse(operationNode(document).has("inputParameters"),
+                "#978: no empty inputParameters map should be written");
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepPathParameterWithValue() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec version = new InputParameterSpec();
+        version.setName("version");
+        version.setIn("path");
+        version.setValue("v2");
+        operation.setInputParameters(Map.of("version", version));
+
+        JsonNode inputs = operationNode(writer.toDocument(adapterWithOperation(operation)))
+                .path("inputParameters");
+
+        assertEquals("path", inputs.path("version").path("in").asString());
+        assertEquals("v2", inputs.path("version").path("value").asString());
+    }
+
+    @Test
+    void toDocumentShouldWriteImportedPathVariableInTheTemplateOnly() {
+        File file = new File("src/test/resources/openapi/petstore-3.0.yaml");
+        OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)
+                .getOpenAPI();
+        HttpClientSpec adapter = new OasImportConverter().convert(openApi).getHttpClient();
+
+        JsonNode resources = writer.toDocument(adapter).path("consumes").path(0)
+                .path("resources");
+
+        List<String> pathParameters = new java.util.ArrayList<>();
+        resources.forEach(resource -> resource.path("operations").forEach(operation ->
+                operation.path("inputParameters").properties().forEach(input -> {
+                    if ("path".equals(input.getValue().path("in").asString())) {
+                        pathParameters.add(input.getKey());
+                    }
+                })));
+        assertTrue(pathParameters.isEmpty(),
+                "#978: the imported path variables are in the path template only, but got: "
+                        + pathParameters);
+        List<String> paths = new java.util.ArrayList<>();
+        resources.forEach(resource -> paths.add(resource.path("path").asString()));
+        assertTrue(paths.contains("/pets/{{petId}}"), "got: " + paths);
+    }
+
+    @Test
     void toDocumentShouldKeepQuerySerializationFieldsFromImportedSpec() {
         File file = new File("src/test/resources/openapi/edge-cases.yaml");
         OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)

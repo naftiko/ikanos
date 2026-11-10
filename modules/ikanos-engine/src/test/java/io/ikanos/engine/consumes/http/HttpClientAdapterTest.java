@@ -537,6 +537,119 @@ public class HttpClientAdapterTest {
                 invocation.getRequest().getResourceRef().toString());
     }
 
+    @Test
+    public void prepareShouldSubstituteUndeclaredPathVariablesWhenNoInputParameterIsDeclared()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "acme", "invoice_id", "inv-1"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/acme/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: a {{name}} path variable takes the call parameter of the same name, with"
+                        + " no inputParameters entry");
+    }
+
+    @Test
+    public void prepareShouldPercentEncodeUndeclaredPathVariableAsOneSegment() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "a/../b", "invoice_id", "2026 #3"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/a%2F..%2Fb/invoices/2026%20%233",
+                request.getResourceRef().toString(),
+                "#978: an undeclared path variable is percent-encoded as one path segment, like a"
+                        + " declared one (GHSA-rvg4-2rxw-mc64)");
+    }
+
+    @Test
+    public void prepareShouldSubstituteUndeclaredPathVariableAfterABoundBaseUri()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(
+                getMockCapability(Map.of("API_URL", "https://eu.api.example.com/v2")),
+                undeclaredPathSpec("{{API_URL}}"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "acme", "invoice_id", "a b"))).getRequest();
+
+        assertEquals("https://eu.api.example.com/v2/accounts/acme/invoices/a%20b",
+                request.getResourceRef().toString(),
+                "#978: the baseUri comes from the bindings and the undeclared path variables of"
+                        + " the resource path from the call");
+    }
+
+    @Test
+    public void prepareShouldSubstituteTheValueOfAnExplicitPathParameter() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                explicitPathValueSpec());
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("invoice_id", "inv-1"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/default/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: an explicit in: path entry can give the path variable a value");
+    }
+
+    @Test
+    public void prepareShouldNotSendUndeclaredCallParameterAsQueryParameter() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(Map.of(
+                "account_id", "acme", "invoice_id", "inv-1", "expand", "lines"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/acme/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: only path variables are inferred; a query parameter must be declared");
+    }
+
+    private HttpClientSpec undeclaredPathSpec(String baseUri) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: billing
+                      baseUri: "%s"
+                      resources:
+                        invoice:
+                          path: "/accounts/{{account_id}}/invoices/{{invoice_id}}"
+                          operations:
+                            get-invoice:
+                              method: GET
+                """.formatted(VersionHelper.getSchemaVersion(), baseUri);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
+    private HttpClientSpec explicitPathValueSpec() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: billing
+                      baseUri: "https://api.example.com/v1"
+                      resources:
+                        invoice:
+                          path: "/accounts/{{account_id}}/invoices/{{invoice_id}}"
+                          inputParameters:
+                            account_id:
+                              in: path
+                              value: "default"
+                          operations:
+                            get-invoice:
+                              method: GET
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
     private HttpClientAdapter pagesAdapter() {
         HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
         HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",

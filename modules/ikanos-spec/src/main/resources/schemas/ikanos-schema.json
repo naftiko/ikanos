@@ -256,7 +256,7 @@
       "properties": {
         "in": {
           "type": "string",
-          "description": "Location of the parameter",
+          "description": "Location of the parameter. A `path` parameter is optional: a `{{name}}` variable of the resource path already takes the call parameter of the same name. Declare one only to set its `value`. Query and header parameters are never inferred and must be declared.",
           "enum": [
             "query",
             "header",
@@ -2749,7 +2749,7 @@
         },
         "path": {
           "type": "string",
-          "description": "Path segment appended to `ConsumesHttp.baseUri`. May include path parameters in curly-brace notation (e.g. `/databases/{databaseId}`). Path parameters must be declared in `inputParameters` with `in: path`."
+          "description": "Path segment appended to `ConsumesHttp.baseUri`. May include path variables in Mustache notation (e.g. `/databases/{{databaseId}}`). A path variable takes the call parameter of the same name (a tool or operation argument, or a `with` value), percent-encoded as one path segment, and needs no `inputParameters` entry. An explicit `in: path` entry stays valid, for example to give the variable a `value`."
         },
         "inputParameters": {
           "type": "object",
