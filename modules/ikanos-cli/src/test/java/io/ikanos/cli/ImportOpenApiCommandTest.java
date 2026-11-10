@@ -30,7 +30,6 @@ import picocli.CommandLine;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.Cli;
 import io.ikanos.spec.IkanosSpec;
-import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
@@ -667,9 +666,9 @@ public class ImportOpenApiCommandTest {
         HttpClientOperationSpec showPet = adapter.getResources().get("pets-pet-id")
                 .getOperations().get("show-pet-by-id");
         assertEquals("show-pet-by-id", showPet.getName());
-        InputParameterSpec petId = showPet.getInputParameters().get(0);
-        assertEquals("petId", petId.getName());
-        assertEquals("path", petId.getIn());
+        assertEquals("/pets/{{petId}}", adapter.getResources().get("pets-pet-id").getPath());
+        assertTrue(showPet.getInputParameters().isEmpty(),
+                "#978: the path variable needs no location-only in: path entry");
         OutputParameterSpec id = showPet.getOutputParameters().stream()
                 .filter(p -> "id".equals(p.getName())).findFirst().orElseThrow();
         assertEquals("$.id", id.getMapping(),

@@ -65,9 +65,6 @@ capability:
             get-account:
               method: "GET"
               description: "Retrieve one account."
-              inputParameters:
-                account-id:
-                  in: "path"
 
   aggregates:
     - display: "Collections"
