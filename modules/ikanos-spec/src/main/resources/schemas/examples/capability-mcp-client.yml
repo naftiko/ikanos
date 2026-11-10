@@ -41,6 +41,7 @@ capability:
           inputParameters:
             invoice-id:
               type: "string"
+              required: true
               description: "Invoice identifier."
           outputParameters:
             total:
@@ -78,9 +79,11 @@ capability:
           inputParameters:
             invoice-id:
               type: "string"
+              required: true
               description: "Invoice identifier."
             account-id:
               type: "string"
+              required: true
               description: "CRM account identifier."
           steps:
             inv:

@@ -20,6 +20,7 @@ capability:
         inputParameters:
           location:
             type: string
+            required: true
             description: City or coordinates
         call: weather-api.get-forecast
         with:

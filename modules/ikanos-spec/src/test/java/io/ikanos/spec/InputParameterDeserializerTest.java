@@ -167,6 +167,28 @@ class InputParameterDeserializerTest {
         assertFalse(result.isRequired());
     }
 
+    @Test
+    void deserializeShouldLeaveParameterOptionalWhenRequiredIsNotDeclared() throws IOException {
+        String json = "{\"name\": \"x\", \"type\": \"string\"}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertFalse(result.isRequired(), "#977: an MCP tool input is optional by default");
+    }
+
+    @Test
+    void isRequiredOrDefaultShouldReturnTheDefaultWhenRequiredIsNotDeclared() throws IOException {
+        String json = "{\"name\": \"x\", \"type\": \"string\"}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertTrue(result.isRequiredOrDefault(true));
+    }
+
+    @Test
+    void isRequiredOrDefaultShouldReturnTheDeclaredValueWhenRequiredIsDeclared()
+            throws IOException {
+        String json = "{\"name\": \"x\", \"required\": false}";
+        InputParameterSpec result = mapper.readValue(json, InputParameterSpec.class);
+        assertFalse(result.isRequiredOrDefault(true));
+    }
+
     // ── Required: array form (JSON Schema object listing) ──
 
     @Test

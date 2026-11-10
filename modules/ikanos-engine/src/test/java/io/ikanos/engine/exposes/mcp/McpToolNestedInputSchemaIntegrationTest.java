@@ -111,6 +111,7 @@ class McpToolNestedInputSchemaIntegrationTest {
                           inputParameters:
                             external_customer_id:
                               type: "string"
+                              required: true
                               description: "External ID of the customer."
                             currency:
                               type: "string"
@@ -119,6 +120,7 @@ class McpToolNestedInputSchemaIntegrationTest {
                               enum: ["EUR", "USD"]
                             fees:
                               type: "array"
+                              required: true
                               description: "Fees to bill."
                               items:
                                 type: "object"

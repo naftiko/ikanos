@@ -59,6 +59,12 @@ import io.ikanos.spec.exposes.ServerSpec;
 public class OasExportBuilder {
 
     /**
+     * A REST exposed parameter cannot declare {@code required} in the schema, so the export keeps
+     * treating it as required. Only MCP tool inputs are optional by default (#977).
+     */
+    static final boolean REST_PARAMETER_REQUIRED_BY_DEFAULT = true;
+
+    /**
      * Build an OpenAPI document from an Ikanos specification's REST adapter.
      * Defaults to OAS 3.0.3.
      *
@@ -227,14 +233,15 @@ public class OasExportBuilder {
                 Schema<Object> bodySchema = (Schema<Object>) requestBody.getContent()
                         .get("application/json").getSchema();
                 bodySchema.getProperties().put(inputParam.getName(), propSchema);
-                if (inputParam.isRequired()) {
+                if (inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT)) {
                     bodyRequired.add(inputParam.getName());
                 }
             } else {
                 Parameter param = new Parameter();
                 param.setName(inputParam.getName());
                 param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
-                param.setRequired(inputParam.isRequired());
+                param.setRequired(
+                        inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
                 param.setSchema(buildInputSchema(inputParam));
                 if (inputParam.getDescription() != null) {
                     param.setDescription(inputParam.getDescription());

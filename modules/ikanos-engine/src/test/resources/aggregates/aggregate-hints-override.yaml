@@ -29,6 +29,7 @@ capability:
         inputParameters:
           item-id:
             type: string
+            required: true
             description: ID of the item to delete
         call: mock-api.delete-item
         with:
