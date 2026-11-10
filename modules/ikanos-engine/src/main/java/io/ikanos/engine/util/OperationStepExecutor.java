@@ -282,8 +282,10 @@ public class OperationStepExecutor {
                         // A step failed inside a called flow: fail this step too, naming
                         // the chain so the error says where the failure came from.
                         throw e.calledFrom(callStep.getName(), callStep.getCall());
-                    } catch (FlowCallDepthExceededException | InputRequiredException e) {
-                        // A called flow that pauses on its caller pauses this flow too.
+                    } catch (FlowCallDepthExceededException | InputRequiredException
+                            | InputDeclinedException e) {
+                        // A called flow that pauses on its caller pauses this flow too, and a
+                        // question its caller declined ends this flow as declined.
                         throw e;
                     } catch (Exception e) {
                         throw new IllegalStateException(

@@ -18,6 +18,7 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.engine.consumes.mcp.UpstreamTasks;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
@@ -134,7 +135,10 @@ public class McpServerAdapter extends ServerAdapter {
         Durability durability = capability.getDurability();
         this.taskService = durability != null && durability.isDurable()
                 ? new McpTaskService(durability.runner(), Clock.systemUTC(),
-                        durability.retentionMs()) : null;
+                        durability.retentionMs())
+                        .whenCancelled(id -> UpstreamTasks.cancelUnder(capability,
+                                durability.runner(), id))
+                : null;
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -281,15 +285,26 @@ public class McpServerAdapter extends ServerAdapter {
     public boolean mayElicit(String toolName) {
         McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
         return toolSpec != null
-                && Elicitation.mayAsk(getCapability(), toolSpec.getRef(), toolSpec.getSteps());
+                && Elicitation.mayAsk(getCapability(), toolSpec.getRef(), toolSpec.getCall(),
+                        toolSpec.getSteps());
     }
 
-    /** Whether the steps of the resource at {@code uri} may ask its caller for input. */
+    /**
+     * Whether the resource that serves {@code uri} may ask its caller for input: the first one
+     * whose URI, or URI template, matches it, as {@code resources/read} picks it.
+     */
     public boolean resourceMayElicit(String uri) {
-        return getMcpServerSpec().getResources().values().stream()
-                .filter(resource -> uri.equals(resource.getUri()))
-                .anyMatch(resource -> Elicitation.mayAsk(getCapability(), null,
-                        resource.getSteps()));
+        for (McpServerResourceSpec resource : getMcpServerSpec().getResources().values()) {
+            if (resource.isStatic()) {
+                if (uri.equals(resource.getUri())) {
+                    return false;
+                }
+            } else if (ResourceHandler.matchTemplate(resource.getUri(), uri) != null) {
+                return Elicitation.mayAsk(getCapability(), null, resource.getCall(),
+                        resource.getSteps());
+            }
+        }
+        return false;
     }
 
     /**

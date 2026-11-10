@@ -197,6 +197,14 @@ public class ResourceRestlet extends Restlet {
                                 "Call '" + serverOp.getCall().getOperation() + "'", found);
                     }
                     response.setStatus(statusOf(found));
+                } catch (InputRequiredException e) {
+                    // The target, a flow or a consumed MCP tool that may ask, asked the caller.
+                    sendInputRequired(response, e);
+                    return true;
+                } catch (InputDeclinedException e) {
+                    sendError(response, Status.CLIENT_ERROR_CONFLICT,
+                            "The caller declined the question", "Caller declined", e);
+                    return true;
                 } catch (Exception e) {
                     sendError(response, Status.SERVER_ERROR_INTERNAL,
                             "Error while handling a consumed call",

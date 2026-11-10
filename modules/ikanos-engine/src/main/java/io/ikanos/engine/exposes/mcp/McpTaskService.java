@@ -38,6 +38,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -141,11 +142,26 @@ public final class McpTaskService {
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
      *        {@code null} when unbounded
      */
+    private volatile Consumer<ExecutionId> onCancel = id -> {
+    };
+
     public McpTaskService(JournaledRunner runner, Clock clock, Long ttlMs) {
         this.runner = runner;
         this.clock = clock;
         this.ttlMs = ttlMs;
         this.inline = new InlineRounds(runner, clock, draining::get);
+    }
+
+    /**
+     * Runs {@code hook} after a task or an inline call is cancelled, with its execution: to cancel
+     * what it waits on outside this process, such as an upstream task.
+     *
+     * @return this
+     */
+    public McpTaskService whenCancelled(Consumer<ExecutionId> hook) {
+        this.onCancel = hook;
+        inline.whenCancelled(hook);
+        return this;
     }
 
     /**
@@ -226,7 +242,7 @@ public final class McpTaskService {
         Future<?> future = workers.submit(() -> {
             try {
                 runner.run(request, InputRounds.interpreter(),
-                        InputRounds.executor(runner, executionId, draining::get, work));
+                        InputRounds.executor(runner, executionId, draining::get, clock, work));
             } finally {
                 lastUpdated.put(executionId, clock.instant());
                 running.remove(executionId);
@@ -360,7 +376,12 @@ public final class McpTaskService {
         runner.cancel(record.executionId());
         Future<?> work = running.get(record.executionId());
         if (work != null) {
+            // Interrupted, a call polling an upstream task cancels that task itself.
             work.cancel(true);
+        } else {
+            // No worker: the task waits for input, and an upstream task it waits on is named
+            // only by its journal.
+            onCancel.accept(record.executionId());
         }
         lastUpdated.put(record.executionId(), clock.instant());
         return true;

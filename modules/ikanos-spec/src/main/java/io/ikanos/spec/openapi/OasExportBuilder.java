@@ -33,6 +33,9 @@ import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.headers.Header;
 import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
+import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepSpec;
@@ -89,6 +92,8 @@ public class OasExportBuilder {
             SpecVersion specVersion) {
         List<String> warnings = new ArrayList<>();
         flowSteps = flowSteps(IkanosSpec);
+        flowCalls = flowCalls(IkanosSpec);
+        askingTools = askingTools(IkanosSpec);
 
         RestServerSpec restServer = findRestServer(IkanosSpec, adapterNamespace, warnings);
         if (restServer == null) {
@@ -281,7 +286,9 @@ public class OasExportBuilder {
             responses.addApiResponse("204", new ApiResponse()
                     .description("No content"));
         }
-        if (mayAsk(opSpec.getRef(), opSpec.getSteps(), new HashSet<>())) {
+        if (opSpec.getRef() != null ? mayAsk(opSpec.getRef(), null, new HashSet<>())
+                : targetAsks(callTarget(opSpec.getCall()), new HashSet<>())
+                        || mayAsk(null, opSpec.getSteps(), new HashSet<>())) {
             responses.addApiResponse("202", inputRequiredResponse());
         }
         operation.setResponses(responses);
@@ -291,6 +298,54 @@ public class OasExportBuilder {
 
     /** The steps of every flow of the exported capability, by {@code namespace.flow}. */
     private Map<String, Map<String, OperationStepSpec>> flowSteps = Map.of();
+
+    /** The target of every flow's singleton {@code call:}, by {@code namespace.flow}. */
+    private Map<String, String> flowCalls = Map.of();
+
+    /** The consumed MCP tools declared {@code mayElicit: true}, as {@code namespace.tool}. */
+    private Set<String> askingTools = Set.of();
+
+    private static Map<String, String> flowCalls(IkanosSpec spec) {
+        Map<String, String> calls = new LinkedHashMap<>();
+        CapabilitySpec capability = spec.getCapability();
+        if (capability == null || capability.getAggregates() == null) {
+            return calls;
+        }
+        for (AggregateSpec aggregate : capability.getAggregates().values()) {
+            if (aggregate == null || aggregate.getFlows() == null) {
+                continue;
+            }
+            aggregate.getFlows().forEach((name, flow) -> {
+                String target = flow != null ? callTarget(flow.getCall()) : null;
+                if (target != null) {
+                    calls.put(aggregate.getNamespace() + "." + name, target);
+                }
+            });
+        }
+        return calls;
+    }
+
+    private static Set<String> askingTools(IkanosSpec spec) {
+        Set<String> tools = new HashSet<>();
+        CapabilitySpec capability = spec.getCapability();
+        if (capability == null || capability.getConsumes() == null) {
+            return tools;
+        }
+        for (ClientSpec client : capability.getConsumes()) {
+            if (client instanceof McpClientSpec mcp && mcp.getTools() != null) {
+                mcp.getTools().forEach((name, tool) -> {
+                    if (tool != null && tool.mayElicit()) {
+                        tools.add(mcp.getNamespace() + "." + name);
+                    }
+                });
+            }
+        }
+        return tools;
+    }
+
+    private static String callTarget(ServerCallSpec call) {
+        return call != null ? call.getOperation() : null;
+    }
 
     private static Map<String, Map<String, OperationStepSpec>> flowSteps(IkanosSpec spec) {
         Map<String, Map<String, OperationStepSpec>> steps = new LinkedHashMap<>();
@@ -312,12 +367,14 @@ public class OasExportBuilder {
     }
 
     /**
-     * Whether an operation may ask its caller for input: its steps, or the flow it references,
-     * hold an {@code elicit} step, directly or through the flows they call.
+     * Whether an operation may ask its caller for input: its steps, the flow it references, or
+     * the target of its singleton {@code call:}, hold an {@code elicit} step or call a consumed
+     * MCP tool declared {@code mayElicit: true}, directly or through the flows they call.
      */
     private boolean mayAsk(String ref, Map<String, OperationStepSpec> steps, Set<String> seen) {
         if (ref != null) {
-            return seen.add(ref) && mayAsk(null, flowSteps.get(ref), seen);
+            return seen.add(ref) && (targetAsks(flowCalls.get(ref), seen)
+                    || mayAsk(null, flowSteps.get(ref), seen));
         }
         if (steps == null) {
             return false;
@@ -326,13 +383,22 @@ public class OasExportBuilder {
             if (step instanceof OperationStepElicitSpec) {
                 return true;
             }
-            if (step instanceof OperationStepCallSpec call && call.getCall() != null
-                    && flowSteps.containsKey(call.getCall())
-                    && mayAsk(call.getCall(), null, seen)) {
+            if (step instanceof OperationStepCallSpec call
+                    && targetAsks(call.getCall(), seen)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Whether a call to {@code target}, a consumed MCP tool or a flow, may ask. */
+    private boolean targetAsks(String target, Set<String> seen) {
+        if (target == null) {
+            return false;
+        }
+        return askingTools.contains(target)
+                || ((flowSteps.containsKey(target) || flowCalls.containsKey(target))
+                        && mayAsk(target, null, seen));
     }
 
     /**

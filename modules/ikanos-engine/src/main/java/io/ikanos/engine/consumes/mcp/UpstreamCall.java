@@ -51,7 +51,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>When the tool declares {@code mayElicit: true}, the call also declares the elicitation
  * capability, and an upstream's questions pass through to the caller, keyed under the calling
- * step's path. An upstream that asks without the declaration fails the call.</p>
+ * step's path. An upstream that asks without the declaration fails the call. In a journaled run,
+ * a send carries only the answers of the caller's latest round, and only once: an upstream that
+ * asks the same key again, after rejecting an answer, asks the caller again.</p>
  */
 final class UpstreamCall {
 
@@ -63,6 +65,9 @@ final class UpstreamCall {
     static final Duration MAX_POLL = Duration.ofSeconds(30);
 
     private static final String TASKS = "io.modelcontextprotocol/tasks";
+
+    /** Field of a send and its outcome: the caller's round whose answers it sent. */
+    private static final String ANSWERED_IN = "answeredIn";
     private static final ObjectMapper JSON = IkanosMappers.json();
 
     private final McpClientAdapter adapter;
@@ -73,6 +78,8 @@ final class UpstreamCall {
     private final boolean mayElicit;
     private final String prefix;
     private final Map<String, JsonNode> answers;
+    private final Map<String, JsonNode> latest;
+    private final int latestRound;
 
     UpstreamCall(McpClientAdapter adapter, McpStreamableHttpTransport transport, String toolName,
             ObjectNode arguments, Map<String, Object> templates, boolean mayElicit) {
@@ -83,7 +90,9 @@ final class UpstreamCall {
         this.templates = templates;
         this.mayElicit = mayElicit;
         this.prefix = Executions.currentKeyPrefix();
-        this.answers = answersUnder(prefix);
+        this.answers = answersUnder(prefix, ExecutionInputs.answers());
+        this.latest = answersUnder(prefix, ExecutionInputs.latestAnswers());
+        this.latestRound = ExecutionInputs.latestRound();
     }
 
     /** Runs the call and returns the upstream's {@code CallToolResult}. */
@@ -99,7 +108,10 @@ final class UpstreamCall {
                     return reply(call(null, null, true));
                 }
                 if (step.startsWith("answer")) {
-                    return reply(call(payload.get("requestState"), payload.get("responses"), true));
+                    ObjectNode reply = reply(call(payload.get("requestState"),
+                            payload.get("responses"), true));
+                    reply.set(ANSWERED_IN, payload.get(ANSWERED_IN));
+                    return reply;
                 }
                 if (step.startsWith("update")) {
                     update(payload.path("taskId").asString(), payload.get("responses"));
@@ -153,6 +165,9 @@ final class UpstreamCall {
                 return List.of(new Command.ScheduleAction(NodePath.of("create"),
                         JSON.createObjectNode(), null));
             }
+            // The caller's round whose answers the last send used: an upstream that asks again
+            // gets only answers of a later round, never one it already had.
+            int used = 0;
             for (int round = 1;; round++) {
                 String kind = reply.path("kind").asString();
                 switch (kind) {
@@ -176,7 +191,9 @@ final class UpstreamCall {
                         NodePath send = NodePath.of(task ? "update" : "answer").visit(round);
                         JsonNode next = outcome(view, send);
                         if (next == null) {
-                            ObjectNode responses = responsesTo(reply.path("inputRequests"));
+                            ObjectNode responses = latestRound > used
+                                    ? responsesTo(reply.path("inputRequests"))
+                                    : JSON.createObjectNode();
                             if (responses.isEmpty()) {
                                 return List.of(new Command.AwaitUpdate(
                                         NodePath.of("answers").visit(round),
@@ -184,8 +201,10 @@ final class UpstreamCall {
                             }
                             ObjectNode payload = JSON.createObjectNode();
                             payload.set("responses", responses);
+                            payload.put(ANSWERED_IN, latestRound);
                             if (task) {
                                 payload.put("taskId", reply.path("taskId").asString());
+                                payload.set("namespace", reply.get("namespace"));
                                 payload.set("pollIntervalMs", reply.get("pollIntervalMs"));
                                 payload.set("ttlMs", reply.get("ttlMs"));
                             } else {
@@ -193,6 +212,7 @@ final class UpstreamCall {
                             }
                             return List.of(new Command.ScheduleAction(send, payload, null));
                         }
+                        used = next.path(ANSWERED_IN).asInt(used);
                         reply = next;
                     }
                     default -> {
@@ -202,6 +222,34 @@ final class UpstreamCall {
                 }
             }
         };
+    }
+
+    /**
+     * The upstream task a sub-run waits on, walked as {@link #interpreter} walks it: the last
+     * reply, when it names a task polled or asking and nothing answered it since; otherwise
+     * {@code null}, for a sub-run that ended, that waits on a multi round-trip request, or that
+     * is not an upstream call's.
+     */
+    static JsonNode openTask(ExecutionView view) {
+        JsonNode reply = outcome(view, NodePath.of("create"));
+        for (int round = 1; reply != null; round++) {
+            String kind = reply.path("kind").asString();
+            NodePath next;
+            switch (kind) {
+                case "task" -> next = NodePath.of("await").visit(round);
+                case "task-ask" -> next = NodePath.of("update").visit(round);
+                case "ask" -> next = NodePath.of("answer").visit(round);
+                default -> {
+                    return null;
+                }
+            }
+            JsonNode after = outcome(view, next);
+            if (after == null) {
+                return kind.startsWith("task") && reply.hasNonNull("taskId") ? reply : null;
+            }
+            reply = after;
+        }
+        return null;
     }
 
     private static JsonNode outcome(ExecutionView view, NodePath path) {
@@ -245,6 +293,8 @@ final class UpstreamCall {
         if (McpResultType.TASK.wireValue().equals(type)) {
             reply.put("kind", "task");
             reply.put("taskId", result.path("taskId").asString());
+            // Names the adapter, so cancelling the caller can cancel this task (UpstreamTasks).
+            reply.put("namespace", adapter.getNamespace());
             reply.set("pollIntervalMs", result.get("pollIntervalMs"));
             reply.set("ttlMs", result.get("ttlMs"));
         } else if (McpResultType.INPUT_REQUIRED.wireValue().equals(type)) {
@@ -329,11 +379,14 @@ final class UpstreamCall {
         transport.call("tasks/update", taskId, params, templates);
     }
 
-    /** The answers the caller gave to these upstream requests, keyed as the upstream asked. */
+    /**
+     * The answers the caller gave to these upstream requests in its latest round, keyed as the
+     * upstream asked.
+     */
     private ObjectNode responsesTo(JsonNode requests) {
         ObjectNode responses = JSON.createObjectNode();
         for (String key : requests.propertyNames()) {
-            JsonNode answer = answers.get(key);
+            JsonNode answer = latest.get(key);
             if (answer != null) {
                 responses.set(key, answer);
             }
@@ -366,10 +419,11 @@ final class UpstreamCall {
         return result.path(McpResultType.FIELD).asString(McpResultType.COMPLETE.wireValue());
     }
 
-    /** The caller's answers whose key starts with {@code prefix}, the prefix removed. */
-    private static Map<String, JsonNode> answersUnder(String prefix) {
+    /** The answers whose key starts with {@code prefix}, the prefix removed. */
+    private static Map<String, JsonNode> answersUnder(String prefix,
+            Map<NodePath, Object> answers) {
         Map<String, JsonNode> own = new LinkedHashMap<>();
-        ExecutionInputs.answers().forEach((path, value) -> {
+        answers.forEach((path, value) -> {
             if (path.value().startsWith(prefix)) {
                 own.put(path.value().substring(prefix.length()), JSON.valueToTree(value));
             }

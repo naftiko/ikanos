@@ -184,6 +184,22 @@ public class McpClientAdapter extends ClientAdapter {
         return new McpInvocation(this, operationName, arguments, view, templates);
     }
 
+    /**
+     * Cancels a task of this upstream, best effort: it may have ended, or be unreachable, and
+     * either way nothing more can be done.
+     */
+    void cancelTask(String taskId) {
+        Map<String, Object> templates = ConsumedAuthentication.withBindings(null,
+                getCapability() != null ? getCapability().getBindings() : null);
+        ObjectNode params = JSON.createObjectNode();
+        params.put("taskId", taskId);
+        try {
+            transport.call("tasks/cancel", taskId, params, templates);
+        } catch (RuntimeException e) {
+            // Ended or unreachable: nothing more to do.
+        }
+    }
+
     /** Execute {@code tools/call} and select the response body. Called inside the client span. */
     ConsumedResult callTool(String toolName, ObjectNode arguments, ConsumedOperationView view,
             Map<String, Object> templates) {

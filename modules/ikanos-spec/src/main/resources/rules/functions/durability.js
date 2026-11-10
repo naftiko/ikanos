@@ -220,10 +220,46 @@ function buildSafety(capability) {
       }
     }
   }
-  for (const { key, flow } of flowsOf(capability)) {
+  const flows = flowsOf(capability);
+  for (const { key, flow } of flows) {
     safe.set(key, !!(flow.semantics && flow.semantics.safe === true));
   }
+  // A flow that asks, or calls a tool or flow that does, at any depth, asks too. Iterate to a
+  // fixed point: each pass adds at least one flow or stops, so a cycle of calls ends.
+  let added = true;
+  while (added) {
+    added = false;
+    for (const { key, flow } of flows) {
+      if (!asks.has(key) && flowAsks(flow, asks)) {
+        asks.add(key);
+        added = true;
+      }
+    }
+  }
   return { safe, imported, asks };
+}
+
+/** The target of a singleton `call:`, given as a string or as `{ operation }`. */
+function callTarget(call) {
+  if (typeof call === "string") {
+    return call;
+  }
+  return call && typeof call.operation === "string" ? call.operation : null;
+}
+
+function flowAsks(flow, asks) {
+  const target = callTarget(flow.call);
+  if (target && asks.has(target)) {
+    return true;
+  }
+  for (const s of entries(flow.steps)) {
+    const step = s.value;
+    if (step && (step.type === "elicit"
+        || (step.type === "call" && typeof step.call === "string" && asks.has(step.call)))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function stepContainers(capability) {
@@ -267,7 +303,7 @@ function checkElicitSafety(capability) {
       if (!step || typeof step !== "object") {
         continue;
       }
-      // A call to a consumed MCP tool that may ask is a question too: its upstream's questions
+      // A call to a consumed MCP tool or a flow that may ask is a question too: the questions
       // pass through, and the answer replays the steps before it.
       const asksHere = step.type === "elicit"
         || (step.type === "call" && typeof step.call === "string" && asks.has(step.call));

@@ -232,6 +232,65 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldDocumentA202OnAnOperationThatReachesAConsumedToolThatMayAsk()
+            throws Exception {
+        IkanosSpec spec = io.ikanos.spec.util.IkanosMappers.yaml().readValue("""
+                ikanos: "1.0.0-beta9"
+                info:
+                  display: Test
+                  description: Consumed MCP questions over REST
+                capability:
+                  consumes:
+                  - type: mcp
+                    namespace: customs
+                    endpoint: https://customs.example.com/mcp
+                    tools:
+                      declare: { description: Declare, mayElicit: true }
+                      lookup: { description: Look up }
+                  aggregates:
+                  - namespace: departure
+                    flows:
+                      declare:
+                        description: Declare through a singleton call
+                        call: customs.declare
+                  exposes:
+                  - type: rest
+                    address: localhost
+                    port: 8080
+                    namespace: departures
+                    resources:
+                      steps:
+                        path: /steps
+                        operations:
+                          steps:
+                            method: POST
+                            steps:
+                              declare: { type: call, call: customs.declare }
+                      single:
+                        path: /single
+                        operations:
+                          single: { method: POST, call: customs.declare }
+                      flow:
+                        path: /flow
+                        operations:
+                          flow: { method: POST, ref: departure.declare }
+                      lookup:
+                        path: /lookup
+                        operations:
+                          lookup: { method: GET, call: customs.lookup }
+                """, IkanosSpec.class);
+
+        OasExportResult result = builder.build(spec, null);
+
+        for (String path : new String[] {"/steps", "/single", "/flow"}) {
+            assertNotNull(result.getOpenApi().getPaths().get(path).getPost().getResponses()
+                    .get("202"), path);
+        }
+        assertNull(result.getOpenApi().getPaths().get("/lookup").getGet().getResponses()
+                .get("202"), "A tool that never asks gives no 202");
+    }
+
+    @Test
     void buildShouldMap204ResponseWhenNoOutputParameters() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);

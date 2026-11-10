@@ -598,6 +598,13 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void elicitSafetyRuleShouldCountACallToAFlowThatMayAsk() {
+        // The called flow asks through its singleton call to a consumed tool that may ask.
+        assertRuleFires("rules/polychro-durability-nested-elicit.yaml",
+            "ikanos-elicit-after-unsafe-requires-durability");
+    }
+
+    @Test
     public void elicitSafetyRuleShouldNotFireUnderADurableMode() {
         // Under memory and local, a question after a write resumes a journal instead of
         // replaying the write.

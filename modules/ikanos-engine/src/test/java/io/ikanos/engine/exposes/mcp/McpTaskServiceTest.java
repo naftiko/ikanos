@@ -99,6 +99,44 @@ public class McpTaskServiceTest {
     }
 
     @Test
+    void anInlineCallShouldExpireFromItsLastQuestionNotFromItsStart() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        java.util.concurrent.atomic.AtomicInteger rounds =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.Callable<tools.jackson.databind.JsonNode> work = () -> {
+            throw new InputRequiredException(List.of(new InputRequiredException.Question(
+                    rounds.incrementAndGet() == 1 ? "steps/confirm" : "steps/again",
+                    new OperationStepElicitSpec("confirm", "Confirm?",
+                            Map.of("ok", Map.of("type", "boolean"))))));
+        };
+        InlineRounds.Round first = new McpTaskService(runner, Clock.systemUTC(), null)
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, null, work);
+
+        // Nine minutes later, the answer comes, and the call asks again: a new state, valid
+        // for another ten minutes.
+        Clock later = Clock.offset(Clock.systemUTC(), java.time.Duration.ofMinutes(9));
+        new McpTaskService(runner, later, null).inRounds("mrtr:ops/tools/call/ask", "alice",
+                null, first.executionId(), IkanosMappers.json().createObjectNode()
+                        .set("steps/confirm", IkanosMappers.json().createObjectNode()
+                                .put("action", "accept")),
+                work);
+        assertEquals(2, rounds.get());
+
+        new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
+                McpRequestState.TTL.plusMinutes(1)), null).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.SUSPENDED, runner.status(first.executionId()).orElseThrow(),
+                "Asked again at minute 9, the call is still answerable at minute 11");
+
+        new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
+                McpRequestState.TTL.plusMinutes(10)), null).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(first.executionId()).orElseThrow());
+    }
+
+    @Test
     void anotherPrincipalShouldNeitherSeeNorCancelATask() {
         String taskId = service.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
                 IkanosMappers.json().createObjectNode(),

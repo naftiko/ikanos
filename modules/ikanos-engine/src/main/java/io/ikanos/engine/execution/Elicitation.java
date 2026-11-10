@@ -21,15 +21,17 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
+import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
- * Whether an exposed entry may ask its caller for input: its steps, or the flow it references,
- * hold an {@code elicit} step, or call a consumed MCP tool declared {@code mayElicit: true}, whose
- * questions pass through, directly or through flows they call, at any depth. Only such an entry
- * needs the machinery of input requests; one that cannot ask runs as before.
+ * Whether an exposed entry may ask its caller for input: its steps, the flow it references, or
+ * the target of its singleton {@code call:}, hold an {@code elicit} step, or call a consumed MCP
+ * tool declared {@code mayElicit: true}, whose questions pass through, directly or through flows
+ * they call, at any depth. Only such an entry needs the machinery of input requests; one that
+ * cannot ask runs as before.
  */
 public final class Elicitation {
 
@@ -38,15 +40,17 @@ public final class Elicitation {
 
     /**
      * @param ref the flow the entry references with {@code ref:}, or {@code null}
+     * @param call the entry's singleton {@code call:}, used when it references no flow; may be
+     *        {@code null}
      * @param steps the entry's own steps, used when it references no flow; may be {@code null}
      */
-    public static boolean mayAsk(Capability capability, String ref,
+    public static boolean mayAsk(Capability capability, String ref, ServerCallSpec call,
             Map<String, OperationStepSpec> steps) {
         Set<AggregateFlow> seen = new HashSet<>();
         if (ref != null) {
             return mayAsk(capability, findFlow(capability, ref), seen);
         }
-        return mayAsk(capability, steps, seen);
+        return callAsks(capability, call, seen) || mayAsk(capability, steps, seen);
     }
 
     private static boolean mayAsk(Capability capability, AggregateFlow flow,
@@ -54,7 +58,21 @@ public final class Elicitation {
         if (flow == null || !seen.add(flow)) {
             return false;
         }
-        return mayAsk(capability, flow.getSteps(), seen);
+        return callAsks(capability, flow.getCall(), seen)
+                || mayAsk(capability, flow.getSteps(), seen);
+    }
+
+    /** Whether a singleton {@code call:} targets a tool or a flow that may ask. */
+    private static boolean callAsks(Capability capability, ServerCallSpec call,
+            Set<AggregateFlow> seen) {
+        return call != null && call.getOperation() != null
+                && targetAsks(capability, call.getOperation(), seen);
+    }
+
+    private static boolean targetAsks(Capability capability, String target,
+            Set<AggregateFlow> seen) {
+        return consumedToolAsks(capability, target)
+                || mayAsk(capability, findFlow(capability, target), seen);
     }
 
     private static boolean mayAsk(Capability capability, Map<String, OperationStepSpec> steps,
@@ -67,8 +85,7 @@ public final class Elicitation {
                 return true;
             }
             if (step instanceof OperationStepCallSpec call && call.getCall() != null
-                    && (consumedToolAsks(capability, call.getCall())
-                            || mayAsk(capability, findFlow(capability, call.getCall()), seen))) {
+                    && targetAsks(capability, call.getCall(), seen)) {
                 return true;
             }
         }

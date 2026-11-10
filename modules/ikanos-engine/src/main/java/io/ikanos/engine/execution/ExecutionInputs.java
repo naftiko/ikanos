@@ -24,15 +24,31 @@ import io.ikanos.durable.NodePath;
  */
 public final class ExecutionInputs {
 
-    private static final ThreadLocal<Map<NodePath, Object>> CURRENT = new ThreadLocal<>();
+    /**
+     * The answers available to a run: all of them, and those of the latest round of a journaled
+     * call, with that round's number (0 before any).
+     */
+    private record Inputs(Map<NodePath, Object> all, Map<NodePath, Object> latest, int round) {
+    }
+
+    private static final ThreadLocal<Inputs> CURRENT = new ThreadLocal<>();
 
     private ExecutionInputs() {
     }
 
     /** Runs {@code work} with {@code answers} available to the runs it starts. */
     public static <T> T with(Map<NodePath, Object> answers, Callable<T> work) throws Exception {
-        Map<NodePath, Object> previous = CURRENT.get();
-        CURRENT.set(Map.copyOf(answers));
+        return with(answers, Map.of(), 0, work);
+    }
+
+    /**
+     * Runs {@code work} with {@code answers} available to the runs it starts, of which
+     * {@code latest} arrived in round {@code round} of a journaled call.
+     */
+    public static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
+            int round, Callable<T> work) throws Exception {
+        Inputs previous = CURRENT.get();
+        CURRENT.set(new Inputs(Map.copyOf(answers), Map.copyOf(latest), round));
         try {
             return work.call();
         } finally {
@@ -44,7 +60,6 @@ public final class ExecutionInputs {
         }
     }
 
-    /** The answers of the current request; empty outside {@link #with}. */
     /**
      * The caller's answers available on this thread, by key: those a multi round-trip request or
      * a round of a journaled call carried. Empty when there are none.
@@ -53,8 +68,23 @@ public final class ExecutionInputs {
         return current();
     }
 
+    /**
+     * The answers that arrived in the latest round of a journaled call ({@link #latestRound}),
+     * by key: an upstream asking again forwards only these, never an answer it already had.
+     */
+    public static Map<NodePath, Object> latestAnswers() {
+        Inputs inputs = CURRENT.get();
+        return inputs != null ? inputs.latest() : Map.of();
+    }
+
+    /** The round of a journaled call whose answers {@link #latestAnswers} holds; 0 before any. */
+    public static int latestRound() {
+        Inputs inputs = CURRENT.get();
+        return inputs != null ? inputs.round() : 0;
+    }
+
     static Map<NodePath, Object> current() {
-        Map<NodePath, Object> answers = CURRENT.get();
-        return answers != null ? answers : Map.of();
+        Inputs inputs = CURRENT.get();
+        return inputs != null ? inputs.all() : Map.of();
     }
 }
