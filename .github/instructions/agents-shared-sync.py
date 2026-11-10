@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync agents-shared skills from the agents-shared MCP server into .agents/skills/.
 
-Version 1.2.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
+Version 1.3.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
 agents-shared/instructions/agents-shared-sync.py. Consumer repos copy this file verbatim and
 never edit their copy; the server also publishes it as the ``agents-shared-sync`` skill, so
 each copy can tell when it is outdated (see --check-helper).
@@ -45,6 +45,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import urllib.parse
 from pathlib import Path, PurePosixPath
 
@@ -53,7 +54,7 @@ DEFAULT_URL = "http://localhost:9700"
 SCHEME = "skill://"
 
 # Keep equal to metadata.version of the agents-shared-sync skill in agents-shared.yml.
-HELPER_VERSION = "1.2.0"
+HELPER_VERSION = "1.3.0"
 HELPER_SKILL = "agents-shared-sync"
 HELPER_URI = f"{SCHEME}{HELPER_SKILL}/agents-shared-sync.py"
 
@@ -123,8 +124,14 @@ class Client:
             headers["Mcp-Name"] = name
         status, content_type, payload = self.post(body, headers)
         raw = payload.decode("utf-8", "replace")
-        if status >= 400 and "json" not in content_type:
-            raise SyncError(f"{method}: HTTP {status} from {self.url}: {raw[:200]}")
+        if status >= 400:
+            # An error status is an error whatever the body: prefer the JSON-RPC message.
+            try:
+                error = parse_message(raw, content_type).get("error")
+            except SyncError:
+                error = None
+            detail = error.get("message", error) if isinstance(error, dict) else raw[:200]
+            raise SyncError(f"{method}: HTTP {status} from {self.url}: {detail}")
         message = parse_message(raw, content_type)
         if "error" in message:
             error = message["error"]
@@ -133,10 +140,20 @@ class Client:
 
 
 def parse_message(raw, content_type):
-    """Return the JSON-RPC message of a JSON or a single-event SSE response."""
+    """Return the JSON-RPC message of a JSON response, or of the last event of an SSE one.
+
+    An SSE event may spread its data over several ``data:`` lines, joined with newlines.
+    """
     if "text/event-stream" in content_type:
-        data = [line[5:].strip() for line in raw.splitlines() if line.startswith("data:")]
-        raw = data[-1] if data else "{}"
+        events, data = [], []
+        for line in raw.splitlines() + [""]:
+            if line.startswith("data:"):
+                value = line[5:]
+                data.append(value[1:] if value.startswith(" ") else value)
+            elif not line and data:
+                events.append("\n".join(data))
+                data = []
+        raw = events[-1] if events else "{}"
     try:
         message = json.loads(raw)
     except ValueError:
@@ -221,11 +238,33 @@ def dot_entries(target):
 def write_skill(target, files):
     """Replace the local copy with the verified files, keeping its dot-entries.
 
-    The files are written into a staging directory beside the copy. The copy's dot-entries are
-    moved into it, then it replaces the copy in one rename. Any failure puts the original copy
-    back as it was: a failed write (disk full, a file locked on Windows) or a failed move leaves
-    nothing half-applied, and a path that changed between file and directory needs no cleanup.
+    A lock beside the copy keeps two syncs of the same skill from interleaving. The files are
+    written into a fresh staging directory beside the copy, created exclusively so that nothing
+    left by an interrupted sync can be installed. The copy's dot-entries are moved into it, then
+    it replaces the copy in one rename. Any failure puts the original copy back as it was: a
+    failed write (disk full, a file locked on Windows) or a failed move leaves nothing
+    half-applied, and a path that changed between file and directory needs no cleanup.
     """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lock = target.parent / f".{target.name}.sync.lock"
+    try:
+        handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise SyncError(f"another sync of {target.name} is running ({lock.as_posix()} exists); "
+                        "if none is, delete that file and retry. The local copy is unchanged")
+    try:
+        os.write(handle, str(os.getpid()).encode("ascii"))
+        os.close(handle)
+        replace_copy(target, files)
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
+def replace_copy(target, files):
+    """The body of write_skill, run while its lock is held."""
     kept = dot_entries(target)
     # A dot-entry under a path that is now a published file has nowhere to go: say so before
     # touching anything (e.g. references/.work/ when references/ becomes a file).
@@ -235,8 +274,9 @@ def write_skill(target, files):
         raise SyncError(f"{names} would end up under a path the server now publishes as a file; "
                         f"move it out of {target.as_posix()}/ and retry. The local copy is "
                         "unchanged")
-    staging = target.parent / f".{target.name}.sync-{os.getpid()}"
-    backup = target.parent / f".{target.name}.old-{os.getpid()}"
+    staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.sync-", dir=str(target.parent)))
+    holder = Path(tempfile.mkdtemp(prefix=f".{target.name}.old-", dir=str(target.parent)))
+    backup = holder / target.name
     try:
         for rel, data in files.items():
             path = staging / rel
@@ -244,6 +284,7 @@ def write_skill(target, files):
             path.write_bytes(data)
     except OSError as e:
         shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(holder, ignore_errors=True)
         raise SyncError(f"cannot write {staging.as_posix()}/ ({e}); the local copy is unchanged")
     moved = []
     try:
@@ -256,9 +297,10 @@ def write_skill(target, files):
         staging.rename(target)
     except OSError as e:
         restore_copy(target, staging, backup, moved)
+        shutil.rmtree(holder, ignore_errors=True)
         raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); is a file in it open? "
                         "The local copy is unchanged")
-    shutil.rmtree(backup, ignore_errors=True)
+    shutil.rmtree(holder, ignore_errors=True)
 
 
 def restore_copy(target, staging, backup, moved):
