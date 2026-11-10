@@ -226,6 +226,33 @@ class McpClientAdapterTest {
         assertNull(request.getHeaders().getFirstValue("Mcp-Session-Id", true));
     }
 
+    /** #979: a consumed tool's input default is sent when the calling step leaves it out. */
+    @Test
+    void toolsCallShouldSendInputDefaultWhenArgumentIsAbsent() throws Exception {
+        McpClientSpec spec = (McpClientSpec) YAML.readValue("""
+                type: mcp
+                namespace: billing
+                endpoint: https://billing.example.com/mcp
+                discovery: off
+                tools:
+                  list-invoices:
+                    description: List invoices
+                    hints: { readOnly: true }
+                    inputParameters:
+                      size: { type: integer, description: Page size, required: false, default: 50 }
+                      status: { type: string, description: Status, required: false, default: open }
+                """, ClientSpec.class);
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req,
+                "{\"content\":[],\"structuredContent\":{},\"resultType\":\"complete\"}"));
+
+        new McpClientAdapter(null, spec, client)
+                .prepare("list-invoices", Map.of("status", "paid")).invoke();
+
+        JsonNode arguments = JSON.readTree(client.bodies.get(0)).path("params").path("arguments");
+        assertEquals(JSON.readTree("{\"size\":50,\"status\":\"paid\"}"), arguments);
+    }
+
     @Test
     void structuredContentShouldBeTheResponseDocument() throws Exception {
         StubClient client = new StubClient();

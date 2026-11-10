@@ -1659,6 +1659,9 @@
         "additionalProperties": {
           "type": "boolean",
           "description": "Whether an object parameter accepts properties beyond `properties`. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
+        },
+        "default": {
+          "description": "Value used when a call leaves this optional input out or passes null, written with the input's JSON type (a string, number, boolean, array or object). Advertised to MCP clients in the tool's inputSchema, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. `ikanos validate` and the engine reject a default that does not match `type` or `enum`. A default on a required input never applies and is reported as a warning. Only allowed on the parameter itself, not inside `items` or `properties`."
         }
       },
       "required": [

@@ -174,6 +174,85 @@ public class ValidateCommandTest {
         assertTrue(errCapture.toString().contains("svc.create"), errCapture.toString());
     }
 
+    /** A capability whose MCP tool declares one input parameter, written as {@code param}. */
+    private Path toolInputCapability(String param) {
+        Path yaml = tempDir.resolve("tool-input-default.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "crm"
+                      baseUri: "https://crm.example.com"
+                      resources:
+                        accounts:
+                          path: "/accounts"
+                          operations:
+                            ask:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      tools:
+                        ask-account:
+                          description: "Ask about an account"
+                          call: "crm.ask"
+                          inputParameters:
+                            %s
+                """.formatted(IKANOS, param)));
+        return yaml;
+    }
+
+    @Test
+    public void callShouldFailWhenToolInputDefaultDoesNotMatchType() {
+        Path yaml = toolInputCapability("size: { type: \"integer\", description: \"Size\","
+                + " required: false, default: \"200\" }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#979: a default must match its type\n" + err + outCapture);
+        assertTrue(err.contains("'tools.ask-account' input parameter 'size'"), err);
+    }
+
+    @Test
+    public void callShouldFailWhenToolInputDefaultIsNotInEnum() {
+        Path yaml = toolInputCapability("period: { type: \"string\", description: \"Period\","
+                + " required: false, enum: [\"LAST_7DAYS\"], default: \"LAST_YEAR\" }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#979: a default must be one of the enum values\n" + err);
+        assertTrue(err.contains("default is not one of the enum values"), err);
+    }
+
+    @Test
+    public void callShouldWarnWithoutFailingWhenRequiredToolInputDeclaresDefault() {
+        Path yaml = toolInputCapability("period: { type: \"string\", description: \"Period\","
+                + " required: true, default: \"LAST_90DAYS\" }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String out = outCapture.toString();
+        assertEquals(0, exitCode, "#979: a default on a required input is a warning only\n"
+                + errCapture + out);
+        assertTrue(out.contains("is required, so its default never applies"), out);
+    }
+
+    @Test
+    public void callShouldSucceedWhenToolInputDefaultMatchesTypeAndEnum() {
+        Path yaml = toolInputCapability("period: { type: \"string\", description: \"Period\","
+                + " required: false, enum: [\"LAST_7DAYS\", \"LAST_90DAYS\"],"
+                + " default: \"LAST_90DAYS\" }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString() + outCapture);
+        assertFalse(outCapture.toString().contains("Warning"), outCapture.toString());
+    }
+
     @Test
     public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
         Path yaml = tempDir.resolve("alias.yaml");

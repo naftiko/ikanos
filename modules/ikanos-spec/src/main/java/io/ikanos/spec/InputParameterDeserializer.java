@@ -164,6 +164,12 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setAdditionalProperties(node.get("additionalProperties").asBoolean());
         }
 
+        // MCP tool input default (#979): kept as a JSON tree so it keeps its JSON type. A null
+        // default has no effect, so it is left unset.
+        if (node.hasNonNull("default")) {
+            spec.setDefaultValue(node.get("default").deepCopy());
+        }
+
         // Handle numeric properties
         if (node.has("precision")) {
             spec.setPrecision(node.get("precision").asInt());

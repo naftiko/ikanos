@@ -31,6 +31,7 @@ import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -253,6 +254,10 @@ public class ToolHandler {
         // Keep only the declared arguments: an undeclared one could replace a value the
         // operator provides, such as an environment parameter.
         arguments = declaredArguments(toolName, arguments);
+
+        // Use the declared default of an input the caller left out or passed as null (#979), so
+        // the type check, 'with', templates and bodies below all see it.
+        arguments = InputDefaults.apply(getInputParameters(toolName), arguments);
 
         // Check the arguments against their declared types before any template sees them.
         arguments = checkArgumentTypes(toolSpec, arguments);

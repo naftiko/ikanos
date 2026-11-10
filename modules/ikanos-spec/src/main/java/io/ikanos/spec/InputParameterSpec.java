@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
 import io.ikanos.spec.util.StructureSpec;
@@ -69,6 +70,13 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile Number maximum;
 
     private volatile Boolean additionalProperties;
+
+    /**
+     * MCP tool input {@code default} (#979): the argument value used when a call leaves an
+     * optional input out or passes {@code null}, kept as written (any JSON type). {@code null}
+     * when none is declared.
+     */
+    private volatile JsonNode defaultValue;
 
     public InputParameterSpec() {
         super();
@@ -190,6 +198,15 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setAdditionalProperties(Boolean additionalProperties) {
         this.additionalProperties = additionalProperties;
+    }
+
+    /** @return the declared {@code default}, or {@code null} when none is declared */
+    public JsonNode getDefaultValue() {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(JsonNode defaultValue) {
+        this.defaultValue = defaultValue;
     }
 
 }
