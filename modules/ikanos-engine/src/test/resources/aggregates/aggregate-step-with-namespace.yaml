@@ -18,6 +18,7 @@ capability:
         inputParameters:
           voyage-id:
             type: string
+            required: true
             description: Voyage identifier
         steps:
           fetch-voyage:

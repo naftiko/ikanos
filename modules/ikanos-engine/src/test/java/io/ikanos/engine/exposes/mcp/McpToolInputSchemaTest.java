@@ -47,6 +47,7 @@ class McpToolInputSchemaTest {
         JsonNode schema = schemaOf("""
                 - name: id
                   type: string
+                  required: true
                   description: "Identifier."
                 - name: limit
                   type: integer
@@ -61,6 +62,32 @@ class McpToolInputSchemaTest {
                    "limit":{"type":"integer","description":"Limit."}},
                  "required":["id"]}
                 """), schema);
+    }
+
+    @Test
+    void forParametersShouldLeaveInputOutOfRequiredWhenRequiredIsNotDeclared() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: team
+                  type: string
+                  description: "Team key."
+                """);
+
+        assertFalse(schema.has("required"), "#977: an input is optional by default");
+    }
+
+    @Test
+    void forParametersShouldListInputInRequiredWhenRequiredIsTrue() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: id
+                  type: string
+                  required: true
+                  description: "Issue ID."
+                - name: cursor
+                  type: string
+                  description: "Cursor of the next page."
+                """);
+
+        assertEquals(JSON.readTree("[\"id\"]"), schema.path("required"));
     }
 
     @Test

@@ -1626,8 +1626,8 @@
         },
         "required": {
           "type": "boolean",
-          "description": "Whether the parameter is required. Defaults to true.",
-          "default": true
+          "description": "Whether the parameter is required. Defaults to false, as in JSON Schema: a parameter is optional unless it says `required: true`. On an exposed tool (inline or through an aggregate flow `ref`), required parameters are listed in the tool's inputSchema `required` array, advertised to MCP clients and not enforced by Ikanos. On a consumed MCP tool, a call that lacks a required argument fails before it is sent.",
+          "default": false
         },
         "enum": {
           "$ref": "#/$defs/McpToolInputEnum"
