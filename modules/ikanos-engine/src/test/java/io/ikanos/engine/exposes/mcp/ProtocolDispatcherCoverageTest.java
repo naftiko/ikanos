@@ -74,6 +74,32 @@ class ProtocolDispatcherCoverageTest {
     }
 
     @Test
+    void dispatchShouldRejectNoIdMessageWhenJsonRpcVersionIsMissing() throws Exception {
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
+
+        DispatchResult result = dispatcher.dispatch(JSON.readTree(withProtocolVersion("""
+                {"method":"tools/list","params":{}}
+                """)));
+
+        assertNotNull(result.responseBody(), "#949: a message without jsonrpc is not a"
+                + " notification and must be answered with an error");
+        assertEquals(-32600, result.responseBody().path("error").path("code").asInt());
+    }
+
+    @Test
+    void dispatchShouldRejectNoIdMessageWhenJsonRpcVersionIsWrong() throws Exception {
+        ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
+
+        DispatchResult result = dispatcher.dispatch(JSON.readTree(withProtocolVersion("""
+                {"jsonrpc":"1.0","method":"tools/list","params":{}}
+                """)));
+
+        assertNotNull(result.responseBody(), "#949: a message whose jsonrpc is not '2.0' is not a"
+                + " notification and must be answered with an error");
+        assertEquals(-32600, result.responseBody().path("error").path("code").asInt());
+    }
+
+    @Test
     void dispatchShouldReturnNoResponseWhenMessageHasNoId() throws Exception {
         ProtocolDispatcher dispatcher = dispatcherFrom("src/test/resources/mcp/mcp-capability.yaml");
 
