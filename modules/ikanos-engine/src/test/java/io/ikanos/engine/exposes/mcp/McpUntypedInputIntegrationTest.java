@@ -95,7 +95,7 @@ class McpUntypedInputIntegrationTest {
     }
 
     @Test
-    void toolsCallShouldRejectObjectForAggregateFlowInputWithoutType() throws Exception {
+    void toolsCallShouldRejectArrayForAggregateFlowInputWithoutType() throws Exception {
         ObjectNode arguments = JSON.createObjectNode();
         arguments.putArray("name").add("a").add("b");
 
