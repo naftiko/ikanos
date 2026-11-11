@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import tools.jackson.databind.ValueDeserializer;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.exposes.ServerSpec;
@@ -98,6 +99,7 @@ public class McpServerSpec extends ServerSpec {
         this.transport = transport;
     }
 
+    @JsonIgnore
     public boolean isStdio() {
         return "stdio".equals(getTransport());
     }

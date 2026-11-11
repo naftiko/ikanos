@@ -276,16 +276,17 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
     }
 
     /**
-     * Write the required-property list as {@code required}, as before. When the parameter itself is
-     * optional, write {@code required: false} and move the list to {@code requiredProperties}, since
-     * one key cannot hold both.
+     * Write {@code required: false} when the parameter itself is optional, so that a parameter
+     * read back from this output keeps it (an import deep-copies its entry through YAML). Write
+     * the required-property list as {@code required}, as before, or as {@code requiredProperties}
+     * when the parameter is optional, since one key cannot hold both.
      */
     private void writeRequired(InputParameterSpec spec, ObjectNode node) {
-        if (spec.getRequired().isEmpty()) {
-            return;
-        }
         if (!spec.isRequired()) {
             node.put("required", false);
+        }
+        if (spec.getRequired().isEmpty()) {
+            return;
         }
         ArrayNode requiredArray =
                 node.putArray(spec.isRequired() ? "required" : "requiredProperties");
