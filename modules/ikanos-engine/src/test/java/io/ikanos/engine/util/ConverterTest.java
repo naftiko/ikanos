@@ -315,6 +315,27 @@ public class ConverterTest {
     }
 
     @Test
+    public void convertHtmlToJsonShouldNumberColumnsThatWouldShareAHeaderName() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Item</th><th>Amount</th><th>Amount</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Widget</td><td>10</td><td>20</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("Widget", row.get("Item").asString());
+        assertEquals("10", row.get("Amount").asString());
+        assertEquals("20", row.get("Amount 2").asString());
+    }
+
+    @Test
     public void convertHtmlToJsonShouldTreatANonPositiveOrNonNumericSpanAsOne() throws Exception {
         String html = """
                 <table>
