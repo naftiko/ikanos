@@ -104,6 +104,7 @@ public class AggregateFlowSpec {
     public void setInputParameters(Map<String, InputParameterSpec> params) {
         Map<String, InputParameterSpec> snapshot = Collections.synchronizedMap(
                 new LinkedHashMap<>(params != null ? params : Map.of()));
+        InputParameterSpec.applyMcpToolInputDefaults(snapshot.values());
         inputParameters.set(snapshot);
     }
 

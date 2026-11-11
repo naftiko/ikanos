@@ -13,9 +13,11 @@
  */
 package io.ikanos.spec.consumes.mcp;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OperationSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 
@@ -64,6 +66,17 @@ public class McpClientToolSpec extends OperationSpec {
     public void setValidateOutput(String validateOutput) {
         // A bare YAML `off` arrives as "false" (YAML 1.1 boolean); see McpClientSpec#normalize.
         this.validateOutput.set(McpClientSpec.normalize(validateOutput, VALIDATE_FAIL));
+    }
+
+    /**
+     * Upstream tool arguments share {@code McpToolInputParameter} with exposed MCP tool inputs, so
+     * an argument without {@code type} is a {@code string} (#986). The HTTP operations that also
+     * extend {@link OperationSpec} keep their inputs untyped.
+     */
+    @Override
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        super.setInputParameters(params);
+        InputParameterSpec.applyMcpToolInputDefaults(getInputParameters());
     }
 
     /** @return the validation mode, normalized to lower case */

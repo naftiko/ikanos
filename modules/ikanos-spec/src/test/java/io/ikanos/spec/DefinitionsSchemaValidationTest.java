@@ -221,14 +221,17 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectInputWithNeitherTypeNorSchema() throws Exception {
-        assertRejected(mcp(DEFINITIONS, """
+    void validateShouldAcceptInputWithNeitherTypeNorSchemaAsAString() throws Exception {
+        // An MCP tool input without type is a string (#986), beside definitions too
+        List<Error> errors = schema.validate(mcp(DEFINITIONS, """
                 list-orders:
                   description: "List orders."
                   inputParameters:
                     period: { description: "Period." }
                   call: erp.list-orders
                 """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test

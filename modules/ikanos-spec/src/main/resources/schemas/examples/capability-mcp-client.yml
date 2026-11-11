@@ -44,7 +44,7 @@ capability:
             idempotent: true
           inputParameters:
             invoice-id:
-              type: "string"
+              # No `type`: an MCP tool input defaults to `string`.
               required: true
               description: "Invoice identifier."
           outputParameters:
@@ -99,11 +99,9 @@ capability:
           description: "Invoice status and account owner for one customer."
           inputParameters:
             invoice-id:
-              type: "string"
               required: true
               description: "Invoice identifier."
             account-id:
-              type: "string"
               required: true
               description: "CRM account identifier."
           steps:

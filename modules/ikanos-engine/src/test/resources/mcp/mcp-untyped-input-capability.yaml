@@ -1,0 +1,47 @@
+ikanos: 1.0.0-beta10
+info:
+  display: MCP Untyped Input Test Capability
+  description: MCP tool and aggregate flow inputs without type, which default to string (#986)
+  tags:
+  - Test
+  - MCP
+  created: '2026-11-11'
+  modified: '2026-11-11'
+capability:
+  aggregates:
+  - display: Greeting
+    namespace: greeting
+    flows:
+      hello:
+        description: Builds a greeting from an input declared without type.
+        inputParameters:
+          name:
+            description: Name to greet
+        outputParameters:
+          message:
+            type: string
+            value: Hello, {{name}}!
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9210
+    namespace: untyped-mcp
+    description: MCP adapter whose tool inputs omit type.
+    tools:
+      echo-owner:
+        description: Echo the repository owner.
+        inputParameters:
+          owner:
+            description: Repository owner
+          page:
+            type: integer
+            description: Page number
+            required: false
+        outputParameters:
+          owner:
+            type: string
+            value: '{{owner}}'
+      hello:
+        description: Return a greeting.
+        ref: greeting.hello
+  consumes: []
