@@ -15,6 +15,7 @@ package io.ikanos.spec.openapi;
 
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.InputParameterSpec;
@@ -42,7 +43,9 @@ import io.ikanos.spec.util.VersionHelper;
  *   <li>input parameters keep only {@code in}, {@code value} and the query serialization
  *       fields {@code wireName}, {@code style} and {@code explode}
  *       ({@code ConsumedInputParameter}); an {@code in: path} parameter without a {@code value}
- *       is left out, since the path variable takes the call parameter of the same name;</li>
+ *       is left out, since the path variable takes the call parameter of the same name; on a
+ *       resource or an operation, an {@code in: query} parameter with none of the other fields is
+ *       written as a name in the {@code queryParameters} list instead (#987);</li>
  *   <li>named output parameters become {@code {type, value}} with the JsonPath as {@code value}
  *       ({@code ConsumedOutputParameter}); unnamed outputs (a whole-response array or scalar) are
  *       dropped, since the raw response is already returned when none are declared.</li>
@@ -70,7 +73,7 @@ public class OasImportWriter {
         adapter.put("type", "http");
         putIfPresent(adapter, "namespace", httpClient.getNamespace());
         putIfPresent(adapter, "baseUri", httpClient.getBaseUri());
-        putInputParameters(adapter, httpClient.getInputParameters());
+        putInputParameters(adapter, httpClient.getInputParameters(), false);
         if (httpClient.getAuthentication() != null) {
             adapter.set("authentication", authenticationNode(httpClient.getAuthentication()));
         }
@@ -92,7 +95,7 @@ public class OasImportWriter {
         putIfPresent(node, "display", resource.getDisplay());
         putIfPresent(node, "description", resource.getDescription());
         putTags(node, resource.getTags());
-        putInputParameters(node, resource.getInputParameters());
+        putInputParameters(node, resource.getInputParameters(), true);
 
         ObjectNode operations = node.putObject("operations");
         for (Map.Entry<String, HttpClientOperationSpec> entry
@@ -108,7 +111,7 @@ public class OasImportWriter {
         putIfPresent(node, "display", operation.getDisplay());
         putIfPresent(node, "description", operation.getDescription());
         putTags(node, operation.getTags());
-        putInputParameters(node, operation.getInputParameters());
+        putInputParameters(node, operation.getInputParameters(), true);
         putIfPresent(node, "outputRawFormat", operation.getOutputRawFormat());
         putIfPresent(node, "outputSchema", operation.getOutputSchema());
 
@@ -147,13 +150,19 @@ public class OasImportWriter {
         return node;
     }
 
-    private static void putInputParameters(ObjectNode parent, List<InputParameterSpec> params) {
+    private static void putInputParameters(ObjectNode parent, List<InputParameterSpec> params,
+            boolean queryParameterList) {
         if (params == null || params.isEmpty()) {
             return;
         }
         ObjectNode inputs = NODES.objectNode();
+        ArrayNode queryNames = NODES.arrayNode();
         for (InputParameterSpec param : params) {
             if (isLocationOnlyPathParameter(param)) {
+                continue;
+            }
+            if (queryParameterList && isLocationOnlyQueryParameter(param)) {
+                queryNames.add(param.getName());
                 continue;
             }
             ObjectNode input = NODES.objectNode();
@@ -169,6 +178,21 @@ public class OasImportWriter {
         if (!inputs.isEmpty()) {
             parent.set("inputParameters", inputs);
         }
+        if (!queryNames.isEmpty()) {
+            parent.set("queryParameters", queryNames);
+        }
+    }
+
+    /**
+     * An {@code in: query} parameter that sets none of the fields this writer keeps
+     * ({@code value}, {@code wireName}, {@code style}, {@code explode}) only says "send the call
+     * parameter of this name in the query", which the {@code queryParameters} list says in one
+     * word (#987).
+     */
+    static boolean isLocationOnlyQueryParameter(InputParameterSpec param) {
+        return "query".equalsIgnoreCase(param.getIn()) && param.getValue() == null
+                && param.getWireName() == null && param.getStyle() == null
+                && param.getExplode() == null;
     }
 
     /**
