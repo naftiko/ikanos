@@ -50,6 +50,13 @@ public class StructureSpec<T extends StructureSpec<T>> {
      */
     private final AtomicReference<String> schema = new AtomicReference<>();
 
+    /**
+     * Value of a JSON Schema {@code $ref} written on the declaration. Ikanos does not support
+     * {@code $ref}: it is kept apart from {@link #getSchema()} only so that the definitions
+     * expander rejects it by its presence, whatever its value (#910).
+     */
+    private final AtomicReference<String> jsonSchemaRef = new AtomicReference<>();
+
     @JsonProperty("properties")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final List<T> properties;
@@ -257,6 +264,17 @@ public class StructureSpec<T extends StructureSpec<T>> {
     @JsonProperty("schema")
     public void setSchema(String schema) {
         this.schema.set(schema);
+    }
+
+    /** @return the value of a JSON Schema {@code $ref} on this declaration, or {@code null} */
+    @JsonProperty("$ref")
+    public String getJsonSchemaRef() {
+        return jsonSchemaRef.get();
+    }
+
+    @JsonProperty("$ref")
+    public void setJsonSchemaRef(String jsonSchemaRef) {
+        this.jsonSchemaRef.set(jsonSchemaRef);
     }
 
     public List<String> getExamples() {
