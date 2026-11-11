@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -294,6 +295,86 @@ class McpToolInputSchemaValidationTest {
                       tools:
                         create-invoice:
                           ref: "billing-domain.create-invoice"
+                """.formatted(IKANOS);
+        List<Error> errors = schema.validate(YAML.readTree(yaml));
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldAcceptToolInputWithoutType() throws Exception {
+        List<Error> errors = validateTool("""
+                owner:
+                  description: "Repository owner."
+                """);
+        assertTrue(errors.isEmpty(), "type defaults to string (#986), got: " + errors);
+    }
+
+    @Test
+    void schemaShouldDeclareStringAsDefaultToolInputType() throws Exception {
+        try (InputStream in = McpToolInputSchemaValidationTest.class.getClassLoader()
+                .getResourceAsStream("schemas/ikanos-schema.json")) {
+            JsonNode parameter = JSON.readTree(in).path("$defs").path("McpToolInputParameter");
+            assertEquals("string", parameter.path("properties").path("type").path("default")
+                    .asString());
+        }
+    }
+
+    @Test
+    void schemaShouldStillRequireDescriptionOnToolInputWithoutType() throws Exception {
+        List<Error> errors = validateTool("""
+                owner:
+                  required: false
+                """);
+        assertFalse(errors.isEmpty(), "description stays required");
+    }
+
+    @Test
+    void schemaShouldStillRequireTypeInsideNestedSchema() throws Exception {
+        List<Error> errors = validateTool("""
+                fees:
+                  type: "array"
+                  description: "Fees."
+                  items:
+                    description: "A fee."
+                """);
+        assertFalse(errors.isEmpty(), "A nested schema is copied as written and keeps its type");
+    }
+
+    @Test
+    void schemaShouldAcceptUntypedInputsOnAggregateFlowAndConsumedMcpTool() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "Untyped inputs"
+                  description: "Inputs without type on a flow and a consumed MCP tool"
+                capability:
+                  aggregates:
+                    - display: "Search"
+                      namespace: "search-domain"
+                      flows:
+                        search:
+                          description: "Search upstream."
+                          call: "upstream.search"
+                          inputParameters:
+                            query:
+                              description: "Search text."
+                  consumes:
+                    - type: "mcp"
+                      namespace: "upstream"
+                      endpoint: "https://mcp.upstream.test/mcp"
+                      tools:
+                        search:
+                          description: "Search upstream."
+                          inputParameters:
+                            query:
+                              description: "Search text."
+                  exposes:
+                    - type: "mcp"
+                      namespace: "search-mcp"
+                      port: 3001
+                      tools:
+                        search:
+                          ref: "search-domain.search"
                 """.formatted(IKANOS);
         List<Error> errors = schema.validate(YAML.readTree(yaml));
         assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
