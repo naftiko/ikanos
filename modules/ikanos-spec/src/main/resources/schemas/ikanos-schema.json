@@ -250,6 +250,15 @@
         "private"
       ]
     },
+    "ConsumedQueryParameterNames": {
+      "type": "array",
+      "description": "Short form for consumed query parameters that take the call parameter of the same name. `queryParameters: [page, per_page]` is equivalent to `inputParameters: {page: {in: query}, per_page: {in: query}}`. A parameter that needs more than its location (`value`, `wireName`, `style`, `explode`) stays in `inputParameters`. Each name MUST be listed once.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9-_*]+$"
+      },
+      "uniqueItems": true
+    },
     "ConsumedInputParameter": {
       "type": "object",
       "description": "Describes a single function parameter. A unique parameter is defined by a combination of a name and location.",
@@ -2761,6 +2770,10 @@
           },
           "description": "Resource-level parameters shared by all operations, keyed by parameter name."
         },
+        "queryParameters": {
+          "$ref": "#/$defs/ConsumedQueryParameterNames",
+          "description": "Names of resource-level query parameters that only declare their location. Each name is equivalent to an `inputParameters` entry with only `in: query`, and applies to every operation of the resource like the other resource-level parameters. A name MUST NOT also be declared in this resource's `inputParameters`."
+        },
         "operations": {
           "type": "object",
           "propertyNames": {
@@ -2818,6 +2831,10 @@
             "$ref": "#/$defs/ConsumedInputParameter"
           },
           "description": "Operation input parameters, keyed by parameter name."
+        },
+        "queryParameters": {
+          "$ref": "#/$defs/ConsumedQueryParameterNames",
+          "description": "Names of query parameters that only declare their location. Each name is equivalent to an `inputParameters` entry with only `in: query`: it takes the call parameter of the same name and is left out when that parameter is absent. A name MUST NOT also be declared in this operation's `inputParameters`."
         },
         "outputRawFormat": {
           "type": "string",
