@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -230,33 +231,69 @@ class AgentIdentityResolverTest {
     }
 
     private static String ownerOf(McpTrustSpec trust, Request request) {
+        return ownerOf("shipyard", trust, request);
+    }
+
+    private static String ownerOf(String namespace, McpTrustSpec trust, Request request) {
         AgentIdentityResolver resolver = new AgentIdentityResolver(trust);
-        return resolver.ownerOf(request, resolver.resolve(request));
+        return AgentIdentityResolver.ownerOf(namespace, request, resolver.resolve(request));
+    }
+
+    private static Request subject(String issuer, String subject) {
+        return authenticated(new JWTClaimsSet.Builder().issuer(issuer).subject(subject).build());
     }
 
     @Test
-    void ownerShouldBeTheTokenSubjectWhateverTheTrustMode() {
-        Request request = authenticated(new JWTClaimsSet.Builder().subject("alice").build());
+    void ownerShouldBeTheTokenIssuerAndSubjectWhateverTheTrustMode() {
+        Request request = subject("https://as.example", "alice");
 
-        assertEquals("alice", ownerOf(null, request));
-        assertEquals("alice", ownerOf(new McpTrustSpec(McpTrustSpec.MODE_NONE), request));
-        assertEquals("alice", ownerOf(new McpTrustSpec(McpTrustSpec.MODE_VERIFY), request));
-        assertEquals("alice", ownerOf(forwarded(), request));
+        String owner = ownerOf(null, request);
+        assertEquals("[\"shipyard\",\"sub\",\"https://as.example\",\"alice\"]", owner);
+        assertEquals(owner, ownerOf(new McpTrustSpec(McpTrustSpec.MODE_NONE), request));
+        assertEquals(owner, ownerOf(new McpTrustSpec(McpTrustSpec.MODE_VERIFY), request));
+        assertEquals(owner, ownerOf(forwarded(), request));
     }
 
     @Test
     void ownerShouldTellTwoAuthenticatedCallersApartWithoutTrust() {
-        assertFalse(ownerOf(null, authenticated(new JWTClaimsSet.Builder().subject("alice").build()))
-                .equals(ownerOf(null,
-                        authenticated(new JWTClaimsSet.Builder().subject("bob").build()))));
+        assertNotEquals(ownerOf(null, subject("https://as.example", "alice")),
+                ownerOf(null, subject("https://as.example", "bob")));
+    }
+
+    @Test
+    void theSameSubjectOfAnotherIssuerShouldBeAnotherOwner() {
+        assertNotEquals(ownerOf(null, subject("https://as-a.example", "alice")),
+                ownerOf(null, subject("https://as-b.example", "alice")));
+    }
+
+    @Test
+    void theSameCallerOfAnotherAdapterShouldBeAnotherOwner() {
+        Request request = subject("https://as.example", "alice");
+
+        assertNotEquals(ownerOf("shipyard", null, request), ownerOf("harbor", null, request));
+        assertNotEquals(ownerOf("shipyard", null, null), ownerOf("harbor", null, null));
     }
 
     @Test
     void ownerShouldFallBackToTheClientIdApartFromSubjects() {
-        Request request = authenticated(
-                new JWTClaimsSet.Builder().claim("client_id", "alice").build());
+        Request request = authenticated(new JWTClaimsSet.Builder().issuer("https://as.example")
+                .claim("client_id", "alice").build());
 
-        assertEquals("client_id:alice", ownerOf(null, request));
+        assertEquals("[\"shipyard\",\"client_id\",\"https://as.example\",\"alice\"]",
+                ownerOf(null, request));
+        assertNotEquals(ownerOf(null, subject("https://as.example", "alice")),
+                ownerOf(null, request));
+    }
+
+    @Test
+    void aForwardedIdentitySpelledLikeAnotherOwnerShouldNotBeIt() {
+        Request request = request("10.0.3.7");
+        request.getHeaders().add("X-Agent-Id", "alice");
+
+        String owner = ownerOf(forwarded(), request);
+        assertEquals("[\"shipyard\",\"forwarded\",\"alice\"]", owner);
+        assertNotEquals(ownerOf(null, subject(null, "alice")), owner);
+        assertNotEquals(ownerOf(null, null), owner);
     }
 
     @Test
@@ -265,19 +302,10 @@ class AgentIdentityResolverTest {
         JWTClaimsSet claims = new JWTClaimsSet.Builder().issueTime(new Date(1_000_000L)).build();
 
         String owner = ownerOf(null, authenticated(claims, "header.claims.signature-1"));
-        assertTrue(owner.startsWith("token:"), owner);
+        assertTrue(owner.startsWith("[\"shipyard\",\"token\","), owner);
         assertFalse(owner.contains("signature"), owner);
         assertEquals(owner, ownerOf(null, authenticated(claims, "header.claims.signature-1")));
-        assertFalse(owner.equals(
-                ownerOf(null, authenticated(claims, "header.claims.signature-2"))));
-    }
-
-    @Test
-    void ownerShouldBeTheForwardedIdentityWithoutAToken() {
-        Request request = request("10.0.3.7");
-        request.getHeaders().add("X-Agent-Id", "agent-42");
-
-        assertEquals("agent-42", ownerOf(forwarded(), request));
+        assertNotEquals(owner, ownerOf(null, authenticated(claims, "header.claims.signature-2")));
     }
 
     @Test
@@ -285,8 +313,8 @@ class AgentIdentityResolverTest {
         Request request = request("10.0.3.7");
         request.getHeaders().add("X-Agent-Id", "agent-42");
 
-        assertEquals(McpCallContext.ANONYMOUS, ownerOf(null, request));
-        assertEquals(McpCallContext.ANONYMOUS, ownerOf(forwarded(), null));
+        assertEquals(AgentIdentityResolver.anonymousOwner("shipyard"), ownerOf(null, request));
+        assertEquals("[\"shipyard\",\"anonymous\"]", ownerOf(forwarded(), null));
     }
 
     @Test
