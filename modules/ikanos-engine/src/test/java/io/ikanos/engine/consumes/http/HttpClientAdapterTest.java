@@ -650,6 +650,147 @@ public class HttpClientAdapterTest {
         return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
     }
 
+    @Test
+    public void prepareShouldResolvePathValueFromAnEarlierQueryParameterWhenNoCallParameter()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        inputParameters:
+                          version:
+                            in: query
+                            value: "v2"
+                        resources:
+                          pets:
+                            path: "/{{api-version}}/pets"
+                            inputParameters:
+                              api-version:
+                                in: path
+                                value: "{{version}}"
+                            operations:
+                              list-pets:
+                                method: GET
+                        """));
+
+        Request request = adapter.prepare("list-pets", new HashMap<>()).getRequest();
+
+        assertEquals("https://api.example.com/v1/v2/pets?version=v2",
+                request.getResourceRef().toString(),
+                "#978: a path value is resolved in declaration order, so it can use an earlier"
+                        + " query parameter, before the URI is rendered");
+    }
+
+    @Test
+    public void prepareShouldKeepCallerPathValueWhenANarrowerDeclarationReplacesABroaderValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                replacedPathValueSpec());
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42", request.getResourceRef().toString(),
+                "#978: a replaced broader value never overwrites the caller's value (#909)");
+    }
+
+    @Test
+    public void prepareShouldUseBroaderPathValueAsDefaultWhenTheCallerSuppliesNone()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                replacedPathValueSpec());
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("other", "x")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/default",
+                request.getResourceRef().toString(),
+                "#978: a replaced broader value still acts as the default (#909)");
+    }
+
+    @Test
+    public void prepareShouldResolveAPathValueTemplateOnlyOnce() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "prefix-{{id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                                inputParameters:
+                                  ref:
+                                    in: query
+                                    value: "{{id}}"
+                        """));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/prefix-42?ref=prefix-42",
+                request.getResourceRef().toString(),
+                "#978: the URI and the later query parameter see the same, once-resolved value");
+    }
+
+    @Test
+    public void prepareShouldRejectMissingPathVariableWhenOnlyAConstantHeaderIsDeclared()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        inputParameters:
+                          Accept:
+                            in: header
+                            value: "application/json"
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", new HashMap<>()));
+
+        assertEquals("Unresolved template parameters in URI: [id]", error.getMessage(),
+                "#858: a declared constant must not hide a path variable the call did not supply");
+    }
+
+    private HttpClientSpec replacedPathValueSpec() throws Exception {
+        return consumedSpec("""
+                resources:
+                  pets:
+                    path: "/pets/{{id}}"
+                    inputParameters:
+                      id:
+                        in: path
+                        value: "default"
+                    operations:
+                      get-pet:
+                        method: GET
+                        inputParameters:
+                          id:
+                            in: path
+                """);
+    }
+
+    /** An http adapter {@code pets} on {@code https://api.example.com/v1}; body is indented. */
+    private HttpClientSpec consumedSpec(String body) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: pets
+                      baseUri: "https://api.example.com/v1"
+                """.formatted(VersionHelper.getSchemaVersion())
+                + body.indent(6);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
     private HttpClientAdapter pagesAdapter() {
         HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
         HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",
