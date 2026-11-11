@@ -799,6 +799,43 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldUseResourceLevelPathParameterDeclarationForUriTemplatePath() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{imo}", "ships",
+                "GET", "get-ship", null);
+        InputParameterSpec imo = new InputParameterSpec();
+        imo.setName("imo");
+        imo.setIn("path");
+        imo.setDescription("IMO number of the ship");
+        resource.setInputParameters(Map.of("imo", imo));
+        addResource(rest, resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}").getGet();
+        assertNotNull(op.getParameters(),
+                "#978: a single-brace {imo} variable also needs its path parameter");
+        assertEquals(1, op.getParameters().size());
+        assertEquals("IMO number of the ship", op.getParameters().get(0).getDescription());
+    }
+
+    @Test
+    void buildShouldDerivePathParameterFromUriTemplatePathWhenUndeclared() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        addResource(rest, resourceWithOperation("/ships/{imo}", "ships", "GET", "get-ship",
+                null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        Operation op = result.getOpenApi().getPaths().get("/ships/{imo}").getGet();
+        assertNotNull(op.getParameters(),
+                "#978: OpenAPI requires a parameter for every {name} of the path");
+        assertEquals(List.of("imo"), op.getParameters().stream().map(p -> p.getName()).toList());
+    }
+
+    @Test
     void buildShouldExportDeclaredPathParameterAsRequired() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
