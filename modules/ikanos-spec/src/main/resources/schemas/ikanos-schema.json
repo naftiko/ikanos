@@ -1468,7 +1468,7 @@
     },
     "McpTool": {
       "type": "object",
-      "description": "An MCP tool definition. Each tool maps to one or more consumed HTTP operations.",
+      "description": "An MCP tool definition. Each tool maps to one or more consumed operations. A tool that declares none of `call`, `steps`, `ref` or mock `outputParameters` calls the consumed operation (an HTTP operation or a consumed MCP tool) with the same name as the tool: exactly one consumed namespace must have one, or the capability fails to load.",
       "properties": {
         "display": {
           "type": "string",
@@ -1505,7 +1505,7 @@
         },
         "call": {
           "type": "string",
-          "description": "For simple cases, the reference to the consumed operation. Format: {namespace}.{operationId}.",
+          "description": "For simple cases, the reference to the consumed operation. Format: {namespace}.{operationId}. When omitted on a tool without `steps`, `ref` or mock `outputParameters`, it defaults to the consumed operation named like the tool, in the one consumed namespace that has it.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
         },
         "with": {
@@ -1617,6 +1617,53 @@
                 "$ref": "#/$defs/MockOutputParameter"
               },
               "minProperties": 1
+            }
+          }
+        },
+        {
+          "description": "Inferred call: no `call`, `steps` or `ref`, and no mock `outputParameters`. The tool calls the consumed operation named like the tool; `with` and mapped `outputParameters` apply to that call. An array whose every entry is a static `value` is a mock, not mapped outputs, so it does not match this branch.",
+          "required": [
+            "description"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              },
+              {
+                "required": [
+                  "ref"
+                ]
+              }
+            ]
+          },
+          "type": "object",
+          "properties": {
+            "outputParameters": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MappedOutputParameter"
+              },
+              "not": {
+                "minItems": 1,
+                "items": {
+                  "required": [
+                    "value"
+                  ],
+                  "not": {
+                    "required": [
+                      "mapping"
+                    ]
+                  }
+                }
+              }
             }
           }
         }

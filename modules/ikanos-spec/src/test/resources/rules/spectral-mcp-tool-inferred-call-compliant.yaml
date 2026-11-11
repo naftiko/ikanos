@@ -1,0 +1,50 @@
+ikanos: 1.0.0-beta10
+info:
+  display: Inferred MCP tool calls compliant
+  description: Positive fixture for the inferred MCP tool call rule
+  tags:
+  - test
+capability:
+  consumes:
+  - type: http
+    namespace: github
+    description: GitHub API
+    baseUri: https://api.github.com
+    resources:
+      issues:
+        description: Issues
+        path: /issues
+        operations:
+          list-issues:
+            method: GET
+  - type: mcp
+    namespace: billing
+    description: Vendor billing MCP server
+    endpoint: https://billing.example.com/mcp
+    tools:
+      get-invoice:
+        description: Retrieve one invoice
+        hints:
+          readOnly: true
+  exposes:
+  - type: mcp
+    namespace: tools
+    address: localhost
+    port: 3000
+    tools:
+      list-issues:
+        description: Inferred from github.list-issues
+        outputParameters:
+        - type: array
+          mapping: $.items
+      get-invoice:
+        description: Inferred from the consumed MCP tool billing.get-invoice
+      hello:
+        description: Mock tool, no call inferred
+        outputParameters:
+          message:
+            type: string
+            value: Hello
+      list-repos:
+        description: Explicit call, no inference
+        call: github.list-issues

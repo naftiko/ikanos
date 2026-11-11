@@ -54,6 +54,7 @@ import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.ServerHost;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
+import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -146,6 +147,10 @@ public class Capability {
         // (#910): after imports, which carry the definitions with their adapter or aggregate, and
         // before ref resolution, so a ref tool sees the inputs its sets give it.
         DefinitionsExpander.expand(spec);
+
+        // An MCP tool without call, steps, ref or mock outputs calls the consumed operation named
+        // like the tool (#988). Set that call now, so every later check sees an explicit `call:`.
+        InferredToolCallResolver.resolve(spec);
 
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
         AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();

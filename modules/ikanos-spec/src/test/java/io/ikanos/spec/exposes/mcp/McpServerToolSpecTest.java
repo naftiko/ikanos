@@ -188,4 +188,65 @@ class McpServerToolSpecTest {
         spec.getOutputParameters().add(new OutputParameterSpec());
         assertEquals(1, spec.getOutputParameters().size());
     }
+
+    // ── Mock output parameters (#988) ──
+
+    @Test
+    void hasMockOutputParametersShouldBeTrueWhenOutputParametersAreAMap() {
+        McpServerToolSpec spec = readTool("""
+                description: "Mock"
+                outputParameters:
+                  message:
+                    type: "string"
+                    value: "Hello"
+                """);
+        assertTrue(spec.hasMockOutputParameters());
+    }
+
+    @Test
+    void hasMockOutputParametersShouldBeTrueWhenArrayHoldsOnlyStaticValues() {
+        McpServerToolSpec spec = readTool("""
+                description: "Legacy mock"
+                outputParameters:
+                  - type: "string"
+                    value: "pong"
+                """);
+        assertTrue(spec.hasMockOutputParameters());
+    }
+
+    @Test
+    void hasMockOutputParametersShouldBeFalseWhenOutputParametersAreAnArray() {
+        McpServerToolSpec spec = readTool("""
+                description: "Mapped"
+                outputParameters:
+                  - type: "string"
+                    mapping: "$.message"
+                """);
+        assertFalse(spec.hasMockOutputParameters());
+    }
+
+    @Test
+    void hasMockOutputParametersShouldBeFalseWhenToolHasNoOutputParameters() {
+        assertFalse(readTool("description: \"No outputs\"\n").hasMockOutputParameters());
+    }
+
+    @Test
+    void hasMockOutputParametersShouldBeFalseWhenMapOutputParametersComeWithSteps() {
+        McpServerToolSpec spec = readTool("""
+                description: "Orchestrated"
+                steps:
+                  fetch:
+                    type: "call"
+                    call: "api.fetch"
+                outputParameters:
+                  message:
+                    type: "string"
+                """);
+        assertFalse(spec.hasMockOutputParameters());
+    }
+
+    private static McpServerToolSpec readTool(String yaml) {
+        return io.ikanos.spec.util.IkanosMappers.lenientYaml().readValue(yaml,
+                McpServerToolSpec.class);
+    }
 }

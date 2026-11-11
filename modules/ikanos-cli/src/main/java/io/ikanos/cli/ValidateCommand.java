@@ -24,6 +24,7 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
+import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -104,11 +105,21 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
-            DefinitionsExpander.Result definitions = schemaValid ? definitions(dataNode)
+            IkanosSpec spec = schemaValid
+                    ? IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class) : null;
+            DefinitionsExpander.Result definitions = schemaValid
+                    ? DefinitionsExpander.expandAll(spec)
                     : new DefinitionsExpander.Result(List.of(), List.of());
 
+            // An MCP tool without call, steps, ref or mock outputs calls the consumed operation
+            // named like the tool: exactly one consumed namespace must have it (#988). Checked on
+            // the expanded tools, in the engine's order.
+            List<String> inferredCallErrors = schemaValid && definitions.errors().isEmpty()
+                    ? InferredToolCallResolver.findErrors(spec) : List.of();
+
             // Display validation result.
-            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()) {
+            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()
+                    && inferredCallErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -140,6 +151,10 @@ public class ValidateCommand implements Callable<Integer> {
                     System.err.println("\n  [" + errorCount + "] Invalid definitions: " + error);
                     errorCount++;
                 }
+                for (String error : inferredCallErrors) {
+                    System.err.println("\n  [" + errorCount + "] " + error);
+                    errorCount++;
+                }
                 printWarnings(definitions.warnings());
                 return 1;
             }
@@ -162,15 +177,6 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
-    }
-
-    /**
-     * Expands the shared definitions of the document's MCP adapters and aggregates (#910) and
-     * returns what is wrong with them. Imported adapters and aggregates are not resolved here.
-     */
-    DefinitionsExpander.Result definitions(JsonNode dataNode) {
-        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return DefinitionsExpander.expandAll(spec);
     }
 
     private static void printWarnings(List<String> warnings) {

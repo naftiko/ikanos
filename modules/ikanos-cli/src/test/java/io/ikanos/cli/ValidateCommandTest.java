@@ -254,6 +254,57 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldAcceptAnMcpToolWhoseCallIsInferredFromItsName() {
+        Path yaml = tempDir.resolve("inferred-call.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, inferredCallCapability(
+                "list-items", "list-items").formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString());
+    }
+
+    @Test
+    public void callShouldFailWhenNoConsumedNamespaceHasTheToolName() {
+        Path yaml = tempDir.resolve("inferred-call-missing.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, inferredCallCapability(
+                "list-items", "list-things").formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#988: a tool whose call cannot be inferred must fail validate");
+        assertTrue(errCapture.toString().contains("MCP tool 'list-things'"), errCapture.toString());
+    }
+
+    /** One consumed operation and one MCP tool without {@code call}, mapping its result. */
+    private static String inferredCallCapability(String operation, String tool) {
+        return """
+                ikanos: "%%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            %s:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      tools:
+                        %s:
+                          description: "List the items"
+                          outputParameters:
+                            - type: "string"
+                              mapping: "$.title"
+                """.formatted(operation, tool);
+    }
+
+    @Test
     public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
         Path yaml = tempDir.resolve("alias.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """
