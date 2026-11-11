@@ -84,6 +84,25 @@ class H2StoreProviderTest {
     }
 
     @Test
+    void aSchemaCreationCutShortShouldBeCompletedOnTheNextOpen() throws Exception {
+        // As a crash after H2 committed the first CREATE statements, before the version.
+        execute("CREATE TABLE executions (execution_id VARCHAR(255) PRIMARY KEY, "
+                + "spec_digest VARCHAR(255) NOT NULL, entry VARCHAR(1024), "
+                + "status VARCHAR(16) NOT NULL, created_at TIMESTAMP(9) WITH TIME ZONE NOT NULL, "
+                + "deadline TIMESTAMP(9) WITH TIME ZONE)");
+        execute("CREATE INDEX executions_by_status ON executions (status, created_at)");
+        execute("CREATE SEQUENCE fencing_tokens START WITH 1");
+
+        ExecutionId id = new ExecutionId("exec-1");
+        try (Stores stores = H2StoreProvider.openStores(file(), Clock.systemUTC())) {
+            stores.journal().append(id, 0, 0,
+                    List.of(new JournalEntry(1, JournalEntry.Kind.ACTION_SUCCEEDED, null, null)));
+            assertEquals(1, stores.journal().read(id).size());
+        }
+        JdbcDatabase.openH2(file()).close();
+    }
+
+    @Test
     void databaseShouldRefuseANewerSchema() throws SQLException {
         JdbcDatabase.openH2(file()).close();
         execute("UPDATE store_meta SET val = '99' WHERE name = 'schema_version'");
