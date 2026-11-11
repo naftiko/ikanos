@@ -138,10 +138,25 @@ function walkOutput(node, path, refs) {
   }
 }
 
+/**
+ * Copy the own entries of a definitions map into a null-prototype object, so
+ * that `name in dict` and `dict[name]` only see declared definitions, never
+ * inherited members such as `constructor` or `toString`.
+ */
+function dictionary(value) {
+  const dict = Object.create(null);
+  if (isObject(value)) {
+    for (const key of Object.keys(value)) {
+      dict[key] = value[key];
+    }
+  }
+  return dict;
+}
+
 function buildModel(owner) {
   const defs = isObject(owner.node.definitions) ? owner.node.definitions : {};
-  const sets = isObject(defs.inputParameterSets) ? defs.inputParameterSets : {};
-  const schemas = isObject(defs.schemas) ? defs.schemas : {};
+  const sets = dictionary(defs.inputParameterSets);
+  const schemas = dictionary(defs.schemas);
   const defsPath = owner.path.concat("definitions");
 
   // References made by each set and each schema.

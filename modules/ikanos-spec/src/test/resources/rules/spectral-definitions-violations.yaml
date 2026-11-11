@@ -57,8 +57,9 @@ capability:
       tools:
         list-orders:
           description: "List orders."
-          inputParameterSets: [odata-list, search, date-range, key]
+          inputParameterSets: [odata-list, search, date-range, key, constructor]
           inputParameters:
             period: { schema: odata-list, description: "Period." }
             start: { schema: node, description: "Start." }
+            label: { schema: toString, description: "Label." }
           call: erp.list-orders
