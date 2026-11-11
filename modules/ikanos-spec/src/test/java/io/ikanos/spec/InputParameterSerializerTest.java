@@ -173,4 +173,31 @@ class InputParameterSerializerTest {
         assertEquals("val", meta.path("values").path("name").asString());
         assertEquals("string", meta.path("properties").path("child").path("type").asString());
     }
+
+    @Test
+    void serializeShouldWriteRequiredFalseForAnOptionalParameterWithoutProperties()
+            throws Exception {
+        InputParameterSpec spec = new InputParameterSpec();
+        spec.setName("page");
+        spec.setType("integer");
+        spec.setRequired(false);
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(spec));
+
+        assertFalse(json.get("required").asBoolean(true),
+                "an import copies the entry through YAML, so required: false must be written");
+        assertFalse(json.has("requiredProperties"));
+    }
+
+    @Test
+    void serializeShouldNotWriteRequiredForARequiredParameterWithoutProperties()
+            throws Exception {
+        InputParameterSpec spec = new InputParameterSpec();
+        spec.setName("imo");
+        spec.setType("string");
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(spec));
+
+        assertFalse(json.has("required"), "required is the default and stays implicit");
+    }
 }
