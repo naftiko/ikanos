@@ -231,6 +231,111 @@ class DefinitionsSchemaValidationTest {
                 """));
     }
 
+    @Test
+    void validateShouldAcceptInlineOrchestratedOutputOnMcpResource() throws Exception {
+        List<Error> errors = schema.validate(mcpResource("result: { type: string }"));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectSchemaInMcpResourceOutput() throws Exception {
+        assertRejected(mcpResource("result: { schema: ship }"));
+    }
+
+    @Test
+    void validateShouldAcceptInlineConsumedMcpToolArgument() throws Exception {
+        List<Error> errors = schema.validate(consumedMcpTool("""
+                period:
+                  type: object
+                  description: "Period."
+                  properties:
+                    from: { type: string }
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectSchemaOnConsumedMcpToolArgument() throws Exception {
+        assertRejected(consumedMcpTool("period: { schema: date-range, description: \"P.\" }"));
+    }
+
+    @Test
+    void validateShouldRejectSchemaNestedInConsumedMcpToolArgument() throws Exception {
+        assertRejected(consumedMcpTool("""
+                period:
+                  type: object
+                  description: "Period."
+                  properties:
+                    window: { schema: date-range }
+                """));
+    }
+
+    @Test
+    void validateShouldRejectSchemaInItemsOfConsumedMcpToolArgument() throws Exception {
+        assertRejected(consumedMcpTool("""
+                periods:
+                  type: array
+                  description: "Periods."
+                  items:
+                    type: object
+                    properties:
+                      window: { schema: date-range }
+                """));
+    }
+
+    /** An MCP resource in steps mode, with the given orchestrated outputs. */
+    private static JsonNode mcpResource(String outputs) throws Exception {
+        return read("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      port: 3000
+                      namespace: tools
+                      resources:
+                        fleet:
+                          display: "Fleet"
+                          description: "The fleet."
+                          uri: "data://fleet"
+                          steps:
+                            ships: { type: call, call: erp.list-ships }
+                          mappings:
+                            - target: result
+                              value: "$.ships"
+                          outputParameters:
+                %s      tools:
+                        get-ship:
+                          description: "Get a ship."
+                          call: erp.get-ship
+                """.formatted(IKANOS, outputs.indent(12)));
+    }
+
+    /** A consumed MCP tool with the given arguments. */
+    private static JsonNode consumedMcpTool(String inputs) throws Exception {
+        return read("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: mcp
+                      namespace: billing
+                      endpoint: "https://billing.test/mcp"
+                      tools:
+                        get-invoice:
+                          description: "Retrieve one invoice."
+                          inputParameters:
+                %s  exposes:
+                    - type: mcp
+                      port: 3001
+                      namespace: billing-tools
+                      tools:
+                        get-invoice:
+                          description: "Retrieve one invoice."
+                          call: billing.get-invoice
+                """.formatted(IKANOS, inputs.indent(12)));
+    }
+
     private static void assertRejected(JsonNode document) {
         List<Error> errors = schema.validate(document);
         assertFalse(errors.isEmpty(), "Expected the document to be rejected");
