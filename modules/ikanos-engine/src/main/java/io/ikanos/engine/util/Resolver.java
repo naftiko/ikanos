@@ -960,6 +960,30 @@ public class Resolver {
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
         }
+        applyInputParametersToRequest(clientRequest,
+                resolveInputParameterValues(specs, parameters, notSent));
+    }
+
+    /** One input parameter to send, with its value resolved once. */
+    public record ResolvedInputParameter(InputParameterSpec spec, Object value) {
+    }
+
+    /**
+     * Resolves the input parameters in order, without sending any: each value is written into
+     * {@code parameters}, so a later template, the URI and the body see it (#978). The parameters
+     * in {@code notSent} are resolved the same way, but their value never overwrites one the
+     * caller supplied (#909). Each template is resolved exactly once, so the URI and the request
+     * that {@link #applyInputParametersToRequest} completes see the same value.
+     *
+     * @return the parameters to send, with their values, in declaration order
+     */
+    public static List<ResolvedInputParameter> resolveInputParameterValues(
+            List<InputParameterSpec> specs, Map<String, Object> parameters,
+            Set<InputParameterSpec> notSent) {
+        List<ResolvedInputParameter> resolved = new java.util.ArrayList<>();
+        if (specs == null || specs.isEmpty()) {
+            return resolved;
+        }
         applyEnvironmentParameters(specs, parameters);
         Set<String> supplied = parameters == null ? Set.of()
                 : new HashSet<>(parameters.keySet());
@@ -1000,7 +1024,26 @@ public class Resolver {
                 if (parameters != null) {
                     parameters.put(spec.getName(), val);
                 }
+                resolved.add(new ResolvedInputParameter(spec, val));
+            } catch (RuntimeException e) {
+                logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
+            }
+        }
+        return resolved;
+    }
 
+    /**
+     * Sends the resolved header and query parameters on {@code clientRequest}: a header under its
+     * wire name, a query parameter appended to the request URI. Call it once the URI is set. Other
+     * locations are not sent from here.
+     */
+    public static void applyInputParametersToRequest(Request clientRequest,
+            List<ResolvedInputParameter> resolved) {
+        for (ResolvedInputParameter parameter : resolved) {
+            InputParameterSpec spec = parameter.spec();
+            Object val = parameter.value();
+            try {
+                String in = spec.getIn() == null ? "body" : spec.getIn();
                 String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
                         ? spec.getWireName() : spec.getName();
                 if ("header".equalsIgnoreCase(in)) {
