@@ -235,13 +235,21 @@ public class HttpClientAdapter extends ClientAdapter {
                 clientOp.getParentResource().getInputParameters(),
                 clientOp.getInputParameters());
 
-        // A path variable needs no declaration: it takes the call parameter of the same name. An
-        // explicit in: path entry with a value sets it, before the URI is rendered (#978).
-        applyPathParameterValues(declared, parameters);
+        Set<InputParameterSpec> replaced = replacedInputParameters(declared);
+        boolean noCallParameters = parameters == null || parameters.isEmpty();
+
+        // Resolve every declared parameter once, in declaration order, before the URI is
+        // rendered: a path variable needs no declaration and takes the call parameter of the same
+        // name, but an in: path entry with a value sets it, and that value can use any earlier
+        // parameter (#978). Query and header parameters are sent once the URI exists.
+        List<Resolver.ResolvedInputParameter> resolved =
+                Resolver.resolveInputParameterValues(declared, parameters, replaced);
 
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
-        rejectUnresolved("URI", clientResUri, parameters);
+        if (noCallParameters) {
+            rejectMissing("URI", clientResUri, parameters);
+        }
 
         // Resolve Mustache templates. Each substituted value is marked, then percent-encoded by
         // position, so a caller value stays one path segment or one query value
@@ -255,11 +263,10 @@ public class HttpClientAdapter extends ClientAdapter {
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
         clientRequest.setResourceRef(new Reference(clientResUri));
 
-        // Apply client-level, resource-level and operation-level input parameters
+        // Send the client-level, resource-level and operation-level header and query parameters
         // NOTE: setResourceRef must be called first so that query params
         // (in: query) are appended to the correct base URI, not to null.
-        Set<InputParameterSpec> replaced = replacedInputParameters(declared);
-        Resolver.resolveInputParametersToRequest(clientRequest, declared, parameters, replaced);
+        Resolver.applyInputParametersToRequest(clientRequest, resolved);
 
         List<?> multipartData = multipartData(clientOp.getBody());
         if (multipartData != null) {
@@ -354,35 +361,6 @@ public class HttpClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Writes the {@code value} (or {@code template}) of each {@code in: path} parameter into
-     * {@code parameters}, so that the resource path template uses it (#978). Parameters are taken
-     * in declaration order, adapter level first, so a narrower level wins, and a declared value
-     * replaces a call parameter of the same name, as it does for a query or header parameter. A
-     * path parameter without a value changes nothing: the path variable already takes the call
-     * parameter of its name.
-     */
-    static void applyPathParameterValues(List<InputParameterSpec> declared,
-            Map<String, Object> parameters) {
-        if (parameters == null) {
-            return;
-        }
-        for (InputParameterSpec spec : declared) {
-            String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
-            if (!"path".equalsIgnoreCase(spec.getIn()) || template == null) {
-                continue;
-            }
-            if (parameters.isEmpty()
-                    && !Resolver.missingVariables(template, parameters).isEmpty()) {
-                continue;
-            }
-            Object value = Resolver.resolveValue(template, parameters);
-            if (value != null) {
-                parameters.put(spec.getName(), value);
-            }
-        }
-    }
-
-    /**
      * The parameters replaced by a later one with the same name and location, as in OpenAPI: a
      * narrower level replaces a broader one (#909). They are still resolved in their position, so
      * a template that uses them sees the same value as before, but they are not sent, so a query
@@ -415,6 +393,16 @@ public class HttpClientAdapter extends ClientAdapter {
         if (parameters != null && !parameters.isEmpty()) {
             return;
         }
+        rejectMissing(where, template, parameters);
+    }
+
+    /**
+     * Rejects a template that uses a variable absent from {@code parameters}. The URI is checked
+     * this way when the call had no parameters at all, after the declared values are resolved:
+     * a declared value can fill a path variable, and a constant header must not hide a missing
+     * one (#858, #978).
+     */
+    static void rejectMissing(String where, String template, Map<String, Object> parameters) {
         List<String> missing = Resolver.missingVariables(template, parameters);
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException(
