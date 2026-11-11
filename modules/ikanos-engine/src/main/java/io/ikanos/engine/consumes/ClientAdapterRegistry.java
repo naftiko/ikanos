@@ -31,7 +31,7 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
  *
  * <p>Replaces the literal {@code "http".equals(type)} branch that used to live in
  * {@link Capability}. The core {@code http} and {@code mcp} factories are registered
- * statically, so the native CLI never depends on service discovery for them. Optional factories are
+ * statically, so they never depend on service discovery. Optional factories are
  * discovered once with {@link ServiceLoader}, following the {@code ikanos-tunnel-ziti} precedent.
  * </p>
  */

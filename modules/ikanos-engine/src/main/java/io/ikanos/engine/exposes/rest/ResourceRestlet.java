@@ -130,10 +130,18 @@ public class ResourceRestlet extends Restlet {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
 
-                // Build request-scoped input parameter map (resource + operation)
-                Map<String, Object> inputParameters =
-                    stepExecutor.resolveInputParametersFromRequest(request, getServerSpec(),
-                        getResourceSpec(), serverOp);
+                // Build request-scoped input parameter map (resource + operation). A value that
+                // does not match its declared type is the caller's error.
+                Map<String, Object> inputParameters;
+                try {
+                    inputParameters = stepExecutor.resolveInputParametersFromRequest(request,
+                            getServerSpec(), getResourceSpec(), serverOp);
+                } catch (IllegalArgumentException e) {
+                    sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                            "Error resolving request parameters",
+                            "Error resolving request parameters", e);
+                    return true;
+                }
 
                 // Include operation-level 'with' parameters for template resolution
                 OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,

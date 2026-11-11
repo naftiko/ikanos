@@ -1,6 +1,6 @@
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 info:
-  display: Native Regression — Outbound HTTPS Call
+  display: Package Regression — Outbound HTTPS Call
   description: >
     Minimal REST capability whose single operation forwards to a `consumes: http`
     backend reachable only over HTTPS (a real, always-on public endpoint —
@@ -8,7 +8,7 @@ info:
     per-IP API rate limit, unlike api.github.com which answered 403 to
     shared macOS runners, see #824). This exists to guard the jlink module set computed
     in publish-cli-packages.yml via `jdeps --print-module-deps`: that set is
-    derived only from the two other native-regression fixtures
+    derived only from the two other package-regression fixtures
     (serve-http.ikanos.yaml, serve-rest-mock.ikanos.yaml), neither of which
     performs an outbound TLS call. A jlink image missing jdk.crypto.ec /
     jdk.crypto.cryptoki / jdk.security.jgss would pass CI silently while every
@@ -17,7 +17,7 @@ info:
     targets a stable, public, always-available HTTPS endpoint.
   tags:
   - test
-  - native-regression
+  - package-regression
 capability:
   consumes:
   - type: http

@@ -20,7 +20,10 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
 import org.restlet.representation.ByteArrayRepresentation;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
@@ -43,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
 
 /**
  * HTTP Client Adapter implementation
@@ -219,12 +223,24 @@ public class HttpClientAdapter extends ClientAdapter {
             return null;
         }
 
+        // The operator's environment values replace any caller value of the same name before the
+        // URI is resolved, not after (GHSA-23xc-9c84-r6qv)
+        Resolver.applyEnvironmentParameters(getHttpClientSpec().getInputParameters(), parameters);
+        Resolver.applyEnvironmentParameters(clientOp.getParentResource().getInputParameters(),
+                parameters);
+        Resolver.applyEnvironmentParameters(clientOp.getInputParameters(), parameters);
+
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
         rejectUnresolved("URI", clientResUri, parameters);
 
-        // Resolve Mustache templates
-        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters);
+        // Resolve Mustache templates. Each substituted value is marked, then percent-encoded by
+        // position, so a caller value stays one path segment or one query value
+        // (GHSA-rvg4-2rxw-mc64).
+        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters,
+                PathSegmentEncoder::mark);
+
+        clientResUri = PathSegmentEncoder.encodeMarkedValues(clientResUri);
 
         Request clientRequest = new Request();
         clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
@@ -248,32 +264,44 @@ public class HttpClientAdapter extends ClientAdapter {
         } else if (clientOp.getBody() != null) {
             String resolvedBody;
             MediaType bodyMediaType = MediaType.APPLICATION_JSON;
+            boolean renderedAsJson = true;
 
             Object bodySpec = clientOp.getBody();
             if (bodySpec instanceof String) {
-                // Legacy: plain Mustache template string
+                // Legacy: plain Mustache template string, sent as application/json, so caller
+                // values are JSON-encoded and cannot change the document's structure.
                 rejectUnresolved("body", (String) bodySpec, parameters);
-                resolvedBody = Resolver.resolveMustacheTemplate((String) bodySpec, parameters);
+                resolvedBody = Resolver.resolveJsonTemplate((String) bodySpec, parameters);
             } else {
                 // Structured {type, data} RequestBody object
                 @SuppressWarnings("unchecked")
                 Map<String, Object> bodyMap = (Map<String, Object>) bodySpec;
                 String bodyType = String.valueOf(bodyMap.getOrDefault("type", "json"));
+                boolean jsonBody = "json".equalsIgnoreCase(bodyType);
                 Object data = bodyMap.get("data");
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType) && data instanceof Map) {
+                    renderedAsJson = false;
                     resolvedBody = FormUrlEncodedBody.encode((Map<?, ?>) data, parameters);
                 } else if (data instanceof String) {
+                    renderedAsJson = jsonBody;
                     // String data (text/xml/sparql, pre-encoded form, or a JSON template) is sent
                     // as-is after Mustache resolution, never JSON-quoted. A pre-encoded form only
-                    // encodes the substituted values (see FormUrlEncodedBody#resolve).
+                    // encodes the substituted values (see FormUrlEncodedBody#resolve), and a JSON
+                    // template JSON-encodes them (see Resolver#resolveJsonTemplate).
                     rejectUnresolved("body", (String) data, parameters);
-                    resolvedBody = "formUrlEncoded".equalsIgnoreCase(bodyType)
-                            ? FormUrlEncodedBody.resolve((String) data, parameters)
-                            : Resolver.resolveMustacheTemplate((String) data, parameters);
+                    if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
+                        resolvedBody = FormUrlEncodedBody.resolve((String) data, parameters);
+                    } else if (jsonBody) {
+                        resolvedBody = Resolver.resolveJsonTemplate((String) data, parameters);
+                    } else {
+                        resolvedBody = Resolver.resolveMustacheTemplate((String) data, parameters);
+                    }
                 } else {
-                    String dataStr;
+                    // Structured data (a YAML object or array): build the JSON tree directly, so
+                    // an absent placeholder member is left out and values keep their JSON type.
                     try {
-                        dataStr = JSON.writeValueAsString(data);
+                        resolvedBody = JSON.writeValueAsString(
+                                Resolver.resolveJsonData(data, parameters));
                     } catch (JacksonException e) {
                         throw new IllegalArgumentException(
                                 "Invalid structured body data for operation: "
@@ -281,8 +309,6 @@ public class HttpClientAdapter extends ClientAdapter {
                                         + operationName,
                                 e);
                     }
-                    rejectUnresolved("body", dataStr, parameters);
-                    resolvedBody = Resolver.resolveMustacheTemplate(dataStr, parameters);
                 }
                 if ("formUrlEncoded".equalsIgnoreCase(bodyType)) {
                     bodyMediaType = MediaType.APPLICATION_WWW_FORM;
@@ -291,6 +317,10 @@ public class HttpClientAdapter extends ClientAdapter {
                 } else if ("sparql".equalsIgnoreCase(bodyType)) {
                     bodyMediaType = MediaType.valueOf("application/sparql-query");
                 }
+            }
+
+            if (renderedAsJson) {
+                requireValidJson(resolvedBody, operationName);
             }
 
             clientRequest.setEntity(resolvedBody, bodyMediaType);
@@ -374,6 +404,49 @@ public class HttpClientAdapter extends ClientAdapter {
                     "A multipartForm body requires a list of parts in 'data'");
         }
         return parts;
+    }
+
+    /**
+     * Fail closed when a rendered JSON body is not a single valid JSON document, for example when
+     * an unquoted placeholder received a value that breaks the syntax. A blank body (a template
+     * that rendered to nothing) is left alone, as before. The body itself is not echoed, since it
+     * may carry caller data or credentials.
+     *
+     * <p>A body where two members of the same object have the same key is rejected too: a
+     * placeholder in a member name ({@code "{{field}}":"{{value}}"}) could otherwise repeat a
+     * member the template already sets, and most upstreams keep the last one
+     * (GHSA-6359-rp48-m9j6).</p>
+     */
+    private void requireValidJson(String body, String operationName) {
+        if (body.isBlank()) {
+            return;
+        }
+        String operation = getHttpClientSpec().getNamespace() + "." + operationName;
+        if (!parsesAsJson(body, false)) {
+            throw new IllegalArgumentException("Rendered JSON body is not valid JSON for operation: "
+                    + operation
+                    + ". Check that string placeholders are quoted in the body template.");
+        }
+        if (!parsesAsJson(body, true)) {
+            throw new IllegalArgumentException(
+                    "Two members of the rendered JSON body have the same key for operation: "
+                            + operation
+                            + ". A placeholder in a member name must not repeat another member.");
+        }
+    }
+
+    static boolean parsesAsJson(String body, boolean rejectDuplicateKeys) {
+        ObjectReader reader = JSON.readerFor(JsonNode.class)
+                .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        if (rejectDuplicateKeys) {
+            reader = reader.with(StreamReadFeature.STRICT_DUPLICATE_DETECTION);
+        }
+        try {
+            JsonNode parsed = reader.readValue(body);
+            return parsed != null && !parsed.isMissingNode();
+        } catch (JacksonException e) {
+            return false;
+        }
     }
 
     /**

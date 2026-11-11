@@ -3,7 +3,7 @@
 #
 # The `hosts` entry references key CUSTOM_DOMAIN, which the `deploy` binding
 # does not declare.
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 
 info:
   display: "Shared listener — unbound host"

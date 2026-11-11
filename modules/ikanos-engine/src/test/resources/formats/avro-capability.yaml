@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta10
 info:
   display: Avro Test Capability
   description: Test capability for Avro message decoding from API responses

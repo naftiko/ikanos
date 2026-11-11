@@ -180,6 +180,43 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void handleShouldReturnBadRequestWhenBodyParameterDoesNotMatchDeclaredType()
+      throws Exception {
+    Capability capability = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/users"
+                          operations:
+                            - method: "POST"
+                              name: "create"
+                              inputParameters:
+                                - name: "email"
+                                  in: "body"
+                                  type: string
+                  consumes: []
+                """.formatted(schemaVersion));
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request request = new Request(Method.POST, "http://localhost/users");
+    request.setEntity("{\"email\":{\"$ne\":\"\"}}", MediaType.APPLICATION_JSON);
+    Response response = new Response(request);
+
+    restlet.handle(request, response);
+
+    assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus(),
+        "A type mismatch is the caller's error, not a server error");
+  }
+
+  @Test
   public void mapOutputParametersShouldReturnNullWhenClientEntityIsMissing() throws Exception {
     Capability capability = capabilityFromYaml(minimalCapabilityYaml());
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)

@@ -1,16 +1,16 @@
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 info:
-  display: Native Regression — HTTP Connector
+  display: Package Regression — HTTP Connector
   description: >
-    Minimal REST capability used by the native-image regression guard in
-    publish-cli-bin.yml. Serving it forces ServerAdapter to instantiate the
-    Restlet HTTP server connector (new Server(Protocol.HTTP, ...)), which is the
-    exact reflection path that crashed in alpha4 when org.restlet classes were
-    missing from reflect-config.json (see #581). Self-contained: no external file
-    or skill location dependency, so `ikanos serve` can run it unattended in CI.
+    Minimal REST capability used by the package regression guards in
+    publish-cli-packages.yml: `validate` checks it, and the control port guard
+    serves it and sends real HTTP requests to every control route. Serving it
+    instantiates the Restlet HTTP server connector (new Server(Protocol.HTTP,
+    ...)). Self-contained: no external file or skill location dependency, so
+    `ikanos serve` can run it unattended in CI.
   tags:
   - test
-  - native-regression
+  - package-regression
   created: '2026-06-17'
   modified: '2026-06-17'
 capability:
@@ -33,7 +33,7 @@ capability:
     address: localhost
     port: 9612
     namespace: regression-skills
-    description: Native regression skills-only MCP server
+    description: Package regression skills-only MCP server
     skills:
       networknt-probe:
         description: >

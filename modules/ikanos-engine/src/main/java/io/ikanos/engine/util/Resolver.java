@@ -13,7 +13,6 @@
  */
 package io.ikanos.engine.util;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -97,27 +96,46 @@ public class Resolver {
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
             java.util.function.UnaryOperator<String> valueEncoder) {
+        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
+        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        return render(template, parameters, val -> {
+            if (val instanceof java.util.Collection || val instanceof Object[]) {
+                try {
+                    return jsonMapper.writeValueAsString(val);
+                } catch (JacksonException e) {
+                    // keep the plain value
+                }
+            }
+            return val;
+        }, valueEncoder == null ? null
+                : value -> valueEncoder.apply(String.valueOf(value)));
+    }
+
+    /**
+     * Shared rendering behind {@link #resolveMustacheTemplate(String, Map, java.util.function.UnaryOperator)}
+     * and {@link #resolveJsonTemplate(String, Map)}, so both follow the same rules for sections,
+     * missing variables and empty parameter maps.
+     *
+     * @param template the template string containing {{...}} placeholders
+     * @param parameters map of parameter names to values, may be null
+     * @param prepare transformation of each top-level parameter value before rendering
+     * @param formatter text written for each rendered value, or {@code null} for
+     *        {@code String.valueOf}; never applied when there are no parameters
+     * @return the rendered template, or {@code null} if {@code template} is null
+     */
+    private static String render(String template, Map<String, Object> parameters,
+            java.util.function.UnaryOperator<Object> prepare, Mustache.Formatter formatter) {
         if (template == null) {
             return template;
         }
 
         boolean noParameters = parameters == null || parameters.isEmpty();
 
-        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
-        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
         Map<String, Object> serialized = new HashMap<>();
-        ObjectMapper jsonMapper = IkanosMappers.json();
         if (!noParameters) {
             for (Map.Entry<String, Object> entry : parameters.entrySet()) {
-                Object val = entry.getValue();
-                if (val instanceof java.util.Collection || val instanceof Object[]) {
-                    try {
-                        val = jsonMapper.writeValueAsString(val);
-                    } catch (JacksonException e) {
-                        // keep the plain value
-                    }
-                }
-                serialized.put(entry.getKey(), val);
+                serialized.put(entry.getKey(), prepare.apply(entry.getValue()));
             }
         }
 
@@ -132,10 +150,10 @@ public class Resolver {
         // Required-value checks do not read this leftover: they call missingVariables(...).
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
                 .defaultValue(noParameters ? UNRESOLVED_VARIABLE : "");
-        if (valueEncoder != null && !noParameters) {
+        if (formatter != null && !noParameters) {
             // The formatter runs on every rendered value, whatever its path or tag, and only on
             // rendering: sections still see the original values.
-            compiler = compiler.withFormatter(value -> valueEncoder.apply(String.valueOf(value)));
+            compiler = compiler.withFormatter(formatter);
         }
         if (noParameters) {
             // Nothing can be substituted: a string that is not a valid template (for example a
@@ -433,6 +451,243 @@ public class Resolver {
     }
 
     /**
+     * Render a template that produces a JSON document (a {@code type: json} request body), so that
+     * substituted values cannot change the document's structure.
+     *
+     * <ul>
+     * <li>A string value is JSON-escaped (quotes, backslashes, control characters) and written
+     * without surrounding quotes, so the template keeps quoting it: {@code "{{v}}"} stays one JSON
+     * string whatever {@code v} contains.</li>
+     * <li>A map, list or array value is written as JSON ({@code {{props}}} becomes
+     * {@code {"tokens":5}}), with every nested string escaped.</li>
+     * <li>Numbers and booleans are written as is; NaN and infinities are written as
+     * {@code null}.</li>
+     * </ul>
+     *
+     * <p>Template authors must still quote string placeholders. An unquoted {@code {{v}}} where
+     * {@code v} is a caller string cannot add a member (its quotes are escaped), but it can still
+     * inject JSON syntax such as {@code true}, {@code [..]} or {@code {..}} in place of the value,
+     * or make the document invalid. Leave a placeholder unquoted only when the parameter is
+     * declared as a number, boolean, object or array.</p>
+     *
+     * <p>The escaping applies to every rendered value, including nested values such as step
+     * outputs ({@code {{step.field}}}). Sections and missing variables behave as in
+     * {@link #resolveMustacheTemplate(String, Map)}, including when there are no parameters at
+     * all. A section over a top-level list or array renders once, as an "if present" guard; a list
+     * nested in a map ({@code {{#step.items}}}) is still iterated, as before.</p>
+     *
+     * @param template the JSON template containing {{...}} placeholders
+     * @param parameters map of parameter names to values for template resolution, may be null
+     * @return the rendered JSON text, or {@code null} if {@code template} is null
+     */
+    public static String resolveJsonTemplate(String template, Map<String, Object> parameters) {
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        return render(template, parameters, Resolver::wrapJsonCollections,
+                value -> toJsonFragment(value, jsonMapper));
+    }
+
+    /**
+     * Wrap top-level lists and arrays so a section over them is a single "if present" guard
+     * instead of a loop over the elements. Maps stay maps, so {@code {{step.field}}} still works.
+     * Inside such a section, {@code {{.}}} refers to the whole list and is written as JSON.
+     */
+    private static Object wrapJsonCollections(Object value) {
+        if (value instanceof java.util.Collection || value instanceof Object[]) {
+            return new JsonValue(value);
+        }
+        return value;
+    }
+
+    /**
+     * Text written for one substituted value in a JSON template.
+     */
+    static String toJsonFragment(Object value, ObjectMapper jsonMapper) {
+        Object raw = value instanceof JsonValue json ? json.value() : value;
+        if (raw instanceof CharSequence || raw instanceof Character) {
+            String quoted = jsonMapper.writeValueAsString(raw.toString());
+            return quoted.substring(1, quoted.length() - 1);
+        }
+        if (raw instanceof Boolean) {
+            return String.valueOf(raw);
+        }
+        if (raw instanceof Number number) {
+            // NaN and infinities are not valid JSON numbers.
+            if ((number instanceof Double d && !Double.isFinite(d))
+                    || (number instanceof Float f && !Float.isFinite(f))) {
+                return "null";
+            }
+            return String.valueOf(raw);
+        }
+        return jsonMapper.writeValueAsString(raw);
+    }
+
+    /**
+     * A list or array parameter of a JSON template. Truthy for a section, rendered as JSON.
+     */
+    private record JsonValue(Object value) {
+    }
+
+    /** A string that is exactly one variable tag, e.g. {@code "{{name}}"} or {@code "{{a.b}}"}. */
+    private static final java.util.regex.Pattern SINGLE_PLACEHOLDER =
+            java.util.regex.Pattern.compile("^\\{\\{\\s*([A-Za-z0-9_.\\-]+)\\s*\\}\\}$");
+
+    /**
+     * Build a JSON body from structured {@code data} (a YAML object or array), #850.
+     *
+     * <ul>
+     * <li>A string that is exactly one placeholder ({@code "{{x}}"}, {@code "{{step.field}}"})
+     * becomes the value of {@code x} with its JSON type: string, number, boolean, object or
+     * array. When {@code x} is absent or null, the member (or array element) is left out.</li>
+     * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly
+     * (quotes and backslashes included) and each substituted value is inserted as text, a list,
+     * map or array value as its JSON text.</li>
+     * <li>Numbers, booleans, null and nested objects or arrays are kept, recursively.</li>
+     * <li>Placeholders in object keys are resolved the same way as interpolated strings. Two
+     * members that resolve to the same key are rejected, so a caller value cannot replace a
+     * member the capability author fixed.</li>
+     * </ul>
+     *
+     * @param data the structured body data, as read from the capability
+     * @param parameters the request parameters, may be null
+     * @return the JSON node to send
+     */
+    public static JsonNode resolveJsonData(Object data, Map<String, Object> parameters) {
+        ObjectMapper jsonMapper = IkanosMappers.json();
+        JsonNode resolved = resolveJsonDataNode(data, parameters, jsonMapper);
+        return resolved != null ? resolved : NullNode.instance;
+    }
+
+    /**
+     * @return the resolved node, or {@code null} when the value is a placeholder for an absent
+     *         parameter and must be left out
+     */
+    private static JsonNode resolveJsonDataNode(Object data, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        if (data instanceof Map<?, ?> map) {
+            ObjectNode object = jsonMapper.createObjectNode();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                JsonNode value = resolveJsonDataNode(entry.getValue(), parameters, jsonMapper);
+                if (value != null) {
+                    String key = resolveJsonKey(String.valueOf(entry.getKey()), parameters,
+                            jsonMapper);
+                    // A placeholder key must not replace another member, in particular one the
+                    // capability author fixed. The key is not echoed: it may be caller data.
+                    if (object.has(key)) {
+                        throw new IllegalArgumentException(
+                                "Two members of structured JSON body data resolve to the same key");
+                    }
+                    object.set(key, value);
+                }
+            }
+            return object;
+        }
+        if (data instanceof java.util.Collection<?> items) {
+            ArrayNode array = jsonMapper.createArrayNode();
+            for (Object item : items) {
+                JsonNode value = resolveJsonDataNode(item, parameters, jsonMapper);
+                if (value != null) {
+                    array.add(value);
+                }
+            }
+            return array;
+        }
+        if (data instanceof String text) {
+            java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
+            if (single.matches()) {
+                Object value = lookupPath(parameters, single.group(1));
+                return value == null ? null : toJsonNode(value, jsonMapper);
+            }
+            if (text.contains("{{")) {
+                return jsonMapper.getNodeFactory().stringNode(
+                        renderAsJsonStringContent(text, parameters, jsonMapper));
+            }
+            return jsonMapper.getNodeFactory().stringNode(text);
+        }
+        return jsonMapper.valueToTree(data);
+    }
+
+    /**
+     * Resolve placeholders in an object key of structured data; the key always stays a string.
+     */
+    private static String resolveJsonKey(String key, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        return key.contains("{{") ? renderAsJsonStringContent(key, parameters, jsonMapper) : key;
+    }
+
+    /**
+     * Render a template whose result is the content of one JSON string. The template text is
+     * first written as a JSON string literal, so its own quotes and backslashes are escaped like
+     * the substituted values, then the rendered literal is read back as a plain string.
+     */
+    private static String renderAsJsonStringContent(String text, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        String quoted = jsonMapper.writeValueAsString(text);
+        String rendered = renderInsideJsonString(quoted, parameters, jsonMapper);
+        return jsonMapper.readValue(rendered, String.class);
+    }
+
+    /**
+     * Render a template that is the body of one JSON string literal: every substituted value is
+     * escaped as string content, a list, map or array value as the escaped text of its JSON.
+     */
+    private static String renderInsideJsonString(String quotedTemplate,
+            Map<String, Object> parameters, ObjectMapper jsonMapper) {
+        if (parameters == null || parameters.isEmpty()) {
+            return quotedTemplate;
+        }
+        Map<String, Object> wrapped = new HashMap<>();
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            wrapped.put(entry.getKey(), wrapJsonCollections(entry.getValue()));
+        }
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("")
+                .withFormatter(value -> {
+                    Object raw = value instanceof JsonValue json ? json.value() : value;
+                    String text = raw instanceof Map<?, ?> || raw instanceof java.util.Collection<?>
+                            || raw instanceof Object[]
+                                    ? jsonMapper.writeValueAsString(raw)
+                                    : String.valueOf(raw);
+                    String quoted = jsonMapper.writeValueAsString(text);
+                    return quoted.substring(1, quoted.length() - 1);
+                });
+        return compiler.compile(quotedTemplate).execute(wrapped);
+    }
+
+    /**
+     * Look up a dotted path ({@code a.b.c}) as Mustache does: the whole name first, then each
+     * segment through nested maps.
+     */
+    private static Object lookupPath(Map<String, Object> parameters, String path) {
+        if (parameters == null) {
+            return null;
+        }
+        if (parameters.containsKey(path)) {
+            return parameters.get(path);
+        }
+        Object current = parameters;
+        for (String segment : path.split("\\.")) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(segment);
+        }
+        return current;
+    }
+
+    /**
+     * Convert a parameter value to a JSON node, keeping its type. Non-finite numbers become null.
+     */
+    private static JsonNode toJsonNode(Object value, ObjectMapper jsonMapper) {
+        if ((value instanceof Double d && !Double.isFinite(d))
+                || (value instanceof Float f && !Float.isFinite(f))) {
+            return NullNode.instance;
+        }
+        if (value instanceof Character c) {
+            return jsonMapper.getNodeFactory().stringNode(c.toString());
+        }
+        return jsonMapper.valueToTree(value);
+    }
+
+    /**
      * Resolve a single InputParameterSpec from a request, extracting the value based on the
      * parameter location (path, query, header, environment, or body).
      * 
@@ -444,6 +699,104 @@ public class Resolver {
      */
     public static Object resolveInputParameterFromRequest(InputParameterSpec spec, Request request,
             JsonNode root, ObjectMapper mapper) {
+        return requireDeclaredInputType(spec,
+                resolveUncheckedInputParameterFromRequest(spec, request, root, mapper));
+    }
+
+    /**
+     * Check a caller value against the declared {@code type} of an exposed input parameter. A
+     * structured JSON body sends a placeholder's value with its JSON type, so without this check
+     * a caller could send an object, an array or a boolean where the capability declares a string
+     * (GHSA-6359-rp48-m9j6).
+     *
+     * <ul>
+     * <li>A string is accepted for every type: path, query and header values are always
+     * strings, and a string stays a JSON string.</li>
+     * <li>{@code string}: a number or boolean is written as text; an object or array is
+     * rejected.</li>
+     * <li>{@code number}: a number is accepted; {@code integer}: a number without a fractional
+     * part. {@code boolean}, {@code object}, {@code array}: a value of that type.</li>
+     * <li>A null value, and a parameter with no declared or an unknown type, are left
+     * unchanged.</li>
+     * </ul>
+     *
+     * @param spec the declared parameter, may be null
+     * @param value the caller value, may be null
+     * @return the value to use: unchanged, or written as text for a declared {@code string}
+     * @throws IllegalArgumentException when the value does not match the declared type; the
+     *         message names the parameter but not the value, which is caller data
+     */
+    public static Object requireDeclaredInputType(InputParameterSpec spec, Object value) {
+        if (spec == null || spec.getType() == null || value == null) {
+            return value;
+        }
+        String kind = jsonKindOf(value);
+        if ("string".equals(kind) || kind == null) {
+            return value;
+        }
+        String type = spec.getType().toLowerCase();
+        boolean matches = switch (type) {
+            case "string" -> "number".equals(kind) || "boolean".equals(kind);
+            case "number" -> "number".equals(kind);
+            case "integer" -> "number".equals(kind) && isIntegral(value);
+            case "boolean", "object", "array" -> type.equals(kind);
+            default -> true;
+        };
+        if (!matches) {
+            throw new IllegalArgumentException("Input parameter '" + spec.getName()
+                    + "' does not match its declared type '" + spec.getType() + "'");
+        }
+        if ("string".equals(type)) {
+            return value instanceof JsonNode node ? node.asString() : String.valueOf(value);
+        }
+        return value;
+    }
+
+    /**
+     * @return the JSON type of a caller value ({@code string}, {@code number}, {@code boolean},
+     *         {@code object} or {@code array}), or {@code null} when it has none
+     */
+    private static String jsonKindOf(Object value) {
+        if (value instanceof JsonNode node) {
+            if (node.isString()) {
+                return "string";
+            } else if (node.isNumber()) {
+                return "number";
+            } else if (node.isBoolean()) {
+                return "boolean";
+            } else if (node.isObject()) {
+                return "object";
+            } else if (node.isArray()) {
+                return "array";
+            }
+            return null;
+        }
+        if (value instanceof CharSequence || value instanceof Character) {
+            return "string";
+        } else if (value instanceof Number) {
+            return "number";
+        } else if (value instanceof Boolean) {
+            return "boolean";
+        } else if (value instanceof Map<?, ?>) {
+            return "object";
+        } else if (value instanceof java.util.Collection<?> || value instanceof Object[]) {
+            return "array";
+        }
+        return null;
+    }
+
+    private static boolean isIntegral(Object value) {
+        Number number = value instanceof JsonNode node ? node.numberValue() : (Number) value;
+        try {
+            return new BigDecimal(number.toString()).stripTrailingZeros().scale() <= 0;
+        } catch (NumberFormatException e) {
+            // NaN or an infinity
+            return false;
+        }
+    }
+
+    private static Object resolveUncheckedInputParameterFromRequest(InputParameterSpec spec,
+            Request request, JsonNode root, ObjectMapper mapper) {
         if (spec == null || spec.getName() == null) {
             return null;
         }
@@ -518,8 +871,13 @@ public class Resolver {
                         return null;
                     }
 
-                    // Otherwise return raw body node
-                    return root;
+                    // Otherwise return the raw body node, when it can be the declared type: a
+                    // missing string parameter is absent, not the whole body.
+                    if (spec.getType() == null
+                            || spec.getType().equalsIgnoreCase(jsonKindOf(root))) {
+                        return root;
+                    }
+                    return null;
                 }
             }
         } catch (RuntimeException e) {
@@ -530,13 +888,42 @@ public class Resolver {
 
 
     /**
+     * Write the operator's {@code in: environment} parameters into {@code parameters}, before any
+     * URI, body or authentication template is rendered (GHSA-23xc-9c84-r6qv). A parameter without
+     * {@code value} or {@code template} takes the environment variable of its name; when the
+     * variable is unset, a caller value with the same name is removed, so that no template uses it
+     * instead.
+     *
+     * <p>Nothing is caught here: a map that cannot be updated fails the call rather than leave a
+     * caller value in place.</p>
+     */
+    public static void applyEnvironmentParameters(List<InputParameterSpec> specs,
+            Map<String, Object> parameters) {
+        if (specs == null || parameters == null) {
+            return;
+        }
+        for (InputParameterSpec spec : specs) {
+            if (!"environment".equalsIgnoreCase(spec.getIn()) || spec.getValue() != null
+                    || spec.getTemplate() != null) {
+                continue;
+            }
+            String value = System.getenv(spec.getName());
+            if (value != null) {
+                parameters.put(spec.getName(), value);
+            } else {
+                parameters.remove(spec.getName());
+            }
+        }
+    }
+
+    /**
      * Apply a list of input parameter specs to a client request (headers and query params).
      * 
      * Resolution priority for parameter values:
      * 1. 'value' field - resolved with Mustache template syntax ({{paramName}}) for dynamic resolution
      * 2. 'template' field - resolved with Mustache syntax
-     * 3. Parameters map - direct lookup by parameter name
-     * 4. Environment variables - for 'environment' location
+     * 3. Environment variables - for 'environment' location, never the parameters map
+     * 4. Parameters map - direct lookup by parameter name
      */
     public static void resolveInputParametersToRequest(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters) {
@@ -556,6 +943,7 @@ public class Resolver {
         if (specs == null || specs.isEmpty() || clientRequest == null) {
             return;
         }
+        applyEnvironmentParameters(specs, parameters);
         Set<String> supplied = parameters == null ? Set.of()
                 : new HashSet<>(parameters.keySet());
 
@@ -576,10 +964,11 @@ public class Resolver {
                     }
                     // A whole-value placeholder keeps the parameter's type (#880)
                     val = Resolver.resolveValue(template, parameters);
+                } else if ("environment".equalsIgnoreCase(in)) {
+                    // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
+                    val = System.getenv(spec.getName());
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
-                } else if ("environment".equalsIgnoreCase(in)) {
-                    val = System.getenv(spec.getName());
                 }
 
                 if (val == null) {
@@ -603,21 +992,33 @@ public class Resolver {
                     clientRequest.getHeaders().set(wireName,
                             elements != null ? String.join(",", elements) : val.toString());
                 } else if ("query".equalsIgnoreCase(in)) {
-                    String old = clientRequest.getResourceRef().toString();
-                    StringBuilder ref = new StringBuilder(old);
-                    char separator = old.contains("?") ? '&' : '?';
-                    String encodedName = java.net.URLEncoder.encode(wireName, "UTF-8");
+                    String ref = clientRequest.getResourceRef().toString();
                     for (String value : queryValues(spec, val)) {
-                        ref.append(separator).append(encodedName).append('=')
-                                .append(java.net.URLEncoder.encode(value, "UTF-8"));
-                        separator = '&';
+                        ref = appendQueryParameter(ref, wireName, value);
                     }
-                    clientRequest.setResourceRef(ref.toString());
+                    clientRequest.setResourceRef(ref);
                 }
-            } catch (IOException | RuntimeException e) {
+            } catch (RuntimeException e) {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    /**
+     * Appends one query parameter to a URL, with its name and value URL-encoded (UTF-8, a space
+     * as {@code +}), after {@code ?} or {@code &} as the URL needs. Every consumed query parameter
+     * goes through here, an API key placed in the query included (#841), so a value with
+     * {@code +}, {@code &}, {@code =} or {@code #} reaches the API unchanged.
+     *
+     * @param ref the URL, which may already have a query
+     * @param name the parameter name, not encoded
+     * @param value the parameter value, not encoded
+     * @return the URL with the parameter appended
+     */
+    public static String appendQueryParameter(String ref, String name, String value) {
+        return ref + (ref.contains("?") ? '&' : '?')
+                + java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8) + '='
+                + java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**

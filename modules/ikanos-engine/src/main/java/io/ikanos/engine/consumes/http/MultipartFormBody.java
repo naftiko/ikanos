@@ -19,7 +19,9 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.restlet.data.MediaType;
 import org.restlet.data.Parameter;
 import org.restlet.util.Series;
@@ -32,6 +34,11 @@ import io.ikanos.engine.util.Resolver;
  * {@code contentType} are Mustache-rendered; a substituted value is caller data and is never
  * interpreted, even when it contains braces. A part with {@code encoding: base64} is sent as the
  * decoded bytes of its rendered value, so a binary file can be passed as a string argument.</p>
+ *
+ * <p>A part whose rendered {@code contentType} is JSON ({@code application/json} or a
+ * {@code +json} type) is rendered like a JSON body: substituted values are JSON-encoded, and the
+ * value must be a single JSON document with no repeated member key, so a caller value cannot add
+ * or replace members (GHSA-6359-rp48-m9j6).</p>
  *
  * <p>Header values are quoted, and a caller value cannot close the quotes or add a header line:
  * {@code "}, CR and LF are percent-encoded, as browsers do for {@code multipart/form-data}
@@ -70,7 +77,6 @@ public final class MultipartFormBody {
                 throw new IllegalArgumentException("A multipartForm part requires a name");
             }
             String name = String.valueOf(rawName);
-            String value = render(name, spec.get("value"), parameters, noParameters);
             String filename = render(name, spec.get("filename"), parameters, noParameters);
             String contentType = render(name, spec.get("contentType"), parameters, noParameters);
             if (contentType != null && (contentType.indexOf('\r') >= 0
@@ -80,8 +86,15 @@ public final class MultipartFormBody {
                 throw new IllegalArgumentException(
                         "Line break in the contentType of multipartForm part '" + name + "'");
             }
+            boolean base64 = "base64".equalsIgnoreCase(String.valueOf(spec.get("encoding")));
+            boolean json = !base64 && isJson(contentType);
+            String value = render(name, spec.get("value"), parameters, noParameters,
+                    json ? Resolver::resolveJsonTemplate : Resolver::resolveMustacheTemplate);
+            if (json) {
+                requireValidJson(name, value);
+            }
             byte[] content;
-            if ("base64".equalsIgnoreCase(String.valueOf(spec.get("encoding")))) {
+            if (base64) {
                 try {
                     // Strip whitespace so line-wrapped input decodes; reject anything else.
                     content = Base64.getDecoder()
@@ -135,6 +148,12 @@ public final class MultipartFormBody {
 
     private static String render(String partName, Object raw, Map<String, Object> parameters,
             boolean noParameters) {
+        return render(partName, raw, parameters, noParameters, Resolver::resolveMustacheTemplate);
+    }
+
+    private static String render(String partName, Object raw, Map<String, Object> parameters,
+            boolean noParameters,
+            BiFunction<String, Map<String, Object>, String> renderer) {
         if (raw == null) {
             return null;
         }
@@ -148,7 +167,39 @@ public final class MultipartFormBody {
                         + "multipartForm part '" + partName + "': " + missing);
             }
         }
-        return Resolver.resolveMustacheTemplate(text, parameters);
+        return renderer.apply(text, parameters);
+    }
+
+    /** {@code application/json} or a structured {@code +json} type, parameters ignored. */
+    static boolean isJson(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        int semicolon = contentType.indexOf(';');
+        String type = (semicolon >= 0 ? contentType.substring(0, semicolon) : contentType)
+                .trim().toLowerCase(Locale.ROOT);
+        return type.equals("application/json") || type.endsWith("+json");
+    }
+
+    /**
+     * Same checks as a JSON body (see {@code HttpClientAdapter#requireValidJson}): a single valid
+     * JSON document, with no repeated member key. A blank value is left alone. Neither message
+     * echoes the value.
+     */
+    private static void requireValidJson(String partName, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        if (!HttpClientAdapter.parsesAsJson(value, false)) {
+            throw new IllegalArgumentException("Rendered JSON value of multipartForm part '"
+                    + partName + "' is not valid JSON. Check that string placeholders are quoted "
+                    + "in the part template.");
+        }
+        if (!HttpClientAdapter.parsesAsJson(value, true)) {
+            throw new IllegalArgumentException("Two members of the rendered JSON value of "
+                    + "multipartForm part '" + partName + "' have the same key. A placeholder in "
+                    + "a member name must not repeat another member.");
+        }
     }
 
     /**

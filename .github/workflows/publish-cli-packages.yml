@@ -315,7 +315,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          FIXTURE="modules/ikanos-cli/src/test/resources/package-regression/serve-http.ikanos.yaml"
           OUT=$(ikanos validate "$FIXTURE" 2>&1 || true)
           echo "$OUT"
           if echo "$OUT" | grep -E "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError"; then
@@ -327,7 +327,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $FIXTURE = "modules/ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml"
+          $FIXTURE = "modules/ikanos-cli/src/test/resources/package-regression/serve-http.ikanos.yaml"
           $OUT = (& ikanos validate $FIXTURE 2>&1 | Out-String)
           Write-Host $OUT
           if ($OUT -match "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError") {
@@ -339,7 +339,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-rest-mock.ikanos.yaml"
+          FIXTURE="modules/ikanos-cli/src/test/resources/package-regression/serve-rest-mock.ikanos.yaml"
           REST_PORT=9620
           ikanos serve "$FIXTURE" > serve-rest-mock.log 2>&1 &
           SERVE_PID=$!
@@ -381,7 +381,7 @@ jobs:
             echo "FAIL: GET /greet returned HTTP $STATUS, expected 200 — jlink image accepted the connection but did not serve the request"
             exit 1
           fi
-          if ! printf '%s' "$BODY" | grep -q "Hello from native mock!"; then
+          if ! printf '%s' "$BODY" | grep -q "Hello from the package mock!"; then
             echo "FAIL: GET /greet body did not contain the expected greeting"
             exit 1
           fi
@@ -391,7 +391,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $FIXTURE = "modules/ikanos-cli/src/test/resources/native-regression/serve-rest-mock.ikanos.yaml"
+          $FIXTURE = "modules/ikanos-cli/src/test/resources/package-regression/serve-rest-mock.ikanos.yaml"
           $REST_PORT = 9620
           $proc = Start-Process -FilePath "ikanos" -ArgumentList "serve `"$FIXTURE`"" -RedirectStandardOutput serve-rest-mock.log -RedirectStandardError serve-rest-mock-err.log -PassThru -NoNewWindow
 
@@ -445,7 +445,7 @@ jobs:
             Write-Error "FAIL: GET /greet returned HTTP $status, expected 200 — jlink image accepted the connection but did not serve the request"
             exit 1
           }
-          if ($body -notmatch "Hello from native mock!") {
+          if ($body -notmatch "Hello from the package mock!") {
             Write-Error "FAIL: GET /greet body did not contain the expected greeting"
             exit 1
           }
@@ -456,12 +456,86 @@ jobs:
       # performs an outbound TLS call. A jlink image missing jdk.crypto.ec /
       # jdk.crypto.cryptoki / jdk.security.jgss would pass every check above
       # while silently breaking any `consumes: http` capability over HTTPS.
+      # Real HTTP requests to every control port route, from the installed package. Moved from the
+      # former native binary workflow (#608, #914), so the control port keeps its package-level guard.
+      # It serves its own copy of the fixture on other ports, so it never talks to a server left over
+      # from a previous step.
+      - name: Package regression — control port answers every route over real HTTP (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          FIXTURE="$RUNNER_TEMP/control-port.ikanos.yaml"
+          sed -e 's/port: 9610$/port: 9710/' -e 's/port: 9612$/port: 9712/' -e 's/port: 9619$/port: 9719/' \
+            modules/ikanos-cli/src/test/resources/package-regression/serve-http.ikanos.yaml > "$FIXTURE"
+          grep -q "port: 9719" "$FIXTURE" || { echo "FAIL: could not move the fixture's control port"; exit 1; }
+          BASE="http://127.0.0.1:9719"
+          ikanos serve "$FIXTURE" > serve-control.log 2>&1 &
+          SERVE_PID=$!
+
+          fail() {
+            echo "FAIL: $*"
+            kill "$SERVE_PID" 2>/dev/null || true
+            echo "----- serve-control.log -----"; cat serve-control.log
+            exit 1
+          }
+          # get PATH: sets STATUS and BODY. curl is the external HTTP client.
+          get() {
+            : > body.txt
+            STATUS=$(curl -s -o body.txt -w '%{http_code}' --max-time 5 "$BASE$1" || true)
+            BODY=$(cat body.txt)
+          }
+
+          STATUS=000
+          for _ in $(seq 1 30); do
+            get /health/live
+            [ "$STATUS" = "200" ] && break
+            kill -0 "$SERVE_PID" 2>/dev/null || fail "serve exited before the control port answered"
+            sleep 1
+          done
+          [ "$STATUS" = "200" ] || fail "GET /health/live never answered 200 (last: '$STATUS')"
+          [ "$BODY" = '{"status":"UP"}' ] || fail "unexpected /health/live body: $BODY"
+
+          get /health/ready
+          [ "$STATUS" = "200" ] || fail "GET /health/ready returned $STATUS: $BODY"
+          case "$BODY" in *'"status":"UP"'*) ;; *) fail "unexpected /health/ready body: $BODY" ;; esac
+
+          get /status
+          [ "$STATUS" = "200" ] || fail "GET /status returned $STATUS: $BODY"
+          case "$BODY" in *'"engine":{"version":'*) ;; *) fail "/status has no engine version: $BODY" ;; esac
+          case "$BODY" in
+            *'"otel":{"status":"active"}'*) OTEL=active ;;
+            *'"otel":{"status":"inactive"}'*) OTEL=inactive ;;
+            *) fail "/status has no OpenTelemetry status: $BODY" ;;
+          esac
+          echo "OpenTelemetry in the package: $OTEL"
+
+          # /metrics and /traces must agree with what /status reports.
+          get /metrics; METRICS_STATUS=$STATUS; METRICS_BODY=$BODY
+          get /traces; TRACES_STATUS=$STATUS; TRACES_BODY=$BODY
+          if [ "$OTEL" = "active" ]; then
+            [ "$METRICS_STATUS" = "200" ] || fail "GET /metrics returned $METRICS_STATUS with OpenTelemetry active: $METRICS_BODY"
+            case "$METRICS_BODY" in *ikanos_capability_active*) ;; *) fail "/metrics lacks ikanos_capability_active: $METRICS_BODY" ;; esac
+            [ "$TRACES_STATUS" = "200" ] || fail "GET /traces returned $TRACES_STATUS with OpenTelemetry active: $TRACES_BODY"
+            case "$TRACES_BODY" in *'"traces":'*) ;; *) fail "unexpected /traces body: $TRACES_BODY" ;; esac
+          else
+            [ "$METRICS_STATUS" = "503" ] || fail "GET /metrics returned $METRICS_STATUS with OpenTelemetry inactive, expected 503"
+            [ "$TRACES_STATUS" = "503" ] || fail "GET /traces returned $TRACES_STATUS with OpenTelemetry inactive, expected 503"
+          fi
+
+          kill "$SERVE_PID" 2>/dev/null || true
+          echo "----- serve-control.log -----"; cat serve-control.log
+          if grep -E "NoClassDefFoundError|ClassNotFoundException|ServiceConfigurationError|No available server connector" serve-control.log; then
+            echo "FAIL: jlink module-set regression on the control port"
+            exit 1
+          fi
+          echo "PASS: the control port answered every route over real HTTP."
+
       - name: Package regression — outbound HTTPS call succeeds (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
-          FIXTURE="modules/ikanos-cli/src/test/resources/native-regression/serve-https-outbound.ikanos.yaml"
+          FIXTURE="modules/ikanos-cli/src/test/resources/package-regression/serve-https-outbound.ikanos.yaml"
           HTTPS_PORT=9621
           ikanos serve "$FIXTURE" > serve-https-outbound.log 2>&1 &
           SERVE_PID=$!
@@ -514,7 +588,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $FIXTURE = "modules/ikanos-cli/src/test/resources/native-regression/serve-https-outbound.ikanos.yaml"
+          $FIXTURE = "modules/ikanos-cli/src/test/resources/package-regression/serve-https-outbound.ikanos.yaml"
           $HTTPS_PORT = 9621
           $proc = Start-Process -FilePath "ikanos" -ArgumentList "serve `"$FIXTURE`"" -RedirectStandardOutput serve-https-outbound.log -RedirectStandardError serve-https-outbound-err.log -PassThru -NoNewWindow
 

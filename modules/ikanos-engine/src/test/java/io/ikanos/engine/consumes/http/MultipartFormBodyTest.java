@@ -171,6 +171,62 @@ public class MultipartFormBodyTest {
     }
 
     @Test
+    public void buildShouldJsonEncodeCallerValuesInJsonPart() {
+        // GHSA-6359-rp48-m9j6: a caller value must stay inside its JSON string.
+        MultipartFormBody body = MultipartFormBody.build(List.of(
+                part("metadata", "{\"name\":\"{{name}}\",\"role\":\"user\"}", null,
+                        "application/json", null)),
+                params("name", "x\",\"role\":\"admin"));
+
+        assertEquals("{\"name\":\"x\\\",\\\"role\\\":\\\"admin\",\"role\":\"user\"}",
+                partContent(body));
+    }
+
+    @Test
+    public void buildShouldTreatStructuredJsonTypeWithParametersAsJson() {
+        MultipartFormBody body = MultipartFormBody.build(List.of(
+                part("metadata", "{\"name\":\"{{name}}\"}", null,
+                        "application/vnd.api+json; charset=utf-8", null)),
+                params("name", "a\"b"));
+
+        assertEquals("{\"name\":\"a\\\"b\"}", partContent(body));
+    }
+
+    @Test
+    public void buildShouldRejectRepeatedMemberKeyInJsonPart() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(List.of(
+                        part("metadata", "{\"{{field}}\":\"admin\",\"role\":\"user\"}", null,
+                                "application/json", null)),
+                        params("field", "role")));
+        assertTrue(ex.getMessage().contains("'metadata'")
+                && ex.getMessage().contains("same key"), ex.getMessage());
+        assertFalse(ex.getMessage().contains("admin"), "the value must not be echoed");
+    }
+
+    @Test
+    public void buildShouldRejectJsonPartThatIsNotValidJson() {
+        // An unquoted placeholder: the encoded value cannot add members, so the part is invalid.
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(List.of(
+                        part("metadata", "{\"count\": {{count}}}", null, "application/json",
+                                null)),
+                        params("count", "1, \"role\": \"admin\"")));
+        assertTrue(ex.getMessage().contains("'metadata'")
+                && ex.getMessage().contains("not valid JSON"), ex.getMessage());
+        assertFalse(ex.getMessage().contains("admin"), "the value must not be echoed");
+    }
+
+    @Test
+    public void buildShouldKeepCallerQuotesInNonJsonPart() {
+        MultipartFormBody body = MultipartFormBody.build(List.of(
+                part("note", "{{text}}", null, "text/plain", null)),
+                params("text", "say \"hi\""));
+
+        assertEquals("say \"hi\"", partContent(body));
+    }
+
+    @Test
     public void mediaTypeShouldCarryTheBoundaryParameter() {
         MultipartFormBody body = MultipartFormBody.build(List.of(part("a", "x", null, null, null)),
                 params("k", "v"));
@@ -202,6 +258,14 @@ public class MultipartFormBodyTest {
             map.put(keyValues[i], keyValues[i + 1]);
         }
         return map;
+    }
+
+    /** The content of the only part of {@code body}. */
+    private static String partContent(MultipartFormBody body) {
+        String text = new String(body.bytes(), StandardCharsets.UTF_8);
+        int start = text.indexOf("\r\n\r\n") + 4;
+        int end = text.indexOf("\r\n--" + body.boundary() + "--");
+        return text.substring(start, end);
     }
 
     private static int indexOf(byte[] haystack, byte[] needle) {

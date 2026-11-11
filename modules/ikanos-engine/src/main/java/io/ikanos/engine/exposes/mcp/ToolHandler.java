@@ -33,6 +33,7 @@ import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
@@ -73,6 +74,13 @@ public class ToolHandler {
      */
     private final String maxBinarySize;
 
+    /**
+     * Per-tool input parameters, keyed by tool name: the tool's own, or the aggregate flow's when
+     * the tool declares none. {@code tools/list} advertises them and {@code tools/call} keeps only
+     * the arguments they declare, so the two cannot disagree.
+     */
+    private final Map<String, List<InputParameterSpec>> inputParameters;
+
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools) {
         this(capability, tools, null);
     }
@@ -87,6 +95,7 @@ public class ToolHandler {
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
         this.outputContracts = new ConcurrentHashMap<>();
+        this.inputParameters = new ConcurrentHashMap<>();
         this.stepExecutor = new OperationStepExecutor(capability, exposeNamespace);
         this.exposeNamespace = exposeNamespace;
         this.maxBinarySize = maxBinarySize;
@@ -99,6 +108,7 @@ public class ToolHandler {
                     continue;
                 }
                 toolSpecs.put(tool.getName(), tool);
+                inputParameters.put(tool.getName(), resolveInputParameters(tool));
                 McpToolOutputSchema.Contract contract =
                         McpToolOutputSchema.resolve(tool, capability);
                 if (contract != null) {
@@ -106,6 +116,25 @@ public class ToolHandler {
                 }
             }
         }
+    }
+
+    private List<InputParameterSpec> resolveInputParameters(McpServerToolSpec tool) {
+        List<InputParameterSpec> params = tool.getInputParameters();
+        if ((params == null || params.isEmpty()) && tool.getRef() != null) {
+            params = capability.lookupFlow(tool.getRef()).getInputParameters();
+        }
+        return params != null ? params : List.of();
+    }
+
+    /**
+     * Return the input parameters of a tool: its own, or its aggregate flow's when it declares
+     * none.
+     *
+     * @param toolName the tool name
+     * @return the input parameters, empty when there are none or the tool is unknown
+     */
+    List<InputParameterSpec> getInputParameters(String toolName) {
+        return toolName != null ? inputParameters.getOrDefault(toolName, List.of()) : List.of();
     }
 
     /**
@@ -222,6 +251,13 @@ public class ToolHandler {
             throw new IllegalArgumentException("Unknown tool: " + toolName);
         }
 
+        // Keep only the declared arguments: an undeclared one could replace a value the
+        // operator provides, such as an environment parameter.
+        arguments = declaredArguments(toolName, arguments);
+
+        // Check the arguments against their declared types before any template sees them.
+        arguments = checkArgumentTypes(toolSpec, arguments);
+
         // Merge arguments with tool-level 'with' parameters.
         // 'with' values are Mustache templates resolved against the tool arguments,
         // allowing parameter renaming (e.g. imo → imo_number).
@@ -296,6 +332,55 @@ public class ToolHandler {
 
         // Map the response to MCP CallToolResult
         return buildToolResult(toolSpec, found);
+    }
+
+    /**
+     * Keep the arguments declared by the tool's input parameters (see
+     * {@link #getInputParameters}) and drop the others. An undeclared argument used to reach the
+     * consumed call and replace a value with the same name that the operator provides, such as
+     * an {@code in: environment} parameter (GHSA-23xc-9c84-r6qv).
+     */
+    private Map<String, Object> declaredArguments(String toolName,
+            Map<String, Object> arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return arguments;
+        }
+        Map<String, Object> kept = new HashMap<>();
+        for (InputParameterSpec param : getInputParameters(toolName)) {
+            if (arguments.containsKey(param.getName())) {
+                kept.put(param.getName(), arguments.get(param.getName()));
+            }
+        }
+        return kept;
+    }
+
+    /**
+     * Check each argument against the declared type of its input parameter (tool-level, or the
+     * aggregate flow's when the tool declares none), the same way the REST adapter does. A
+     * structured JSON body keeps a placeholder's JSON type, so an object passed for a string
+     * parameter would otherwise reach the upstream as an object (GHSA-6359-rp48-m9j6).
+     *
+     * @return the arguments to use, with numbers and booleans written as text for a declared
+     *         {@code string}
+     * @throws IllegalArgumentException when an argument does not match its declared type
+     */
+    private Map<String, Object> checkArgumentTypes(McpServerToolSpec toolSpec,
+            Map<String, Object> arguments) {
+        List<InputParameterSpec> declared = toolSpec.getInputParameters();
+        if ((declared == null || declared.isEmpty()) && toolSpec.getRef() != null) {
+            declared = capability.lookupFlow(toolSpec.getRef()).getInputParameters();
+        }
+        if (arguments == null || declared == null || declared.isEmpty()) {
+            return arguments;
+        }
+        Map<String, Object> checked = new HashMap<>(arguments);
+        for (InputParameterSpec param : declared) {
+            if (checked.containsKey(param.getName())) {
+                checked.put(param.getName(),
+                        Resolver.requireDeclaredInputType(param, checked.get(param.getName())));
+            }
+        }
+        return checked;
     }
 
     /**

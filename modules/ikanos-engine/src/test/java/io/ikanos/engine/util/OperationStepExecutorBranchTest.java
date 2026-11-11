@@ -131,7 +131,8 @@ class OperationStepExecutorBranchTest {
         String uri = context.getRequest().getResourceRef().toString();
         assertTrue(uri.startsWith("https://api.example.com/search/"),
                 "#858: braces in a caller value must not be reported as an unresolved template");
-        assertTrue(uri.endsWith("/search/{{x}}"),
+        // The value is sent as one percent-encoded path segment (GHSA-rvg4-2rxw-mc64).
+        assertTrue(uri.endsWith("/search/%7B%7Bx%7D%7D"),
                 "#858: the caller value must be sent, not dropped: " + uri);
     }
 
@@ -241,6 +242,62 @@ class OperationStepExecutorBranchTest {
         assertEquals("acme", resolved.get("X-Tenant"));
         assertEquals("ice", resolved.get("q"));
         assertEquals("i-1", resolved.get("itemId"));
+    }
+
+    @Test
+    void resolveInputParametersFromRequestShouldRejectObjectForStringBodyParameter()
+            throws Exception {
+        // GHSA-6359-rp48-m9j6: a structured JSON body keeps a placeholder's JSON type, so an
+        // object sent for a string parameter would reach the upstream as an object.
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> resolveBodyParameters("{\"email\":{\"$ne\":\"\"}}"));
+
+        assertTrue(error.getMessage().contains("email"));
+    }
+
+    @Test
+    void resolveInputParametersFromRequestShouldWriteNumberAsTextForStringBodyParameter()
+            throws Exception {
+        assertEquals("42", resolveBodyParameters("{\"email\":42}").get("email"));
+    }
+
+    @Test
+    void resolveInputParametersFromRequestShouldLeaveMissingStringBodyParameterAbsent()
+            throws Exception {
+        // A missing body field used to fall back to the whole body, so the request body
+        // became the value of a string parameter.
+        assertNull(resolveBodyParameters("{\"name\":\"x\"}").get("email"));
+    }
+
+    private Map<String, Object> resolveBodyParameters(String body) throws Exception {
+        Capability capability = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/users"
+                          operations:
+                            - method: "POST"
+                              name: "create"
+                              inputParameters:
+                                - name: "email"
+                                  in: "body"
+                                  type: string
+                  consumes: []
+                """.formatted(schemaVersion));
+
+        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
+        RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
+        RestServerOperationSpec operationSpec = resourceSpec.getOperations().values().iterator().next();
+        Request request = new Request(Method.POST, "http://localhost/users");
+        request.setEntity(new StringRepresentation(body, MediaType.APPLICATION_JSON));
+
+        return new OperationStepExecutor(capability).resolveInputParametersFromRequest(request,
+                serverSpec, resourceSpec, operationSpec);
     }
 
     @Test

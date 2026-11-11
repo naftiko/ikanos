@@ -13,7 +13,7 @@
 
     <artifactId>ikanos-cli</artifactId>
     <name>Ikanos CLI</name>
-    <description>Picocli-based CLI tooling (ikanos create, validate, serve, import, export, health, status, traces, metrics, scripting). Houses the shade plugin and native-image config.</description>
+    <description>Picocli-based CLI tooling (ikanos create, validate, serve, import, export, health, status, traces, metrics, scripting). Houses the shade plugin that builds ikanos.jar, the jar of the jlink package and the Docker image.</description>
 
     <dependencies>
         <dependency>
@@ -27,9 +27,8 @@
             <scope>runtime</scope>
         </dependency>
         <!--
-          Store of the local durability mode (embedded H2), discovered with ServiceLoader. In the
-          JVM jar and the Docker image; left out of the native binary (see the native profile),
-          where `local` fails at load naming this module.
+          Store of the local durability mode (embedded H2), discovered with ServiceLoader. In
+          ikanos.jar, so in the jlink package and the Docker image.
         -->
         <dependency>
             <groupId>io.ikanos</groupId>
@@ -154,7 +153,11 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
             </plugin>
 
-            <!-- Shade: ikanos.jar — executable CLI/runtime jar with engine, GraalVM excluded -->
+            <!-- Shade: ikanos.jar — executable CLI/runtime jar with engine. It is the jar of the jlink
+                 package and of the Docker image. The scripting runtimes (GraalVM Polyglot for JS and
+                 Python, Groovy) stay out of it to keep the package small: together they would add
+                 about 225 MB (shared Truffle/Polyglot 41, JS 26, Groovy 8, Python 150) to a jar of
+                 about 80 MB. Without them, a `type: script` step fails at runtime: see #748. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -209,98 +212,5 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <!-- Profile for GraalVM native build -->
-        <profile>
-            <id>native</id>
-            <build>
-                <plugins>
-                    <!-- Create a CLI fat jar without GraalVM/Truffle JARs to avoid version mismatch -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-shade-plugin</artifactId>
-                        <version>3.5.1</version>
-                        <executions>
-                            <execution>
-                                <id>cli-native</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>shade</goal>
-                                </goals>
-                                <configuration>
-                                    <outputFile>${project.build.directory}/cli-native.jar</outputFile>
-                                    <transformers>
-                                        <transformer
-                                            implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>io.ikanos.Cli</mainClass>
-                                        </transformer>
-                                        <transformer
-                                            implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                    </transformers>
-                                    <filters>
-                                        <filter>
-                                            <artifact>*:*</artifact>
-                                            <excludes>
-                                                <exclude>META-INF/*.SF</exclude>
-                                                <exclude>META-INF/*.DSA</exclude>
-                                                <exclude>META-INF/*.RSA</exclude>
-                                            </excludes>
-                                        </filter>
-                                    </filters>
-                                    <artifactSet>
-                                        <excludes>
-                                            <exclude>org.graalvm.truffle:*</exclude>
-                                            <exclude>org.graalvm.polyglot:polyglot</exclude>
-                                            <exclude>org.graalvm.polyglot:js*</exclude>
-                                            <exclude>org.graalvm.polyglot:python*</exclude>
-                                            <exclude>org.graalvm.js:*</exclude>
-                                            <exclude>org.graalvm.python:*</exclude>
-                                            <exclude>org.graalvm.regex:*</exclude>
-                                            <exclude>org.graalvm.shadowed:*</exclude>
-                                            <exclude>org.graalvm.tools:*</exclude>
-                                            <exclude>org.graalvm.llvm:*</exclude>
-                                            <exclude>org.graalvm.sdk:*</exclude>
-                                            <exclude>org.apache.groovy:*</exclude>
-                                            <!-- No H2 in the native binary: untested under native-image -->
-                                            <exclude>io.ikanos:ikanos-durable-store-jdbc</exclude>
-                                            <exclude>com.h2database:h2</exclude>
-                                            <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
-                                        </excludes>
-                                    </artifactSet>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.graalvm.buildtools</groupId>
-                        <artifactId>native-maven-plugin</artifactId>
-                        <version>0.10.3</version>
-                        <executions>
-                            <execution>
-                                <id>build-cli-native</id>
-                                <goals>
-                                    <goal>compile-no-fork</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                    <mainClass>io.ikanos.Cli</mainClass>
-                                    <imageName>ikanos-cli</imageName>
-                                    <classpath>
-                                        <param>${project.build.directory}/cli-native.jar</param>
-                                    </classpath>
-                                    <buildArgs>
-                                        <buildArg>-H:+ReportExceptionStackTraces</buildArg>
-                                        <buildArg>--enable-url-protocols=https</buildArg>
-                                    </buildArgs>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 
 </project>

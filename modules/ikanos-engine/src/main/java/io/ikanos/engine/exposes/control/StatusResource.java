@@ -58,7 +58,6 @@ public class StatusResource extends ServerResource {
         ObjectNode engineNode = MAPPER.createObjectNode();
         engineNode.put("version", VersionHelper.getEngineVersion());
         engineNode.put("java", System.getProperty("java.version"));
-        engineNode.put("native", isNativeImage());
         root.set("engine", engineNode);
 
         // Uptime
@@ -94,9 +93,5 @@ public class StatusResource extends ServerResource {
         root.set("adapters", adaptersNode);
 
         return new StringRepresentation(root.toString(), MediaType.APPLICATION_JSON);
-    }
-
-    static boolean isNativeImage() {
-        return "Substrate VM".equals(System.getProperty("java.vm.name"));
     }
 }

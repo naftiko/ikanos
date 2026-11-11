@@ -83,8 +83,9 @@ mvn clean test -pl modules/ikanos-spec,modules/ikanos-engine -am --no-transfer-p
 # Build Docker image (Maven runs inside Docker — no local Maven needed)
 docker build -f deployment/Dockerfile -t ikanos .
 
-# Build native CLI binary (requires GraalVM 21 — triggered by version tags in CI)
-mvn -B clean package -Pnative -pl modules/ikanos-cli -am
+# Build the CLI jar (modules/ikanos-cli/target/ikanos.jar); CI packages it with a jlink JRE
+# (publish-cli-packages.yml), installed by docs/install.sh and docs/install.ps1
+mvn -B clean package -DskipTests -pl modules/ikanos-cli -am
 
 # Pre-PR validation (Windows)
 .\scripts\pr-check-wind.ps1
@@ -205,6 +206,12 @@ Example: a PR-review agent writes findings to `/memories/repo/pr-review-<PR>.md`
 **Cross-cutting fixes — fix all sites in one pass** — when fixing a shared concern (logging, tracing, MDC, error handling, auth, a shared header), `grep` for **every** site that exhibits the pattern before coding — not just the one in the bug report — and fix them together. Each site you deliberately leave out must carry an explicit written justification (which becomes a PR comment). A reviewer can always find the Nth site you missed, so find it first; "the report only mentioned X and Y" is not a reason to skip the third site. (Discovered on #548: a first fix wired MDC pairing into the REST and MCP SERVER adapters but missed the third, `SkillServerResource`, drawing the PR's only MEDIUM review finding.)
 
 **`exposes`/`consumes` adapters — and any other repeated mechanism across the engine (Mustache resolution, JSONPath extraction, header handling, etc.) — are instances of the same rule.** This engine has several small resolution mechanisms that recur in more than one place, not only across `exposes` vs `consumes`. Before adding or fixing such a mechanism anywhere, grep for other implementations of the same concept first — factor a shared helper by default, specialize only when a real difference forces it; and when fixing a bug in one implementation, check the others for the same defect before closing. Full rationale: `agents-shared/context/engineering.md` (golden-repo-naftiko), "factor by default, specialize by exception" — not restated here. (Instance: #482/#654, the same secret-resolution mechanism reimplemented independently on the `exposes` and `consumes` sides.)
+
+## Vulnerability Findings
+
+Findings reported on `main` by the nightly (Trivy, Gitleaks) follow the
+[Vulnerability Remediation Cadence](https://github.com/naftiko/golden-repo-naftiko/blob/main/agents-shared/context/engineering.md#vulnerability-remediation-cadence):
+deadline per severity and how to accept a finding in `.trivyignore`. It is not restated here.
 
 ## Test Writing Rules
 

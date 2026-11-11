@@ -6,7 +6,7 @@ notion_last_sync: 2026-06-26T13:25:14Z
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
-**Last updated**: 2026-11-03
+**Last updated**: 2026-11-09
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 design doc = 1 feature.
 
@@ -38,7 +38,7 @@ notion_last_sync: 2026-06-26T13:25:14Z
 > It tracks, per feature/design doc, two things over time:
 >
 > 1. **Test coverage** — does a shipped feature have an end-user integration test, and at which
->    level (NATIVE / JVM / NONE)?
+>    level (PACKAGE / JVM / NONE)?
 > 2. **Implementation phases** — which phases declared in the design doc's *Roadmap* are
 >    **actually delivered** today (reconciled against the engine + the GitHub issues), and which
 >    remain.
@@ -57,16 +57,15 @@ notion_last_sync: 2026-06-26T13:25:14Z
 ## Coverage model — two non-orthogonal levels
 
 Testing a feature by booting the adapter **in-process on the JVM** (what the tutorials do)
-validates the **engine feature**, but it bypasses the **CLI and the packaging** (native image /
-Docker / `ikanos serve`). A bug in the CLI, in the native-image configuration, or a feature that
-does not "reflect" correctly through GraalVM native compilation would go unnoticed. The two
-concerns are chained, not orthogonal: a feature is only *fully* validated end-to-end when it is
-exercised through the **path the user actually runs** — the native image.
+validates the **engine feature**, but it bypasses the **CLI and the packaging** (the jlink package /
+Docker / `ikanos serve`). A bug in the CLI, or a JDK module or class missing from the package, would
+go unnoticed. The two concerns are chained, not orthogonal: a feature is only *fully* validated
+end-to-end when it is exercised through the **path the user actually runs** — the installed package.
 
 | Status | Meaning | Implies |
 |---|---|---|
-| **NATIVE** | Level 2 — the capability is launched via the **native image** (Docker built from `deployment/Dockerfile`, or `ikanos serve` on the GraalVM native binary) and driven from the outside. | Level 1 (the feature is necessarily exercised too). |
-| **JVM** *(partial)* | Level 1 only — the adapter is booted **in-process on the JVM** (`io.ikanos.tutorial.*` via `startServerFromSpec()`), against a real backend (Microcks). The feature is validated; the native path is **not**. Easy to upgrade to NATIVE. | — |
+| **PACKAGE** | Level 2 — the capability is launched from the **installed CLI package** (`ikanos serve` from the jlink package that `install.sh` / `install.ps1` install, or the Docker image built from `deployment/Dockerfile`) and driven from the outside. | Level 1 (the feature is necessarily exercised too). |
+| **JVM** *(partial)* | Level 1 only — the adapter is booted **in-process on the JVM** (`io.ikanos.tutorial.*` via `startServerFromSpec()`), against a real backend (Microcks). The feature is validated; the packaged path is **not**. Easy to upgrade to PACKAGE. | — |
 | **NONE** | No end-user integration test. In-process tests that merely load a spec without booting an HTTP server, and unit tests, count as NONE here. | — |
 
 **Where the coverage comes from today** — three layers run every night
@@ -76,43 +75,31 @@ exercised through the **path the user actually runs** — the native image.
   verify` (the tutorial suite). The **consumed backend** is real and dockerized, but the **Ikanos
   capability is booted on the JVM**. → **Level 1 (JVM)** for the tutorial-covered features. ✅
 - **`integration-tests`** → `validate-tuto-examples.yml` — the tutorial examples. Also JVM. ✅
-- **`smoke-tests`** → `publish-cli-bin.yml` — **builds the GraalVM `-Pnative` binary on 4 OS**, then
-  the `test-binary` job exercises the **native binary itself**: `create`, `validate`, and
-  `serve` (booting the Restlet HTTP connector + TCP-probing the exposed REST port). It carries the
-  **reflect-config regression guards for [#581](https://github.com/naftiko/ikanos/issues/581)**
-  (alpha4 shipped a native binary missing `org.restlet` and networknt validator classes from
-  `reflect-config.json`, crashing `serve`/`validate`). → **Level 2 (NATIVE)**. ✅
+- **`smoke-tests`** → `publish-cli-packages.yml` — **builds the jlink package (jar + trimmed JRE) on
+  4 OS**, installs it with the real `install.sh` / `install.ps1`, then the `test-package` job runs the
+  **installed CLI itself**: `create`, `validate`, `serve` with a real HTTP `GET` on a REST mock
+  (`serve-rest-mock.ikanos.yaml`), an outbound HTTPS call (`serve-https-outbound.ikanos.yaml`), and, on
+  Linux and macOS, real requests to every control port route (`serve-http.ikanos.yaml`,
+  [#608](https://github.com/naftiko/ikanos/issues/608)). The fixtures are in
+  `ikanos-cli/src/test/resources/package-regression/`. → **Level 2 (PACKAGE)**. ✅
 
-So NATIVE coverage **does exist and runs nightly** — but it is **narrow**: a single generic fixture
-(`ikanos-cli/src/test/resources/native-regression/serve-http.ikanos.yaml`), one TCP probe on the
-REST port, and the CLI verbs `create` / `validate`. It proves the binary boots and the
-reflect/resource config is complete; it does **not** validate features one by one at the native
-level.
+So PACKAGE coverage **exists and runs nightly** — but it is **narrow**: a few generic fixtures. It
+proves the package boots, serves REST and the control port over real HTTP, and has the JDK modules
+it needs; it does **not** validate features one by one at the package level.
 
-> **Central structural finding**: NATIVE coverage is **mono-fixture / not per-feature**. Only the
-> **REST** adapter and the **CLI** (`create`/`validate`/`serve`) are exercised through the native
-> image; the **MCP and Control** adapters and the advanced features (lookup, aggregates,
-> auth, script, imports, OTel, tunnel) have **no native-level validation**. Most features sit at
-> JVM. Lifting a JVM-partial feature to NATIVE is cheap (the harness and fixtures already exist via
-> #581); covering a NONE feature from scratch is the larger effort.
+> **Central structural finding**: PACKAGE coverage is **not per-feature**. Only the **REST** and
+> **Control** adapters and the **CLI** (`create`/`validate`/`serve`) are exercised through the
+> installed package; the **MCP** adapter and the advanced features (lookup, aggregates, auth,
+> script, imports, OTel, tunnel) have **no package-level validation**. Most features sit at JVM.
+> Lifting a JVM-partial feature to PACKAGE is cheap (the harness and fixtures already exist);
+> covering a NONE feature from scratch is the larger effort.
 
-> **Native HTTP-serve was broken until [#594](https://github.com/naftiko/ikanos/issues/594) (now
-> fixed) — and the #581 smoke does not catch it.** The nightly native smoke only **TCP-probes** the
-> exposed REST port (`/dev/tcp/127.0.0.1/$REST_PORT` in the `test-binary` job — it *deliberately* does
-> not run an HTTP client), so it proves the socket *binds* but never that a request is *served*. In
-> fact the native binary **bound the port yet hung on every HTTP request** (the JVM served fine)
-> because conditional Jetty/Restlet reflection classes were missing from `reflect-config.json`. The
-> fix shipped as **[#594](https://github.com/naftiko/ikanos/issues/594) (CLOSED) via PR
-> [#596](https://github.com/naftiko/ikanos/pull/596), MERGED on `main` 2026-06-25** — `reflect-config.json`
-> gained 5 entries (318→323: `NativePRNG`, `SecurityUtils`, `ForwardedRequestCustomizer$Forwarded`,
-> `org.restlet…ServerAdapter`, a Xerces factory) and a minimal fixture `serve-rest-mock.ikanos.yaml`
-> exposing `GET /greet` → real native `200` (was hanging). **The blocker is lifted**: a *real-HTTP*
-> native e2e of an HTTP-adapter feature (REST, MCP, Control) is now viable. A first native
-> control-port check now runs in the nightly `test-binary` job
-> ([#608](https://github.com/naftiko/ikanos/issues/608)): it serves a copy of `serve-http.ikanos.yaml`
-> and sends real requests to every control route. The earlier `ControlPortNativeIT` scaffold (parked
-> on `origin/chore/issue-578-control-port-native-it`, `a4fff4b3`) used the `-Dikanos.native.bin`
-> opt-in vector; the nightly step is the lighter, always-on equivalent.
+> **History.** Until [#914](https://github.com/naftiko/ikanos/issues/914) (engine 1.0.0-beta9) the
+> CLI was also released as a GraalVM native binary, and this level was called NATIVE: the nightly
+> `smoke-tests` built that binary and ran the same checks on it, with regression guards for its
+> hand-maintained `reflect-config.json` ([#581](https://github.com/naftiko/ikanos/issues/581),
+> [#594](https://github.com/naftiko/ikanos/issues/594), [#855](https://github.com/naftiko/ikanos/issues/855)).
+> The jlink package replaced it; the control port guard moved to the package workflow.
 
 ---
 
@@ -126,12 +113,12 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 ## Feature table
 
 - **Delivery**: `SHIPPED` / `PARTIAL` / `NOT_IMPL` / `REMOVED` (taken out of the engine; the row is kept for history) — sourced from `gap-analysis-report.md` + engine presence, **not** the design doc `Status` field (unreliable).
-- **Coverage**: `NATIVE` / `JVM` / `NONE` per the model above.
+- **Coverage**: `PACKAGE` / `JVM` / `NONE` per the model above.
 - **Phases**: delivered / total phases declared in the design doc's roadmap — a coarse count (e.g. `2 / 6`). When no count applies, one of three explicit labels: `no phasing` (a design doc exists but declares no phased roadmap — delivered in one block), `no dedicated design doc` (a base-spec engine primitive covered only by the generic capability spec, with no design doc of its own), or `unverified` (a phased design doc exists but the delivered-count is not yet reconciled). Design docs were cross-checked against **both** the local disk (`internal-docs/design-docs/` + `internal-docs/archives/`) **and** the Notion ITD database.
 
 | # | Design doc (feature) | Delivery | Coverage | Phases | Evidence — test(s) / launch path |
 |---|---|---|---|---|---|
-| 1 | MCP HTTP exposition (`type: mcp`, tools) | SHIPPED | JVM | no dedicated design doc | Steps 1–8, 11 boot the MCP adapter in-process; nightly runs them against Microcks. No native-image launch. Base-spec primitive (Generic Capability Spec), no phasable design doc of its own. |
+| 1 | MCP HTTP exposition (`type: mcp`, tools) | SHIPPED | JVM | no dedicated design doc | Steps 1–8, 11 boot the MCP adapter in-process; nightly runs them against Microcks. No launch from the package. Base-spec primitive (Generic Capability Spec), no phasable design doc of its own. |
 | 2 | Mock mode (`MockOutputParameter`) | SHIPPED | JVM | no dedicated design doc | `Step1ShipyardMcpClientIntegrationTest` (in-process boot). The ITD *Capability Mocking & Resolution Policies* design doc describes a broader future `scenarios`/`resolution` model, not this shipped base-spec primitive. |
 | 3 | Consumed HTTP + output shaping | SHIPPED | JVM | no dedicated design doc | Steps 2–7 (in-process boot, Microcks backend). Base-spec primitive. |
 | 4 | Consumed auth — bearer | SHIPPED | JVM | no dedicated design doc | `Step3ShipyardMcpClientIntegrationTest`. Base-spec auth scheme. |
@@ -140,11 +127,11 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated design doc | No end-user test sends these content types. Base-spec primitives. |
 | 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated design doc | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
 | 9 | Aggregates + `ref` (REST + MCP reuse) | SHIPPED | NONE | no dedicated design doc | `AggregateIntegrationTest` / `AggregateSharedMockIntegrationTest` load the spec in-process **without booting an HTTP server** → NONE. `step-9-shipyard-aggregates.yml` fixture exists but **has no test class**. |
-| 10 | REST exposition (`type: rest`) | SHIPPED | NATIVE | no dedicated design doc | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also NATIVE** — the nightly `smoke-tests` boots `serve-http.ikanos.yaml` on the native binary and TCP-probes the exposed REST port (`ping-rest`, #581). **Caveat**: this NATIVE mark rests on a **TCP-probe only**, not a served HTTP request — real native `GET` was hanging until [#594](https://github.com/naftiko/ikanos/issues/594) (fixed via PR [#596](https://github.com/naftiko/ikanos/pull/596), **MERGED on `main` 2026-06-25**; fixture `serve-rest-mock.ikanos.yaml` → `GET /greet` 200). A *real-HTTP* native REST e2e is now **viable** (a control-port variant is handed off via issue [#608](https://github.com/naftiko/ikanos/issues/608)). |
-| 11 | Skill server adapter (`type: skill`) — **removed** | REMOVED | — | 4 / 4 | Removed in step 3 of [#898](https://github.com/naftiko/ikanos/issues/898): the `io.ikanos.engine.exposes.skill` and `io.ikanos.spec.exposes.skill` packages, the `ExposesSkill` / `ExposedSkill` / `SkillTool` schema definitions and `SkillIntegrationTest` are gone. A capability that still declares `type: skill` fails at load (`ServerSpecDeserializer`), in `ikanos validate` and in Polychro lint (`ikanos-skill-adapter-removed`, severity `error`) with the same message pointing to the `skills` block of `type: mcp`. Successor: #41. The native fixture's skill port is now a skills-only MCP adapter. Design doc `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill` before the removal. |
+| 10 | REST exposition (`type: rest`) | SHIPPED | PACKAGE | no dedicated design doc | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also PACKAGE** — the nightly `smoke-tests` serves `serve-rest-mock.ikanos.yaml` from the installed jlink package on 4 OS and sends a real `GET /greet` (200 with the expected body). Until #914 the same check ran on the native binary, where it found the HTTP hang fixed in [#594](https://github.com/naftiko/ikanos/issues/594). |
+| 11 | Skill server adapter (`type: skill`) — **removed** | REMOVED | — | 4 / 4 | Removed in step 3 of [#898](https://github.com/naftiko/ikanos/issues/898): the `io.ikanos.engine.exposes.skill` and `io.ikanos.spec.exposes.skill` packages, the `ExposesSkill` / `ExposedSkill` / `SkillTool` schema definitions and `SkillIntegrationTest` are gone. A capability that still declares `type: skill` fails at load (`ServerSpecDeserializer`), in `ikanos validate` and in Polychro lint (`ikanos-skill-adapter-removed`, severity `error`) with the same message pointing to the `skills` block of `type: mcp`. Successor: #41. The package fixture's skill port is now a skills-only MCP adapter. Design doc `archives/agent-skills-support.md` (ITD: *Agent Skills Support*) — all 4 roadmap phases shipped as base-spec `type: skill` before the removal. |
 | 12 | Bindings (`binds:`, file/vault) | SHIPPED | JVM | no dedicated design doc | Steps 3–11 load `shared/secrets.yaml`. Base-spec primitive. |
 | 13 | Fleet manifest (`catalog-info.yaml`) | SHIPPED | JVM | no dedicated design doc | `Step11ShipyardFleetManifestIntegrationTest`. Owned by the Fleet/Warden template, not a phasable design doc. |
-| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | NATIVE | 1 / 4 | JVM: `ControlPortHttpIntegrationTest` starts a capability with a control port and a REST adapter backed by a stub API, and calls every route with a real HTTP client: `/health/live` (200 `{"status":"UP"}`), `/health/ready` (200 `UP`, 503 `DEGRADED` once a business adapter stops), `/status` (and 404 when `info: false`), `/metrics` + `/traces` (200 with OTel active, including the trace of a real REST call; 503 when the SDK is not active; 404 when the control port sets `observability.enabled: false`). OTel is active by default under `ikanos serve`, so 200 is the normal answer. There is no bare `/health` or `/ready`. **NATIVE**: the nightly `test-binary` job serves a copy of `serve-http.ikanos.yaml` on its own ports and sends real requests to every control route; it checks `"native":true` on `/status` and that `/metrics` + `/traces` agree with the OTel status `/status` reports ([#608](https://github.com/naftiko/ikanos/issues/608)). Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. Design doc: `archives/control-port.md`. |
+| 14 | Control Port (`type: control`, `/health/live` + `/health/ready` + `/status` + `/metrics` + `/traces`) | SHIPPED | PACKAGE | 1 / 4 | JVM: `ControlPortHttpIntegrationTest` starts a capability with a control port and a REST adapter backed by a stub API, and calls every route with a real HTTP client: `/health/live` (200 `{"status":"UP"}`), `/health/ready` (200 `UP`, 503 `DEGRADED` once a business adapter stops), `/status` (and 404 when `info: false`), `/metrics` + `/traces` (200 with OTel active, including the trace of a real REST call; 503 when the SDK is not active; 404 when the control port sets `observability.enabled: false`). OTel is active by default under `ikanos serve`, so 200 is the normal answer. There is no bare `/health` or `/ready`. **PACKAGE**: on Linux and macOS, the nightly `test-package` job serves a copy of `serve-http.ikanos.yaml` from the installed package on its own ports and sends real requests to every control route; it checks the engine version on `/status` and that `/metrics` + `/traces` agree with the OTel status `/status` reports ([#608](https://github.com/naftiko/ikanos/issues/608), moved from the native binary in #914). Phase 1 shipped; phases 2–4 (config/reload, logs, lifecycle, debug) modeled in schema but not wired in the engine. Design doc: `archives/control-port.md`. |
 | 15 | OTel observability (tracing + Prometheus metrics) | SHIPPED | NONE | 5 / 5 | `ObservabilitySpecIntegrationTest` etc. load in-process without booting a server; no OTLP export driven end-to-end. All 5 roadmap phases (logging facade, tracing, metrics, spec-driven config, dashboarding) shipped; coverage still NONE. Design doc: `archives/opentelemetry-observability.md`. |
 | 16 | Reverse tunnel (Ziti) | SHIPPED | NONE | 2 / 6 | `TunnelTransportTest`/`TunnelRouteTableTest`/`TunnelBootstrapTest` are unit-level; no launched capability routes a call through a Ziti network. Phases 1–2 shipped, 3 partial, 4–5 pending. Design doc: `reverse-tunnel-private-network.md`. |
 | 17 | MCP exposed auth (OAuth 2.1 / Bearer) | SHIPPED | NONE | no dedicated design doc | `ServerAdapterAuthenticationTest` is unit-level; no launched MCP adapter validates a token end-to-end. Base-spec primitive. |
@@ -154,7 +141,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 21 | MCP resources (`McpResource`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `resources:` block. Design doc: ITD *MCP Resources & Prompt Templates Support Proposal* (Notion `31b4adce…`) — all 6 roadmap phases shipped. |
 | 22 | MCP prompts (`McpPrompt`) | SHIPPED | NONE | 6 / 6 | No launched MCP adapter serves a `prompts:` block. Same design doc as #21 (ITD *MCP Resources & Prompt Templates Support Proposal*) — all 6 roadmap phases shipped. |
 | 23 | MCP tool hints (`McpToolHints`) | SHIPPED | NONE | no dedicated design doc | `AggregateIntegrationTest` checks semantics→hints in-process; no launched tool-call asserts hints on the wire. Hints derived from `semantics`, no phasable design doc of their own. |
-| 24 | CLI `serve` command | SHIPPED | NATIVE | no phasing | Nightly `smoke-tests` runs `ikanos serve` **on the native binary** (`serve-http.ikanos.yaml`), confirming the HTTP connector boots and the REST port listens (#581). `ServeCommandTest` adds JVM-level parsing coverage. Design doc `archives/cli-serve-command.md` (ITD: *CLI serve Command*) is a post-hoc record (PR #460), no phased roadmap. |
+| 24 | CLI `serve` command | SHIPPED | PACKAGE | no phasing | Nightly `smoke-tests` runs `ikanos serve` **from the installed jlink package** on 4 OS (REST mock with a real `GET`, outbound HTTPS, control port). `ServeCommandTest` adds JVM-level parsing coverage. Design doc `archives/cli-serve-command.md` (ITD: *CLI serve Command*) is a post-hoc record (PR #460), no phased roadmap. |
 | 25 | Embedded library (`StepHandlerRegistry`) | SHIPPED | NONE | no phasing | `EngineStepHandlerOverrideTest` is in-process; not an end-user launch (and partly out of the launched-capability scope). Design doc `embedded-library.md` has a `Delivery` section but no enumerated phases. |
 | 26 | Consumed auth — OAuth2 client credentials (token refresh) | PARTIAL | NONE | 0 / 3 | `token-refresh-authentication.md` §12 — client-side flow not implemented (Phase 4 is explicitly out of proposal). |
 | 27 | Resilience (retry / timeout / failover) | PARTIAL | NONE | 0–1 / 4 | gap-report §17.3 — Phase 1b partial, rest pending (+1 Adjacent item). Design doc: `resilience-through-resolution-policies.md`. |
@@ -188,26 +175,26 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 ## How to launch — strategy by category
 
 Not test designs — the right question per category when writing the family-A tests. The launch
-vector should be **the lightest of the two** by default (`ikanos serve` on the native binary),
+vector should be **the lightest of the two** by default (`ikanos serve` from the installed package),
 reserving **Docker** for the cases where the full packaging matters.
 
-**Generic native-path harness** (applies to most JVM→NATIVE upgrades): the pattern already exists
-in the nightly `smoke-tests` job — start `ikanos serve <fixture>.yml` as a subprocess against the
-native binary (or `docker run ikanos …`), wait for the port, drive the adapter with a real HTTP
-client, assert, then tear down. The #581 guard does exactly this for the REST port; extending it to
-other adapters/features mostly means **adding fixtures and real client calls**, not building the
-harness from scratch. The existing tutorial fixtures and Microcks backend are reusable as-is — only
-the **launch path** changes from in-process JVM to native image.
+**Generic package-path harness** (applies to most JVM→PACKAGE upgrades): the pattern already
+exists in the nightly `smoke-tests` job — start `ikanos serve <fixture>.yml` as a subprocess from the
+installed package (or `docker run ikanos …`), wait for the port, drive the adapter with a real HTTP
+client, assert, then tear down. The package regression guards do exactly this for the REST and
+control ports; extending them to other adapters/features mostly means **adding fixtures and real
+client calls**, not building the harness from scratch. The existing tutorial fixtures and Microcks
+backend are reusable as-is — only the **launch path** changes from in-process JVM to the package.
 
-- **Aggregates** (#9): `step-9-shipyard-aggregates.yml` exists — needs a launched test (start with JVM-level `Step9…` to reach parity, then a NATIVE variant).
+- **Aggregates** (#9): `step-9-shipyard-aggregates.yml` exists — needs a launched test (start with JVM-level `Step9…` to reach parity, then a PACKAGE variant).
 - **Control port** (#14): done in [#608](https://github.com/naftiko/ikanos/issues/608), see row #14. The same pattern (a copy of the fixture on its own ports, real requests with `curl`) fits the MCP port below.
-  Its first native run found [#855](https://github.com/naftiko/ikanos/issues/855): Restlet creates every routed `ServerResource` by reflection, and none of the engine's (control, MCP, skill) were in `reflect-config.json`, so the native binary answered 404 on all of their routes. They are registered now, and `NativeImageReflectConfigTest` fails if a `ServerResource` subclass of `io.ikanos.engine` is missing. Native MCP and Skill smokes would still catch other gaps.
+  Its first run, on the former native binary, found [#855](https://github.com/naftiko/ikanos/issues/855) (routed `ServerResource`s missing from `reflect-config.json`); that class of bug went away with the native binary (#914).
 - **OTel** (#15): launch a capability with a control port; assert `/metrics` returns Prometheus data and `/traces` returns the ring buffer; OTLP export against an in-process collector for enrichment.
-- **Reverse tunnel** (#16): Ziti needs a live controller — not feasible in a plain test. First step: a contract test through a stubbed `TunnelTransport`; true NATIVE e2e requires a Ziti sandbox (CI/nightly only).
+- **Reverse tunnel** (#16): Ziti needs a live controller — not feasible in a plain test. First step: a contract test through a stubbed `TunnelTransport`; true PACKAGE e2e requires a Ziti sandbox (CI/nightly only).
 - **MCP auth** (#17): launch an MCP adapter with `authentication: bearer`/`oauth2`; drive with/without a valid token; assert 401 / 200.
 - **Script step** (#18): launch a capability exposing a `type: script` (JS) tool; call it; assert the scripted output.
 - **Imports** (#19): a fixture split across files using `from:`; launch the composed capability; assert all tools resolve.
-- **CLI serve** (#24): already exercised at native level by the #581 smoke — the same subprocess pattern is the NATIVE vector to reuse for the other adapters.
+- **CLI serve** (#24): already exercised at package level by the nightly package regression guards — the same subprocess pattern is the PACKAGE vector to reuse for the other adapters.
 - **MCP resources / prompts** (#21/#22): extend a fixture with `resources:` / `prompts:`; launch; call `resources/*` / `prompts/*`.
 - **Request body variants** (#7): add a Microcks operation accepting `x-www-form-urlencoded`; launch a capability that posts to it.
 - **Consumed auth basic/apikey/digest** (#5): add Microcks examples per scheme; launch a capability consuming each.
@@ -216,19 +203,19 @@ the **launch path** changes from in-process JVM to native image.
 
 ## Family-A gaps — blocking for #578 done criterion
 
-Two sub-types: **(A0)** lift an existing JVM-partial feature to NATIVE (cheap), and **(A1)** create
+Two sub-types: **(A0)** lift an existing JVM-partial feature to PACKAGE (cheap), and **(A1)** create
 a first end-user test for a NONE feature.
 
 | Priority | Type | Gap | Effort |
 |---|---|---|---|
 | 🔴 High | A1 | Aggregates launched test (Step 9 missing) | Low — fixture exists |
-| ✅ Done | A1 | Control port endpoints — real HTTP on every control route, on the JVM and on the native binary ([#608](https://github.com/naftiko/ikanos/issues/608)) | — |
+| ✅ Done | A1 | Control port endpoints — real HTTP on every control route, on the JVM and on the installed package ([#608](https://github.com/naftiko/ikanos/issues/608)) | — |
 | 🔴 High | A1 | MCP resources end-to-end | Low — extend fixture |
 | 🔴 High | A1 | MCP prompts end-to-end | Low — extend fixture |
 | 🟠 Medium | A1 | Script step launched (JS) | Medium |
 | 🟠 Medium | A1 | MCP adapter auth (bearer/OAuth2.1) | Medium |
 | 🟠 Medium | A1 | Import mechanism launched | Medium |
-| 🟠 Medium | A0 | **Extend the existing native smoke** (#581 `serve-http` fixture) to drive the **MCP** adapter at native level — the fixture already declares a skills-only MCP port (formerly the Skill port) that is never probed. Now **unblocked** since #594/PR #596 merged (a *real* HTTP call replaces today's TCP-probe); follow the pattern specified in issue [#608](https://github.com/naftiko/ikanos/issues/608) | Medium — fixture exists, add a real client call |
+| 🟠 Medium | A0 | **Extend the package smoke** (`serve-http` fixture) to drive the **MCP** adapter at package level — the fixture already declares a skills-only MCP port (formerly the Skill port) that is never probed; follow the control port pattern ([#608](https://github.com/naftiko/ikanos/issues/608)) | Medium — fixture exists, add a real client call |
 | 🟡 Low | A1 | OTel via control port (`/metrics` + `/traces`) | Low |
 | 🟡 Low | A1 | Consumed auth basic / apikey / digest | Low |
 | 🟡 Low | A1 | Request body form / multipart | Medium |
@@ -240,7 +227,7 @@ a first end-user test for a NONE feature.
 
 | Feature | Covered today | Missing sub-features |
 |---|---|---|
-| Native launch path (per feature) | REST + CLI (`create`/`validate`/`serve`) at native level via #581 smoke | NATIVE coverage for **MCP, Control** adapters and advanced features — extend the existing `serve-http` smoke fixture per adapter |
+| Package launch path (per feature) | REST, Control and CLI (`create`/`validate`/`serve`) at package level via the package regression guards | PACKAGE coverage for the **MCP** adapter and advanced features — extend the existing `serve-http` smoke fixture per adapter |
 | Consumed auth | bearer | basic, apikey, digest |
 | MCP tool hints | semantics→hints (in-process) | hints on the wire in `tools/list` |
 | OTel | in-process span/metric creation | OTLP export, W3C propagation over HTTP |
@@ -261,6 +248,7 @@ a first end-user test for a NONE feature.
 
 | Date | Change |
 |---|---|
+| 2026-11-09 | [#914](https://github.com/naftiko/ikanos/issues/914) dropped the GraalVM native binary: the NATIVE coverage level becomes PACKAGE (the installed jlink package or the Docker image). The nightly `smoke-tests` now calls `publish-cli-packages.yml`; the control port guard ([#608](https://github.com/naftiko/ikanos/issues/608)) moved there (Linux and macOS), and the fixtures moved to `package-regression/`. Rows #10, #14 and #24 are PACKAGE. |
 | 2026-11-03 | Rows #34–#37 updated for the durable execution E1 slice on branch `feat/durable-execution-e1` (not merged): MCP tasks on `memory` durability, MRTR replay-from-start on `tools/call` and `resources/read` with a `binds`-sourced sealing key, `resultType: input_required` and `task`, per-request client capabilities. These rows are the trackers #34–#36 cited by the durable execution memo. |
 | 2026-10-29 | Row #11 marked removed: step 3 of [#898](https://github.com/naftiko/ikanos/issues/898) deleted the `type: skill` adapter, its schema definitions and `SkillIntegrationTest`; `type: skill` now fails at load with a migration message. Added the `REMOVED` delivery status. Row #41 moved to SHIPPED, 3 / 3. The native fixture's skill port became a skills-only MCP adapter, so the A0 and Family-B native items now name MCP and Control only. |
 | 2026-10-29 | Row #41 moved to 2 / 3 (step 2 of [#898](https://github.com/naftiko/ikanos/issues/898)): `resources/directory/read`, the `allowed-tools` and low-value skill warnings, authored tutorial skills, and the official SEP-2640 conformance scenarios in CI. |

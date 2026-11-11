@@ -1,6 +1,6 @@
 # Polychro fixture — ikanos-skill-adapter-removed MUST FIRE:
 #   a standalone exposes file still declares the removed `type: skill` adapter.
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 
 exposes:
   - type: skill

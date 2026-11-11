@@ -721,7 +721,7 @@ Describes request body configuration for consumed operations. `RequestBody` is a
 | Field Name | Type | Description |
 | --- | --- | --- |
 | **type** | `string` | **REQUIRED**. MUST be `"multipartForm"`. |
-| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required, Mustache-rendered), `filename` (optional), `contentType` (optional), `encoding` (optional, `base64`: the part is sent as the decoded bytes of `value`). Sent as `multipart/form-data` with a generated boundary. |
+| **data** | `RequestBodyMultipartFormPart[]` | **REQUIRED**. Array of form parts. Each part has: `name` (required), `value` (required, Mustache-rendered), `filename` (optional), `contentType` (optional), `encoding` (optional, `base64`: the part is sent as the decoded bytes of `value`). When `contentType` is `application/json` or a `+json` type, substituted values are JSON-encoded and the rendered `value` MUST be a single JSON document with no repeated member key, as for a `json` body. Sent as `multipart/form-data` with a generated boundary. |
 
 **RequestBodyRaw** — Raw string body
 
@@ -750,6 +750,23 @@ body:
 body:
   type: json
   data: '{"key": "value"}'
+```
+
+**JSON body with placeholders (object):** a value that is exactly one placeholder takes the
+parameter's JSON type (string, number, boolean, object, array) and is left out when the
+parameter is absent. Any other string stays a JSON string, with substituted values inserted
+as text. A placeholder in a key is resolved too, but two members that resolve to the same key
+fail the call, so a caller value cannot replace a fixed member. In a string template, substituted
+values are JSON-encoded; quote string placeholders.
+
+```yaml
+body:
+  type: json
+  data:
+    code: "{{code}}"                    # left out when code is not provided
+    pay_in_advance: "{{pay_in_advance}}"  # a boolean stays a boolean; false is kept
+    charges: "{{charges}}"              # an array stays an array
+    label: "Plan {{code}}"              # always a string
 ```
 
 **Text body:**
@@ -1393,6 +1410,7 @@ authentication:
 #### 3.17.5 Rules
 
 - Only one authentication type can be used per authentication object.
+- On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
 - On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.

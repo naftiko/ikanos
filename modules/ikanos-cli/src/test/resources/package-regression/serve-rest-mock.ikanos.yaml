@@ -1,19 +1,17 @@
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 info:
-  display: Native Regression — Minimal REST Mock
+  display: Package Regression — Minimal REST Mock
   description: >
     The smallest possible capability that exposes a single REST endpoint and
     nothing else: one `type: rest` adapter, one mock resource returning a static
-    value, NO consumes, NO skill, NO control, NO backend. It exists to isolate
-    the native-image HTTP question (see #581 / #578): does the native binary
-    answer an HTTP GET at all, for the simplest possible REST surface, with no
-    backend fan-out and no extra adapter in the way? If this mock answers under
-    native, the HTTP-mute observed on serve-http.ikanos.yaml is caused by one of
-    the layers that fixture adds; if it also hangs, the native HTTP server itself
-    is mute. Self-contained: `ikanos serve` can run it unattended.
+    value, NO consumes, NO control, NO backend. The package regression guard in
+    publish-cli-packages.yml serves it from the installed jlink package and sends
+    a real HTTP GET, so a package that binds the port but cannot answer (a
+    missing JDK module, for instance) fails CI. Self-contained: `ikanos serve`
+    can run it unattended.
   tags:
   - test
-  - native-regression
+  - package-regression
   created: '2026-06-24'
   modified: '2026-06-24'
 capability:
@@ -35,4 +33,4 @@ capability:
             outputParameters:
               message:
                 type: string
-                value: "Hello from native mock!"
+                value: "Hello from the package mock!"

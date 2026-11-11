@@ -255,6 +255,50 @@ public class ValidateCommandTest {
                 "The removed adapter should not also be reported as a schema mismatch:\n" + err);
     }
 
+    /** #842: whatever the engine refuses to load, {@code validate} refuses first. */
+    @Test
+    public void callShouldRejectOAuth2OnAConsumedAdapter() {
+        Path yaml = tempDir.resolve("oauth2-consumes.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "OAuth2 upstream"
+                  description: "Consumes an API with oauth2, which the engine can't send"
+                capability:
+                  consumes:
+                    - namespace: "crm"
+                      type: "http"
+                      baseUri: "https://crm.example.com"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "https://auth.example.com"
+                        resource: "https://crm.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list:
+                              method: "GET"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            get:
+                              method: "GET"
+                              call: "crm.list"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, err + outCapture);
+        assertTrue(err.contains("Path: $.capability.consumes[0].authentication"), err);
+    }
+
     @Test
     public void removedSkillAdaptersShouldBeFoundInStandaloneExposesFiles() throws Exception {
         JsonNode data = IkanosMappers.yaml().readTree("""

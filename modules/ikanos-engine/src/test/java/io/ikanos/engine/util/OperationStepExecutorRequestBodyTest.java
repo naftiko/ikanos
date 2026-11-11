@@ -203,6 +203,305 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
+    void findClientRequestForShouldOmitAbsentMemberInJsonObjectData() throws Exception {
+        // #850: a member whose value is exactly one placeholder is left out when it is absent.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    code: "{{code}}"
+                                    name: "{{name}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("code", "pro"));
+
+        assertEquals("{\"code\":\"pro\"}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepFalseAndZeroInJsonObjectData() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    pay_in_advance: "{{flag}}"
+                                    amount: "{{amount}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("flag", false, "amount", 0));
+
+        assertEquals("{\"pay_in_advance\":false,\"amount\":0}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepArrayAndObjectTypesInJsonObjectData() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    fees: "{{fees}}"
+                                    properties: "{{props}}"
+                """);
+        Map<String, Object> props = new java.util.LinkedHashMap<>();
+        props.put("tokens", 5);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("fees", List.of(Map.of("units", 2)), "props", props));
+
+        assertEquals("{\"fees\":[{\"units\":2}],\"properties\":{\"tokens\":5}}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldOmitAbsentMembersInNestedJsonObjectData() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    customer:
+                                      external_id: "{{id}}"
+                                      name: "{{name}}"
+                                    plan_code: "{{plan}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("plan", "pro"));
+
+        assertEquals("{\"customer\":{},\"plan_code\":\"pro\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepInterpolatedStringMemberInJsonObjectData()
+            throws Exception {
+        // A member with text around the placeholder stays a string, rendered and escaped.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    label: "Order {{id}}"
+                                    note: "{{missing}} left"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("id", "a\"1"));
+
+        assertEquals("{\"label\":\"Order a\\\"1\",\"note\":\" left\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepQuotesAndBackslashesInInterpolatedMemberText()
+            throws Exception {
+        // The template's own text must survive exactly: quoted labels, regexes, Windows paths.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    q: 'say "hi" {{x}}'
+                                    path: 'C:\\temp\\{{x}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("x", "bob"));
+
+        assertEquals("{\"q\":\"say \\\"hi\\\" bob\",\"path\":\"C:\\\\temp\\\\bob\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldInsertListAsTextInInterpolatedMember() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    note: "ids {{ids}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("ids", List.of("a", "b")));
+
+        assertEquals("{\"note\":\"ids [\\\"a\\\",\\\"b\\\"]\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepInjectionAttemptInsideInterpolatedMember()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    label: "Order {{id}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("id", "1\",\"admin\":true,\"x\":\""));
+
+        assertEquals("{\"label\":\"Order 1\\\",\\\"admin\\\":true,\\\"x\\\":\\\"\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldResolvePlaceholderInJsonObjectDataKey() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    "{{field}}": 1
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("field", "count"));
+
+        assertEquals("{\"count\":1}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyOverridingLaterStaticMember()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    "{{field}}": "{{value}}"
+                                    role: "user"
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not replace a member the capability author fixed");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyRepeatingMemberInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"role":"user","{{field}}":"{{value}}"}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not repeat a member the capability author fixed");
+        assertTrue(!error.getMessage().contains("admin"),
+                "the rendered body must not be echoed in the error");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyRepeatingNestedMemberInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"user":{"{{field}}":"{{value}}","role":"user"}}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"));
+    }
+
+    @Test
+    void findClientRequestForShouldAcceptPlaceholderKeyWithDistinctNameInStringData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"role":"user","{{field}}":"{{value}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("field", "team", "value", "blue"));
+
+        assertEquals("{\"role\":\"user\",\"team\":\"blue\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRejectPlaceholderKeyOverridingEarlierStaticMember()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    role: "user"
+                                    "{{field}}": "{{value}}"
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op",
+                        Map.of("field", "role", "value", "admin")));
+
+        assertTrue(error.getMessage().contains("same key"),
+                "A caller key must not replace a member the capability author fixed");
+    }
+
+    @Test
+    void findClientRequestForShouldKeepStaticMembersInJsonObjectData() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    mode: "payment"
+                                    count: 3
+                                    live: false
+                                    ref: "{{ref}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("other", "x"));
+
+        assertEquals("{\"mode\":\"payment\",\"count\":3,\"live\":false}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldOmitAbsentElementsInJsonArrayData() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    - "{{a}}"
+                                    - "{{b}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("a", 1));
+
+        assertEquals("[1]", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldResolveNestedPathPlaceholderInJsonObjectData()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    note: "{{profile.note}}"
+                                    count: "{{profile.count}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("profile", Map.of("note", "n", "count", 7)));
+
+        assertEquals("{\"note\":\"n\",\"count\":7}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
     void findClientRequestForShouldSendJsonStringTemplateUnquoted() throws Exception {
         OperationStepExecutor executor = executorWithBody("""
                                 body:
@@ -214,6 +513,164 @@ class OperationStepExecutorRequestBodyTest {
                 executor.findClientRequestFor("svc", "op", Map.of("v", "ok"));
 
         assertEquals("{\"name\": \"ok\"}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepInjectedFieldsInsideJsonStringTemplateValue()
+            throws Exception {
+        // GHSA-6359-rp48-m9j6: a caller value must stay one JSON string, not add sibling members.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":"{{v}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("v", "x\",\"admin\":true,\"y\":\""));
+
+        assertEquals("{\"name\":\"x\\\",\\\"admin\\\":true,\\\"y\\\":\\\"\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldEscapeControlCharactersInJsonStringTemplateValue()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":"{{v}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("v", "a\\b\nc\td"));
+
+        assertEquals("{\"name\":\"a\\\\b\\nc\\td\"}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldEscapeValueInJsonObjectData() throws Exception {
+        // The structured form is serialized first, then rendered, so it needs the same escaping.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    name: "{{v}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("v", "x\",\"admin\":true,\"y\":\""));
+
+        assertEquals("{\"name\":\"x\\\",\\\"admin\\\":true,\\\"y\\\":\\\"\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRenderObjectValueAsJsonInJsonStringTemplate()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"properties":{{props}}}'
+                """);
+        Map<String, Object> props = new java.util.LinkedHashMap<>();
+        props.put("tokens", 5);
+        props.put("model", "a\"b");
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("props", props));
+
+        assertEquals("{\"properties\":{\"tokens\":5,\"model\":\"a\\\"b\"}}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepNumberAndBooleanValuesRawInJsonStringTemplate()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"n":{{n}},"b":{{b}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("n", 42, "b", true));
+
+        assertEquals("{\"n\":42,\"b\":true}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepListValueAsJsonArrayInJsonStringTemplate()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"ids":{{ids}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("ids", List.of("a\"b", "c")));
+
+        assertEquals("{\"ids\":[\"a\\\"b\",\"c\"]}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRenderListSectionOnceInJsonStringTemplate() throws Exception {
+        // A section over a list is an "if present" guard; it must not repeat per element.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"a":1{{#ids}},"ids":{{ids}}{{/ids}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("ids", List.of("x", "y")));
+
+        assertEquals("{\"a\":1,\"ids\":[\"x\",\"y\"]}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldEscapeValueInLegacyStringBody() throws Exception {
+        // A plain string body is sent as application/json, so it gets the same protection.
+        OperationStepExecutor executor = executorWithBody("""
+                                body: '{"name":"{{v}}"}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("v", "x\",\"admin\":true,\"y\":\""));
+
+        assertEquals("{\"name\":\"x\\\",\\\"admin\\\":true,\\\"y\\\":\\\"\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldEscapeStepOutputFieldInJsonStringTemplate() throws Exception {
+        // Values read from an upstream response (step outputs) are not trusted either.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"note":"{{profile.note}}"}'
+                """);
+        Map<String, Object> profile = Map.of("note", "n\",\"admin\":true,\"z\":\"");
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("profile", profile));
+
+        assertEquals("{\"note\":\"n\\\",\\\"admin\\\":true,\\\"z\\\":\\\"\"}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldNotJsonEscapeValueInTextBody() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "text"
+                                  data: "say {{v}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("v", "\"hi\""));
+
+        assertEquals("say \"hi\"", ctx.getRequest().getEntity().getText());
     }
 
     @Test
@@ -352,6 +809,86 @@ class OperationStepExecutorRequestBodyTest {
                 """));
 
         assertTrue(error.getMessage().contains("svc.op body"), error.getMessage());
+    }
+
+    @Test
+    void findClientRequestForShouldDropAbsentSectionInJsonTemplateWhenNoParametersAreGiven()
+            throws Exception {
+        // #847 applies to JSON bodies too: an optional part over an absent key disappears.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"a":1{{#note}},"note":"{{note}}"{{/note}}}'
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of());
+
+        assertEquals("{\"a\":1}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldRejectUnresolvedJsonTemplateWhenNoParametersAreGiven()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":"{{v}}"}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of()));
+
+        assertTrue(error.getMessage().contains("Unresolved template parameters in body"));
+    }
+
+    @Test
+    void findClientRequestForShouldRejectInvalidRenderedJsonBody() throws Exception {
+        // An unquoted string placeholder cannot add a member, but it can break the document:
+        // fail before sending instead of letting the upstream reject it.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"name":{{v}}}'
+                """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of("v", "not json")));
+
+        assertTrue(error.getMessage().contains("Rendered JSON body is not valid JSON"));
+        assertTrue(!error.getMessage().contains("not json"),
+                "the rendered body must not be echoed in the error");
+    }
+
+    @Test
+    void findClientRequestForShouldRejectRenderedJsonBodyWithTrailingContent() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data: '{"n":{{v}}}'
+                """);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> executor.findClientRequestFor("svc", "op", Map.of("v", "1} {\"x\":2")));
+    }
+
+    @Test
+    void findClientRequestForShouldJsonEscapeValueInStructuredDataOfNonJsonType()
+            throws Exception {
+        // Structured data is serialized as JSON whatever the declared type, so its values are
+        // JSON-encoded even when the body is declared as xml or text.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "xml"
+                                  data:
+                                    name: "{{v}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("v", "x\",\"admin\":true"));
+
+        assertEquals("{\"name\":\"x\\\",\\\"admin\\\":true\"}",
+                ctx.getRequest().getEntity().getText());
     }
 
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {

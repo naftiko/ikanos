@@ -1,7 +1,7 @@
 # SEP-2640 (Skills Extension) conformance fixture, served by the mcp-skills-conformance workflow.
 # Run from the repository root: skill locations are relative to the working directory.
 # fleet-ops is listed first and has nested directories, so the directory scenario can test it.
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 info:
   display: "SEP-2640 conformance"
   description: "Fixture for the MCP Skills Extension conformance suite"

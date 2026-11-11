@@ -20,12 +20,10 @@ dependency-reduced-pom.xml
 **/.factorypath
 
 # On-demand synced skill copies (never commit) — the transversal skills served by the
-# agents-shared capability (pr-review, bugfix, ikanos-capability) are versioned once in the
-# golden-repo-naftiko golden repo and fetched on demand via
+# agents-shared capability (pr-review, bugfix, ikanos-capability, release-notes-drafting) are
+# versioned once in the golden-repo-naftiko golden repo and synced on demand via
 # .github/instructions/agents-shared.instructions.md. Never commit these synced copies.
-.agents/skills/pr-review/
-.agents/skills/bugfix/
-.agents/skills/ikanos-capability/
+.agents/skills/
 
 # ─── Local developer environment notes (machine-specific paths) ─────────────────
 .env.local

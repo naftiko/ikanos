@@ -3,7 +3,7 @@
 #
 # Two MCP adapters on port 8080 declare neither `path` nor `hosts`: both are
 # mounted at the root of any host.
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 
 info:
   display: "Shared listener — same path"

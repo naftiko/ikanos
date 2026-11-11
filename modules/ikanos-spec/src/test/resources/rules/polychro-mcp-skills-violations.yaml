@@ -1,6 +1,6 @@
 # Polychro fixture — Agent Skills over MCP rules MUST FIRE:
 #   a skill declares allowed-tools.
-ikanos: "1.0.0-beta9"
+ikanos: "1.0.0-beta10"
 info:
   display: "Agent Skills over MCP rules — violations"
   description: "Fixture that breaks every Agent Skills over MCP Polychro rule."

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ikanos.io/schemas/v1.0.0-beta9/ikanos.json",
+  "$id": "https://ikanos.io/schemas/v1.0.0-beta10/ikanos.json",
   "name": "Ikanos Specification",
   "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata) or a standalone shared file (consumes / exposes / aggregates / binds). A valid document must declare `ikanos` + exactly one of `capability`, `consumes`, `exposes`, `aggregates`, or `binds`. All adapter logic lives under `capability`; shared section definitions live at root.",
   "type": "object",
@@ -8,7 +8,7 @@
     "ikanos": {
       "type": "string",
       "description": "Ikanos specification version. Signals schema compatibility \u2014 always the first key in a capability file.",
-      "const": "1.0.0-beta9"
+      "const": "1.0.0-beta10"
     },
     "info": {
       "$ref": "#/$defs/Info",
@@ -303,7 +303,7 @@
         },
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter.",
+          "description": "The expected data type of the parameter. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
           "enum": [
             "string",
             "number",
@@ -1631,7 +1631,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter.",
+          "description": "The expected data type of the parameter. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
           "enum": [
             "string",
             "number",
@@ -2474,8 +2474,8 @@
           "description": "Adapter-level parameters injected into every request, keyed by parameter name."
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication",
-          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2`."
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer` and `digest`."
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",
@@ -2737,7 +2737,7 @@
           "pattern": "^(https?://[^/]+(/.*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$"
         },
         "authentication": {
-          "$ref": "#/$defs/Authentication",
+          "$ref": "#/$defs/ConsumedAuthentication",
           "description": "Credential sent to the upstream MCP server on every request. The exposed-side caller token is never forwarded."
         },
         "discovery": {
@@ -3090,7 +3090,7 @@
           "const": "json"
         },
         "data": {
-          "description": "Payload serialized as JSON. Accepts a static string (Mustache-interpolated at runtime), an inline object, or an inline array.",
+          "description": "Payload serialized as JSON. Accepts a Mustache template string (substituted values are JSON-encoded), or an inline object or array. In an inline object or array, a string value that is exactly one placeholder (e.g. `\"{{name}}\"`) takes the parameter value with its JSON type (string, number, boolean, object, array) and is left out when the parameter is absent; other strings are rendered and stay JSON strings.",
           "oneOf": [
             {
               "type": "string"
@@ -3175,7 +3175,7 @@
         },
         "value": {
           "type": "string",
-          "description": "Content of this part, Mustache-rendered. Sent as UTF-8 text, or as decoded bytes when `encoding` is `base64`."
+          "description": "Content of this part, Mustache-rendered. Sent as UTF-8 text, or as decoded bytes when `encoding` is `base64`. When `contentType` is `application/json` or a `+json` type, substituted values are JSON-encoded and the result must be a single JSON document with no repeated member key."
         },
         "filename": {
           "type": "string",
@@ -3266,7 +3266,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to outgoing requests (on `ConsumesHttp`) or to incoming request validation (on `Exposes*`). Choose the variant matching the upstream or downstream security model:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -3282,6 +3282,23 @@
         },
         {
           "$ref": "#/$defs/AuthOAuth2"
+        }
+      ]
+    },
+    "ConsumedAuthentication": {
+      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer` or `digest`, the types the engine can send. `oauth2` is for exposed adapters only.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AuthBasic"
+        },
+        {
+          "$ref": "#/$defs/AuthApiKey"
+        },
+        {
+          "$ref": "#/$defs/AuthBearer"
+        },
+        {
+          "$ref": "#/$defs/AuthDigest"
         }
       ]
     },

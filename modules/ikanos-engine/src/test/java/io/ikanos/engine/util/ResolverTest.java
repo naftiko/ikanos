@@ -231,6 +231,52 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveJsonTemplateShouldDropAbsentSectionWhenParameterMapIsEmpty() {
+        assertEquals("{\"a\":1}",
+            Resolver.resolveJsonTemplate("{\"a\":1{{#x}},\"x\":\"{{x}}\"{{/x}}}", Map.of()),
+            "#847: JSON bodies must render sections even with no parameters");
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldKeepMissingVariableWhenParametersAreNull() {
+        assertEquals("{\"a\":\"{{x}}\"}", Resolver.resolveJsonTemplate("{\"a\":\"{{x}}\"}", null));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldEscapeValueInUnescapedTag() {
+        // GHSA-6359-rp48-m9j6: {{{v}}} and {{&v}} must not be a way around the JSON escaping.
+        String injected = "x\",\"b\":1,\"c\":\"";
+        assertEquals("{\"a\":\"x\\\",\\\"b\\\":1,\\\"c\\\":\\\"\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{{v}}}\"}", Map.of("v", injected)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldEscapeNestedValueInsideSection() {
+        Map<String, Object> step = Map.of("k", "x\",\"b\":1,\"c\":\"");
+        assertEquals("{\"a\":\"x\\\",\\\"b\\\":1,\\\"c\\\":\\\"\"}",
+            Resolver.resolveJsonTemplate("{{#step}}{\"a\":\"{{k}}\"}{{/step}}",
+                Map.of("step", step)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldQuoteCharacterValueLikeAString() {
+        assertEquals("{\"a\":\"q\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{c}}\"}", Map.of("c", 'q')));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldWriteNonFiniteNumberAsNull() {
+        assertEquals("{\"a\":null}",
+            Resolver.resolveJsonTemplate("{\"a\":{{n}}}", Map.of("n", Double.NaN)));
+      }
+
+      @Test
+      public void resolveJsonTemplateShouldRenderMissingVariableAsEmptyWhenParametersAreGiven() {
+        assertEquals("{\"a\":\"\"}",
+            Resolver.resolveJsonTemplate("{\"a\":\"{{missing}}\"}", Map.of("other", "x")));
+      }
+
+      @Test
       public void resolveInputParameterFromRequestShouldHandlePathQueryHeaderAndBody() throws Exception {
         Request request = new Request(Method.GET, "https://example.com/search?q=ships");
         request.getAttributes().put("shipId", "IMO-1");
@@ -505,6 +551,57 @@ public class ResolverTest {
       }
 
       @Test
+      public void resolveInputParametersToRequestShouldTakeEnvironmentParameterFromEnvironmentOnly() {
+        // GHSA-23xc-9c84-r6qv: a caller value with the same name must not replace it.
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("PATH", "caller-value");
+
+        InputParameterSpec path = new InputParameterSpec();
+        path.setName("PATH");
+        path.setIn("environment");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(path), parameters);
+
+        assertEquals(System.getenv("PATH"), parameters.get("PATH"));
+      }
+
+      @Test
+      public void resolveInputParametersToRequestShouldDropCallerValueForUnsetEnvironmentParameter() {
+        String unset = "IKANOS_TEST_UNSET_" + java.util.UUID.randomUUID().toString()
+            .replace("-", "");
+        Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(unset, "caller-value");
+
+        InputParameterSpec variable = new InputParameterSpec();
+        variable.setName(unset);
+        variable.setIn("environment");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(variable), parameters);
+
+        assertFalse(parameters.containsKey(unset),
+            "templates must not use a caller value in place of an unset environment variable");
+      }
+
+      @Test
+      public void applyEnvironmentParametersShouldFailWhenCallerValueCannotBeReplaced() {
+        // Fail closed: a map that cannot be updated must not leave the caller's value in place.
+        InputParameterSpec path = new InputParameterSpec();
+        path.setName("PATH");
+        path.setIn("environment");
+
+        assertThrows(UnsupportedOperationException.class,
+            () -> Resolver.applyEnvironmentParameters(List.of(path),
+                Map.of("PATH", "caller-value")));
+        assertThrows(UnsupportedOperationException.class,
+            () -> Resolver.resolveInputParametersToRequest(
+                new Request(Method.GET, "https://api.example.com/items"), List.of(path),
+                Map.of("PATH", "caller-value")),
+            "the request builder must not swallow the failure either");
+      }
+
+      @Test
       public void resolveInputParametersToRequestShouldApplyHeaderQueryAndTemplateResolution() {
         Request clientRequest = new Request(Method.GET, "https://api.example.com/items");
         Map<String, Object> parameters = new HashMap<>();
@@ -551,6 +648,14 @@ public class ResolverTest {
         assertTrue(clientRequest.getResourceRef().toString().contains("search=%7B%7Bname%7D%7D"),
             "#858: a caller value with braces is data and must be sent: "
                 + clientRequest.getResourceRef());
+      }
+
+      @Test
+      public void appendQueryParameterShouldEncodeTheNameAndTheValue() {
+        assertEquals("http://api/x?api_key=a%2Bb%26c%3Dd",
+            Resolver.appendQueryParameter("http://api/x", "api_key", "a+b&c=d"));
+        assertEquals("http://api/x?p=1&a+b=%3D",
+            Resolver.appendQueryParameter("http://api/x?p=1", "a b", "="));
       }
 
       @Test
@@ -1094,5 +1199,88 @@ public class ResolverTest {
 
         assertTrue(shaped.path("extra").asBoolean(),
                 "shaping must never remove data a caller already receives");
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldRejectStructureWhereScalarIsDeclared() {
+        // GHSA-6359-rp48-m9j6: a structured JSON body keeps a placeholder's JSON type, so an
+        // object passed for a string parameter would reach the upstream as an object.
+        for (String type : List.of("string", "number", "integer", "boolean")) {
+            assertThrows(IllegalArgumentException.class, () -> Resolver
+                    .requireDeclaredInputType(input("email", type), Map.of("$ne", "")), type);
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.requireDeclaredInputType(input("email", type), List.of("a")),
+                    type);
+        }
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldRejectMismatchedScalar() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("n", "number"), true));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("flag", "boolean"), 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("count", "integer"), 1.5));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("props", "object"), List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("ids", "array"), Map.of()));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldWriteNumberAndBooleanAsTextForString() {
+        assertEquals("42", Resolver.requireDeclaredInputType(input("id", "string"), 42));
+        assertEquals("true", Resolver.requireDeclaredInputType(input("id", "string"), true));
+        assertEquals("7", Resolver.requireDeclaredInputType(input("id", "string"),
+                MAPPER.getNodeFactory().numberNode(7)));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldAcceptStringForEveryType() {
+        // Path, query and header values are always strings.
+        for (String type : List.of("string", "number", "integer", "boolean", "object", "array")) {
+            assertEquals("5", Resolver.requireDeclaredInputType(input("v", type), "5"), type);
+        }
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldAcceptMatchingValues() {
+        Map<String, Object> props = Map.of("tokens", 5);
+        List<String> ids = List.of("a", "b");
+        String[] idArray = {"a"};
+        ObjectNode node = MAPPER.createObjectNode().put("tokens", 5);
+
+        assertEquals(1.5, Resolver.requireDeclaredInputType(input("n", "number"), 1.5));
+        assertEquals(3, Resolver.requireDeclaredInputType(input("n", "integer"), 3));
+        assertEquals(3.0, Resolver.requireDeclaredInputType(input("n", "integer"), 3.0));
+        assertEquals(false, Resolver.requireDeclaredInputType(input("b", "boolean"), false));
+        assertEquals(props, Resolver.requireDeclaredInputType(input("p", "object"), props));
+        assertEquals(node, Resolver.requireDeclaredInputType(input("p", "object"), node));
+        assertEquals(ids, Resolver.requireDeclaredInputType(input("a", "array"), ids));
+        assertEquals(idArray, Resolver.requireDeclaredInputType(input("a", "array"), idArray));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldLeaveNullAndUndeclaredTypeUnchanged() {
+        Map<String, Object> props = Map.of("k", "v");
+
+        assertNull(Resolver.requireDeclaredInputType(input("v", "string"), null));
+        assertEquals(props, Resolver.requireDeclaredInputType(input("v", null), props));
+        assertEquals(props, Resolver.requireDeclaredInputType(null, props));
+    }
+
+    @Test
+    public void requireDeclaredInputTypeShouldNameParameterWithoutEchoingValue() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Resolver.requireDeclaredInputType(input("email", "string"),
+                        Map.of("secret-value", 1)));
+
+        assertTrue(error.getMessage().contains("email"));
+        assertFalse(error.getMessage().contains("secret-value"));
+    }
+
+    private static InputParameterSpec input(String name, String type) {
+        return new InputParameterSpec(name, type, null, null);
     }
 }
