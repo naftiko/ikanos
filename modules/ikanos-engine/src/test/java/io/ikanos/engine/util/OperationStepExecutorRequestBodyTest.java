@@ -270,8 +270,156 @@ class OperationStepExecutorRequestBodyTest {
         HttpInvocation ctx = (HttpInvocation)
                 executor.findClientRequestFor("svc", "op", Map.of("plan", "pro"));
 
-        assertEquals("{\"customer\":{},\"plan_code\":\"pro\"}",
+        // #985: the customer object, emptied by its absent members, is left out too.
+        assertEquals("{\"plan_code\":\"pro\"}", ctx.getRequest().getEntity().getText());
+    }
+
+    private static final String LINEAR_LIST_PROJECTS_BODY = """
+                            body:
+                              type: "json"
+                              data:
+                                query: "query ListProjects { projects { nodes { id } } }"
+                                variables:
+                                  filter:
+                                    name: {containsIgnoreCase: "{{query}}"}
+                                    accessibleTeams: {some: {or: [{key: {eqIgnoreCase: "{{team}}"}}, {name: {eqIgnoreCase: "{{team}}"}}]}}
+                                    status: {or: [{name: {eqIgnoreCase: "{{status}}"}}, {type: {eq: "{{status}}"}}]}
+                                  first: "{{limit}}"
+                                  after: "{{cursor}}"
+            """;
+
+    @Test
+    void findClientRequestForShouldKeepOnlyProvidedBranchOfNestedFilter() throws Exception {
+        // #985: Linear reads {"key":{}} as a condition, so emptied branches must not be sent.
+        OperationStepExecutor executor = executorWithBody(LINEAR_LIST_PROJECTS_BODY);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("team", "ENG"));
+
+        assertEquals("{\"query\":\"query ListProjects { projects { nodes { id } } }\","
+                + "\"variables\":{\"filter\":{\"accessibleTeams\":{\"some\":{\"or\":["
+                + "{\"key\":{\"eqIgnoreCase\":\"ENG\"}},{\"name\":{\"eqIgnoreCase\":\"ENG\"}}"
+                + "]}}}}}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutNestedFilterWhenNoInputIsGiven() throws Exception {
+        OperationStepExecutor executor = executorWithBody(LINEAR_LIST_PROJECTS_BODY);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("unrelated", "x"));
+
+        assertEquals("{\"query\":\"query ListProjects { projects { nodes { id } } }\"}",
+                ctx.getRequest().getEntity().getText(),
+                "filter, then variables, end up empty and are left out");
+    }
+
+    @Test
+    void findClientRequestForShouldKeepPartlyEmptiedArrayElements() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    or:
+                                      - {key: "{{key}}"}
+                                      - {name: "{{name}}"}
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("name", "ENG"));
+
+        assertEquals("{\"or\":[{\"name\":\"ENG\"}]}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepContainersWrittenEmptyInJsonObjectData() throws Exception {
+        // Only containers emptied by left-out members are pruned, not those the author wrote.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter: {}
+                                    ids: []
+                                    nested:
+                                      options: {}
+                                    name: "{{name}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("unrelated", "x"));
+
+        assertEquals("{\"filter\":{},\"ids\":[],\"nested\":{\"options\":{}}}",
                 ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepContainerOfEmptyStringValue() throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter:
+                                      name: "{{query}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("query", ""));
+
+        assertEquals("{\"filter\":{\"name\":\"\"}}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldKeepContainersOfEmptyArrayAndObjectValues() throws Exception {
+        // An empty list or map given by the caller is a value, not an absence.
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter:
+                                      ids: "{{ids}}"
+                                    options:
+                                      extra: "{{extra}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation) executor.findClientRequestFor("svc", "op",
+                Map.of("ids", List.of(), "extra", Map.of()));
+
+        assertEquals("{\"filter\":{\"ids\":[]},\"options\":{\"extra\":{}}}",
+                ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldSendEmptyRootObjectWhenAllMembersAreLeftOut()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter:
+                                      name: "{{query}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("unrelated", "x"));
+
+        assertEquals("{}", ctx.getRequest().getEntity().getText());
+    }
+
+    @Test
+    void findClientRequestForShouldSendEmptyRootArrayWhenAllElementsAreLeftOut()
+            throws Exception {
+        OperationStepExecutor executor = executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    - id: "{{id}}"
+                                    - "{{other}}"
+                """);
+
+        HttpInvocation ctx = (HttpInvocation)
+                executor.findClientRequestFor("svc", "op", Map.of("unrelated", "x"));
+
+        assertEquals("[]", ctx.getRequest().getEntity().getText());
     }
 
     @Test

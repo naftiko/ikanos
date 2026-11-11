@@ -2991,7 +2991,7 @@
           "const": "json"
         },
         "data": {
-          "description": "Payload serialized as JSON. Accepts a Mustache template string (substituted values are JSON-encoded), or an inline object or array. In an inline object or array, a string value that is exactly one placeholder (e.g. `\"{{name}}\"`) takes the parameter value with its JSON type (string, number, boolean, object, array) and is left out when the parameter is absent; other strings are rendered and stay JSON strings.",
+          "description": "Payload serialized as JSON. Accepts a Mustache template string (substituted values are JSON-encoded), or an inline object or array. In an inline object or array, a string value that is exactly one placeholder (e.g. `\"{{name}}\"`) takes the parameter value with its JSON type (string, number, boolean, object, array) and is left out when the parameter is absent; other strings are rendered and stay JSON strings. An object or array emptied because all its members were left out is left out too, recursively; one written empty (`{}`, `[]`) is kept, and the body itself is always sent, as `{}` or `[]` if need be.",
           "oneOf": [
             {
               "type": "string"
