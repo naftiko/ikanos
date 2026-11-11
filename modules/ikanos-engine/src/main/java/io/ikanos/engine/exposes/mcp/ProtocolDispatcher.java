@@ -116,11 +116,12 @@ public class ProtocolDispatcher {
     /**
      * Dispatch a JSON-RPC request and return the dispatch result.
      *
-     * <p>A notification, a request object with a string {@code method} but no {@code id} member,
-     * gets no response: JSON-RPC forbids one, so the result has no body, which the Streamable
+     * <p>A notification, a request object with {@code "jsonrpc":"2.0"}, a string {@code method}
+     * and no {@code id} member, gets no response: JSON-RPC forbids one, so the result has no body, which the Streamable
      * HTTP transport answers with {@code 202 Accepted} (once its headers are valid) and stdio with
      * nothing. A notification is never executed, even for a method that has a handler. Any other
-     * message without an {@code id}, such as a batch array, is still answered with an error.</p>
+     * message without an {@code id}, such as a batch array or an object whose {@code jsonrpc} is
+     * missing or not {@code "2.0"}, is still answered with an error.</p>
      *
      * @param request the parsed JSON-RPC request.
      * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}, with
@@ -131,7 +132,7 @@ public class ProtocolDispatcher {
             return new DispatchResult(buildJsonRpcError(null, INVALID_REQUEST.getCode(),
                     "Invalid Request: request body is missing"), INVALID_REQUEST);
         }
-        if (request.isObject() && request.path("method").isString() && !request.has("id")) {
+        if (isNotification(request)) {
             return new DispatchResult((ObjectNode) null);
         }
 
@@ -179,6 +180,18 @@ public class ProtocolDispatcher {
             return new DispatchResult(McpErrors.internalError(request.get("id"),
                     "Error processing request", e), INTERNAL_ERROR);
         }
+    }
+
+    /**
+     * Whether the message is a well-formed JSON-RPC 2.0 notification: an object declaring
+     * {@code "jsonrpc":"2.0"}, with a string {@code method} and no {@code id} member. A malformed
+     * envelope is not a notification, so it still reaches validation and gets an error.
+     */
+    private static boolean isNotification(JsonNode request) {
+        return request.isObject()
+                && JSONRPC_VERSION.equals(request.path("jsonrpc").asString(""))
+                && request.path("method").isString()
+                && !request.has("id");
     }
 
     /**
