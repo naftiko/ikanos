@@ -754,10 +754,14 @@ body:
 
 **JSON body with placeholders (object):** a value that is exactly one placeholder takes the
 parameter's JSON type (string, number, boolean, object, array) and is left out when the
-parameter is absent. Any other string stays a JSON string, with substituted values inserted
-as text. A placeholder in a key is resolved too, but two members that resolve to the same key
-fail the call, so a caller value cannot replace a fixed member. In a string template, substituted
-values are JSON-encoded; quote string placeholders.
+parameter is absent. An object or array whose members are all left out is left out too,
+recursively, so an optional filter sends no condition at all when none of its values is given.
+An object or array written empty (`{}`, `[]`) is kept, and so is a placeholder whose value is
+`""`, `[]` or `{}`: that is a value, not an absence. The body itself is always sent, as `{}` or
+`[]` when everything in it was left out. Any other string stays a JSON string, with substituted
+values inserted as text. A placeholder in a key is resolved too, but two members that resolve to
+the same key fail the call, so a caller value cannot replace a fixed member. In a string
+template, substituted values are JSON-encoded; quote string placeholders.
 
 ```yaml
 body:
@@ -767,6 +771,10 @@ body:
     pay_in_advance: "{{pay_in_advance}}"  # a boolean stays a boolean; false is kept
     charges: "{{charges}}"              # an array stays an array
     label: "Plan {{code}}"              # always a string
+    filter:                             # left out when neither team nor status is provided
+      team: {eq: "{{team}}"}            # left out, with its object, when team is not provided
+      status: {eq: "{{status}}"}
+    options: {}                         # written empty, always sent
 ```
 
 **Text body:**

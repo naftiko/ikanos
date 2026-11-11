@@ -538,6 +538,11 @@ public class Resolver {
      * <li>A string that is exactly one placeholder ({@code "{{x}}"}, {@code "{{step.field}}"})
      * becomes the value of {@code x} with its JSON type: string, number, boolean, object or
      * array. When {@code x} is absent or null, the member (or array element) is left out.</li>
+     * <li>An object or array that ends up empty because all its members were left out is left
+     * out too, recursively (#985), so an optional filter whose values are all absent sends no
+     * condition. An object or array written empty ({@code {}}, {@code []}) is kept, and so is a
+     * placeholder whose value is an empty string, object or array: it is a value, not an
+     * absence. A root object or array is always sent, empty if need be.</li>
      * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly
      * (quotes and backslashes included) and each substituted value is inserted as text, a list,
      * map or array value as its JSON text.</li>
@@ -554,12 +559,23 @@ public class Resolver {
     public static JsonNode resolveJsonData(Object data, Map<String, Object> parameters) {
         ObjectMapper jsonMapper = IkanosMappers.json();
         JsonNode resolved = resolveJsonDataNode(data, parameters, jsonMapper);
-        return resolved != null ? resolved : NullNode.instance;
+        if (resolved != null) {
+            return resolved;
+        }
+        // The root is still sent when all its members were left out.
+        if (data instanceof Map<?, ?>) {
+            return jsonMapper.createObjectNode();
+        }
+        if (data instanceof java.util.Collection<?>) {
+            return jsonMapper.createArrayNode();
+        }
+        return NullNode.instance;
     }
 
     /**
-     * @return the resolved node, or {@code null} when the value is a placeholder for an absent
-     *         parameter and must be left out
+     * @return the resolved node, or {@code null} when it must be left out: the value is a
+     *         placeholder for an absent parameter, or an object or array whose members were all
+     *         left out
      */
     private static JsonNode resolveJsonDataNode(Object data, Map<String, Object> parameters,
             ObjectMapper jsonMapper) {
@@ -579,7 +595,8 @@ public class Resolver {
                     object.set(key, value);
                 }
             }
-            return object;
+            // Emptied by left-out members, not written empty by the author (#985).
+            return object.isEmpty() && !map.isEmpty() ? null : object;
         }
         if (data instanceof java.util.Collection<?> items) {
             ArrayNode array = jsonMapper.createArrayNode();
@@ -589,7 +606,7 @@ public class Resolver {
                     array.add(value);
                 }
             }
-            return array;
+            return array.isEmpty() && !items.isEmpty() ? null : array;
         }
         if (data instanceof String text) {
             java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
