@@ -651,15 +651,21 @@ public class ResourceRestlet extends Restlet {
     /**
      * Target of a forwarded request: the consumed adapter's base URI, the captured path, and the
      * incoming query string as received, neither decoded nor re-encoded, so that the upstream sees
-     * exactly what the caller sent (#953). It is joined with {@code &} when the base URI already
-     * has a query. Query input parameters of the adapter are appended after it.
+     * exactly what the caller sent (#953). When the base URI already has a query, the captured
+     * path goes before it and the incoming query is joined to it with {@code &}. Query input
+     * parameters of the adapter are appended after it.
      */
     static String forwardTargetRef(String baseUri, String normalizedPath, String rawQuery) {
-        String targetRef = baseUri + normalizedPath;
-        if (rawQuery == null || rawQuery.isEmpty()) {
-            return targetRef;
+        int queryStart = baseUri.indexOf('?');
+        String basePath = queryStart < 0 ? baseUri : baseUri.substring(0, queryStart);
+        String baseQuery = queryStart < 0 ? "" : baseUri.substring(queryStart + 1);
+
+        String query = baseQuery;
+        if (rawQuery != null && !rawQuery.isEmpty()) {
+            query = query.isEmpty() ? rawQuery : query + '&' + rawQuery;
         }
-        return targetRef + (targetRef.indexOf('?') < 0 ? '?' : '&') + rawQuery;
+        String targetRef = basePath + normalizedPath;
+        return query.isEmpty() ? targetRef : targetRef + '?' + query;
     }
 
     /**
