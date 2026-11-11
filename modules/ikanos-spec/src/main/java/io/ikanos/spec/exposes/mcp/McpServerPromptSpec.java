@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
@@ -80,5 +81,6 @@ public class McpServerPromptSpec {
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
 
+    @JsonIgnore
     public boolean isFileBased() { return location != null; }
 }

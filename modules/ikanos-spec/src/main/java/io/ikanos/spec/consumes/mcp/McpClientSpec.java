@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.annotation.JsonDeserialize;
@@ -116,6 +117,7 @@ public class McpClientSpec extends ClientSpec {
     }
 
     /** @return {@code true} when the adapter must verify declared tools against the upstream */
+    @JsonIgnore
     public boolean isDiscoveryVerify() {
         return !DISCOVERY_OFF.equalsIgnoreCase(getDiscovery());
     }

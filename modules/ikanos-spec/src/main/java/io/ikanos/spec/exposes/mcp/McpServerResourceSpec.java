@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
@@ -108,8 +109,10 @@ public class McpServerResourceSpec {
     public McpResourceUiSpec getUi() { return ui.get(); }
     public void setUi(McpResourceUiSpec ui) { this.ui.set(ui); }
 
+    @JsonIgnore
     public boolean isStatic() { return location.get() != null; }
 
+    @JsonIgnore
     public boolean isTemplate() {
         String value = uri.get();
         return value != null && value.contains("{") && value.contains("}");
