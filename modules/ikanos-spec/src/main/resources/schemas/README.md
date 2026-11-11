@@ -925,7 +925,7 @@ Used in the `inputParameters` map of MCP tools (exposed and consumed) and of agg
 **Rules:**
 
 - `enum`, `format`, `minimum`, `maximum`, `requiredProperties` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.
-- `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
+- `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. An `enum` value is read as the `inputSchema` advertises it: on an `integer` parameter, `"50.0"` or `"1e2"` is advertised as a string, so a number default never matches it (write `"50"`). `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
 - A `default` on a `required: true` parameter never applies, since the caller must send it: `ikanos validate` and the engine report it as a warning.
 - `default` is only allowed on the parameter itself, not inside `items` or `properties`.
 
