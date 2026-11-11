@@ -21,8 +21,9 @@ The schema version is **`1.0.0-beta10`**. Every capability and shared document s
 ikanos: "1.0.0-beta10"
 ```
 
-The field is a `const` in the schema, and an engine accepts only its own schema version: a
-`1.0.0-beta10` engine loads `1.0.0-beta10` documents only.
+The field is a `const` in the schema, so `ikanos validate` and Polychro reject any other value.
+The engine does not check it: like the rest of the schema, it is not validated when a
+capability loads, so validate a capability before serving it.
 
 ## Specification
 
