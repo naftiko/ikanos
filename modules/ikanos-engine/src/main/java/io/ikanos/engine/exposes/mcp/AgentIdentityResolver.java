@@ -30,6 +30,8 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.engine.util.CidrRange;
 import io.ikanos.spec.exposes.mcp.McpTrustSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.node.ArrayNode;
 
 /**
  * Works out which agent sent an MCP request over Streamable HTTP, following the adapter's
@@ -126,36 +128,56 @@ public class AgentIdentityResolver {
      * The principal that owns the state a request creates and reads back, such as a task or a
      * multi round-trip {@code requestState}. Unlike {@link #resolve}, which serves the audit and
      * follows the {@code trust} mode, it never depends on that mode for an authenticated caller: a
-     * request authenticated by OAuth2 is owned by its token's {@code sub}, or its
-     * {@code client_id} for a token without one, whatever the mode. A token that names neither is
-     * owned by the token itself, so only its holder reads the state back, never another caller.
-     * Without a token it is the identity a trusted gateway forwarded, or
-     * {@value McpCallContext#ANONYMOUS}, as for bearer and apikey authentication, whose one shared
-     * credential names no caller.
+     * request authenticated by OAuth2 is owned by its token's issuer and {@code sub}, or its issuer
+     * and {@code client_id} for a token without one, whatever the mode. A token that names
+     * neither is owned by the token itself, so only its holder reads the state back. Without a
+     * token it is the identity a trusted gateway forwarded, or nobody in particular, as under
+     * bearer and apikey authentication, whose one shared credential names no caller.
      *
+     * <p>The owner is a JSON array of the adapter's namespace, the kind of principal and its
+     * parts, so no two kinds, issuers or adapters can name the same owner: a {@code sub} of one
+     * issuer never owns another's task, nor does a forwarded identity spelled like it.</p>
+     *
+     * @param namespace the namespace of the adapter serving the request
      * @param request the inbound HTTP request, or {@code null} on stdio
      * @param identity what {@link #resolve} returned for it
      */
-    String ownerOf(Request request, Optional<AgentIdentity> identity) {
+    static String ownerOf(String namespace, Request request, Optional<AgentIdentity> identity) {
         Object claims = request != null
                 ? request.getAttributes().get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE)
                 : null;
         if (claims instanceof JWTClaimsSet claimsSet) {
+            String issuer = claimsSet.getIssuer();
             String subject = claimsSet.getSubject();
             if (subject != null && !subject.isBlank()) {
-                return subject;
+                return owner(namespace, "sub", issuer, subject);
             }
             Object clientId = claimsSet.getClaim("client_id");
             if (clientId instanceof String value && !value.isBlank()) {
-                return "client_id:" + value;
+                return owner(namespace, "client_id", issuer, value);
             }
             // Bound to the token itself: its signature sets it apart from any other token.
             Object token = request.getAttributes()
                     .get(OAuth2AuthenticationRestlet.VALIDATED_TOKEN_ATTRIBUTE);
-            return "token:" + sha256(token instanceof String raw ? raw : claimsSet.toString());
+            return owner(namespace, "token",
+                    sha256(token instanceof String raw ? raw : claimsSet.toString()));
         }
         return identity.filter(id -> AgentIdentity.SOURCE_FORWARDED.equals(id.source()))
-                .map(AgentIdentity::id).orElse(McpCallContext.ANONYMOUS);
+                .map(id -> owner(namespace, "forwarded", id.id()))
+                .orElseGet(() -> anonymousOwner(namespace));
+    }
+
+    /** The owner of a request to the adapter {@code namespace} that names no caller. */
+    static String anonymousOwner(String namespace) {
+        return owner(namespace, McpCallContext.ANONYMOUS);
+    }
+
+    private static String owner(String namespace, String kind, String... parts) {
+        ArrayNode owner = IkanosMappers.json().createArrayNode().add(namespace).add(kind);
+        for (String part : parts) {
+            owner.add(part);
+        }
+        return owner.toString();
     }
 
     private static String sha256(String value) {

@@ -71,6 +71,7 @@ public class ProtocolDispatcher {
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
     private final AgentIdentityResolver identityResolver;
+    private final String namespace;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -96,6 +97,8 @@ public class ProtocolDispatcher {
         this.capabilityName = resolveCapabilityName(adapter);
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
+        this.namespace = adapter.getMcpServerSpec() != null
+                ? adapter.getMcpServerSpec().getNamespace() : null;
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
             mcpHandlers.put(handler.getMethodName(), handler);
         }
@@ -206,7 +209,7 @@ public class ProtocolDispatcher {
                     id.source(), id.actor()));
             // State bound to the caller (requestState, tasks) reads the owner from here. It
             // comes from the authentication, not from the audit identity, which trust may turn off.
-            String owner = identityResolver.ownerOf(httpRequest, identity);
+            String owner = AgentIdentityResolver.ownerOf(namespace, httpRequest, identity);
             return McpCallContext.as(owner, () -> dispatch(request));
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
