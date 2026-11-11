@@ -665,7 +665,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameter": {
-      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups. Or `schema: name`, shaped by a schema of the `definitions` of the same MCP adapter or aggregate.",
+      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups. On an MCP tool or an aggregate flow, also `schema: name`, shaped by a schema of the `definitions` of the same MCP adapter or aggregate; other use sites take `OrchestratedOutputParameterInline`.",
       "oneOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterScalar"
@@ -693,6 +693,28 @@
         "schema"
       ],
       "additionalProperties": false
+    },
+    "OrchestratedOutputParameterInline": {
+      "description": "Orchestrated output declared inline, at every level: `schema: name` is not allowed. Used where no `definitions` apply (REST operations, MCP resources, consumed HTTP operations): only MCP tools and aggregate flows reference schemas.",
+      "$ref": "#/$defs/OrchestratedOutputParameter",
+      "not": {
+        "$ref": "#/$defs/OrchestratedOutputParameterSchemaRef"
+      },
+      "properties": {
+        "items": {
+          "not": {
+            "$ref": "#/$defs/OrchestratedOutputParameterSchemaRef"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/OrchestratedOutputParameterInline"
+          }
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/OrchestratedOutputParameterInline"
+          }
+        }
+      }
     },
     "MockOutputParameter": {
       "type": "object",
@@ -1806,6 +1828,44 @@
       },
       "additionalProperties": false
     },
+    "ConsumedMcpToolInputParameter": {
+      "description": "Argument of a consumed MCP tool, declared inline at every level: `schema: name` is not allowed, as a consumed adapter has no `definitions`.",
+      "$ref": "#/$defs/McpToolInputParameter",
+      "not": {
+        "required": [
+          "schema"
+        ]
+      },
+      "properties": {
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchemaInline"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchemaInline"
+          }
+        }
+      }
+    },
+    "McpToolInputSchemaInline": {
+      "description": "Nested MCP tool input schema declared inline at every level: `schema: name` is not allowed.",
+      "$ref": "#/$defs/McpToolInputSchema",
+      "not": {
+        "required": [
+          "schema"
+        ]
+      },
+      "properties": {
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchemaInline"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchemaInline"
+          }
+        }
+      }
+    },
     "McpToolInputProperties": {
       "type": "object",
       "minProperties": 1,
@@ -1984,7 +2044,7 @@
             "outputParameters": {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameter"
+                "$ref": "#/$defs/OrchestratedOutputParameterInline"
               }
             }
           },
@@ -2536,7 +2596,7 @@
             "outputParameters": {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameter"
+                "$ref": "#/$defs/OrchestratedOutputParameterInline"
               }
             }
           }
@@ -2823,7 +2883,7 @@
             "outputParameters": {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameter"
+                "$ref": "#/$defs/OrchestratedOutputParameterInline"
               }
             }
           }
@@ -2918,7 +2978,7 @@
             "pattern": "^[a-zA-Z0-9-_*]+$"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/McpToolInputParameter"
+            "$ref": "#/$defs/ConsumedMcpToolInputParameter"
           },
           "description": "Upstream tool arguments, keyed by argument name. Values come from the calling step's `with`."
         },
