@@ -115,7 +115,13 @@ public class ToolInputDefaultsIntegrationTest {
         Component upstream = createRecordingUpstream(port, recorded);
         upstream.start();
         try {
-            return scenario.run(capabilityFromYaml(capabilityYaml(port)), recorded);
+            Capability capability = capabilityFromYaml(capabilityYaml(port));
+            try {
+                return scenario.run(capability, recorded);
+            } finally {
+                // Releases the consumed HTTP client that the dispatch started on demand
+                capability.stop();
+            }
         } finally {
             upstream.stop();
         }
