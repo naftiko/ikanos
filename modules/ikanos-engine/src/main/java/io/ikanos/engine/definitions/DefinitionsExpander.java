@@ -14,6 +14,7 @@
 package io.ikanos.engine.definitions;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 
 import org.restlet.Context;
 
@@ -34,6 +36,7 @@ import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.util.StructureSpec;
 
 /**
  * Expands the shared {@code definitions} of MCP adapters and aggregates into the tools and flows
@@ -64,21 +67,27 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
  * whose sets give it inputs advertises them instead of the flow's, as its own
  * {@code inputParameters} would.</p>
  *
- * <p>Errors: an unknown reference, a reference of the wrong kind, a qualified ({@code a.b}) or
- * {@code $ref} reference, the same parameter from two sets of one unit, a cycle between schemas,
- * keys beside {@code schema:}, and {@code schema:} in an output that is not orchestrated.
- * Warning: a definition that no unit uses. Expansion is bounded by
- * {@link #MAX_EXPANDED_NODES} per namespace, so a document cannot multiply itself without
- * limit.</p>
+ * <p>Errors: an unknown reference, a reference of the wrong kind, a qualified ({@code a.b})
+ * reference, a JSON Schema {@code $ref} (rejected by its presence, alone or beside
+ * {@code schema:}), the same parameter from two sets of one unit, a cycle between schemas, keys
+ * beside {@code schema:}, and {@code schema:} in an output that is not orchestrated. Warning: a
+ * definition that no unit uses. Each definition's content is checked once, as declared, without
+ * expanding it. Expansion is bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per
+ * namespace (an inline declaration counts one, a schema use the size of the copy it emits), so
+ * a document cannot multiply itself without limit.</p>
  */
 public final class DefinitionsExpander {
 
     /**
-     * Upper bound on the parameter declarations that the definitions of one namespace may expand
-     * to. Schemas that reference each other without a cycle can still grow exponentially (two
-     * properties of the same schema at every level), so expansion stops past this bound.
+     * Upper bound on the parameter declarations that the tools or flows of one namespace may
+     * emit once their definitions are expanded. Schemas that reference each other without a
+     * cycle can still grow exponentially (two properties of the same schema at every level), so
+     * expansion stops past this bound. Checking the definitions themselves costs nothing.
      */
     public static final int MAX_EXPANDED_NODES = 100_000;
+
+    /** A bare definition name: no qualifier, no pointer. */
+    private static final Pattern BARE_NAME = Pattern.compile("[a-zA-Z0-9-]+");
 
     /**
      * Findings of an expansion.
@@ -184,7 +193,9 @@ public final class DefinitionsExpander {
         private final Set<String> usedSets = new HashSet<>();
         private final Set<String> usedSchemas = new HashSet<>();
         private final Set<String> cyclic = new HashSet<>();
-        private int expandedNodes;
+        private final Set<String> checkedSchemas = new HashSet<>();
+        private final Map<String, Long> sizes = new HashMap<>();
+        private long expandedNodes;
         private boolean overBudget;
 
         Namespace(String owner, String unitKind, DefinitionsSpec definitions, Set<String> errors,
@@ -233,29 +244,28 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Report the definitions that no unit uses, after checking their content: a definition
-         * that is never used is still checked, so a mistake in it does not wait for its first
-         * use.
+         * Check the content of every definition, then report the definitions that no unit
+         * uses. A definition that is never used is still checked, so a mistake in it does not
+         * wait for its first use. Checking walks each definition once, as declared: it never
+         * materializes an expansion, so it does not consume the expansion budget.
          */
         void finish() {
-            Set<String> setsInUse = new HashSet<>(usedSets);
-            Set<String> schemasInUse = new HashSet<>(usedSchemas);
             for (Map.Entry<String, Map<String, InputParameterSpec>> set : sets.entrySet()) {
                 for (InputParameterSpec param : set.getValue().values()) {
-                    expandInput(copy(param), setLocation(set.getKey(), param.getName()), true);
+                    checkContent(param, setLocation(set.getKey(), param.getName()), true);
                 }
             }
             for (String name : schemas.keySet()) {
-                resolveSchema(name, owner + ", schema '" + name + "'");
+                checkSchema(name);
             }
             for (String name : sets.keySet()) {
-                if (!setsInUse.contains(name)) {
+                if (!usedSets.contains(name)) {
                     warnings.add(owner + " declares the input parameter set '" + name
                             + "', which no " + unitKind + " uses.");
                 }
             }
             for (String name : schemas.keySet()) {
-                if (!schemasInUse.contains(name)) {
+                if (!usedSchemas.contains(name)) {
                     warnings.add(owner + " declares the schema '" + name + "', which no "
                             + unitKind + " uses.");
                 }
@@ -273,7 +283,7 @@ public final class DefinitionsExpander {
             boolean usesSets = setNames != null && !setNames.isEmpty();
             boolean usesSchemas = false;
             for (InputParameterSpec param : own.values()) {
-                usesSchemas |= referencesSchema(param);
+                usesSchemas |= referencesSchema(param) || hasJsonSchemaRef(param);
             }
             if (!usesSets && !usesSchemas) {
                 return null;
@@ -315,28 +325,29 @@ public final class DefinitionsExpander {
 
         /**
          * Expand the schema references of an input, in place, and return it, or the expanded
-         * schema copy that replaces it.
+         * schema copy that replaces it. Each inline declaration costs one unit of the expansion
+         * budget, and each schema reference the size of the expanded schema it emits.
          *
          * @param topLevel whether the input is a tool or flow input, which also takes
          *                 {@code required} beside {@code schema:}
          */
         InputParameterSpec expandInput(InputParameterSpec param, String location,
                 boolean topLevel) {
-            if (param == null || !withinBudget()) {
+            if (param == null || overBudget) {
                 return param;
             }
+            checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
                 checkInputBesideSchema(param, location, topLevel);
                 InputParameterSpec resolved = resolveSchema(param.getSchema(), location);
                 if (resolved == null) {
                     return param;
                 }
-                resolved.setName(param.getName());
-                resolved.setRequired(param.isRequired());
-                if (param.getDescription() != null) {
-                    resolved.setDescription(param.getDescription());
-                }
+                applyUseSite(param, resolved);
                 return resolved;
+            }
+            if (!withinBudget(1)) {
+                return param;
             }
             if (param.getItems() != null) {
                 param.setItems(expandInput(param.getItems(), location + ", items", false));
@@ -372,6 +383,7 @@ public final class DefinitionsExpander {
                         errors.add(where + ": 'schema:' is only allowed in orchestrated (steps)"
                                 + " outputs. Mapped outputs keep a 'mapping' on every leaf.");
                     }
+                    checkJsonSchemaRefs(output, where);
                     expanded.add(output);
                 }
             }
@@ -379,9 +391,10 @@ public final class DefinitionsExpander {
         }
 
         OutputParameterSpec expandOutput(OutputParameterSpec param, String location) {
-            if (param == null || !withinBudget()) {
+            if (param == null || overBudget) {
                 return param;
             }
+            checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
                 checkOutputBesideSchema(param, location);
                 InputParameterSpec resolved = resolveSchema(param.getSchema(), location);
@@ -391,6 +404,9 @@ public final class DefinitionsExpander {
                 OutputParameterSpec output = toOutput(resolved);
                 output.setName(param.getName());
                 return output;
+            }
+            if (!withinBudget(1)) {
+                return param;
             }
             if (param.getItems() != null) {
                 param.setItems(expandOutput(param.getItems(), location + ", items"));
@@ -428,12 +444,29 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Resolve a schema name of this namespace into a fresh, fully expanded copy of the
-         * schema.
+         * Resolve a schema name used by a unit into a fresh, fully expanded copy of the schema.
+         * The schema's content is checked once, whatever the number of its uses, and the use
+         * costs the size of the copy it emits.
          *
-         * @return the copy, or {@code null} when the name cannot be resolved
+         * @return the copy, or {@code null} when the name cannot be resolved or the copy would
+         *         exceed the expansion budget
          */
         InputParameterSpec resolveSchema(String name, String location) {
+            if (lookupSchema(name, location) == null) {
+                return null;
+            }
+            markUsed(name);
+            checkSchema(name);
+            if (cyclic.contains(name) || !withinBudget(size(name))) {
+                return null;
+            }
+            return instantiate(name);
+        }
+
+        /**
+         * Look a schema name up, reporting a qualified name, an unknown name or a set name.
+         */
+        private InputParameterSpec lookupSchema(String name, String location) {
             if (!isBareName(name, location)) {
                 return null;
             }
@@ -447,13 +480,119 @@ public final class DefinitionsExpander {
                     errors.add(location + ": unknown schema '" + name + "'. " + owner
                             + " declares " + names(schemas.keySet()) + ".");
                 }
+            }
+            return schema;
+        }
+
+        /** Mark a schema used, with every schema it references, directly or not. */
+        private void markUsed(String name) {
+            if (!schemas.containsKey(name) || !usedSchemas.add(name)) {
+                return;
+            }
+            Set<String> references = new LinkedHashSet<>();
+            collectReferences(schemas.get(name), references);
+            for (String reference : references) {
+                markUsed(reference);
+            }
+        }
+
+        /** Check the content of a schema, once, where it is declared. */
+        void checkSchema(String name) {
+            if (checkedSchemas.add(name)) {
+                checkContent(schemas.get(name), owner + ", schema '" + name + "'", false);
+            }
+        }
+
+        /**
+         * Check a declaration as written, without expanding it: its {@code $ref}, the keys
+         * beside its {@code schema:}, and the schema it references (checked where declared).
+         */
+        private void checkContent(InputParameterSpec param, String location, boolean topLevel) {
+            if (param == null) {
+                return;
+            }
+            checkJsonSchemaRef(param, location);
+            if (param.getSchema() != null) {
+                checkInputBesideSchema(param, location, topLevel);
+                if (lookupSchema(param.getSchema(), location) != null) {
+                    checkSchema(param.getSchema());
+                }
+                return;
+            }
+            checkContent(param.getItems(), location + ", items", false);
+            checkContent(param.getValues(), location + ", values", false);
+            for (InputParameterSpec property : param.getProperties()) {
+                checkContent(property, location + ", property '" + property.getName() + "'",
+                        false);
+            }
+        }
+
+        /** Whether a reference resolves to a schema whose expansion terminates. */
+        private boolean expandable(String name) {
+            return name != null && BARE_NAME.matcher(name).matches()
+                    && schemas.containsKey(name) && !cyclic.contains(name);
+        }
+
+        /**
+         * Number of parameter declarations the expanded schema emits, computed from the
+         * declarations without materializing them, and capped just past the budget.
+         */
+        long size(String name) {
+            Long known = sizes.get(name);
+            if (known == null) {
+                known = sizeOf(schemas.get(name));
+                sizes.put(name, known);
+            }
+            return known;
+        }
+
+        private long sizeOf(InputParameterSpec param) {
+            if (param == null) {
+                return 0;
+            }
+            if (param.getSchema() != null) {
+                return expandable(param.getSchema()) ? size(param.getSchema()) : 1;
+            }
+            long total = 1 + sizeOf(param.getItems()) + sizeOf(param.getValues());
+            for (InputParameterSpec property : param.getProperties()) {
+                total = Math.min(total + sizeOf(property), MAX_EXPANDED_NODES + 1L);
+            }
+            return Math.min(total, MAX_EXPANDED_NODES + 1L);
+        }
+
+        /** A fresh, fully expanded copy of a schema whose content was checked. */
+        private InputParameterSpec instantiate(String name) {
+            return instantiateNode(schemas.get(name));
+        }
+
+        private InputParameterSpec instantiateNode(InputParameterSpec source) {
+            if (source == null) {
                 return null;
             }
-            usedSchemas.add(name);
-            if (cyclic.contains(name)) {
-                return null;
+            if (source.getSchema() != null) {
+                if (!expandable(source.getSchema())) {
+                    return copy(source);
+                }
+                InputParameterSpec resolved = instantiate(source.getSchema());
+                applyUseSite(source, resolved);
+                return resolved;
             }
-            return expandInput(copy(schema), owner + ", schema '" + name + "'", false);
+            InputParameterSpec node = copyNode(source);
+            node.setItems(instantiateNode(source.getItems()));
+            node.setValues(instantiateNode(source.getValues()));
+            for (InputParameterSpec property : source.getProperties()) {
+                node.getProperties().add(instantiateNode(property));
+            }
+            return node;
+        }
+
+        /** Give an expanded schema the name, {@code required} and description of its use. */
+        private static void applyUseSite(InputParameterSpec use, InputParameterSpec resolved) {
+            resolved.setName(use.getName());
+            resolved.setRequired(use.isRequired());
+            if (use.getDescription() != null) {
+                resolved.setDescription(use.getDescription());
+            }
         }
 
         private String setLocation(String set, String input) {
@@ -461,7 +600,7 @@ public final class DefinitionsExpander {
         }
 
         private boolean isBareName(String name, String location) {
-            if (name != null && name.matches("[a-zA-Z0-9-]+")) {
+            if (name != null && BARE_NAME.matcher(name).matches()) {
                 return true;
             }
             errors.add(location + ": '" + name + "' is not the bare name of a definition."
@@ -470,9 +609,35 @@ public final class DefinitionsExpander {
             return false;
         }
 
-        private boolean withinBudget() {
-            expandedNodes++;
-            if (expandedNodes <= MAX_EXPANDED_NODES) {
+        private void checkJsonSchemaRef(StructureSpec<?> param, String location) {
+            if (param.getJsonSchemaRef() != null) {
+                errors.add(location + ": '$ref' is not supported. Reference a schema of the"
+                        + " definitions by its bare name, with 'schema: name'.");
+            }
+        }
+
+        private void checkJsonSchemaRefs(StructureSpec<?> param, String location) {
+            if (param == null) {
+                return;
+            }
+            checkJsonSchemaRef(param, location);
+            checkJsonSchemaRefs(param.getItems(), location + ", items");
+            checkJsonSchemaRefs(param.getValues(), location + ", values");
+            for (StructureSpec<?> property : param.getProperties()) {
+                checkJsonSchemaRefs(property, location + ", property '" + property.getName()
+                        + "'");
+            }
+        }
+
+        /**
+         * Charge declarations to the expansion budget of the namespace.
+         *
+         * @param declarations the number of parameter declarations about to be emitted
+         * @return whether they fit; past the budget, the error is reported once
+         */
+        private boolean withinBudget(long declarations) {
+            if (!overBudget && expandedNodes + declarations <= MAX_EXPANDED_NODES) {
+                expandedNodes += declarations;
                 return true;
             }
             if (!overBudget) {
@@ -663,16 +828,45 @@ public final class DefinitionsExpander {
         return output;
     }
 
+    /** Whether an input, or one of its nested declarations, carries a JSON Schema {@code $ref}. */
+    static boolean hasJsonSchemaRef(InputParameterSpec param) {
+        if (param == null) {
+            return false;
+        }
+        if (param.getJsonSchemaRef() != null || hasJsonSchemaRef(param.getItems())
+                || hasJsonSchemaRef(param.getValues())) {
+            return true;
+        }
+        for (InputParameterSpec property : param.getProperties()) {
+            if (hasJsonSchemaRef(property)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Deep copy of an input declaration, so that every use of a definition owns its copy. */
     static InputParameterSpec copy(InputParameterSpec source) {
         if (source == null) {
             return null;
         }
+        InputParameterSpec copy = copyNode(source);
+        copy.setItems(copy(source.getItems()));
+        copy.setValues(copy(source.getValues()));
+        for (InputParameterSpec property : source.getProperties()) {
+            copy.getProperties().add(copy(property));
+        }
+        return copy;
+    }
+
+    /** Copy of an input declaration, without its {@code items}, {@code values} and properties. */
+    static InputParameterSpec copyNode(InputParameterSpec source) {
         InputParameterSpec copy = new InputParameterSpec();
         copy.setName(source.getName());
         copy.setType(source.getType());
         copy.setDescription(source.getDescription());
         copy.setSchema(source.getSchema());
+        copy.setJsonSchemaRef(source.getJsonSchemaRef());
         copy.setIn(source.getIn());
         copy.setTemplate(source.getTemplate());
         copy.setRequired(source.isRequired());
@@ -692,11 +886,6 @@ public final class DefinitionsExpander {
         copy.setContentEncoding(source.getContentEncoding());
         copy.setContentCompression(source.getContentCompression());
         copy.setContentMediaType(source.getContentMediaType());
-        copy.setItems(copy(source.getItems()));
-        copy.setValues(copy(source.getValues()));
-        for (InputParameterSpec property : source.getProperties()) {
-            copy.getProperties().add(copy(property));
-        }
         copy.getRequired().addAll(source.getRequired());
         copy.getEnumeration().addAll(source.getEnumeration());
         copy.getExamples().addAll(source.getExamples());

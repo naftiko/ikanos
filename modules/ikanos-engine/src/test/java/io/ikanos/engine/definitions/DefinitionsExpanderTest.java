@@ -469,8 +469,76 @@ class DefinitionsExpanderTest {
 
         assertEquals(2, errors.size(), errors.toString());
         assertTrue(errors.get(0).contains("'other.key' is not the bare name of a definition"));
-        assertTrue(errors.get(1).contains(
-                "'#/definitions/schemas/date-range' is not the bare name of a definition"));
+        assertEquals("MCP adapter 'tools', tool 'list-calls', input 'period': '$ref' is not"
+                + " supported. Reference a schema of the definitions by its bare name, with"
+                + " 'schema: name'.", errors.get(1));
+    }
+
+    @Test
+    void expandAllShouldRejectDollarRefEvenWhenItNamesALocalSchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  inputParameters:
+                    ship: { $ref: ship, description: "Ship." }
+                  call: erp.get-ship
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', input 'ship': '$ref' is not"
+                + " supported. Reference a schema of the definitions by its bare name, with"
+                + " 'schema: name'."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectDollarRefBesideSchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  inputParameters:
+                    ship: { schema: ship, $ref: "#/elsewhere", description: "Ship." }
+                  call: erp.get-ship
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', input 'ship': '$ref' is not"
+                + " supported. Reference a schema of the definitions by its bare name, with"
+                + " 'schema: name'."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectDollarRefInAnOrchestratedOutput() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                """, """
+                list-ships:
+                  description: "List ships."
+                  steps:
+                    ships: { type: call, call: erp.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships"
+                  outputParameters:
+                    flagship: { $ref: ship }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertTrue(errors.contains("MCP adapter 'tools', tool 'list-ships', output 'flagship':"
+                + " '$ref' is not supported. Reference a schema of the definitions by its bare"
+                + " name, with 'schema: name'."), errors.toString());
     }
 
     @Test
@@ -575,6 +643,55 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldChargeTheBoundWithTheDeclarationsEmittedOnly() throws Exception {
+        // Each level uses the next one twice: one use of s0 emits 2^15 - 1 = 32,767
+        // declarations, below the bound, however many times the schemas are checked.
+        StringBuilder schemas = new StringBuilder("definitions:\n  schemas:\n");
+        for (int level = 0; level < 14; level++) {
+            schemas.append("    s").append(level).append(":\n")
+                    .append("      type: object\n      properties:\n")
+                    .append("        a: { schema: s").append(level + 1).append(" }\n")
+                    .append("        b: { schema: s").append(level + 1).append(" }\n");
+        }
+        schemas.append("    s14: { type: string }\n");
+        IkanosSpec spec = mcp(schemas.toString(), """
+                tree:
+                  description: "Tree."
+                  inputParameters:
+                    root: { schema: s0, description: "Root." }
+                  call: erp.tree
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        assertEquals(32_767, count(tool(spec, "tree").getInputParameters().get(0)));
+    }
+
+    @Test
+    void expandAllShouldReportAMistakeInAnUnusedSchemaWithoutExpandingIt() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    broken:
+                      type: object
+                      properties:
+                        window: { schema: missing }
+                """, """
+                get-a:
+                  description: "Get A."
+                  inputParameters:
+                    id: { type: string, description: "ID." }
+                  call: erp.get-a
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', schema 'broken', property 'window': unknown"
+                + " schema 'missing'. MCP adapter 'tools' declares broken."), errors);
+    }
+
+    @Test
     void expandShouldThrowWithEveryErrorWhenDefinitionsAreInvalid() throws Exception {
         IkanosSpec spec = mcp("", """
                 get-a:
@@ -605,6 +722,18 @@ class DefinitionsExpanderTest {
 
         assertTrue(result.errors().isEmpty() && result.warnings().isEmpty());
         assertTrue(before == tool(spec, "get-a").getInputParameters().get(0));
+    }
+
+    /** Number of parameter declarations in an input, nested ones included. */
+    private static int count(InputParameterSpec param) {
+        if (param == null) {
+            return 0;
+        }
+        int total = 1 + count(param.getItems()) + count(param.getValues());
+        for (InputParameterSpec property : param.getProperties()) {
+            total += count(property);
+        }
+        return total;
     }
 
     private static IkanosSpec mcp(String definitions, String tools) throws Exception {
