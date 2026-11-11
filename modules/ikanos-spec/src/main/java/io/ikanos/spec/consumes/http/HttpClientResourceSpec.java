@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonDeserialize;
@@ -38,8 +39,9 @@ import io.ikanos.spec.ResourceSpec;
  * <h2>Query parameter names</h2>
  * {@code queryParameters} names are expanded into {@code in: query} input parameters (see
  * {@link QueryParameterNames}), whichever of {@code inputParameters} and {@code queryParameters}
- * is set first, so {@link #getInputParameters()} returns both forms. The list itself is read-only
- * for serialization: the expanded entries are written as {@code inputParameters}.
+ * is set first, so {@link #getInputParameters()} returns both forms. Serialization writes both
+ * as declared, not the expanded entries, so a copy read back from it (an import deep-copies its
+ * entry through YAML) keeps the names that the load-time check reports.
  */
 public class HttpClientResourceSpec extends ResourceSpec {
 
@@ -81,7 +83,25 @@ public class HttpClientResourceSpec extends ResourceSpec {
         }
     }
 
+    /**
+     * The declared {@code inputParameters} followed by one {@code in: query} parameter per
+     * {@code queryParameters} name. Not serialized: see {@link #serializedInputParameters()}.
+     */
     @Override
+    @JsonIgnore
+    public List<InputParameterSpec> getInputParameters() {
+        return super.getInputParameters();
+    }
+
+    /** The {@code inputParameters} as declared, without the query parameter names. */
+    @JsonProperty("inputParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<InputParameterSpec> serializedInputParameters() {
+        return List.copyOf(declaredInputParameters.get().values());
+    }
+
+    @Override
+    @JsonProperty("inputParameters")
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
     public void setInputParameters(Map<String, InputParameterSpec> params) {
         declaredInputParameters.set(new LinkedHashMap<>(params != null ? params : Map.of()));
@@ -90,7 +110,8 @@ public class HttpClientResourceSpec extends ResourceSpec {
     }
 
     /** The {@code queryParameters} list, as declared (#987). */
-    @JsonProperty(value = "queryParameters", access = JsonProperty.Access.WRITE_ONLY)
+    @JsonProperty("queryParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public List<String> getQueryParameters() {
         return List.copyOf(queryParameters);
     }
