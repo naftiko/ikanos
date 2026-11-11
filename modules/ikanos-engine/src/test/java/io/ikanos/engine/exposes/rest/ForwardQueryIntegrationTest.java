@@ -156,6 +156,12 @@ public class ForwardQueryIntegrationTest {
                 ResourceRestlet.forwardTargetRef("http://h/v1", "/items", "a=1&b=%2F"));
         assertEquals("http://h/v1?key=k&a=1",
                 ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "", "a=1"));
+        assertEquals("http://h/v1/items?key=k&a=1",
+                ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "/items", "a=1"),
+                "the captured path goes before the base URI's query");
+        assertEquals("http://h/v1/items?key=k",
+                ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "/items", null),
+                "the base URI's query is kept when the request has none");
     }
 
     private static int findFreePort() throws Exception {
