@@ -77,7 +77,8 @@ import org.restlet.util.Series;
  * invalidates the signature.
  *
  * <p>The signed path and query are those the client connector sends: a relative reference is
- * resolved against its base. S3 signs the path as is, each segment decoded then URI-encoded once.
+ * resolved against its base. S3 signs the path as is, decoded (an encoded slash included) then
+ * each segment URI-encoded once.
  * The other services sign it normalized (empty and dot segments removed) and URI-encoded once more
  * as sent, so an escape in the path is encoded again. Query parameters are signed sorted and
  * URI-encoded: a {@code +} in the query is a literal plus sign, so encode spaces as {@code %20}.
@@ -87,7 +88,9 @@ import org.restlet.util.Series;
  *     a signed AWS API request</a>
  *
  * <p><b>Origin.</b> A copy of Restlet's {@code org.restlet.ext.crypto.internal.HttpAwsSigV4Helper}
- * (restlet/restlet-framework-java#1663, Apache 2.0), with its logic unchanged. Restlet ships it
+ * (restlet/restlet-framework-java#1663, Apache 2.0). Its logic is unchanged but for one fix: S3
+ * decodes the whole path before splitting it into segments, so an encoded slash is signed as a
+ * separator (Restlet decodes each segment after the split). Restlet ships it
  * from 3.0.0-m2, which requires Java 25 and replaces the Jetty client connectors this engine
  * extends with Netty. Once Ikanos moves to that Restlet, delete this class and use {@code
  * org.restlet.ext.crypto} with {@code ChallengeScheme.HTTP_AWS_SIGV4} instead (#954). Until then
@@ -393,8 +396,10 @@ class AwsSigV4Helper extends AuthenticatorHelper {
     /**
      * Returns the canonical URI.
      *
-     * <p>S3 decodes the path it receives and encodes it again: each segment is decoded, then
-     * URI-encoded once, and the path is otherwise signed as sent.
+     * <p>S3 decodes the path it receives and encodes it again: the whole path is decoded, then
+     * split into segments, each URI-encoded once, and the path is otherwise signed as sent. An
+     * encoded slash ({@code %2F}) is decoded before the split, so it is signed as a separator, as
+     * S3 and MinIO do ({@code /bucket/a%2Fb} is signed as {@code /bucket/a/b}).
      *
      * <p>The other services encode the path they receive once more ("double encoding"): the path is
      * normalized (see {@link #normalizePath(String)}) and each raw segment is URI-encoded as is, so
@@ -409,14 +414,14 @@ class AwsSigV4Helper extends AuthenticatorHelper {
         if (rawPath == null || rawPath.isEmpty()) {
             return "/";
         }
-        String path = doubleEncode ? normalizePath(rawPath) : rawPath;
+        String path = doubleEncode ? normalizePath(rawPath) : percentDecode(rawPath);
         String[] segments = path.split("/", -1);
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < segments.length; i++) {
             if (i > 0) {
                 sb.append('/');
             }
-            sb.append(uriEncode(doubleEncode ? segments[i] : percentDecode(segments[i])));
+            sb.append(uriEncode(segments[i]));
         }
         return sb.charAt(0) == '/' ? sb.toString() : "/" + sb;
     }
