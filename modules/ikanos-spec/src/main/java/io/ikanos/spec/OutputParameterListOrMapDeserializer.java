@@ -32,7 +32,8 @@ import tools.jackson.databind.ValueDeserializer;
  *       injected as {@link OutputParameterSpec#setName(String)}.</li>
  * </ul>
  * Always returns {@code List<OutputParameterSpec>} to preserve backward compatibility with all
- * callers.
+ * callers. The map form comes back as a {@link KeyedList}, so a caller that needs to know which
+ * form the author wrote (an MCP tool's mock outputs, for example) can tell them apart.
  */
 public class OutputParameterListOrMapDeserializer extends ValueDeserializer<List<OutputParameterSpec>> {
 
@@ -40,7 +41,9 @@ public class OutputParameterListOrMapDeserializer extends ValueDeserializer<List
 
     @Override
     public List<OutputParameterSpec> deserialize(JsonParser p, DeserializationContext ctxt) {
-        List<OutputParameterSpec> result = new ArrayList<>();
+        List<OutputParameterSpec> result = p.currentToken() == JsonToken.START_OBJECT
+                ? new KeyedList()
+                : new ArrayList<>();
         if (p.currentToken() == JsonToken.START_ARRAY) {
             // Legacy / Mapped / Mock / Consumed: array form
             while (p.nextToken() != JsonToken.END_ARRAY) {
@@ -72,5 +75,14 @@ public class OutputParameterListOrMapDeserializer extends ValueDeserializer<List
             });
         }
         return result;
+    }
+
+    /**
+     * The output parameters of the map form ({@code {param-name: {...}}}), as opposed to the array
+     * form. The entries are the same; only the form the author used differs.
+     */
+    public static final class KeyedList extends ArrayList<OutputParameterSpec> {
+
+        private static final long serialVersionUID = 1L;
     }
 }

@@ -29,7 +29,9 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
+import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -193,6 +195,7 @@ public class ResourcesPromptsIntegrationTest {
         McpServerToolSpec tool = new McpServerToolSpec();
         tool.setName("ping");
         tool.setDescription("Minimal tool");
+        tool.setOutputParameters(List.of(pong()));
 
         McpServerSpec serverSpec = new McpServerSpec("localhost", 0, "minimal-mcp", null);
         serverSpec.getTools().put(tool.getName(), tool);
@@ -225,6 +228,7 @@ public class ResourcesPromptsIntegrationTest {
         McpServerToolSpec validTool = new McpServerToolSpec();
         validTool.setName("ping");
         validTool.setDescription("Minimal tool");
+        validTool.setOutputParameters(List.of(pong()));
 
         McpServerToolSpec nullNameTool = new McpServerToolSpec();
         nullNameTool.setDescription("Malformed tool with null name");
@@ -653,5 +657,14 @@ public class ResourcesPromptsIntegrationTest {
         return dispatcher.dispatch(request).responseBody();
     }
 
+    /**
+     * A static output, so a minimal tool is a mock: a tool without call, steps or mock outputs
+     * would call a consumed operation named like it (#988), and these capabilities consume none.
+     */
+    private static OutputParameterSpec pong() {
+        OutputParameterSpec output = new OutputParameterSpec();
+        output.setType("string");
+        output.setValue("pong");
+        return output;
+    }
 }
-

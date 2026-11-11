@@ -1,0 +1,18 @@
+ikanos: 1.0.0-beta10
+info:
+  display: Inferred MCP tool call with imported consumes
+  description: An imported consumes namespace may hold the operation, out of reach of the lint
+  tags:
+  - test
+capability:
+  consumes:
+  - from: ./shared/registry.consumes.yml
+    import: registry
+  exposes:
+  - type: mcp
+    namespace: tools
+    address: localhost
+    port: 3000
+    tools:
+      get-ship:
+        description: Defined in the imported registry namespace
