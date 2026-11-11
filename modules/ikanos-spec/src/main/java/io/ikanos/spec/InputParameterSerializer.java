@@ -276,21 +276,23 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
     }
 
     /**
-     * Write {@code required: false} when the parameter itself is optional, so that a parameter
-     * read back from this output keeps it (an import deep-copies its entry through YAML). Write
-     * the required-property list as {@code required}, as before, or as {@code requiredProperties}
-     * when the parameter is optional, since one key cannot hold both.
+     * Write the {@code required} flag whenever the parameter declares it, so that a parameter read
+     * back from this output keeps it (an import deep-copies its entry through YAML, and an
+     * undeclared flag reads back as the MCP default, {@code false}). Write the required-property
+     * list as {@code required} when no flag is declared (a nested schema), or as
+     * {@code requiredProperties} next to the flag, since one key cannot hold both.
      */
     private void writeRequired(InputParameterSpec spec, ObjectNode node) {
+        boolean declaredTrue = spec.isRequiredOrDefault(false);
+        boolean declaredFalse = !spec.isRequiredOrDefault(true);
+        boolean declared = declaredTrue || declaredFalse;
+        if (declared) {
+            node.put("required", declaredTrue);
+        }
         if (spec.getRequired().isEmpty()) {
             return;
         }
-        // A nested schema has no boolean flag, so only an explicit `required: false` moves the list.
-        boolean optional = !spec.isRequiredOrDefault(true);
-        if (optional) {
-            node.put("required", false);
-        }
-        ArrayNode requiredArray = node.putArray(optional ? "requiredProperties" : "required");
+        ArrayNode requiredArray = node.putArray(declared ? "requiredProperties" : "required");
         for (String val : spec.getRequired()) {
             requiredArray.add(val);
         }

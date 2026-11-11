@@ -19,12 +19,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
@@ -90,6 +93,44 @@ class SourceFileLoaderTest {
 
         assertSame(first, second, "Repeated load should return cached instance");
         assertEquals(1, loader.cacheSize());
+    }
+
+    @Test
+    void deepCopyShouldKeepDeclaredRequiredFlagsOfFlowInputs() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                aggregates:
+                  - namespace: "agg"
+                    display: "Test"
+                    flows:
+                      search:
+                        description: "Search"
+                        inputParameters:
+                          query:
+                            type: string
+                            description: "Search text"
+                            required: true
+                          page:
+                            type: integer
+                            description: "Page"
+                            required: false
+                          sort:
+                            type: string
+                            description: "Sort order"
+                        call: api.search
+                """.formatted(schemaVersion);
+        Path file = tempDir.resolve("search.aggregates.yml");
+        Files.writeString(file, yaml);
+        AggregateSpec aggregate = loader.load(file).getAggregates().get(0);
+
+        AggregateSpec copy = loader.deepCopy(aggregate, AggregateSpec.class);
+
+        Map<String, InputParameterSpec> inputs =
+                copy.getFlows().get("search").getInputParameters();
+        assertTrue(inputs.get("query").isRequired(),
+                "#983: an imported input declared required: true stays required");
+        assertFalse(inputs.get("page").isRequired());
+        assertFalse(inputs.get("sort").isRequired());
     }
 
     @Test
