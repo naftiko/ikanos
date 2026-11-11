@@ -71,9 +71,14 @@ public class McpJsonBodyPruningIntegrationTest {
         upstream.start();
         try {
             Capability capability = capabilityFromYaml(capabilityYaml(port));
-            JsonNode result = callTool(capability, "list-projects", arguments);
-            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
-            return receivedBody.get();
+            try {
+                JsonNode result = callTool(capability, "list-projects", arguments);
+                assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+                return receivedBody.get();
+            } finally {
+                // Releases the consumed HTTP client that the dispatch started on demand
+                capability.stop();
+            }
         } finally {
             upstream.stop();
         }
