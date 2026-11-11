@@ -44,4 +44,3 @@ capability:
       hello:
         description: Return a greeting.
         ref: greeting.hello
-  consumes: []
