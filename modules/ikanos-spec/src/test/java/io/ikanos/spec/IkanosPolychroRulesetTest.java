@@ -656,6 +656,14 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsReferenceRuleShouldFireOnNamesInheritedFromObjectPrototype() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        String output = result.output();
+        assertTrue(output.contains("Unknown input parameter set 'constructor'"), output);
+        assertTrue(output.contains("Unknown schema 'toString'"), output);
+    }
+
+    @Test
     public void definitionsSetConflictRuleShouldFireWhenTwoSetsDeclareTheSameInput() {
         assertRuleFires("rules/spectral-definitions-violations.yaml",
             "ikanos-definitions-set-conflict");
