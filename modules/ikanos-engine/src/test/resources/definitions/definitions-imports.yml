@@ -21,7 +21,7 @@ capability:
   exposes:
     - type: mcp
       address: localhost
-      port: 0
+      port: 9240
       namespace: fleet-mcp
       definitions:
         inputParameterSets:
