@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp;
 
 import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
