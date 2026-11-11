@@ -137,13 +137,49 @@ public class QueryParameterNamesTest {
     }
 
     @Test
-    public void serializationShouldWriteListedNamesAsInputParameters() throws Exception {
+    public void serializationShouldWriteBothFormsAsDeclared() throws Exception {
         String json = IkanosMappers.json().writeValueAsString(operation("""
-                queryParameters: [page]
+                inputParameters:
+                  X-Mode:
+                    in: header
+                queryParameters: [page, page]
                 """));
 
-        assertFalse(json.contains("queryParameters"), json);
-        assertTrue(json.contains("\"page\""), json);
+        assertTrue(json.contains("\"queryParameters\":[\"page\",\"page\"]"), json);
+        assertFalse(json.contains("\"name\":\"page\""), json);
+        assertTrue(json.contains("\"X-Mode\""), json);
+    }
+
+    @Test
+    public void operationReadBackFromItsSerializationShouldKeepItsErrors() throws Exception {
+        HttpClientOperationSpec original = operation("""
+                inputParameters:
+                  page:
+                    in: header
+                queryParameters: [page, state]
+                """);
+
+        HttpClientOperationSpec copy = IkanosMappers.yaml().readValue(
+                IkanosMappers.yaml().writeValueAsString(original), HttpClientOperationSpec.class);
+
+        assertEquals(original.queryParameterErrors("api.list"),
+                copy.queryParameterErrors("api.list"));
+        assertEquals(List.of("page", "state"), copy.getQueryParameters());
+        assertEquals(names(original), names(copy));
+    }
+
+    @Test
+    public void resourceReadBackFromItsSerializationShouldKeepItsErrors() throws Exception {
+        HttpClientResourceSpec original = resource("""
+                queryParameters: [page, page]
+                """);
+
+        HttpClientResourceSpec copy = IkanosMappers.yaml().readValue(
+                IkanosMappers.yaml().writeValueAsString(original), HttpClientResourceSpec.class);
+
+        assertEquals(1, copy.queryParameterErrors("api resource 'things'").size());
+        assertEquals(List.of("page", "page"), copy.getQueryParameters());
+        assertEquals(1, copy.getInputParameters().size());
     }
 
     private static List<String> names(HttpClientOperationSpec operation) {
