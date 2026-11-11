@@ -20,15 +20,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.InputParameterSpec;
 import org.junit.jupiter.api.Test;
 import org.restlet.Client;
 import org.restlet.Context;
@@ -420,6 +428,17 @@ class AwsSigV4HelperTest {
     }
 
     /**
+     * S3 decodes the whole path before splitting it, so an encoded slash is signed as a separator,
+     * as S3 and MinIO canonicalize it. The other services encode it again (#954).
+     */
+    @Test
+    void getCanonicalUriShouldDecodeEncodedSlashBeforeSplittingWhenS3() {
+        assertEquals("/bucket/a/b", AwsSigV4Helper.getCanonicalUri("/bucket/a%2Fb", false));
+        assertEquals("/bucket/a/b", AwsSigV4Helper.getCanonicalUri("/bucket/a%2fb", false));
+        assertEquals("/bucket/a%252Fb", AwsSigV4Helper.getCanonicalUri("/bucket/a%2Fb", true));
+    }
+
+    /**
      * The services other than S3 encode the path as sent once more, so an escape is encoded again
      * rather than decoded. S3 decodes the path then encodes it once.
      */
@@ -492,6 +511,51 @@ class AwsSigV4HelperTest {
         assertEquals(
                 "prefix=a%20b%2Bc&x=%2F",
                 AwsSigV4Helper.getCanonicalQuery("x=/&prefix=a%20b+c"));
+    }
+
+    /**
+     * The query Ikanos sends is signed as a server that form-decodes it canonicalizes it, as MinIO
+     * does: a space sent as {@code %20} and a literal plus sent as {@code %2B} sign the same on
+     * both sides (#954). The server side is computed here without this helper.
+     */
+    @Test
+    void getCanonicalQueryShouldMatchFormDecodingServerForQuerySentByResolver() {
+        Request request = new Request(Method.GET, "http://localhost:9000/bucket");
+        InputParameterSpec prefix = new InputParameterSpec();
+        prefix.setName("prefix");
+        prefix.setIn("query");
+        InputParameterSpec tag = new InputParameterSpec();
+        tag.setName("tag");
+        tag.setIn("query");
+        Map<String, Object> parameters = new HashMap<>(Map.of("prefix", "a/b c", "tag", "x+y~*"));
+        Resolver.resolveInputParametersToRequest(request, List.of(prefix, tag), parameters);
+        String sentQuery = request.getResourceRef().getQuery();
+
+        assertEquals(serverCanonicalQuery(sentQuery), AwsSigV4Helper.getCanonicalQuery(sentQuery));
+        assertEquals(
+                "prefix=a%2Fb%20c&tag=x%2By~%2A", AwsSigV4Helper.getCanonicalQuery(sentQuery));
+    }
+
+    /**
+     * Canonicalizes a query as a server that form-decodes it does (MinIO, through Go's {@code
+     * url.ParseQuery}): {@code +} is a space, then each name and value is encoded as RFC 3986
+     * unreserved characters only, and the pairs are sorted.
+     */
+    private static String serverCanonicalQuery(String query) {
+        return Arrays.stream(query.split("&"))
+                .map(param -> param.split("=", 2))
+                .map(pair -> rfc3986(URLDecoder.decode(pair[0], StandardCharsets.UTF_8))
+                        + "="
+                        + rfc3986(URLDecoder.decode(pair[1], StandardCharsets.UTF_8)))
+                .sorted()
+                .collect(Collectors.joining("&"));
+    }
+
+    private static String rfc3986(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("*", "%2A")
+                .replace("%7E", "~");
     }
 
     @Test
