@@ -224,6 +224,65 @@ public class InputParameterRoundTripTest {
         assertEquals("date", issuedAfter.getFormat());
     }
 
+    @Test
+    public void explicitRequiredTrueShouldSurviveYamlRoundTrip() throws Exception {
+        InputParameterSpec roundTrip = yamlRoundTrip("""
+                name: query
+                type: string
+                description: Search text
+                required: true
+                """);
+
+        assertTrue(roundTrip.isRequired(), "#983: an explicit required: true must not be dropped");
+    }
+
+    @Test
+    public void requiredObjectWithRequiredPropertiesShouldSurviveYamlRoundTrip() throws Exception {
+        InputParameterSpec roundTrip = yamlRoundTrip("""
+                name: customer
+                type: object
+                description: Customer
+                required: true
+                properties:
+                  external_id:
+                    type: string
+                requiredProperties: [external_id]
+                """);
+
+        assertTrue(roundTrip.isRequired(), "Parameter-level required mismatch");
+        assertEquals(java.util.List.of("external_id"), roundTrip.getRequired(),
+                "Required properties mismatch");
+    }
+
+    @Test
+    public void undeclaredRequiredShouldStayUndeclaredAfterYamlRoundTrip() throws Exception {
+        InputParameterSpec roundTrip = yamlRoundTrip("""
+                name: filter
+                type: object
+                description: Filter
+                properties:
+                  meta:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                    required: [id]
+                """);
+
+        assertFalse(roundTrip.isRequiredOrDefault(false), "No required flag was declared");
+        assertTrue(roundTrip.isRequiredOrDefault(true), "No required flag was declared");
+        InputParameterSpec meta = findPropertyByName(roundTrip.getProperties(), "meta");
+        assertEquals(java.util.List.of("id"), meta.getRequired(),
+                "A nested schema keeps its required list");
+    }
+
+    private static InputParameterSpec yamlRoundTrip(String yaml) throws Exception {
+        ObjectMapper yamlMapper = IkanosMappers.yaml();
+        InputParameterSpec original = yamlMapper.readValue(yaml, InputParameterSpec.class);
+        byte[] serialized = yamlMapper.writeValueAsBytes(original);
+        return yamlMapper.readValue(serialized, InputParameterSpec.class);
+    }
+
     private static InputParameterSpec findPropertyByName(
             java.util.List<InputParameterSpec> properties, String name) {
         for (InputParameterSpec prop : properties) {
