@@ -63,6 +63,9 @@ public class OasExportBuilder {
     /** A Mustache path variable, {@code {{name}}}; the name follows the parameter key pattern. */
     private static final Pattern PATH_VARIABLE = Pattern.compile("\\{\\{([\\w-]+)\\}\\}");
 
+    /** An OpenAPI path template variable, {@code {name}}, once Mustache variables are converted. */
+    private static final Pattern OAS_PATH_VARIABLE = Pattern.compile("\\{([\\w-]+)\\}");
+
     /**
      * A REST exposed parameter cannot declare {@code required} in the schema, so the export keeps
      * treating it as required. Only MCP tool inputs are optional by default (#977).
@@ -183,8 +186,7 @@ public class OasExportBuilder {
             if (basePath == null) {
             basePath = "/" + resource.getName();
             }
-            // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = PATH_VARIABLE.matcher(basePath).replaceAll("{$1}");
+            basePath = toOpenApiPath(basePath);
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
@@ -296,17 +298,23 @@ public class OasExportBuilder {
         return param;
     }
 
+    /** Converts Mustache segments {@code {{var}}} to the OpenAPI form {@code {var}}. */
+    static String toOpenApiPath(String path) {
+        return PATH_VARIABLE.matcher(path).replaceAll("{$1}");
+    }
+
     /**
-     * Adds a path parameter for each {@code {{name}}} variable of the resource path that the
-     * operation does not declare (#978): OpenAPI requires one per path template variable. A
-     * resource-level {@code in: path} declaration gives its type and description; otherwise the
-     * parameter is a required string.
+     * Adds a path parameter for each variable of the resource path that the operation does not
+     * declare (#978): OpenAPI requires one per path template variable. The path may use the
+     * Mustache form {@code {{name}}} or the URI template form {@code {name}}. A resource-level
+     * {@code in: path} declaration gives its type and description; otherwise the parameter is a
+     * required string.
      */
     void addPathParameters(RestServerResourceSpec resource, List<Parameter> params) {
         if (resource.getPath() == null) {
             return;
         }
-        Matcher variable = PATH_VARIABLE.matcher(resource.getPath());
+        Matcher variable = OAS_PATH_VARIABLE.matcher(toOpenApiPath(resource.getPath()));
         while (variable.find()) {
             String name = variable.group(1);
             boolean present = params.stream()
