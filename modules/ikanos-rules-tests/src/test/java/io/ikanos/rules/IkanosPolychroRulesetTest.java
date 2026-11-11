@@ -802,6 +802,38 @@ public class IkanosPolychroRulesetTest {
             "Expected no elicit finding when only reads precede the question.\n" + output);
     }
 
+    @Test
+    public void mcpToolInferredCallRuleShouldFireWhenNoConsumedNamespaceHasTheOperation() {
+        LintResult result = lintFixture("rules/polychro-mcp-tool-inferred-call-violations.yaml");
+        assertTrue(result.output().lines().anyMatch(line ->
+                line.contains("ikanos-mcp-tool-inferred-call") && line.contains("get-weather")),
+            "Expected ikanos-mcp-tool-inferred-call on get-weather.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldFireWhenSeveralConsumedNamespacesHaveTheOperation() {
+        LintResult result = lintFixture("rules/polychro-mcp-tool-inferred-call-violations.yaml");
+        assertTrue(result.exitCode() != 0, result.output());
+        assertTrue(result.output().lines().anyMatch(line ->
+                line.contains("ikanos-mcp-tool-inferred-call") && line.contains("list-issues")),
+            "Expected ikanos-mcp-tool-inferred-call on list-issues.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldNotFireWhenEachToolHasOneCandidate() {
+        LintResult result = lintFixture("rules/polychro-mcp-tool-inferred-call-compliant.yaml");
+        assertFalse(result.output().contains("ikanos-mcp-tool-inferred-call"),
+            "Expected no inferred call findings for a compliant document.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldNotFireWhenOperationMayBeImported() {
+        LintResult result = lintFixture("rules/polychro-mcp-tool-inferred-call-imported.yaml");
+        assertFalse(result.output().contains("ikanos-mcp-tool-inferred-call"),
+            "Expected no inferred call finding when a consumes import may hold the operation.\n"
+                + result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/}, failing on findings at
      * {@code severity} or above.
