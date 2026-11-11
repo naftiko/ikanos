@@ -21,6 +21,7 @@ import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
+import io.ikanos.spec.DefinitionsSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 
 /**
@@ -60,6 +61,10 @@ public class McpServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpTrustSpec> trust = new AtomicReference<>();
+
+    /** Shared input parameter sets and schemas, visible to this namespace only (#910). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<DefinitionsSpec> definitions = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
@@ -158,6 +163,18 @@ public class McpServerSpec extends ServerSpec {
 
     public void setTrust(McpTrustSpec trust) {
         this.trust.set(trust);
+    }
+
+    /**
+     * @return the shared definitions of this namespace, or {@code null} when none are declared.
+     *         Expanded at load time into the tools (or flows) that use them (#910).
+     */
+    public DefinitionsSpec getDefinitions() {
+        return definitions.get();
+    }
+
+    public void setDefinitions(DefinitionsSpec definitions) {
+        this.definitions.set(definitions);
     }
 
     public Map<String, McpServerToolSpec> getTools() {

@@ -1,0 +1,64 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Definitions violations"
+  description: "Shared definitions (#910) that break every definitions rule."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: erp
+      description: "ERP API"
+      baseUri: "https://erp.acme.org"
+      resources:
+        orders:
+          path: "/orders"
+          description: "Orders"
+          operations:
+            list-orders:
+              method: GET
+  aggregates:
+    - display: "Orders"
+      namespace: orders
+      definitions:
+        inputParameterSets:
+          key:
+            id: { type: string, description: "Order ID." }
+      flows:
+        get-order:
+          description: "Get an order."
+          inputParameterSets: [missing-in-aggregate]
+          call: erp.list-orders
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: tools
+      description: "Order tools"
+      definitions:
+        inputParameterSets:
+          odata-list:
+            filter: { type: string, required: false, description: "Filter." }
+          search:
+            filter: { type: string, required: false, description: "Search filter." }
+          never-used:
+            top: { type: integer, required: false, description: "Rows." }
+        schemas:
+          date-range:
+            type: object
+            properties:
+              from: { type: string }
+          node:
+            type: object
+            properties:
+              next: { schema: link }
+          link:
+            type: array
+            items: { schema: node }
+      tools:
+        list-orders:
+          description: "List orders."
+          inputParameterSets: [odata-list, search, date-range, key]
+          inputParameters:
+            period: { schema: odata-list, description: "Period." }
+            start: { schema: node, description: "Start." }
+          call: erp.list-orders

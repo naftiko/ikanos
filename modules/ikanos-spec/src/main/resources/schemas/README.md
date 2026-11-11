@@ -1022,6 +1022,7 @@ Used in **orchestrated mode** exposed operations. Declares an output by `name` a
 - **`string`**, **`number`**, **`boolean`** (scalar): only `name` and `type`
 - **`array`**: optional `items` (recursive OrchestratedOutputParameter without `name`). Without `items`, the mapped array is returned as is.
 - **`object`**: optional `properties` (map of name → recursive OrchestratedOutputParameter without `name`). With `properties`, every declared property is present and shaped; other keys are kept as is. Without `properties`, the mapped object is returned as is, whatever its keys. Use it for objects whose keys are data, such as user-defined field names.
+- **`schema: name`** (MCP tools and aggregate flows): the output, or the `items` of an array output, is shaped by a schema of the adapter's or aggregate's `definitions`, and takes no other key. See [3.22 Definitions Object](#322-definitions-object).
 
 **Rules:**
 
@@ -1655,6 +1656,69 @@ binds:
     keys:
       NOTION_TOKEN: "NOTION_TOKEN"
       API_KEY: "API_KEY"
+```
+
+---
+
+### 3.22 Definitions Object
+
+Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: mcp`) or an aggregate. They are visible to the tools (or flows) of that adapter (or aggregate) only, and are expanded at load time into the inline equivalent.
+
+#### 3.22.1 Fixed Fields
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **inputParameterSets** | `object` | Set name to a map of input parameters, each declared like a tool input (`McpToolInputParameter`). |
+| **schemas** | `object` | Schema name to a schema declared like a nested tool input schema (`McpToolInputSchema`), where `required` is the list of required properties. |
+
+#### 3.22.2 Use Sites
+
+- **`inputParameterSets: [names]`** on an MCP tool or an aggregate flow. The sets apply in order, then the unit's own `inputParameters`. An own entry replaces the set's entry of the same name whole, at the set entry's position: there is no partial override.
+- **`schema: name`** on a tool or flow input, in its `items` and `properties`, inside another schema, and in orchestrated (steps-mode) outputs, including `items: { schema: name }`.
+- On a **`ref`** tool, sets behave like the tool's own `inputParameters`: a non-empty result replaces the inputs the flow advertises.
+
+#### 3.22.3 Rules
+
+- Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
+- Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
+- A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
+- Two sets of one tool or flow must not declare the same input.
+- Mapped (call-mode) outputs do not take `schema:`: they keep their JSONPath `mapping` on every leaf.
+- In an orchestrated output, a schema gives only what such an output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there.
+- A definition that no tool or flow uses is reported as a warning (`ikanos validate`, the engine log, and the `ikanos-definitions-unused` rule).
+- Expansion is bounded, so a document cannot multiply itself without limit.
+
+**Expansion.** Definitions are expanded after imports (an imported adapter or aggregate carries its definitions) and before `ref` resolution. `tools/list`, with each tool's `inputSchema` and `outputSchema`, is byte for byte the one of the inline equivalent: no reference is ever sent to MCP clients.
+
+#### 3.22.4 Definitions Object Example
+
+```yaml
+exposes:
+  - type: mcp
+    namespace: sap-mcp
+    port: 3000
+    definitions:
+      inputParameterSets:
+        odata-list:
+          filter: { type: string,  required: false, description: "OData V2 $filter expression." }
+          top:    { type: integer, required: false, description: "Maximum rows to return (default 100)." }
+      schemas:
+        date-range:
+          type: object
+          properties:
+            from: { type: string, format: date }
+            to:   { type: string, format: date }
+          required: [from]
+    tools:
+      list-sales-orders:
+        description: "List sales orders."
+        inputParameterSets: [odata-list]
+        call: sap.list-sales-orders
+      list-calls:
+        description: "List calls in a period."
+        inputParameters:
+          period: { schema: date-range, description: "Call date range.", required: true }
+        call: sap.list-calls
 ```
 
 ---

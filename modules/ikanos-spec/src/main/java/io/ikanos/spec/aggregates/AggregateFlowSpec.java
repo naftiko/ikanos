@@ -49,6 +49,10 @@ public class AggregateFlowSpec {
     private final AtomicReference<String> description = new AtomicReference<>();
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
+
+    /** Names of the input parameter sets of the namespace's {@code definitions} (#910). */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> inputParameterSets = new CopyOnWriteArrayList<>();
     private final AtomicReference<SemanticsSpec> semantics = new AtomicReference<>();
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
@@ -82,6 +86,16 @@ public class AggregateFlowSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public SemanticsSpec getSemantics() { return semantics.get(); }
     public void setSemantics(SemanticsSpec semantics) { this.semantics.set(semantics); }
+
+    /**
+     * @return the names of the input parameter sets this unit uses, applied in order before its
+     *         own {@code inputParameters}. Empty once the definitions are expanded (#910).
+     */
+    public List<String> getInputParameterSets() { return inputParameterSets; }
+    public void setInputParameterSets(List<String> sets) {
+        this.inputParameterSets.clear();
+        if (sets != null) this.inputParameterSets.addAll(sets);
+    }
 
     public Map<String, InputParameterSpec> getInputParameters() {
         return inputParameters.get();

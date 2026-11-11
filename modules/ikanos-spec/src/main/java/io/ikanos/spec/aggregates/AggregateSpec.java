@@ -18,7 +18,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
+
+import io.ikanos.spec.DefinitionsSpec;
 
 /**
  * Aggregate Specification Element.
@@ -46,6 +49,10 @@ public class AggregateSpec {
     private final AtomicReference<String> display = new AtomicReference<>();
     private final AtomicReference<String> namespace = new AtomicReference<>();
 
+    /** Shared input parameter sets and schemas, visible to this namespace only (#910). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<DefinitionsSpec> definitions = new AtomicReference<>();
+
     @JsonDeserialize(using = AggregateFlowMapDeserializer.class)
     private final Map<String, AggregateFlowSpec> flows =
             Collections.synchronizedMap(new LinkedHashMap<>());
@@ -64,6 +71,18 @@ public class AggregateSpec {
 
     public void setNamespace(String namespace) {
         this.namespace.set(namespace);
+    }
+
+    /**
+     * @return the shared definitions of this namespace, or {@code null} when none are declared.
+     *         Expanded at load time into the tools (or flows) that use them (#910).
+     */
+    public DefinitionsSpec getDefinitions() {
+        return definitions.get();
+    }
+
+    public void setDefinitions(DefinitionsSpec definitions) {
+        this.definitions.set(definitions);
     }
 
     public Map<String, AggregateFlowSpec> getFlows() {

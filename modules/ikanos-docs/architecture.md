@@ -99,6 +99,7 @@ All engine code lives under `io.ikanos`, in `modules/ikanos-engine/src/main/java
 | `io.ikanos.engine.scripting` | `ScriptStepExecutor`: sandboxed script steps. |
 | `io.ikanos.engine.step` | The embedding API: Java `StepHandler`s registered by step name. |
 | `io.ikanos.engine.imports` | Resolves `import` entries in `consumes`, `exposes`, `aggregates` and `binds` before anything else runs. |
+| `io.ikanos.engine.definitions` | `DefinitionsExpander`: expands the shared `definitions` of MCP adapters and aggregates (`inputParameterSets`, `schema:`) into the inline equivalent at load time. Also run by `ikanos validate`. |
 | `io.ikanos.engine.exposes` | `ServerAdapter` base class, the shared authentication filters, and `ServerHost`, which mounts adapters that share an address and port on one listener. |
 | `io.ikanos.engine.exposes.mcp` | The MCP server: transports, `ProtocolDispatcher`, per-method handlers, tool/resource/prompt handlers, and the skill handler that serves Agent Skills through the Skills Extension (SEP-2640). |
 | `io.ikanos.engine.exposes.rest` | The REST server: routing and `ResourceRestlet`. |
@@ -119,7 +120,7 @@ The YAML format is defined once, in `modules/ikanos-spec/src/main/resources/sche
 
 Validation runs **outside** the runtime:
 
-- `ikanos validate` checks a file against the JSON Schema. It builds its validator with `IkanosMetaSchemaFactory`, which teaches the schema library the Ikanos `name` keyword.
+- `ikanos validate` checks a file against the JSON Schema. It builds its validator with `IkanosMetaSchemaFactory`, which teaches the schema library the Ikanos `name` keyword. Once the file matches the schema, it also compiles the consumed templates (`ConsumedTemplateValidator`) and expands the shared definitions (`DefinitionsExpander`) the way the engine does at load time, and prints the unused definitions as warnings.
 - In CI, the `Lint Ikanos Capabilities` workflow runs `scripts/lint-capabilities.sh`, which checks the tutorial, the examples and the test fixtures with Polychro against both the JSON Schema and the ruleset. Run the same script locally with `POLYCHRO=/path/to/polychro scripts/lint-capabilities.sh`.
 
 The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHelper` reads it from the filtered `version.properties`, and `scripts/sync-schema-version.py` updates the version strings in fixtures and examples at each bump.
@@ -133,15 +134,16 @@ The spec version (`ikanos: "1.0.0-..."`) comes from the Maven build: `VersionHel
 3. **Build the `Capability`**:
     1. **Resolve imports** in a fixed order: `consumes`, then `aggregates`, then `exposes`, then `binds` (`ImportResolver`, with one `ImportStrategy` per section). After this pass every section contains only inline entries.
     2. **Check namespace uniqueness across sections** (`NamespaceUniquenessValidator`). `ImportResolver` checks each section on its own; this pass rejects a namespace declared in two of `consumes`, `exposes`, `aggregates` and `binds`, so `call: <namespace>.<name>` has a single owner.
-    3. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` must point to a known flow, and a unit with a `ref` must not declare its own `call`, `steps` or `mappings`, which the flow would replace; otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
-    4. **Check calls between flows** (`FlowCallValidator`): a call naming an aggregate must name an existing flow, flows must not call each other in a cycle, and an exposed unit must reach a flow through `ref`, not `call`.
-    5. **Find the management settings** on the control adapter, if any: scripting, and the flow call depth limit (`management.flows.maxCallDepth`, default 8).
-    6. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`. The executor holds no per-flow state: each flow passes its own namespace with every call, so flows of different namespaces can run concurrently and call each other.
-    7. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
-    8. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
-    9. **Plan the listeners** (`ServerHost.build`): group the HTTP adapters by address and port, resolve Mustache `hosts` entries from the bindings, and reject ambiguous mounts (see [Shared listeners](#shared-listeners)).
-    10. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
-    11. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
+    3. **Expand shared definitions** (`DefinitionsExpander`). An MCP adapter or an aggregate may declare `definitions` (input parameter sets and schemas) that its own tools or flows use with `inputParameterSets: [names]` and `schema: name`. Every use is replaced by a copy of the definition, so from here on the spec holds only the inline equivalent and `tools/list` advertises exactly what the inline form would. This runs after imports, which carry the definitions with their adapter or aggregate, and before refs, so a `ref` tool whose sets give it inputs advertises them instead of the flow's. An unknown or wrong-kind reference, an input from two sets of one unit, a cycle between schemas or keys beside `schema:` fail startup; an unused definition is logged as a warning. Expansion is bounded per namespace (`MAX_EXPANDED_NODES`).
+    4. **Resolve aggregate refs** (`AggregateRefResolver`). Every `ref` must point to a known flow, and a unit with a `ref` must not declare its own `call`, `steps` or `mappings`, which the flow would replace; otherwise startup fails. MCP tool hints are derived from the flow's `semantics`.
+    5. **Check calls between flows** (`FlowCallValidator`): a call naming an aggregate must name an existing flow, flows must not call each other in a cycle, and an exposed unit must reach a flow through `ref`, not `call`.
+    6. **Find the management settings** on the control adapter, if any: scripting, and the flow call depth limit (`management.flows.maxCallDepth`, default 8).
+    7. **Build the aggregates** (`Aggregate` / `AggregateFlow`), sharing one `OperationStepExecutor`. The executor holds no per-flow state: each flow passes its own namespace with every call, so flows of different namespaces can run concurrently and call each other.
+    8. **Resolve bindings** (`BindingResolver`): from a file when the binding has a `location`, otherwise from the runtime environment.
+    9. **Construct the server adapters**, one per `exposes` entry, chosen by its `type`. A capability must expose at least one.
+    10. **Plan the listeners** (`ServerHost.build`): group the HTTP adapters by address and port, resolve Mustache `hosts` entries from the bindings, and reject ambiguous mounts (see [Shared listeners](#shared-listeners)).
+    11. **Discover and start tunnels** declared by `consumes` entries (`TunnelBootstrap.discoverAndStart`), and wait for them to be ready, with a timeout set by the caller.
+    12. **Construct the client adapters**, one per `consumes` entry, handing each its tunnel if it has one.
 4. **Start**: client adapters first, then the shared listeners (`ServerHost.start`), then server adapters, so nothing accepts a request before it can call upstream. An MCP client adapter with `discovery: verify` lists the upstream tools here and fails startup if a declared tool or a required argument is missing.
 5. **Wait** until the JVM shuts down. A shutdown hook stops the capability once: server adapters first, then the shared listeners, then client adapters.
 

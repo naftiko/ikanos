@@ -637,6 +637,52 @@ public class IkanosPolychroRulesetTest {
             "Expected no flow composition findings for a compliant document.\n" + output);
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // Shared definitions (#910)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnUnknownAndWrongKindReferences() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        String output = result.output();
+        assertTrue(result.exitCode() != 0, output);
+        assertTrue(output.contains("Unknown input parameter set 'missing-in-aggregate'"), output);
+        assertTrue(output.contains("Unknown input parameter set 'key'. MCP adapter 'tools'"),
+            "A tool must not reach an aggregate's definitions.\n" + output);
+        assertTrue(output.contains("'date-range' is a schema, not an input parameter set"),
+            output);
+        assertTrue(output.contains("'odata-list' is an input parameter set, not a schema"),
+            output);
+    }
+
+    @Test
+    public void definitionsSetConflictRuleShouldFireWhenTwoSetsDeclareTheSameInput() {
+        assertRuleFires("rules/spectral-definitions-violations.yaml",
+            "ikanos-definitions-set-conflict");
+    }
+
+    @Test
+    public void definitionsSchemaCycleRuleShouldFireWhenSchemasReferenceEachOther() {
+        assertRuleFires("rules/spectral-definitions-violations.yaml",
+            "ikanos-definitions-schema-no-cycle");
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldWarnOnDefinitionsNoUnitUses() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        assertTrue(result.output().contains("ikanos-definitions-unused")
+                && result.output().contains("'never-used', which no tool uses"),
+            result.output());
+    }
+
+    @Test
+    public void definitionsRulesShouldNotFireForCompliantDefinitions() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-definitions-compliant.yaml",
+            "warn");
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("ikanos-definitions-"), result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

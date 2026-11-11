@@ -74,6 +74,15 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
             spec.setDescription(node.get("description").asString());
         }
 
+        // A shared schema reference (#910). A JSON Schema `$ref` is read into the same field so
+        // that the definitions expander rejects it with a pointed message instead of the engine
+        // silently ignoring it: Ikanos references a schema by its bare name, with `schema:`.
+        if (node.has("schema")) {
+            spec.setSchema(node.get("schema").asString());
+        } else if (node.has("$ref")) {
+            spec.setSchema(node.get("$ref").asString());
+        }
+
         // Handle nested "items" array for array types
         if (node.has("items")) {
             JsonNode itemsNode = node.get("items");

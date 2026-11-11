@@ -249,6 +249,7 @@ When designing or modifying a Capability:
 - Use `aggregates` to define reusable domain flows when the same operation is exposed through multiple adapters (REST and MCP) — this follows the DDD Aggregate pattern: one definition, multiple projections
 - Declare `semantics` (safe, idempotent, cacheable) on aggregate flows to describe domain behavior — the engine derives MCP `hints` automatically
 - Override only adapter-specific fields when using `ref` (e.g., `method` for REST, `hints` for MCP) — let the rest be inherited from the flow
+- Declare inputs and shapes that several MCP tools (or flows) repeat once, in the `definitions` of their MCP adapter (or aggregate), and reuse them with `inputParameterSets: [names]` and `schema: name` — they are expanded at load time, so `tools/list` stays the inline equivalent
 
 **Don't:**
 - Expose an `inputParameter` that is not used in any step

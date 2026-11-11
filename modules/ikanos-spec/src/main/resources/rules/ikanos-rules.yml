@@ -39,6 +39,7 @@ functions:
   - mcp-trust-networks
   - shared-listener-mounts
   - exposes-hosts-binds-ref
+  - definitions
 
 rules:
 
@@ -214,6 +215,65 @@ rules:
       function: flow-calls
       functionOptions:
         check: semantics
+
+  ikanos-definitions-reference-exists:
+    message: "{{error}}"
+    description: >
+      `inputParameterSets: [name]` on an MCP tool or an aggregate flow must name
+      an input parameter set, and `schema: name` (on an input, inside a schema,
+      or in an orchestrated output) must name a schema, declared in the
+      `definitions` of the same MCP adapter or aggregate. Definitions are local:
+      a tool cannot use an aggregate's definitions (it reaches a flow through
+      `ref`). The engine rejects the capability at startup otherwise.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: references
+
+  ikanos-definitions-set-conflict:
+    message: "{{error}}"
+    description: >
+      The input parameter sets of one tool or flow must not declare the same
+      input: which one would win is not obvious. Keep the input in one set, or
+      declare it on the tool or flow, where it replaces the set's entry whole.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: conflicts
+
+  ikanos-definitions-schema-no-cycle:
+    message: "{{error}}"
+    description: >
+      A schema may use another schema, but schemas must not reference each
+      other in a cycle: definitions are expanded into their inline equivalent at
+      load time, and a cycle has none.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: cycles
+
+  ikanos-definitions-unused:
+    message: "{{error}}"
+    description: >
+      An input parameter set or schema that no tool or flow of its namespace
+      uses, directly or through another definition, is dead weight: remove it
+      or use it.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: unused
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."

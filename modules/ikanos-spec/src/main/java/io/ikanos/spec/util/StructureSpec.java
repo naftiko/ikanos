@@ -43,6 +43,13 @@ public class StructureSpec<T extends StructureSpec<T>> {
     private final AtomicReference<String> contentMediaType = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
 
+    /**
+     * Name of a schema declared in the {@code definitions} of the enclosing MCP adapter or
+     * aggregate ({@code schema: date-range}). Expanded at load time, before {@code ref}
+     * resolution, so the engine never sees it on a parameter it serves (#910).
+     */
+    private final AtomicReference<String> schema = new AtomicReference<>();
+
     @JsonProperty("properties")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final List<T> properties;
@@ -239,6 +246,17 @@ public class StructureSpec<T extends StructureSpec<T>> {
     @JsonProperty("description")
     public void setDescription(String description) {
         this.description.set(description);
+    }
+
+    /** @return the name of the shared schema this declaration uses, or {@code null} */
+    @JsonProperty("schema")
+    public String getSchema() {
+        return schema.get();
+    }
+
+    @JsonProperty("schema")
+    public void setSchema(String schema) {
+        this.schema.set(schema);
     }
 
     public List<String> getExamples() {

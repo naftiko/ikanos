@@ -90,6 +90,10 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
             node.put("description", spec.getDescription());
         }
 
+        if (spec.getSchema() != null) {
+            node.put("schema", spec.getSchema());
+        }
+
         // Write numeric fields
         if (spec.getPrecision() != null) {
             node.put("precision", spec.getPrecision());
@@ -202,6 +206,10 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
 
         if (spec.getDescription() != null) {
             node.put("description", spec.getDescription());
+        }
+
+        if (spec.getSchema() != null) {
+            node.put("schema", spec.getSchema());
         }
 
         if (spec.getPrecision() != null) {

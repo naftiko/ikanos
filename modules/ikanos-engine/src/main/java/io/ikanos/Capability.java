@@ -31,6 +31,7 @@ import io.ikanos.engine.aggregates.Aggregate;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.AggregateRefResolver;
 import io.ikanos.engine.aggregates.FlowCallValidator;
+import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.engine.step.StepHandler;
 import io.ikanos.engine.step.StepHandlerRegistry;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -140,6 +141,11 @@ public class Capability {
         // A namespace has one owner across all sections, so `call: namespace.name` resolves to
         // either a consumed operation or an aggregate flow, never both.
         NamespaceUniquenessValidator.validate(spec);
+
+        // Expand the shared definitions of MCP adapters and aggregates into their tools and flows
+        // (#910): after imports, which carry the definitions with their adapter or aggregate, and
+        // before ref resolution, so a ref tool sees the inputs its sets give it.
+        DefinitionsExpander.expand(spec);
 
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init
         AggregateRefResolver aggregateRefResolver = new AggregateRefResolver();

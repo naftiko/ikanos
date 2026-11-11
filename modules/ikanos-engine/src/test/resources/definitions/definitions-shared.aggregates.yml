@@ -1,0 +1,38 @@
+ikanos: "1.0.0-beta10"
+aggregates:
+  - display: "Fleet"
+    namespace: fleet
+    definitions:
+      inputParameterSets:
+        paging:
+          limit: { type: integer, description: "Maximum ships.", minimum: 1, maximum: 100 }
+      schemas:
+        ship:
+          type: object
+          properties:
+            imo: { type: string }
+            tonnage: { type: number }
+            crew:
+              type: array
+              items:
+                type: object
+                properties:
+                  fullName: { type: string }
+    flows:
+      list-ships:
+        description: "List ships."
+        inputParameterSets: [paging]
+        inputParameters:
+          flag: { type: string, description: "Flag state." }
+        steps:
+          ships: { type: call, call: registry.list-ships }
+        mappings:
+          - target: ships
+            value: "$.ships.ships"
+          - target: flagship
+            value: "$.ships.flagship"
+        outputParameters:
+          ships:
+            type: array
+            items: { schema: ship }
+          flagship: { schema: ship }

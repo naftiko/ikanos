@@ -73,6 +73,10 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
 
+    /** Names of the input parameter sets of the namespace's {@code definitions} (#910). */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final CopyOnWriteArrayList<String> inputParameterSets = new CopyOnWriteArrayList<>();
+
     public McpServerToolSpec() { this(null, null, null); }
 
     public McpServerToolSpec(String name, String display, String description) {
@@ -93,6 +97,16 @@ public class McpServerToolSpec {
 
     public List<String> getTags() { return tags; }
     public void setTags(List<String> tags) { this.tags.clear(); if (tags != null) this.tags.addAll(tags); }
+
+    /**
+     * @return the names of the input parameter sets this unit uses, applied in order before its
+     *         own {@code inputParameters}. Empty once the definitions are expanded (#910).
+     */
+    public List<String> getInputParameterSets() { return inputParameterSets; }
+    public void setInputParameterSets(List<String> sets) {
+        this.inputParameterSets.clear();
+        if (sets != null) this.inputParameterSets.addAll(sets);
+    }
 
     public List<InputParameterSpec> getInputParameters() {
         return List.copyOf(inputParameters.get().values());
