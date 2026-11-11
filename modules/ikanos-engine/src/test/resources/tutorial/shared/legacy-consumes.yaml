@@ -16,6 +16,4 @@ consumes:
         list-vessels:
           method: GET
           outputRawFormat: xml
-          inputParameters:
-            status:
-              in: query
+          queryParameters: [status]

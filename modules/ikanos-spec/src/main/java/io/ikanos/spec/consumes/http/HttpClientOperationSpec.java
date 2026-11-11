@@ -13,10 +13,18 @@
  */
 package io.ikanos.spec.consumes.http;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
+import io.ikanos.spec.InputParameterMapDeserializer;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OperationSpec;
 
 /**
@@ -25,6 +33,12 @@ import io.ikanos.spec.OperationSpec;
  * <h2>Thread safety</h2>
  * The {@code body} field is held in an {@link AtomicReference}. This satisfies SonarQube rule
  * {@code java:S3077}.
+ *
+ * <h2>Query parameter names</h2>
+ * {@code queryParameters} names are expanded into {@code in: query} input parameters (see
+ * {@link QueryParameterNames}), whichever of {@code inputParameters} and {@code queryParameters}
+ * is set first, so {@link #getInputParameters()} returns both forms. The list itself is read-only
+ * for serialization: the expanded entries are written as {@code inputParameters}.
  */
 public class HttpClientOperationSpec extends OperationSpec {
 
@@ -54,6 +68,12 @@ public class HttpClientOperationSpec extends OperationSpec {
      * §4.7 / §5.1.
      */
     private final AtomicReference<String> maxBinarySize = new AtomicReference<>();
+
+    /** The {@code inputParameters} as declared, before the query parameter names are added. */
+    private final AtomicReference<Map<String, InputParameterSpec>> declaredInputParameters =
+            new AtomicReference<>(Map.of());
+
+    private final List<String> queryParameters = new CopyOnWriteArrayList<>();
 
     public HttpClientOperationSpec() {
         this(null, null, null, null, null, null, null);
@@ -96,6 +116,38 @@ public class HttpClientOperationSpec extends OperationSpec {
 
     public void setMaxBinarySize(String maxBinarySize) {
         this.maxBinarySize.set(maxBinarySize);
+    }
+
+    @Override
+    @JsonDeserialize(using = InputParameterMapDeserializer.class)
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        declaredInputParameters.set(new LinkedHashMap<>(params != null ? params : Map.of()));
+        super.setInputParameters(
+                QueryParameterNames.expand(declaredInputParameters.get(), queryParameters));
+    }
+
+    /** The {@code queryParameters} list, as declared (#987). */
+    @JsonProperty(value = "queryParameters", access = JsonProperty.Access.WRITE_ONLY)
+    public List<String> getQueryParameters() {
+        return List.copyOf(queryParameters);
+    }
+
+    public void setQueryParameters(List<String> names) {
+        queryParameters.clear();
+        if (names != null) {
+            names.stream().filter(java.util.Objects::nonNull).forEach(queryParameters::add);
+        }
+        super.setInputParameters(
+                QueryParameterNames.expand(declaredInputParameters.get(), queryParameters));
+    }
+
+    /**
+     * @param where the operation, for the messages
+     * @return one message per {@code queryParameters} name also declared in this operation's
+     *         {@code inputParameters} or listed twice
+     */
+    public List<String> queryParameterErrors(String where) {
+        return QueryParameterNames.errors(declaredInputParameters.get(), queryParameters, where);
     }
 
 }

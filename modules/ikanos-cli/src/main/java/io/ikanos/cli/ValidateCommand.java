@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
+import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
@@ -100,9 +101,12 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
                     ? templateErrors(dataNode) : List.of();
+            List<String> queryParameterErrors = errors.isEmpty() && removedAdapters.isEmpty()
+                    ? queryParameterErrors(dataNode) : List.of();
 
             // Display validation result.
-            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()) {
+            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()
+                    && queryParameterErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -129,6 +133,11 @@ public class ValidateCommand implements Callable<Integer> {
                             + error);
                     errorCount++;
                 }
+                for (String error : queryParameterErrors) {
+                    System.err.println("\n  [" + errorCount
+                            + "] Invalid consumed query parameter: " + error);
+                    errorCount++;
+                }
                 return 1;
             }
             
@@ -150,6 +159,16 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Names of a consumed {@code queryParameters} list that are also declared in the
+     * {@code inputParameters} of the same resource or operation (#987). A name listed twice is
+     * already a schema error.
+     */
+    List<String> queryParameterErrors(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        return ConsumedQueryParameterValidator.findErrors(spec);
     }
 
     /**

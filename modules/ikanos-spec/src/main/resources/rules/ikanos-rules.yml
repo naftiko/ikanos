@@ -79,10 +79,10 @@ rules:
         notMatch: "/$"
 
   ikanos-consumed-resource-no-query-in-path:
-    message: "Consumed resource `path` must not contain a query string. Use `inputParameters` with `in: query` instead."
+    message: "Consumed resource `path` must not contain a query string. Use `queryParameters` or `inputParameters` with `in: query` instead."
     description: >
-      Query parameters belong in the inputParameters array with in: query,
-      not in the path string.
+      Query parameters belong in the queryParameters list of names, or in
+      inputParameters with in: query, not in the path string.
     severity: warn
     recommended: true
     given:
