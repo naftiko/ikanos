@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -143,8 +144,9 @@ public final class InputDefaults {
     /**
      * Check a parameter's default against its {@code type} and {@code enum}, the way a JSON
      * Schema validator reads the advertised schema: no conversion, so {@code "200"} does not match
-     * {@code integer}. Enum values are written as strings: a number default matches an enum value
-     * with the same numeric value.
+     * {@code integer}. Enum values are written as strings and read as the tool's
+     * {@code inputSchema} advertises them ({@link #typedEnumValue}): a number default matches an
+     * enum value advertised as a number with the same numeric value.
      *
      * @return the problem, or {@code null} when the default is absent or matches
      */
@@ -158,7 +160,7 @@ public final class InputDefaults {
             return "default does not match type '" + type + "'";
         }
         List<String> enumeration = param.getEnumeration();
-        if (!enumeration.isEmpty() && !inEnum(value, enumeration)) {
+        if (!enumeration.isEmpty() && !inEnum(type, value, enumeration)) {
             return "default is not one of the enum values";
         }
         return null;
@@ -188,24 +190,59 @@ public final class InputDefaults {
         }
     }
 
-    private static boolean inEnum(JsonNode value, List<String> enumeration) {
+    private static boolean inEnum(String type, JsonNode value, List<String> enumeration) {
         if (value.isContainer()) {
             return false;
         }
         for (String candidate : enumeration) {
-            if (value.isNumber()) {
+            JsonNode advertised = JSON.valueToTree(typedEnumValue(type, candidate));
+            if (value.isNumber() && advertised.isNumber()) {
                 try {
-                    if (value.decimalValue().compareTo(new BigDecimal(candidate)) == 0) {
+                    if (value.decimalValue().compareTo(advertised.decimalValue()) == 0) {
                         return true;
                     }
-                } catch (NumberFormatException | ArithmeticException e) {
-                    // Not a number: cannot equal a number default
+                } catch (ArithmeticException | NumberFormatException e) {
+                    // NaN or an infinity: equals no enum value
                 }
-            } else if (value.asString().equals(candidate)) {
+            } else if (value.equals(advertised)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Enum values are stored as strings; read one with the parameter's JSON type, so that the
+     * advertised schema stays valid for number, integer and boolean parameters. Shared by the
+     * advertised {@code inputSchema} and the check of a default, so both read an enum value the
+     * same way: a value that does not parse as the type, such as {@code "50.0"} or {@code "1e2"}
+     * on an {@code integer} parameter, stays a string.
+     *
+     * @param type the parameter type, may be null (read as {@code string})
+     * @param value the enum value as written
+     * @return a {@link BigInteger}, {@link BigDecimal}, {@link Boolean} or the string itself
+     */
+    public static Object typedEnumValue(String type, String value) {
+        if (type == null) {
+            return value;
+        }
+        try {
+            switch (type) {
+                case "integer":
+                    return new BigInteger(value);
+                case "number":
+                    return new BigDecimal(value);
+                case "boolean":
+                    if ("true".equals(value) || "false".equals(value)) {
+                        return Boolean.valueOf(value);
+                    }
+                    return value;
+                default:
+                    return value;
+            }
+        } catch (NumberFormatException e) {
+            return value;
+        }
     }
 
     /**
