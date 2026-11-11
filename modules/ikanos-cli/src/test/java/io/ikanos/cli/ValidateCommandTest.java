@@ -175,6 +175,85 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenAToolUsesAnUnknownInputParameterSet() {
+        Path yaml = tempDir.resolve("unknown-set.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, definitionsCapability("""
+                      tools:
+                        list:
+                          description: "List items"
+                          inputParameterSets: [paging]
+                          call: "svc.list"
+                """)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#910: an unknown definition must fail validate");
+        assertTrue(errCapture.toString().contains("Invalid definitions: MCP adapter 'tools', tool"
+                + " 'list': unknown input parameter set 'paging'. MCP adapter 'tools' declares"
+                + " odata-list."), errCapture.toString());
+    }
+
+    @Test
+    public void callShouldWarnButPassWhenADefinitionIsUnused() {
+        Path yaml = tempDir.resolve("unused-set.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, definitionsCapability("""
+                      tools:
+                        list:
+                          description: "List items"
+                          call: "svc.list"
+                """)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString());
+        assertTrue(outCapture.toString().contains("Warnings:"), outCapture.toString());
+        assertTrue(outCapture.toString().contains("MCP adapter 'tools' declares the input"
+                + " parameter set 'odata-list', which no tool uses."), outCapture.toString());
+    }
+
+    @Test
+    public void callShouldPassWhenToolsUseTheirDefinitions() {
+        Path yaml = tempDir.resolve("used-set.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, definitionsCapability("""
+                      tools:
+                        list:
+                          description: "List items"
+                          inputParameterSets: [odata-list]
+                          call: "svc.list"
+                """)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString());
+        assertFalse(outCapture.toString().contains("Warnings:"), outCapture.toString());
+    }
+
+    private static String definitionsCapability(String tools) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      definitions:
+                        inputParameterSets:
+                          odata-list:
+                            filter: { type: string, required: false, description: "Filter." }
+                %s""".formatted(IKANOS, tools);
+    }
+
+    @Test
     public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
         Path yaml = tempDir.resolve("alias.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """

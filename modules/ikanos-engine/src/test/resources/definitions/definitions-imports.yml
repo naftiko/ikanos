@@ -1,0 +1,63 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Fleet"
+  description: "Imported aggregate that carries its shared definitions (#910)"
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      baseUri: "http://localhost:1"
+      resources:
+        ships:
+          path: "/ships"
+          operations:
+            list-ships:
+              method: GET
+            list-calls:
+              method: GET
+  aggregates:
+    - import: fleet
+      from: ./definitions-shared.aggregates.yml
+  exposes:
+    - type: mcp
+      address: localhost
+      port: 0
+      namespace: fleet-mcp
+      definitions:
+        inputParameterSets:
+          odata-list:
+            filter: { type: string, required: false, description: "OData V2 $filter expression." }
+            top: { type: integer, required: false, description: "Maximum rows to return (default 100)." }
+          tracing:
+            trace-id: { type: string, required: false, description: "Trace ID." }
+        schemas:
+          date-range:
+            type: object
+            description: "A date range."
+            properties:
+              from: { type: string, format: date }
+              to: { type: string, format: date }
+            required: [from]
+          period:
+            type: object
+            properties:
+              range: { schema: date-range, description: "Range of the period." }
+              ranges: { type: array, items: { schema: date-range } }
+      tools:
+        list-sales-orders:
+          description: "List sales orders."
+          inputParameterSets: [odata-list, tracing]
+          call: registry.list-ships
+        list-calls:
+          description: "List calls in a period."
+          inputParameterSets: [odata-list]
+          inputParameters:
+            top: { type: integer, required: true, description: "Rows to return." }
+            period: { schema: date-range, description: "Call date range.", required: true }
+            periods: { type: array, description: "Several periods.", items: { schema: period } }
+          call: registry.list-calls
+        list-fleet:
+          ref: fleet.list-ships
+        list-fleet-filtered:
+          ref: fleet.list-ships
+          inputParameterSets: [odata-list]

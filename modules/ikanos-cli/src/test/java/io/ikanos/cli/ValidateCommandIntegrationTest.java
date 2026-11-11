@@ -31,7 +31,7 @@ class ValidateCommandIntegrationTest {
 
     @Test
     void validateShouldSucceedWithoutWarningsWhenCapabilityIsValid() throws Exception {
-        Path capability = tutorialCapabilityPath();
+        Path capability = tutorialCapabilityPath("step-1-shipyard-mock.yml");
 
         Result result = validate(capability);
 
@@ -39,6 +39,17 @@ class ValidateCommandIntegrationTest {
         assertTrue(result.output().contains("Validation successful"), result.output());
         assertFalse(result.output().contains("WARN"), result.output());
         assertFalse(result.output().contains("Unknown keyword name"), result.output());
+    }
+
+    @Test
+    void validateShouldSucceedWithoutWarningsWhenTutorialSharesDefinitions() throws Exception {
+        Path capability = tutorialCapabilityPath("step-11-shipyard-fleet-manifest.yml");
+
+        Result result = validate(capability);
+
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("Validation successful"), result.output());
+        assertFalse(result.output().contains("Warnings:"), result.output());
     }
 
     @Test
@@ -57,15 +68,13 @@ class ValidateCommandIntegrationTest {
     }
 
     /** Same resolution strategy as {@code ValidateCommandTest}, so both tests find the fixture. */
-    private Path tutorialCapabilityPath() {
+    private Path tutorialCapabilityPath(String name) {
         String projectBasedir = System.getProperty("user.dir");
-        Path mavenPath = Path.of(projectBasedir, "..", "ikanos-docs", "tutorial",
-                "step-1-shipyard-mock.yml");
+        Path mavenPath = Path.of(projectBasedir, "..", "ikanos-docs", "tutorial", name);
         if (Files.exists(mavenPath)) {
             return mavenPath.normalize();
         }
-        return Path.of("..", "ikanos-docs", "tutorial", "step-1-shipyard-mock.yml")
-                .toAbsolutePath().normalize();
+        return Path.of("..", "ikanos-docs", "tutorial", name).toAbsolutePath().normalize();
     }
 
     /** Surefire exposes the test classpath separately; fall back to the JVM's own outside Maven. */

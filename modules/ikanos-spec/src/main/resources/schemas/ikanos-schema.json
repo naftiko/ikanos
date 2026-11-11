@@ -612,7 +612,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameterArray": {
-      "description": "Orchestrated array output. With `items`, each element is shaped by it. Without `items`, the mapped array is returned as is (any elements).",
+      "description": "Orchestrated array output. With `items`, each element is shaped by it. Without `items`, the mapped array is returned as is (any elements). `items: { schema: name }` shapes each element by a schema of the `definitions`.",
       "allOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterBase"
@@ -623,11 +623,19 @@
               "const": "array"
             },
             "items": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameter"
-              },
-              "minProperties": 1
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/OrchestratedOutputParameterSchemaRef"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/$defs/OrchestratedOutputParameter"
+                  },
+                  "minProperties": 1
+                }
+              ],
+              "description": "Shape of each element: a map of named properties, or `schema: name` for a schema of the `definitions`."
             }
           }
         }
@@ -657,7 +665,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameter": {
-      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups.",
+      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups. Or `schema: name`, shaped by a schema of the `definitions` of the same MCP adapter or aggregate.",
       "oneOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterScalar"
@@ -667,8 +675,24 @@
         },
         {
           "$ref": "#/$defs/OrchestratedOutputParameterObject"
+        },
+        {
+          "$ref": "#/$defs/OrchestratedOutputParameterSchemaRef"
         }
       ]
+    },
+    "OrchestratedOutputParameterSchemaRef": {
+      "type": "object",
+      "description": "Orchestrated output shaped by a schema of the `definitions` of the same MCP adapter or aggregate. It takes no other key: the schema gives the `type`, `properties` and object `items`.",
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/DefinitionName"
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "additionalProperties": false
     },
     "MockOutputParameter": {
       "type": "object",
@@ -926,6 +950,10 @@
           "$ref": "#/$defs/IdentifierKebab",
           "description": "Machine-readable qualifier for this aggregate. Used as the first segment in ref values. Must match the map key."
         },
+        "definitions": {
+          "$ref": "#/$defs/Definitions",
+          "description": "Shared input parameter sets and schemas, visible to the flows of this aggregate only. Expanded at load time into the inline equivalent. MCP tools and REST operations reach them through `ref`."
+        },
         "flows": {
           "type": "object",
           "propertyNames": {
@@ -965,6 +993,9 @@
         "outputMediaType": {
           "type": "string",
           "description": "Contract-level media type advertised by this flow to downstream `exposes`. Independent of `outputRawFormat`, which is always inherited from the underlying consumed operation (call:) or the terminal step (steps:). Overrides the consumed op's `outputMediaType` for advertisement only; never changes how the entity is parsed."
+        },
+        "inputParameterSets": {
+          "$ref": "#/$defs/InputParameterSetNames"
         },
         "inputParameters": {
           "type": "object",
@@ -1198,6 +1229,10 @@
           "$ref": "#/$defs/McpTrust",
           "description": "How this adapter learns which agent is calling, to record it on traces and logs. Omitted means mode `none`. Not allowed with `transport: stdio`."
         },
+        "definitions": {
+          "$ref": "#/$defs/Definitions",
+          "description": "Shared input parameter sets and schemas, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
+        },
         "tools": {
           "type": "object",
           "propertyNames": {
@@ -1424,6 +1459,9 @@
           "type": "string",
           "description": "A meaningful description of the tool. Used for agent discovery. Remember, in a world of agents, context is king."
         },
+        "inputParameterSets": {
+          "$ref": "#/$defs/InputParameterSetNames"
+        },
         "inputParameters": {
           "type": "object",
           "propertyNames": {
@@ -1611,7 +1649,7 @@
     },
     "McpToolInputParameter": {
       "type": "object",
-      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition.",
+      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required`).",
       "properties": {
         "type": {
           "type": "string",
@@ -1628,6 +1666,10 @@
         "description": {
           "type": "string",
           "description": "A meaningful description of the parameter. Used for agent discovery and tool documentation."
+        },
+        "schema": {
+          "$ref": "#/$defs/DefinitionName",
+          "description": "Name of a schema of the `definitions` of the same MCP adapter or aggregate. The input takes the schema's shape (its `required` list becomes the input's `requiredProperties`); beside `schema`, only `description` (which replaces the schema's) and `required` are allowed."
         },
         "required": {
           "type": "boolean",
@@ -1666,15 +1708,36 @@
           "description": "Whether an object parameter accepts properties beyond `properties`. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
         }
       },
-      "required": [
-        "type",
-        "description"
+      "anyOf": [
+        {
+          "required": [
+            "type",
+            "description"
+          ]
+        },
+        {
+          "required": [
+            "schema",
+            "description"
+          ]
+        }
       ],
+      "dependentSchemas": {
+        "schema": {
+          "propertyNames": {
+            "enum": [
+              "schema",
+              "description",
+              "required"
+            ]
+          }
+        }
+      },
       "additionalProperties": false
     },
     "McpToolInputSchema": {
       "type": "object",
-      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names. Like the parameter-level keywords, `enum`, `format`, `minimum`, `maximum`, `required` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.",
+      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names. Like the parameter-level keywords, `enum`, `format`, `minimum`, `maximum`, `required` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos. A nested schema may instead reference a schema of the `definitions` with `schema: name`, optionally with a `description` that replaces the schema's.",
       "properties": {
         "type": {
           "type": "string",
@@ -1689,6 +1752,10 @@
         },
         "description": {
           "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/DefinitionName",
+          "description": "Name of a schema of the `definitions` of the same MCP adapter or aggregate. Beside it, only `description` is allowed."
         },
         "enum": {
           "$ref": "#/$defs/McpToolInputEnum"
@@ -1715,9 +1782,28 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "type"
+      "anyOf": [
+        {
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "required": [
+            "schema"
+          ]
+        }
       ],
+      "dependentSchemas": {
+        "schema": {
+          "propertyNames": {
+            "enum": [
+              "schema",
+              "description"
+            ]
+          }
+        }
+      },
       "additionalProperties": false
     },
     "McpToolInputProperties": {
@@ -1743,6 +1829,57 @@
       "items": {
         "type": "string"
       }
+    },
+    "DefinitionName": {
+      "type": "string",
+      "description": "Bare name of a definition declared in the `definitions` of the same MCP adapter or aggregate (kebab-case). Definitions are local to their namespace: qualified names (`a.b`) and `$ref` pointers are not supported.",
+      "pattern": "^[a-zA-Z0-9-]+$"
+    },
+    "Definitions": {
+      "type": "object",
+      "description": "Shared definitions of an MCP adapter or an aggregate, visible to its own tools or flows only.\n\n**When to use** \u2014 Several tools (or flows) repeat the same inputs, or the same input or output shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a tool or flow, `schema: name` on an input (and in its `items` and `properties`), inside another schema, or in an orchestrated (steps-mode) output.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. `tools/list` advertises the same `inputSchema` and `outputSchema` as the inline equivalent: no reference is ever sent to MCP clients. An imported adapter or aggregate carries its definitions.\n**Reuse across adapters** \u2014 A tool cannot use an aggregate's definitions: reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    odata-list:\n      filter: { type: string, required: false, description: \"OData V2 $filter expression.\" }\n      top:    { type: integer, required: false, description: \"Maximum rows to return.\" }\n  schemas:\n    date-range:\n      type: object\n      properties:\n        from: { type: string, format: date }\n        to:   { type: string, format: date }\n      required: [from]\n```",
+      "properties": {
+        "inputParameterSets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-zA-Z0-9-_*]+$"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/McpToolInputParameter"
+            },
+            "minProperties": 1
+          },
+          "minProperties": 1,
+          "description": "Named sets of input parameters, keyed by set name, each declared like a tool's `inputParameters`. A tool or flow lists the sets it uses in `inputParameterSets`: they apply in order, then its own `inputParameters`. An own entry replaces the set's entry of the same name whole (no partial override), and two sets of one tool or flow must not declare the same parameter."
+        },
+        "schemas": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchema"
+          },
+          "minProperties": 1,
+          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there."
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "InputParameterSetNames": {
+      "type": "array",
+      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` tool, the sets act like the tool's own `inputParameters`: a non-empty result replaces the inputs the flow advertises.",
+      "items": {
+        "$ref": "#/$defs/DefinitionName"
+      },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "McpResource": {
       "type": "object",

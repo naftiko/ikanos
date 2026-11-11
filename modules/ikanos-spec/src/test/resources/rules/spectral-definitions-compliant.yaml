@@ -1,0 +1,65 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Definitions"
+  description: "Shared definitions (#910) used by every tool and flow."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: erp
+      description: "ERP API"
+      baseUri: "https://erp.acme.org"
+      resources:
+        orders:
+          path: "/orders"
+          description: "Orders"
+          operations:
+            list-orders:
+              method: GET
+  aggregates:
+    - display: "Orders"
+      namespace: orders
+      definitions:
+        schemas:
+          line:
+            type: object
+            properties:
+              sku: { type: string }
+      flows:
+        list-lines:
+          description: "List order lines."
+          steps:
+            lines: { type: call, call: erp.list-orders }
+          mappings:
+            - target: lines
+              value: "$.lines"
+          outputParameters:
+            lines:
+              type: array
+              items: { schema: line }
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: tools
+      description: "Order tools"
+      definitions:
+        inputParameterSets:
+          odata-list:
+            filter: { type: string, required: false, description: "Filter." }
+            window: { schema: date-range, description: "Window.", required: false }
+        schemas:
+          day: { type: string, format: date }
+          date-range:
+            type: object
+            properties:
+              from: { schema: day }
+              to: { schema: day }
+            required: [from]
+      tools:
+        list-orders:
+          description: "List orders."
+          inputParameterSets: [odata-list]
+          call: erp.list-orders
+        list-lines:
+          ref: orders.list-lines

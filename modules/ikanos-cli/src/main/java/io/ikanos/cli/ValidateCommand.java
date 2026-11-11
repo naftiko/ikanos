@@ -23,6 +23,7 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -98,14 +99,20 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Compile consumed templates the way the engine renders them (#849), only once the
             // document matches the schema, so the spec can be read.
-            List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
-                    ? templateErrors(dataNode) : List.of();
+            boolean schemaValid = errors.isEmpty() && removedAdapters.isEmpty();
+            List<String> templateErrors = schemaValid ? templateErrors(dataNode) : List.of();
+
+            // Expand the shared definitions the way the engine does at load time (#910), on the
+            // document's own MCP adapters and aggregates: imported ones are checked on load.
+            DefinitionsExpander.Result definitions = schemaValid ? definitions(dataNode)
+                    : new DefinitionsExpander.Result(List.of(), List.of());
 
             // Display validation result.
-            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()) {
+            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
+                printWarnings(definitions.warnings());
                 return 0;
             } else {
                 System.err.println("✗ Validation failed!");
@@ -129,6 +136,11 @@ public class ValidateCommand implements Callable<Integer> {
                             + error);
                     errorCount++;
                 }
+                for (String error : definitions.errors()) {
+                    System.err.println("\n  [" + errorCount + "] Invalid definitions: " + error);
+                    errorCount++;
+                }
+                printWarnings(definitions.warnings());
                 return 1;
             }
             
@@ -150,6 +162,27 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Expands the shared definitions of the document's MCP adapters and aggregates (#910) and
+     * returns what is wrong with them. Imported adapters and aggregates are not resolved here.
+     */
+    DefinitionsExpander.Result definitions(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        return DefinitionsExpander.expandAll(spec);
+    }
+
+    private static void printWarnings(List<String> warnings) {
+        if (warnings.isEmpty()) {
+            return;
+        }
+        System.out.println("\nWarnings:");
+        int count = 1;
+        for (String warning : warnings) {
+            System.out.println("\n  [" + count + "] " + warning);
+            count++;
+        }
     }
 
     /**
