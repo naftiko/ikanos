@@ -186,6 +186,43 @@ class InputDefaultsTest {
         assertNull(InputDefaults.defaultError(draft));
     }
 
+    /**
+     * An integer enum value written {@code "50.0"} or {@code "1e2"} is advertised as a string, so
+     * the check reads it the same way and a number default does not match it.
+     */
+    @Test
+    void defaultErrorShouldRejectNumberDefaultAgainstEnumValueAdvertisedAsString()
+            throws Exception {
+        InputParameterSpec decimal = param("size", "integer", false, "50");
+        decimal.getEnumeration().add("50.0");
+        InputParameterSpec exponent = param("size", "integer", false, "100");
+        exponent.getEnumeration().add("1e2");
+
+        assertEquals("default is not one of the enum values", InputDefaults.defaultError(decimal));
+        assertEquals("default is not one of the enum values",
+                InputDefaults.defaultError(exponent));
+    }
+
+    @Test
+    void defaultErrorShouldAcceptIntegerDefaultInIntegerEnum() throws Exception {
+        InputParameterSpec size = param("size", "integer", false, "50");
+        size.getEnumeration().addAll(List.of("25", "50"));
+
+        assertNull(InputDefaults.defaultError(size));
+    }
+
+    @Test
+    void typedEnumValueShouldUseTheParameterType() {
+        assertEquals(new java.math.BigInteger("50"), InputDefaults.typedEnumValue("integer", "50"));
+        assertEquals("50.0", InputDefaults.typedEnumValue("integer", "50.0"));
+        assertEquals("1e2", InputDefaults.typedEnumValue("integer", "1e2"));
+        assertEquals(new java.math.BigDecimal("1e2"), InputDefaults.typedEnumValue("number", "1e2"));
+        assertEquals(Boolean.TRUE, InputDefaults.typedEnumValue("boolean", "true"));
+        assertEquals("yes", InputDefaults.typedEnumValue("boolean", "yes"));
+        assertEquals("50", InputDefaults.typedEnumValue("string", "50"));
+        assertEquals("50", InputDefaults.typedEnumValue(null, "50"));
+    }
+
     // ── findErrors / findWarnings / validate ──
 
     private static IkanosSpec spec(String toolParameters) throws Exception {
