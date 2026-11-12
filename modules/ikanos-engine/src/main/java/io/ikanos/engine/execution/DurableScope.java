@@ -13,6 +13,10 @@
  */
 package io.ikanos.engine.execution;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.BooleanSupplier;
@@ -34,10 +38,18 @@ import io.ikanos.durable.core.JournaledRunner;
  * {@code <parent execution>/<path of s>}. A replay that restores step {@code s} without running
  * it therefore cannot shift the IDs of the flows called after it. The scope is carried by the
  * thread running each action, so it holds whichever thread the runner runs an action on.</p>
+ *
+ * <p>Nesting lengthens those IDs with every call. Once one would exceed {@link #MAX_ID_LENGTH},
+ * it is replaced by {@code <root>/~<SHA-256 of the full ID>}: as stable as the full ID, so a
+ * replay finds the same run, and short enough for a store column of 255 characters together
+ * with the {@code #n} suffix of {@link #nextExecutionId()}.</p>
  */
 public final class DurableScope {
 
     private static final ThreadLocal<DurableScope> CURRENT = new ThreadLocal<>();
+
+    /** The longest execution ID a scope gives a run, before its {@code #n} suffix. */
+    static final int MAX_ID_LENGTH = 200;
 
     /**
      * Thrown before an action starts once the scope is stopping: an {@link Error}, so no action
@@ -52,12 +64,15 @@ public final class DurableScope {
     }
 
     private final JournaledRunner runner;
+    private final ExecutionId root;
     private final ExecutionId next;
     private final BooleanSupplier stopping;
     private int uses;
 
-    private DurableScope(JournaledRunner runner, ExecutionId next, BooleanSupplier stopping) {
+    private DurableScope(JournaledRunner runner, ExecutionId root, ExecutionId next,
+            BooleanSupplier stopping) {
         this.runner = Objects.requireNonNull(runner, "runner");
+        this.root = Objects.requireNonNull(root, "root");
         this.next = Objects.requireNonNull(next, "next");
         this.stopping = Objects.requireNonNull(stopping, "stopping");
     }
@@ -78,7 +93,7 @@ public final class DurableScope {
      */
     public static <T> T with(JournaledRunner runner, ExecutionId root, BooleanSupplier stopping,
             Callable<T> work) throws Exception {
-        return within(new DurableScope(runner, new ExecutionId(root.value() + "/steps"),
+        return within(new DurableScope(runner, root, bounded(root, root.value() + "/steps"),
                 stopping), work);
     }
 
@@ -124,7 +139,30 @@ public final class DurableScope {
 
     /** The scope of the step runs started by the action at {@code path} of {@code execution}. */
     DurableScope child(ExecutionId execution, NodePath path) {
-        return new DurableScope(runner, new ExecutionId(execution.value() + "/" + path.value()),
-                stopping);
+        return new DurableScope(runner, root,
+                bounded(root, execution.value() + "/" + path.value()), stopping);
+    }
+
+    /**
+     * {@code id} as an execution ID, or, when longer than {@link #MAX_ID_LENGTH}, a stable ID of
+     * bounded length derived from it under {@code root}.
+     */
+    static ExecutionId bounded(ExecutionId root, String id) {
+        if (id.length() <= MAX_ID_LENGTH) {
+            return new ExecutionId(id);
+        }
+        String digest = sha256(id);
+        String prefix = root.value() + "/~";
+        return new ExecutionId(prefix.length() + digest.length() <= MAX_ID_LENGTH
+                ? prefix + digest : "~" + digest);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every Java platform", e);
+        }
     }
 }

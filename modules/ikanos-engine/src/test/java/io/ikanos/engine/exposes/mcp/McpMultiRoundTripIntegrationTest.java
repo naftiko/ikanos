@@ -345,4 +345,92 @@ class McpMultiRoundTripIntegrationTest {
         assertEquals("failed", task.path("status").asString(), String.valueOf(task));
         assertTrue(task.path("error").path("message").asString().contains("input"));
     }
+
+    /** A flow calling two flows whose elicit steps share the name {@code confirm}. */
+    private static final String NESTED = """
+            ikanos: "%s"
+            info:
+              display: "Departure clearance"
+              description: "Nested elicit integration test"
+            capability:
+              aggregates:
+              - namespace: departure
+                flows:
+                  confirm-crew:
+                    description: Ask the duty officer to confirm the crew list.
+                    steps:
+                      confirm:
+                        type: elicit
+                        message: Confirm the crew list?
+                        fields:
+                          confirmed:
+                            type: boolean
+                            description: Whether the crew list is confirmed
+                  confirm-cargo:
+                    description: Ask the duty officer to confirm the cargo manifest.
+                    steps:
+                      confirm:
+                        type: elicit
+                        message: Confirm the cargo manifest?
+                        fields:
+                          confirmed:
+                            type: boolean
+                            description: Whether the cargo manifest is confirmed
+                  clear-departure:
+                    description: Clear a departure once crew and cargo are confirmed.
+                    steps:
+                      crew:
+                        type: call
+                        call: departure.confirm-crew
+                      cargo:
+                        type: call
+                        call: departure.confirm-cargo
+              exposes:
+              - type: mcp
+                address: localhost
+                port: 0
+                namespace: shipyard-ops
+                description: Shipyard operations.
+                tools:
+                  clear-departure:
+                    description: Clear a departure.
+                    ref: departure.clear-departure
+            """.formatted(IKANOS);
+
+    private static final String CLEAR = "{\"name\":\"clear-departure\",\"arguments\":{}}";
+    private static final String ACCEPT = "{\"action\":\"accept\",\"content\":{\"confirmed\":true}}";
+
+    @Test
+    void nestedElicitStepsWithTheSameNameShouldEachBeAsked() throws Exception {
+        McpServerAdapter adapter = load(NESTED);
+
+        JsonNode first = call(adapter, CLEAR, true, false).path("result");
+        assertEquals("input_required", first.path("resultType").asString(), first.toString());
+        JsonNode crew = first.path("inputRequests");
+        assertEquals(1, crew.size(), crew.toString());
+        String crewKey = crew.propertyNames().iterator().next();
+        assertEquals("steps/crew/steps/confirm", crewKey);
+        assertEquals("Confirm the crew list?",
+                crew.path(crewKey).path("params").path("message").asString());
+
+        // Answering the crew confirmation must not answer the cargo one: it is asked next.
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(CLEAR);
+        retry.put("requestState", first.path("requestState").asString());
+        retry.putObject("inputResponses").set(crewKey, jsonMapper.readTree(ACCEPT));
+        JsonNode second = call(adapter, retry.toString(), true, false).path("result");
+        assertEquals("input_required", second.path("resultType").asString(), second.toString());
+        JsonNode cargo = second.path("inputRequests");
+        assertEquals(1, cargo.size(), cargo.toString());
+        String cargoKey = cargo.propertyNames().iterator().next();
+        assertEquals("steps/cargo/steps/confirm", cargoKey);
+        assertEquals("Confirm the cargo manifest?",
+                cargo.path(cargoKey).path("params").path("message").asString());
+
+        ObjectNode last = (ObjectNode) jsonMapper.readTree(CLEAR);
+        last.put("requestState", second.path("requestState").asString());
+        last.putObject("inputResponses").set(cargoKey, jsonMapper.readTree(ACCEPT));
+        JsonNode done = call(adapter, last.toString(), true, false).path("result");
+        assertEquals("complete", done.path("resultType").asString(), done.toString());
+        assertFalse(done.path("isError").asBoolean(), done.toString());
+    }
 }

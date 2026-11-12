@@ -13,6 +13,8 @@
  */
 package io.ikanos.spec.aggregates;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * What a caller may observe while a flow runs: {@code semantics.interaction}.
  *
@@ -54,7 +56,11 @@ public class InteractionSpec {
         this.expectedDurationMs = expectedDurationMs;
     }
 
-    /** Whether the flow may answer with a task handle. */
+    /**
+     * Whether the flow may answer with a task handle. Derived from {@link #getMode()}, so not a
+     * property: the Interaction schema allows {@code mode} and {@code expectedDurationMs} only.
+     */
+    @JsonIgnore
     public boolean isTask() {
         return MODE_TASK.equals(mode);
     }
