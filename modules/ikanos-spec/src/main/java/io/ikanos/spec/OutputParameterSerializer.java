@@ -62,8 +62,9 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             }
         }
 
-        // Static runtime value (MappedOutputParameter)
-        if (spec.getValue() != null && (spec.getName() == null || spec.getName().isBlank())) {
+        // Static runtime value (MappedOutputParameter, or a named mock output). A named
+        // parameter writes its mapping as "value" above: one key cannot hold both.
+        if (spec.getValue() != null && !node.has("value")) {
             node.put("value", spec.getValue());
         }
 

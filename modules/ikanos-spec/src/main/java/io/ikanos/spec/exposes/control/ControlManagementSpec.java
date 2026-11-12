@@ -16,6 +16,7 @@ package io.ikanos.spec.exposes.control;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -110,6 +111,7 @@ public class ControlManagementSpec {
     /**
      * Convenience accessor — returns true when log level control is enabled.
      */
+    @JsonIgnore
     public boolean isLogging() {
         ControlLogsEndpointSpec current = logs.get();
         return current != null && current.isLevelControl();
