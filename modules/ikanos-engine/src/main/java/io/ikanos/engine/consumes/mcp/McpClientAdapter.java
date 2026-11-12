@@ -48,6 +48,7 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
 import io.opentelemetry.api.trace.Span;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import tools.jackson.core.JacksonException;
 
 /**
@@ -190,8 +191,8 @@ public class McpClientAdapter extends ClientAdapter {
         params.set("arguments", arguments);
         JsonNode result = transport.call("tools/call", toolName, params, templates);
 
-        String resultType = result.path("resultType").asString("complete");
-        if (!"complete".equals(resultType)) {
+        String resultType = result.path(McpResultType.FIELD).asString(McpResultType.COMPLETE.wireValue());
+        if (!McpResultType.COMPLETE.wireValue().equals(resultType)) {
             throw new McpClientException("Upstream MCP tool " + getNamespace() + "." + toolName
                     + " requested '" + resultType + "'; not supported in v1");
         }

@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: aggregate-semantics-consistency
+ * Polychro rule function: aggregate-semantics-consistency
  *
  * Verifies that explicit MCP tool hints and REST operation methods do not
  * contradict the declared semantics of the aggregate flow they reference.

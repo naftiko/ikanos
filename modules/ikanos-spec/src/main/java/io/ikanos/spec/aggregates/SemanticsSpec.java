@@ -13,6 +13,8 @@
  */
 package io.ikanos.spec.aggregates;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Transport-neutral behavioral metadata for an invocable unit. Used for design-time tooling and
  * adapter derivations (e.g. MCP hints).
@@ -22,6 +24,7 @@ public class SemanticsSpec {
     private Boolean safe;
     private Boolean idempotent;
     private Boolean cacheable;
+    private InteractionSpec interaction;
 
     public SemanticsSpec() {}
 
@@ -53,6 +56,16 @@ public class SemanticsSpec {
 
     public void setCacheable(Boolean cacheable) {
         this.cacheable = cacheable;
+    }
+
+    /** What a caller may observe while the flow runs, or {@code null} for a synchronous call. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public InteractionSpec getInteraction() {
+        return interaction;
+    }
+
+    public void setInteraction(InteractionSpec interaction) {
+        this.interaction = interaction;
     }
 
 }

@@ -71,6 +71,9 @@ public class OAuth2AuthenticationRestlet extends Restlet {
      */
     public static final String VALIDATED_CLAIMS_ATTRIBUTE = "io.ikanos.oauth2.validatedClaims";
 
+    /** Request attribute holding the validated access token itself, set with its claims. */
+    public static final String VALIDATED_TOKEN_ATTRIBUTE = "io.ikanos.oauth2.validatedToken";
+
     static final long JWKS_CACHE_TTL_MS = 5 * 60 * 1000L;
     static final long JWKS_MIN_REFRESH_MS = 30 * 1000L;
 
@@ -166,6 +169,7 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         }
 
         request.getAttributes().put(VALIDATED_CLAIMS_ATTRIBUTE, claims);
+        request.getAttributes().put(VALIDATED_TOKEN_ATTRIBUTE, token);
         next.handle(request, response);
     }
 

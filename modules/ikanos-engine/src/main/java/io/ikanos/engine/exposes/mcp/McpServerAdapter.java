@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp;
 
 import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
@@ -32,6 +33,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
+import java.time.Clock;
+import io.ikanos.engine.execution.Durability;
+import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * MCP Server Adapter implementation.
@@ -46,6 +52,14 @@ import java.util.logging.Level;
  * {@link PromptHandler} and {@link SkillHandler} are shared. Only the I/O layer differs.
  */
 public class McpServerAdapter extends ServerAdapter {
+
+    private static final ObjectMapper JSON = IkanosMappers.json();
+
+    /**
+     * Longest wait for running tasks to reach their next action when the adapter stops. A task
+     * still in its action after it is cut short there, and resumed by the next start.
+     */
+    static final java.time.Duration DRAIN_TIMEOUT = java.time.Duration.ofSeconds(30);
 
     /**
      * Stdio handler and thread — only initialized for stdio transport. Held in
@@ -64,9 +78,13 @@ public class McpServerAdapter extends ServerAdapter {
     private final ResourceHandler resourceHandler;
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
+    private final McpTaskService taskService;
+    private final McpRequestState requestState;
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
+        this.requestState = McpRequestState.withKey(capability.getSealingKey(),
+                capability.getSpecDigest());
 
         // Create the tool handler first (transport-agnostic): it owns each tool's output
         // contract, which buildMcpTool() advertises as the MCP outputSchema.
@@ -107,6 +125,12 @@ public class McpServerAdapter extends ServerAdapter {
         this.skillHandler = new SkillHandler(serverSpec.getSkills(), serverSpec.getTools().keySet(),
                 serverSpec.getResources().values().stream()
                         .map(McpServerResourceSpec::getUri).toList());
+
+        // Tasks (SEP-2663) need somewhere to keep executions: only in a durable mode.
+        Durability durability = capability.getDurability();
+        this.taskService = durability != null && durability.isDurable()
+                ? new McpTaskService(durability.runner(), Clock.systemUTC(),
+                        durability.retentionMs()) : null;
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -205,6 +229,77 @@ public class McpServerAdapter extends ServerAdapter {
                 hints != null ? hints.getOpenWorld() : null, null);
     }
 
+    /** The task service, or {@code null} when the capability runs under {@code none}. */
+    public McpTaskService getTaskService() {
+        return taskService;
+    }
+
+    /**
+     * Starts again the unfinished tasks of this adapter's tools that the durable store kept, such
+     * as those of the {@code local} mode after a restart. A task belongs to this adapter when its
+     * entry names the adapter's namespace; one whose tool no longer exists fails when called.
+     *
+     * @return the number of tasks started again
+     */
+    public int resumeTasks() {
+        if (taskService == null) {
+            return 0;
+        }
+        String prefix = "mcp:" + getMcpServerSpec().getNamespace() + "/";
+        return taskService.resume((entry, arguments) -> {
+            if (!entry.startsWith(prefix)) {
+                return null;
+            }
+            String toolName = entry.substring(prefix.length());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> callArguments = arguments == null || !arguments.isObject()
+                    ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
+            return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
+        });
+    }
+
+    /**
+     * Whether the tool's flow declares {@code semantics.interaction.mode: task}. Only a tool that
+     * references a flow with {@code ref:} can: inline steps carry no flow contract.
+     */
+    public boolean isTaskTool(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        if (toolSpec == null || toolSpec.getRef() == null) {
+            return false;
+        }
+        AggregateFlow flow = getCapability().lookupFlow(toolSpec.getRef());
+        return flow != null && flow.getSemantics() != null
+                && flow.getSemantics().getInteraction() != null
+                && flow.getSemantics().getInteraction().isTask();
+    }
+
+    /** Seals and opens the {@code requestState} of multi round-trip requests. */
+    public McpRequestState getRequestState() {
+        return requestState;
+    }
+
+    /**
+     * The {@code semantics.interaction.expectedDurationMs} of the tool's flow, or {@code null}
+     * when it declares none.
+     */
+    public Long expectedDurationMs(String toolName) {
+        McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
+        if (toolSpec == null || toolSpec.getRef() == null) {
+            return null;
+        }
+        AggregateFlow flow = getCapability().lookupFlow(toolSpec.getRef());
+        return flow != null && flow.getSemantics() != null
+                && flow.getSemantics().getInteraction() != null
+                        ? flow.getSemantics().getInteraction().getExpectedDurationMs()
+                        : null;
+    }
+
+    /** Whether tasks can be served: a durable mode and at least one task tool. */
+    public boolean servesTasks() {
+        return taskService != null
+                && getMcpServerSpec().getTools().keySet().stream().anyMatch(this::isTaskTool);
+    }
+
     public McpServerSpec getMcpServerSpec() {
         return (McpServerSpec) getSpec();
     }
@@ -235,6 +330,12 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void start() throws Exception {
+        // Unfinished tasks kept by a durable store run again before new calls are served.
+        int resumed = resumeTasks();
+        if (resumed > 0) {
+            Context.getCurrentLogger().log(Level.INFO, "Resumed " + resumed + " MCP task(s)"
+                    + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        }
         if (getMcpServerSpec().isStdio()) {
             Thread thread = new Thread(stdioHandler.get(), "mcp-stdio");
             thread.setDaemon(true);
@@ -258,6 +359,16 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void stop() throws Exception {
+        // First, while the upstream clients and the store are still open: running tasks finish
+        // their action in flight and stop, unfinished, for the next process to resume.
+        if (taskService != null) {
+            int cutShort = taskService.drain(DRAIN_TIMEOUT);
+            if (cutShort > 0) {
+                Context.getCurrentLogger().log(Level.WARNING, cutShort + " MCP task(s) still "
+                        + "running after " + DRAIN_TIMEOUT.toSeconds() + " s; the next start "
+                        + "resumes them (namespace: " + getMcpServerSpec().getNamespace() + ")");
+            }
+        }
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();
             if (handler != null) {

@@ -36,6 +36,7 @@ import org.restlet.Request;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INTERNAL_ERROR;
@@ -70,6 +71,7 @@ public class ProtocolDispatcher {
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
     private final AgentIdentityResolver identityResolver;
+    private final String namespace;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -95,6 +97,8 @@ public class ProtocolDispatcher {
         this.capabilityName = resolveCapabilityName(adapter);
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
+        this.namespace = adapter.getMcpServerSpec() != null
+                ? adapter.getMcpServerSpec().getNamespace() : null;
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
             mcpHandlers.put(handler.getMethodName(), handler);
         }
@@ -200,10 +204,13 @@ public class ProtocolDispatcher {
                 extractedContext, null, capabilityName);
         try (Scope scope = span.makeCurrent()) {
             TelemetryBootstrap.populateMdc(span);
-            identityResolver.resolve(httpRequest).ifPresent(identity ->
-                    TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
-                            identity.actor()));
-            return dispatch(request);
+            Optional<AgentIdentity> identity = identityResolver.resolve(httpRequest);
+            identity.ifPresent(id -> TelemetryBootstrap.recordAgentIdentity(span, id.id(),
+                    id.source(), id.actor()));
+            // State bound to the caller (requestState, tasks) reads the owner from here. It
+            // comes from the authentication, not from the audit identity, which trust may turn off.
+            String owner = AgentIdentityResolver.ownerOf(namespace, httpRequest, identity);
+            return McpCallContext.as(owner, () -> dispatch(request));
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;

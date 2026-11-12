@@ -53,11 +53,28 @@
     </scm>
 
     <modules>
+        <!--
+          The durable execution engine (design: Execution & Resolution Model). Its API and
+          core depend on the JDK only and never on another Ikanos module; the enforcer rule
+          below (durable-modules-jdk-only) keeps it that way. Store modules carry their own
+          dependencies (H2 for ikanos-durable-store-jdbc) and are added only by the modes that
+          need them.
+        -->
+        <module>modules/ikanos-durable-api</module>
+        <module>modules/ikanos-durable-core</module>
+        <module>modules/ikanos-durable-store-memory</module>
+        <module>modules/ikanos-durable-store-jdbc</module>
         <module>modules/ikanos-spec</module>
         <module>modules/ikanos-engine</module>
         <module>modules/ikanos-cli</module>
         <module>modules/ikanos-docs</module>
         <module>modules/ikanos-coverage</module>
+        <!--
+          Ruleset tests only: lints ikanos-spec's ruleset and fixtures with Polychro, in process.
+          A module of its own because Polychro and ikanos-spec need incompatible versions of
+          json-schema-validator. Not published.
+        -->
+        <module>modules/ikanos-rules-tests</module>
         <!--
           ikanos-tunnel-ziti is a reactor module so it compiles, tests, and releases with
           the rest of the build, but it is NOT a transitive dependency of ikanos-cli (the
@@ -88,8 +105,16 @@
         <opentelemetry.version>1.67.0</opentelemetry.version>
         <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
         <groovy.version>4.0.24</groovy.version>
+        <!-- Polychro runs ikanos-rules.yml in the ruleset tests; same version as the CI lint job -->
+        <polychro.version>1.0.0-beta7</polychro.version>
         <openziti.version>0.33.1</openziti.version>
         <bouncycastle.version>1.85</bouncycastle.version>
+        <!--
+          The H2 version of the local durability mode. Pinned: the H2 store records it in each
+          database and refuses a file written by another minor version (Execution & Resolution
+          Model 7.13.3). Change it only with a migration path for existing local stores.
+        -->
+        <h2.version>2.3.232</h2.version>
         <revision>1.0.0-beta10-SNAPSHOT</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
@@ -127,6 +152,38 @@
             <!-- Inter-module dependencies -->
             <dependency>
                 <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-store-memory</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-store-jdbc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
+                <artifactId>ikanos-durable-api</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-spec</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -134,6 +191,16 @@
                 <groupId>io.ikanos</groupId>
                 <artifactId>ikanos-engine</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.polychro</groupId>
+                <artifactId>polychro-core</artifactId>
+                <version>${polychro.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.polychro</groupId>
+                <artifactId>polychro-ruleset-polyglot</artifactId>
+                <version>${polychro.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.openziti</groupId>
@@ -391,6 +458,42 @@
                         <source>21</source>
                         <target>21</target>
                     </configuration>
+                </plugin>
+
+                <plugin>
+                    <!--
+                        Applied by the ikanos-durable-* engine modules only. Their compile
+                        and runtime classpath may hold nothing but other ikanos-durable-*
+                        modules, so the engine stays JDK-only and free of Ikanos concepts.
+                        Test-scoped libraries (JUnit, AssertJ) are allowed.
+                    -->
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.5.0</version>
+                    <executions>
+                        <execution>
+                            <id>durable-modules-jdk-only</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <bannedDependencies>
+                                        <excludes>
+                                            <exclude>*:*:*:*:compile</exclude>
+                                            <exclude>*:*:*:*:runtime</exclude>
+                                            <exclude>*:*:*:*:provided</exclude>
+                                        </excludes>
+                                        <includes>
+                                            <include>io.ikanos:ikanos-durable-*</include>
+                                        </includes>
+                                        <searchTransitive>true</searchTransitive>
+                                        <message>ikanos-durable-* modules depend on the JDK and on other ikanos-durable-* modules only.</message>
+                                    </bannedDependencies>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
 
                 <plugin>
