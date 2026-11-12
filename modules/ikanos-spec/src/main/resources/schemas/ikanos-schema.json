@@ -665,7 +665,7 @@
       "unevaluatedProperties": false
     },
     "OrchestratedOutputParameter": {
-      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups. On an MCP tool or an aggregate flow, also `schema: name`, shaped by a schema of the `definitions` of the same MCP adapter or aggregate; other use sites take `OrchestratedOutputParameterInline`.",
+      "description": "Named output parameter (orchestrated mode). Used when the exposed operation has steps with mappings/lookups. On an MCP tool, a REST operation or an aggregate flow, also `schema: name`, shaped by a schema of the `definitions` of the same adapter or aggregate; other use sites take `OrchestratedOutputParameterInline`.",
       "oneOf": [
         {
           "$ref": "#/$defs/OrchestratedOutputParameterScalar"
@@ -683,7 +683,7 @@
     },
     "OrchestratedOutputParameterSchemaRef": {
       "type": "object",
-      "description": "Orchestrated output shaped by a schema of the `definitions` of the same MCP adapter or aggregate. It takes no other key: the schema gives the `type`, `properties` and object `items`.",
+      "description": "Orchestrated output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate. It takes no other key: the schema gives the `type`, `properties` and object `items`.",
       "properties": {
         "schema": {
           "$ref": "#/$defs/DefinitionName"
@@ -695,7 +695,7 @@
       "additionalProperties": false
     },
     "OrchestratedOutputParameterInline": {
-      "description": "Orchestrated output declared inline, at every level: `schema: name` is not allowed. Used where no `definitions` apply (REST operations, MCP resources, consumed HTTP operations): only MCP tools and aggregate flows reference schemas.",
+      "description": "Orchestrated output declared inline, at every level: `schema: name` is not allowed. Used where no `definitions` apply (MCP resources, consumed HTTP operations): only MCP tools, REST operations and aggregate flows reference schemas.",
       "$ref": "#/$defs/OrchestratedOutputParameter",
       "not": {
         "$ref": "#/$defs/OrchestratedOutputParameterSchemaRef"
@@ -1166,6 +1166,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 16 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. The engine gives Jetty enough threads for it. Ignored by the stdio transport."
+        },
+        "definitions": {
+          "$ref": "#/$defs/RestDefinitions",
+          "description": "Shared input parameter sets and schemas, visible to the resources and operations of this adapter only. Expanded at load time into the inline equivalent."
         },
         "resources": {
           "type": "object",
@@ -1897,7 +1901,7 @@
     },
     "DefinitionName": {
       "type": "string",
-      "description": "Bare name of a definition declared in the `definitions` of the same MCP adapter or aggregate (kebab-case). Definitions are local to their namespace: qualified names (`a.b`) and `$ref` pointers are not supported.",
+      "description": "Bare name of a definition declared in the `definitions` of the same MCP adapter, REST adapter or aggregate (kebab-case). Definitions are local to their namespace: qualified names (`a.b`) and `$ref` pointers are not supported.",
       "pattern": "^[a-zA-Z0-9-]+$"
     },
     "Definitions": {
@@ -1937,9 +1941,46 @@
       "minProperties": 1,
       "additionalProperties": false
     },
+    "RestDefinitions": {
+      "type": "object",
+      "description": "Shared definitions of a REST adapter, visible to its own resources and operations only.\n\n**When to use** \u2014 Several resources or operations repeat the same inputs (a path key, paging or filter query parameters), or several orchestrated outputs repeat the same shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a resource (its operations inherit the inputs) or an operation, and `schema: name` in an orchestrated (steps-mode) output, its `items` or `properties`, or inside another schema. REST inputs are flat, so `schema:` is not allowed on them.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. The served contract and `ikanos export openapi` are the inline equivalent: no reference is ever sent to clients. An imported adapter carries its definitions.\n**Reuse across adapters** \u2014 Definitions are local: an MCP adapter, a REST adapter and an aggregate never share one. Reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    ship-key:\n      imo: { in: path, type: string, description: \"IMO number of the ship.\" }\n    paging:\n      limit:  { in: query, type: integer, description: \"Maximum items to return.\" }\n      offset: { in: query, type: integer, description: \"Items to skip.\" }\n  schemas:\n    crew-member:\n      type: object\n      properties:\n        fullName: { type: string }\n        role: { type: string }\n```",
+      "properties": {
+        "inputParameterSets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-zA-Z0-9-_*]+$"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/ExposedInputParameter"
+            },
+            "minProperties": 1
+          },
+          "minProperties": 1,
+          "description": "Named sets of REST input parameters, keyed by set name, each declared like an operation's `inputParameters` (with `in`). A resource or operation lists the sets it uses in `inputParameterSets`: they apply in order, then its own `inputParameters`. An own entry replaces the set's entry of the same name whole (no partial override), and two sets of one resource or operation must not declare the same parameter."
+        },
+        "schemas": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchema"
+          },
+          "minProperties": 1,
+          "description": "Named schemas, keyed by schema name, each declared like a nested MCP tool input schema. Used with `schema: name` in an orchestrated (steps-mode) output of an operation, in its `items` or `properties`, or inside another schema; schemas must not reference each other in a cycle. A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties."
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
     "InputParameterSetNames": {
       "type": "array",
-      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` tool, the sets act like the tool's own `inputParameters`: a non-empty result replaces the inputs the flow advertises.",
+      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool), REST adapter (for a resource or an operation) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` tool or operation, the sets act like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
@@ -2361,6 +2402,10 @@
           "type": "string",
           "description": "Path of the resource (supports {{param}} placeholders)"
         },
+        "inputParameterSets": {
+          "$ref": "#/$defs/InputParameterSetNames",
+          "description": "Input parameter sets of the adapter's `definitions`, applied in order before the resource's own `inputParameters`. The resource's operations inherit the result."
+        },
         "inputParameters": {
           "type": "object",
           "propertyNames": {
@@ -2432,6 +2477,9 @@
             "DELETE"
           ],
           "default": "GET"
+        },
+        "inputParameterSets": {
+          "$ref": "#/$defs/InputParameterSetNames"
         },
         "inputParameters": {
           "type": "object",
@@ -2601,7 +2649,7 @@
             "outputParameters": {
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameterInline"
+                "$ref": "#/$defs/OrchestratedOutputParameter"
               }
             }
           }

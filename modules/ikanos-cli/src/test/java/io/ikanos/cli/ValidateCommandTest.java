@@ -194,6 +194,53 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenARestOutputUsesAnUnknownSchema() {
+        Path yaml = tempDir.resolve("rest-unknown-schema.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: rest
+                      port: 3002
+                      namespace: api
+                      definitions:
+                        schemas:
+                          range: { type: object, properties: { from: { type: string } } }
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list-items:
+                              method: GET
+                              steps:
+                                items: { type: call, call: svc.list }
+                              mappings:
+                                - target: first
+                                  value: "$.items"
+                              outputParameters:
+                                first: { schema: range }
+                                second: { schema: rang }
+                  consumes:
+                    - type: http
+                      namespace: svc
+                      baseUri: "http://localhost:1"
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list:
+                              method: GET
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#1000: an unknown schema of a REST adapter must fail validate");
+        assertTrue(errCapture.toString().contains("Invalid definitions: REST adapter 'api',"
+                + " resource 'items', operation 'list-items', output 'second': unknown schema"
+                + " 'rang'. REST adapter 'api' declares range."), errCapture.toString());
+    }
+
+    @Test
     public void callShouldWarnButPassWhenADefinitionIsUnused() {
         Path yaml = tempDir.resolve("unused-set.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, definitionsCapability("""

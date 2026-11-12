@@ -1,23 +1,24 @@
 /**
  * Spectral custom function: definitions
  *
- * Checks the shared `definitions` of MCP adapters and aggregates (#910) and
- * their uses: `inputParameterSets: [names]` on a tool or flow, and
- * `schema: name` on inputs, inside schemas and in outputs. Definitions are
- * local to their adapter or aggregate. Select the check with
- * `functionOptions.check`:
+ * Checks the shared `definitions` of MCP adapters, REST adapters and
+ * aggregates (#910, #1000) and their uses: `inputParameterSets: [names]` on a
+ * tool, a REST resource or operation, or a flow, and `schema: name` on inputs,
+ * inside schemas and in outputs. Definitions are local to their adapter or
+ * aggregate. Select the check with `functionOptions.check`:
  *
  *   - "references": a set or schema name that the namespace does not declare,
  *                   or that names the other kind of definition;
- *   - "conflicts":  two sets of one tool or flow declare the same input;
+ *   - "conflicts":  two sets of one unit (tool, resource, operation or flow)
+ *                   declare the same input;
  *   - "cycles":     schemas reference each other in a cycle;
- *   - "unused":     a set or schema that no tool or flow of the namespace
- *                   uses, directly or through another definition;
+ *   - "unused":     a set or schema that no unit of the namespace uses,
+ *                   directly or through another definition;
  *   - "outputKeywords": a schema used in an orchestrated output declares
  *                   keywords that an output does not carry (informational).
  *
- * Covers MCP adapters and aggregates in a capability and at the root of a
- * standalone file. The engine and `ikanos validate` run the same checks when
+ * Covers MCP adapters, REST adapters and aggregates in a capability and at the
+ * root of a standalone file. The engine and `ikanos validate` run the same checks when
  * they expand the definitions; the JSON Schema already rejects qualified and
  * `$ref` references and keys beside `schema:`.
  */
@@ -66,7 +67,28 @@ function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** MCP adapters and aggregates of the document, with their units. */
+/** The units of a map or list, with their paths in the document. */
+function unitsAt(collection, path) {
+  return entries(collection).map((e) => ({
+    key: e.key,
+    value: e.value,
+    path: path.concat(...e.locator),
+  }));
+}
+
+/** The resources of a REST adapter and their operations, as units. */
+function restUnits(adapter, path) {
+  const units = [];
+  for (const r of unitsAt(adapter.resources, path.concat("resources"))) {
+    units.push(r);
+    if (isObject(r.value)) {
+      units.push(...unitsAt(r.value.operations, r.path.concat("operations")));
+    }
+  }
+  return units;
+}
+
+/** MCP adapters, REST adapters and aggregates of the document, with their units. */
 function owners(doc) {
   const result = [];
   const roots = [];
@@ -77,27 +99,35 @@ function owners(doc) {
   for (const root of roots) {
     for (const e of entries(root.section.exposes)) {
       const adapter = e.value;
+      const adapterPath = root.path.concat("exposes", ...e.locator);
       if (isObject(adapter) && adapter.type === "mcp") {
         result.push({
           label: "MCP adapter '" + adapter.namespace + "'",
           unitKind: "tool",
           node: adapter,
-          path: root.path.concat("exposes", ...e.locator),
-          units: entries(adapter.tools),
-          unitsKey: "tools",
+          path: adapterPath,
+          units: unitsAt(adapter.tools, adapterPath.concat("tools")),
+        });
+      } else if (isObject(adapter) && adapter.type === "rest") {
+        result.push({
+          label: "REST adapter '" + adapter.namespace + "'",
+          unitKind: "resource or operation",
+          node: adapter,
+          path: adapterPath,
+          units: restUnits(adapter, adapterPath),
         });
       }
     }
     for (const a of entries(root.section.aggregates)) {
       const aggregate = a.value;
       if (isObject(aggregate) && !aggregate.from) {
+        const aggregatePath = root.path.concat("aggregates", ...a.locator);
         result.push({
           label: "aggregate '" + aggregate.namespace + "'",
           unitKind: "flow",
           node: aggregate,
-          path: root.path.concat("aggregates", ...a.locator),
-          units: entries(aggregate.flows),
-          unitsKey: "flows",
+          path: aggregatePath,
+          units: unitsAt(aggregate.flows, aggregatePath.concat("flows")),
         });
       }
     }
@@ -186,7 +216,7 @@ function buildModel(owner) {
     if (!isObject(unit)) {
       continue;
     }
-    const unitPath = owner.path.concat(owner.unitsKey, ...u.locator);
+    const unitPath = u.path;
     const refs = [];
     if (Array.isArray(unit.inputParameterSets)) {
       unit.inputParameterSets.forEach((name, index) => {

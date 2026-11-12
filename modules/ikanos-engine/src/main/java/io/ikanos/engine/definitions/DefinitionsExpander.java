@@ -38,15 +38,23 @@ import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
+import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.StructureSpec;
 
 /**
- * Expands the shared {@code definitions} of MCP adapters and aggregates into the tools and flows
- * that use them (#910).
+ * Expands the shared {@code definitions} of MCP adapters, REST adapters and aggregates into the
+ * tools, resources, operations and flows that use them (#910, #1000).
  *
- * <p>An MCP adapter or an aggregate declares named {@code inputParameterSets} and
- * {@code schemas} in its {@code definitions} block. They are visible to that namespace only:</p>
+ * <p>An MCP adapter, a REST adapter or an aggregate declares named {@code inputParameterSets}
+ * and {@code schemas} in its {@code definitions} block. They are visible to that namespace
+ * only:</p>
  * <ul>
+ *   <li>On a REST adapter, {@code inputParameterSets} apply to resources (whose inputs their
+ *       operations inherit) and to operations, and set entries are REST inputs ({@code in},
+ *       {@code type}, {@code pattern}, {@code value}). REST inputs are flat, so its schemas are
+ *       used in orchestrated outputs only: {@code schema:} on a REST input is an error.</li>
  *   <li>{@code inputParameterSets: [names]} on an MCP tool or a flow applies the sets in order,
  *       then the unit's own {@code inputParameters}. An own entry replaces the set's entry with
  *       the same name whole, at the set entry's position. Two sets of one unit must not declare
@@ -130,10 +138,10 @@ public final class DefinitionsExpander {
     }
 
     /**
-     * Expand the definitions of every MCP adapter and aggregate of a document, in the
-     * capability and at the root of a standalone file, and report what is wrong.
+     * Expand the definitions of every MCP adapter, REST adapter and aggregate of a document, in
+     * the capability and at the root of a standalone file, and report what is wrong.
      *
-     * @param spec the document; its tools and flows are rewritten in place
+     * @param spec the document; its tools, resources, operations and flows are rewritten in place
      * @return the errors and warnings found
      */
     public static Result expandAll(IkanosSpec spec) {
@@ -167,6 +175,14 @@ public final class DefinitionsExpander {
                     ns.expandTool(tool);
                 }
                 ns.finish();
+            } else if (server instanceof RestServerSpec rest) {
+                Namespace ns = new Namespace("REST adapter '" + rest.getNamespace() + "'",
+                        "resource or operation", rest.getDefinitions(), errors, warnings, false);
+                for (Map.Entry<String, RestServerResourceSpec> resource
+                        : rest.getResources().entrySet()) {
+                    ns.expandResource(resource.getKey(), resource.getValue());
+                }
+                ns.finish();
             }
         }
     }
@@ -190,13 +206,15 @@ public final class DefinitionsExpander {
     }
 
     /**
-     * The expansion state of one namespace (MCP adapter or aggregate): its definitions, which of
-     * them are used, the schemas that form a cycle, and the expansion budget.
+     * The expansion state of one namespace (MCP adapter, REST adapter or aggregate): its
+     * definitions, which of them are used, the schemas that form a cycle, and the expansion
+     * budget.
      */
     static final class Namespace {
 
         private final String owner;
         private final String unitKind;
+        private final boolean inputSchemas;
         private final Map<String, Map<String, InputParameterSpec>> sets;
         private final Map<String, InputParameterSpec> schemas;
         private final Set<String> errors;
@@ -214,8 +232,19 @@ public final class DefinitionsExpander {
 
         Namespace(String owner, String unitKind, DefinitionsSpec definitions, Set<String> errors,
                 Set<String> warnings) {
+            this(owner, unitKind, definitions, errors, warnings, true);
+        }
+
+        /**
+         * @param inputSchemas whether the inputs of this namespace may use {@code schema:}. REST
+         *                     inputs are flat ({@code in}, {@code type}, {@code pattern}), so a
+         *                     REST adapter uses its schemas in orchestrated outputs only.
+         */
+        Namespace(String owner, String unitKind, DefinitionsSpec definitions, Set<String> errors,
+                Set<String> warnings, boolean inputSchemas) {
             this.owner = owner;
             this.unitKind = unitKind;
+            this.inputSchemas = inputSchemas;
             this.sets = definitions != null && definitions.getInputParameterSets() != null
                     ? definitions.getInputParameterSets() : Map.of();
             this.schemas = definitions != null && definitions.getSchemas() != null
@@ -255,6 +284,50 @@ public final class DefinitionsExpander {
             boolean orchestrated = flow.getSteps() != null && !flow.getSteps().isEmpty();
             flow.setOutputParameters(expandOutputs(location, orchestrated,
                     flow.getOutputParameters()));
+        }
+
+        /**
+         * Expand a REST resource, then its operations. The resource's sets become its own
+         * {@code inputParameters}, which its operations inherit as before.
+         */
+        void expandResource(String key, RestServerResourceSpec resource) {
+            String name = resource.getName() != null ? resource.getName() : key;
+            String location = owner + ", resource '" + name + "'";
+            Map<String, InputParameterSpec> own = new LinkedHashMap<>();
+            for (InputParameterSpec param : resource.getInputParameters()) {
+                own.put(param.getName(), param);
+            }
+            Map<String, InputParameterSpec> inputs =
+                    expandInputs(location, resource.getInputParameterSets(), own);
+            if (inputs != null) {
+                resource.setInputParameters(inputs);
+                resource.setInputParameterSets(List.of());
+            }
+            for (Map.Entry<String, RestServerOperationSpec> operation
+                    : resource.getOperations().entrySet()) {
+                expandOperation(location, operation.getKey(), operation.getValue());
+            }
+        }
+
+        /** Expand a REST operation: its sets, its inputs and its orchestrated outputs. */
+        void expandOperation(String resourceLocation, String key,
+                RestServerOperationSpec operation) {
+            String name = operation.getName() != null ? operation.getName() : key;
+            String location = resourceLocation + ", operation '" + name + "'";
+            Map<String, InputParameterSpec> own = new LinkedHashMap<>();
+            for (InputParameterSpec param : operation.getInputParameters()) {
+                own.put(param.getName(), param);
+            }
+            Map<String, InputParameterSpec> inputs =
+                    expandInputs(location, operation.getInputParameterSets(), own);
+            if (inputs != null) {
+                operation.setInputParameters(inputs);
+                operation.setInputParameterSets(List.of());
+            }
+            boolean orchestrated = operation.getSteps() != null
+                    && !operation.getSteps().isEmpty();
+            operation.setOutputParameters(expandOutputs(location, orchestrated,
+                    operation.getOutputParameters()));
         }
 
         /**
@@ -364,6 +437,10 @@ public final class DefinitionsExpander {
                 return param;
             }
             checkJsonSchemaRef(param, location);
+            if (param.getSchema() != null && !inputSchemas) {
+                rejectInputSchema(param, location);
+                return param;
+            }
             if (param.getSchema() != null) {
                 checkInputBesideSchema(param, location, topLevel);
                 InputParameterSpec resolved = resolveSchema(param.getSchema(), location);
@@ -626,6 +703,10 @@ public final class DefinitionsExpander {
                 return;
             }
             checkJsonSchemaRef(param, location);
+            if (param.getSchema() != null && !inputSchemas && topLevel) {
+                rejectInputSchema(param, location);
+                return;
+            }
             if (param.getSchema() != null) {
                 checkInputBesideSchema(param, location, topLevel);
                 if (lookupSchema(param.getSchema(), location) != null) {
@@ -801,7 +882,7 @@ public final class DefinitionsExpander {
                 return true;
             }
             errors.add(location + ": '" + name + "' is not the bare name of a definition."
-                    + " Definitions are local to their MCP adapter or aggregate and referenced"
+                    + " Definitions are local to their adapter or aggregate and referenced"
                     + " by name: qualified names ('a.b') and '$ref' pointers are not supported.");
             return false;
         }
@@ -883,6 +964,19 @@ public final class DefinitionsExpander {
                         + ", found " + extra + ". Change the schema, or declare the input"
                         + " inline.");
             }
+        }
+
+        /**
+         * Report {@code schema:} on an input of a namespace whose inputs are flat (a REST
+         * adapter). A schema it names is still marked used, so it is not also reported unused.
+         */
+        private void rejectInputSchema(InputParameterSpec param, String location) {
+            if (schemas.containsKey(param.getSchema())) {
+                markUsed(param.getSchema());
+            }
+            errors.add(location + ": 'schema:' is not supported on a REST input, which is flat"
+                    + " ('in', 'type', 'pattern'). Declare the input inline: a REST adapter uses"
+                    + " its schemas in orchestrated (steps) outputs.");
         }
 
         private void checkOutputBesideSchema(OutputParameterSpec param, String location) {

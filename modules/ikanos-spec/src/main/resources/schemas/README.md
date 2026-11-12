@@ -1022,7 +1022,7 @@ Used in **orchestrated mode** exposed operations. Declares an output by `name` a
 - **`string`**, **`number`**, **`boolean`** (scalar): only `name` and `type`
 - **`array`**: optional `items` (recursive OrchestratedOutputParameter without `name`). Without `items`, the mapped array is returned as is.
 - **`object`**: optional `properties` (map of name → recursive OrchestratedOutputParameter without `name`). With `properties`, every declared property is present and shaped; other keys are kept as is. Without `properties`, the mapped object is returned as is, whatever its keys. Use it for objects whose keys are data, such as user-defined field names.
-- **`schema: name`** (MCP tools and aggregate flows): the output, or the `items` of an array output, is shaped by a schema of the adapter's or aggregate's `definitions`, and takes no other key. See [3.22 Definitions Object](#322-definitions-object).
+- **`schema: name`** (MCP tools, REST operations and aggregate flows): the output, or the `items` of an array output, is shaped by a schema of the adapter's or aggregate's `definitions`, and takes no other key. See [3.22 Definitions Object](#322-definitions-object).
 
 **Rules:**
 
@@ -1662,33 +1662,34 @@ binds:
 
 ### 3.22 Definitions Object
 
-Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: mcp`) or an aggregate. They are visible to the tools (or flows) of that adapter (or aggregate) only, and are expanded at load time into the inline equivalent.
+Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: mcp`), a REST adapter (`exposes` of `type: rest`) or an aggregate. They are visible to the tools, resources and operations, or flows of that adapter (or aggregate) only, and are expanded at load time into the inline equivalent.
 
 #### 3.22.1 Fixed Fields
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **inputParameterSets** | `object` | Set name to a map of input parameters, each declared like a tool input (`McpToolInputParameter`). |
+| **inputParameterSets** | `object` | Set name to a map of input parameters, each declared like an input of the adapter's own units: a tool input (`McpToolInputParameter`) on an MCP adapter or an aggregate, a REST input (`ExposedInputParameter`, with `in`) on a REST adapter. |
 | **schemas** | `object` | Schema name to a schema declared like a nested tool input schema (`McpToolInputSchema`), where `required` is the list of required properties. |
 
 #### 3.22.2 Use Sites
 
-- **`inputParameterSets: [names]`** on an MCP tool or an aggregate flow. The sets apply in order, then the unit's own `inputParameters`. An own entry replaces the set's entry of the same name whole, at the set entry's position: there is no partial override.
+- **`inputParameterSets: [names]`** on an MCP tool, a REST resource or operation, or an aggregate flow. The sets apply in order, then the unit's own `inputParameters`. An own entry replaces the set's entry of the same name whole, at the set entry's position: there is no partial override.
 - **`schema: name`** on a tool or flow input, in its `items` and `properties`, inside another schema, and in orchestrated (steps-mode) outputs, including `items: { schema: name }`.
-- On a **`ref`** tool, sets behave like the tool's own `inputParameters`: a non-empty result replaces the inputs the flow advertises.
+- On a **REST adapter**, a resource's sets become its own `inputParameters`, which its operations inherit as before. REST inputs are flat (`in`, `type`, `pattern`), so `schema: name` is not allowed on them: a REST adapter uses its schemas in the orchestrated outputs of its operations.
+- On a **`ref`** tool or operation, sets behave like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises.
 
 #### 3.22.3 Rules
 
-- Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
+- Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool or an operation cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
 - Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
 - A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
-- Two sets of one tool or flow must not declare the same input.
+- Two sets of one tool, resource, operation or flow must not declare the same input.
 - Mapped (call-mode) outputs do not take `schema:`: they keep their JSONPath `mapping` on every leaf.
 - In an orchestrated output, a schema gives only what such an output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`, and the array is returned as is. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there; the `ikanos-definitions-output-keywords` rule notes them (severity info) where the schema is used.
-- A definition that no tool or flow uses is reported as a warning (`ikanos validate`, the engine log, and the `ikanos-definitions-unused` rule).
+- A definition that no unit of its namespace uses is reported as a warning (`ikanos validate`, the engine log, and the `ikanos-definitions-unused` rule).
 - Expansion is bounded, so a document cannot multiply itself without limit: in the declarations it emits, and in nesting depth (a long chain of schemas that use each other is rejected).
 
-**Expansion.** Definitions are expanded after imports (an imported adapter or aggregate carries its definitions) and before `ref` resolution. `tools/list`, with each tool's `inputSchema` and `outputSchema`, is byte for byte the one of the inline equivalent: no reference is ever sent to MCP clients.
+**Expansion.** Definitions are expanded after imports (an imported adapter or aggregate carries its definitions) and before `ref` resolution. `tools/list`, with each tool's `inputSchema` and `outputSchema`, is byte for byte the one of the inline equivalent, and so are the contract a REST adapter serves and its `ikanos export openapi` document: no reference is ever sent to clients.
 
 #### 3.22.4 Definitions Object Example
 
@@ -1719,6 +1720,41 @@ exposes:
         inputParameters:
           period: { schema: date-range, description: "Call date range.", required: true }
         call: sap.list-calls
+```
+
+On a REST adapter:
+
+```yaml
+exposes:
+  - type: rest
+    namespace: shipyard-api
+    port: 3002
+    definitions:
+      inputParameterSets:
+        ship-key:
+          imo: { in: path, type: string, description: "IMO number of the ship." }
+      schemas:
+        crew-member:
+          type: object
+          properties:
+            fullName: { type: string }
+            role:     { type: string }
+    resources:
+      ship-crew:
+        path: "/ships/{{imo}}/crew"
+        inputParameterSets: [ship-key]      # inherited by the resource's operations
+        operations:
+          list-crew:
+            method: GET
+            steps:
+              crew: { type: call, call: registry.list-crew, with: { imo_number: "{{imo}}" } }
+            mappings:
+              - target: crew
+                value: "$.crew"
+            outputParameters:
+              crew:
+                type: array
+                items: { schema: crew-member }
 ```
 
 ---

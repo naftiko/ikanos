@@ -142,9 +142,10 @@ public class Capability {
         // either a consumed operation or an aggregate flow, never both.
         NamespaceUniquenessValidator.validate(spec);
 
-        // Expand the shared definitions of MCP adapters and aggregates into their tools and flows
-        // (#910): after imports, which carry the definitions with their adapter or aggregate, and
-        // before ref resolution, so a ref tool sees the inputs its sets give it.
+        // Expand the shared definitions of MCP adapters, REST adapters and aggregates into their
+        // tools, resources, operations and flows (#910, #1000): after imports, which carry the
+        // definitions with their adapter or aggregate, and before ref resolution, so a ref tool
+        // or operation sees the inputs its sets give it.
         DefinitionsExpander.expand(spec);
 
         // Resolve aggregate function refs (validate + derive MCP hints) before adapter init

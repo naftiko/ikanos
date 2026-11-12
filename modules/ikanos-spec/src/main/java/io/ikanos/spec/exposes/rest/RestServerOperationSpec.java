@@ -15,6 +15,7 @@ package io.ikanos.spec.exposes.rest;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -51,6 +52,9 @@ public class RestServerOperationSpec extends OperationSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<StepOutputMappingSpec> mappings = new CopyOnWriteArrayList<>();
+
+    /** Names of the input parameter sets of the adapter's {@code definitions} (#1000). */
+    private final CopyOnWriteArrayList<String> inputParameterSets = new CopyOnWriteArrayList<>();
 
     /**
      * Explicit per-status-code response contract, keyed by HTTP status code (e.g. {@code "200"},
@@ -110,6 +114,18 @@ public class RestServerOperationSpec extends OperationSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getRef() { return ref.get(); }
     public void setRef(String ref) { this.ref.set(ref); }
+
+    /**
+     * @return the names of the input parameter sets of the adapter's {@code definitions} this
+     *         operation uses, applied in order before its own {@code inputParameters}. Empty once
+     *         the definitions are expanded (#1000).
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getInputParameterSets() { return inputParameterSets; }
+    public void setInputParameterSets(List<String> sets) {
+        this.inputParameterSets.clear();
+        if (sets != null) this.inputParameterSets.addAll(sets);
+    }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public Map<String, RestResponseSpec> getResponses() { return responses.get(); }
