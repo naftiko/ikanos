@@ -78,6 +78,7 @@ final class UpstreamCall {
     private final boolean mayElicit;
     private final String prefix;
     private final Map<String, JsonNode> answers;
+    private final Map<String, JsonNode> carried;
     private final Map<String, JsonNode> latest;
     private final int latestRound;
 
@@ -91,6 +92,7 @@ final class UpstreamCall {
         this.mayElicit = mayElicit;
         this.prefix = Executions.currentKeyPrefix();
         this.answers = answersUnder(prefix, ExecutionInputs.answers());
+        this.carried = answersUnder(prefix, ExecutionInputs.carried());
         this.latest = answersUnder(prefix, ExecutionInputs.latestAnswers());
         this.latestRound = ExecutionInputs.latestRound();
     }
@@ -136,13 +138,10 @@ final class UpstreamCall {
 
     /** Without a journal: one call, an upstream question carried in the caller's sealed state. */
     private JsonNode direct() {
-        JsonNode state = answers.get(UPSTREAM_STATE);
+        // Carried apart from the answers: an upstream question keyed like it is still answered.
+        JsonNode state = carried.get(UPSTREAM_STATE);
         ObjectNode responses = JSON.createObjectNode();
-        answers.forEach((key, value) -> {
-            if (!UPSTREAM_STATE.equals(key)) {
-                responses.set(key, value);
-            }
-        });
+        answers.forEach(responses::set);
         JsonNode result = call(state, state != null ? responses : null, false);
         String type = resultType(result);
         if (McpResultType.INPUT_REQUIRED.wireValue().equals(type)) {

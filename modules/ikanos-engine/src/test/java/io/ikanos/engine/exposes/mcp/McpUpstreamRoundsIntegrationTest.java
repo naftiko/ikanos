@@ -47,10 +47,16 @@ import tools.jackson.databind.node.ObjectNode;
 public class McpUpstreamRoundsIntegrationTest {
 
     private static final String KEY = "steps/ask/confirm";
+    /** The key under which the consumer carries an upstream's requestState under none. */
+    private static final String UPSTREAM_STATE = "upstream-state";
 
     private final ObjectMapper json = IkanosMappers.json();
     /** The {@code inputResponses} of every {@code tools/call} the upstream received. */
     private final List<JsonNode> received = new CopyOnWriteArrayList<>();
+    /** The {@code requestState} of every {@code tools/call} the upstream received. */
+    private final List<JsonNode> states = new CopyOnWriteArrayList<>();
+    /** The key the upstream asks under. */
+    private volatile String upstreamKey = "confirm";
 
     private Component upstream;
     private int upstreamPort;
@@ -85,13 +91,15 @@ public class McpUpstreamRoundsIntegrationTest {
     /** Asks with state r1, asks the same key again with state r2, then completes. */
     private JsonNode answer(JsonNode params) throws Exception {
         received.add(params.path("inputResponses"));
+        states.add(params.path("requestState"));
         String state = params.path("requestState").asString("");
         if (state.equals("r2")) {
             return json.readTree("{\"resultType\":\"complete\",\"content\":[{\"type\":\"text\","
                     + "\"text\":\"cleared\"}],\"structuredContent\":{\"cleared\":true}}");
         }
         return json.readTree("{\"resultType\":\"input_required\",\"requestState\":\""
-                + (state.isEmpty() ? "r1" : "r2") + "\",\"inputRequests\":{\"confirm\":{"
+                + (state.isEmpty() ? "r1" : "r2") + "\",\"inputRequests\":{\"" + upstreamKey
+                + "\":{"
                 + "\"method\":\"elicitation/create\",\"params\":{\"message\":\"Confirm?\","
                 + "\"requestedSchema\":{\"type\":\"object\",\"properties\":{}}}}}}");
     }
@@ -311,5 +319,26 @@ public class McpUpstreamRoundsIntegrationTest {
         assertEquals("completed", done.path("status").asString(), done.toString());
         assertEquals("second", received.get(2).path("confirm").path("content").path("note")
                 .asString());
+    }
+
+    @Test
+    void underNoneAnUpstreamQuestionKeyedLikeTheCarriedStateShouldNotOverwriteIt()
+            throws Exception {
+        upstreamKey = UPSTREAM_STATE;
+        McpServerAdapter adapter = start("");
+
+        JsonNode asked = call(adapter, null, null);
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+        ObjectNode retry = (ObjectNode) json.readTree(
+                "{\"name\":\"confirm-up\",\"arguments\":{}}");
+        retry.put("requestState", asked.path("requestState").asString());
+        retry.putObject("inputResponses").set("steps/ask/" + UPSTREAM_STATE,
+                json.readTree("{\"action\":\"accept\",\"content\":{\"note\":\"first\"}}"));
+        send(adapter, "tools/call", retry);
+
+        assertEquals("r1", states.get(1).asString(),
+                "The upstream gets its own requestState back, not the answer: " + states);
+        assertEquals("first", received.get(1).path(UPSTREAM_STATE).path("content")
+                .path("note").asString(), "and the answer to its question: " + received);
     }
 }
