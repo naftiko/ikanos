@@ -97,6 +97,10 @@ public class ResourceRestlet extends Restlet {
                 response.setEntity(
                         "Unable to handle the request. Please check the capability specification.",
                         MediaType.TEXT_PLAIN);
+            } else {
+                // Cache-Control from ttlMs and cacheScope, on successful GET and HEAD only (#1021)
+                RestCacheControl.apply(request, response, getServerSpec(), getResourceSpec(),
+                        operationFor(request));
             }
         } catch (Exception e) {
             error = true;
@@ -113,6 +117,14 @@ public class ResourceRestlet extends Restlet {
             TelemetryBootstrap.clearMdc();
             TelemetryBootstrap.endSpan(span);
         }
+    }
+
+    /** The operation declared for the request's method, or {@code null} (a forward). */
+    private RestServerOperationSpec operationFor(Request request) {
+        String method = request.getMethod().getName();
+        return getResourceSpec().getOperations().values().stream()
+                .filter(operation -> method.equals(operation.getMethod()))
+                .findFirst().orElse(null);
     }
 
     /**

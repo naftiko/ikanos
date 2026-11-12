@@ -68,6 +68,9 @@ public class RestServerOperationSpec extends OperationSpec {
      */
     private final AtomicReference<RestResponseBinarySpec> responseBinary = new AtomicReference<>();
 
+    private final AtomicReference<Integer> ttlMs = new AtomicReference<>();
+    private final AtomicReference<String> cacheScope = new AtomicReference<>();
+
     public RestServerOperationSpec() {
         this(null, null, null, null, null, null, null, null, null);
     }
@@ -89,6 +92,16 @@ public class RestServerOperationSpec extends OperationSpec {
         this.call.set(call);
         this.with.set(with != null ? Map.copyOf(with) : null);
     }
+
+    /** Freshness of this operation's answers in milliseconds, or {@code null} for the adapter's. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Integer getTtlMs() { return ttlMs.get(); }
+    public void setTtlMs(Integer ttlMs) { this.ttlMs.set(ttlMs); }
+
+    /** Cache scope of this operation's answers, or {@code null} for the adapter's. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getCacheScope() { return cacheScope.get(); }
+    public void setCacheScope(String cacheScope) { this.cacheScope.set(cacheScope); }
 
     public Map<String, OperationStepSpec> getSteps() { return steps; }
 
