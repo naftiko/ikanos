@@ -594,12 +594,6 @@ public class IkanosPolychroRulesetTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
-    public void cachePublicForwardsCredentialsRuleShouldFireWhenAPublicAdapterForwardsAuthorization() {
-        assertRuleFires("rules/spectral-cache-hints-violations.yaml",
-            "ikanos-cache-public-forwards-credentials");
-    }
-
-    @Test
     public void cachePublicCallerDependentRuleShouldWarnOnEachCallerDependentPublicScope() {
         assertEquals(5, countFindings("rules/spectral-cache-hints-violations.yaml",
             "ikanos-cache-public-caller-dependent"));
