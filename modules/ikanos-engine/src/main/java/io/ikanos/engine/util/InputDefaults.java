@@ -86,13 +86,15 @@ public final class InputDefaults {
 
     /**
      * @param param the declared input parameter
-     * @param value the caller value, may be null
+     * @param value the caller value, may be null or a JSON {@code null} node (a REST body of
+     *        {@code null} bound to an untyped body input)
      * @return {@code value} when it is not null, or when the parameter is required or declares no
      *         default; otherwise the default, as a new plain Java value (a {@code String},
      *         {@code Number}, {@code Boolean}, {@code List} or {@code Map}) for every call
      */
     public static Object valueOrDefault(InputParameterSpec param, Object value) {
-        if (value != null || param == null || param.isRequired()
+        boolean absent = value == null || (value instanceof JsonNode node && node.isNull());
+        if (!absent || param == null || param.isRequired()
                 || param.getDefaultValue() == null) {
             return value;
         }
