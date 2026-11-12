@@ -910,7 +910,7 @@ Used in the `inputParameters` map of MCP tools (exposed and consumed) and of agg
 
 | Field Name | Type | Description |
 | --- | --- | --- |
-| **type** | `string` | **REQUIRED**. One of `string`, `number`, `integer`, `boolean`, `array`, `object`. |
+| **type** | `string` | One of `string`, `number`, `integer`, `boolean`, `array`, `object`. Defaults to `string`, so a string parameter can leave it out. |
 | **description** | `string` | **REQUIRED**. Description of the parameter, for agent discovery. |
 | **required** | `boolean` | Whether the caller must send the parameter. |
 | **default** | any | Value used when a call leaves this optional input out or passes `null`, written with the input's JSON type. Advertised in the tool's `inputSchema`, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. |
@@ -928,6 +928,7 @@ Used in the `inputParameters` map of MCP tools (exposed and consumed) and of agg
 - `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. An `enum` value is read as the `inputSchema` advertises it: on an `integer` parameter, `"50.0"` or `"1e2"` is advertised as a string, so a number default never matches it (write `"50"`). `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
 - A `default` on a `required: true` parameter never applies, since the caller must send it: `ikanos validate` and the engine report it as a warning.
 - `default` is only allowed on the parameter itself, not inside `items` or `properties`.
+- `type` only defaults on the parameter itself: a nested `McpToolInputSchema` under `items` or `properties` must declare it.
 
 **McpToolInputParameter Example:**
 
