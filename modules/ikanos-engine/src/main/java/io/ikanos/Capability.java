@@ -57,6 +57,7 @@ import io.ikanos.engine.exposes.ServerHost;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
@@ -270,6 +271,7 @@ public class Capability {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }
         ConsumedQueryParameterValidator.validate(spec);
+        ForwardTrustedHeadersValidator.validate(spec);
         List<String> unsupportedAuthentication = ConsumedAuthentication.findUnsupported(spec);
         if (!unsupportedAuthentication.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));
