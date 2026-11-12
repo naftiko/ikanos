@@ -6,7 +6,7 @@ control adapters), how calls are orchestrated (steps, aggregates) and which vari
 
 | File | Purpose |
 | --- | --- |
-| [`ikanos-schema.json`](ikanos-schema.json) | The schema itself (JSON Schema draft 2020-12, `$id` `https://ikanos.io/schemas/v1.0.0-beta10/ikanos.json`). It is the source of truth for structure: which keys exist, their types, and which are required. |
+| [`ikanos-schema.json`](ikanos-schema.json) | The schema itself (JSON Schema draft 2020-12). It is the source of truth for structure: which keys exist, their types, and which are required. |
 | [`examples/`](examples/) | Reference capabilities, validated against the schema by the `ikanos-spec` tests. |
 
 An interactive view of the schema is available in the
@@ -14,14 +14,10 @@ An interactive view of the schema is available in the
 
 ## Version
 
-The schema version is **`1.0.0-beta10`**. Every capability and shared document starts with the
-`ikanos` field, which must have exactly that value:
-
-```yaml
-ikanos: "1.0.0-beta10"
-```
-
-The field is a `const` in the schema, so `ikanos validate` and Polychro reject any other value.
+The schema version is the `const` of `properties.ikanos` in
+[`ikanos-schema.json`](ikanos-schema.json); the schema `$id` carries the same version. Every
+capability and shared document starts with the `ikanos` field, set to exactly that value.
+Because the field is a `const`, `ikanos validate` and Polychro reject any other value.
 The engine does not check it: like the rest of the schema, it is not validated when a
 capability loads, so validate a capability before serving it.
 
@@ -30,15 +26,16 @@ capability loads, so validate a capability before serving it.
 The field-by-field specification, with examples, is published on Shipyard and versioned with
 each release:
 
-- [Schema overview](https://shipyard.naftiko.io/ikanos/spec/): document shapes, core objects,
-  imports
-- [Consumes](https://shipyard.naftiko.io/ikanos/spec/consumes/): HTTP and MCP sources,
+- [Schema overview](https://shipyard.naftiko.io/ikanos/latest/spec/): document shapes, core
+  objects, imports
+- [Consumes](https://shipyard.naftiko.io/ikanos/latest/spec/consumes/): HTTP and MCP sources,
   resources, operations, authentication
-- [Exposes](https://shipyard.naftiko.io/ikanos/spec/exposes/): MCP (tools, resources, prompts,
-  skills), REST and control adapters
-- [Steps](https://shipyard.naftiko.io/ikanos/spec/steps/): orchestration, mappings, `with`
-- [Aggregates](https://shipyard.naftiko.io/ikanos/spec/aggregates/): reusable domain flows and
-  `ref`
+- [Exposes](https://shipyard.naftiko.io/ikanos/latest/spec/exposes/): MCP (tools, resources,
+  prompts, skills), REST and control adapters
+- [Steps](https://shipyard.naftiko.io/ikanos/latest/spec/steps/): orchestration, mappings,
+  `with`
+- [Aggregates](https://shipyard.naftiko.io/ikanos/latest/spec/aggregates/): reusable domain
+  flows and `ref`
 
 Its sources are in [`naftiko/shipyard`](https://github.com/naftiko/shipyard), under
 `shipyard-ikanos/docs/spec/`.
@@ -58,6 +55,15 @@ These rules are not covered there yet:
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document
   with no repeated member key, as for a `json` body.
+- A `with:` value, or a parameter `value` or `template`, that is exactly one placeholder
+  (`"{{statuses}}"`, `"{{ statuses }}"`, `"{{{statuses}}}"`, `"{{&statuses}}"` or a dotted path
+  such as `"{{step.ids}}"`) passes the value itself, so a list, a number or a boolean keeps its
+  type. When that variable is absent, the `with:` key is removed, even if a caller argument of
+  the same name is there, and the parameter is left out. Any other template is rendered to a
+  string.
+- In a script step's `with:`, such a value reaches the script with its type, not as JSON text: a
+  script that parsed it (`JSON.parse(ids)` in JavaScript, `json.loads(ids)` in Python) must use
+  it directly. When the variable is absent, a script step still binds the rendered text (`""`).
 
 ## Validating a capability
 
