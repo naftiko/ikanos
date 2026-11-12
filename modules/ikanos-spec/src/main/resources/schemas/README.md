@@ -1449,6 +1449,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
 - This includes `Authorization`: the caller's credential reaches the consumed source only when `Authorization` is listed. When the target adapter declares `authentication`, its own credential is sent instead.
 - The method, the path captured by the resource's `{{path}}` placeholder, the query string and the body are forwarded as received. The query string keeps its encoding; the consumed adapter's own query parameters, if any, are added after it.
+- The query string loses the exposed adapter's API key when its `placement` is `query`, and every parameter the consumed adapter sets itself (its `in: query` input parameters and its API key with `placement: query`), so the key that protects Ikanos is not sent upstream and the caller cannot override the adapter's own values. Names are compared percent-decoded and case-sensitively.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example

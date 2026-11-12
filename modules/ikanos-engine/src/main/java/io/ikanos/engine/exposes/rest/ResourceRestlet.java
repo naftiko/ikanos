@@ -32,7 +32,11 @@ import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.engine.util.Secrets;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
@@ -43,8 +47,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.representation.ByteArrayRepresentation;
@@ -579,8 +589,10 @@ public class ResourceRestlet extends Restlet {
                         // Prepare the HTTP client request
                         String path = (String) request.getAttributes().get("path");
                         String normalizedPath = (path == null || path.isEmpty()) ? "" : "/" + path;
+                        String query = filterForwardedQuery(request.getResourceRef().getQuery(),
+                                forwardExcludedQueryNames(httpAdapter));
                         String targetRef = forwardTargetRef(httpAdapter.getBaseUri(),
-                                normalizedPath, request.getResourceRef().getQuery());
+                                normalizedPath, query);
                         Request clientRequest = new Request(request.getMethod(), targetRef);
                         clientRequest.setEntity(request.getEntity());
 
@@ -651,7 +663,8 @@ public class ResourceRestlet extends Restlet {
     /**
      * Target of a forwarded request: the consumed adapter's base URI, the captured path, and the
      * incoming query string as received, neither decoded nor re-encoded, so that the upstream sees
-     * exactly what the caller sent (#953). When the base URI already has a query, the captured
+     * what the caller sent (#953), once {@link #filterForwardedQuery} has removed the names of
+     * {@link #forwardExcludedQueryNames}. When the base URI already has a query, the captured
      * path goes before it and the incoming query is joined to it with {@code &}. Query input
      * parameters of the adapter are appended after it.
      */
@@ -666,6 +679,75 @@ public class ResourceRestlet extends Restlet {
         }
         String targetRef = basePath + normalizedPath;
         return query.isEmpty() ? targetRef : targetRef + '?' + query;
+    }
+
+    /**
+     * Names of the query parameters a forwarded request must not take from the caller: the
+     * exposed adapter's API key when its placement is {@code query}, which must not reach the
+     * upstream, and the parameters the consumed adapter sets itself, its {@code in: query} input
+     * parameters (by wire name) and its API key when its placement is {@code query}, which the
+     * caller must not override. API key names are rendered with the capability bindings.
+     */
+    Set<String> forwardExcludedQueryNames(HttpClientAdapter httpAdapter) {
+        Map<String, Object> bindings = getCapability().getBindings() != null
+                ? getCapability().getBindings() : Map.of();
+        Set<String> names = new HashSet<>();
+        addQueryApiKeyName(getServerSpec().getAuthentication(), bindings, names);
+        addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(), bindings, names);
+
+        List<InputParameterSpec> inputParameters =
+                httpAdapter.getHttpClientSpec().getInputParameters();
+        if (inputParameters != null) {
+            for (InputParameterSpec spec : inputParameters) {
+                if ("query".equalsIgnoreCase(spec.getIn())) {
+                    names.add(spec.getWireName() != null && !spec.getWireName().isBlank()
+                            ? spec.getWireName() : spec.getName());
+                }
+            }
+        }
+        return names;
+    }
+
+    private static void addQueryApiKeyName(AuthenticationSpec authentication,
+            Map<String, Object> bindings, Set<String> names) {
+        if (authentication instanceof ApiKeyAuthenticationSpec apiKey && apiKey.isQueryPlacement()
+                && apiKey.getKey() != null) {
+            names.add(Secrets.resolve(apiKey.getKey(), bindings));
+        }
+    }
+
+    /**
+     * Removes from a raw query string every pair whose name is in {@code excludedNames}. A name is
+     * compared once percent-decoded as UTF-8, with {@code +} read as a space, the way the server
+     * side reads the query when it checks an API key, so {@code api%5Fkey} matches
+     * {@code api_key}; the comparison is case-sensitive. The pairs that remain are forwarded as
+     * received, neither decoded nor re-encoded, in their order. A name that cannot be decoded is
+     * compared as received.
+     *
+     * @return the filtered query, empty when every pair is removed, or {@code null} if
+     *         {@code rawQuery} is null
+     */
+    static String filterForwardedQuery(String rawQuery, Set<String> excludedNames) {
+        if (rawQuery == null || rawQuery.isEmpty() || excludedNames.isEmpty()) {
+            return rawQuery;
+        }
+        StringJoiner kept = new StringJoiner("&");
+        for (String pair : rawQuery.split("&", -1)) {
+            int equals = pair.indexOf('=');
+            String rawName = equals < 0 ? pair : pair.substring(0, equals);
+            if (!excludedNames.contains(decodeQueryName(rawName))) {
+                kept.add(pair);
+            }
+        }
+        return kept.toString();
+    }
+
+    private static String decodeQueryName(String rawName) {
+        try {
+            return URLDecoder.decode(rawName, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return rawName;
+        }
     }
 
     /**
