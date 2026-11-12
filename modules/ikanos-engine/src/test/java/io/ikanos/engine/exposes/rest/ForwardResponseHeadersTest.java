@@ -19,10 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -30,6 +33,7 @@ import org.restlet.data.CacheDirective;
 import org.restlet.data.CookieSetting;
 import org.restlet.data.Dimension;
 import org.restlet.data.Method;
+import org.restlet.data.Warning;
 import org.restlet.representation.StringRepresentation;
 
 /**
@@ -38,6 +42,10 @@ import org.restlet.representation.StringRepresentation;
 public class ForwardResponseHeadersTest {
 
     private static final String BASE_URI = "http://upstream:9090/v1";
+
+    private static Request incoming() {
+        return incoming("http://localhost:8080/proxy/items", "items");
+    }
 
     private static Request incoming(String uri, String pathAttribute) {
         Request request = new Request(Method.GET, uri);
@@ -49,139 +57,257 @@ public class ForwardResponseHeadersTest {
         return new Response(new Request(Method.GET, BASE_URI + "/items"));
     }
 
-    @Test
-    public void rewriteLocationShouldPointToExposedPathWhenUnderBaseUri() {
-        Request request = incoming("http://localhost:8080/proxy/items", "items");
+    private static Response relayed(Response from) {
+        return relayed(from, List.of());
+    }
 
-        assertEquals("http://localhost:8080/proxy/items/42",
-                ForwardResponseHeaders.rewriteLocation(BASE_URI + "/items/42", BASE_URI, request));
+    private static Response relayed(Response from, List<String> trusted) {
+        Response to = new Response(incoming());
+        to.setEntity(from.getEntity());
+        ForwardResponseHeaders.relay(from, to, trusted, BASE_URI);
+        return to;
+    }
+
+    private static String location(String raw) {
+        return ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
+                incoming());
+    }
+
+    // --- Location: rewrite under the base URI, as a path-absolute reference ---
+
+    @ParameterizedTest
+    @CsvSource({
+            "http://upstream:9090/v1/items/42, /proxy/items/42",
+            "http://upstream:9090/v1/items?page=2, /proxy/items?page=2",
+            "http://upstream:9090/v1, /proxy",
+            "/v1/items/43, /proxy/items/43",
+            "items/44, /proxy/items/44",
+            "HTTP://UPSTREAM:9090/v1/items/45, /proxy/items/45"})
+    public void relayedLocationShouldBePathAbsoluteUnderTheExposedResourceWhenUnderBaseUri(
+            String raw, String expected) {
+        assertEquals(expected, location(raw));
     }
 
     @Test
-    public void rewriteLocationShouldKeepQueryWhenUnderBaseUri() {
-        Request request = incoming("http://localhost:8080/proxy/items", "items");
-
-        assertEquals("http://localhost:8080/proxy/items?page=2",
-                ForwardResponseHeaders.rewriteLocation(BASE_URI + "/items?page=2", BASE_URI,
-                        request));
+    public void relayedLocationShouldIgnoreATrailingSlashOnTheBaseUri() {
+        assertEquals("/proxy/items/42", ForwardResponseHeaders.relayedLocation(
+                "http://upstream:9090/v1/items/42", BASE_URI + "/items", BASE_URI + "/",
+                incoming()));
     }
 
     @Test
-    public void rewriteLocationShouldPointToExposedRootWhenEqualToBaseUri() {
-        Request request = incoming("http://localhost:8080/proxy/items", "items");
-
-        assertEquals("http://localhost:8080/proxy",
-                ForwardResponseHeaders.rewriteLocation(BASE_URI, BASE_URI, request));
+    public void relayedLocationShouldIgnoreAnExplicitDefaultPortOnTheLocation() {
+        assertEquals("/proxy/items/42", ForwardResponseHeaders.relayedLocation(
+                "http://upstream:80/v1/items/42", "http://upstream/v1/items",
+                "http://upstream/v1", incoming()));
     }
 
     @Test
-    public void rewriteLocationShouldNotDoubleTheSlashWhenForwardedPathIsEmpty() {
-        Request request = incoming("http://localhost:8080/proxy/", "");
-
-        assertEquals("http://localhost:8080/proxy/a",
-                ForwardResponseHeaders.rewriteLocation(BASE_URI + "/a", BASE_URI, request));
+    public void relayedLocationShouldIgnoreAnExplicitDefaultPortOnTheBaseUri() {
+        assertEquals("/proxy/items/42", ForwardResponseHeaders.relayedLocation(
+                "https://upstream/v1/items/42", "https://upstream:443/v1/items",
+                "https://upstream:443/v1", incoming()));
     }
 
     @Test
-    public void rewriteLocationShouldKeepLocationOutsideBaseUri() {
-        Request request = incoming("http://localhost:8080/proxy/items", "items");
-
-        assertEquals("https://elsewhere.example/x",
-                ForwardResponseHeaders.rewriteLocation("https://elsewhere.example/x", BASE_URI,
-                        request));
+    public void relayedLocationShouldRewriteEveryPathWhenTheBaseUriHasNoPath() {
+        assertEquals("/proxy/items/1", ForwardResponseHeaders.relayedLocation(
+                "http://upstream:9090/items/1", "http://upstream:9090/items",
+                "http://upstream:9090", incoming()));
     }
 
     @Test
-    public void rewriteLocationShouldKeepLocationThatOnlySharesAPrefixWithBaseUri() {
-        Request request = incoming("http://localhost:8080/proxy/items", "items");
+    public void relayedLocationShouldNotDoubleTheSlashWhenTheForwardedPathIsEmpty() {
+        assertEquals("/proxy/a", ForwardResponseHeaders.relayedLocation(BASE_URI + "/a",
+                BASE_URI, BASE_URI, incoming("http://localhost:8080/proxy/", "")));
+    }
 
-        assertEquals("http://upstream:9090/v10/x",
-                ForwardResponseHeaders.rewriteLocation("http://upstream:9090/v10/x", BASE_URI,
-                        request));
+    // --- Location: outside the base URI ---
+
+    @Test
+    public void relayedLocationShouldKeepAnAbsoluteLocationOnAnotherHost() {
+        assertEquals("https://elsewhere.example/x", location("https://elsewhere.example/x"));
     }
 
     @Test
-    public void rewriteLocationShouldKeepLocationWhenIncomingPathDoesNotEndWithForwardedPath() {
-        Request request = incoming("http://localhost:8080/proxy/items", "other");
+    public void relayedLocationShouldKeepARelativeLocationOutsideTheBaseUriUnchanged() {
+        assertEquals("/other/1", location("/other/1"));
+    }
 
-        assertEquals(BASE_URI + "/items/42",
-                ForwardResponseHeaders.rewriteLocation(BASE_URI + "/items/42", BASE_URI, request));
+    @ParameterizedTest
+    @ValueSource(strings = {"http://upstream:9090/v10/x", "http://upstream:9090/admin",
+            "http://UPSTREAM:9090/admin"})
+    public void relayedLocationShouldDropAnAbsoluteLocationOnTheUpstreamOutsideTheBaseUri(
+            String raw) {
+        assertNull(location(raw), "an upstream URL outside the base must not reach the caller");
     }
 
     @Test
-    public void relayShouldCopyStandardResponseHeadersByDefault() {
+    public void relayedLocationShouldDropALocationUnderBaseUriWhenTheExposedPathIsUnknown() {
+        assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
+                BASE_URI + "/items", BASE_URI, incoming("http://localhost:8080/proxy/items",
+                        "other")));
+    }
+
+    @Test
+    public void relayShouldWriteThePathAbsoluteLocation() {
         Response from = upstreamResponse();
-        from.setLocationRef(BASE_URI + "/items/42");
+        from.getHeaders().add("Location", BASE_URI + "/items/42");
+
+        assertEquals("/proxy/items/42", relayed(from).getLocationRef().getTargetRef().toString());
+    }
+
+    @Test
+    public void relayShouldDropALocationOnTheUpstreamOutsideTheBaseUri() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Location", "http://upstream:9090/admin");
+
+        assertNull(relayed(from).getLocationRef());
+    }
+
+    @Test
+    public void relayShouldWriteThePathAbsoluteContentLocation() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Content-Location", BASE_URI + "/items/42");
+        from.setEntity(new StringRepresentation("{}"));
+
+        assertEquals("/proxy/items/42",
+                relayed(from).getEntity().getLocationRef().getTargetRef().toString());
+    }
+
+    @Test
+    public void relayShouldDropAContentLocationOnTheUpstreamOutsideTheBaseUri() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Content-Location", "http://upstream:9090/admin");
+        StringRepresentation entity = new StringRepresentation("{}");
+        entity.setLocationRef("http://upstream:9090/admin");
+        from.setEntity(entity);
+
+        assertNull(relayed(from).getEntity().getLocationRef());
+    }
+
+    // --- Other standard headers ---
+
+    @Test
+    public void relayShouldCopyRetryAfter() {
+        Response from = upstreamResponse();
         Date retryAfter = new Date(System.currentTimeMillis() + 120_000);
         from.setRetryAfter(retryAfter);
-        from.getCacheDirectives().add(CacheDirective.maxAge(60));
-        from.getDimensions().add(Dimension.MEDIA_TYPE);
-        from.getAllowedMethods().add(Method.GET);
-        from.getServerInfo().setAcceptingRanges(true);
-        from.setAge(30);
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
 
-        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI);
-
-        assertEquals("http://localhost:8080/proxy/items/42", to.getLocationRef().toString());
-        assertEquals(retryAfter, to.getRetryAfter());
-        assertEquals(List.of(CacheDirective.maxAge(60)), to.getCacheDirectives());
-        assertTrue(to.getDimensions().contains(Dimension.MEDIA_TYPE));
-        assertTrue(to.getAllowedMethods().contains(Method.GET));
-        assertTrue(to.getServerInfo().isAcceptingRanges());
-        assertEquals(30, to.getAge());
+        assertEquals(retryAfter, relayed(from).getRetryAfter());
     }
+
+    @Test
+    public void relayShouldCopyCacheDirectives() {
+        Response from = upstreamResponse();
+        from.getCacheDirectives().add(CacheDirective.maxAge(60));
+
+        assertEquals(List.of(CacheDirective.maxAge(60)), relayed(from).getCacheDirectives());
+    }
+
+    @Test
+    public void relayShouldCopyAllowedMethods() {
+        Response from = upstreamResponse();
+        from.getAllowedMethods().add(Method.GET);
+
+        assertTrue(relayed(from).getAllowedMethods().contains(Method.GET));
+    }
+
+    @Test
+    public void relayShouldCopyAcceptRanges() {
+        Response from = upstreamResponse();
+        from.getServerInfo().setAcceptingRanges(true);
+
+        assertTrue(relayed(from).getServerInfo().isAcceptingRanges());
+    }
+
+    @Test
+    public void relayShouldCopyAge() {
+        Response from = upstreamResponse();
+        from.setAge(30);
+
+        assertEquals(30, relayed(from).getAge());
+    }
+
+    @Test
+    public void relayShouldNotCopyWarnings() {
+        Response from = upstreamResponse();
+        from.getWarnings().add(new Warning());
+
+        assertTrue(relayed(from).getWarnings().isEmpty(), "Warning is obsolete (RFC 9111)");
+    }
+
+    // --- Vary ---
+
+    @Test
+    public void relayShouldCopyAVaryDimensionRestletKnows() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Vary", "Accept");
+        from.getDimensions().add(Dimension.MEDIA_TYPE);
+
+        assertEquals(List.of(Dimension.MEDIA_TYPE), new ArrayList<>(relayed(from).getDimensions()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Cookie", "X-Tenant-Id", "Accept, X-Tenant-Id"})
+    public void relayShouldVaryOnEverythingWhenAFieldHasNoRestletDimension(String vary) {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Vary", vary);
+
+        assertTrue(relayed(from).getDimensions().contains(Dimension.UNSPECIFIED),
+                "Vary: " + vary + " must be relayed as Vary: *");
+    }
+
+    // --- WWW-Authenticate ---
 
     @Test
     public void relayShouldKeepEachChallengeAsReceived() {
         Response from = upstreamResponse();
         from.getHeaders().add("WWW-Authenticate", "Basic realm=\"up\"");
         from.getHeaders().add("WWW-Authenticate", "Bearer realm=\"up\", error=\"invalid_token\"");
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
-
-        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI);
 
         assertEquals(List.of("Basic realm=\"up\"",
                 "Bearer realm=\"up\", error=\"invalid_token\""),
-                to.getChallengeRequests().stream().map(c -> c.getScheme().getTechnicalName()
-                        + " " + c.getRawValue()).toList());
+                relayed(from).getChallengeRequests().stream()
+                        .map(c -> c.getScheme().getTechnicalName() + " " + c.getRawValue())
+                        .toList());
     }
 
     @Test
-    public void relayShouldRewriteContentLocationUnderBaseUri() {
+    public void relayShouldKeepABareChallenge() {
         Response from = upstreamResponse();
-        StringRepresentation entity = new StringRepresentation("{}");
-        entity.setLocationRef(BASE_URI + "/items/42");
-        from.setEntity(entity);
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
-        to.setEntity(from.getEntity());
+        from.getHeaders().add("WWW-Authenticate", "Negotiate");
 
-        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI);
-
-        assertEquals("http://localhost:8080/proxy/items/42",
-                to.getEntity().getLocationRef().toString());
+        assertEquals(List.of("Negotiate"), relayed(from).getChallengeRequests().stream()
+                .map(c -> c.getScheme().getTechnicalName()).toList());
     }
+
+    // --- Opt-in and extension headers ---
 
     @Test
     public void relayShouldNotCopyCookiesWhenSetCookieIsNotTrusted() {
         Response from = upstreamResponse();
         from.getCookieSettings().add(new CookieSetting("session", "abc"));
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
 
-        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI);
-
-        assertTrue(to.getCookieSettings().isEmpty(), "Set-Cookie needs an explicit opt-in");
+        assertTrue(relayed(from).getCookieSettings().isEmpty(), "Set-Cookie needs an opt-in");
     }
 
     @Test
     public void relayShouldCopyCookiesWhenSetCookieIsTrusted() {
         Response from = upstreamResponse();
         from.getCookieSettings().add(new CookieSetting("session", "abc"));
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
 
-        ForwardResponseHeaders.relay(from, to, List.of("set-cookie"), BASE_URI);
+        assertEquals("abc", relayed(from, List.of("set-cookie")).getCookieSettings()
+                .getFirstValue("session"));
+    }
 
-        assertEquals("abc", to.getCookieSettings().getFirstValue("session"));
+    @Test
+    public void relayShouldCopyCookiesOnceWhenSetCookieIsListedTwice() {
+        Response from = upstreamResponse();
+        from.getCookieSettings().add(new CookieSetting("session", "abc"));
+
+        assertEquals(1, relayed(from, List.of("Set-Cookie", "set-cookie")).getCookieSettings()
+                .size());
     }
 
     @Test
@@ -189,24 +315,31 @@ public class ForwardResponseHeadersTest {
         Response from = upstreamResponse();
         from.getHeaders().add("X-Request-Id", "r-1");
         from.getHeaders().add("x-request-id", "r-2");
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
 
-        ForwardResponseHeaders.relay(from, to, List.of("X-Request-Id"), BASE_URI);
+        assertEquals(List.of("r-1", "r-2"), Arrays.asList(relayed(from, List.of("X-Request-Id"))
+                .getHeaders().getValuesArray("X-Request-Id", true)));
+    }
 
-        assertEquals(List.of("r-1", "r-2"),
-                List.of(to.getHeaders().getValuesArray("X-Request-Id", true)));
+    @Test
+    public void relayShouldCopyAnExtensionHeaderOnceWhenListedTwiceInDifferentCase() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("X-Request-Id", "r-1");
+
+        assertEquals(List.of("r-1"), Arrays.asList(relayed(from,
+                List.of("X-Request-Id", "x-request-id")).getHeaders()
+                .getValuesArray("X-Request-Id", true)));
     }
 
     @Test
     public void relayShouldNotCopyExtensionHeaderThatIsNotTrusted() {
         Response from = upstreamResponse();
         from.getHeaders().add("X-Internal-Node", "node-7");
-        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
 
-        ForwardResponseHeaders.relay(from, to, List.of("X-Request-Id"), BASE_URI);
-
-        assertNull(to.getHeaders().getFirstValue("X-Internal-Node", true));
+        assertNull(relayed(from, List.of("X-Request-Id")).getHeaders()
+                .getFirstValue("X-Internal-Node", true));
     }
+
+    // --- Load-time validation ---
 
     @ParameterizedTest
     @ValueSource(strings = {"X-Request-Id", "Set-Cookie", "set-cookie", "Location", "ETag",
@@ -226,12 +359,30 @@ public class ForwardResponseHeadersTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Server", "Date", "Via", "Access-Control-Allow-Origin",
+    @ValueSource(strings = {"Server", "Date", "Via", "Warning", "Access-Control-Allow-Origin",
             "Authorization"})
     public void validateShouldRejectStandardHeaderThatCannotBeRelayed(String name) {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> ForwardResponseHeaders.validate(List.of(name), "REST resource '/p'"));
         assertTrue(e.getMessage().contains(name), e.getMessage());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "  "})
+    public void validateShouldRejectBlankEntry(String name) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ForwardResponseHeaders.validate(List.of(name), "REST resource '/p'"));
+        assertTrue(e.getMessage().contains("blank"), e.getMessage());
+    }
+
+    @Test
+    public void validateShouldRejectNullEntry() {
+        List<String> names = new ArrayList<>();
+        names.add(null);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ForwardResponseHeaders.validate(names, "REST resource '/p'"));
+        assertTrue(e.getMessage().contains("blank"), e.getMessage());
     }
 
     @Test

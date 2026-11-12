@@ -13,7 +13,10 @@
  */
 package io.ikanos.engine.exposes.rest;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -21,6 +24,7 @@ import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.ChallengeRequest;
 import org.restlet.data.ChallengeScheme;
+import org.restlet.data.Dimension;
 import org.restlet.data.Header;
 import org.restlet.data.Reference;
 import org.restlet.engine.header.HeaderConstants;
@@ -51,7 +55,7 @@ public final class ForwardResponseHeaders {
 
     /** Standard headers relayed by default: response properties and entity headers. */
     static final Set<String> RELAYED_BY_DEFAULT = Set.of("location", "retry-after",
-            "cache-control", "vary", "allow", "www-authenticate", "accept-ranges", "age", "warning",
+            "cache-control", "vary", "allow", "www-authenticate", "accept-ranges", "age",
             "content-type", "content-encoding", "content-language", "content-location",
             "content-disposition", "content-range", "content-md5", "etag", "last-modified",
             "expires");
@@ -59,11 +63,11 @@ public final class ForwardResponseHeaders {
     /**
      * The other headers Restlet models as properties: its server connector refuses them as raw
      * headers, and the engine does not relay them (the server sets its own {@code Server},
-     * {@code Date} and {@code Via}, CORS belongs to the exposed adapter, and the rest are request
-     * headers).
+     * {@code Date} and {@code Via}, {@code Warning} is obsolete (RFC 9111), CORS belongs to the
+     * exposed adapter, and the rest are request headers).
      */
-    static final Set<String> NOT_RELAYABLE = Set.of("server", "date", "via", "set-cookie2",
-            "authentication-info", "access-control-allow-credentials",
+    static final Set<String> NOT_RELAYABLE = Set.of("server", "date", "via", "warning",
+            "set-cookie2", "authentication-info", "access-control-allow-credentials",
             "access-control-allow-headers", "access-control-allow-methods",
             "access-control-allow-origin", "access-control-expose-headers",
             "access-control-max-age", "access-control-request-headers",
@@ -72,6 +76,10 @@ public final class ForwardResponseHeaders {
             "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
             "max-forwards", "range", "referer", "user-agent");
 
+    /** {@code Vary} field names that Restlet maps to a {@link Dimension}. */
+    static final Set<String> VARY_DIMENSIONS = Set.of("accept", "accept-charset",
+            "accept-encoding", "accept-language", "authorization", "user-agent", "origin", "*");
+
     private ForwardResponseHeaders() {}
 
     /**
@@ -79,14 +87,19 @@ public final class ForwardResponseHeaders {
      *
      * @param names the listed header names, or {@code null}
      * @param where the resource the list belongs to, for the error message
-     * @throws IllegalArgumentException when a listed header can never be relayed
+     * @throws IllegalArgumentException when an entry is blank or names a header that can never be
+     *         relayed
      */
     public static void validate(List<String> names, String where) {
         if (names == null) {
             return;
         }
         for (String name : names) {
-            String key = name.toLowerCase(Locale.ROOT);
+            if (name == null || name.isBlank()) {
+                throw new IllegalArgumentException("trustedResponseHeaders of " + where
+                        + " has a blank entry. List header names only.");
+            }
+            String key = name.trim().toLowerCase(Locale.ROOT);
             if (HOP_BY_HOP.contains(key)) {
                 throw new IllegalArgumentException("trustedResponseHeaders of " + where
                         + " lists '" + name + "', a hop-by-hop header that forward mode never "
@@ -112,42 +125,77 @@ public final class ForwardResponseHeaders {
     static void relay(Response from, Response to, List<String> trustedResponseHeaders,
             String upstreamBaseUri) {
         Request incoming = to.getRequest();
+        String upstreamRequestUri = from.getRequest() == null
+                || from.getRequest().getResourceRef() == null ? upstreamBaseUri
+                        : from.getRequest().getResourceRef().toString();
 
-        if (from.getLocationRef() != null) {
-            to.setLocationRef(new Reference(rewriteLocation(
-                    from.getLocationRef().getTargetRef().toString(), upstreamBaseUri, incoming)));
-        }
+        String location = from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
+        to.setLocationRef(location == null ? null
+                : verbatim(relayedLocation(location, upstreamRequestUri, upstreamBaseUri,
+                        incoming)));
+
         Representation entity = to.getEntity();
-        if (entity != null && entity.getLocationRef() != null
-                && entity.getLocationRef().isAbsolute()) {
-            entity.setLocationRef(rewriteLocation(entity.getLocationRef().toString(),
-                    upstreamBaseUri, incoming));
+        if (entity != null) {
+            String contentLocation = from.getHeaders()
+                    .getFirstValue(HeaderConstants.HEADER_CONTENT_LOCATION, true);
+            if (contentLocation != null || entity.getLocationRef() != null) {
+                entity.setLocationRef(contentLocation == null ? null
+                        : verbatim(relayedLocation(contentLocation, upstreamRequestUri,
+                                upstreamBaseUri, incoming)));
+            }
         }
+
         to.setRetryAfter(from.getRetryAfter());
         to.setCacheDirectives(new ArrayList<>(from.getCacheDirectives()));
         to.getDimensions().addAll(from.getDimensions());
+        if (variesOnUnknownField(from)) {
+            to.getDimensions().add(Dimension.UNSPECIFIED);
+        }
         to.getAllowedMethods().addAll(from.getAllowedMethods());
         to.setChallengeRequests(rawChallenges(from));
         to.getServerInfo().setAcceptingRanges(from.getServerInfo().isAcceptingRanges());
         to.setAge(from.getAge());
-        to.setWarnings(new ArrayList<>(from.getWarnings()));
 
         if (trustedResponseHeaders == null) {
             return;
         }
+        Set<String> listed = new LinkedHashSet<>();
         for (String name : trustedResponseHeaders) {
-            String key = name.toLowerCase(Locale.ROOT);
+            if (name != null && !name.isBlank()) {
+                listed.add(name.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        for (String key : listed) {
             if (SET_COOKIE.equals(key)) {
                 to.getCookieSettings().addAll(from.getCookieSettings());
             } else if (!RELAYED_BY_DEFAULT.contains(key) && !HOP_BY_HOP.contains(key)
                     && !NOT_RELAYABLE.contains(key)) {
                 for (Header header : from.getHeaders()) {
-                    if (header.getName().equalsIgnoreCase(name)) {
-                        to.getHeaders().add(name, header.getValue());
+                    if (header.getName().equalsIgnoreCase(key)) {
+                        to.getHeaders().add(header.getName(), header.getValue());
                     }
                 }
             }
         }
+    }
+
+    /**
+     * @return {@code true} when a {@code Vary} field name of the upstream answer has no Restlet
+     *         {@link Dimension}, so the relayed answer must vary on everything ({@code Vary: *})
+     */
+    static boolean variesOnUnknownField(Response from) {
+        for (Header header : from.getHeaders()) {
+            if (!header.getName().equalsIgnoreCase(HeaderConstants.HEADER_VARY)) {
+                continue;
+            }
+            for (String field : header.getValue().split(",")) {
+                String key = field.trim().toLowerCase(Locale.ROOT);
+                if (!key.isEmpty() && !VARY_DIMENSIONS.contains(key)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -170,58 +218,148 @@ public final class ForwardResponseHeaders {
             }
             ChallengeRequest challenge =
                     new ChallengeRequest(new ChallengeScheme("HTTP_" + scheme, scheme));
-            if (space >= 0) {
-                challenge.setRawValue(value.substring(space + 1).trim());
-            }
+            // Restlet writes "<scheme> <raw value>" and drops the challenge when the raw value
+            // adds nothing, so a bare challenge (e.g. "Negotiate") keeps a single space, which
+            // HTTP treats as optional whitespace around the field value.
+            challenge.setRawValue(space < 0 ? " " : value.substring(space + 1).trim());
             challenges.add(challenge);
         }
         return challenges;
     }
 
     /**
-     * Rewrites an upstream location under {@code upstreamBaseUri} to the matching location under
-     * the exposed resource, so the caller is not sent to the upstream host. The exposed base is
-     * the incoming request URI without its forwarded {@code {{path}}} part.
+     * Decides what to send the caller for an upstream {@code Location} or
+     * {@code Content-Location}.
      *
-     * @param location the absolute upstream location
+     * <ul>
+     * <li>Under {@code upstreamBaseUri} (once resolved against the upstream request URI): the
+     * matching path-absolute reference under the exposed resource, such as
+     * {@code /proxy/items/42}, so neither the upstream host nor the caller's {@code Host} is
+     * written.</li>
+     * <li>Absolute and on the upstream's authority, but outside the base URI: dropped, so the
+     * upstream host does not reach the caller.</li>
+     * <li>Otherwise: the raw value, unchanged.</li>
+     * </ul>
+     *
+     * <p>The comparison lowercases the scheme and the host, ignores a default port and a trailing
+     * slash on the base URI, and only matches whole path segments.
+     *
+     * @param raw the raw header value from the upstream
+     * @param upstreamRequestUri the URI the upstream request was sent to
      * @param upstreamBaseUri the resolved base URI of the forward target
      * @param incoming the incoming request, carrying the forwarded {@code path} attribute
-     * @return the rewritten location, or {@code location} when it is not under the base URI or
-     *         the exposed base cannot be derived
+     * @return the value to send, or {@code null} to drop the header
      */
-    static String rewriteLocation(String location, String upstreamBaseUri, Request incoming) {
-        if (location == null || upstreamBaseUri == null || !location.startsWith(upstreamBaseUri)) {
-            return location;
+    static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
+            Request incoming) {
+        URI base = parse(upstreamBaseUri);
+        URI value = parse(raw.trim());
+        if (base == null || value == null) {
+            return null;
         }
-        String rest = location.substring(upstreamBaseUri.length());
-        if (!rest.isEmpty() && "/?#".indexOf(rest.charAt(0)) < 0) {
-            return location;
+        URI resolved = value;
+        if (!value.isAbsolute()) {
+            URI requestUri = parse(upstreamRequestUri);
+            if (requestUri == null) {
+                return raw;
+            }
+            resolved = requestUri.resolve(value);
         }
-        String exposedBase = exposedBase(incoming);
-        return exposedBase == null ? location : exposedBase + rest;
+        if (!sameAuthority(resolved, base)) {
+            return raw;
+        }
+        String basePath = stripTrailingSlashes(base.getRawPath());
+        String path = resolved.getRawPath() == null ? "" : resolved.getRawPath();
+        boolean under = path.equals(basePath) || (path.startsWith(basePath)
+                && (basePath.isEmpty() || path.charAt(basePath.length()) == '/'));
+        if (!under) {
+            return value.isAbsolute() ? null : raw;
+        }
+        String exposed = exposedPath(incoming);
+        if (exposed == null) {
+            return null;
+        }
+        String rewritten = exposed + path.substring(basePath.length());
+        if (rewritten.isEmpty()) {
+            rewritten = "/";
+        }
+        if (resolved.getRawQuery() != null) {
+            rewritten += "?" + resolved.getRawQuery();
+        }
+        if (resolved.getRawFragment() != null) {
+            rewritten += "#" + resolved.getRawFragment();
+        }
+        return rewritten;
     }
 
     /**
-     * @return the incoming request URI up to, and without, its forwarded {@code {{path}}} part and
+     * @return the path of the incoming request without its forwarded {@code {{path}}} part and
      *         any trailing slash, or {@code null} when the path does not end with that part
      */
-    static String exposedBase(Request incoming) {
-        Reference ref = incoming.getResourceRef();
-        String path = ref.getPath();
-        Object forwarded = incoming.getAttributes().get("path");
-        String forwardedPath = forwarded == null ? "" : forwarded.toString();
+    static String exposedPath(Request incoming) {
+        String path = incoming.getResourceRef().getPath();
         if (path == null) {
             return null;
         }
+        Object forwarded = incoming.getAttributes().get("path");
+        String forwardedPath = forwarded == null ? "" : forwarded.toString();
         if (!forwardedPath.isEmpty()) {
             if (!path.endsWith("/" + forwardedPath)) {
                 return null;
             }
             path = path.substring(0, path.length() - forwardedPath.length() - 1);
         }
-        while (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
+        return stripTrailingSlashes(path);
+    }
+
+    private static boolean sameAuthority(URI a, URI b) {
+        return a.getScheme() != null && b.getScheme() != null
+                && a.getScheme().equalsIgnoreCase(b.getScheme()) && a.getHost() != null
+                && a.getHost().equalsIgnoreCase(b.getHost()) && port(a) == port(b);
+    }
+
+    private static int port(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
         }
-        return ref.getHostIdentifier() + path;
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    private static String stripTrailingSlashes(String path) {
+        String result = path == null ? "" : path;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private static URI parse(String uri) {
+        try {
+            return uri == null ? null : new URI(uri);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /**
+     * @return a reference Restlet writes exactly as given, or {@code null} when {@code value} is
+     *         {@code null}. Restlet 3.0.0-m1 writes {@code Location} and {@code Content-Location}
+     *         from {@link Reference#getTargetRef()}, which throws for a relative reference with no
+     *         base; a path-absolute location needs no base.
+     */
+    static Reference verbatim(String value) {
+        return value == null ? null : new VerbatimReference(value);
+    }
+
+    /** A reference that is its own target, so a relative value is written as is. */
+    static final class VerbatimReference extends Reference {
+        VerbatimReference(String value) {
+            super(value);
+        }
+
+        @Override
+        public Reference getTargetRef() {
+            return this;
+        }
     }
 }

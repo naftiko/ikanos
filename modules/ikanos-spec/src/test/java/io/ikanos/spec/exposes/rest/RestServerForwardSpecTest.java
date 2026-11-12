@@ -85,7 +85,7 @@ public class RestServerForwardSpecTest {
     }
 
     @Test
-    public void shouldDeserializeTrustedResponseHeadersFromYaml() throws Exception {
+    public void readValueShouldFillTrustedResponseHeadersWhenListedInYaml() throws Exception {
         String yaml = """
                 targetNamespace: upstream-api
                 trustedResponseHeaders:

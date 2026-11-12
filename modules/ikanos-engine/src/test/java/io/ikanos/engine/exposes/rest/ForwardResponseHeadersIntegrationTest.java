@@ -67,6 +67,11 @@ public class ForwardResponseHeadersIntegrationTest {
                 "ETag", List.of("\"v1\""),
                 "Content-Disposition", List.of("attachment; filename=\"my plan.pdf\"")));
         respond("/v1/relative", 201, Map.of("Location", List.of("/v1/items/43")));
+        respond("/v1/relative-outside", 201, Map.of("Location", List.of("/internal/x")));
+        respond("/v1/upstream-outside", 201,
+                Map.of("Location", List.of("http://localhost:" + upstreamPort + "/admin")));
+        respond("/v1/vary-cookie", 200, Map.of("Vary", List.of("Cookie")));
+        respond("/v1/negotiate", 401, Map.of("WWW-Authenticate", List.of("Negotiate")));
         respond("/v1/busy", 503, Map.of("Retry-After", List.of("120")));
         respond("/v1/locked", 401, Map.of("WWW-Authenticate", List.of("Basic realm=\"up\"")));
         respond("/v1/read-only", 405, Map.of("Allow", List.of("GET, HEAD")));
@@ -136,20 +141,46 @@ public class ForwardResponseHeadersIntegrationTest {
     }
 
     @Test
-    public void forwardShouldRewriteAbsoluteLocationToTheExposedPath() throws Exception {
+    public void forwardShouldRewriteAbsoluteLocationToAPathAbsoluteExposedPath()
+            throws Exception {
         HttpResponse<String> response = get("/proxy/created");
 
         assertEquals(201, response.statusCode());
-        assertEquals("http://localhost:" + exposedPort + "/proxy/items/42",
-                response.headers().firstValue("Location").orElse(null));
+        assertEquals("/proxy/items/42", response.headers().firstValue("Location").orElse(null));
     }
 
     @Test
-    public void forwardShouldRewriteRelativeLocationToTheExposedPath() throws Exception {
-        HttpResponse<String> response = get("/proxy/relative");
+    public void forwardShouldRewriteRelativeLocationToAPathAbsoluteExposedPath()
+            throws Exception {
+        assertEquals("/proxy/items/43",
+                get("/proxy/relative").headers().firstValue("Location").orElse(null));
+    }
 
-        assertEquals("http://localhost:" + exposedPort + "/proxy/items/43",
-                response.headers().firstValue("Location").orElse(null));
+    @Test
+    public void forwardShouldRelayARelativeLocationOutsideTheBaseUriUnchanged() throws Exception {
+        assertEquals("/internal/x",
+                get("/proxy/relative-outside").headers().firstValue("Location").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldDropALocationOnTheUpstreamOutsideTheBaseUri() throws Exception {
+        HttpResponse<String> response = get("/proxy/upstream-outside");
+
+        assertEquals(201, response.statusCode());
+        assertFalse(response.headers().firstValue("Location").isPresent(),
+                "the upstream host must not reach the caller");
+    }
+
+    @Test
+    public void forwardShouldVaryOnEverythingWhenTheUpstreamVariesOnAnUnknownField()
+            throws Exception {
+        assertEquals("*", get("/proxy/vary-cookie").headers().firstValue("Vary").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldRelayABareChallenge() throws Exception {
+        assertEquals("Negotiate",
+                get("/proxy/negotiate").headers().firstValue("WWW-Authenticate").orElse(null));
     }
 
     @Test
