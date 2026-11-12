@@ -205,9 +205,8 @@ public class McpClientAdapter extends ClientAdapter {
         Map<String, Object> used = new LinkedHashMap<>();
         for (String template : ConsumedAuthentication
                 .credentials(getMcpClientSpec().getAuthentication(), "").values()) {
-            // With no values, every variable of the template is reported.
-            for (String reference : Resolver.emptyVariables(template, null)) {
-                String name = reference.split("\\.", 2)[0].trim();
+            // Every name the template may read, inside a section too ({{#auth}}{{token}}{{/auth}}).
+            for (String name : Resolver.referencedNames(template)) {
                 if (!bindings.containsKey(name) && templates.get(name) != null) {
                     used.put(name, templates.get(name));
                 }
