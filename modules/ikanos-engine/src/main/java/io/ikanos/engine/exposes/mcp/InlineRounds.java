@@ -83,8 +83,8 @@ public final class InlineRounds {
     }
 
     /**
-     * Runs {@code hook} after a call is cancelled, with its execution: to cancel what it waits on
-     * outside this process, such as an upstream task.
+     * Runs {@code hook} after a call is cancelled, or failed as {@link #EXPIRED}, with its
+     * execution: to cancel what it waits on outside this process, such as an upstream task.
      *
      * @return this
      */
@@ -99,9 +99,13 @@ public final class InlineRounds {
      *
      * @param round the round that asked {@code questions}, sealed into the caller's state so
      *        that state answers this round only; 0 with a result
+     * @param expiresAt when the caller's state for {@code questions} expires: {@link
+     *        McpRequestState#TTL} after the round asked, however often it is issued again, so
+     *        the state never outlives the call, which {@link #sweepUnanswered} fails then;
+     *        {@code null} with a result
      */
     public record Round(ObjectNode result, ObjectNode questions, ExecutionId executionId,
-            int round) {
+            int round, Instant expiresAt) {
     }
 
     /**
@@ -167,11 +171,12 @@ public final class InlineRounds {
                 InputRounds.interpreter(),
                 InputRounds.executor(runner, id, stopping, clock, watched));
         if (result instanceof ExecutionResult.Completed completed) {
-            return new Round((ObjectNode) completed.result(), null, id, 0);
+            return new Round((ObjectNode) completed.result(), null, id, 0, null);
         }
         if (result instanceof ExecutionResult.Suspended suspended) {
+            ExecutionView view = runner.view(id);
             return new Round(null, (ObjectNode) suspended.awaiting().get(0).request(), id,
-                    InputRounds.lastRound(runner.view(id)));
+                    InputRounds.lastRound(view), askedAt(id, view).plus(McpRequestState.TTL));
         }
         if (raised.get() != null) {
             throw raised.get();
@@ -181,6 +186,12 @@ public final class InlineRounds {
             throw new IllegalArgumentException(failure.message());
         }
         throw new IllegalStateException(failure.message());
+    }
+
+    /** When the call's last round asked, or, recorded without the time, when the call started. */
+    private Instant askedAt(ExecutionId id, ExecutionView view) {
+        return InputRounds.askedAt(view).orElseGet(() -> runner.record(id)
+                .map(ExecutionRecord::createdAt).orElseGet(clock::instant));
     }
 
     /** The hidden execution of an inline call, if this store holds it for this principal. */
@@ -218,7 +229,10 @@ public final class InlineRounds {
     /**
      * Fails the calls still waiting for answers past the expiry of their sealed state, at most
      * once per {@link #SWEEP_INTERVAL}: no retry can resume them any more. Each round issues a
-     * new state, so a call expires from when its last round asked, not from when it started.
+     * new state, so a call expires from when its last round asked, not from when it started; a
+     * state issued again for the same round keeps that round's expiry ({@link Round#expiresAt}).
+     * What an expired call waits on is cancelled ({@link #whenCancelled}), such as an upstream
+     * task left waiting for input, since no retry can answer it any more.
      */
     void sweepUnanswered() {
         Instant now = clock.instant();
@@ -235,6 +249,11 @@ public final class InlineRounds {
                             .orElse(record.createdAt()).isBefore(cutoff)) {
                 runner.fail(record.executionId(), new Failure(EXPIRED,
                         "The call's questions went unanswered past its state's expiry"));
+                try {
+                    onCancel.accept(record.executionId());
+                } catch (RuntimeException e) {
+                    // Best effort, as for a cancel: the next calls are still swept.
+                }
             }
         }
     }

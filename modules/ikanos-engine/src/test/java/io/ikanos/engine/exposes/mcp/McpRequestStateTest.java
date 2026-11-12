@@ -85,6 +85,21 @@ public class McpRequestStateTest {
     }
 
     @Test
+    void aStateSealedWithAnExpiryShouldExpireThenNotTtlFromNow() throws Exception {
+        SecretKey key = key();
+        Instant roundExpiry = NOW.plus(Duration.ofMinutes(1));
+        String token = new McpRequestState(key, Clock.fixed(NOW, ZoneOffset.UTC))
+                .seal("agent-7", "digest", answers(), List.of(), "exec-1", 1, null, roundExpiry);
+        McpRequestState justBefore = new McpRequestState(key,
+                Clock.fixed(roundExpiry, ZoneOffset.UTC));
+        McpRequestState after = new McpRequestState(key,
+                Clock.fixed(roundExpiry.plus(Duration.ofSeconds(1)), ZoneOffset.UTC));
+
+        assertEquals("exec-1", justBefore.open(token, "agent-7", "digest").executionId());
+        assertThrows(IllegalArgumentException.class, () -> after.open(token, "agent-7", "digest"));
+    }
+
+    @Test
     void openShouldRejectStateSealedWithAnotherKey() throws Exception {
         String token = new McpRequestState(key(), Clock.fixed(NOW, ZoneOffset.UTC))
                 .seal("agent-7", "digest", answers(), List.of());
