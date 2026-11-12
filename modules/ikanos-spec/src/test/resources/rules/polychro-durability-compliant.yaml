@@ -2,12 +2,12 @@ ikanos: 1.0.0-beta9
 info:
   display: Durability compliant
   description: Positive fixture for the durability rules, under the memory mode
-binds:
-- namespace: secrets
-  description: Deployment secrets
-  keys:
-    IKANOS_SEALING_KEY: ikanos-sealing-key
 capability:
+  binds:
+  - namespace: secrets
+    description: Deployment secrets
+    keys:
+      IKANOS_SEALING_KEY: ikanos-sealing-key
   consumes:
   - type: http
     namespace: port

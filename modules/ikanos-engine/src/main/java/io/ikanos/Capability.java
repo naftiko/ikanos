@@ -344,7 +344,8 @@ public class Capability {
         String resolved = Resolver.resolveMustacheTemplate(declared, bindings);
         if (resolved == null || resolved.isBlank() || resolved.contains("{{")) {
             throw new IllegalArgumentException(
-                    "durability.sealingKey does not resolve: declare its variable in binds");
+                    "durability.sealingKey does not resolve: declare its variable in "
+                            + "capability.binds");
         }
         return McpRequestState.parseKey(resolved);
     }
