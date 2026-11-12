@@ -1926,7 +1926,7 @@
             "$ref": "#/$defs/McpToolInputSchema"
           },
           "minProperties": 1,
-          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there."
+          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there."
         }
       },
       "minProperties": 1,

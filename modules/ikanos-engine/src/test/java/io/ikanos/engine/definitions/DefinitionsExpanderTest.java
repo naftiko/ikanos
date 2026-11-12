@@ -692,6 +692,115 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldExpandDirectItemsReferenceLikeAWholeArraySchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    label: { type: string }
+                    labels: { type: array, items: { schema: label } }
+                """, """
+                list-labels:
+                  description: "List labels."
+                  steps:
+                    labels: { type: call, call: erp.list-labels }
+                  mappings:
+                    - target: direct
+                      value: "$.labels"
+                    - target: whole
+                      value: "$.labels"
+                  outputParameters:
+                    direct:
+                      type: array
+                      items: { schema: label }
+                    whole: { schema: labels }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        List<OutputParameterSpec> outputs = tool(spec, "list-labels").getOutputParameters();
+        assertEquals("array", outputs.get(0).getType());
+        assertNull(outputs.get(0).getItems(),
+                "Scalar items are not declared by an orchestrated output, referenced or not");
+        assertNull(outputs.get(1).getItems());
+    }
+
+    @Test
+    void expandAllShouldReportEveryOutputKeyBesideSchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                """, """
+                list-ships:
+                  description: "List ships."
+                  steps:
+                    ships: { type: call, call: erp.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships"
+                  outputParameters:
+                    flagship: { schema: ship, precision: 2, const: "x", enum: ["a"] }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'list-ships', output 'flagship':"
+                + " 'schema: ship' takes no other key in an output, found [const, enum,"
+                + " precision]."), errors);
+    }
+
+    @Test
+    void expandAllShouldBoundALongChainOfSchemasWithoutOverflowingTheStack() throws Exception {
+        int length = 5_000;
+        StringBuilder schemas = new StringBuilder("definitions:\n  schemas:\n");
+        for (int i = 0; i < length; i++) {
+            schemas.append("    s").append(i).append(": { schema: s").append(i + 1)
+                    .append(" }\n");
+        }
+        schemas.append("    s").append(length).append(": { type: string }\n");
+        IkanosSpec spec = mcp(schemas.toString(), """
+                get-a:
+                  description: "Get A."
+                  inputParameters:
+                    id: { schema: s0, description: "ID." }
+                  call: erp.get-a
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        int deepest = length - DefinitionsExpander.MAX_EXPANDED_DEPTH;
+        assertEquals(List.of("MCP adapter 'tools', schema 's" + deepest + "': it expands to"
+                + " more than " + DefinitionsExpander.MAX_EXPANDED_DEPTH + " nested levels,"
+                + " through the schemas it uses. Expansion is bounded, so that a long chain of"
+                + " schemas cannot exhaust the stack."), errors);
+    }
+
+    @Test
+    void expandAllShouldExpandAChainOfSchemasWithinTheDepthBound() throws Exception {
+        StringBuilder schemas = new StringBuilder("definitions:\n  schemas:\n");
+        for (int i = 0; i < 40; i++) {
+            schemas.append("    s").append(i).append(": { schema: s").append(i + 1)
+                    .append(" }\n");
+        }
+        schemas.append("    s40: { type: string, format: date }\n");
+        IkanosSpec spec = mcp(schemas.toString(), """
+                get-a:
+                  description: "Get A."
+                  inputParameters:
+                    day: { schema: s0, description: "Day." }
+                  call: erp.get-a
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        InputParameterSpec day = tool(spec, "get-a").getInputParameters().get(0);
+        assertEquals("date", day.getFormat());
+        assertEquals("Day.", day.getDescription());
+    }
+
+    @Test
     void expandShouldThrowWithEveryErrorWhenDefinitionsAreInvalid() throws Exception {
         IkanosSpec spec = mcp("", """
                 get-a:
