@@ -37,6 +37,12 @@ public class RestServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<DefinitionsSpec> definitions = new AtomicReference<>();
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile Integer ttlMs;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String cacheScope;
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = RestServerResourceMapDeserializer.class)
     private final Map<String, RestServerResourceSpec> resources =
@@ -68,6 +74,17 @@ public class RestServerSpec extends ServerSpec {
      */
     public DefinitionsSpec getDefinitions() { return definitions.get(); }
     public void setDefinitions(DefinitionsSpec definitions) { this.definitions.set(definitions); }
+
+    /**
+     * @return how long, in milliseconds, a {@code GET} or {@code HEAD} answer stays fresh, sent as
+     *         {@code Cache-Control}; {@code null} sends no {@code Cache-Control}
+     */
+    public Integer getTtlMs() { return ttlMs; }
+    public void setTtlMs(Integer ttlMs) { this.ttlMs = ttlMs; }
+
+    /** @return {@code public}, {@code private} or {@code auto}, or {@code null} for private */
+    public String getCacheScope() { return cacheScope; }
+    public void setCacheScope(String cacheScope) { this.cacheScope = cacheScope; }
 
     public Map<String, RestServerResourceSpec> getResources() { return resources; }
 

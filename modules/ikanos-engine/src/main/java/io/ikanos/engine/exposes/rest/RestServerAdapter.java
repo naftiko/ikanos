@@ -35,6 +35,7 @@ public class RestServerAdapter extends ServerAdapter {
     public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
         this.router = new Router();
+        RestCacheControl.validate(serverSpec);
         this.inputRequests = new RestInputRequests(capability, serverSpec.getNamespace(),
                 serverSpec.getPath(), () -> false);
 
