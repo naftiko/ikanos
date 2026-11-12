@@ -38,7 +38,7 @@ class RestCacheControlTest {
     void applyShouldSendPublicMaxAgeOnAGetWhenTheAdapterSetsATtl() {
         RestServerSpec server = server(60_000, "public");
 
-        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(), null);
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(), new RestServerOperationSpec());
 
         assertThat(cacheControl(response)).isEqualTo("public, max-age=60");
         assertThat(response.getDimensions()).doesNotContain(Dimension.AUTHORIZATION);
@@ -47,15 +47,15 @@ class RestCacheControlTest {
     @Test
     void applyShouldSendNoStoreWhenTheTtlIsZero() {
         Response response = apply(Method.GET, Status.SUCCESS_OK, server(0, "public"),
-                resource(), null);
+                resource(), new RestServerOperationSpec());
 
         assertThat(cacheControl(response)).isEqualTo("no-store");
     }
 
     @Test
     void applyShouldSendPrivateAndVaryOnAuthorizationWhenTheScopeIsPrivate() {
-        Response response = apply(Method.HEAD, Status.SUCCESS_OK, server(5_000, null),
-                resource(), null);
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server(5_000, null),
+                resource(), new RestServerOperationSpec());
 
         assertThat(cacheControl(response)).isEqualTo("private, max-age=5");
         assertThat(response.getDimensions()).contains(Dimension.AUTHORIZATION);
@@ -76,7 +76,7 @@ class RestCacheControlTest {
     @Test
     void applyShouldSendNothingWhenNoTtlIsSet() {
         Response response = apply(Method.GET, Status.SUCCESS_OK, server(null, "public"),
-                resource(), null);
+                resource(), new RestServerOperationSpec());
 
         assertThat(response.getCacheDirectives()).isEmpty();
     }
@@ -85,7 +85,7 @@ class RestCacheControlTest {
     @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE"})
     void applyShouldSendNothingOnAWrite(String method) {
         Response response = apply(Method.valueOf(method), Status.SUCCESS_OK,
-                server(60_000, "public"), resource(), null);
+                server(60_000, "public"), resource(), new RestServerOperationSpec());
 
         assertThat(response.getCacheDirectives()).isEmpty();
     }
@@ -93,7 +93,7 @@ class RestCacheControlTest {
     @Test
     void applyShouldSendNothingOnAnError() {
         Response response = apply(Method.GET, Status.SERVER_ERROR_BAD_GATEWAY,
-                server(60_000, "public"), resource(), null);
+                server(60_000, "public"), resource(), new RestServerOperationSpec());
 
         assertThat(response.getCacheDirectives()).isEmpty();
     }
@@ -114,37 +114,57 @@ class RestCacheControlTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Authorization", "cookie", "Proxy-Authorization"})
-    void scopeDecisionShouldMakeAutoPrivateWhenAForwardPassesCallerCredentials(String header) {
-        RestServerForwardSpec forward = new RestServerForwardSpec("upstream");
-        forward.getTrustedHeaders().add(header);
-        RestServerResourceSpec resource = new RestServerResourceSpec("/proxy", "proxy", null,
-                null, forward);
-
-        assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource, null).scope())
-                .isEqualTo("private");
-    }
-
-    @Test
-    void scopeDecisionShouldKeepAutoPublicWhenAForwardPassesOnlyNonCredentialHeaders() {
-        RestServerForwardSpec forward = new RestServerForwardSpec("upstream");
-        forward.getTrustedHeaders().add("X-Correlation-Id");
-        RestServerResourceSpec resource = new RestServerResourceSpec("/proxy", "proxy", null,
-                null, forward);
-
-        assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource, null).scope())
-                .isEqualTo("public");
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"header", "cookie"})
-    void scopeDecisionShouldMakeAutoPrivateWhenAnInputComesFromTheRequestHeaders(String in) {
+    @ValueSource(strings = {"header", "HEADER", "body"})
+    void scopeDecisionShouldMakeAutoPrivateWhenAnInputIsReadFromOutsideTheUrl(String in) {
         RestServerOperationSpec operation = new RestServerOperationSpec();
         operation.setInputParameters(
                 Map.of("tenant", new InputParameterSpec("tenant", "string", in, null)));
 
         assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource(), operation)
                 .scope()).isEqualTo("private");
+    }
+
+    @Test
+    void scopeDecisionShouldMakeAutoPrivateWhenAnInputHasNoLocation() {
+        // An input without `in` is read from the body, which is not part of the cache key
+        RestServerOperationSpec operation = new RestServerOperationSpec();
+        operation.setInputParameters(
+                Map.of("tenant", new InputParameterSpec("tenant", "string", null, null)));
+
+        assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource(), operation)
+                .scope()).isEqualTo("private");
+    }
+
+    @Test
+    void applyShouldSendVaryStarWhenAnInputIsReadFromAHeader() {
+        RestServerOperationSpec operation = new RestServerOperationSpec();
+        operation.setInputParameters(
+                Map.of("tenant", new InputParameterSpec("tenant", "string", "header", null)));
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server(60_000, "public"),
+                resource(), operation);
+
+        assertThat(response.getDimensions()).contains(Dimension.UNSPECIFIED);
+    }
+
+    @Test
+    void applyShouldSendNothingOnAForwardAnswer() {
+        RestServerForwardSpec forward = new RestServerForwardSpec("upstream");
+        RestServerResourceSpec resource = new RestServerResourceSpec("/proxy", "proxy", null,
+                null, forward);
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server(60_000, "public"),
+                resource, null);
+
+        assertThat(response.getCacheDirectives()).isEmpty();
+    }
+
+    @Test
+    void applyShouldRoundAMaxAgeUnderASecondUp() {
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server(500, "public"),
+                resource(), new RestServerOperationSpec());
+
+        assertThat(cacheControl(response)).isEqualTo("public, max-age=1");
     }
 
     @Test

@@ -59,6 +59,80 @@ public class OasExportBuilderTest {
         builder = new OasExportBuilder();
     }
 
+    // ── Cache-Control (#1021) ──
+
+    @Test
+    void documentCacheControlShouldDescribeTheHeaderOnASuccessfulGet() {
+        RestServerSpec rest = new RestServerSpec(null, 8080, "demo");
+        rest.setTtlMs(300_000);
+        rest.setCacheScope("public");
+        io.swagger.v3.oas.models.Operation operation = operationWith200();
+
+        builder.documentCacheControl(rest, operation("GET"), operation);
+
+        assertTrue(operation.getResponses().get("200").getHeaders().get("Cache-Control")
+                .getDescription().contains("`public, max-age=300`"));
+    }
+
+    @Test
+    void documentCacheControlShouldDescribeNoStoreForAZeroTtl() {
+        RestServerSpec rest = new RestServerSpec(null, 8080, "demo");
+        RestServerOperationSpec get = operation("GET");
+        get.setTtlMs(0);
+        io.swagger.v3.oas.models.Operation operation = operationWith200();
+
+        builder.documentCacheControl(rest, get, operation);
+
+        assertTrue(operation.getResponses().get("200").getHeaders().get("Cache-Control")
+                .getDescription().contains("`no-store`"));
+    }
+
+    @Test
+    void documentCacheControlShouldSayAnAutoScopeIsDerived() {
+        RestServerSpec rest = new RestServerSpec(null, 8080, "demo");
+        rest.setTtlMs(60_000);
+        rest.setCacheScope("auto");
+        io.swagger.v3.oas.models.Operation operation = operationWith200();
+
+        builder.documentCacheControl(rest, operation("GET"), operation);
+
+        assertTrue(operation.getResponses().get("200").getHeaders().get("Cache-Control")
+                .getDescription().contains("derived by the engine"));
+    }
+
+    @Test
+    void documentCacheControlShouldAddNothingToAWrite() {
+        RestServerSpec rest = new RestServerSpec(null, 8080, "demo");
+        rest.setTtlMs(60_000);
+        io.swagger.v3.oas.models.Operation operation = operationWith200();
+
+        builder.documentCacheControl(rest, operation("POST"), operation);
+
+        assertNull(operation.getResponses().get("200").getHeaders());
+    }
+
+    @Test
+    void documentCacheControlShouldAddNothingWhenNoTtlIsSet() {
+        RestServerSpec rest = new RestServerSpec(null, 8080, "demo");
+        io.swagger.v3.oas.models.Operation operation = operationWith200();
+
+        builder.documentCacheControl(rest, operation("GET"), operation);
+
+        assertNull(operation.getResponses().get("200").getHeaders());
+    }
+
+    private static RestServerOperationSpec operation(String method) {
+        RestServerOperationSpec op = new RestServerOperationSpec();
+        op.setMethod(method);
+        return op;
+    }
+
+    private static io.swagger.v3.oas.models.Operation operationWith200() {
+        return new io.swagger.v3.oas.models.Operation().responses(
+                new io.swagger.v3.oas.models.responses.ApiResponses().addApiResponse("200",
+                        new io.swagger.v3.oas.models.responses.ApiResponse().description("OK")));
+    }
+
     // ── Info mapping ──
 
     @Test

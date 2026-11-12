@@ -1114,11 +1114,11 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2147483647,
-          "description": "How long, in milliseconds, a successful `GET` or `HEAD` answer stays fresh, sent as `Cache-Control` on every operation of this adapter (an operation's own `ttlMs` wins). `0` sends `no-store`; a positive value sends `max-age` in whole seconds with `public` or `private`. Unset (default) sends no `Cache-Control`. Other methods and error answers never get one."
+          "description": "How long, in milliseconds, a successful `GET` answer stays fresh, sent as `Cache-Control` on every operation of this adapter (an operation's own `ttlMs` wins). `0` sends `no-store`; a positive value sends `max-age` in whole seconds, rounded up, with `public` or `private`. Unset (default) sends no `Cache-Control`. Other methods, error answers and `forward` answers never get one: a forward is a transparent proxy and its upstream decides."
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Scope sent in `Cache-Control` with `ttlMs`. `private` answers also send `Vary: Authorization`. `auto` gives `private` when the adapter authenticates its callers, forwards their credentials (`forward.trustedHeaders` with `Authorization`, `Cookie` or `Proxy-Authorization`), or reads an input from a request header or cookie; `public` otherwise. Default: `private`."
+          "description": "Scope sent in `Cache-Control` with `ttlMs`. `private` answers also send `Vary: Authorization`, and answers of an operation that reads an input from outside the URL (`in: header`, or the body) send `Vary: *`. `auto` gives `private` when the adapter authenticates its callers or the operation reads an input from outside the URL; `public` otherwise. Default: `private`."
         },
         "maxRequestsInProgress": {
           "type": "integer",
@@ -2252,7 +2252,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2147483647,
-          "description": "Overrides the adapter's `ttlMs` for this operation. Only `GET` and `HEAD` answers get `Cache-Control`."
+          "description": "Overrides the adapter's `ttlMs` for this operation. Only `GET` answers get `Cache-Control`."
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
