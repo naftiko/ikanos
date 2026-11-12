@@ -20,6 +20,7 @@
 #   4. Control port                 — control adapter constraints
 #   5. Script steps                 — script step defaults
 #   6. Imports                      — unified import directive validation (§11 of blueprint)
+#   7. Cache hints                  — ttlMs / cacheScope / ttlFromUpstream against the spec
 
 extends: []
 
@@ -818,31 +819,15 @@ rules:
 
   # Cache hints (MCP 2026-07-28 ttlMs/cacheScope, REST Cache-Control) — #1022
 
-  ikanos-cache-public-forwards-credentials:
-    message: "{{error}}"
-    description: >
-      A REST resource that forwards the caller's credentials (`forward.trustedHeaders`
-      with `Authorization`, `Cookie` or `Proxy-Authorization`) returns that caller's
-      data. When the adapter sends its answers as `cacheScope: public` with a positive
-      `ttlMs`, a shared cache may serve them to another caller. Use `private`, or
-      `auto`, which derives `private` here.
-    severity: error
-    recommended: true
-    given: "$"
-    then:
-      function: cache-hints
-      functionOptions:
-        check: forwards-credentials
-
   ikanos-cache-public-caller-dependent:
     message: "{{error}}"
     description: >
-      An explicit `cacheScope: public` lets a shared cache serve a result to any
-      caller. When the adapter authenticates its callers (or, for MCP, identifies
-      them through `trust`), or a REST operation reads an input from a request
-      header or cookie, the result may depend on who is calling. It can be intended,
-      for a public catalogue behind authentication, so this is a warning; `auto`
-      derives the safe scope.
+      A `cacheScope: public` lets a shared cache serve a result to any caller. When
+      the adapter authenticates its callers (or, for MCP, identifies them through
+      `trust`), or a REST `GET` operation that sends `Cache-Control` reads an input
+      from outside the URL (a header, or the body), the result may depend on who is
+      calling. It can be intended, for a public catalogue behind authentication, so
+      this is a warning; `auto` derives the safe scope.
     severity: warn
     recommended: true
     given: "$"

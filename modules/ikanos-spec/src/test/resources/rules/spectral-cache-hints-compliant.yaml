@@ -1,6 +1,7 @@
 # Spectral fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
-# spectral-cache-hints-violations.yaml, with scopes left to auto or private and
-# ttlFromUpstream only on a single HTTP call.
+# spectral-cache-hints-violations.yaml, with scopes left to auto or private, public
+# only where nothing depends on the caller or nothing is sent, and ttlFromUpstream
+# only on a single HTTP call.
 ikanos: "1.0.0-beta10"
 info:
   display: "Cache hints compliant"
@@ -27,13 +28,6 @@ capability:
         type: "bearer"
         token: "{{API_TOKEN}}"
       resources:
-        proxy:
-          path: "/proxy"
-          description: "Forwards the caller's token."
-          forward:
-            targetNamespace: "shop"
-            trustedHeaders:
-              - "Authorization"
         items:
           path: "/items"
           description: "Items for the caller's tenant."
@@ -54,12 +48,43 @@ capability:
       cacheScope: "public"
       resources:
         catalog:
-          path: "/catalog"
+          path: "/catalog/{{category}}"
           description: "Public catalogue."
           operations:
             list-catalog:
               method: "GET"
               description: "List the catalogue."
+              inputParameters:
+                category:
+                  in: "path"
+                  type: "string"
+                page:
+                  in: "query"
+                  type: "string"
+              call: "shop.list-items"
+            add-to-catalog:
+              method: "POST"
+              description: "Add to the catalogue; writes never get Cache-Control."
+              inputParameters:
+                item:
+                  type: "string"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8083
+      namespace: "uncached-rest"
+      cacheScope: "public"
+      resources:
+        offers:
+          path: "/offers"
+          description: "No ttlMs, so no Cache-Control is sent."
+          operations:
+            list-offers:
+              method: "GET"
+              description: "List offers."
+              inputParameters:
+                tenant:
+                  in: "header"
+                  type: "string"
               call: "shop.list-items"
     - type: "mcp"
       port: 8081
