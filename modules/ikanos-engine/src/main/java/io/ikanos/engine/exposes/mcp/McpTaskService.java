@@ -246,11 +246,28 @@ public final class McpTaskService {
             } finally {
                 lastUpdated.put(executionId, clock.instant());
                 running.remove(executionId);
+                cleanUpIfCancelled(executionId);
             }
         });
         if (!future.isDone()) {
             // Kept for tasks/cancel; a task that already ended has nothing left to interrupt.
             running.put(executionId, future);
+        }
+    }
+
+    /**
+     * Once a cancelled task's worker has stopped, cancels what it still waits on
+     * ({@link #whenCancelled}): it may stop between two actions of a consumed call, such as
+     * after an upstream task's creation is journaled and before its first poll, so no polling
+     * code is left to send {@code tasks/cancel}.
+     */
+    private void cleanUpIfCancelled(ExecutionId executionId) {
+        if (runner.status(executionId).orElse(null) == ExecutionStatus.CANCELLED) {
+            try {
+                onCancel.accept(executionId);
+            } catch (RuntimeException e) {
+                // Best effort, as for a cancel with no worker.
+            }
         }
     }
 
@@ -379,7 +396,8 @@ public final class McpTaskService {
         runner.cancel(record.executionId());
         Future<?> work = running.get(record.executionId());
         if (work != null) {
-            // Interrupted, a call polling an upstream task cancels that task itself.
+            // Interrupted, a call polling an upstream task cancels that task itself; whatever
+            // the worker leaves waiting is cancelled once it stops (cleanUpIfCancelled).
             work.cancel(true);
         } else {
             // No worker: the task waits for input, and an upstream task it waits on is named

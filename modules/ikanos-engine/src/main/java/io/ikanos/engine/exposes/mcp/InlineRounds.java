@@ -167,9 +167,21 @@ public final class InlineRounds {
                 throw e;
             }
         };
-        ExecutionResult result = runner.run(ExecutionRequest.of(id, null),
-                InputRounds.interpreter(),
-                InputRounds.executor(runner, id, stopping, clock, watched));
+        ExecutionResult result;
+        try {
+            result = runner.run(ExecutionRequest.of(id, null), InputRounds.interpreter(),
+                    InputRounds.executor(runner, id, stopping, clock, watched));
+        } finally {
+            // Cancelled while this round ran, it may have stopped between two actions of a
+            // consumed call, after an upstream task was created: cancel what it left waiting.
+            if (runner.status(id).orElse(null) == ExecutionStatus.CANCELLED) {
+                try {
+                    onCancel.accept(id);
+                } catch (RuntimeException e) {
+                    // Best effort, as for a cancel.
+                }
+            }
+        }
         if (result instanceof ExecutionResult.Completed completed) {
             return new Round((ObjectNode) completed.result(), null, id, 0, null);
         }

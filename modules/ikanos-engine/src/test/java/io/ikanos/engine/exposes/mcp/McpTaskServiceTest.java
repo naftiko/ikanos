@@ -236,6 +236,101 @@ public class McpTaskServiceTest {
         }
     }
 
+    @Test
+    void aTaskCancelledBetweenAnUpstreamTasksCreationAndItsFirstPollShouldCancelIt()
+            throws Exception {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        List<ExecutionId> cancelled = new CopyOnWriteArrayList<>();
+        McpTaskService tasks = new McpTaskService(runner, Clock.systemUTC(), null)
+                .whenCancelled(cancelled::add);
+        CountDownLatch created = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<ExecutionId> root =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        // A consumed call's sub-run, as UpstreamCall runs it: create, then poll.
+        Callable<JsonNode> work = () -> {
+            io.ikanos.engine.execution.DurableScope.runJournaled(
+                    view -> view.outcome(io.ikanos.durable.NodePath.of("create")).isEmpty()
+                            ? List.of(new io.ikanos.durable.Command.ScheduleAction(
+                                    io.ikanos.durable.NodePath.of("create"), "create", null))
+                            : List.of(new io.ikanos.durable.Command.ScheduleAction(
+                                    io.ikanos.durable.NodePath.of("await"), "await", null)),
+                    action -> {
+                        if (action.path().value().equals("create")) {
+                            created.countDown();
+                            // The cancel lands while the creation is in flight: its reply is
+                            // journaled, and the run stops before the first poll.
+                            while (root.get() == null || runner.status(root.get())
+                                    .orElse(null) != ExecutionStatus.CANCELLED) {
+                                Thread.onSpinWait();
+                            }
+                            return IkanosMappers.json().createObjectNode().put("kind", "task")
+                                    .put("taskId", "up-1").put("namespace", "customs");
+                        }
+                        throw new AssertionError("Polled after the cancel");
+                    });
+            return IkanosMappers.json().createObjectNode();
+        };
+        String taskId = tasks.create("mcp:ops/declare", "alice", null, work).path("taskId")
+                .asString();
+        root.set(runner.findByLabel(McpTaskService.TASK_ID, taskId).get(0).executionId());
+        assertTrue(created.await(5, TimeUnit.SECONDS));
+
+        tasks.cancel(taskId, "alice");
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (cancelled.isEmpty() && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(List.of(root.get()), cancelled,
+                "Once the worker stops, what it left waiting upstream is cancelled");
+    }
+
+    @Test
+    void anInlineRoundCancelledBetweenAnUpstreamTasksCreationAndItsFirstPollShouldCancelIt() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        List<ExecutionId> cancelled = new CopyOnWriteArrayList<>();
+        McpTaskService rounds = new McpTaskService(runner, Clock.systemUTC(), null)
+                .whenCancelled(cancelled::add);
+        java.util.concurrent.atomic.AtomicReference<ExecutionId> root =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        // A consumed call's sub-run, as UpstreamCall runs it: create, then poll.
+        Callable<JsonNode> work = () -> {
+            io.ikanos.engine.execution.DurableScope.runJournaled(
+                    view -> view.outcome(io.ikanos.durable.NodePath.of("create")).isEmpty()
+                            ? List.of(new io.ikanos.durable.Command.ScheduleAction(
+                                    io.ikanos.durable.NodePath.of("create"), "create", null))
+                            : List.of(new io.ikanos.durable.Command.ScheduleAction(
+                                    io.ikanos.durable.NodePath.of("await"), "await", null)),
+                    action -> {
+                        if (action.path().value().equals("create")) {
+                            // The call is cancelled while the creation is in flight, as a REST
+                            // DELETE would: its reply is journaled, and the round stops before
+                            // the first poll.
+                            root.set(runner.findByLabel(InlineRounds.KIND, InlineRounds.MRTR)
+                                    .get(0).executionId());
+                            runner.cancel(root.get());
+                            return IkanosMappers.json().createObjectNode().put("kind", "task")
+                                    .put("taskId", "up-1").put("namespace", "customs");
+                        }
+                        throw new AssertionError("Polled after the cancel");
+                    });
+            return IkanosMappers.json().createObjectNode();
+        };
+
+        try {
+            rounds.inRounds("mrtr:ops/tools/call/declare", "alice", null, null, 0, null, work);
+        } catch (RuntimeException | io.ikanos.engine.execution.DurableScope.Stopped e) {
+            // The round stops at the cancel; what matters here is the cleanup.
+        }
+
+        assertEquals(List.of(root.get()), cancelled,
+                "Once the round stops, what it left waiting upstream is cancelled");
+    }
+
     /** Work that asks the same question every round, as an upstream rejecting answers does. */
     private static Callable<JsonNode> askingAgain(AtomicInteger rounds) {
         return () -> {

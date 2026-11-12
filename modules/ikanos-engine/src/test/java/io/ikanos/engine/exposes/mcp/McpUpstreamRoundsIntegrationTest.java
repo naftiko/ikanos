@@ -341,4 +341,35 @@ public class McpUpstreamRoundsIntegrationTest {
         assertEquals("first", received.get(1).path(UPSTREAM_STATE).path("content")
                 .path("note").asString(), "and the answer to its question: " + received);
     }
+
+    /** An upstream key that is no valid path, answered under the key the caller was shown. */
+    private void answersAnUpstreamKeyThatIsNoPath(String durability) throws Exception {
+        upstreamKey = "/confirm/";
+        McpServerAdapter adapter = start(durability);
+
+        JsonNode asked = call(adapter, null, null);
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+        String shown = asked.path("inputRequests").propertyNames().iterator().next();
+        ObjectNode retry = (ObjectNode) json.readTree(
+                "{\"name\":\"confirm-up\",\"arguments\":{}}");
+        retry.put("requestState", asked.path("requestState").asString());
+        retry.putObject("inputResponses").set(shown,
+                json.readTree("{\"action\":\"accept\",\"content\":{\"note\":\"first\"}}"));
+        JsonNode answered = send(adapter, "tools/call", retry);
+
+        assertEquals("input_required", answered.path("resultType").asString(),
+                "The call resumed and reached the upstream again: " + answered);
+        assertEquals("first", received.get(1).path("/confirm/").path("content").path("note")
+                .asString(), "The upstream gets the answer under its own key: " + received);
+    }
+
+    @Test
+    void anUpstreamKeyThatIsNoPathShouldBeAnsweredUnderNone() throws Exception {
+        answersAnUpstreamKeyThatIsNoPath("");
+    }
+
+    @Test
+    void anUpstreamKeyThatIsNoPathShouldBeAnsweredInADurableMode() throws Exception {
+        answersAnUpstreamKeyThatIsNoPath(MEMORY);
+    }
 }
