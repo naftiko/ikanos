@@ -225,7 +225,15 @@ public class ResourceHandler {
     // ── Static resource helpers ──────────────────────────────────────────────────────────────────
 
     private boolean uriMatchesStatic(McpServerResourceSpec spec, String requestedUri) {
-        String baseUri = spec.getUri();
+        return matchesStatic(spec.getUri(), requestedUri);
+    }
+
+    /**
+     * Whether a static resource at {@code baseUri} serves {@code requestedUri}: the URI itself,
+     * or a file under it ({@code <baseUri>/...}). {@code resources/read} picks a static resource
+     * by this rule, and so must anything that predicts which resource a read reaches.
+     */
+    public static boolean matchesStatic(String baseUri, String requestedUri) {
         return requestedUri.equals(baseUri) || requestedUri.startsWith(baseUri + "/");
     }
 

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -101,6 +102,8 @@ public class McpJournaledRoundTripIntegrationTest {
     }
 
     private Capability load(String durability) throws Exception {
+        Path docs = Files.createDirectories(directory.resolve("docs"));
+        Files.writeString(docs.resolve("readme.md"), "# Departure guide");
         String yaml = """
                 ikanos: "%s"
                 info:
@@ -174,6 +177,21 @@ public class McpJournaledRoundTripIntegrationTest {
                               confirmed:
                                 type: boolean
                                 description: Whether the note is published
+                      docs:
+                        uri: shipyard://docs
+                        description: Departure guides, served as files.
+                        location: "%s"
+                      doc-confirmed:
+                        uri: shipyard://docs/{file}
+                        description: A guide published once confirmed.
+                        steps:
+                          confirm:
+                            type: elicit
+                            message: Publish the guide?
+                            fields:
+                              confirmed:
+                                type: boolean
+                                description: Whether the guide is published
                       slot-note-by-id:
                         uri: shipyard://slots/{slot}/note
                         description: Book a slot and publish its note, once confirmed.
@@ -193,7 +211,7 @@ public class McpJournaledRoundTripIntegrationTest {
                     port: 0
                     durability:
                 %s
-                """.formatted(VersionHelper.getSchemaVersion(), port, durability);
+                """.formatted(VersionHelper.getSchemaVersion(), port, docs.toUri(), durability);
         return new Capability(yamlMapper.readValue(yaml, IkanosSpec.class));
     }
 
@@ -290,6 +308,19 @@ public class McpJournaledRoundTripIntegrationTest {
         JsonNode asked = send(adapter, "tools/call", params(BOOK)).path("result");
         send(adapter, "tools/call", retry(BOOK, asked.path("requestState").asString()));
         assertEquals(1, bookings.get());
+    }
+
+    @Test
+    void aFileOfAStaticResourceShouldBeReadWithoutTheElicitationCapability() throws Exception {
+        McpServerAdapter adapter = mcp(load(MEMORY));
+
+        // The static directory, declared first, serves the file, as resources/read picks it:
+        // the template under it, which asks, is never reached.
+        JsonNode read = send(adapter, "resources/read",
+                params("{\"uri\":\"shipyard://docs/readme.md\"}"), false);
+
+        assertTrue(read.path("error").isMissingNode(), read.toString());
+        assertTrue(read.path("result").toString().contains("Departure guide"), read.toString());
     }
 
     @Test
