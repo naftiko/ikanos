@@ -36,6 +36,7 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.execution.ExecutionTree;
 import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
@@ -287,6 +288,9 @@ public class OperationStepExecutor {
                             | InputDeclinedException e) {
                         // A called flow that pauses on its caller pauses this flow too, and a
                         // question its caller declined ends this flow as declined.
+                        throw e;
+                    } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+                        // Bad input raised inside a called flow stays bad input (#1001)
                         throw e;
                     } catch (Exception e) {
                         throw new IllegalStateException(

@@ -92,7 +92,9 @@ public final class ConsumedHeaderValidator {
             return;
         }
         for (InputParameterSpec parameter : parameters) {
-            String value = parameter.getValue();
+            // Resolver sends the value, else the template (Resolver.resolveInputParametersToRequest)
+            String value = parameter.getValue() != null ? parameter.getValue()
+                    : parameter.getTemplate();
             if (!"header".equalsIgnoreCase(parameter.getIn()) || value == null
                     || value.contains("{{")) {
                 continue;
