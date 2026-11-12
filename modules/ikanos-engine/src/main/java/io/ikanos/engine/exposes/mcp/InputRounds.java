@@ -206,21 +206,44 @@ public final class InputRounds {
         return answers;
     }
 
-    /** The keys of a round's questions as a task shows them, to the keys the round asked. */
+    /**
+     * The keys of a round's questions as a task shows them, to the keys the round asked. Every
+     * shown key is unique across the rounds: a key keeps its form only when no earlier round
+     * asked or showed it, and is otherwise qualified ({@code key@n}, then {@code key@n.2},
+     * {@code key@n.3}...) until the form is used by no earlier round and no question of this
+     * one. So two questions never share a shown key, and an earlier round's key never answers
+     * a later question. The allocation is computed from round 1 on, so it is the same on every
+     * read, on any replica.
+     */
     private static Map<String, String> taskKeys(ExecutionView view, int round) {
-        java.util.Set<String> earlier = new java.util.HashSet<>();
-        for (int r = 1; r < round; r++) {
-            ObjectNode asked = questions(view, r);
-            if (asked != null) {
-                asked.propertyNames().forEach(earlier::add);
+        java.util.Set<String> used = new java.util.HashSet<>();
+        Map<String, String> keys = Map.of();
+        for (int r = 1; r <= round; r++) {
+            ObjectNode questions = questions(view, r);
+            keys = new LinkedHashMap<>();
+            if (questions == null) {
+                continue;
             }
-        }
-        Map<String, String> keys = new LinkedHashMap<>();
-        ObjectNode questions = questions(view, round);
-        if (questions != null) {
-            for (String key : questions.propertyNames()) {
-                keys.put(earlier.contains(key) ? key + "@" + round : key, key);
+            java.util.Set<String> asked = new java.util.LinkedHashSet<>();
+            questions.propertyNames().forEach(asked::add);
+            java.util.Set<String> taken = new java.util.HashSet<>(used);
+            taken.addAll(asked);
+            Map<String, String> shownFor = new java.util.HashMap<>();
+            for (String key : asked) {
+                if (used.contains(key)) {
+                    String shown = key + "@" + r;
+                    for (int n = 2; taken.contains(shown); n++) {
+                        shown = key + "@" + r + "." + n;
+                    }
+                    taken.add(shown);
+                    shownFor.put(key, shown);
+                }
             }
+            for (String key : asked) {
+                keys.put(shownFor.getOrDefault(key, key), key);
+            }
+            used.addAll(asked);
+            used.addAll(keys.keySet());
         }
         return keys;
     }
