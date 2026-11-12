@@ -20,6 +20,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.OutputParameterSpec;
@@ -118,6 +119,16 @@ public class FlowConsumedResult implements ConsumedResult {
             return null;
         }
         return ownOutput == null || !last.isSuccessful() ? last : null;
+    }
+
+    /**
+     * The freshness of the upstream answer the flow passes through unchanged, or
+     * {@link Freshness#UNKNOWN} when the flow shapes its own output.
+     */
+    @Override
+    public Freshness freshness() {
+        ConsumedResult last = passThrough();
+        return last != null ? last.freshness() : Freshness.UNKNOWN;
     }
 
     @Override
