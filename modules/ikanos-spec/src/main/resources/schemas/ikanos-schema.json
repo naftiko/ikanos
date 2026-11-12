@@ -3141,7 +3141,7 @@
     },
     "ForwardConfig": {
       "type": "object",
-      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
+      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers. On the way back, the standard response headers are relayed, but extension headers and `Set-Cookie` only when listed in `trustedResponseHeaders`.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
       "properties": {
         "targetNamespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -3153,6 +3153,15 @@
             "type": "string"
           },
           "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
+          "minItems": 1
+        },
+        "trustedResponseHeaders": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+          },
+          "description": "Allowlist of upstream response header names relayed to the caller, on top of the ones relayed by default. By default, forward mode relays the status, the body and its headers (`Content-Type`, `Content-Disposition`, `ETag`, `Last-Modified`, `Expires`, ...) and the standard response headers `Location`, `Retry-After`, `Cache-Control`, `Vary`, `Allow`, `WWW-Authenticate`, `Accept-Ranges` and `Age`. A `Location` or `Content-Location` under the target adapter's `baseUri` is rewritten to a path-absolute reference under the exposed resource (e.g. `/proxy/items/42`); any other one on the upstream host (relative, scheme-relative, another scheme or port, outside the `baseUri`, or with a dot segment such as `..` or `%2e%2e`) is dropped, and one on another host is relayed unchanged. A `Vary` field the engine cannot model (e.g. `Cookie`) is relayed as `Vary: *`. List here the extension headers to relay (e.g. `X-Request-Id`), and `Set-Cookie`, which is never relayed without this opt-in; a relayed cookie keeps its `Path` and `Domain` as the upstream set them. Names are case-insensitive. Hop-by-hop headers (`Connection`, `Keep-Alive`, `Transfer-Encoding`, ...), `Content-Length` and the other standard headers that the engine sets itself (`Server`, `Date`, `Via`, CORS headers, request headers) cannot be listed: the capability fails to load. Example: `[\"X-Request-Id\", \"X-RateLimit-Remaining\"]`.",
           "minItems": 1
         }
       },

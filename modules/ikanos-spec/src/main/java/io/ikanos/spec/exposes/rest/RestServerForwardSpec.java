@@ -25,6 +25,8 @@ public class RestServerForwardSpec {
 
     private final List<String> trustedHeaders;
 
+    private final List<String> trustedResponseHeaders;
+
     public RestServerForwardSpec() {
         this(null);
     }
@@ -32,6 +34,7 @@ public class RestServerForwardSpec {
     public RestServerForwardSpec(String targetNamespace) {
         this.targetNamespace = targetNamespace;
         this.trustedHeaders = new CopyOnWriteArrayList<>();
+        this.trustedResponseHeaders = new CopyOnWriteArrayList<>();
     }
 
     public String getTargetNamespace() {
@@ -44,6 +47,14 @@ public class RestServerForwardSpec {
 
     public List<String> getTrustedHeaders() {
         return trustedHeaders;
+    }
+
+    /**
+     * @return the upstream response headers, beyond the standard ones relayed by default, that
+     *         are relayed to the caller
+     */
+    public List<String> getTrustedResponseHeaders() {
+        return trustedResponseHeaders;
     }
 
 }

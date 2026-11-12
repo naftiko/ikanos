@@ -75,4 +75,28 @@ public class RestServerForwardSpecTest {
         assertEquals("upstream-api", spec.getTargetNamespace());
         assertEquals(2, spec.getTrustedHeaders().size());
     }
+
+    @Test
+    public void noArgConstructorShouldLeaveTrustedResponseHeadersEmpty() {
+        RestServerForwardSpec spec = new RestServerForwardSpec();
+
+        assertNotNull(spec.getTrustedResponseHeaders());
+        assertTrue(spec.getTrustedResponseHeaders().isEmpty());
+    }
+
+    @Test
+    public void readValueShouldFillTrustedResponseHeadersWhenListedInYaml() throws Exception {
+        String yaml = """
+                targetNamespace: upstream-api
+                trustedResponseHeaders:
+                  - X-Request-Id
+                  - Set-Cookie
+                """;
+
+        ObjectMapper mapper = IkanosMappers.yaml();
+        RestServerForwardSpec spec = mapper.readValue(yaml, RestServerForwardSpec.class);
+
+        assertEquals(java.util.List.of("X-Request-Id", "Set-Cookie"),
+                spec.getTrustedResponseHeaders());
+    }
 }
