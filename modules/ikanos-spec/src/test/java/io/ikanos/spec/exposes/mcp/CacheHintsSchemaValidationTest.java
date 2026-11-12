@@ -61,7 +61,7 @@ class CacheHintsSchemaValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"public", "private"})
+    @ValueSource(strings = {"public", "private", "auto"})
     void schemaShouldAcceptTheSpecCacheScopes(String scope) throws Exception {
         assertValid(mcp("cacheScope: " + scope));
     }
@@ -73,7 +73,7 @@ class CacheHintsSchemaValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ttlMs: 0", "ttlMs: 60000", "cacheScope: public", "cacheScope: private"})
+    @ValueSource(strings = {"ttlMs: 0", "ttlMs: 60000", "cacheScope: public", "cacheScope: private", "cacheScope: auto"})
     void schemaShouldAcceptCacheHintsOnAResource(String line) throws Exception {
         assertValid(mcpResource(line));
     }
