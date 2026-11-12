@@ -176,6 +176,66 @@ public class McpTaskServiceTest {
                 "An upstream task the expired call waited on is cancelled too");
     }
 
+    @Test
+    void aTaskShouldShowEveryQuestionUnderAKeyNoOtherRoundShows() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        McpTaskService rounds = new McpTaskService(runner, Clock.systemUTC(), null);
+        List<List<String>> asked = List.of(List.of("steps/confirm"),
+                List.of("steps/confirm", "steps/confirm@2"), List.of("steps/confirm@2"));
+        AtomicInteger round = new AtomicInteger();
+        Callable<JsonNode> work = () -> {
+            List<InputRequiredException.Question> questions = new java.util.ArrayList<>();
+            for (String key : asked.get(Math.min(round.getAndIncrement(), 2))) {
+                questions.add(new InputRequiredException.Question(key,
+                        new OperationStepElicitSpec("confirm", "Confirm?",
+                                Map.of("ok", Map.of("type", "boolean")))));
+            }
+            throw new InputRequiredException(questions);
+        };
+        String entry = "mrtr:ops/tools/call/ask";
+        InlineRounds.Round first = rounds.inRounds(entry, "alice", null, null, 0, null, work);
+        ObjectNodeAnswers answers = new ObjectNodeAnswers();
+        InlineRounds.Round second = rounds.inRounds(entry, "alice", null, first.executionId(),
+                first.round(), answers.to("steps/confirm"), work);
+        var view = runner.view(first.executionId());
+
+        assertEquals(List.of("steps/confirm@2.2", "steps/confirm@2"), keys(
+                InputRounds.taskQuestions(view, second.round())),
+                "Asked again, a key takes a form no question of the round uses: none is dropped");
+        assertEquals("steps/confirm", InputRounds.taskAnswers(view, second.round(),
+                answers.to("steps/confirm@2.2")).propertyNames().iterator().next());
+
+        InlineRounds.Round third = rounds.inRounds(entry, "alice", null, first.executionId(),
+                second.round(), answers.to("steps/confirm", "steps/confirm@2"), work);
+        view = runner.view(first.executionId());
+
+        assertEquals(List.of("steps/confirm@2@3"), keys(
+                InputRounds.taskQuestions(view, third.round())),
+                "A literal key an earlier round showed is qualified too");
+        assertTrue(InputRounds.taskAnswers(view, third.round(),
+                answers.to("steps/confirm@2")).isEmpty(),
+                "A retried update of round 2 never answers round 3");
+    }
+
+    private static List<String> keys(JsonNode node) {
+        List<String> keys = new java.util.ArrayList<>();
+        node.propertyNames().forEach(keys::add);
+        return keys;
+    }
+
+    /** Accepting responses to the given keys. */
+    private static final class ObjectNodeAnswers {
+        JsonNode to(String... keys) {
+            var responses = IkanosMappers.json().createObjectNode();
+            for (String key : keys) {
+                responses.set(key, IkanosMappers.json().createObjectNode().put("action", "accept"));
+            }
+            return responses;
+        }
+    }
+
     /** Work that asks the same question every round, as an upstream rejecting answers does. */
     private static Callable<JsonNode> askingAgain(AtomicInteger rounds) {
         return () -> {
