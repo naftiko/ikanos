@@ -50,6 +50,7 @@ import io.ikanos.engine.consumes.ConsumedReferenceValidator;
 import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
+import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelBootstrap;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -272,6 +273,7 @@ public class Capability {
         }
         ConsumedQueryParameterValidator.validate(spec);
         ForwardTrustedHeadersValidator.validate(spec);
+        ConsumedHeaderValidator.validate(spec);
         List<String> unsupportedAuthentication = ConsumedAuthentication.findUnsupported(spec);
         if (!unsupportedAuthentication.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));

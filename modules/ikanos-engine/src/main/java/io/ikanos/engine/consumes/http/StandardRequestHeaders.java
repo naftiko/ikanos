@@ -16,7 +16,7 @@ package io.ikanos.engine.consumes.http;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,19 +56,54 @@ import org.restlet.engine.header.WarningReader;
  *
  * <p><b>Strict parsing.</b> Restlet's list readers skip an element they cannot read (an unquoted
  * entity tag, for example) and log the failure at {@code INFO}, so a header could go out empty or
- * with part of its elements. Every list is therefore parsed into a fresh collection first, and its
- * size is compared with the number of distinct non-empty elements of the value: a value that does
- * not parse in full is refused, and the request keeps what it had before.</p>
+ * with part of its elements. Every list is therefore read into a fresh collection that keeps
+ * duplicates, and its size is compared with the number of non-empty elements of the value: a
+ * value that does not parse in full is refused, and the request keeps what it had before. Known
+ * limitation: Restlet's {@code TagReader} splits on commas inside quotes, so an entity tag that
+ * contains a comma ({@code "a,b"}) is refused rather than sent truncated.</p>
  *
  * <p>Every site that sends a capability-declared or caller-supplied header upstream goes through
- * {@link #set}: REST forward mode ({@code trustedHeaders}), consumed {@code in: header} inputs at
- * adapter and operation level, and an {@code apikey} sent in a header.</p>
+ * {@link #set} or {@link #setOrDrop}: REST forward mode ({@code trustedHeaders}), consumed
+ * {@code in: header} inputs at adapter and operation level, and an {@code apikey} sent in a
+ * header.</p>
  */
 public final class StandardRequestHeaders {
+
+    /**
+     * Thrown by {@link #setOrDrop} when a precondition of a request whose method is not safe
+     * cannot be parsed: sending the write without it would make it unconditional.
+     */
+    public static final class InvalidPreconditionException extends IllegalArgumentException {
+
+        private static final long serialVersionUID = 1L;
+
+        InvalidPreconditionException(String message) {
+            super(message);
+        }
+    }
+
+    /** How the elements of a list-valued header are separated, for {@link #elements}. */
+    enum Syntax {
+        /** Comma-separated, with quoted strings. */
+        LIST(','),
+        /** Comma-separated, with quoted strings and {@code (…)} comments ({@code Via}). */
+        VIA(','),
+        /** Semicolon-separated, where {@code $}-prefixed attributes are not cookies. */
+        COOKIE(';');
+
+        final char separator;
+
+        Syntax(char separator) {
+            this.separator = separator;
+        }
+    }
 
     /** Standard request headers, by name, and how each one is set on the outgoing request. */
     private static final Map<String, BiConsumer<Request, String>> SETTERS =
             new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+    /** Standard headers whose value is a list, so that repeated lines can be joined. */
+    private static final Set<String> LIST_HEADERS = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
     /**
      * Standard headers that are never sent from a request property, with the reason. Restlet drops
@@ -89,13 +124,13 @@ public final class StandardRequestHeaders {
 
     static {
         SETTERS.put("Accept", (request, value) -> preferences(request, value,
-                ClientInfo::getAcceptedMediaTypes, PreferenceReader::addMediaTypes));
+                ClientInfo::getAcceptedMediaTypes, PreferenceReader.TYPE_MEDIA_TYPE));
         SETTERS.put("Accept-Charset", (request, value) -> preferences(request, value,
-                ClientInfo::getAcceptedCharacterSets, PreferenceReader::addCharacterSets));
+                ClientInfo::getAcceptedCharacterSets, PreferenceReader.TYPE_CHARACTER_SET));
         SETTERS.put("Accept-Language", (request, value) -> preferences(request, value,
-                ClientInfo::getAcceptedLanguages, PreferenceReader::addLanguages));
+                ClientInfo::getAcceptedLanguages, PreferenceReader.TYPE_LANGUAGE));
         SETTERS.put("Access-Control-Request-Headers", (request, value) -> replace(
-                request.getAccessControlRequestHeaders(), parse(value, ',',
+                request.getAccessControlRequestHeaders(), parse(value, Syntax.LIST,
                         list -> new StringReader(value).addValues(list))));
         SETTERS.put("Access-Control-Request-Method",
                 (request, value) -> request.setAccessControlRequestMethod(
@@ -103,14 +138,15 @@ public final class StandardRequestHeaders {
         SETTERS.put("Authorization", (request, value) -> request
                 .setChallengeResponse(ApiKeyAuthorizationHeaderHelper.verbatim(value)));
         SETTERS.put("Cache-Control", (request, value) -> replace(request.getCacheDirectives(),
-                parse(value, ',', list -> new CacheDirectiveReader(value).addValues(list))));
+                parse(value, Syntax.LIST,
+                        list -> new CacheDirectiveReader(value).addValues(list))));
         SETTERS.put("Cookie", StandardRequestHeaders::mergeCookies);
         SETTERS.put("From", (request, value) -> request.getClientInfo().setFrom(value));
         SETTERS.put("If-Match", (request, value) -> replace(request.getConditions().getMatch(),
-                parse(value, ',', list -> new TagReader(value).addValues(list))));
+                parse(value, Syntax.LIST, list -> new TagReader(value).addValues(list))));
         SETTERS.put("If-None-Match", (request, value) -> replace(
                 request.getConditions().getNoneMatch(),
-                parse(value, ',', list -> new TagReader(value).addValues(list))));
+                parse(value, Syntax.LIST, list -> new TagReader(value).addValues(list))));
         SETTERS.put("If-Modified-Since",
                 (request, value) -> request.getConditions().setModifiedSince(date(value)));
         SETTERS.put("If-Unmodified-Since",
@@ -122,9 +158,13 @@ public final class StandardRequestHeaders {
         SETTERS.put("Referer", (request, value) -> request.setReferrerRef(value.trim()));
         SETTERS.put("User-Agent", (request, value) -> request.getClientInfo().setAgent(value));
         SETTERS.put("Via", (request, value) -> replace(request.getRecipientsInfo(),
-                parse(value, ',', list -> new RecipientInfoReader(value).addValues(list))));
+                parse(value, Syntax.VIA, list -> new RecipientInfoReader(value).addValues(list))));
         SETTERS.put("Warning", (request, value) -> replace(request.getWarnings(),
-                parse(value, ',', list -> new WarningReader(value).addValues(list))));
+                parse(value, Syntax.LIST, list -> new WarningReader(value).addValues(list))));
+
+        LIST_HEADERS.addAll(Set.of("Accept", "Accept-Charset", "Accept-Language",
+                "Access-Control-Request-Headers", "Cache-Control", "Cookie", "If-Match",
+                "If-None-Match", "Via", "Warning"));
 
         String connector = "is set by the HTTP connector";
         for (String name : new String[] {"Content-Length", "Host"}) {
@@ -170,15 +210,16 @@ public final class StandardRequestHeaders {
 
     /**
      * Sets {@code name: value} on {@code request}. A standard header is set through the Restlet
-     * property the connector writes it from and replaces any value set before, except
-     * {@code Cookie}, which is merged by cookie name (the later value wins for a name), so that an
-     * {@code apikey} cookie and a declared or forwarded cookie are both sent. Any other header is
-     * set as a raw header.
+     * property the connector writes it from and replaces any value set before. {@code Cookie} is
+     * the exception: a cookie set by an earlier source (an {@code apikey}, another input) is
+     * replaced by a cookie of the same name in {@code value}, matched case-sensitively, while the
+     * cookies of {@code value} are all kept, in order. Any other header is set as a raw header.
      *
      * @throws IllegalArgumentException when {@code value} is not a valid value of the standard
      *         header {@code name}, or only part of it can be parsed. The request is left unchanged
-     *         for that header. The exception names the header and carries no cause, so that the
-     *         value, which may be a credential, never reaches a log
+     *         for that header. The exception names the header and carries no cause, so it never
+     *         carries the value, which may be a credential (Restlet itself may still log an
+     *         unparseable entity tag, see {@code Tag.parse})
      */
     public static void set(Request request, String name, String value) {
         BiConsumer<Request, String> setter = SETTERS.get(name);
@@ -191,6 +232,44 @@ public final class StandardRequestHeaders {
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Invalid value for the " + name + " header");
         }
+    }
+
+    /**
+     * Like {@link #set}, but a value that cannot be parsed is dropped instead, so the request goes
+     * out without that header, except a precondition ({@code If-Match}, {@code If-None-Match},
+     * {@code If-Unmodified-Since}, {@code If-Range}) of a request whose method is not safe.
+     *
+     * @return {@code false} when the header was dropped
+     * @throws InvalidPreconditionException when a precondition of an unsafe request cannot be
+     *         parsed: forwarding the write without it would make it unconditional
+     */
+    public static boolean setOrDrop(Request request, String name, String value) {
+        try {
+            set(request, name, value);
+            return true;
+        } catch (IllegalArgumentException e) {
+            if (isConditional(name) && request.getMethod() != null
+                    && !request.getMethod().isSafe()) {
+                throw new InvalidPreconditionException(e.getMessage());
+            }
+            return false;
+        }
+    }
+
+    /**
+     * @return {@code true} when {@code name} is sent through a Restlet property rather than as a
+     *         raw header
+     */
+    public static boolean isSetThroughProperty(String name) {
+        return SETTERS.containsKey(name);
+    }
+
+    /**
+     * @return {@code true} when {@code name} is a standard header whose value is a list, so that
+     *         several lines of it can be joined into one value
+     */
+    public static boolean isListValued(String name) {
+        return LIST_HEADERS.contains(name);
     }
 
     /**
@@ -233,22 +312,23 @@ public final class StandardRequestHeaders {
     }
 
     private static <T extends Metadata> void preferences(Request request, String value,
-            Function<ClientInfo, List<Preference<T>>> preferences,
-            BiConsumer<String, ClientInfo> reader) {
-        List<Preference<T>> parsed = parse(value, ',', list -> {
-            ClientInfo scratch = new ClientInfo();
-            reader.accept(value, scratch);
-            list.addAll(preferences.apply(scratch));
-        });
+            Function<ClientInfo, List<Preference<T>>> preferences, int type) {
+        List<Preference<T>> parsed = parse(value, Syntax.LIST,
+                list -> new PreferenceReader<T>(type, value).addValues(list));
         replace(preferences.apply(request.getClientInfo()), parsed);
     }
 
     private static void mergeCookies(Request request, String value) {
-        List<Cookie> parsed = parse(value, ';', list -> new CookieReader(value).addValues(list));
+        List<Cookie> parsed = parse(value, Syntax.COOKIE,
+                list -> new CookieReader(value).addValues(list));
+        Set<String> names = new HashSet<>();
         for (Cookie cookie : parsed) {
-            request.getCookies().removeAll(cookie.getName());
-            request.getCookies().add(cookie);
+            names.add(cookie.getName());
         }
+        for (String name : names) {
+            request.getCookies().removeAll(name, false);
+        }
+        request.getCookies().addAll(parsed);
     }
 
     private static List<Range> ranges(String value) {
@@ -257,24 +337,33 @@ public final class StandardRequestHeaders {
             throw new IllegalArgumentException("Only byte ranges can be sent");
         }
         List<Range> parsed = RangeReader.read(trimmed);
-        if (parsed.size() != elements(trimmed.substring("bytes=".length()), ',')) {
+        if (parsed.size() != elements(trimmed.substring("bytes=".length()), Syntax.LIST)) {
             throw new IllegalArgumentException("Not a valid range list");
         }
         return parsed;
     }
 
     /**
-     * Parses {@code value} into a fresh list and checks that every distinct non-empty element was
-     * read, since Restlet's readers skip what they cannot read.
+     * Reads {@code value} into a fresh list and checks that every non-empty element was read,
+     * since Restlet's readers skip what they cannot read. The list's {@code contains} always
+     * answers {@code false}, so the readers keep duplicates ({@code Tag.equals} ignores weakness,
+     * for example) and the count stays comparable.
      */
-    private static <T> List<T> parse(String value, char separator, Consumer<List<T>> reader) {
-        List<T> parsed = new ArrayList<>();
+    private static <T> List<T> parse(String value, Syntax syntax, Consumer<List<T>> reader) {
+        List<T> parsed = new ArrayList<>() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public boolean contains(Object o) {
+                return false;
+            }
+        };
         reader.accept(parsed);
-        int expected = elements(value, separator);
-        if (expected == 0 || parsed.size() < expected) {
+        int expected = elements(value, syntax);
+        if (expected == 0 || parsed.size() != expected) {
             throw new IllegalArgumentException("Not every element could be read");
         }
-        return parsed;
+        return new ArrayList<>(parsed);
     }
 
     private static <T> void replace(Collection<T> target, Collection<T> parsed) {
@@ -283,35 +372,42 @@ public final class StandardRequestHeaders {
     }
 
     /**
-     * @return the number of distinct non-empty elements of {@code value}, split on
-     *         {@code separator} outside double-quoted strings (RFC 9110 §5.6.1 allows empty
-     *         elements, and Restlet's readers drop duplicates)
+     * @return the number of non-empty elements of {@code value}, split on the separator of
+     *         {@code syntax} outside quoted strings (with {@code \} escapes) and, for
+     *         {@link Syntax#VIA}, outside {@code (…)} comments. RFC 9110 §5.6.1 allows empty
+     *         elements. For {@link Syntax#COOKIE}, a {@code $}-prefixed attribute is not counted
      */
-    static int elements(String value, char separator) {
-        Set<String> elements = new LinkedHashSet<>();
+    static int elements(String value, Syntax syntax) {
+        int count = 0;
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
+        int comment = 0;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (c == '"' && (i == 0 || value.charAt(i - 1) != '\\')) {
-                quoted = !quoted;
+            if ((quoted || comment > 0) && c == '\\' && i + 1 < value.length()) {
+                current.append(c).append(value.charAt(++i));
+                continue;
             }
-            if (c == separator && !quoted) {
-                addElement(elements, current);
+            if (c == '"' && comment == 0) {
+                quoted = !quoted;
+            } else if (!quoted && syntax == Syntax.VIA && c == '(') {
+                comment++;
+            } else if (!quoted && comment > 0 && c == ')') {
+                comment--;
+            }
+            if (c == syntax.separator && !quoted && comment == 0) {
+                count += counts(current, syntax) ? 1 : 0;
                 current.setLength(0);
             } else {
                 current.append(c);
             }
         }
-        addElement(elements, current);
-        return elements.size();
+        return count + (counts(current, syntax) ? 1 : 0);
     }
 
-    private static void addElement(Set<String> elements, StringBuilder element) {
+    private static boolean counts(StringBuilder element, Syntax syntax) {
         String trimmed = element.toString().trim();
-        if (!trimmed.isEmpty()) {
-            elements.add(trimmed);
-        }
+        return !trimmed.isEmpty() && !(syntax == Syntax.COOKIE && trimmed.startsWith("$"));
     }
 
     private static Date date(String value) {
