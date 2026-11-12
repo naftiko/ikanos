@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,11 +29,14 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import io.ikanos.durable.ActionOutcome;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionStatus;
+import io.ikanos.durable.store.Stores;
+import io.ikanos.durable.store.jdbc.H2StoreProvider;
 import io.ikanos.durable.store.memory.MemoryStoreProvider;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepCallSpec;
@@ -252,5 +256,52 @@ public class DurableScopeTest {
                 runner.status(new ExecutionId("task-1/steps")).orElseThrow());
         assertEquals(ExecutionStatus.COMPLETED,
                 runner.status(new ExecutionId("task-1/steps#2")).orElseThrow());
+    }
+
+    @Test
+    void aLongNestedIdShouldBeBoundedStableAndDistinct() {
+        String deep = "task-1/steps" + "/steps/".concat("x".repeat(60)).repeat(4);
+        ExecutionId bounded = DurableScope.bounded(ROOT, deep);
+
+        assertEquals(new ExecutionId("task-1/steps/steps/screen"),
+                DurableScope.bounded(ROOT, "task-1/steps/steps/screen"));
+        assertTrue(bounded.value().length() <= DurableScope.MAX_ID_LENGTH, bounded.value());
+        assertTrue(bounded.value().startsWith("task-1/~"), bounded.value());
+        assertEquals(bounded, DurableScope.bounded(ROOT, deep));
+        assertFalse(bounded.equals(DurableScope.bounded(ROOT, deep + "/steps/other")));
+    }
+
+    @Test
+    void deeplyNestedRunsShouldResumeOnH2WhateverTheLengthOfTheirStepNames(@TempDir Path dir)
+            throws Exception {
+        // Four nested calls with 60-character step names: the deepest run's call path is longer
+        // than the 255 characters an H2 execution ID column holds.
+        String[] names = new String[6];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = ("level-" + i + "-").concat("x".repeat(52));
+        }
+        Stores stores = H2StoreProvider.openStores(dir.resolve("durable"), Clock.systemUTC());
+        try {
+            JournaledRunner h2 = new JournaledRunner(stores, new JsonPayloadCodec(),
+                    Clock.systemUTC(), "test");
+            CountingRunner first = new CountingRunner();
+            for (int i = 0; i < 3; i++) {
+                first.calls.put(names[i], tree(names[i + 1]));
+            }
+            first.calls.put(names[3], tree(names[4], names[5]));
+            first.crashOn.add(names[5]);
+            assertThrows(Crash.class, () -> DurableScope.with(h2, ROOT,
+                    () -> Executions.runSteps(tree(names[0]), new StepRun(null), first)));
+
+            CountingRunner second = new CountingRunner();
+            second.calls.putAll(first.calls);
+            DurableScope.with(h2, ROOT,
+                    () -> Executions.runSteps(tree(names[0]), new StepRun(null), second));
+
+            assertEquals(List.of(names[0], names[1], names[2], names[3], names[5]),
+                    second.invoked, "The deepest step already recorded must not run again");
+        } finally {
+            stores.close();
+        }
     }
 }
