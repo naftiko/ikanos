@@ -79,6 +79,15 @@ public class McpServerHintsIntegrationTest {
     }
 
     @Test
+    void toolsListShouldAdvertiseNotReadOnlyWhenCallToolDeclaresOnlyDestructive() {
+        JsonNode annotations = annotationsByTool.get("purge-calls");
+
+        assertEquals(false, annotations.path("readOnlyHint").asBoolean(true),
+                "a tool declared destructive is not read-only, whatever the server default");
+        assertTrue(annotations.path("destructiveHint").asBoolean());
+    }
+
+    @Test
     void toolsListShouldResolveToolThenSemanticsThenServerWhenToolUsesRef() {
         JsonNode annotations = annotationsByTool.get("delete-task");
 

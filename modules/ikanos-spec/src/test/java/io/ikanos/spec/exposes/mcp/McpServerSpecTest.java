@@ -209,4 +209,18 @@ public class McpServerSpecTest {
 
         assertNull(tool.getHints(), "server defaults must not be copied into the tool spec");
     }
+
+    @Test
+    public void resolveToolHintsShouldResolveReadOnlyFalseWhenToolDeclaresOnlyDestructive() {
+        McpServerSpec server = new McpServerSpec();
+        server.setHints(new McpToolHintsSpec(true, null, null, null));
+        McpServerToolSpec tool = new McpServerToolSpec("purge-calls", null, "Purge calls");
+        tool.setHints(new McpToolHintsSpec(null, true, null, null));
+
+        McpToolHintsSpec resolved = server.resolveToolHints(tool);
+
+        assertEquals(Boolean.FALSE, resolved.getReadOnly(),
+                "a tool declared destructive is not read-only, whatever the server default");
+        assertEquals(Boolean.TRUE, resolved.getDestructive());
+    }
 }

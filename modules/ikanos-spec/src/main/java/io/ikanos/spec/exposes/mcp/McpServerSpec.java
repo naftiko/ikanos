@@ -196,7 +196,10 @@ public class McpServerSpec extends ServerSpec {
      * Resolve the hints a tool advertises. Each field comes from the tool's own {@code hints},
      * else from the server's {@code hints}. For a tool with {@code ref}, the engine has already
      * merged the hints derived from the flow's {@code semantics} under the tool's own hints, so
-     * the order is: tool, then semantics, then server. The tool spec is left unchanged.
+     * the order is: tool, then semantics, then server. A tool that declares {@code destructive:
+     * true} without its own {@code readOnly} resolves {@code readOnly} to {@code false}, so it is
+     * never advertised as read-only (see {@link McpToolHintsSpec#merge}). The tool spec is left
+     * unchanged.
      *
      * @return the resolved hints, or {@code null} when neither the tool nor the server declares any
      */

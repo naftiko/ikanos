@@ -44,6 +44,11 @@ capability:
           readOnly: false
           idempotent: true
         call: mock-api.update-task
+      purge-calls:
+        description: Tool declaring only destructive under a read-only server.
+        hints:
+          destructive: true
+        call: mock-api.purge-calls
       delete-task:
         description: Tool using ref, with semantics and its own hints.
         ref: tasks.delete-task
@@ -59,6 +64,8 @@ capability:
         operations:
           list-calls:
             method: GET
+          purge-calls:
+            method: DELETE
       tasks:
         path: tasks
         operations:
