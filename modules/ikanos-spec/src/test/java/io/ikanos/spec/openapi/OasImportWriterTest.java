@@ -181,13 +181,14 @@ public class OasImportWriterTest {
         fields.setIn("query");
         operation.setInputParameters(Map.of("petId", petId, "fields", fields));
 
-        JsonNode inputs = operationNode(writer.toDocument(adapterWithOperation(operation)))
-                .path("inputParameters");
+        JsonNode operationNode = operationNode(writer.toDocument(adapterWithOperation(operation)));
+        JsonNode inputs = operationNode.path("inputParameters");
 
         assertFalse(inputs.has("petId"),
                 "#978: a {{name}} path variable takes the call parameter of the same name, so a"
                         + " location-only in: path entry is not written");
-        assertEquals("query", inputs.path("fields").path("in").asString());
+        assertEquals("fields", operationNode.path("queryParameters").path(0).asString(),
+                "#987: a location-only query parameter is still written, as a queryParameters name");
     }
 
     @Test
@@ -363,7 +364,11 @@ public class OasImportWriterTest {
                     : resource.getValue().getOperations().entrySet()) {
                 HttpClientOperationSpec rereadOperation = reread.getResources()
                         .get(resource.getKey()).getOperations().get(operation.getKey());
-                assertEquals(locations(operation.getValue().getInputParameters()),
+                // #978: a location-only in: path entry is not written, since the {{name}}
+                // path variable already takes the call parameter of the same name.
+                assertEquals(locations(operation.getValue().getInputParameters().stream()
+                                .filter(p -> !OasImportWriter.isLocationOnlyPathParameter(p))
+                                .toList()),
                         locations(rereadOperation.getInputParameters()),
                         "#987: " + operation.getKey() + " should read back the same parameters");
             }
