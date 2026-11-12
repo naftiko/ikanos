@@ -28,6 +28,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import tools.jackson.databind.node.NullNode;
 
 /**
  * Unit tests for {@link InputDefaults}: how an input default fills an argument (#979), and the
@@ -63,6 +64,21 @@ class InputDefaultsTest {
     void applyShouldReplaceNullArgumentWithDefault() throws Exception {
         Map<String, Object> arguments = new HashMap<>();
         arguments.put("period", null);
+
+        Map<String, Object> applied = InputDefaults.apply(
+                List.of(param("period", "string", false, "\"LAST_90DAYS\"")), arguments);
+
+        assertEquals("LAST_90DAYS", applied.get("period"));
+    }
+
+    /**
+     * A REST request whose JSON body is {@code null}, bound to an untyped {@code in: body} input,
+     * hands the flow a {@code NullNode}: it is left out like a Java null, so the default applies.
+     */
+    @Test
+    void applyShouldReplaceJsonNullNodeWithDefault() throws Exception {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("period", NullNode.getInstance());
 
         Map<String, Object> applied = InputDefaults.apply(
                 List.of(param("period", "string", false, "\"LAST_90DAYS\"")), arguments);
