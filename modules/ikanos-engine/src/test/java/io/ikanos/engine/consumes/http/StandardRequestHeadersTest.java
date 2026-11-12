@@ -123,6 +123,101 @@ class StandardRequestHeadersTest {
     }
 
     @Test
+    void setShouldKeepCallerOrderAndRepeatsWhenCookieValueRepeatsAName() {
+        StandardRequestHeaders.set(request, "Cookie", "sid=A; theme=x; sid=B");
+
+        assertEquals(List.of("sid=A", "theme=x", "sid=B"), request.getCookies().stream()
+                .map(c -> c.getName() + "=" + c.getValue()).toList(),
+                "only cookies set by an earlier source are replaced, never the caller's own");
+    }
+
+    @Test
+    void setShouldAcceptCookieWhenSameNameIsRepeatedWithQuotes() {
+        StandardRequestHeaders.set(request, "Cookie", "a=1; a=\"1\"");
+
+        assertEquals(2, request.getCookies().size(), request.getCookies().toString());
+    }
+
+    @Test
+    void setShouldAcceptLegacyCookieWhenValueHasVersionAttribute() {
+        StandardRequestHeaders.set(request, "Cookie", "$Version=1; a=1");
+
+        assertEquals("1", request.getCookies().getFirstValue("a"));
+    }
+
+    @Test
+    void setShouldKeepWeakAndStrongTagWhenBothHaveTheSameOpaqueValue() {
+        // Tag.equals ignores weakness, so Restlet's reader would drop the second one
+        StandardRequestHeaders.set(request, "If-None-Match", "W/\"a\", \"a\"");
+
+        assertEquals(2, request.getConditions().getNoneMatch().size());
+    }
+
+    @Test
+    void setShouldRefuseTagWhenItContainsAComma() {
+        // Documented limitation: Restlet's TagReader splits on commas inside quotes, so such an
+        // entity tag cannot be read; it is refused rather than sent truncated
+        assertThrows(IllegalArgumentException.class,
+                () -> StandardRequestHeaders.set(request, "If-Match", "\"a,b\""));
+    }
+
+    @Test
+    void setShouldAcceptViaWhenCommentContainsAComma() {
+        StandardRequestHeaders.set(request, "Via", "1.1 proxy (x, y)");
+
+        assertEquals(1, request.getRecipientsInfo().size());
+    }
+
+    @Test
+    void elementsShouldCountQuotedCommaAsPartOfOneElement() {
+        assertEquals(2, StandardRequestHeaders.elements("\"a,b\", \"c\"",
+                StandardRequestHeaders.Syntax.LIST));
+    }
+
+    @Test
+    void elementsShouldSkipEmptyElements() {
+        assertEquals(2, StandardRequestHeaders.elements("a, , b,",
+                StandardRequestHeaders.Syntax.LIST));
+    }
+
+    @Test
+    void elementsShouldCountRepeatedElements() {
+        assertEquals(2, StandardRequestHeaders.elements("a, a",
+                StandardRequestHeaders.Syntax.LIST));
+    }
+
+    @Test
+    void elementsShouldSplitOnSemicolonWhenSyntaxIsCookie() {
+        assertEquals(2, StandardRequestHeaders.elements("a=1; b=2",
+                StandardRequestHeaders.Syntax.COOKIE));
+    }
+
+    @Test
+    void elementsShouldSkipDollarAttributesWhenSyntaxIsCookie() {
+        assertEquals(1, StandardRequestHeaders.elements("$Version=1; a=1; $Path=/",
+                StandardRequestHeaders.Syntax.COOKIE));
+    }
+
+    @Test
+    void elementsShouldKeepEscapedQuoteInsideQuotedString() {
+        assertEquals(2, StandardRequestHeaders.elements("\"a\\\"b, c\", d",
+                StandardRequestHeaders.Syntax.LIST));
+    }
+
+    @Test
+    void elementsShouldCloseQuotedStringAfterEscapedBackslash() {
+        // "a\\" is a quoted string ending with one escaped backslash, then ", b" is a new element
+        assertEquals(2, StandardRequestHeaders.elements("\"a\\\\\", b",
+                StandardRequestHeaders.Syntax.LIST));
+    }
+
+    @Test
+    void elementsShouldTreatCommentAsOneElementWhenSyntaxIsVia() {
+        assertEquals(2, StandardRequestHeaders.elements("1.1 proxy (x, y), 1.0 other",
+                StandardRequestHeaders.Syntax.VIA));
+    }
+
+    @Test
     void setShouldKeepQualityWhenAcceptLanguageHasQValues() {
         StandardRequestHeaders.set(request, "Accept-Language", "fr-CA, en;q=0.5");
 

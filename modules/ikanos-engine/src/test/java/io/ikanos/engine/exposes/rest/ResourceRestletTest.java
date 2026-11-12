@@ -396,6 +396,66 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void copyTrustedHeadersShouldForwardEachLineWhenCustomHeaderIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("X-Request-Id", "a");
+    from.getHeaders().add("X-Request-Id", "b");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("X-Request-Id"));
+
+    assertEquals(java.util.List.of("a", "b"),
+        java.util.List.of(to.getHeaders().getValuesArray("X-Request-Id", true)),
+        "a custom header is not known to be a list, so each line is forwarded as sent");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldUseFirstValueWhenAuthorizationIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Authorization", "Bearer a");
+    from.getHeaders().add("Authorization", "Bearer b");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Authorization"));
+
+    assertEquals("Bearer a", to.getChallengeResponse().getIdentifier(),
+        "Authorization holds one credential: joining lines would forge 'Bearer a, Bearer b'");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldUseFirstValueWhenAccessControlRequestMethodIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.OPTIONS, "http://localhost/source");
+    from.getHeaders().add("Access-Control-Request-Method", "PUT");
+    from.getHeaders().add("Access-Control-Request-Method", "DELETE");
+    Request to = new Request(Method.OPTIONS, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Access-Control-Request-Method"));
+
+    assertEquals(Method.PUT, to.getAccessControlRequestMethod());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldDropRangeWhenIfRangeCannotBeParsedOnGet()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-Range", "v1");
+    from.getHeaders().add("Range", "bytes=0-9");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-Range", "Range"));
+
+    assertTrue(to.getRanges().isEmpty(),
+        "without its If-Range, a Range could return part of a changed representation");
+  }
+
+  @Test
   public void copyTrustedHeadersShouldSetVerbatimAuthorizationWhenAuthorizationIsTrusted()
       throws Exception {
     Capability capability = capabilityFromYaml(minimalCapabilityYaml());
@@ -449,6 +509,104 @@ public class ResourceRestletTest {
     assertTrue(to.getConditions().getNoneMatch().isEmpty(),
         "a safe request goes out without the invalid condition, as RFC 9110 lets a server "
             + "ignore it");
+  }
+
+  @Test
+  public void capabilityShouldRefuseStaticAdapterHeaderInputThatCannotBeParsed() {
+    String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                      inputParameters:
+                        If-Match:
+                          in: header
+                          value: "v1"
+                """.formatted(schemaVersion);
+
+    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalArgumentException.class, () -> capabilityFromYaml(yaml),
+        "#1001: a static header value that can never be sent must fail at load time, not "
+            + "fail or be dropped on every call");
+    assertTrue(error.getMessage().contains("If-Match"), error.getMessage());
+    assertFalse(error.getMessage().contains("v1\""), error.getMessage());
+  }
+
+  @Test
+  public void capabilityShouldRefuseStaticOperationHeaderInputThatCannotBeParsed() {
+    String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/items"
+                          operations:
+                            - method: "GET"
+                              name: "list"
+                              call: up.list
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list:
+                              method: GET
+                              inputParameters:
+                                Range:
+                                  in: header
+                                  value: "items=0-9"
+                """.formatted(schemaVersion);
+
+    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalArgumentException.class, () -> capabilityFromYaml(yaml));
+    assertTrue(error.getMessage().contains("Range"), error.getMessage());
+    assertFalse(error.getMessage().contains("items=0-9"), error.getMessage());
+  }
+
+  @Test
+  public void capabilityShouldAcceptTemplatedHeaderInputWhoseValueIsOnlyKnownPerCall()
+      throws Exception {
+    String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                      inputParameters:
+                        If-Match:
+                          in: header
+                          value: "{{etag}}"
+                """.formatted(schemaVersion);
+
+    assertNotNull(capabilityFromYaml(yaml));
   }
 
   @Test
@@ -634,6 +792,14 @@ public class ResourceRestletTest {
     Map<String, Object> inputParameters = Map.of("name", "Alice");
     JsonNode node = Resolver.buildMockValue(param, mapper, inputParameters);
     assertEquals("Hello, Alice!", node.asString());
+  }
+
+  private static ResourceRestlet minimalRestlet() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    return new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
   }
 
   private static Capability capabilityFromYaml(String yaml) throws Exception {

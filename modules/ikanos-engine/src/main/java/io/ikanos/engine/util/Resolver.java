@@ -990,9 +990,14 @@ public class Resolver {
                 if ("header".equalsIgnoreCase(in)) {
                     // A list is comma-separated, the OpenAPI "simple" style for headers
                     List<String> elements = listElements(val);
-                    // A standard header (Accept, …) through its Restlet property (#1001)
-                    StandardRequestHeaders.set(clientRequest, wireName,
-                            elements != null ? String.join(",", elements) : val.toString());
+                    // A standard header (Accept, …) through its Restlet property (#1001). A
+                    // value that cannot be parsed is not sent, except a precondition of an
+                    // unsafe request, which fails the call as bad input
+                    if (!StandardRequestHeaders.setOrDrop(clientRequest, wireName,
+                            elements != null ? String.join(",", elements) : val.toString())) {
+                        logger.debug("Header parameter '{}' was not sent: its value cannot be "
+                                + "parsed", spec.getName());
+                    }
                 } else if ("query".equalsIgnoreCase(in)) {
                     String ref = clientRequest.getResourceRef().toString();
                     for (String value : queryValues(spec, val)) {
@@ -1000,6 +1005,9 @@ public class Resolver {
                     }
                     clientRequest.setResourceRef(ref);
                 }
+            } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+                // Sending the write without its precondition would make it unconditional (#1001)
+                throw e;
             } catch (RuntimeException e) {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }

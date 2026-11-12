@@ -23,6 +23,7 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
@@ -101,13 +102,13 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
                     ? templateErrors(dataNode) : List.of();
-            // Trusted headers that forward mode can never send (#1001), same condition
-            List<String> forwardErrors = errors.isEmpty() && removedAdapters.isEmpty()
-                    ? forwardErrors(dataNode) : List.of();
+            // Headers the engine can never send (#1001), same condition
+            List<String> headerErrors = errors.isEmpty() && removedAdapters.isEmpty()
+                    ? headerErrors(dataNode) : List.of();
 
             // Display validation result.
             if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()
-                    && forwardErrors.isEmpty()) {
+                    && headerErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -134,8 +135,8 @@ public class ValidateCommand implements Callable<Integer> {
                             + error);
                     errorCount++;
                 }
-                for (String error : forwardErrors) {
-                    System.err.println("\n  [" + errorCount + "] Invalid trusted header: "
+                for (String error : headerErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid header: "
                             + error);
                     errorCount++;
                 }
@@ -163,12 +164,15 @@ public class ValidateCommand implements Callable<Integer> {
     }
 
     /**
-     * Forward {@code trustedHeaders} entries the engine can never send upstream, read from the
-     * YAML tree (#1001). Imported adapters are checked when the capability loads.
+     * Forward {@code trustedHeaders} entries and static consumed header values the engine can
+     * never send upstream, read from the YAML tree (#1001). Imported adapters are checked when
+     * the capability loads.
      */
-    List<String> forwardErrors(JsonNode dataNode) {
+    List<String> headerErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return ForwardTrustedHeadersValidator.findErrors(spec);
+        List<String> errors = new ArrayList<>(ForwardTrustedHeadersValidator.findErrors(spec));
+        errors.addAll(ConsumedHeaderValidator.findErrors(spec));
+        return errors;
     }
 
     /**

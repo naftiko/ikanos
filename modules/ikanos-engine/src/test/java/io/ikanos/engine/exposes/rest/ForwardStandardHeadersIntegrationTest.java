@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.InetSocketAddress;
@@ -103,6 +104,15 @@ class ForwardStandardHeadersIntegrationTest {
                                 Accept:
                                   in: header
                                   value: "application/xml"
+                        items:
+                          path: "/items"
+                          operations:
+                            update-item:
+                              method: PUT
+                              inputParameters:
+                                If-Match:
+                                  in: header
+                                  value: "{{etag}}"
                         prefs:
                           path: "/prefs"
                           operations:
@@ -152,6 +162,17 @@ class ForwardStandardHeadersIntegrationTest {
                             list:
                               method: GET
                               call: up.list
+                        items:
+                          path: "/items"
+                          operations:
+                            put:
+                              method: PUT
+                              inputParameters:
+                                etag:
+                                  in: query
+                                  type: string
+                                  description: "Entity tag the update is conditional on"
+                              call: up.update-item
                         prefs:
                           path: "/prefs"
                           operations:
@@ -258,6 +279,7 @@ class ForwardStandardHeadersIntegrationTest {
         HttpResponse<String> response = put("/proxy/files/1", "If-Match", "v1");
 
         assertEquals(400, response.statusCode(), response.body());
+        assertFalse(response.body().contains("v1"), "the error must not echo the value");
         assertTrue(received.isEmpty(),
                 "a write whose If-Match cannot be parsed must not reach the upstream "
                         + "unconditionally: " + received);
@@ -269,6 +291,7 @@ class ForwardStandardHeadersIntegrationTest {
                 "last tuesday");
 
         assertEquals(400, response.statusCode(), response.body());
+        assertFalse(response.body().contains("last tuesday"), "the error must not echo the value");
         assertTrue(received.isEmpty(), received.toString());
     }
 
@@ -279,6 +302,47 @@ class ForwardStandardHeadersIntegrationTest {
         assertEquals(200, response.statusCode(), response.body());
         assertNull(received.get("if-none-match"),
                 "a safe request goes out without the invalid condition");
+    }
+
+    @Test
+    void forwardShouldNotSendRangeWhenIfRangeCannotBeParsed() throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + "/proxy/files/1"))
+                .header("If-Range", "v1")
+                .header("Range", "bytes=0-9")
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertTrue(response.statusCode() < 300, response.statusCode() + " " + response.body());
+        assertNull(received.get("range"),
+                "without its If-Range, the Range could return part of a changed representation");
+    }
+
+    @Test
+    void declaredOperationShouldSendIfMatchInputWhenTagIsQuoted() throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + "/items?etag=%22v1%22"))
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{}"))
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(ETAG, received.get("if-match"));
+    }
+
+    @Test
+    void declaredOperationShouldAnswerBadRequestWhenPutIfMatchInputCannotBeParsed()
+            throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + "/items?etag=v1"))
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{}"))
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertFalse(response.body().contains("v1"), "the error must not echo the value");
+        assertTrue(received.isEmpty(),
+                "#1001: a declared write whose If-Match cannot be parsed must not reach the "
+                        + "upstream unconditionally: " + received);
     }
 
     @Test

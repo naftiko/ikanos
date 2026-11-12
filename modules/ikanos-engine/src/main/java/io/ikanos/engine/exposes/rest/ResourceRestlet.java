@@ -589,7 +589,7 @@ public class ResourceRestlet extends Restlet {
                         try {
                             copyTrustedHeaders(request, clientRequest,
                                     getResourceSpec().getForward().getTrustedHeaders());
-                        } catch (IllegalArgumentException e) {
+                        } catch (StandardRequestHeaders.InvalidPreconditionException e) {
                             // A write whose precondition cannot be parsed is refused (#1001)
                             sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, e.getMessage(),
                                     "Invalid precondition in forward mode", e);
@@ -639,40 +639,51 @@ public class ResourceRestlet extends Restlet {
     /**
      * Copy a set of trusted headers from one request to another. A standard header (If-None-Match,
      * Accept, …) is set through the Restlet property the connector writes it from, since Restlet
-     * drops it when added as a raw header (#1001). Every line the caller sent for a header is
-     * forwarded, joined with {@code ", "} ({@code "; "} for Cookie). A header that describes the
-     * body (Content-Type, …) is already forwarded with the entity.
+     * drops it when added as a raw header (#1001). When the caller sent a header on several lines,
+     * a list-valued standard header is forwarded with its lines joined ({@code ", "}, or
+     * {@code "; "} for Cookie), a single-valued one (Authorization, Range, a date, …) with its
+     * first line, and any other header line by line, as sent. A header that describes the body
+     * (Content-Type, …) is already forwarded with the entity.
      *
      * <p>A value that cannot be parsed is not forwarded, with a warning that names the header but
-     * not the value. For a precondition (If-Match, If-None-Match, If-Unmodified-Since, If-Range)
-     * on a method that is not safe, the call fails instead: forwarding the write without its
-     * precondition would turn it into an unconditional write.</p>
+     * not the value, and a Range is not forwarded either when its If-Range is dropped. For a
+     * precondition (If-Match, If-None-Match, If-Unmodified-Since, If-Range) on a method that is
+     * not safe, the call fails instead: forwarding the write without its precondition would turn
+     * it into an unconditional write.</p>
      *
-     * @throws IllegalArgumentException when a precondition of an unsafe request cannot be parsed
+     * @throws StandardRequestHeaders.InvalidPreconditionException when a precondition of an
+     *         unsafe request cannot be parsed
      */
     void copyTrustedHeaders(Request from, Request to, Iterable<String> trustedHeaders) {
         if (trustedHeaders == null) {
             return;
         }
 
+        boolean ifRangeDropped = false;
         for (String trustedHeader : trustedHeaders) {
             String[] lines = from.getHeaders().getValuesArray(trustedHeader, true);
 
             if (lines.length == 0 || StandardRequestHeaders.isEntityHeader(trustedHeader)) {
                 continue;
             }
-            String headerValue = String.join(
-                    "Cookie".equalsIgnoreCase(trustedHeader) ? "; " : ", ", lines);
-            try {
-                StandardRequestHeaders.set(to, trustedHeader, headerValue);
-            } catch (IllegalArgumentException e) {
-                if (StandardRequestHeaders.isConditional(trustedHeader)
-                        && from.getMethod() != null && !from.getMethod().isSafe()) {
-                    throw e;
+            if (!StandardRequestHeaders.isSetThroughProperty(trustedHeader)) {
+                for (String line : lines) {
+                    to.getHeaders().add(trustedHeader, line);
                 }
-                Context.getCurrentLogger().warning("Trusted header '" + trustedHeader
-                        + "' was not forwarded: " + e.getMessage());
+                continue;
             }
+            String headerValue = StandardRequestHeaders.isListValued(trustedHeader)
+                    ? String.join("Cookie".equalsIgnoreCase(trustedHeader) ? "; " : ", ", lines)
+                    : lines[0];
+            if (!StandardRequestHeaders.setOrDrop(to, trustedHeader, headerValue)) {
+                Context.getCurrentLogger().warning("Trusted header '" + trustedHeader
+                        + "' was not forwarded: its value cannot be parsed");
+                ifRangeDropped |= "If-Range".equalsIgnoreCase(trustedHeader);
+            }
+        }
+        if (ifRangeDropped) {
+            // Without its If-Range, the Range could return part of a changed representation
+            to.setRanges(new java.util.ArrayList<>());
         }
     }
 

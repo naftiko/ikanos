@@ -291,6 +291,50 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenAStaticHeaderInputCannotBeParsed() {
+        Path yaml = tempDir.resolve("static-if-match.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Conditional writes"
+                  description: "Sends a fixed precondition that isn't a valid entity tag"
+                capability:
+                  consumes:
+                    - namespace: "up"
+                      type: "http"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            update:
+                              method: "PUT"
+                              inputParameters:
+                                If-Match:
+                                  in: "header"
+                                  value: "v1"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            put:
+                              method: "PUT"
+                              call: "up.update"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#1001: a static header value the engine can't send must "
+                + "fail validate. " + err + outCapture);
+        assertTrue(err.contains("If-Match"), err);
+    }
+
+    @Test
     public void callShouldRejectOAuth2OnAConsumedAdapter() {
         Path yaml = tempDir.resolve("oauth2-consumes.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """
