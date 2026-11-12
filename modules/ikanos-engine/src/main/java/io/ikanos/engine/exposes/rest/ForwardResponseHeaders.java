@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.Context;
 import org.restlet.Request;
@@ -78,6 +79,15 @@ public final class ForwardResponseHeaders {
             "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
             "max-forwards", "range", "referer", "user-agent");
 
+    /** Dot segments, plain or percent-encoded, in lower case. */
+    static final Set<String> DOT_SEGMENTS = Set.of("..", ".", "%2e%2e", ".%2e", "%2e.", "%2e");
+
+    /**
+     * The resources and headers already warned about a dropped location, so an upstream that
+     * always answers that way does not flood the log: later drops are logged at {@code FINE}.
+     */
+    private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
+
     /** {@code Vary} field names that Restlet maps to a {@link Dimension}. */
     static final Set<String> VARY_DIMENSIONS = Set.of("accept", "accept-charset",
             "accept-encoding", "accept-language", "authorization", "user-agent", "origin", "*");
@@ -135,7 +145,8 @@ public final class ForwardResponseHeaders {
         String relayedLocation = location == null ? null
                 : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming);
         if (location != null && relayedLocation == null) {
-            logDropped(HeaderConstants.HEADER_LOCATION, from);
+            logDropped(HeaderConstants.HEADER_LOCATION, from, resourceKey(incoming,
+                    upstreamBaseUri));
         }
         to.setLocationRef(verbatim(relayedLocation));
 
@@ -148,7 +159,8 @@ public final class ForwardResponseHeaders {
                         : relayedLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
                                 incoming);
                 if (contentLocation != null && relayedContentLocation == null) {
-                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from);
+                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from,
+                            resourceKey(incoming, upstreamBaseUri));
                 }
                 entity.setLocationRef(verbatim(relayedContentLocation));
             }
@@ -189,13 +201,22 @@ public final class ForwardResponseHeaders {
     }
 
     /**
-     * Logs that a location header was not relayed, naming the header and the upstream status but
-     * never the value, which can carry the upstream host. A redirect or a {@code 201} without its
-     * location is worth a warning; anything else is logged at {@code FINE}.
+     * @return a key naming the exposed resource of {@code incoming} and its forward target
      */
-    static void logDropped(String headerName, Response from) {
+    private static String resourceKey(Request incoming, String upstreamBaseUri) {
+        return exposedPath(incoming) + " -> " + upstreamBaseUri;
+    }
+
+    /**
+     * Logs that a location header was not relayed, naming the header and the upstream status but
+     * never the value, which can carry the upstream host. The first redirect or {@code 201}
+     * without its location for a given resource and header is worth a warning; anything else is
+     * logged at {@code FINE}.
+     */
+    static void logDropped(String headerName, Response from, String resourceKey) {
         int status = from.getStatus() == null ? 0 : from.getStatus().getCode();
-        Level level = (status >= 300 && status < 400) || status == 201 ? Level.WARNING
+        boolean warnable = (status >= 300 && status < 400) || status == 201;
+        Level level = warnable && WARNED.add(resourceKey + " " + headerName) ? Level.WARNING
                 : Level.FINE;
         Context.getCurrentLogger().log(level, () -> "Forward mode did not relay the upstream "
                 + headerName + " header of a " + status + " response: it points at the "
@@ -293,6 +314,9 @@ public final class ForwardResponseHeaders {
         }
         String basePath = stripTrailingSlashes(base.getRawPath());
         String path = resolved.getRawPath() == null ? "" : resolved.getRawPath();
+        if (hasDotSegment(path)) {
+            return null;
+        }
         boolean under = path.equals(basePath) || (path.startsWith(basePath)
                 && (basePath.isEmpty() || path.charAt(basePath.length()) == '/'));
         if (!under || !resolved.getScheme().equalsIgnoreCase(base.getScheme())
@@ -314,6 +338,22 @@ public final class ForwardResponseHeaders {
             rewritten += "#" + resolved.getRawFragment();
         }
         return rewritten;
+    }
+
+    /**
+     * @return {@code true} when a raw path segment is a dot segment, plain or percent-encoded
+     *         ({@code ..}, {@code .}, {@code %2e%2e}, {@code .%2e}, {@code %2e.}, {@code %2e}, in
+     *         any case). {@link URI#normalize()} keeps a leading {@code ..} on an absolute path
+     *         and never decodes {@code %2e}, while WHATWG URL parsers apply both, so such a path
+     *         could leave the base once the caller follows it.
+     */
+    static boolean hasDotSegment(String rawPath) {
+        for (String segment : rawPath.split("/", -1)) {
+            if (DOT_SEGMENTS.contains(segment.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
