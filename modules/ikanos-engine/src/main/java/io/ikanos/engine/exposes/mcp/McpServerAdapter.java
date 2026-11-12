@@ -291,12 +291,13 @@ public class McpServerAdapter extends ServerAdapter {
 
     /**
      * Whether the resource that serves {@code uri} may ask its caller for input: the first one
-     * whose URI, or URI template, matches it, as {@code resources/read} picks it.
+     * whose URI, or URI template, matches it, as {@code resources/read} picks it: a static
+     * resource also serves the files under its URI ({@link ResourceHandler#matchesStatic}).
      */
     public boolean resourceMayElicit(String uri) {
         for (McpServerResourceSpec resource : getMcpServerSpec().getResources().values()) {
             if (resource.isStatic()) {
-                if (uri.equals(resource.getUri())) {
+                if (ResourceHandler.matchesStatic(resource.getUri(), uri)) {
                     return false;
                 }
             } else if (ResourceHandler.matchTemplate(resource.getUri(), uri) != null) {
