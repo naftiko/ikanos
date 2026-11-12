@@ -154,7 +154,11 @@ class SourceFileLoaderDeepCopyTest {
                         inputParameters:
                           imo:
                             type: "string"
+                            required: true
                             description: "IMO number."
+                          sort:
+                            type: "string"
+                            description: "Sort order."
                           page:
                             type: "integer"
                             required: false
@@ -165,6 +169,8 @@ class SourceFileLoaderDeepCopyTest {
         McpServerToolSpec tool = importMcpAdapter(source, "tools").getTools().get("list-ships");
 
         assertTrue(input(tool.getInputParameters(), "imo").isRequired());
+        assertFalse(input(tool.getInputParameters(), "sort").isRequired(),
+                "an input without a required flag stays optional (#983)");
         assertFalse(input(tool.getInputParameters(), "page").isRequired(),
                 "required: false must survive the import copy");
     }
@@ -183,7 +189,11 @@ class SourceFileLoaderDeepCopyTest {
                         inputParameters:
                           imo:
                             type: "string"
+                            required: true
                             description: "IMO number."
+                          sort:
+                            type: "string"
+                            description: "Sort order."
                           page:
                             type: "integer"
                             required: false
@@ -197,6 +207,8 @@ class SourceFileLoaderDeepCopyTest {
 
         AggregateFlowSpec flow = entries.get(0).getFlows().get("list-ships");
         assertTrue(flow.getInputParameters().get("imo").isRequired());
+        assertFalse(flow.getInputParameters().get("sort").isRequired(),
+                "an input without a required flag stays optional (#983)");
         assertFalse(flow.getInputParameters().get("page").isRequired(),
                 "required: false must survive the import copy");
     }
