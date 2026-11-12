@@ -76,9 +76,11 @@ public final class McpRequestState {
      *        state names no execution
      * @param bound what the call was bound to beyond the request digest, such as the REST
      *        operation and its input parameters; {@code null} when nothing was
+     * @param carried the state a replay needs, such as an upstream's {@code requestState}, by
+     *        key: kept apart from the answers, so no answer can overwrite it
      */
     public record Content(ObjectNode answers, List<String> pending, String executionId,
-            int round, JsonNode bound) {
+            int round, JsonNode bound, ObjectNode carried) {
     }
 
     McpRequestState(SecretKey key, Clock clock) {
@@ -151,6 +153,16 @@ public final class McpRequestState {
     }
 
     /**
+     * Seals the state of a call that replays from the start: the answers so far, the state the
+     * replay needs apart from them ({@code carried}), the outstanding keys and what the call is
+     * bound to, or {@code null}.
+     */
+    public String sealReplay(String principal, String requestDigest, ObjectNode answers,
+            ObjectNode carried, List<String> pending, JsonNode bound) {
+        return seal(principal, requestDigest, answers, carried, pending, null, 0, bound, null);
+    }
+
+    /**
      * Seals the outstanding keys and, for a journal-backed call, the execution that keeps its
      * progress and the round whose questions they are, so the state answers that round only.
      * It may also carry what the call is bound to, such as a REST operation and its input
@@ -175,7 +187,17 @@ public final class McpRequestState {
     public String seal(String principal, String requestDigest, ObjectNode answers,
             List<String> pending, String executionId, int round, JsonNode bound,
             Instant expiresAt) {
+        return seal(principal, requestDigest, answers, null, pending, executionId, round, bound,
+                expiresAt);
+    }
+
+    private String seal(String principal, String requestDigest, ObjectNode answers,
+            ObjectNode carried, List<String> pending, String executionId, int round,
+            JsonNode bound, Instant expiresAt) {
         ObjectNode payload = MAPPER.createObjectNode();
+        if (carried != null && !carried.isEmpty()) {
+            payload.set("c", carried);
+        }
         if (executionId != null) {
             payload.put("x", executionId);
             payload.put("r", round);
@@ -234,7 +256,9 @@ public final class McpRequestState {
         JsonNode answers = payload.path("a");
         return new Content(answers.isObject() ? (ObjectNode) answers : MAPPER.createObjectNode(),
                 pending, payload.path("x").asString(null), payload.path("r").asInt(0),
-                payload.has("b") ? payload.get("b") : null);
+                payload.has("b") ? payload.get("b") : null,
+                payload.path("c").isObject() ? (ObjectNode) payload.get("c")
+                        : MAPPER.createObjectNode());
     }
 
     /**

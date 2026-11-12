@@ -34,15 +34,16 @@ public final class ExecutionInputs {
 
     /**
      * The answers of the request, those of the latest round of a journaled call with that
-     * round's number (0 before any), and the path of the calling steps of the current run
+     * round's number (0 before any), the state a replay carries apart from the answers, such as
+     * an upstream's {@code requestState}, and the path of the calling steps of the current run
      * ({@code null} at the top level). Captured when a run starts and set again in each of its
      * actions, which may run on a thread of their own.
      */
     record Snapshot(Map<NodePath, Object> answers, Map<NodePath, Object> latest, int round,
-            NodePath caller) {
+            Map<NodePath, Object> carried, NodePath caller) {
     }
 
-    private static final Snapshot EMPTY = new Snapshot(Map.of(), Map.of(), 0, null);
+    private static final Snapshot EMPTY = new Snapshot(Map.of(), Map.of(), 0, Map.of(), null);
     private static final ThreadLocal<Snapshot> CURRENT = new ThreadLocal<>();
 
     private ExecutionInputs() {
@@ -50,7 +51,17 @@ public final class ExecutionInputs {
 
     /** Runs {@code work} with {@code answers} available to the runs it starts. */
     public static <T> T with(Map<NodePath, Object> answers, Callable<T> work) throws Exception {
-        return with(answers, Map.of(), 0, work);
+        return with(answers, Map.of(), 0, Map.of(), work);
+    }
+
+    /**
+     * Runs {@code work} with {@code answers} available to the runs it starts, and the state a
+     * replay carries ({@link InputRequiredException#carry}), kept apart from the answers so that
+     * no answer key can overwrite it.
+     */
+    public static <T> T replaying(Map<NodePath, Object> answers, Map<NodePath, Object> carried,
+            Callable<T> work) throws Exception {
+        return with(answers, Map.of(), 0, carried, work);
     }
 
     /**
@@ -59,7 +70,13 @@ public final class ExecutionInputs {
      */
     public static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
             int round, Callable<T> work) throws Exception {
-        return run(new Snapshot(Map.copyOf(answers), Map.copyOf(latest), round, null), work);
+        return with(answers, latest, round, Map.of(), work);
+    }
+
+    private static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
+            int round, Map<NodePath, Object> carried, Callable<T> work) throws Exception {
+        return run(new Snapshot(Map.copyOf(answers), Map.copyOf(latest), round,
+                Map.copyOf(carried), null), work);
     }
 
     /** The answers and calling path of the current thread, to carry into the actions of a run. */
@@ -75,8 +92,8 @@ public final class ExecutionInputs {
     static <T> T within(Snapshot snapshot, NodePath step, Callable<T> work) throws Exception {
         NodePath caller = snapshot.caller() == null ? step
                 : new NodePath(snapshot.caller().value() + "/" + step.value());
-        return run(new Snapshot(snapshot.answers(), snapshot.latest(), snapshot.round(), caller),
-                work);
+        return run(new Snapshot(snapshot.answers(), snapshot.latest(), snapshot.round(),
+                snapshot.carried(), caller), work);
     }
 
     /** The answers addressed to the current run, keyed by its local paths; empty outside one. */
@@ -135,6 +152,14 @@ public final class ExecutionInputs {
     /** The round of a journaled call whose answers {@link #latestAnswers} holds; 0 before any. */
     public static int latestRound() {
         return capture().round();
+    }
+
+    /**
+     * The state a replay carries, by key, such as an upstream's {@code requestState}: never an
+     * answer. Empty when there is none.
+     */
+    public static Map<NodePath, Object> carried() {
+        return capture().carried();
     }
 
     /**

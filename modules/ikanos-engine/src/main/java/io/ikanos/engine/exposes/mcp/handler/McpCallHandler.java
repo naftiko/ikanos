@@ -122,11 +122,13 @@ public abstract class McpCallHandler {
             return inJournaledRounds(journal, idNode, params, label, name, arguments, run,
                     principal, digest);
         }
-        ObjectNode answers = collectAnswers(params, principal, digest);
-        Map<NodePath, Object> updates = new LinkedHashMap<>();
-        answers.properties().forEach(e -> updates.put(new NodePath(e.getKey()), e.getValue()));
+        McpRequestState.Content state = openState(params, principal, digest);
+        ObjectNode answers = collectAnswers(params, state);
+        ObjectNode carried = state != null ? state.carried().deepCopy()
+                : MAPPER.createObjectNode();
         try {
-            return new HandlerSuccessResult(ExecutionInputs.with(updates, run::get));
+            return new HandlerSuccessResult(ExecutionInputs.replaying(byPath(answers),
+                    byPath(carried), run::get));
         } catch (InputRequiredException e) {
             if (!RequestClientCapabilities.from(params).supportsElicitation()) {
                 ObjectNode required = MAPPER.createObjectNode();
@@ -134,7 +136,8 @@ public abstract class McpCallHandler {
                 return missingCapability(idNode,
                         label + " asks for input; it needs the elicitation capability", required);
             }
-            return new HandlerSuccessResult(inputRequired(e, answers, principal, digest));
+            return new HandlerSuccessResult(
+                    inputRequired(e, answers, carried, principal, digest));
         }
     }
 
@@ -201,12 +204,10 @@ public abstract class McpCallHandler {
      *
      * @throws IllegalArgumentException when the state fails verification
      */
-    ObjectNode collectAnswers(JsonNode params, String principal, String digest) {
-        String token = params.path("requestState").asString(null);
-        if (token == null || token.isEmpty()) {
+    ObjectNode collectAnswers(JsonNode params, McpRequestState.Content state) {
+        if (state == null) {
             return MAPPER.createObjectNode();
         }
-        McpRequestState.Content state = adapter.getRequestState().open(token, principal, digest);
         ObjectNode answers = state.answers().deepCopy();
         JsonNode responses = params.path("inputResponses");
         for (String key : state.pending()) {
@@ -217,9 +218,27 @@ public abstract class McpCallHandler {
         return answers;
     }
 
-    /** The {@code InputRequiredResult} for the questions a run stopped at. */
-    ObjectNode inputRequired(InputRequiredException e, ObjectNode answers, String principal,
+    /**
+     * The sealed {@code requestState} the request presents, or {@code null} without one.
+     *
+     * @throws IllegalArgumentException when the state fails verification
+     */
+    private McpRequestState.Content openState(JsonNode params, String principal,
             String digest) {
+        String token = params.path("requestState").asString(null);
+        return token == null || token.isEmpty() ? null
+                : adapter.getRequestState().open(token, principal, digest);
+    }
+
+    private static Map<NodePath, Object> byPath(ObjectNode values) {
+        Map<NodePath, Object> byPath = new LinkedHashMap<>();
+        values.properties().forEach(e -> byPath.put(new NodePath(e.getKey()), e.getValue()));
+        return byPath;
+    }
+
+    /** The {@code InputRequiredResult} for the questions a run stopped at. */
+    ObjectNode inputRequired(InputRequiredException e, ObjectNode answers, ObjectNode carried,
+            String principal, String digest) {
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
         result.set("inputRequests", InputRequests.of(e));
@@ -230,10 +249,11 @@ public abstract class McpCallHandler {
         // A key asked again, as by an upstream that rejected its answer, is open again: its old
         // answer is dropped, so a retry without a new one never replays it for the new question.
         answers.remove(pending);
-        // State a replay needs, such as an upstream's requestState, travels with the answers.
-        e.carry().forEach(answers::set);
-        result.put("requestState",
-                adapter.getRequestState().seal(principal, digest, answers, pending));
+        // State a replay needs, such as an upstream's requestState, travels apart from the
+        // answers: an upstream question keyed like it never overwrites it.
+        e.carry().forEach(carried::set);
+        result.put("requestState", adapter.getRequestState().sealReplay(principal, digest,
+                answers, carried, pending, null));
         return result;
     }
 

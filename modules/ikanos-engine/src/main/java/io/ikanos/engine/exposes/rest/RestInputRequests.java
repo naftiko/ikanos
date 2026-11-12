@@ -119,8 +119,8 @@ public final class RestInputRequests {
             render(round, principal, bound, response);
         } else {
             bound.set("parameters", arguments);
-            replay(restlet, operation, parameters, MAPPER.createObjectNode(), principal, bound,
-                    response);
+            replay(restlet, operation, parameters, MAPPER.createObjectNode(),
+                    MAPPER.createObjectNode(), principal, bound, response);
         }
     }
 
@@ -174,8 +174,8 @@ public final class RestInputRequests {
             @SuppressWarnings("unchecked")
             Map<String, Object> parameters =
                     MAPPER.convertValue(bound.path("parameters"), Map.class);
-            replay(restlet, operation, parameters, answers, principal, (ObjectNode) bound,
-                    response);
+            replay(restlet, operation, parameters, answers, state.carried().deepCopy(), principal,
+                    (ObjectNode) bound, response);
             return;
         }
         ExecutionId id = new ExecutionId(state.executionId());
@@ -224,12 +224,14 @@ public final class RestInputRequests {
 
     /** Under {@code none}: runs the operation from the start with the answers so far. */
     private void replay(ResourceRestlet restlet, RestServerOperationSpec operation,
-            Map<String, Object> parameters, ObjectNode answers, String principal,
-            ObjectNode bound, Response response) {
+            Map<String, Object> parameters, ObjectNode answers, ObjectNode carried,
+            String principal, ObjectNode bound, Response response) {
         Map<NodePath, Object> updates = new LinkedHashMap<>();
         answers.properties().forEach(e -> updates.put(new NodePath(e.getKey()), e.getValue()));
+        Map<NodePath, Object> state = new LinkedHashMap<>();
+        carried.properties().forEach(e -> state.put(new NodePath(e.getKey()), e.getValue()));
         try {
-            JsonNode outcome = ExecutionInputs.with(updates,
+            JsonNode outcome = ExecutionInputs.replaying(updates, state,
                     () -> restlet.runForRounds(operation, parameters));
             write(outcome, response);
         } catch (InputRequiredException e) {
@@ -237,9 +239,11 @@ public final class RestInputRequests {
             e.questions().forEach(question -> pending.add(question.key()));
             // A key asked again is open again: its old answer is never replayed for it.
             answers.remove(pending);
-            // State a replay needs, such as an upstream's requestState, travels with the answers.
-            e.carry().forEach(answers::set);
-            String handle = requestState.seal(principal, DIGEST, answers, pending, null, 0, bound);
+            // State a replay needs, such as an upstream's requestState, travels apart from the
+            // answers: an upstream question keyed like it never overwrites it.
+            e.carry().forEach(carried::set);
+            String handle =
+                    requestState.sealReplay(principal, DIGEST, answers, carried, pending, bound);
             if (handle.length() > MAX_HANDLE) {
                 restlet.sendError(response, Status.CLIENT_ERROR_REQUEST_ENTITY_TOO_LARGE,
                         "This operation asks for input, and its request is too large to carry "
