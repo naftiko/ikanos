@@ -74,8 +74,9 @@ import io.ikanos.spec.util.StructureSpec;
  * beside {@code schema:}, and {@code schema:} in an output that is not orchestrated. Warning: a
  * definition that no unit uses. Each definition's content is checked once, as declared, without
  * expanding it. Expansion is bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per
- * namespace (an inline declaration counts one, a schema use the size of the copy it emits), so
- * a document cannot multiply itself without limit.</p>
+ * namespace (an inline declaration counts one, a schema use the size of the copy it emits: for
+ * an orchestrated output, the size of the output shape it gives, without the branches an output
+ * does not declare), so a document cannot multiply itself without limit.</p>
  */
 public final class DefinitionsExpander {
 
@@ -204,6 +205,7 @@ public final class DefinitionsExpander {
         private final Set<String> tooDeep = new HashSet<>();
         private final Set<String> checkedSchemas = new HashSet<>();
         private final Map<String, Long> sizes = new HashMap<>();
+        private final Map<String, Long> outputSizes = new HashMap<>();
         private long expandedNodes;
         private boolean overBudget;
 
@@ -406,11 +408,10 @@ public final class DefinitionsExpander {
             checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
                 checkOutputBesideSchema(param, location);
-                InputParameterSpec resolved = resolveSchema(param.getSchema(), location);
-                if (resolved == null) {
+                OutputParameterSpec output = resolveOutputSchema(param.getSchema(), location);
+                if (output == null) {
                     return param;
                 }
-                OutputParameterSpec output = toOutput(resolved);
                 output.setName(param.getName());
                 return output;
             }
@@ -419,14 +420,9 @@ public final class DefinitionsExpander {
             }
             if (param.getItems() != null) {
                 OutputParameterSpec items = param.getItems();
-                OutputParameterSpec expanded = expandOutput(items, location + ", items");
-                // `items: { schema: name }` gives what a whole-array schema gives its items:
-                // only objects with properties, the only items an orchestrated output declares.
-                if (items.getSchema() != null && expanded != items
-                        && !isObjectWithProperties(expanded)) {
-                    expanded = null;
-                }
-                param.setItems(expanded);
+                param.setItems(items.getSchema() != null
+                        ? expandItemsReference(items, location + ", items")
+                        : expandOutput(items, location + ", items"));
             }
             List<OutputParameterSpec> properties = param.getProperties();
             for (int i = 0; i < properties.size(); i++) {
@@ -435,6 +431,34 @@ public final class DefinitionsExpander {
                         location + ", property '" + property.getName() + "'"));
             }
             return param;
+        }
+
+        /**
+         * Expand {@code items: { schema: name }} of an orchestrated array output. It gives what
+         * a whole-array schema gives its items: only an object with properties, the only items
+         * an orchestrated output declares. Other schemas give no items, at no cost to the
+         * budget; their content is still checked.
+         */
+        private OutputParameterSpec expandItemsReference(OutputParameterSpec items,
+                String location) {
+            if (overBudget) {
+                return items;
+            }
+            checkJsonSchemaRef(items, location);
+            checkOutputBesideSchema(items, location);
+            String name = items.getSchema();
+            if (!resolvable(name, location)) {
+                return items;
+            }
+            if (!isObjectWithProperties(target(schemas.get(name)))) {
+                return null;
+            }
+            if (!withinBudget(outputSize(name))) {
+                return items;
+            }
+            OutputParameterSpec output = outputOf(schemas.get(name));
+            output.setName(items.getName());
+            return output;
         }
 
         /**
@@ -469,16 +493,39 @@ public final class DefinitionsExpander {
          *         exceed the expansion budget
          */
         InputParameterSpec resolveSchema(String name, String location) {
-            if (lookupSchema(name, location) == null) {
-                return null;
-            }
-            markUsed(name);
-            checkSchema(name);
-            if (cyclic.contains(name) || tooDeep.contains(name)
-                    || !withinBudget(size(name))) {
+            if (!resolvable(name, location) || !withinBudget(size(name))) {
                 return null;
             }
             return instantiate(name);
+        }
+
+        /**
+         * Resolve a schema name used by an orchestrated output into the output shape it gives.
+         * The use costs the declarations of that shape only: the branches an output does not
+         * declare (input-only keywords, items that are not objects with properties) are neither
+         * charged nor materialized. The schema's content is still checked in full.
+         *
+         * @return the output, or {@code null} when the name cannot be resolved or the output
+         *         would exceed the expansion budget
+         */
+        OutputParameterSpec resolveOutputSchema(String name, String location) {
+            if (!resolvable(name, location) || !withinBudget(outputSize(name))) {
+                return null;
+            }
+            return outputOf(schemas.get(name));
+        }
+
+        /**
+         * Look a schema up, mark it used, check its content once, and tell whether its
+         * expansion terminates (no cycle, within the depth bound).
+         */
+        private boolean resolvable(String name, String location) {
+            if (lookupSchema(name, location) == null) {
+                return false;
+            }
+            markUsed(name);
+            checkSchema(name);
+            return !cyclic.contains(name) && !tooDeep.contains(name);
         }
 
         /**
@@ -599,6 +646,80 @@ public final class DefinitionsExpander {
                 total = Math.min(total + sizeOf(property), MAX_EXPANDED_NODES + 1L);
             }
             return Math.min(total, MAX_EXPANDED_NODES + 1L);
+        }
+
+        /**
+         * Number of declarations of the orchestrated output a schema gives, computed from the
+         * declarations without materializing them, and capped just past the budget.
+         */
+        long outputSize(String name) {
+            Long known = outputSizes.get(name);
+            if (known == null) {
+                known = outputSizeOf(schemas.get(name));
+                outputSizes.put(name, known);
+            }
+            return known;
+        }
+
+        private long outputSizeOf(InputParameterSpec param) {
+            if (param == null) {
+                return 0;
+            }
+            if (param.getSchema() != null) {
+                return expandable(param.getSchema()) ? outputSize(param.getSchema()) : 1;
+            }
+            long total = 1;
+            if ("object".equals(param.getType())) {
+                for (InputParameterSpec property : param.getProperties()) {
+                    total = Math.min(total + outputSizeOf(property), MAX_EXPANDED_NODES + 1L);
+                }
+            } else if ("array".equals(param.getType())
+                    && isObjectWithProperties(target(param.getItems()))) {
+                total = Math.min(total + outputSizeOf(param.getItems()),
+                        MAX_EXPANDED_NODES + 1L);
+            }
+            return total;
+        }
+
+        /**
+         * The orchestrated output a declaration gives once expanded: its type ({@code integer}
+         * becomes {@code number}, as orchestrated outputs have no integer), its properties, and
+         * its items when they are objects with properties (the only items an orchestrated
+         * output declares). Built directly from the declarations, following schema references.
+         */
+        OutputParameterSpec outputOf(InputParameterSpec declaration) {
+            InputParameterSpec schema = target(declaration);
+            OutputParameterSpec output = new OutputParameterSpec();
+            output.setName(declaration.getName());
+            String type = schema.getType();
+            output.setType("integer".equals(type) ? "number" : type);
+            if ("object".equals(type)) {
+                for (InputParameterSpec property : schema.getProperties()) {
+                    output.getProperties().add(outputOf(property));
+                }
+            } else if ("array".equals(type)) {
+                InputParameterSpec items = schema.getItems();
+                if (isObjectWithProperties(target(items))) {
+                    OutputParameterSpec itemsOutput = outputOf(items);
+                    itemsOutput.setName(null);
+                    output.setItems(itemsOutput);
+                }
+            }
+            return output;
+        }
+
+        /**
+         * The declaration a reference stands for, following references that expand; a
+         * declaration that is not a reference, or whose reference does not expand, stands for
+         * itself.
+         */
+        private InputParameterSpec target(InputParameterSpec declaration) {
+            InputParameterSpec current = declaration;
+            while (current != null && current.getSchema() != null
+                    && expandable(current.getSchema())) {
+                current = schemas.get(current.getSchema());
+            }
+            return current;
         }
 
         /** A fresh, fully expanded copy of a schema whose content was checked. */
@@ -920,31 +1041,6 @@ public final class DefinitionsExpander {
         return false;
     }
 
-    /**
-     * Convert an expanded schema into the orchestrated output it describes: its type
-     * ({@code integer} becomes {@code number}, as orchestrated outputs have no integer), its
-     * properties, and its items when they are objects with properties (the only items an
-     * orchestrated output declares).
-     */
-    static OutputParameterSpec toOutput(InputParameterSpec schema) {
-        OutputParameterSpec output = new OutputParameterSpec();
-        output.setName(schema.getName());
-        String type = schema.getType();
-        output.setType("integer".equals(type) ? "number" : type);
-        if ("object".equals(type)) {
-            for (InputParameterSpec property : schema.getProperties()) {
-                output.getProperties().add(toOutput(property));
-            }
-        } else if ("array".equals(type)) {
-            InputParameterSpec items = schema.getItems();
-            if (items != null && isObjectWithProperties(items)) {
-                OutputParameterSpec itemsOutput = toOutput(items);
-                itemsOutput.setName(null);
-                output.setItems(itemsOutput);
-            }
-        }
-        return output;
-    }
 
     /** Whether an input, or one of its nested declarations, carries a JSON Schema {@code $ref}. */
     static boolean hasJsonSchemaRef(InputParameterSpec param) {
@@ -965,7 +1061,8 @@ public final class DefinitionsExpander {
 
     /** Whether a declaration is an object with properties: the only orchestrated items. */
     static boolean isObjectWithProperties(StructureSpec<?> param) {
-        return "object".equals(param.getType()) && !param.getProperties().isEmpty();
+        return param != null && "object".equals(param.getType())
+                && !param.getProperties().isEmpty();
     }
 
     /** Deep copy of an input declaration, so that every use of a definition owns its copy. */

@@ -751,6 +751,75 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldChargeAnOutputOnlyWithTheShapeItEmits() throws Exception {
+        // As an input, `grid` expands to 2 + 2^17 - 1 declarations, past the bound. As an
+        // orchestrated output, it is an array of arrays: it emits `type: array` alone.
+        IkanosSpec spec = mcp(binarySchemas(16) + """
+                    grid:
+                      type: array
+                      items:
+                        type: array
+                        items: { schema: s0 }
+                """, """
+                get-grid:
+                  description: "Get the grid."
+                  steps:
+                    grid: { type: call, call: erp.get-grid }
+                  mappings:
+                    - target: grid
+                      value: "$.grid"
+                  outputParameters:
+                    grid: { schema: grid }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        OutputParameterSpec grid = tool(spec, "get-grid").getOutputParameters().get(0);
+        assertEquals("array", grid.getType());
+        assertNull(grid.getItems());
+    }
+
+    @Test
+    void expandAllShouldStillBoundTheShapeAnOutputEmits() throws Exception {
+        IkanosSpec spec = mcp(binarySchemas(20), """
+                get-tree:
+                  description: "Get the tree."
+                  steps:
+                    tree: { type: call, call: erp.get-tree }
+                  mappings:
+                    - target: tree
+                      value: "$.tree"
+                  outputParameters:
+                    tree: { schema: s0 }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools': its definitions expand to more than "
+                + DefinitionsExpander.MAX_EXPANDED_NODES + " parameter declarations. Expansion"
+                + " is bounded, so that a document cannot multiply itself without limit."),
+                errors);
+    }
+
+    /**
+     * Schemas {@code s0} to {@code s<levels>}: each level is an object whose two properties use
+     * the next level, and the last level is a string, so {@code s0} has 2^(levels+1) - 1
+     * declarations.
+     */
+    private static String binarySchemas(int levels) {
+        StringBuilder schemas = new StringBuilder("definitions:\n  schemas:\n");
+        for (int level = 0; level < levels; level++) {
+            schemas.append("    s").append(level).append(":\n")
+                    .append("      type: object\n      properties:\n")
+                    .append("        a: { schema: s").append(level + 1).append(" }\n")
+                    .append("        b: { schema: s").append(level + 1).append(" }\n");
+        }
+        schemas.append("    s").append(levels).append(": { type: string }\n");
+        return schemas.toString();
+    }
+
+    @Test
     void expandAllShouldBoundALongChainOfSchemasWithoutOverflowingTheStack() throws Exception {
         int length = 5_000;
         StringBuilder schemas = new StringBuilder("definitions:\n  schemas:\n");
