@@ -41,9 +41,10 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * {@code ttlFromUpstream} on an MCP resource (#1019): {@code resources/read} takes its
- * {@code ttlMs} from the upstream's caching headers, against a real local HTTP upstream.
+ * {@code ttlMs} from the upstream's caching headers. A unit test: a local in-process Restlet
+ * upstream sends each kind of caching header.
  */
-class McpCacheTtlFromUpstreamIntegrationTest {
+class McpCacheTtlFromUpstreamTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
     private static final ObjectMapper JSON = IkanosMappers.json();
@@ -92,6 +93,11 @@ class McpCacheTtlFromUpstreamIntegrationTest {
 
         // Expires is ten minutes after the upstream's Date header
         assertThat(ttl).isBetween(590_000, 600_000);
+    }
+
+    @Test
+    void readShouldSubtractTheAgeOfACachedUpstreamAnswer() {
+        assertThat(read("data://aged").path("ttlMs").asInt(-1)).isEqualTo(10_000);
     }
 
     @Test
@@ -155,6 +161,12 @@ class McpCacheTtlFromUpstreamIntegrationTest {
                         description: "Expires in ten minutes"
                         call: api.expiring
                         ttlFromUpstream: true
+                      aged:
+                        display: "Aged"
+                        uri: "data://aged"
+                        description: "max-age=300, Age 290"
+                        call: api.aged
+                        ttlFromUpstream: true
                       plain:
                         display: "Plain"
                         uri: "data://plain"
@@ -192,6 +204,11 @@ class McpCacheTtlFromUpstreamIntegrationTest {
                         operations:
                           expiring:
                             method: GET
+                      aged:
+                        path: "/aged"
+                        operations:
+                          aged:
+                            method: GET
                       plain:
                         path: "/plain"
                         operations:
@@ -212,11 +229,23 @@ class McpCacheTtlFromUpstreamIntegrationTest {
                         List.of(CacheDirective.privateInfo(), CacheDirective.maxAge(60)), null));
                 router.attach("/v1/volatile", answer(List.of(CacheDirective.noStore()), null));
                 router.attach("/v1/expiring", answer(List.of(), 600_000L));
+                router.attach("/v1/aged", aged());
                 router.attach("/v1/plain", answer(List.of(), null));
                 return router;
             }
         });
         return component;
+    }
+
+    static Restlet aged() {
+        Restlet fresh = answer(List.of(CacheDirective.maxAge(300)), null);
+        return new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                fresh.handle(request, response);
+                response.setAge(290);
+            }
+        };
     }
 
     static Restlet answer(List<CacheDirective> directives, Long expiresInMillis) {
