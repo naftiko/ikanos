@@ -1812,6 +1812,15 @@
         },
         "ui": {
           "$ref": "#/$defs/McpResourceUi"
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Freshness hint, in milliseconds, returned as `ttlMs` on `resources/read` of this resource. Overrides the adapter's `ttlMs`. Lists keep the adapter's value."
+        },
+        "cacheScope": {
+          "$ref": "#/$defs/CacheScope",
+          "description": "Returned as `cacheScope` on `resources/read` of this resource. Overrides the adapter's `cacheScope`. Lists keep the adapter's value."
         }
       },
       "required": [

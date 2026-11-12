@@ -122,6 +122,9 @@ capability:
       namespace: "photos-mcp"
       description: "Photo library MCP server exposing image tools and resources."
       maxBinarySize: "25MiB"
+      # Cache hints (MCP 2026-07-28): lists may be reused for 5 minutes by any caller
+      ttlMs: 300000
+      cacheScope: "public"
       tools:
         get-photo:
           display: "Get photo"
@@ -134,6 +137,8 @@ capability:
           description: "Original-resolution bytes of a photo."
           mimeType: "image/jpeg"
           binary: true
+          # The bytes of a photo never change once uploaded: reads may be reused for a day
+          ttlMs: 86400000
           call: "photo-library.download-photo"
           with:
             id: "{id}"

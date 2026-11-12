@@ -71,6 +71,27 @@ class McpCacheHintsIntegrationTest {
         assertThat(result.path("cacheScope").asString()).isEqualTo("public");
     }
 
+    @Test
+    void resourceReadShouldUseTheResourceCacheHintsOverTheServerOnes() throws Exception {
+        ObjectNode params = JSON.createObjectNode().put("uri", "notes://team/notes.md");
+
+        JsonNode result = dispatch(configured, "resources/read", params);
+
+        assertThat(result.path("ttlMs").asInt(-1)).isEqualTo(5000);
+        assertThat(result.path("cacheScope").asString()).isEqualTo("private");
+    }
+
+    @Test
+    void resourceReadShouldFallBackToTheServerScopeWhenTheResourceSetsOnlyItsTtl()
+            throws Exception {
+        ObjectNode params = JSON.createObjectNode().put("uri", "news://feed/news.md");
+
+        JsonNode result = dispatch(configured, "resources/read", params);
+
+        assertThat(result.path("ttlMs").asInt(-1)).isEqualTo(1000);
+        assertThat(result.path("cacheScope").asString()).isEqualTo("public");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"tools/list", "resources/list"})
     void cacheHintsShouldDefaultToZeroAndPrivateWhenUnset(String method) throws Exception {
@@ -113,6 +134,12 @@ class McpCacheHintsIntegrationTest {
         Path docs = tempDir.resolve("docs");
         Files.createDirectories(docs);
         Files.writeString(docs.resolve("guide.md"), "# guide\n");
+        Path notes = tempDir.resolve("notes");
+        Files.createDirectories(notes);
+        Files.writeString(notes.resolve("notes.md"), "# notes\n");
+        Path news = tempDir.resolve("news");
+        Files.createDirectories(news);
+        Files.writeString(news.resolve("news.md"), "# news\n");
 
         String yaml = """
                 ikanos: "%s"
@@ -136,6 +163,19 @@ class McpCacheHintsIntegrationTest {
                         uri: "docs://guide"
                         description: "Static guide"
                         location: "%s"
+                      notes:
+                        display: "Notes"
+                        uri: "notes://team"
+                        description: "Team notes"
+                        location: "%s"
+                        ttlMs: 5000
+                        cacheScope: private
+                      news:
+                        display: "News"
+                        uri: "news://feed"
+                        description: "News feed"
+                        location: "%s"
+                        ttlMs: 1000
                       user:
                         display: "User"
                         uri: "data://users/{userId}"
@@ -163,7 +203,7 @@ class McpCacheHintsIntegrationTest {
                         operations:
                           get-user:
                             method: GET
-                """.formatted(IKANOS, cacheLines, docs.toUri());
+                """.formatted(IKANOS, cacheLines, docs.toUri(), notes.toUri(), news.toUri());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         return (McpServerAdapter) new Capability(spec).getServerAdapters().get(0);
     }

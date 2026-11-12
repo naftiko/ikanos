@@ -28,6 +28,17 @@ class CacheDataAppenderTest {
     DispatchPostProcessor processor = new CacheDataAppender(300, "public");
 
     @Test
+    void applyShouldKeepHintsTheHandlerAlreadySet() throws ProcessorException {
+        ObjectNode response = mapper.createObjectNode();
+        response.putObject("result").put("ttlMs", 5000).put("cacheScope", "private");
+
+        processor.apply(response);
+
+        assertThat(response.path("result").path("ttlMs").asInt()).isEqualTo(5000);
+        assertThat(response.path("result").path("cacheScope").asString()).isEqualTo("private");
+    }
+
+    @Test
     void applyShouldAddCacheData() throws ProcessorException {
         // Given
         ObjectNode response = mapper.createObjectNode();

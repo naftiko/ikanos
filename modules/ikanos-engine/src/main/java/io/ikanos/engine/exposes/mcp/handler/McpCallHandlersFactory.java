@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
+import io.ikanos.engine.exposes.mcp.processor.CacheHints;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.processor.ProtocolsVersionsValidator;
@@ -39,12 +40,13 @@ public class McpCallHandlersFactory {
     }
 
     public static List<McpCallHandler> createAll(McpServerAdapter adapter) {
-        Integer ttlMs = adapter.getMcpServerSpec().getTtlMs();
-        String cacheScope = adapter.getMcpServerSpec().getCacheScope();
-
         ObjectMapper mapper = IkanosMappers.json();
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
-        DispatchPostProcessor cacheDataAppender = new CacheDataAppender(ttlMs, cacheScope);
+        DispatchPostProcessor cacheDataAppender =
+                new CacheDataAppender(CacheHints.forServer(adapter.getMcpServerSpec()));
+        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read
+        adapter.getMcpServerSpec().getResources().values()
+                .forEach(resource -> CacheHints.forResource(adapter.getMcpServerSpec(), resource));
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
         List<McpCallHandler> handlers = new ArrayList<>(List.of(
