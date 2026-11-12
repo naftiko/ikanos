@@ -16,6 +16,8 @@ package io.ikanos.engine.consumes.http;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
+import java.util.stream.Collectors;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.MediaType;
@@ -26,6 +28,7 @@ import org.restlet.representation.StringRepresentation;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.util.ConversionFormat;
@@ -130,6 +133,29 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
         return entity != null && entity.getMediaType() != null
                 ? entity.getMediaType().getName()
                 : null;
+    }
+
+    /**
+     * Freshness from the upstream's {@code Cache-Control}, {@code Expires} and {@code Date}
+     * headers. Only a successful (2xx) answer has any. Restlet parses these standard headers into
+     * the response and its entity instead of keeping them as raw headers, so they are read back
+     * from there.
+     */
+    @Override
+    public Freshness freshness() {
+        if (response == null || !isSuccessful()) {
+            return Freshness.UNKNOWN;
+        }
+        String cacheControl = response.getCacheDirectives().isEmpty() ? null
+                : response.getCacheDirectives().stream()
+                        .map(d -> d.getValue() != null ? d.getName() + "=" + d.getValue()
+                                : d.getName())
+                        .collect(Collectors.joining(", "));
+        Representation entity = entity();
+        Date expires = entity != null ? entity.getExpirationDate() : null;
+        Date date = response.getDate();
+        return Freshness.of(cacheControl, expires != null ? expires.getTime() : null,
+                date != null ? date.getTime() : null, System.currentTimeMillis());
     }
 
     @Override
