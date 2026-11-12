@@ -1816,6 +1816,7 @@
         "ttlMs": {
           "type": "integer",
           "minimum": 0,
+          "maximum": 2147483647,
           "description": "Freshness hint, in milliseconds, returned as `ttlMs` on `resources/read` of this resource. Overrides the adapter's `ttlMs`. Lists keep the adapter's value."
         },
         "cacheScope": {
