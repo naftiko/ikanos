@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -161,6 +162,19 @@ public final class McpRequestState {
      */
     public String seal(String principal, String requestDigest, ObjectNode answers,
             List<String> pending, String executionId, int round, JsonNode bound) {
+        return seal(principal, requestDigest, answers, pending, executionId, round, bound, null);
+    }
+
+    /**
+     * Seals a state as {@link #seal(String, String, ObjectNode, List, String, int, JsonNode)}
+     * does, expiring at {@code expiresAt} instead of {@link #TTL} from now: a state issued again
+     * for a round keeps that round's expiry, the one its unanswered call is swept at.
+     *
+     * @param expiresAt when the state expires, or {@code null} for {@link #TTL} from now
+     */
+    public String seal(String principal, String requestDigest, ObjectNode answers,
+            List<String> pending, String executionId, int round, JsonNode bound,
+            Instant expiresAt) {
         ObjectNode payload = MAPPER.createObjectNode();
         if (executionId != null) {
             payload.put("x", executionId);
@@ -171,7 +185,8 @@ public final class McpRequestState {
         }
         payload.put("p", principal);
         payload.put("d", scope + "\n" + requestDigest);
-        payload.put("e", clock.millis() + TTL.toMillis());
+        payload.put("e", expiresAt != null ? expiresAt.toEpochMilli()
+                : clock.millis() + TTL.toMillis());
         payload.set("a", answers);
         payload.set("k", MAPPER.valueToTree(pending));
         try {

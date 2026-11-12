@@ -223,13 +223,21 @@ public class McpJournaledRoundTripIntegrationTest {
 
     private ObjectNode send(McpServerAdapter adapter, String method, ObjectNode params)
             throws Exception {
+        return send(adapter, method, params, true);
+    }
+
+    private ObjectNode send(McpServerAdapter adapter, String method, ObjectNode params,
+            boolean elicitation) throws Exception {
         ObjectNode request = jsonMapper.createObjectNode();
         request.put("jsonrpc", "2.0");
         request.put("id", 1);
         request.put("method", method);
         ObjectNode meta = params.putObject("_meta");
         meta.put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
-        meta.putObject("io.modelcontextprotocol/clientCapabilities").putObject("elicitation");
+        ObjectNode capabilities = meta.putObject("io.modelcontextprotocol/clientCapabilities");
+        if (elicitation) {
+            capabilities.putObject("elicitation");
+        }
         request.set("params", params);
         return new ProtocolDispatcher(adapter).dispatch(request).responseBody();
     }
@@ -263,6 +271,24 @@ public class McpJournaledRoundTripIntegrationTest {
 
         JsonNode again = send(adapter, "tools/call", retry(BOOK, state)).path("result");
         assertEquals(done, again, "A retry after the end gets the recorded result");
+        assertEquals(1, bookings.get());
+    }
+
+    @Test
+    void aClientThatCannotAnswerShouldBeRejectedBeforeTheWrite() throws Exception {
+        Capability capability = load(MEMORY);
+        McpServerAdapter adapter = mcp(capability);
+
+        JsonNode rejected = send(adapter, "tools/call", params(BOOK), false);
+        assertEquals(-32021, rejected.path("error").path("code").asInt(), rejected.toString());
+        assertEquals(0, bookings.get(), "Nothing is booked for a call that could not be answered");
+        assertTrue(capability.getDurability().runner()
+                .findByLabel(McpTaskService.KIND, McpTaskService.MRTR).isEmpty(),
+                "No execution is left that no state names");
+
+        // The client retries, declaring the capability: one booking in all.
+        JsonNode asked = send(adapter, "tools/call", params(BOOK)).path("result");
+        send(adapter, "tools/call", retry(BOOK, asked.path("requestState").asString()));
         assertEquals(1, bookings.get());
     }
 
