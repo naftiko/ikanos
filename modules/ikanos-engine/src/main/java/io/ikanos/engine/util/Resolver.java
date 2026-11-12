@@ -980,6 +980,23 @@ public class Resolver {
     public static List<ResolvedInputParameter> resolveInputParameterValues(
             List<InputParameterSpec> specs, Map<String, Object> parameters,
             Set<InputParameterSpec> notSent) {
+        return resolveInputParameterValues(specs, parameters, notSent, null);
+    }
+
+    /**
+     * Same, and also collects into {@code pathValues} the value of each {@code in: path}
+     * parameter that has a {@code value} or {@code template}, for the URI (#978). A query or
+     * header parameter of the same name then never changes the path. A path parameter that
+     * replaces the caller's value must resolve: when its template uses a variable that is absent,
+     * the call fails rather than fall back to the caller's value. A replaced (broader) one is only
+     * a default and is left out instead.
+     *
+     * @param pathValues receives the path values, or {@code null} when no URI is rendered
+     * @throws IllegalArgumentException when an effective path value cannot be resolved
+     */
+    public static List<ResolvedInputParameter> resolveInputParameterValues(
+            List<InputParameterSpec> specs, Map<String, Object> parameters,
+            Set<InputParameterSpec> notSent, Map<String, Object> pathValues) {
         List<ResolvedInputParameter> resolved = new java.util.ArrayList<>();
         if (specs == null || specs.isEmpty()) {
             return resolved;
@@ -989,6 +1006,17 @@ public class Resolver {
                 : new HashSet<>(parameters.keySet());
 
         for (InputParameterSpec spec : specs) {
+            String pathTemplate = "path".equalsIgnoreCase(spec.getIn())
+                    ? (spec.getValue() != null ? spec.getValue() : spec.getTemplate()) : null;
+            boolean pathOverride = pathValues != null && pathTemplate != null
+                    && !notSent.contains(spec);
+            if (pathOverride) {
+                List<String> missing = missingVariables(pathTemplate, parameters);
+                if (!missing.isEmpty()) {
+                    throw new IllegalArgumentException("Unresolved template parameters in path"
+                            + " parameter '" + spec.getName() + "': " + missing);
+                }
+            }
             try {
                 String in = spec.getIn() == null ? "body" : spec.getIn();
                 Object val = null;
@@ -1018,11 +1046,17 @@ public class Resolver {
                 if (notSent.contains(spec)) {
                     if (parameters != null && !supplied.contains(spec.getName())) {
                         parameters.put(spec.getName(), val);
+                        if (pathValues != null && pathTemplate != null) {
+                            pathValues.put(spec.getName(), val);
+                        }
                     }
                     continue;
                 }
                 if (parameters != null) {
                     parameters.put(spec.getName(), val);
+                }
+                if (pathValues != null && pathTemplate != null) {
+                    pathValues.put(spec.getName(), val);
                 }
                 resolved.add(new ResolvedInputParameter(spec, val));
             } catch (RuntimeException e) {
