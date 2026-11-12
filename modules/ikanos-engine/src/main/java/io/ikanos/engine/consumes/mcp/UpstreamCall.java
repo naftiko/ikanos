@@ -405,7 +405,7 @@ final class UpstreamCall {
     private InputRequiredException questions(JsonNode requests, Map<String, JsonNode> carry) {
         List<InputRequiredException.Question> questions = new ArrayList<>();
         for (String key : requests.propertyNames()) {
-            questions.add(new InputRequiredException.Question(prefix + key, null,
+            questions.add(new InputRequiredException.Question(prefix + keyOf(key), null,
                     requests.get(key)));
         }
         return new InputRequiredException(questions, carry);
@@ -426,15 +426,59 @@ final class UpstreamCall {
         return result.path(McpResultType.FIELD).asString(McpResultType.COMPLETE.wireValue());
     }
 
-    /** The answers whose key starts with {@code prefix}, the prefix removed. */
+    /**
+     * The answers whose key starts with {@code prefix}, the prefix removed and the upstream's own
+     * key restored ({@link #keyOf}).
+     */
     private static Map<String, JsonNode> answersUnder(String prefix,
             Map<NodePath, Object> answers) {
         Map<String, JsonNode> own = new LinkedHashMap<>();
         answers.forEach((path, value) -> {
             if (path.value().startsWith(prefix)) {
-                own.put(path.value().substring(prefix.length()), JSON.valueToTree(value));
+                own.put(upstreamKey(path.value().substring(prefix.length())),
+                        JSON.valueToTree(value));
             }
         });
         return own;
+    }
+
+    /** Marks an upstream key encoded by {@link #keyOf}. */
+    private static final String ENCODED = "~";
+
+    /**
+     * The caller-side form of an upstream's input request key, appended to the calling step's
+     * path. Upstream keys are opaque, but the caller's answers are keyed by node paths: a key
+     * that is not a valid relative path ({@code /confirm}, {@code confirm/}, {@code a//b}, blank)
+     * or that starts with {@value #ENCODED} is encoded as {@value #ENCODED} and its base64url,
+     * and {@link #upstreamKey} restores it. Other keys are kept as they are.
+     */
+    static String keyOf(String upstreamKey) {
+        if (!upstreamKey.startsWith(ENCODED) && isRelativePath(upstreamKey)) {
+            return upstreamKey;
+        }
+        return ENCODED + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                upstreamKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** The upstream's own key for a caller-side key made by {@link #keyOf}. */
+    static String upstreamKey(String key) {
+        if (!key.startsWith(ENCODED)) {
+            return key;
+        }
+        try {
+            return new String(java.util.Base64.getUrlDecoder().decode(key.substring(1)),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return key;
+        }
+    }
+
+    private static boolean isRelativePath(String key) {
+        try {
+            new NodePath(key);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }
