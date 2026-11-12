@@ -1,19 +1,18 @@
-ikanos: "1.0.0-beta3"
-
-binds:
-- namespace: "registry-env"
-  description: "Maritime Registry API credentials and config."
-  location: "file:///app/shared/secrets.yaml"
-  keys:
-    REGISTRY_TOKEN: "registry-bearer-token"
-    REGISTRY_VERSION: "registry-api-version"
-- namespace: "bearer-env"
-  description: "Static bearer token for the MCP bearer-auth surface."
-  location: "file:///app/shared/secrets.yaml"
-  keys:
-    MCP_BEARER_TOKEN: "mcp-server-token"
+ikanos: "1.0.0-beta10"
 
 capability:
+  binds:
+  - namespace: "registry-env"
+    description: "Maritime Registry API credentials and config."
+    location: "file:///app/shared/secrets.yaml"
+    keys:
+      REGISTRY_TOKEN: "registry-bearer-token"
+      REGISTRY_VERSION: "registry-api-version"
+  - namespace: "bearer-env"
+    description: "Static bearer token for the MCP bearer-auth surface."
+    location: "file:///app/shared/secrets.yaml"
+    keys:
+      MCP_BEARER_TOKEN: "mcp-server-token"
   consumes:
   - namespace: registry
     type: http

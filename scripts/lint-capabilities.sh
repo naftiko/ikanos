@@ -26,8 +26,8 @@ cd "$(dirname "$0")/.." || exit 1
 SCHEMA="modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json"
 RULESET="modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml"
 
-# Capability files: tutorial, schema examples and test fixtures.
-INCLUDE='^modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|ikanos-spec/src/test/resources|ikanos-engine/src/test/resources)/.*\.ya?ml$'
+# Capability files: tutorial, schema examples, test fixtures and the e2e feature capabilities.
+INCLUDE='^(modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|ikanos-spec/src/test/resources|ikanos-engine/src/test/resources)|\.github/e2e/resources/features)/.*\.ya?ml$'
 # Not capabilities, or fixtures that must fail on purpose:
 # - secrets / sample data, OpenAPI documents, partial import sources
 # - capability-spurious-name.yml: invalid on purpose (schema test)
