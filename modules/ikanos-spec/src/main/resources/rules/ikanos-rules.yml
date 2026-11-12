@@ -259,7 +259,7 @@ rules:
       `requestState`. A key written into the capability ends up in source
       control. Write a single Mustache expression naming a binding key, such as
       `{{IKANOS_SEALING_KEY}}` or `{{secrets.IKANOS_SEALING_KEY}}`, and declare
-      that key in `binds`. A literal key still loads, which keeps a quick local
+      that key in `capability.binds`. A literal key still loads, which keeps a quick local
       test possible.
     severity: warn
     recommended: true
