@@ -29,11 +29,11 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Issue #1006, through the full engine stack against a local stub upstream: an MCP tool keyed by
- * a snake_case name is listed under that exact name, is callable by it, and can be named in a
- * skill's {@code tools} list.
+ * Issue #1006, as a component test: the engine, from capability load to MCP dispatch, against a
+ * local stub upstream. An MCP tool keyed by a snake_case name is listed under that exact name, is
+ * callable by it, and can be named in a skill's {@code tools} list.
  */
-class McpSnakeCaseToolNameIntegrationTest {
+class McpSnakeCaseToolNameTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
     private static final ObjectMapper JSON = IkanosMappers.lenientJson();
