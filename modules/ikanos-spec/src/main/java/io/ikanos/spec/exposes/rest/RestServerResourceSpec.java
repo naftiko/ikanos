@@ -15,7 +15,9 @@ package io.ikanos.spec.exposes.rest;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -38,6 +40,9 @@ public class RestServerResourceSpec extends ResourceSpec {
             Collections.synchronizedMap(new LinkedHashMap<>());
 
     private final AtomicReference<RestServerForwardSpec> forward = new AtomicReference<>();
+
+    /** Names of the input parameter sets of the adapter's {@code definitions} (#1000). */
+    private final CopyOnWriteArrayList<String> inputParameterSets = new CopyOnWriteArrayList<>();
 
     public RestServerResourceSpec() {
         this(null, null, null, null, null);
@@ -70,4 +75,16 @@ public class RestServerResourceSpec extends ResourceSpec {
 
     public RestServerForwardSpec getForward() { return forward.get(); }
     public void setForward(RestServerForwardSpec forward) { this.forward.set(forward); }
+
+    /**
+     * @return the names of the input parameter sets of the adapter's {@code definitions} this
+     *         resource uses, applied in order before its own {@code inputParameters}, which its
+     *         operations inherit. Empty once the definitions are expanded (#1000).
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getInputParameterSets() { return inputParameterSets; }
+    public void setInputParameterSets(List<String> sets) {
+        this.inputParameterSets.clear();
+        if (sets != null) this.inputParameterSets.addAll(sets);
+    }
 }
