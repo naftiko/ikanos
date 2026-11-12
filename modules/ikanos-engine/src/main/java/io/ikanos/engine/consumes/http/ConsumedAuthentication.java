@@ -69,8 +69,9 @@ public final class ConsumedAuthentication {
 
     /**
      * Apply {@code authenticationSpec} to {@code clientRequest}. When the spec is {@code null} and
-     * a {@code serverRequest} carries a challenge response, that response is forwarded (REST
-     * forward mode only; the MCP adapter always passes {@code null}).
+     * a {@code serverRequest} carries a challenge response, that response is forwarded. Only
+     * REST forward mode passes a {@code serverRequest}, and only when {@code Authorization} is a
+     * trusted header (#1010); every other caller passes {@code null}.
      *
      * @param authenticationSpec the consumed-side credential, or {@code null}
      * @param serverRequest      the inbound request (forward mode), or {@code null}

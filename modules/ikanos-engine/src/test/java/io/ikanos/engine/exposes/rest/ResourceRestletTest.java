@@ -319,6 +319,24 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void isTrustedHeaderShouldBeFalseWhenAuthorizationIsNotListed() {
+    assertFalse(ResourceRestlet.isTrustedHeader(java.util.List.of("Accept"), "Authorization"),
+        "#1010: Authorization must not be forwarded when it is not a trusted header");
+  }
+
+  @Test
+  public void isTrustedHeaderShouldBeFalseWhenTheTrustedListIsNull() {
+    assertFalse(ResourceRestlet.isTrustedHeader(null, "Authorization"),
+        "#1010: with no trustedHeaders, Authorization must not be forwarded");
+  }
+
+  @Test
+  public void isTrustedHeaderShouldBeTrueWhenAuthorizationIsListedInAnyCase() {
+    assertTrue(ResourceRestlet.isTrustedHeader(java.util.List.of("authorization"), "Authorization"),
+        "#1010: header names are case-insensitive");
+  }
+
+  @Test
   public void sendResponseShouldFallbackToRawEntityAndHandleMappingExceptions() throws Exception {
     Capability capability = capabilityFromYaml(minimalCapabilityYaml());
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)

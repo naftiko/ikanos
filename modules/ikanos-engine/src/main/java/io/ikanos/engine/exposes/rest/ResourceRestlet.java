@@ -598,7 +598,12 @@ public class ResourceRestlet extends Restlet {
 
                         // Set any authentication needed on the client request
                         Response clientResponse = new Response(clientRequest);
-                        httpAdapter.setChallengeResponse(request, clientRequest,
+                        // The caller's credential is forwarded only when Authorization is a
+                        // trusted header: when the target declares no authentication,
+                        // ConsumedAuthentication copies the inbound challenge response (#1010)
+                        Request credentialSource = isTrustedHeader(
+                                forwardSpec.getTrustedHeaders(), "Authorization") ? request : null;
+                        httpAdapter.setChallengeResponse(credentialSource, clientRequest,
                                 clientRequest.getResourceRef().toString(), parameters);
                         httpAdapter.setHeaders(clientRequest);
 
@@ -625,6 +630,21 @@ public class ResourceRestlet extends Restlet {
             }
         }
 
+        return false;
+    }
+
+    /**
+     * @return {@code true} when {@code name} is listed in {@code trustedHeaders}, ignoring case
+     */
+    static boolean isTrustedHeader(Iterable<String> trustedHeaders, String name) {
+        if (trustedHeaders == null) {
+            return false;
+        }
+        for (String trustedHeader : trustedHeaders) {
+            if (name.equalsIgnoreCase(trustedHeader)) {
+                return true;
+            }
+        }
         return false;
     }
 
