@@ -131,6 +131,7 @@ public class ScriptingManagementSpec {
         return totalErrors.get();
     }
 
+    @JsonIgnore
     public double getAverageDurationMs() {
         long count = totalExecutions.get();
         if (count == 0) {

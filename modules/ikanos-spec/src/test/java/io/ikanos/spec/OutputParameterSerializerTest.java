@@ -47,6 +47,19 @@ class OutputParameterSerializerTest {
     }
 
     @Test
+    void serializeShouldWriteStaticValueOfNamedMockOutput() throws Exception {
+        OutputParameterSpec named = new OutputParameterSpec();
+        named.setName("message");
+        named.setType("string");
+        named.setValue("Hello, {{name}}!");
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(named));
+
+        assertEquals("Hello, {{name}}!", json.get("value").asString(),
+                "a named mock output must keep its static value when written out");
+    }
+
+    @Test
     void serializeShouldWriteNestedObjectsAndSkipUnnamedPropertyKeys() throws Exception {
         OutputParameterSpec spec = new OutputParameterSpec();
         spec.setName("payload");

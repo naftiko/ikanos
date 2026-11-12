@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.imports;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -24,12 +25,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.assertj.core.api.recursive.comparison.ComparingFields;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.ObjectMapper;
 
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
@@ -40,7 +45,6 @@ import io.ikanos.spec.exposes.ImportedExposesSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
-import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
@@ -52,12 +56,40 @@ class SourceFileLoaderDeepCopyTest {
 
     private static final Path MCP_FIXTURES = Path.of("src/test/resources/mcp");
 
-    /** Capability files bundled with the engine, the spec and the docs. */
+    /**
+     * Capability files bundled with the spec and the docs, and every engine test fixture, so the
+     * net covers every adapter type.
+     */
     private static final List<Path> BUNDLED = List.of(
             Path.of("../ikanos-spec/src/main/resources/schemas/examples"),
             Path.of("../ikanos-docs/tutorial"),
-            MCP_FIXTURES,
-            Path.of("src/test/resources/aggregates"));
+            Path.of("src/test/resources"));
+
+    /**
+     * Compares fields, not getters: a getter can hide the field of the same name, as
+     * {@code InputParameterSpec.getRequired()} (the required-property list) hides the
+     * {@code required} flag. Atomic holders are unwrapped so that their content is compared, not
+     * their identity.
+     */
+    private static final ComparingFields FIELDS = new ComparingFields() {
+        @Override
+        public Object getChildNodeValue(String name, Object instance) {
+            Object value = super.getChildNodeValue(name, instance);
+            if (value instanceof AtomicReference<?> reference) {
+                return reference.get();
+            }
+            if (value instanceof AtomicBoolean flag) {
+                return flag.get();
+            }
+            if (value instanceof AtomicInteger number) {
+                return number.get();
+            }
+            if (value instanceof AtomicLong number) {
+                return number.get();
+            }
+            return value;
+        }
+    };
 
     private SourceFileLoader loader;
     private Path tempDir;
@@ -170,12 +202,15 @@ class SourceFileLoaderDeepCopyTest {
     }
 
     /**
-     * Regression net: every entry of every bundled capability survives the copy unchanged. Key
-     * order is not compared: it carries no meaning in maps such as {@code with:}.
+     * Regression net: every entry of every bundled capability survives the copy unchanged. The copy
+     * is compared field by field with the entry it was made from, not with its own serialized form,
+     * so a field the serializer drops shows up as a difference instead of being dropped on both
+     * sides. A field the entry leaves unset may come back set to its default (the copy writes what
+     * the getter returns, such as {@code transport: http}); a field the entry sets must come back
+     * with the same value.
      */
     @Test
     void everyBundledEntryShouldSurviveTheImportCopy() throws IOException {
-        ObjectMapper yaml = IkanosMappers.yaml();
         List<String> failures = new ArrayList<>();
         int copied = 0;
         for (Path dir : BUNDLED) {
@@ -191,13 +226,13 @@ class SourceFileLoaderDeepCopyTest {
                     try {
                         Object copy = loader.deepCopy(entry, entry.getClass());
                         copied++;
-                        if (!yaml.readTree(yaml.writeValueAsString(entry))
-                                .equals(yaml.readTree(yaml.writeValueAsString(copy)))) {
-                            failures.add(where + ": the copy differs");
-                        }
-                    } catch (IOException | RuntimeException e) {
-                        failures.add(where + ": " + String.valueOf(e.getMessage()).lines()
-                                .findFirst().orElse(""));
+                        assertThat(copy).usingRecursiveComparison()
+                                .withIntrospectionStrategy(FIELDS)
+                                .ignoringExpectedNullFields()
+                                .isEqualTo(entry);
+                    } catch (IOException | RuntimeException | AssertionError e) {
+                        failures.add(where + ": " + String.valueOf(e.getMessage()).strip()
+                                .replaceAll("\\s+", " "));
                     }
                 }
             }
