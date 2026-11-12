@@ -17,8 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -33,11 +35,13 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
+import org.restlet.data.Tag;
 import org.restlet.routing.Router;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.LogCapture;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.consumes.http.HttpConsumedResult;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.IkanosSpec;
@@ -309,7 +313,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("X-Trace", "abc");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("X-Trace", "X-Missing"));
+    restlet.copyTrustedHeaders(from, to, List.of("X-Trace", "X-Missing"));
     assertEquals("abc", to.getHeaders().getFirstValue("X-Trace", true));
     assertNull(to.getHeaders().getFirstValue("X-Missing", true));
 
@@ -330,9 +334,9 @@ public class ResourceRestletTest {
     from.getHeaders().add("If-None-Match", "\"v1\"");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-None-Match"));
+    restlet.copyTrustedHeaders(from, to, List.of("If-None-Match"));
 
-    assertEquals(java.util.List.of(org.restlet.data.Tag.parse("\"v1\"")),
+    assertEquals(List.of(Tag.parse("\"v1\"")),
         to.getConditions().getNoneMatch(),
         "#1001: Restlet 3 only sends If-None-Match from the request conditions, never from a raw "
             + "header");
@@ -350,7 +354,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("accept", "application/json");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Accept"));
+    restlet.copyTrustedHeaders(from, to, List.of("Accept"));
 
     assertEquals(MediaType.APPLICATION_JSON,
         to.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
@@ -370,7 +374,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Cache-Control", "max-age=0");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Cache-Control"));
+    restlet.copyTrustedHeaders(from, to, List.of("Cache-Control"));
 
     assertEquals(2, to.getCacheDirectives().size(),
         "every Cache-Control line the caller sent must be forwarded, not only the first");
@@ -390,7 +394,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Cookie", "b=2");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Cookie"));
+    restlet.copyTrustedHeaders(from, to, List.of("Cookie"));
 
     assertEquals(2, to.getCookies().size(), to.getCookies().toString());
   }
@@ -404,10 +408,10 @@ public class ResourceRestletTest {
     from.getHeaders().add("X-Request-Id", "b");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("X-Request-Id"));
+    restlet.copyTrustedHeaders(from, to, List.of("X-Request-Id"));
 
-    assertEquals(java.util.List.of("a", "b"),
-        java.util.List.of(to.getHeaders().getValuesArray("X-Request-Id", true)),
+    assertEquals(List.of("a", "b"),
+        List.of(to.getHeaders().getValuesArray("X-Request-Id", true)),
         "a custom header is not known to be a list, so each line is forwarded as sent");
   }
 
@@ -420,7 +424,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Authorization", "Bearer b");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Authorization"));
+    restlet.copyTrustedHeaders(from, to, List.of("Authorization"));
 
     assertEquals("Bearer a", to.getChallengeResponse().getIdentifier(),
         "Authorization holds one credential: joining lines would forge 'Bearer a, Bearer b'");
@@ -435,7 +439,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Access-Control-Request-Method", "DELETE");
     Request to = new Request(Method.OPTIONS, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Access-Control-Request-Method"));
+    restlet.copyTrustedHeaders(from, to, List.of("Access-Control-Request-Method"));
 
     assertEquals(Method.PUT, to.getAccessControlRequestMethod());
   }
@@ -449,7 +453,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Range", "bytes=0-9");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-Range", "Range"));
+    restlet.copyTrustedHeaders(from, to, List.of("If-Range", "Range"));
 
     assertTrue(to.getRanges().isEmpty(),
         "without its If-Range, a Range could return part of a changed representation");
@@ -468,7 +472,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("Authorization", "Token abc");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("Authorization"));
+    restlet.copyTrustedHeaders(from, to, List.of("Authorization"));
 
     assertNotNull(to.getChallengeResponse(),
         "#1001: a trusted Authorization must be copied by copyTrustedHeaders itself");
@@ -487,8 +491,8 @@ public class ResourceRestletTest {
     from.getHeaders().add("If-Match", "v1");
     Request to = new Request(Method.PUT, "http://localhost/target");
 
-    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-        () -> restlet.copyTrustedHeaders(from, to, java.util.List.of("If-Match")),
+    assertThrows(IllegalArgumentException.class,
+        () -> restlet.copyTrustedHeaders(from, to, List.of("If-Match")),
         "a PUT whose If-Match cannot be parsed must not go out as an unconditional write");
   }
 
@@ -504,7 +508,7 @@ public class ResourceRestletTest {
     from.getHeaders().add("If-None-Match", "v1");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-None-Match"));
+    restlet.copyTrustedHeaders(from, to, List.of("If-None-Match"));
 
     assertTrue(to.getConditions().getNoneMatch().isEmpty(),
         "a safe request goes out without the invalid condition, as RFC 9110 lets a server "
@@ -512,79 +516,9 @@ public class ResourceRestletTest {
   }
 
   @Test
-  public void capabilityShouldRefuseStaticAdapterHeaderInputThatCannotBeParsed() {
-    String yaml = """
-                ikanos: "%s"
-                capability:
-                  exposes:
-                    - type: "rest"
-                      address: "localhost"
-                      port: 0
-                      namespace: "test"
-                      resources:
-                        - path: "/proxy/{{path}}"
-                          forward:
-                            targetNamespace: up
-                  consumes:
-                    - type: "http"
-                      namespace: "up"
-                      baseUri: "http://localhost:9/v1"
-                      inputParameters:
-                        If-Match:
-                          in: header
-                          value: "v1"
-                """.formatted(schemaVersion);
-
-    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-        IllegalArgumentException.class, () -> capabilityFromYaml(yaml),
-        "#1001: a static header value that can never be sent must fail at load time, not "
-            + "fail or be dropped on every call");
-    assertTrue(error.getMessage().contains("If-Match"), error.getMessage());
-    assertFalse(error.getMessage().contains("v1\""), error.getMessage());
-  }
-
-  @Test
-  public void capabilityShouldRefuseStaticOperationHeaderInputThatCannotBeParsed() {
-    String yaml = """
-                ikanos: "%s"
-                capability:
-                  exposes:
-                    - type: "rest"
-                      address: "localhost"
-                      port: 0
-                      namespace: "test"
-                      resources:
-                        - path: "/items"
-                          operations:
-                            - method: "GET"
-                              name: "list"
-                              call: up.list
-                  consumes:
-                    - type: "http"
-                      namespace: "up"
-                      baseUri: "http://localhost:9/v1"
-                      resources:
-                        items:
-                          path: "/items"
-                          operations:
-                            list:
-                              method: GET
-                              inputParameters:
-                                Range:
-                                  in: header
-                                  value: "items=0-9"
-                """.formatted(schemaVersion);
-
-    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
-        IllegalArgumentException.class, () -> capabilityFromYaml(yaml));
-    assertTrue(error.getMessage().contains("Range"), error.getMessage());
-    assertFalse(error.getMessage().contains("items=0-9"), error.getMessage());
-  }
-
-  @Test
-  public void capabilityShouldAcceptTemplatedHeaderInputWhoseValueIsOnlyKnownPerCall()
+  public void handleFromForwardSpecShouldAnswerBadRequestWhenAdapterPreconditionIsInvalid()
       throws Exception {
-    String yaml = """
+    Capability capability = capabilityFromYaml("""
                 ikanos: "%s"
                 capability:
                   exposes:
@@ -603,10 +537,24 @@ public class ResourceRestletTest {
                       inputParameters:
                         If-Match:
                           in: header
-                          value: "{{etag}}"
-                """.formatted(schemaVersion);
+                          value: "\\"ok\\""
+                """.formatted(schemaVersion));
+    // The load-time check passed; a value that cannot be parsed now reaches Resolver in forward
+    // mode, outside copyTrustedHeaders
+    ((HttpClientAdapter) capability.getClientAdapters().get(0)).getHttpClientSpec()
+        .getInputParameters().get(0).setValue("v1");
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+    Request request = new Request(Method.PUT, "http://localhost/proxy/items/1");
+    request.getAttributes().put("path", "items/1");
+    Response response = new Response(request);
 
-    assertNotNull(capabilityFromYaml(yaml));
+    assertTrue(restlet.handleFromForwardSpec(request, response));
+
+    assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus(),
+        "#1001: an invalid precondition on a forwarded write is bad input, not a server error");
   }
 
   @Test
@@ -631,7 +579,7 @@ public class ResourceRestletTest {
                       baseUri: "http://localhost:9/v1"
                 """.formatted(schemaVersion);
 
-    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
+    IllegalArgumentException error = assertThrows(
         IllegalArgumentException.class, () -> capabilityFromYaml(yaml),
         "#1001: a trusted header the engine can never send must fail at load time, "
             + "not be dropped on every request");

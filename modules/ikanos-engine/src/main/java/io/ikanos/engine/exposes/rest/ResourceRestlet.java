@@ -44,6 +44,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -586,15 +587,8 @@ public class ResourceRestlet extends Restlet {
                         clientRequest.setEntity(request.getEntity());
 
                         // Copy trusted headers from the original request to the client request
-                        try {
-                            copyTrustedHeaders(request, clientRequest,
-                                    getResourceSpec().getForward().getTrustedHeaders());
-                        } catch (StandardRequestHeaders.InvalidPreconditionException e) {
-                            // A write whose precondition cannot be parsed is refused (#1001)
-                            sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, e.getMessage(),
-                                    "Invalid precondition in forward mode", e);
-                            return true;
-                        }
+                        copyTrustedHeaders(request, clientRequest,
+                                getResourceSpec().getForward().getTrustedHeaders());
 
                         // Prepare parameters map for template resolution
                         Map<String, Object> parameters = new ConcurrentHashMap<>();
@@ -622,6 +616,12 @@ public class ResourceRestlet extends Restlet {
                         response.setStatus(clientResponse.getStatus());
                         response.setEntity(clientResponse.getEntity());
                         response.commit();
+                        return true;
+                    } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+                        // A write whose precondition cannot be parsed is refused, whether it
+                        // comes from a trusted header or an adapter header input (#1001)
+                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, e.getMessage(),
+                                "Invalid precondition in forward mode", e);
                         return true;
                     } catch (Exception e) {
                         sendError(response, Status.SERVER_ERROR_INTERNAL,
@@ -683,7 +683,7 @@ public class ResourceRestlet extends Restlet {
         }
         if (ifRangeDropped) {
             // Without its If-Range, the Range could return part of a changed representation
-            to.setRanges(new java.util.ArrayList<>());
+            to.setRanges(new ArrayList<>());
         }
     }
 

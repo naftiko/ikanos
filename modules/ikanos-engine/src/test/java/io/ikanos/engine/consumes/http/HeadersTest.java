@@ -15,10 +15,12 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
+import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -58,10 +60,10 @@ public class HeadersTest {
         accept.setIn("header");
         accept.setValue("application/xml");
 
-        Resolver.resolveInputParametersToRequest(request, java.util.List.of(accept),
+        Resolver.resolveInputParametersToRequest(request, List.of(accept),
                 new ConcurrentHashMap<>());
 
-        assertEquals(org.restlet.data.MediaType.APPLICATION_XML,
+        assertEquals(MediaType.APPLICATION_XML,
                 request.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
                 "#1001: Restlet 3 only sends Accept from the client info, never from a raw header");
     }
@@ -96,7 +98,7 @@ public class HeadersTest {
         params.put("requestId", "abc-123");
 
         Resolver.resolveInputParametersToRequest(request,
-                java.util.List.of(dynamicHeader), params);
+                List.of(dynamicHeader), params);
 
         String header = request.getHeaders().getFirstValue("X-Trace", true);
         assertEquals("trace-abc-123", header,

@@ -50,6 +50,9 @@ class ForwardStandardHeadersIntegrationTest {
 
     private static final String ETAG = "\"v1\"";
 
+    private static final String TEMPLATED = "/tpl?token=abc&fmt=application/xml"
+            + "&since=Tue,%2010%20Nov%202026%2008:00:00%20GMT";
+
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
     private final Map<String, String> received = new ConcurrentHashMap<>();
@@ -125,6 +128,25 @@ class ForwardStandardHeadersIntegrationTest {
                     - namespace: plain
                       type: http
                       baseUri: "http://localhost:%d/v1"
+                    - namespace: templated
+                      type: http
+                      baseUri: "http://localhost:%d/v1"
+                      inputParameters:
+                        Authorization:
+                          in: header
+                          value: "Bearer {{token}}"
+                        Accept:
+                          in: header
+                          value: "{{fmt}}"
+                        If-Modified-Since:
+                          in: header
+                          value: "{{since}}"
+                      resources:
+                        tpl:
+                          path: "/tpl"
+                          operations:
+                            get-tpl:
+                              method: GET
                     - namespace: secured
                       type: http
                       baseUri: "http://localhost:%d/v1"
@@ -191,6 +213,29 @@ class ForwardStandardHeadersIntegrationTest {
                             get:
                               method: GET
                               call: secured.get-account-op
+                        tpl:
+                          path: "/tpl"
+                          operations:
+                            get:
+                              method: GET
+                              inputParameters:
+                                token:
+                                  in: query
+                                  type: string
+                                  description: "Token sent in the adapter Authorization header"
+                                fmt:
+                                  in: query
+                                  type: string
+                                  description: "Media type sent in the adapter Accept header"
+                                since:
+                                  in: query
+                                  type: string
+                                  description: "Date sent in the adapter If-Modified-Since"
+                              call: templated.get-tpl
+                        tplfwd:
+                          path: "/tplfwd/{{path}}"
+                          forward:
+                            targetNamespace: templated
                         secure:
                           path: "/secure/{{path}}"
                           forward:
@@ -224,7 +269,8 @@ class ForwardStandardHeadersIntegrationTest {
                               - From
                               - X-Request-Id
                 """.formatted(IKANOS, upstream.getAddress().getPort(),
-                upstream.getAddress().getPort(), upstream.getAddress().getPort(), restPort),
+                upstream.getAddress().getPort(), upstream.getAddress().getPort(),
+                upstream.getAddress().getPort(), restPort),
                 IkanosSpec.class));
         capability.start();
     }
@@ -410,6 +456,47 @@ class ForwardStandardHeadersIntegrationTest {
         assertTrue(sent != null && sent.contains("session=abc") && sent.contains("lang=en"),
                 "a Cookie header input and an apikey cookie must both reach the upstream: "
                         + sent);
+    }
+
+    @Test
+    void declaredOperationShouldSendResolvedAdapterAuthorizationTemplate() throws Exception {
+        HttpResponse<String> response = get(TEMPLATED, "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("Bearer abc", received.get("authorization"),
+                "#1001: the resolved adapter-level template must reach the upstream, not be "
+                        + "replaced by its raw text after authentication");
+    }
+
+    @Test
+    void declaredOperationShouldSendResolvedAdapterAcceptTemplate() throws Exception {
+        HttpResponse<String> response = get(TEMPLATED, "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("application/xml", received.get("accept"));
+    }
+
+    @Test
+    void declaredOperationShouldSendResolvedAdapterIfModifiedSinceTemplate() throws Exception {
+        HttpResponse<String> response = get(TEMPLATED, "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(),
+                "#1001: a templated adapter-level date must not fail every GET: "
+                        + response.body());
+        assertEquals("Tue, 10 Nov 2026 08:00:00 GMT", received.get("if-modified-since"));
+    }
+
+    @Test
+    void forwardShouldNotFailWhenAdapterHeaderIsTemplated() throws Exception {
+        HttpResponse<String> response = get("/tplfwd/docs", "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(),
+                "#1001: a templated adapter-level header has no value in forward mode and must "
+                        + "be left out, not sent as its raw text or fail the call: "
+                        + response.body());
+        assertNull(received.get("if-modified-since"));
+        assertFalse(String.valueOf(received.get("authorization")).contains("{{"),
+                String.valueOf(received.get("authorization")));
     }
 
     @Test

@@ -465,11 +465,15 @@ public class HttpClientAdapter extends ClientAdapter {
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
             if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
                     && !replaced.contains(param)
+                    // A template was already resolved and applied by Resolver, before this
+                    // runs; its raw text must never replace the resolved value (#1001)
+                    && !param.getValue().contains("{{")
                     // These headers run after authentication: the declared authentication
                     // always wins for Authorization, as it does over an operation input (#1001)
                     && !(authenticated && "Authorization".equalsIgnoreCase(param.getName()))) {
-                // A standard header (User-Agent, …) through its Restlet property (#1001)
-                StandardRequestHeaders.set(request, param.getName(), param.getValue());
+                // A standard header (User-Agent, …) through its Restlet property (#1001). A
+                // static value was checked at load time (ConsumedHeaderValidator)
+                StandardRequestHeaders.setOrDrop(request, param.getName(), param.getValue());
             }
         }
     }
