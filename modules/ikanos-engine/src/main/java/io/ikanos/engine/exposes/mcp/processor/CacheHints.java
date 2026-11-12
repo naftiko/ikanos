@@ -18,6 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 
 /**
  * The cache hints of one MCP result (MCP 2026-07-28, SEP-2549): {@code ttlMs} and
@@ -25,8 +26,8 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
  *
  * <p>The adapter's values apply to every list and read; a resource's own values override them on
  * {@code resources/read} of that resource, field by field. A {@code cacheScope} of {@code auto} is
- * then resolved by {@link CacheScopes}: {@code private} when the adapter authenticates its callers,
- * {@code public} otherwise. Ikanos lists and resource reads do not otherwise vary by caller:
+ * then resolved by {@link CacheScopes}: {@code private} when the adapter authenticates its callers
+ * or identifies them through {@code trust}, {@code public} otherwise. Ikanos lists and resource reads do not otherwise vary by caller:
  * resource inputs come from the URI, and upstream credentials from the operator's binds.</p>
  *
  * @param ttlMs freshness in milliseconds, zero or more
@@ -51,7 +52,8 @@ public record CacheHints(int ttlMs, String cacheScope) {
         // auto is resolved by CacheScopes before a CacheHints is built, so it is refused here too
         if (!CacheScopes.PUBLIC.equals(cacheScope) && !CacheScopes.PRIVATE.equals(cacheScope)) {
             throw new IllegalArgumentException(
-                    "MCP cacheScope must be public, private or auto, got '" + cacheScope + "'");
+                    "MCP cacheScope must be public or private (auto is resolved first), got '"
+                            + cacheScope + "'");
         }
     }
 
@@ -81,10 +83,17 @@ public record CacheHints(int ttlMs, String cacheScope) {
 
     /** Why results of this adapter can depend on the caller, or {@code null}. */
     static String callerDependence(McpServerSpec server) {
-        return server.getAuthentication() != null
-                ? "the adapter authenticates its callers, so a shared cache must not reuse a"
-                        + " result for another caller"
-                : null;
+        if (server.getAuthentication() != null) {
+            return "the adapter authenticates its callers, so a shared cache must not reuse a"
+                    + " result for another caller";
+        }
+        McpTrustSpec trust = server.getTrust();
+        if (trust != null && !McpTrustSpec.MODE_NONE.equals(trust.getMode())) {
+            return "callers are identified (trust: " + trust.getMode() + "), so they are"
+                    + " authenticated upstream of the adapter, and a shared cache must not reuse"
+                    + " a result for another caller";
+        }
+        return null;
     }
 
     /** Write both hints on {@code result}, replacing any already there. */

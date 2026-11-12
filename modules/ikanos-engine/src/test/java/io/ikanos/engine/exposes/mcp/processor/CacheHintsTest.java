@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 
 class CacheHintsTest {
 
@@ -78,6 +79,25 @@ class CacheHintsTest {
     }
 
     @Test
+    void forServerShouldMakeAutoPrivateWhenCallersAreIdentifiedThroughTrust() {
+        McpServerSpec server = new McpServerSpec();
+        server.setCacheScope("auto");
+        server.setTrust(new McpTrustSpec("forwarded"));
+
+        assertThat(CacheHints.forServer(server).cacheScope()).isEqualTo("private");
+        assertThat(CacheHints.scopeDecision(server, null).reason()).contains("trust: forwarded");
+    }
+
+    @Test
+    void forServerShouldMakeAutoPublicWhenTrustIsNone() {
+        McpServerSpec server = new McpServerSpec();
+        server.setCacheScope("auto");
+        server.setTrust(new McpTrustSpec("none"));
+
+        assertThat(CacheHints.forServer(server).cacheScope()).isEqualTo("public");
+    }
+
+    @Test
     void forResourceShouldResolveAResourceAutoAgainstTheAdapter() {
         McpServerSpec server = new McpServerSpec();
         server.setCacheScope("private");
@@ -88,7 +108,7 @@ class CacheHintsTest {
     }
 
     @Test
-    void forResourceShouldInheritAnAdapterAuto() {
+    void forResourceShouldInheritAdapterAutoWhenResourceSetsNoScope() {
         McpServerSpec server = new McpServerSpec();
         server.setCacheScope("auto");
         server.setAuthentication(new BearerAuthenticationSpec("{{TOKEN}}"));
