@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync agents-shared skills from the agents-shared MCP server into .agents/skills/.
 
-Version 1.3.0 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
+Version 1.3.1 (HELPER_VERSION below). Source: naftiko/golden-repo-naftiko,
 agents-shared/instructions/agents-shared-sync.py. Consumer repos copy this file verbatim and
 never edit their copy; the server also publishes it as the ``agents-shared-sync`` skill, so
 each copy can tell when it is outdated (see --check-helper).
@@ -54,7 +54,7 @@ DEFAULT_URL = "http://localhost:9700"
 SCHEME = "skill://"
 
 # Keep equal to metadata.version of the agents-shared-sync skill in agents-shared.yml.
-HELPER_VERSION = "1.3.0"
+HELPER_VERSION = "1.3.1"
 HELPER_SKILL = "agents-shared-sync"
 HELPER_URI = f"{SCHEME}{HELPER_SKILL}/agents-shared-sync.py"
 
@@ -244,6 +244,7 @@ def write_skill(target, files):
     it replaces the copy in one rename. Any failure puts the original copy back as it was: a
     failed write (disk full, a file locked on Windows) or a failed move leaves nothing
     half-applied, and a path that changed between file and directory needs no cleanup.
+    If putting the copy back fails too, the error names the directories that hold what is left.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     lock = target.parent / f".{target.name}.sync.lock"
@@ -296,7 +297,14 @@ def replace_copy(target, files):
             target.rename(backup)
         staging.rename(target)
     except OSError as e:
-        restore_copy(target, staging, backup, moved)
+        try:
+            restore_copy(target, staging, backup, moved)
+        except OSError as restore_error:
+            left = " and ".join(f"{path.as_posix()}/" for path in (backup, staging)
+                                if path.exists())
+            raise SyncError(f"cannot replace {target.as_posix()}/ ({e}), and putting it back "
+                            f"failed too ({restore_error}); move the original copy and its "
+                            f"dot-entries back by hand from {left}") from e
         shutil.rmtree(holder, ignore_errors=True)
         raise SyncError(f"cannot replace {target.as_posix()}/ ({e}); is a file in it open? "
                         "The local copy is unchanged")
