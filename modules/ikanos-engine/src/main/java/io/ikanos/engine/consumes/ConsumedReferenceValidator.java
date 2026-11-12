@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
@@ -165,6 +166,7 @@ public final class ConsumedReferenceValidator {
                 }
             }
         }
+        ForwardResponseHeaders.validate(forward.getTrustedResponseHeaders(), where);
     }
 
     private static void checkSteps(Map<String, OperationStepSpec> steps, String where,
