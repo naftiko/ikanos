@@ -157,9 +157,9 @@ public class ForwardResponseHeadersIntegrationTest {
     }
 
     @Test
-    public void forwardShouldRelayARelativeLocationOutsideTheBaseUriUnchanged() throws Exception {
-        assertEquals("/internal/x",
-                get("/proxy/relative-outside").headers().firstValue("Location").orElse(null));
+    public void forwardShouldDropARelativeLocationOutsideTheBaseUri() throws Exception {
+        assertFalse(get("/proxy/relative-outside").headers().firstValue("Location").isPresent(),
+                "a relative location outside the base points into the gateway's namespace");
     }
 
     @Test
