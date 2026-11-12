@@ -760,6 +760,66 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void prepareShouldFailWhenANestedPathValueReferenceResolvesToNothing()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected.id}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", Map.of()))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected.id]",
+                error.getMessage(),
+                "#978: a nested reference that resolves to nothing must not fall back to the"
+                        + " caller's value");
+    }
+
+    @Test
+    public void prepareShouldFailWhenAPathValueTemplateCannotBeRendered() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet-{{selected}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+        IllegalStateException renderingError = new IllegalStateException("cannot render");
+        Object unrenderable = new Object() {
+            @Override
+            public String toString() {
+                throw renderingError;
+            }
+        };
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", unrenderable))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': rendering failed",
+                error.getMessage(),
+                "#978: a path value that fails to render must not fall back to the caller's"
+                        + " value");
+    }
+
+    @Test
     public void prepareShouldIgnoreUnresolvableReplacedPathValueWhenTheCallerSuppliesOne()
             throws Exception {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),

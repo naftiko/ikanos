@@ -196,11 +196,10 @@ public class Resolver {
         if (template == null) {
             return null;
         }
-        java.util.regex.Matcher matcher = WHOLE_VALUE_VARIABLE.matcher(template);
-        if (!matcher.matches()) {
+        String name = wholeValueVariable(template);
+        if (name == null) {
             return resolveMustacheTemplate(template, parameters);
         }
-        String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
         if (".".equals(name) || "this".equals(name)) {
             return resolveMustacheTemplate(template, parameters);
         }
@@ -208,6 +207,19 @@ public class Resolver {
             return null;
         }
         return lookupVariable(name, parameters);
+    }
+
+    /**
+     * The variable of a whole-value placeholder ({@code {{x}}}, {@code {{ x }}},
+     * {@code {{{x}}}}, {@code {{&x}}}, dotted paths included), or {@code null} when
+     * {@code template} is not exactly one variable tag.
+     */
+    static String wholeValueVariable(String template) {
+        java.util.regex.Matcher matcher = WHOLE_VALUE_VARIABLE.matcher(template);
+        if (!matcher.matches()) {
+            return null;
+        }
+        return matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
     }
 
     /**
@@ -988,8 +1000,9 @@ public class Resolver {
      * parameter that has a {@code value} or {@code template}, for the URI (#978). A query or
      * header parameter of the same name then never changes the path. A path parameter that
      * replaces the caller's value must resolve: when its template uses a variable that is absent,
-     * the call fails rather than fall back to the caller's value. A replaced (broader) one is only
-     * a default and is left out instead.
+     * resolves to nothing (a nested reference such as {@code {{selected.id}}}) or cannot be
+     * rendered, the call fails rather than fall back to the caller's value. A replaced (broader)
+     * one is only a default and is left out instead.
      *
      * @param pathValues receives the path values, or {@code null} when no URI is rendered
      * @throws IllegalArgumentException when an effective path value cannot be resolved
@@ -1017,32 +1030,31 @@ public class Resolver {
                             + " parameter '" + spec.getName() + "': " + missing);
                 }
             }
+            Object val;
             try {
-                String in = spec.getIn() == null ? "body" : spec.getIn();
-                Object val = null;
-                String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
-
-                if (template != null) {
-                    boolean noParameters = parameters == null || parameters.isEmpty();
-                    if (noParameters && !missingVariables(template, parameters).isEmpty()) {
-                        // Nothing can be substituted: omit the parameter, so an optional one is
-                        // not sent with its raw template text. The check is on the template, not
-                        // on the rendered value, so a caller value that itself contains "{{" is
-                        // still sent (#858).
-                        continue;
-                    }
-                    // A whole-value placeholder keeps the parameter's type (#880)
-                    val = Resolver.resolveValue(template, parameters);
-                } else if ("environment".equalsIgnoreCase(in)) {
-                    // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
-                    val = System.getenv(spec.getName());
-                } else if (parameters != null && parameters.containsKey(spec.getName())) {
-                    val = parameters.get(spec.getName());
+                val = resolveInputParameterValue(spec, parameters);
+            } catch (RuntimeException e) {
+                if (pathOverride) {
+                    // Never fall back to the caller's value. The message quotes no value: a
+                    // rendering error could.
+                    throw new IllegalArgumentException("Unresolved template parameters in path"
+                            + " parameter '" + spec.getName() + "': rendering failed", e);
                 }
-
-                if (val == null) {
-                    continue;
+                logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
+                continue;
+            }
+            if (val == null) {
+                if (pathOverride) {
+                    // A nested reference ({{selected.id}}) whose first segment is present but
+                    // whose value is absent: missingVariables only checks the first segment
+                    String variable = wholeValueVariable(pathTemplate);
+                    throw new IllegalArgumentException("Unresolved template parameters in path"
+                            + " parameter '" + spec.getName() + "': ["
+                            + (variable != null ? variable : pathTemplate) + "]");
                 }
+                continue;
+            }
+            try {
                 if (notSent.contains(spec)) {
                     if (parameters != null && !supplied.contains(spec.getName())) {
                         parameters.put(spec.getName(), val);
@@ -1064,6 +1076,39 @@ public class Resolver {
             }
         }
         return resolved;
+    }
+
+    /**
+     * The value of one input parameter: its rendered {@code value} or {@code template}, the
+     * operator's environment value, or the call parameter of the same name.
+     *
+     * @return the value, or {@code null} when the parameter is left out
+     * @throws RuntimeException when the template cannot be rendered
+     */
+    static Object resolveInputParameterValue(InputParameterSpec spec,
+            Map<String, Object> parameters) {
+        String in = spec.getIn() == null ? "body" : spec.getIn();
+        String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
+
+        if (template != null) {
+            boolean noParameters = parameters == null || parameters.isEmpty();
+            if (noParameters && !missingVariables(template, parameters).isEmpty()) {
+                // Nothing can be substituted: omit the parameter, so an optional one is not sent
+                // with its raw template text. The check is on the template, not on the rendered
+                // value, so a caller value that itself contains "{{" is still sent (#858).
+                return null;
+            }
+            // A whole-value placeholder keeps the parameter's type (#880)
+            return Resolver.resolveValue(template, parameters);
+        }
+        if ("environment".equalsIgnoreCase(in)) {
+            // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
+            return System.getenv(spec.getName());
+        }
+        if (parameters != null && parameters.containsKey(spec.getName())) {
+            return parameters.get(spec.getName());
+        }
+        return null;
     }
 
     /**
