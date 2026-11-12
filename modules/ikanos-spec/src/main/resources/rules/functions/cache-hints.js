@@ -2,113 +2,89 @@
  * Spectral custom function: cache-hints
  *
  * Checks the cache settings of exposed adapters (`ttlMs`, `cacheScope`,
- * `ttlFromUpstream`) against what the rest of the capability declares. One function
- * serves three rules, selected by the `check` option:
+ * `ttlFromUpstream`) against what the rest of the capability declares, mirroring
+ * how the engine applies them (#1022). One function serves two rules, selected by
+ * the `check` option:
  *
- * - `forwards-credentials`: a REST adapter sends `public` answers from a resource
- *   that forwards the caller's credentials upstream. A shared cache would then
- *   serve one caller's data to another (#1022).
- * - `caller-dependent`: an explicit `cacheScope: public` where the answer can
- *   depend on the caller: the adapter authenticates its callers (or, for MCP,
- *   identifies them through `trust`), or a REST operation reads an input from a
- *   request header or cookie. It can be intended, so it is a warning.
+ * - `caller-dependent`: an effective `cacheScope: public` where the answer can
+ *   depend on the caller. MCP: the adapter authenticates its callers or identifies
+ *   them through `trust`. REST: on a `GET` operation that sends `Cache-Control`
+ *   (a positive `ttlMs` on the operation or the adapter), the adapter authenticates
+ *   its callers or an input is read from outside the URL (`in: header`, or the
+ *   body, where an input without `in` is read). It can be intended, so it warns.
  * - `ttl-from-upstream-no-effect`: `ttlFromUpstream: true` on an MCP resource
- *   whose read does not come from a single HTTP call (static `location`,
- *   `steps`, or a call to an MCP consumed adapter), where it has no effect.
+ *   whose read does not come from a single HTTP answer: a static `location`,
+ *   `steps`, or a call to an MCP consumed adapter. (A resource cannot call an
+ *   aggregate flow: `ikanos-exposes-call-not-flow` already reports that.)
  *
- * Walks both `capability.exposes` and root-level `exposes` (shared section
- * documents). Keyed maps and arrays are both accepted for robustness.
+ * Walks both `capability.*` and root-level sections (shared section documents).
+ * Keyed maps and arrays are both accepted for robustness.
  */
-const CREDENTIAL_HEADERS = new Set(["authorization", "cookie", "proxy-authorization"]);
+const URL_LOCATIONS = new Set(["path", "query"]);
 
 export default function cacheHints(targetVal, options) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
   }
   const check = options && options.check;
+  const capability = targetVal.capability && typeof targetVal.capability === "object"
+    ? targetVal.capability : {};
+  const context = {
+    consumes: [...asArray(targetVal.consumes), ...asArray(capability.consumes)],
+  };
   const results = [];
-  const consumes = [
-    ...asArray(targetVal.consumes),
-    ...asArray(targetVal.capability && targetVal.capability.consumes),
-  ];
-  scan(targetVal.exposes, ["exposes"], check, consumes, results);
-  if (targetVal.capability && typeof targetVal.capability === "object") {
-    scan(targetVal.capability.exposes, ["capability", "exposes"], check, consumes, results);
-  }
+  scan(targetVal.exposes, ["exposes"], check, context, results);
+  scan(capability.exposes, ["capability", "exposes"], check, context, results);
   return results;
 }
 
-function scan(exposes, basePath, check, consumes, results) {
+function scan(exposes, basePath, check, context, results) {
   asArray(exposes).forEach((adapter, index) => {
     if (!adapter || typeof adapter !== "object") {
       return;
     }
     const path = [...basePath, index];
-    if (adapter.type === "rest") {
-      if (check === "forwards-credentials") {
-        restForwardsCredentials(adapter, path, results);
-      } else if (check === "caller-dependent") {
+    if (check === "caller-dependent") {
+      if (adapter.type === "rest") {
         restCallerDependent(adapter, path, results);
-      }
-    } else if (adapter.type === "mcp") {
-      if (check === "caller-dependent") {
+      } else if (adapter.type === "mcp") {
         mcpCallerDependent(adapter, path, results);
-      } else if (check === "ttl-from-upstream-no-effect") {
-        mcpTtlFromUpstream(adapter, path, consumes, results);
       }
+    } else if (check === "ttl-from-upstream-no-effect" && adapter.type === "mcp") {
+      mcpTtlFromUpstream(adapter, path, context, results);
     }
   });
 }
 
-function restForwardsCredentials(adapter, path, results) {
-  if (adapter.cacheScope !== "public" || !(adapter.ttlMs > 0)) {
-    return;
-  }
-  for (const [key, resource] of entries(adapter.resources)) {
-    const forward = resource && resource.forward;
-    const forwarded = asArray(forward && forward.trustedHeaders)
-      .filter((h) => typeof h === "string" && CREDENTIAL_HEADERS.has(h.toLowerCase()));
-    if (forwarded.length > 0) {
-      results.push({
-        message:
-          "REST resource '" + key + "' forwards " + forwarded.join(", ")
-          + " upstream, but the adapter sends its answers as cacheScope public: a shared "
-          + "cache would serve one caller's data to another. Use private or auto.",
-        path: [...path, "cacheScope"],
-      });
-    }
-  }
-}
-
 function restCallerDependent(adapter, path, results) {
-  const authenticated = Boolean(adapter.authentication);
-  const adapterHeaderInput = headerInput(adapter.inputParameters);
-  if (adapter.cacheScope === "public" && (authenticated || adapterHeaderInput)) {
-    results.push({
-      message: "REST adapter answers are cacheScope public, but "
-        + (authenticated ? "the adapter authenticates its callers"
-          : "an input is read from a request header or cookie (" + adapterHeaderInput + ")")
-        + ". Check that no answer depends on the caller, or use auto.",
-      path: [...path, "cacheScope"],
-    });
-  }
+  const adapterInput = inputOutsideUrl(adapter.inputParameters);
   for (const [resKey, resource] of entries(adapter.resources)) {
-    const resourceHeaderInput = headerInput(resource && resource.inputParameters);
+    const resourceInput = inputOutsideUrl(resource && resource.inputParameters);
     for (const [opKey, operation] of entries(resource && resource.operations)) {
-      if (!operation || operation.cacheScope !== "public") {
+      if (!operation || String(operation.method).toUpperCase() !== "GET") {
         continue;
       }
-      const input = headerInput(operation.inputParameters) || resourceHeaderInput
-        || adapterHeaderInput;
-      if (authenticated || input) {
-        results.push({
-          message: "REST operation '" + opKey + "' answers are cacheScope public, but "
-            + (authenticated ? "the adapter authenticates its callers"
-              : "an input is read from a request header or cookie (" + input + ")")
-            + ". Check that no answer depends on the caller, or use auto.",
-          path: [...path, "resources", resKey, "operations", opKey, "cacheScope"],
-        });
+      const ttlMs = operation.ttlMs !== undefined ? operation.ttlMs : adapter.ttlMs;
+      const ownScope = operation.cacheScope !== undefined;
+      const scope = ownScope ? operation.cacheScope : adapter.cacheScope;
+      if (scope !== "public" || !(ttlMs > 0)) {
+        continue;
       }
+      const input = inputOutsideUrl(operation.inputParameters) || resourceInput || adapterInput;
+      if (!adapter.authentication && !input) {
+        continue;
+      }
+      const why = adapter.authentication
+        ? "the adapter authenticates its callers"
+        : "input '" + input + "' is read from outside the URL";
+      results.push({
+        message: "REST operation '" + opKey + "' answers are cacheScope public"
+          + (ownScope ? "" : " (from the adapter)") + ", but " + why
+          + ". Check that no answer depends on the caller, or use auto.",
+        path: ownScope
+          ? [...path, "resources", resKey, "operations", opKey, "cacheScope"]
+          : [...path, "cacheScope"],
+      });
     }
   }
 }
@@ -140,7 +116,7 @@ function mcpCallerDependent(adapter, path, results) {
   }
 }
 
-function mcpTtlFromUpstream(adapter, path, consumes, results) {
+function mcpTtlFromUpstream(adapter, path, context, results) {
   for (const [key, resource] of entries(adapter.resources)) {
     if (!resource || resource.ttlFromUpstream !== true) {
       continue;
@@ -151,11 +127,7 @@ function mcpTtlFromUpstream(adapter, path, consumes, results) {
     } else if (resource.steps) {
       reason = "with steps, no single upstream answer speaks for the result";
     } else if (typeof resource.call === "string") {
-      const namespace = resource.call.split(".")[0];
-      const target = consumes.find((c) => c && c.namespace === namespace);
-      if (target && target.type === "mcp") {
-        reason = "MCP upstreams send no HTTP caching headers";
-      }
+      reason = callTargetReason(resource.call, context);
     }
     if (reason) {
       results.push({
@@ -167,10 +139,22 @@ function mcpTtlFromUpstream(adapter, path, consumes, results) {
   }
 }
 
-/** Name of the first input read from a header or cookie, or null. */
-function headerInput(inputParameters) {
+/** Why a `namespace.operation` call yields no upstream freshness, or null when it can. */
+function callTargetReason(call, context) {
+  const namespace = call.split(".")[0];
+  const consumed = context.consumes.find((c) => c && c.namespace === namespace);
+  return consumed && consumed.type === "mcp"
+    ? "MCP upstreams send no HTTP caching headers" : null;
+}
+
+/** Name of the first input read from outside the URL (header or body), or null. */
+function inputOutsideUrl(inputParameters) {
   for (const [key, param] of entries(inputParameters)) {
-    if (param && (param.in === "header" || param.in === "cookie")) {
+    if (!param || typeof param !== "object") {
+      continue;
+    }
+    const location = typeof param.in === "string" ? param.in.toLowerCase() : "body";
+    if (!URL_LOCATIONS.has(location)) {
       return param.name || key;
     }
   }
