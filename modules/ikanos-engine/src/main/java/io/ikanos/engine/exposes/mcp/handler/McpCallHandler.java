@@ -155,6 +155,15 @@ public abstract class McpCallHandler {
     private HandlerResult inJournaledRounds(McpTaskService journal, JsonNode idNode,
             JsonNode params, String label, String name, JsonNode arguments,
             Supplier<ObjectNode> run, String principal, String digest) throws Exception {
+        // Checked before any step runs, as for a task: a -32021 carries no state, so a write
+        // before the question would be journaled under an execution no retry could name, and
+        // run again by the retry that declares the capability.
+        if (!RequestClientCapabilities.from(params).supportsElicitation()) {
+            ObjectNode required = MAPPER.createObjectNode();
+            required.putObject("elicitation");
+            return missingCapability(idNode,
+                    label + " asks for input; it needs the elicitation capability", required);
+        }
         ExecutionId executionId = null;
         int round = 0;
         String token = params.path("requestState").asString(null);
@@ -175,12 +184,6 @@ public abstract class McpCallHandler {
         if (outcome.result() != null) {
             return new HandlerSuccessResult(outcome.result());
         }
-        if (!RequestClientCapabilities.from(params).supportsElicitation()) {
-            ObjectNode required = MAPPER.createObjectNode();
-            required.putObject("elicitation");
-            return missingCapability(idNode,
-                    label + " asks for input; it needs the elicitation capability", required);
-        }
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
         result.set("inputRequests", outcome.questions());
@@ -188,7 +191,7 @@ public abstract class McpCallHandler {
         outcome.questions().propertyNames().forEach(pending::add);
         result.put("requestState", adapter.getRequestState().seal(principal, digest,
                 MAPPER.createObjectNode(), pending, outcome.executionId().value(),
-                outcome.round(), null));
+                outcome.round(), null, outcome.expiresAt()));
         return new HandlerSuccessResult(result);
     }
 
@@ -220,12 +223,15 @@ public abstract class McpCallHandler {
         ObjectNode result = MAPPER.createObjectNode();
         result.put(McpResultType.FIELD, McpResultType.INPUT_REQUIRED.wireValue());
         result.set("inputRequests", InputRequests.of(e));
-        // State a replay needs, such as an upstream's requestState, travels with the answers.
-        e.carry().forEach(answers::set);
         List<String> pending = new ArrayList<>();
         for (InputRequiredException.Question question : e.questions()) {
             pending.add(question.key());
         }
+        // A key asked again, as by an upstream that rejected its answer, is open again: its old
+        // answer is dropped, so a retry without a new one never replays it for the new question.
+        answers.remove(pending);
+        // State a replay needs, such as an upstream's requestState, travels with the answers.
+        e.carry().forEach(answers::set);
         result.put("requestState",
                 adapter.getRequestState().seal(principal, digest, answers, pending));
         return result;

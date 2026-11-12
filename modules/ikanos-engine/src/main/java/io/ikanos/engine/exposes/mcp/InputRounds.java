@@ -172,6 +172,59 @@ public final class InputRounds {
                 .orElse(null);
     }
 
+    /**
+     * The questions a round stopped at, keyed as a task shows them: a key an earlier round asked
+     * too, as an upstream asking again after rejecting an answer does, is qualified with this
+     * round ({@code <key>@<round>}). A {@code tasks/update} carries no round, so a retried update
+     * of an earlier round, keyed as that round asked, never answers the later question. Keys
+     * asked for the first time are shown unchanged. {@code null} when the round did not stop at
+     * questions.
+     */
+    public static ObjectNode taskQuestions(ExecutionView view, int round) {
+        ObjectNode questions = questions(view, round);
+        if (questions == null) {
+            return null;
+        }
+        ObjectNode shown = MAPPER.createObjectNode();
+        taskKeys(view, round).forEach((key, asked) -> shown.set(key, questions.get(asked)));
+        return shown;
+    }
+
+    /**
+     * The responses to the questions of a round, keyed as {@link #taskQuestions} shows them, by
+     * the keys the round asked; others are left out.
+     */
+    public static ObjectNode taskAnswers(ExecutionView view, int round, JsonNode responses) {
+        ObjectNode answers = MAPPER.createObjectNode();
+        if (responses != null && responses.isObject()) {
+            taskKeys(view, round).forEach((key, asked) -> {
+                if (responses.has(key)) {
+                    answers.set(asked, responses.get(key));
+                }
+            });
+        }
+        return answers;
+    }
+
+    /** The keys of a round's questions as a task shows them, to the keys the round asked. */
+    private static Map<String, String> taskKeys(ExecutionView view, int round) {
+        java.util.Set<String> earlier = new java.util.HashSet<>();
+        for (int r = 1; r < round; r++) {
+            ObjectNode asked = questions(view, r);
+            if (asked != null) {
+                asked.propertyNames().forEach(earlier::add);
+            }
+        }
+        Map<String, String> keys = new LinkedHashMap<>();
+        ObjectNode questions = questions(view, round);
+        if (questions != null) {
+            for (String key : questions.propertyNames()) {
+                keys.put(earlier.contains(key) ? key + "@" + round : key, key);
+            }
+        }
+        return keys;
+    }
+
     /** The responses to the given questions, by key; others are left out. */
     public static ObjectNode answersTo(ObjectNode questions, JsonNode responses) {
         ObjectNode answers = MAPPER.createObjectNode();

@@ -235,6 +235,8 @@ public final class RestInputRequests {
         } catch (InputRequiredException e) {
             List<String> pending = new ArrayList<>();
             e.questions().forEach(question -> pending.add(question.key()));
+            // A key asked again is open again: its old answer is never replayed for it.
+            answers.remove(pending);
             // State a replay needs, such as an upstream's requestState, travels with the answers.
             e.carry().forEach(answers::set);
             String handle = requestState.seal(principal, DIGEST, answers, pending, null, 0, bound);
@@ -262,7 +264,7 @@ public final class RestInputRequests {
         List<String> pending = new ArrayList<>();
         round.questions().propertyNames().forEach(pending::add);
         String handle = requestState.seal(principal, DIGEST, MAPPER.createObjectNode(), pending,
-                round.executionId().value(), round.round(), bound);
+                round.executionId().value(), round.round(), bound, round.expiresAt());
         accepted(response, handle, round.questions());
     }
 

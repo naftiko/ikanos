@@ -308,7 +308,8 @@ public final class McpTaskService {
      * or to a task that is not waiting, are ignored. A response delivered before, by a retried
      * update, is not delivered again.
      *
-     * @param responses the {@code inputResponses}, keyed as the questions are
+     * @param responses the {@code inputResponses}, keyed as {@code tasks/get} shows the
+     *        questions: a key asked again in a later round is qualified with that round
      * @param workFor the tool call for a task's entry and arguments, as {@link #resume} takes
      * @return {@code false} for an unknown ID or another principal's task
      */
@@ -324,7 +325,9 @@ public final class McpTaskService {
         }
         ExecutionView view = runner.view(record.executionId());
         int round = InputRounds.lastRound(view);
-        ObjectNode answers = InputRounds.answersTo(InputRounds.questions(view, round), responses);
+        // Keyed for this round: a retried update of an earlier one never answers a key asked
+        // again (InputRounds.taskQuestions).
+        ObjectNode answers = InputRounds.taskAnswers(view, round, responses);
         if (answers.isEmpty()) {
             return true;
         }
@@ -401,7 +404,7 @@ public final class McpTaskService {
     private ObjectNode waiting(String taskId, ExecutionRecord record) {
         ObjectNode node = describe(taskId, record, "input_required");
         ExecutionView view = runner.view(record.executionId());
-        ObjectNode questions = InputRounds.questions(view, InputRounds.lastRound(view));
+        ObjectNode questions = InputRounds.taskQuestions(view, InputRounds.lastRound(view));
         if (questions != null) {
             node.set("inputRequests", questions);
         }

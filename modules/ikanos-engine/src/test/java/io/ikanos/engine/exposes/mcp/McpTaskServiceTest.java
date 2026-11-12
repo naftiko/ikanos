@@ -136,6 +136,46 @@ public class McpTaskServiceTest {
         assertEquals(ExecutionStatus.FAILED, runner.status(first.executionId()).orElseThrow());
     }
 
+    @Test
+    void aStateReissuedForAnUnansweredQuestionShouldKeepTheRoundsExpiry() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        Callable<JsonNode> work = askingAgain(new AtomicInteger());
+        InlineRounds.Round first = new McpTaskService(runner, Clock.systemUTC(), null)
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, 0, null, work);
+
+        // Retried at minute 9 without an answer: the same question, still open.
+        InlineRounds.Round retried = new McpTaskService(runner,
+                Clock.offset(Clock.systemUTC(), Duration.ofMinutes(9)), null)
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, first.executionId(),
+                        first.round(), null, work);
+
+        assertEquals(first.round(), retried.round());
+        assertEquals(first.expiresAt(), retried.expiresAt(),
+                "The state issued again expires when the sweep fails the call, not later");
+        assertFalse(retried.expiresAt().isAfter(Instant.now().plus(McpRequestState.TTL)));
+    }
+
+    @Test
+    void anExpiredInlineCallShouldCancelWhatItWaitsOn() {
+        JournaledRunner runner = new JournaledRunner(
+                MemoryStoreProvider.openStores(Clock.systemUTC()), new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        InlineRounds.Round round = new McpTaskService(runner, Clock.systemUTC(), null)
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, 0, null,
+                        askingAgain(new AtomicInteger()));
+        List<ExecutionId> cancelled = new CopyOnWriteArrayList<>();
+
+        new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
+                McpRequestState.TTL.plusMinutes(1)), null)
+                .whenCancelled(cancelled::add).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(round.executionId()).orElseThrow());
+        assertEquals(List.of(round.executionId()), cancelled,
+                "An upstream task the expired call waited on is cancelled too");
+    }
+
     /** Work that asks the same question every round, as an upstream rejecting answers does. */
     private static Callable<JsonNode> askingAgain(AtomicInteger rounds) {
         return () -> {
