@@ -723,6 +723,20 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void aParameterReadInsideASectionOfTheCredentialsShouldBeSealed() throws Exception {
+        Capability capability = capabilityWithBearerToken();
+        McpClientAdapter adapter = new McpClientAdapter(capability,
+                spec("{{#auth}}{{token}}{{/auth}}", ""), new StubClient());
+
+        String sealed = adapter.sealCredentials(
+                Map.of("auth", Map.of("token", "t-123"), "invoice-id", "INV-1"));
+
+        assertEquals(Map.of("auth", Map.of("token", "t-123")), SealedCredentials.open(
+                capability.getSealingKey(), "billing", sealed),
+                "The section's value is sealed, so a cancel can render the token");
+    }
+
+    @Test
     void sealedCredentialsShouldOpenOnlyUnderTheirKeyAndNamespace() {
         javax.crypto.SecretKey key = io.ikanos.engine.exposes.mcp.McpRequestState.randomKey();
         String sealed = SealedCredentials.seal(key, "billing", Map.of("token", "t-123"));

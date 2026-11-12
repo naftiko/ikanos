@@ -394,6 +394,64 @@ public class Resolver {
     }
 
     /**
+     * Lists the top-level names a template may read, in template order: the first segment of
+     * every variable, section and inverted section, including those nested in a section. So
+     * {@code {{#auth}}{{token}}{{/auth}}} gives {@code auth} and {@code token}, since a variable
+     * inside a section resolves against the section's value, then against the outer values.
+     * Unlike {@link #emptyVariables}, which validates only what renders unconditionally, this
+     * finds every value the template depends on.
+     *
+     * @param template the template, may be null
+     * @return the names, or an empty list (also for an invalid template)
+     */
+    public static List<String> referencedNames(String template) {
+        if (template == null || !template.contains("{{")) {
+            return List.of();
+        }
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        java.util.function.Consumer<String> add = name -> {
+            String reference = name.trim();
+            if (!reference.isEmpty() && !".".equals(reference)) {
+                names.add(reference.split("\\.", 2)[0].trim());
+            }
+        };
+        try {
+            compileTemplate(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    add.accept(name);
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    add.accept(name);
+                    return true;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    add.accept(name);
+                    return true;
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return List.of();
+        }
+        return List.copyOf(names);
+    }
+
+    /**
      * Compiles a template through {@link #compileTemplate(String)}, as rendering does, without
      * rendering it, and reports why it cannot be parsed (#849).
      *

@@ -597,6 +597,13 @@ public class ResolverTest {
       }
 
       @Test
+      public void referencedNamesShouldIncludeSectionsAndWhatTheyHold() {
+        assertEquals(List.of("auth", "token", "vault", "fallback"), Resolver.referencedNames(
+            "{{#auth}}{{token}}{{/auth}}-{{vault.key}}{{^vault}}{{fallback}}{{/vault}}"));
+        assertEquals(List.of(), Resolver.referencedNames("static"));
+      }
+
+      @Test
       public void missingVariablesShouldParseLiteralBraceBeforeSectionTagLikeRendering() {
         // #848: compiled raw, this template fails and the missing "id" would go unnoticed.
         assertEquals(List.of("id"), Resolver.missingVariables(
