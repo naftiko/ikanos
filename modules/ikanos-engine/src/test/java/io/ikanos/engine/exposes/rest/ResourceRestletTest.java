@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -320,7 +321,7 @@ public class ResourceRestletTest {
 
   @Test
   public void isTrustedHeaderShouldBeFalseWhenAuthorizationIsNotListed() {
-    assertFalse(ResourceRestlet.isTrustedHeader(java.util.List.of("Accept"), "Authorization"),
+    assertFalse(ResourceRestlet.isTrustedHeader(List.of("Accept"), "Authorization"),
         "#1010: Authorization must not be forwarded when it is not a trusted header");
   }
 
@@ -332,7 +333,7 @@ public class ResourceRestletTest {
 
   @Test
   public void isTrustedHeaderShouldBeTrueWhenAuthorizationIsListedInAnyCase() {
-    assertTrue(ResourceRestlet.isTrustedHeader(java.util.List.of("authorization"), "Authorization"),
+    assertTrue(ResourceRestlet.isTrustedHeader(List.of("authorization"), "Authorization"),
         "#1010: header names are case-insensitive");
   }
 
