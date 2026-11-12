@@ -323,6 +323,44 @@ public class ExportOpenApiCommandTest {
     }
 
     @Test
+    void exportShouldDeclareThePathParameterOfAResourceLevelSet() throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Definitions"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      namespace: api
+                      definitions:
+                        inputParameterSets:
+                          ship-key:
+                            imo: { in: path, type: string, description: "IMO number." }
+                      resources:
+                        ship:
+                          path: "/ships/{{imo}}"
+                          inputParameterSets: [ship-key]
+                          operations:
+                            get-ship:
+                              method: GET
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        JsonNode parameters = IkanosMappers.json().readTree(Files.readString(output))
+                .path("paths").path("/ships/{imo}").path("get").path("parameters");
+        assertEquals(1, parameters.size(), parameters.toString());
+        assertEquals("imo", parameters.get(0).path("name").asString());
+        assertEquals("path", parameters.get(0).path("in").asString());
+    }
+
+    @Test
     void exportShouldFailWhenTheRestAdapterUsesAnUnknownSet() throws Exception {
         Path capFile = tempDir.resolve("capability.yml");
         Files.writeString(capFile, """

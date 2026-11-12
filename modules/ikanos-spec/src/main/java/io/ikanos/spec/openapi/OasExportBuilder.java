@@ -218,7 +218,7 @@ public class OasExportBuilder {
         List<Parameter> params = new ArrayList<>();
         RequestBody requestBody = null;
         List<String> bodyRequired = new ArrayList<>();
-        for (InputParameterSpec inputParam : opSpec.getInputParameters()) {
+        for (InputParameterSpec inputParam : effectiveInputs(resource, opSpec)) {
             if ("body".equals(inputParam.getIn())) {
                 if (requestBody == null) {
                     requestBody = new RequestBody();
@@ -342,6 +342,30 @@ public class OasExportBuilder {
             schema.setFormat(formatStr);
         }
         return schema;
+    }
+
+    /**
+     * The inputs an operation accepts: its resource's inputs, which every operation of the resource
+     * inherits, then its own. An operation input with the same name and location replaces the
+     * resource input, so the operation's declaration wins.
+     */
+    static List<InputParameterSpec> effectiveInputs(RestServerResourceSpec resource,
+            RestServerOperationSpec opSpec) {
+        Map<String, InputParameterSpec> inputs = new LinkedHashMap<>();
+        for (InputParameterSpec input : resource.getInputParameters()) {
+            inputs.put(inputKey(input), input);
+        }
+        for (InputParameterSpec input : opSpec.getInputParameters()) {
+            String key = inputKey(input);
+            inputs.remove(key);
+            inputs.put(key, input);
+        }
+        return new ArrayList<>(inputs.values());
+    }
+
+    private static String inputKey(InputParameterSpec input) {
+        String in = input.getIn() != null ? input.getIn() : "query";
+        return in + ":" + input.getName();
     }
 
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {

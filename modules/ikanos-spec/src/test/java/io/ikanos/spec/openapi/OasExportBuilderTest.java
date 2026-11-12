@@ -210,6 +210,46 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldInheritResourceInputsInEveryOperation() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets/{{petId}}", "pet",
+                "GET", "get-pet", null);
+        InputParameterSpec petId = input("petId", "path", "Pet identifier.");
+        resource.setInputParameters(Map.of(petId.getName(), petId));
+        InputParameterSpec fields = input("fields", "query", "Fields to return.");
+        firstOp(resource).setInputParameters(Map.of(fields.getName(), fields));
+        addResource(rest, resource);
+
+        Operation op = builder.build(spec, null).getOpenApi().getPaths().get("/pets/{petId}")
+                .getGet();
+
+        assertEquals(2, op.getParameters().size());
+        assertEquals("petId", op.getParameters().get(0).getName());
+        assertEquals("path", op.getParameters().get(0).getIn());
+        assertEquals("fields", op.getParameters().get(1).getName());
+    }
+
+    @Test
+    void buildShouldLetAnOperationInputOverrideTheResourceInputOfTheSameName() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        RestServerResourceSpec resource = resourceWithOperation("/pets/{{petId}}", "pet",
+                "GET", "get-pet", null);
+        InputParameterSpec inherited = input("petId", "path", "Inherited.");
+        resource.setInputParameters(Map.of(inherited.getName(), inherited));
+        InputParameterSpec own = input("petId", "path", "Declared by the operation.");
+        firstOp(resource).setInputParameters(Map.of(own.getName(), own));
+        addResource(rest, resource);
+
+        Operation op = builder.build(spec, null).getOpenApi().getPaths().get("/pets/{petId}")
+                .getGet();
+
+        assertEquals(1, op.getParameters().size());
+        assertEquals("Declared by the operation.", op.getParameters().get(0).getDescription());
+    }
+
+    @Test
     void buildShouldMapBodyParametersToRequestBody() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerSpec rest = getRestServer(spec);
@@ -1078,6 +1118,15 @@ public class OasExportBuilderTest {
         resource.setOperations(Map.of(op.getName(), op));
 
         return resource;
+    }
+
+    private static InputParameterSpec input(String name, String in, String description) {
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName(name);
+        param.setIn(in);
+        param.setType("string");
+        param.setDescription(description);
+        return param;
     }
 
     /** Add a resource to a RestServerSpec using the Map API. */
