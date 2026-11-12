@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.exposes.mcp.McpErrors;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
@@ -70,9 +71,12 @@ public class ResourcesReadHandler extends McpCallHandler {
                     : adapter.getResourceHandler().read(uri);
             ObjectNode result = MAPPER.createObjectNode();
             if (!skill) {
-                // A resource's own hints override the adapter's, which CacheDataAppender adds
-                CacheHints.forResource(adapter.getMcpServerSpec(),
-                        adapter.getResourceHandler().find(uri)).writeTo(result);
+                // A resource's own hints override the adapter's, which CacheDataAppender adds;
+                // with ttlFromUpstream, the upstream's caching headers set the TTL (#1019)
+                Freshness upstream = contents.isEmpty()
+                        ? Freshness.UNKNOWN : contents.get(0).freshness;
+                CacheHints.forRead(adapter.getMcpServerSpec(),
+                        adapter.getResourceHandler().find(uri), upstream).writeTo(result);
             }
             ArrayNode contentsArray = result.putArray("contents");
             for (ResourceHandler.ResourceContent c : contents) {
