@@ -84,6 +84,11 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             node.put("schema", spec.getSchema());
         }
 
+        // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
+        if (spec.getJsonSchemaRef() != null) {
+            node.put("$ref", spec.getJsonSchemaRef());
+        }
+
         // Write numeric fields
         if (spec.getPrecision() != null) {
             node.put("precision", spec.getPrecision());
@@ -200,6 +205,11 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
 
         if (spec.getSchema() != null) {
             node.put("schema", spec.getSchema());
+        }
+
+        // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
+        if (spec.getJsonSchemaRef() != null) {
+            node.put("$ref", spec.getJsonSchemaRef());
         }
 
         if (spec.getPrecision() != null) {
