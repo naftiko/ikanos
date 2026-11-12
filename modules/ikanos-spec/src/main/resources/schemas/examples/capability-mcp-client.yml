@@ -63,14 +63,13 @@ capability:
             account-id:
               type: "string"
               description: "CRM account identifier."
+              required: true
             status:
               type: "string"
               description: "Invoice status to list."
-              required: false
             size:
               type: "integer"
               description: "Page size."
-              required: false
 
     - type: "http"
       namespace: "crm"
@@ -144,16 +143,15 @@ capability:
             account-id:
               type: "string"
               description: "CRM account identifier."
+              required: true
             status:
               type: "string"
               description: "Invoice status to list."
-              required: false
               enum: ["open", "paid", "void"]
               default: "open"
             size:
               type: "integer"
               description: "Page size."
-              required: false
               minimum: 1
               maximum: 200
               default: 50
