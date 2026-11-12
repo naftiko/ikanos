@@ -139,6 +139,14 @@ public final class JournaledRunner implements Runner {
         return stores.index().findByLabel(key, value);
     }
 
+    /**
+     * Every sub-run of {@code root} with {@code status}, at any depth (IDs starting with
+     * {@code <root>/}), oldest first, however many other executions the store holds.
+     */
+    public List<ExecutionRecord> listUnder(ExecutionId root, ExecutionStatus status) {
+        return stores.index().listUnder(root.value() + "/", status);
+    }
+
     /** Up to {@code limit} executions with {@code status}, oldest first. */
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return stores.index().list(status, limit);

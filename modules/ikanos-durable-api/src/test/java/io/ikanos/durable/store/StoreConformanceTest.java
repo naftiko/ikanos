@@ -204,6 +204,28 @@ public abstract class StoreConformanceTest {
     }
 
     @Test
+    void indexShouldListTheSubRunsUnderAnExecutionWhateverElseItHolds() {
+        // Older executions that are not sub-runs of the root, one whose ID only matches if the
+        // prefix's '_' were a wildcard.
+        stores.index().create(record(new ExecutionId("root-1"), NOW));
+        stores.index().create(record(new ExecutionId("rootX1/steps/a"), NOW.plusSeconds(1)));
+        stores.index().create(record(new ExecutionId("root_1/steps/a"), NOW.plusSeconds(3)));
+        stores.index().create(record(new ExecutionId("root_1/steps/b/steps/c"),
+                NOW.plusSeconds(2)));
+        stores.index().create(record(new ExecutionId("root_10/steps/a"), NOW.plusSeconds(4)));
+        stores.index().updateStatus(new ExecutionId("root_1/steps/a"), ExecutionStatus.SUSPENDED);
+
+        assertEquals(List.of(new ExecutionId("root_1/steps/b/steps/c")),
+                stores.index().listUnder("root_1/", ExecutionStatus.RUNNING).stream()
+                        .map(ExecutionRecord::executionId).toList());
+        assertEquals(List.of(new ExecutionId("root_1/steps/a")),
+                stores.index().listUnder("root_1/", ExecutionStatus.SUSPENDED).stream()
+                        .map(ExecutionRecord::executionId).toList());
+        assertTrue(stores.index().listUnder("root%/", ExecutionStatus.RUNNING).isEmpty(),
+                "'%' in a prefix is literal");
+    }
+
+    @Test
     void indexShouldFindExecutionsByLabel() {
         stores.index().create(record(OTHER, NOW.plusSeconds(10)));
         stores.index().create(record(ID, NOW));

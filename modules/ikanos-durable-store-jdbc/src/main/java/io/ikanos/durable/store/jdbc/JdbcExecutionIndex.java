@@ -113,6 +113,19 @@ final class JdbcExecutionIndex implements ExecutionIndex {
     }
 
     @Override
+    public List<ExecutionRecord> listUnder(String prefix, ExecutionStatus status) {
+        // The prefix is matched literally: its LIKE wildcards are escaped.
+        String pattern = prefix.replace("!", "!!").replace("%", "!%")
+                .replace("_", "!_") + "%";
+        return database.call(c -> select(c, "SELECT " + COLUMNS + " FROM executions "
+                + "WHERE status = ? AND execution_id LIKE ? ESCAPE '!' "
+                + "ORDER BY created_at, execution_id", s -> {
+                    s.setString(1, status.name());
+                    s.setString(2, pattern);
+                }));
+    }
+
+    @Override
     public List<ExecutionRecord> findByLabel(String key, String value) {
         return database.call(c -> select(c, "SELECT " + COLUMNS + " FROM executions e WHERE "
                 + "EXISTS (SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "

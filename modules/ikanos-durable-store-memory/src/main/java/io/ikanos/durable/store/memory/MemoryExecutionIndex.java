@@ -52,6 +52,13 @@ final class MemoryExecutionIndex implements ExecutionIndex {
     }
 
     @Override
+    public List<ExecutionRecord> listUnder(String prefix, ExecutionStatus status) {
+        return records.values().stream().filter(r -> r.status() == status)
+                .filter(r -> r.executionId().value().startsWith(prefix))
+                .sorted(Comparator.comparing(ExecutionRecord::createdAt)).toList();
+    }
+
+    @Override
     public List<ExecutionRecord> findByLabel(String key, String value) {
         return records.values().stream().filter(r -> value.equals(r.labels().get(key)))
                 .sorted(Comparator.comparing(ExecutionRecord::createdAt)).toList();

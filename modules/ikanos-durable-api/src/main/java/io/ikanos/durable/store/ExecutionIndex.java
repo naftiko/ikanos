@@ -37,4 +37,14 @@ public interface ExecutionIndex {
 
     /** Finds the executions labelled {@code key} = {@code value}, oldest first. */
     List<ExecutionRecord> findByLabel(String key, String value);
+
+    /**
+     * Lists every execution with {@code status} whose ID starts with {@code prefix}, oldest
+     * first: the sub-runs of an execution, named {@code <execution>/<path>}, whatever else the
+     * index holds. The default filters the whole status; a store should narrow it in its query.
+     */
+    default List<ExecutionRecord> listUnder(String prefix, ExecutionStatus status) {
+        return list(status, Integer.MAX_VALUE).stream()
+                .filter(record -> record.executionId().value().startsWith(prefix)).toList();
+    }
 }
