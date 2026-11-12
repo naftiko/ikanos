@@ -1431,6 +1431,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 | --- | --- | --- |
 | **targetNamespace** | `string` | **REQUIRED**. The consumer namespace to forward requests to. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **trustedHeaders** | [`string`] | **REQUIRED**. List of headers allowed to be forwarded (minimum 1 entry). No wildcards supported. |
+| **trustedResponseHeaders** | [`string`] | List of upstream response headers relayed to the caller on top of the ones relayed by default (minimum 1 entry when present). Lists extension headers such as `X-Request-Id`, and `Set-Cookie`. No wildcards supported. |
 
 #### 3.18.2 Rules
 
@@ -1438,6 +1439,10 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - The `trustedHeaders` array is mandatory and MUST contain at least one entry.
 - Header names in `trustedHeaders` are case-insensitive (following HTTP header conventions).
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
+- On the way back, the upstream status, body and body headers (`Content-Type`, `Content-Disposition`, `ETag`, `Last-Modified`, `Expires`, ...) are relayed, as are the standard response headers `Location`, `Retry-After`, `Cache-Control`, `Vary`, `Allow`, `WWW-Authenticate`, `Accept-Ranges`, `Age` and `Warning`.
+- A `Location` or `Content-Location` under the target adapter's `baseUri` is rewritten to the matching path under the exposed resource, so the caller is not sent to the upstream host. Any other location is relayed as is.
+- Extension headers are relayed only when listed in `trustedResponseHeaders`. `Set-Cookie` is relayed only when listed there.
+- Header names in `trustedResponseHeaders` are case-insensitive. Listing a hop-by-hop header (`Connection`, `Keep-Alive`, `Transfer-Encoding`, `Upgrade`, `TE`, `Trailer`, `Proxy-Authenticate`, `Proxy-Authorization`), `Content-Length`, or a standard header the engine sets itself (`Server`, `Date`, `Via`, CORS headers, request headers) fails the capability at load time.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example
@@ -1448,6 +1453,8 @@ forward:
   trustedHeaders:
     - Authorization
     - Notion-Version
+  trustedResponseHeaders:
+    - X-Request-Id
 ```
 
 ---

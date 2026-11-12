@@ -16,6 +16,7 @@ package io.ikanos.engine.consumes;
 import java.util.List;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -139,6 +140,7 @@ public final class ConsumedReferenceValidator {
                     + where + " is a consumed adapter of type '" + adapter.getSpec().getType()
                     + "'. Forward mode needs a consumed adapter of type 'http'.");
         }
+        ForwardResponseHeaders.validate(forward.getTrustedResponseHeaders(), where);
     }
 
     private static void checkSteps(Map<String, OperationStepSpec> steps, String where,

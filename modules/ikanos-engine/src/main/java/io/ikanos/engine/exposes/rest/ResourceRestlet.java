@@ -613,6 +613,8 @@ public class ResourceRestlet extends Restlet {
                         }
                         response.setStatus(clientResponse.getStatus());
                         response.setEntity(clientResponse.getEntity());
+                        ForwardResponseHeaders.relay(clientResponse, response,
+                                forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri());
                         response.commit();
                         return true;
                     } catch (Exception e) {
