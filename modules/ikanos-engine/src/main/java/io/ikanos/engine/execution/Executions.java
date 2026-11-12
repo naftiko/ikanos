@@ -59,11 +59,15 @@ public final class Executions {
         }
         DurableScope scope = DurableScope.current();
         StepInterpreter interpreter = new StepInterpreter(tree, run, nodeRunner);
+        // Carried into each action, which may run on a thread of its own: the flows a step calls
+        // see the answers addressed under that step's path.
+        ExecutionInputs.Snapshot inputs = ExecutionInputs.capture();
         ExecutionResult result;
         if (scope == null) {
             result = DIRECT.run(
                     new ExecutionRequest(nextId(), null, ExecutionInputs.current(), null),
-                    interpreter, request -> runNode(request.action(), run, nodeRunner));
+                    interpreter, request -> ExecutionInputs.within(inputs, request.path(),
+                            () -> runNode(request.action(), run, nodeRunner)));
         } else {
             // A task: each step is journaled, and one recorded by an earlier run is restored.
             ExecutionId id = scope.nextExecutionId();
@@ -74,7 +78,9 @@ public final class Executions {
                         scope.checkNotStopping();
                         return DurableScope.within(
                                 scope.child(request.executionId(), request.path()),
-                                () -> runJournaledNode(request.action(), run, nodeRunner));
+                                () -> ExecutionInputs.within(inputs, request.path(),
+                                        () -> runJournaledNode(request.action(), run,
+                                                nodeRunner)));
                     });
             if (result instanceof ExecutionResult.Completed) {
                 // Recorded before this run started: walk the tree once against the journal, so
@@ -86,9 +92,11 @@ public final class Executions {
             return run;
         }
         if (result instanceof ExecutionResult.Suspended suspended) {
-            // Only elicit steps await an update: the caller must answer them.
+            // Only elicit steps await an update: the caller must answer them, under the full
+            // path of the steps that called this run.
             throw new InputRequiredException(suspended.awaiting().stream()
-                    .map(await -> new InputRequiredException.Question(await.path().value(),
+                    .map(await -> new InputRequiredException.Question(
+                            ExecutionInputs.qualify(await.path()).value(),
                             (OperationStepElicitSpec) ((StepNode) await.request()).step()))
                     .toList());
         }
