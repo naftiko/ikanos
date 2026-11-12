@@ -1,0 +1,48 @@
+# Spectral fixture — snake_case MCP tool names (issue #1006) MUST NOT FAIL linting:
+#   tools keep the snake_case names of the MCP server they re-implement, a kebab-case
+#   tool sits next to them, one tool reaches an aggregate flow through `ref`, and a
+#   skill names the snake_case tools it depends on.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Snake_case MCP tool names — compliant"
+  description: "Fixture with MCP tools named in snake_case, as most MCP servers do."
+capability:
+  aggregates:
+    - display: "Hub"
+      namespace: hub
+      flows:
+        list-repos:
+          description: "List the repositories of the hub."
+          semantics:
+            safe: true
+            idempotent: true
+          call: registry.list-repos
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Hugging Face Hub API."
+      baseUri: https://huggingface.example.test
+      resources:
+        repos:
+          path: /api/models
+          operations:
+            list-repos:
+              method: GET
+  exposes:
+    - type: mcp
+      namespace: huggingface
+      port: 3001
+      tools:
+        hub_repo_search:
+          description: Search Hugging Face models, datasets and Spaces.
+          call: registry.list-repos
+        hub_repo_list:
+          description: List Hugging Face repositories.
+          ref: hub.list-repos
+        hub-repo-details:
+          description: Kebab-case names stay valid next to snake_case ones.
+          call: registry.list-repos
+      skills:
+        hub-search:
+          description: Find models, datasets and Spaces on the Hugging Face Hub.
+          tools: [hub_repo_search, hub_repo_list, hub-repo-details]

@@ -221,6 +221,11 @@
       "description": "Kebab-case identifier (alphanumeric and hyphens).",
       "pattern": "^[a-zA-Z0-9-]+$"
     },
+    "McpToolName": {
+      "type": "string",
+      "description": "Name of an exposed MCP tool: letters, digits, hyphens and underscores, so a capability can keep the snake_case names of the MCP server it re-implements (`create_repo`). The MCP specification also allows dots; they are left out here because Ikanos references read `namespace.name`.",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
     "SkillName": {
       "type": "string",
       "description": "Agent Skills name: lowercase letters, digits and single hyphens, no leading or trailing hyphen, at most 64 characters.",
@@ -1196,12 +1201,12 @@
         "tools": {
           "type": "object",
           "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
+            "$ref": "#/$defs/McpToolName"
           },
           "additionalProperties": {
             "$ref": "#/$defs/McpTool"
           },
-          "description": "MCP tools exposed by this server, keyed by tool name.",
+          "description": "MCP tools exposed by this server, keyed by tool name. The name is advertised as written in `tools/list` and called as written in `tools/call`, so snake_case (`create_repo`) and kebab-case (`create-repo`) names are both kept.",
           "minProperties": 1
         },
         "resources": {
@@ -2107,7 +2112,7 @@
         "tools": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/IdentifierKebab"
+            "$ref": "#/$defs/McpToolName"
           },
           "uniqueItems": true,
           "description": "Names of tools declared on this same MCP server that the skill depends on. Validated at load, never rendered into SKILL.md. Omit for a guidance-only skill."
