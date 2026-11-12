@@ -23,6 +23,8 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
+import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -100,9 +102,13 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
                     ? templateErrors(dataNode) : List.of();
+            // Headers the engine can never send (#1001), same condition
+            List<String> headerErrors = errors.isEmpty() && removedAdapters.isEmpty()
+                    ? headerErrors(dataNode) : List.of();
 
             // Display validation result.
-            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()) {
+            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()
+                    && headerErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -129,6 +135,11 @@ public class ValidateCommand implements Callable<Integer> {
                             + error);
                     errorCount++;
                 }
+                for (String error : headerErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid header: "
+                            + error);
+                    errorCount++;
+                }
                 return 1;
             }
             
@@ -150,6 +161,18 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Forward {@code trustedHeaders} entries and static consumed header values the engine can
+     * never send upstream, read from the YAML tree (#1001). Imported adapters are checked when
+     * the capability loads.
+     */
+    List<String> headerErrors(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        List<String> errors = new ArrayList<>(ForwardTrustedHeadersValidator.findErrors(spec));
+        errors.addAll(ConsumedHeaderValidator.findErrors(spec));
+        return errors;
     }
 
     /**

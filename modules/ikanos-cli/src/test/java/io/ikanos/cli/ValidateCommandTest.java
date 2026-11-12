@@ -257,6 +257,84 @@ public class ValidateCommandTest {
 
     /** #842: whatever the engine refuses to load, {@code validate} refuses first. */
     @Test
+    public void callShouldFailWhenForwardTrustsAHeaderTheEngineCannotSend() {
+        Path yaml = tempDir.resolve("forward-host.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Forward proxy"
+                  description: "Forwards to an upstream and trusts a header it can't send"
+                capability:
+                  consumes:
+                    - namespace: "up"
+                      type: "http"
+                      baseUri: "https://api.example.com"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        proxy:
+                          path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: "up"
+                            trustedHeaders:
+                              - "Host"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#1001: a trusted header the engine can never send must fail "
+                + "validate, not be dropped on every request. " + err + outCapture);
+        assertTrue(err.contains("Host"), err);
+    }
+
+    @Test
+    public void callShouldFailWhenAStaticHeaderInputCannotBeParsed() {
+        Path yaml = tempDir.resolve("static-if-match.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Conditional writes"
+                  description: "Sends a fixed precondition that isn't a valid entity tag"
+                capability:
+                  consumes:
+                    - namespace: "up"
+                      type: "http"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            update:
+                              method: "PUT"
+                              inputParameters:
+                                If-Match:
+                                  in: "header"
+                                  value: "v1"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            put:
+                              method: "PUT"
+                              call: "up.update"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#1001: a static header value the engine can't send must "
+                + "fail validate. " + err + outCapture);
+        assertTrue(err.contains("If-Match"), err);
+    }
+
+    @Test
     public void callShouldRejectOAuth2OnAConsumedAdapter() {
         Path yaml = tempDir.resolve("oauth2-consumes.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """

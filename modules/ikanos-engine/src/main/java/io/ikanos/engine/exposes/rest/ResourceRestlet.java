@@ -27,6 +27,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -43,6 +44,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -615,6 +617,12 @@ public class ResourceRestlet extends Restlet {
                         response.setEntity(clientResponse.getEntity());
                         response.commit();
                         return true;
+                    } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+                        // A write whose precondition cannot be parsed is refused, whether it
+                        // comes from a trusted header or an adapter header input (#1001)
+                        sendError(response, Status.CLIENT_ERROR_BAD_REQUEST, e.getMessage(),
+                                "Invalid precondition in forward mode", e);
+                        return true;
                     } catch (Exception e) {
                         sendError(response, Status.SERVER_ERROR_INTERNAL,
                                 "Error while handling an HTTP client call",
@@ -629,19 +637,53 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Copy a set of trusted headers from one request to another.
+     * Copy a set of trusted headers from one request to another. A standard header (If-None-Match,
+     * Accept, …) is set through the Restlet property the connector writes it from, since Restlet
+     * drops it when added as a raw header (#1001). When the caller sent a header on several lines,
+     * a list-valued standard header is forwarded with its lines joined ({@code ", "}, or
+     * {@code "; "} for Cookie), a single-valued one (Authorization, Range, a date, …) with its
+     * first line, and any other header line by line, as sent. A header that describes the body
+     * (Content-Type, …) is already forwarded with the entity.
+     *
+     * <p>A value that cannot be parsed is not forwarded, with a warning that names the header but
+     * not the value, and a Range is not forwarded either when its If-Range is dropped. For a
+     * precondition (If-Match, If-None-Match, If-Unmodified-Since, If-Range) on a method that is
+     * not safe, the call fails instead: forwarding the write without its precondition would turn
+     * it into an unconditional write.</p>
+     *
+     * @throws StandardRequestHeaders.InvalidPreconditionException when a precondition of an
+     *         unsafe request cannot be parsed
      */
     void copyTrustedHeaders(Request from, Request to, Iterable<String> trustedHeaders) {
         if (trustedHeaders == null) {
             return;
         }
 
+        boolean ifRangeDropped = false;
         for (String trustedHeader : trustedHeaders) {
-            String headerValue = from.getHeaders().getFirstValue(trustedHeader, true);
+            String[] lines = from.getHeaders().getValuesArray(trustedHeader, true);
 
-            if (headerValue != null) {
-                to.getHeaders().add(trustedHeader, headerValue);
+            if (lines.length == 0 || StandardRequestHeaders.isEntityHeader(trustedHeader)) {
+                continue;
             }
+            if (!StandardRequestHeaders.isSetThroughProperty(trustedHeader)) {
+                for (String line : lines) {
+                    to.getHeaders().add(trustedHeader, line);
+                }
+                continue;
+            }
+            String headerValue = StandardRequestHeaders.isListValued(trustedHeader)
+                    ? String.join("Cookie".equalsIgnoreCase(trustedHeader) ? "; " : ", ", lines)
+                    : lines[0];
+            if (!StandardRequestHeaders.setOrDrop(to, trustedHeader, headerValue)) {
+                Context.getCurrentLogger().warning("Trusted header '" + trustedHeader
+                        + "' was not forwarded: its value cannot be parsed");
+                ifRangeDropped |= "If-Range".equalsIgnoreCase(trustedHeader);
+            }
+        }
+        if (ifRangeDropped) {
+            // Without its If-Range, the Range could return part of a changed representation
+            to.setRanges(new ArrayList<>());
         }
     }
 

@@ -15,10 +15,12 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
+import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -50,6 +52,40 @@ public class HeadersTest {
     }
 
     @Test
+    public void resolveInputParametersShouldSetAcceptedMediaTypesWhenAcceptIsAHeaderInput() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
+
+        InputParameterSpec accept = new InputParameterSpec();
+        accept.setName("Accept");
+        accept.setIn("header");
+        accept.setValue("application/xml");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(accept),
+                new ConcurrentHashMap<>());
+
+        assertEquals(MediaType.APPLICATION_XML,
+                request.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
+                "#1001: Restlet 3 only sends Accept from the client info, never from a raw header");
+    }
+
+    @Test
+    public void setHeadersShouldSetAgentWhenUserAgentIsAnAdapterHeader() {
+        HttpClientSpec spec = new HttpClientSpec("test", "https://api.example.com", null);
+        InputParameterSpec userAgent = new InputParameterSpec();
+        userAgent.setName("User-Agent");
+        userAgent.setIn("header");
+        userAgent.setValue("ikanos-test/1.0");
+        spec.setInputParameters(Map.of("User-Agent", userAgent));
+        Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
+
+        new HttpClientAdapter(null, spec).setHeaders(request);
+
+        assertEquals("ikanos-test/1.0", request.getClientInfo().getAgent(),
+                "#1001: Restlet 3 only sends User-Agent from the client info, never from a raw "
+                        + "header");
+    }
+
+    @Test
     public void resolveInputParametersUsesMustacheInValue() {
         Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
 
@@ -62,7 +98,7 @@ public class HeadersTest {
         params.put("requestId", "abc-123");
 
         Resolver.resolveInputParametersToRequest(request,
-                java.util.List.of(dynamicHeader), params);
+                List.of(dynamicHeader), params);
 
         String header = request.getHeaders().getFirstValue("X-Trace", true);
         assertEquals("trace-abc-123", header,

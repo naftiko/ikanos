@@ -17,8 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -33,11 +35,13 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
+import org.restlet.data.Tag;
 import org.restlet.routing.Router;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.LogCapture;
 import io.ikanos.Capability;
+import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.consumes.http.HttpConsumedResult;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.IkanosSpec;
@@ -309,13 +313,277 @@ public class ResourceRestletTest {
     from.getHeaders().add("X-Trace", "abc");
     Request to = new Request(Method.GET, "http://localhost/target");
 
-    restlet.copyTrustedHeaders(from, to, java.util.List.of("X-Trace", "X-Missing"));
+    restlet.copyTrustedHeaders(from, to, List.of("X-Trace", "X-Missing"));
     assertEquals("abc", to.getHeaders().getFirstValue("X-Trace", true));
     assertNull(to.getHeaders().getFirstValue("X-Missing", true));
 
     Request toNoop = new Request(Method.GET, "http://localhost/noop");
     restlet.copyTrustedHeaders(from, toNoop, null);
     assertNull(toNoop.getHeaders().getFirstValue("X-Trace", true));
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSetConditionWhenIfNoneMatchIsTrusted() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-None-Match", "\"v1\"");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("If-None-Match"));
+
+    assertEquals(List.of(Tag.parse("\"v1\"")),
+        to.getConditions().getNoneMatch(),
+        "#1001: Restlet 3 only sends If-None-Match from the request conditions, never from a raw "
+            + "header");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSetAcceptedMediaTypesWhenAcceptIsTrusted() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("accept", "application/json");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Accept"));
+
+    assertEquals(MediaType.APPLICATION_JSON,
+        to.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
+        "#1001: Restlet 3 only sends Accept from the client info, never from a raw header");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldJoinEveryOccurrenceWhenHeaderIsRepeated() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Cache-Control", "no-cache");
+    from.getHeaders().add("Cache-Control", "max-age=0");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Cache-Control"));
+
+    assertEquals(2, to.getCacheDirectives().size(),
+        "every Cache-Control line the caller sent must be forwarded, not only the first");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldJoinCookieLinesWithSemicolonWhenCookieIsRepeated()
+      throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Cookie", "a=1");
+    from.getHeaders().add("Cookie", "b=2");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Cookie"));
+
+    assertEquals(2, to.getCookies().size(), to.getCookies().toString());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldForwardEachLineWhenCustomHeaderIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("X-Request-Id", "a");
+    from.getHeaders().add("X-Request-Id", "b");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("X-Request-Id"));
+
+    assertEquals(List.of("a", "b"),
+        List.of(to.getHeaders().getValuesArray("X-Request-Id", true)),
+        "a custom header is not known to be a list, so each line is forwarded as sent");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldUseFirstValueWhenAuthorizationIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Authorization", "Bearer a");
+    from.getHeaders().add("Authorization", "Bearer b");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Authorization"));
+
+    assertEquals("Bearer a", to.getChallengeResponse().getIdentifier(),
+        "Authorization holds one credential: joining lines would forge 'Bearer a, Bearer b'");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldUseFirstValueWhenAccessControlRequestMethodIsRepeated()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.OPTIONS, "http://localhost/source");
+    from.getHeaders().add("Access-Control-Request-Method", "PUT");
+    from.getHeaders().add("Access-Control-Request-Method", "DELETE");
+    Request to = new Request(Method.OPTIONS, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Access-Control-Request-Method"));
+
+    assertEquals(Method.PUT, to.getAccessControlRequestMethod());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldDropRangeWhenIfRangeCannotBeParsedOnGet()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-Range", "v1");
+    from.getHeaders().add("Range", "bytes=0-9");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("If-Range", "Range"));
+
+    assertTrue(to.getRanges().isEmpty(),
+        "without its If-Range, a Range could return part of a changed representation");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSetVerbatimAuthorizationWhenAuthorizationIsTrusted()
+      throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Authorization", "Token abc");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Authorization"));
+
+    assertNotNull(to.getChallengeResponse(),
+        "#1001: a trusted Authorization must be copied by copyTrustedHeaders itself");
+    assertEquals("Token abc", to.getChallengeResponse().getIdentifier());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldRefuseUnquotedIfMatchWhenMethodIsPut() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.PUT, "http://localhost/source");
+    from.getHeaders().add("If-Match", "v1");
+    Request to = new Request(Method.PUT, "http://localhost/target");
+
+    assertThrows(IllegalArgumentException.class,
+        () -> restlet.copyTrustedHeaders(from, to, List.of("If-Match")),
+        "a PUT whose If-Match cannot be parsed must not go out as an unconditional write");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSkipUnquotedIfNoneMatchWhenMethodIsGet() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-None-Match", "v1");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("If-None-Match"));
+
+    assertTrue(to.getConditions().getNoneMatch().isEmpty(),
+        "a safe request goes out without the invalid condition, as RFC 9110 lets a server "
+            + "ignore it");
+  }
+
+  @Test
+  public void handleFromForwardSpecShouldAnswerBadRequestWhenAdapterPreconditionIsInvalid()
+      throws Exception {
+    Capability capability = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                      inputParameters:
+                        If-Match:
+                          in: header
+                          value: "\\"ok\\""
+                """.formatted(schemaVersion));
+    // The load-time check passed; a value that cannot be parsed now reaches Resolver in forward
+    // mode, outside copyTrustedHeaders
+    ((HttpClientAdapter) capability.getClientAdapters().get(0)).getHttpClientSpec()
+        .getInputParameters().get(0).setValue("v1");
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+    Request request = new Request(Method.PUT, "http://localhost/proxy/items/1");
+    request.getAttributes().put("path", "items/1");
+    Response response = new Response(request);
+
+    assertTrue(restlet.handleFromForwardSpec(request, response));
+
+    assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus(),
+        "#1001: an invalid precondition on a forwarded write is bad input, not a server error");
+  }
+
+  @Test
+  public void capabilityShouldRefuseTrustedHeaderTheConnectorSets() {
+    String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                            trustedHeaders:
+                              - Host
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                """.formatted(schemaVersion);
+
+    IllegalArgumentException error = assertThrows(
+        IllegalArgumentException.class, () -> capabilityFromYaml(yaml),
+        "#1001: a trusted header the engine can never send must fail at load time, "
+            + "not be dropped on every request");
+    assertTrue(error.getMessage().contains("Host"), error.getMessage());
   }
 
   @Test
@@ -472,6 +740,14 @@ public class ResourceRestletTest {
     Map<String, Object> inputParameters = Map.of("name", "Alice");
     JsonNode node = Resolver.buildMockValue(param, mapper, inputParameters);
     assertEquals("Hello, Alice!", node.asString());
+  }
+
+  private static ResourceRestlet minimalRestlet() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    return new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
   }
 
   private static Capability capabilityFromYaml(String yaml) throws Exception {

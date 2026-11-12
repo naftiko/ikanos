@@ -35,6 +35,7 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.scripting.ScriptStepExecutor;
 import io.ikanos.engine.step.StepHandlerRegistry;
@@ -267,6 +268,9 @@ public class OperationStepExecutor {
                             // the chain so the error says where the failure came from.
                             throw e.calledFrom(callStep.getName(), callStep.getCall());
                         } catch (FlowCallDepthExceededException e) {
+                            throw e;
+                        } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+                            // Bad input raised inside a called flow stays bad input (#1001)
                             throw e;
                         } catch (Exception e) {
                             throw new IllegalStateException(

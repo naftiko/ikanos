@@ -3152,7 +3152,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
+          "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Standard request headers (`Accept`, `If-None-Match`, `Range`, `User-Agent`, \u2026) are forwarded too; headers that describe the body (`Content-Type`, \u2026) always travel with it. A header sent on several lines is forwarded joined when the standard header is a list (`Accept`, `Cache-Control`, `Cookie`, \u2026), with its first line when it is single-valued (`Authorization`, `Range`, \u2026), and line by line for any other header. A precondition (`If-Match`, `If-None-Match`, `If-Unmodified-Since`, `If-Range`) that cannot be parsed fails an unsafe request with `400`; any other unparseable value is not forwarded, and a `Range` is not forwarded when its `If-Range` cannot be parsed. A header the engine can never send upstream (`Host`, `Content-Length`, `Date`, `Expect`, `Accept-Encoding`, `Proxy-Authorization`, a hop-by-hop header such as `Connection` or `Transfer-Encoding`, or a response header such as `ETag`) fails the capability at load time and `ikanos validate`. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
           "minItems": 1
         }
       },
