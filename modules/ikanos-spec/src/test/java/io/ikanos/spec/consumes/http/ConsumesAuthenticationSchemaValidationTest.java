@@ -16,6 +16,7 @@ package io.ikanos.spec.consumes.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
@@ -69,6 +70,74 @@ class ConsumesAuthenticationSchemaValidationTest {
         List<Error> errors = validate(consumed(type, """
                 type: "bearer"
                         token: "{{TOKEN}}\""""), "");
+
+        assertEquals(List.of(), errors, errors.toString());
+    }
+
+    /** #964: an apikey that can't be sent is refused by validate, before the engine refuses it. */
+    @ParameterizedTest(name = "consumes type {0}")
+    @ValueSource(strings = {"http", "mcp"})
+    void schemaShouldRejectAnApiKeyWithoutAValueOnAConsumedAdapter(String type) throws Exception {
+        List<Error> errors = validate(consumed(type, """
+                type: "apikey"
+                        key: "X-Api-Key\""""), "");
+
+        assertTrue(errors.stream()
+                .anyMatch(e -> e.toString().contains("required property 'value'")),
+                errors.toString());
+    }
+
+    @ParameterizedTest(name = "consumes type {0}")
+    @ValueSource(strings = {"http", "mcp"})
+    void schemaShouldRejectAnApiKeyWithoutAKeyOnAConsumedAdapter(String type) throws Exception {
+        List<Error> errors = validate(consumed(type, """
+                type: "apikey"
+                        value: "{{API_KEY}}\""""), "");
+
+        assertTrue(errors.stream()
+                .anyMatch(e -> e.toString().contains("required property 'key'")),
+                errors.toString());
+    }
+
+    @ParameterizedTest(name = "consumes type {0}")
+    @ValueSource(strings = {"http", "mcp"})
+    void schemaShouldAcceptACompleteApiKeyOnAConsumedAdapter(String type) throws Exception {
+        List<Error> errors = validate(consumed(type, """
+                type: "apikey"
+                        key: "X-Api-Key"
+                        value: "{{API_KEY}}"
+                        placement: "query\""""), "");
+
+        assertEquals(List.of(), errors, errors.toString());
+    }
+
+    /** Exposed adapters share AuthApiKey, and the engine refuses an incomplete one there (#856). */
+    @ParameterizedTest(name = "without {0}")
+    @ValueSource(strings = {"key", "value"})
+    void schemaShouldRejectAnIncompleteApiKeyOnAnExposedAdapter(String missing) throws Exception {
+        String field = "key".equals(missing) ? "value: \"{{API_KEY}}\"" : "key: \"X-Api-Key\"";
+        List<Error> errors = validate(consumed("http", """
+                type: "bearer"
+                        token: "{{TOKEN}}\""""), """
+                      authentication:
+                        type: "apikey"
+                        %s
+                """.formatted(field));
+
+        assertFalse(errors.isEmpty(), "an exposed apikey without a " + missing
+                + " should be rejected");
+    }
+
+    @Test
+    void schemaShouldAcceptACompleteApiKeyOnAnExposedAdapter() throws Exception {
+        List<Error> errors = validate(consumed("http", """
+                type: "bearer"
+                        token: "{{TOKEN}}\""""), """
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-Key"
+                        value: "{{API_KEY}}"
+                """);
 
         assertEquals(List.of(), errors, errors.toString());
     }

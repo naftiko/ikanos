@@ -30,9 +30,10 @@ import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
- * #842: an authentication type that {@link ConsumedAuthentication} can't send (the schema allows
- * {@code oauth2} on consumes, and code can build a {@code Bearer} with a capital) is refused,
- * instead of sending the upstream call with no credential and no error.
+ * #842: an authentication type that {@link ConsumedAuthentication} can't send ({@code oauth2},
+ * which the engine still maps when it loads a capability without the schema, or a {@code Bearer}
+ * with a capital built in code) is refused, instead of sending the upstream call with no
+ * credential and no error.
  */
 class ConsumedAuthenticationUnsupportedTest {
 

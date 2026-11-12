@@ -378,6 +378,49 @@ public class ValidateCommandTest {
         assertTrue(err.contains("Path: $.capability.consumes[0].authentication"), err);
     }
 
+    /** #964: an apikey without a value can't be sent, so validate refuses it before the engine. */
+    @Test
+    public void callShouldRejectAnApiKeyWithoutAValueOnAConsumedAdapter() {
+        Path yaml = tempDir.resolve("apikey-without-value.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Apikey upstream"
+                  description: "Consumes an API with an apikey that has no value"
+                capability:
+                  consumes:
+                    - namespace: "crm"
+                      type: "http"
+                      baseUri: "https://crm.example.com"
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-Key"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list:
+                              method: "GET"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            get:
+                              method: "GET"
+                              call: "crm.list"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, err + outCapture);
+        assertTrue(err.contains("Path: $.capability.consumes[0].authentication"), err);
+    }
+
     @Test
     public void removedSkillAdaptersShouldBeFoundInStandaloneExposesFiles() throws Exception {
         JsonNode data = IkanosMappers.yaml().readTree("""

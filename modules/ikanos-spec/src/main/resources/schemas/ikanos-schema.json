@@ -3343,7 +3343,7 @@
     },
     "ForwardConfig": {
       "type": "object",
-      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `Authentication` on the target adapter for upstream credentials.",
+      "description": "Configuration for transparently forwarding incoming requests to a `ConsumesHttp` adapter.\n\n**When to use** \u2014 Attach to an `ExposesRest` or `ExposesMcp` adapter when you want to proxy or relay requests to an upstream API without writing explicit operation logic.\n**Security** \u2014 Only headers listed in `trustedHeaders` are forwarded; all others are stripped to avoid leaking internal headers.\n**See also** \u2014 `ConsumesHttp.namespace` as the forward target, `ConsumedAuthentication` on the target adapter for upstream credentials.",
       "properties": {
         "targetNamespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -3448,13 +3448,15 @@
         }
       },
       "required": [
-        "type"
+        "type",
+        "key",
+        "value"
       ],
       "additionalProperties": false
     },
     "AuthBearer": {
       "type": "object",
-      "description": "Static Bearer token authentication (`Authorization: Bearer <token>`). Use for APIs that issue long-lived tokens (service accounts, PATs). For dynamic token refresh, use `oauth2` instead.",
+      "description": "Static Bearer token authentication (`Authorization: Bearer <token>`). Use for APIs that issue long-lived tokens (service accounts, PATs). On an exposed adapter, use `oauth2` instead to validate tokens that expire; consumed adapters can't use `oauth2`.",
       "properties": {
         "type": {
           "type": "string",
