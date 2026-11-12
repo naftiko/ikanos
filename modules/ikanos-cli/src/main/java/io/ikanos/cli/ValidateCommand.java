@@ -25,6 +25,7 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
@@ -118,9 +119,12 @@ public class ValidateCommand implements Callable<Integer> {
                     ? ConsumedTemplateValidator.findErrors(spec) : List.of();
             List<String> queryParameterErrors = spec != null
                     ? ConsumedQueryParameterValidator.findErrors(spec) : List.of();
-            // Trusted headers that forward mode can never send (#1001), same condition
-            List<String> forwardErrors = spec != null
-                    ? ForwardTrustedHeadersValidator.findErrors(spec) : List.of();
+            // Headers the engine can never send (#1001), same condition
+            List<String> headerErrors = new ArrayList<>();
+            if (spec != null) {
+                headerErrors.addAll(ForwardTrustedHeadersValidator.findErrors(spec));
+                headerErrors.addAll(ConsumedHeaderValidator.findErrors(spec));
+            }
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
@@ -146,7 +150,7 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Display validation result.
             if (schemaValid && templateErrors.isEmpty() && queryParameterErrors.isEmpty()
-                    && forwardErrors.isEmpty() && definitions.errors().isEmpty()
+                    && headerErrors.isEmpty() && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
@@ -186,8 +190,8 @@ public class ValidateCommand implements Callable<Integer> {
                             + "] Invalid consumed query parameter: " + error);
                     errorCount++;
                 }
-                for (String error : forwardErrors) {
-                    System.err.println("\n  [" + errorCount + "] Invalid trusted header: "
+                for (String error : headerErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid header: "
                             + error);
                     errorCount++;
                 }
