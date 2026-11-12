@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   feature-tests:
@@ -71,16 +70,13 @@ jobs:
               -F "file=@$file" || { echo "Failed to import $file"; exit 1; }
           done
 
-      # ── Pull Ikanos image ─────────────────────────────────────────────────────
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull Ikanos image
-        run: docker pull ghcr.io/naftiko/ikanos:latest
+      # ── Build Ikanos image ────────────────────────────────────────────────────
+      # The engine is built from the checked-out commit, never pulled from a
+      # release: the features below are this commit's capabilities, so they must
+      # run on this commit's engine. With the released :latest image, a breaking
+      # spec change could not be right on both sides (#1030).
+      - name: Build Ikanos image from this commit
+        run: docker build -f deployment/Dockerfile -t "ikanos-e2e:${GITHUB_SHA}" .
 
       # ── Main loop ─────────────────────────────────────────────────────────────
       # Each feature lives in its own subdirectory under features/.
@@ -90,7 +86,7 @@ jobs:
       # The workflow starts ikanos, calls run.sh, then stops ikanos.
       - name: Run E2E tests for each feature
         env:
-          IKANOS_IMAGE: ghcr.io/naftiko/ikanos:latest
+          IKANOS_IMAGE: ikanos-e2e:${{ github.sha }}
           IKANOS_CONTAINER: ikanos-e2e-run
           SECRETS_DIR: ${{ github.workspace }}/.github/e2e/resources/shared
           KC_CLIENT_SECRET: ${{ secrets.KC_E2E_CLIENT_SECRET || 'test-secret' }}

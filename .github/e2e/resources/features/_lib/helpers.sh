@@ -13,7 +13,7 @@
 # helpers.sh — shared utilities sourced by every feature run.sh
 #
 # Expected env vars set by the workflow before sourcing:
-#   IKANOS_IMAGE      ghcr.io/naftiko/ikanos:latest
+#   IKANOS_IMAGE      engine image built from the checked-out commit (ikanos-e2e:<sha>)
 #   IKANOS_CONTAINER  container name (unique per feature run)
 #   SECRETS_DIR       absolute path to .github/e2e/resources/shared
 #   KC_CLIENT_SECRET  Keycloak client secret (default: test-secret)
