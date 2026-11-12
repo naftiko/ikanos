@@ -38,6 +38,7 @@ functions:
   - flow-calls
   - mcp-trust-networks
   - shared-listener-mounts
+  - cache-hints
   - exposes-hosts-binds-ref
 
 rules:
@@ -814,3 +815,53 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "^https?://[^/]+\\.(com|net|org|io|co|app|dev|cloud|ai)(:|/|$)"
+
+  # Cache hints (MCP 2026-07-28 ttlMs/cacheScope, REST Cache-Control) — #1022
+
+  ikanos-cache-public-forwards-credentials:
+    message: "{{error}}"
+    description: >
+      A REST resource that forwards the caller's credentials (`forward.trustedHeaders`
+      with `Authorization`, `Cookie` or `Proxy-Authorization`) returns that caller's
+      data. When the adapter sends its answers as `cacheScope: public` with a positive
+      `ttlMs`, a shared cache may serve them to another caller. Use `private`, or
+      `auto`, which derives `private` here.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: cache-hints
+      functionOptions:
+        check: forwards-credentials
+
+  ikanos-cache-public-caller-dependent:
+    message: "{{error}}"
+    description: >
+      An explicit `cacheScope: public` lets a shared cache serve a result to any
+      caller. When the adapter authenticates its callers (or, for MCP, identifies
+      them through `trust`), or a REST operation reads an input from a request
+      header or cookie, the result may depend on who is calling. It can be intended,
+      for a public catalogue behind authentication, so this is a warning; `auto`
+      derives the safe scope.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: cache-hints
+      functionOptions:
+        check: caller-dependent
+
+  ikanos-cache-ttl-from-upstream-no-effect:
+    message: "{{error}}"
+    description: >
+      `ttlFromUpstream` reads the TTL from the caching headers of a single HTTP
+      upstream answer. It has no effect on a static resource (`location`), a
+      resource with `steps`, or a resource that calls an MCP consumed adapter, which
+      sends no HTTP caching headers. Set `ttlMs` instead.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: cache-hints
+      functionOptions:
+        check: ttl-from-upstream-no-effect
