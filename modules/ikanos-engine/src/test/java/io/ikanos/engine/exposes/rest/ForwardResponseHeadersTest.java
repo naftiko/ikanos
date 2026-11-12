@@ -65,7 +65,11 @@ public class ForwardResponseHeadersTest {
     }
 
     private static Response relayed(Response from, List<String> trusted) {
-        Response to = new Response(incoming());
+        return relayed(from, trusted, incoming());
+    }
+
+    private static Response relayed(Response from, List<String> trusted, Request request) {
+        Response to = new Response(request);
         to.setEntity(from.getEntity());
         ForwardResponseHeaders.relay(from, to, trusted, BASE_URI);
         return to;
@@ -166,7 +170,7 @@ public class ForwardResponseHeadersTest {
     }
 
     @Test
-    public void relayedLocationShouldKeepTheFragment() {
+    public void relayedLocationShouldKeepTheFragmentWhenUnderBaseUri() {
         assertEquals("/proxy/items/42#top", location(BASE_URI + "/items/42#top"));
     }
 
@@ -205,19 +209,95 @@ public class ForwardResponseHeadersTest {
         assertEquals("/proxy/items/42", relayed(from).getLocationRef().getTargetRef().toString());
     }
 
-    @Test
-    public void relayShouldLogADroppedLocationWithoutItsValue() {
+    /** Relays a 201 (or {@code status}) whose Location is dropped, on its own exposed path. */
+    private static void relayDroppedLocation(Status status, String exposedPath) {
         Response from = upstreamResponse();
-        from.setStatus(Status.SUCCESS_CREATED);
-        from.getHeaders().add("Location", "http://upstream:9090/admin");
+        from.setStatus(status);
+        from.getHeaders().add("Location", "http://upstream:9090/secret-admin-path");
+        relayed(from, List.of(), incoming("http://localhost:8080" + exposedPath + "/items",
+                "items"));
+    }
 
+    /** Levels of the events about a dropped Location, with the Restlet logger at DEBUG. */
+    private static List<ch.qos.logback.classic.Level> droppedLocationLevels(LogCapture logs) {
+        return logs.events().stream()
+                .filter(e -> e.getFormattedMessage().contains("did not relay the upstream Location"))
+                .map(e -> e.getLevel()).toList();
+    }
+
+    private static ch.qos.logback.classic.Logger restletLogger() {
+        return (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+                .getLogger(org.restlet.Context.getCurrentLogger().getName());
+    }
+
+    @Test
+    public void relayShouldLogADroppedLocationWithItsHeaderAndStatusButNotItsValue() {
         try (LogCapture logs = new LogCapture()) {
-            relayed(from);
+            relayDroppedLocation(Status.SUCCESS_CREATED, "/log-value");
 
-            String all = String.join(" | ", logs.messages());
+            List<String> logged = new ArrayList<>(logs.messages());
+            logs.events().forEach(e -> {
+                if (e.getArgumentArray() != null) {
+                    for (Object argument : e.getArgumentArray()) {
+                        logged.add(String.valueOf(argument));
+                    }
+                }
+            });
+            String all = String.join(" | ", logged);
             assertTrue(all.contains("Location") && all.contains("201"), all);
-            assertFalse(all.contains("upstream:9090"), "the dropped value must not be logged");
+            assertFalse(all.contains("secret-admin-path"),
+                    "neither the message nor its parameters may carry the dropped value: " + all);
         }
+    }
+
+    @Test
+    public void relayShouldWarnOnceThenLogAtFineWhenARedirectLocationIsDropped() {
+        ch.qos.logback.classic.Logger logger = restletLogger();
+        ch.qos.logback.classic.Level previous = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        try (LogCapture logs = new LogCapture()) {
+            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx");
+            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx");
+
+            assertEquals(List.of(ch.qos.logback.classic.Level.WARN,
+                    ch.qos.logback.classic.Level.DEBUG), droppedLocationLevels(logs));
+        } finally {
+            logger.setLevel(previous);
+        }
+    }
+
+    @Test
+    public void relayShouldLogAtFineWhenALocationOfA200IsDropped() {
+        ch.qos.logback.classic.Logger logger = restletLogger();
+        ch.qos.logback.classic.Level previous = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        try (LogCapture logs = new LogCapture()) {
+            relayDroppedLocation(Status.SUCCESS_OK, "/log-200");
+
+            assertEquals(List.of(ch.qos.logback.classic.Level.DEBUG),
+                    droppedLocationLevels(logs));
+        } finally {
+            logger.setLevel(previous);
+        }
+    }
+
+    @Test
+    public void relayedLocationShouldDropALeadingDotDotSegmentWhenTheBaseUriHasNoPath() {
+        assertNull(ForwardResponseHeaders.relayedLocation("/../admin", "http://up/items",
+                "http://up", incoming()));
+    }
+
+    @Test
+    public void relayedLocationShouldDropPercentEncodedDotSegments() {
+        assertNull(ForwardResponseHeaders.relayedLocation("/api/%2e%2e/%2e%2e/admin",
+                "http://up/api/items", "http://up/api", incoming()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/v1/%2E%2E/admin", "/v1/.%2e/admin", "/v1/%2e./admin",
+            "/v1/items/%2e/x", "/v1/items/%2E"})
+    public void relayedLocationShouldDropAnyEncodedDotSegment(String raw) {
+        assertNull(location(raw), raw);
     }
 
     @Test
