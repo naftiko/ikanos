@@ -20,6 +20,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.logging.Level;
+import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.ChallengeRequest;
@@ -130,18 +132,25 @@ public final class ForwardResponseHeaders {
                         : from.getRequest().getResourceRef().toString();
 
         String location = from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
-        to.setLocationRef(location == null ? null
-                : verbatim(relayedLocation(location, upstreamRequestUri, upstreamBaseUri,
-                        incoming)));
+        String relayedLocation = location == null ? null
+                : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming);
+        if (location != null && relayedLocation == null) {
+            logDropped(HeaderConstants.HEADER_LOCATION, from);
+        }
+        to.setLocationRef(verbatim(relayedLocation));
 
         Representation entity = to.getEntity();
         if (entity != null) {
             String contentLocation = from.getHeaders()
                     .getFirstValue(HeaderConstants.HEADER_CONTENT_LOCATION, true);
             if (contentLocation != null || entity.getLocationRef() != null) {
-                entity.setLocationRef(contentLocation == null ? null
-                        : verbatim(relayedLocation(contentLocation, upstreamRequestUri,
-                                upstreamBaseUri, incoming)));
+                String relayedContentLocation = contentLocation == null ? null
+                        : relayedLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
+                                incoming);
+                if (contentLocation != null && relayedContentLocation == null) {
+                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from);
+                }
+                entity.setLocationRef(verbatim(relayedContentLocation));
             }
         }
 
@@ -177,6 +186,20 @@ public final class ForwardResponseHeaders {
                 }
             }
         }
+    }
+
+    /**
+     * Logs that a location header was not relayed, naming the header and the upstream status but
+     * never the value, which can carry the upstream host. A redirect or a {@code 201} without its
+     * location is worth a warning; anything else is logged at {@code FINE}.
+     */
+    static void logDropped(String headerName, Response from) {
+        int status = from.getStatus() == null ? 0 : from.getStatus().getCode();
+        Level level = (status >= 300 && status < 400) || status == 201 ? Level.WARNING
+                : Level.FINE;
+        Context.getCurrentLogger().log(level, () -> "Forward mode did not relay the upstream "
+                + headerName + " header of a " + status + " response: it points at the "
+                + "upstream outside the forward target's baseUri, or cannot be parsed.");
     }
 
     /**
@@ -229,20 +252,24 @@ public final class ForwardResponseHeaders {
 
     /**
      * Decides what to send the caller for an upstream {@code Location} or
-     * {@code Content-Location}.
+     * {@code Content-Location}. The value is first resolved against the upstream request URI and
+     * normalized (so {@code ..} segments are applied).
      *
      * <ul>
-     * <li>Under {@code upstreamBaseUri} (once resolved against the upstream request URI): the
-     * matching path-absolute reference under the exposed resource, such as
-     * {@code /proxy/items/42}, so neither the upstream host nor the caller's {@code Host} is
-     * written.</li>
-     * <li>Absolute and on the upstream's authority, but outside the base URI: dropped, so the
-     * upstream host does not reach the caller.</li>
-     * <li>Otherwise: the raw value, unchanged.</li>
+     * <li>Same scheme, host and port as {@code upstreamBaseUri}, and under its path: the matching
+     * path-absolute reference under the exposed resource, such as {@code /proxy/items/42}, so
+     * neither the upstream host nor the caller's {@code Host} is written.</li>
+     * <li>Any other value on the upstream host, whatever its form (relative, scheme-relative,
+     * another scheme or port, outside the base path): dropped, so the upstream host, and paths
+     * that would point into the gateway's own namespace, never reach the caller.</li>
+     * <li>A value on another host: relayed unchanged.</li>
+     * <li>A value or base URI that cannot be parsed: dropped.</li>
      * </ul>
      *
-     * <p>The comparison lowercases the scheme and the host, ignores a default port and a trailing
-     * slash on the base URI, and only matches whole path segments.
+     * <p>Scheme and host are compared case-insensitively, a default port is ignored, a trailing
+     * slash on the base URI is ignored, and only whole path segments match. The host and port are
+     * read from the raw authority, so a host name with an underscore (a common Docker or
+     * Kubernetes service name) is compared like any other.
      *
      * @param raw the raw header value from the upstream
      * @param upstreamRequestUri the URI the upstream request was sent to
@@ -254,26 +281,23 @@ public final class ForwardResponseHeaders {
             Request incoming) {
         URI base = parse(upstreamBaseUri);
         URI value = parse(raw.trim());
-        if (base == null || value == null) {
+        if (base == null || value == null || host(base) == null) {
             return null;
         }
-        URI resolved = value;
-        if (!value.isAbsolute()) {
-            URI requestUri = parse(upstreamRequestUri);
-            if (requestUri == null) {
-                return raw;
-            }
-            resolved = requestUri.resolve(value);
-        }
-        if (!sameAuthority(resolved, base)) {
+        URI requestUri = parse(upstreamRequestUri);
+        URI resolved = (requestUri != null && requestUri.isAbsolute() ? requestUri : base)
+                .resolve(value).normalize();
+        String host = host(resolved);
+        if (host == null || !host.equalsIgnoreCase(host(base))) {
             return raw;
         }
         String basePath = stripTrailingSlashes(base.getRawPath());
         String path = resolved.getRawPath() == null ? "" : resolved.getRawPath();
         boolean under = path.equals(basePath) || (path.startsWith(basePath)
                 && (basePath.isEmpty() || path.charAt(basePath.length()) == '/'));
-        if (!under) {
-            return value.isAbsolute() ? null : raw;
+        if (!under || !resolved.getScheme().equalsIgnoreCase(base.getScheme())
+                || port(resolved) != port(base)) {
+            return null;
         }
         String exposed = exposedPath(incoming);
         if (exposed == null) {
@@ -312,17 +336,48 @@ public final class ForwardResponseHeaders {
         return stripTrailingSlashes(path);
     }
 
-    private static boolean sameAuthority(URI a, URI b) {
-        return a.getScheme() != null && b.getScheme() != null
-                && a.getScheme().equalsIgnoreCase(b.getScheme()) && a.getHost() != null
-                && a.getHost().equalsIgnoreCase(b.getHost()) && port(a) == port(b);
+    /**
+     * @return the host of {@code uri}, read from its raw authority (without user info and port),
+     *         or {@code null} when it has none. {@link URI#getHost()} returns {@code null} for a
+     *         host name with an underscore, which {@link URI} parses as a registry-based
+     *         authority.
+     */
+    static String host(URI uri) {
+        String hostPort = hostPort(uri);
+        if (hostPort == null) {
+            return null;
+        }
+        if (hostPort.startsWith("[")) {
+            int end = hostPort.indexOf(']');
+            return end < 0 ? null : hostPort.substring(0, end + 1);
+        }
+        int colon = hostPort.lastIndexOf(':');
+        String host = colon < 0 ? hostPort : hostPort.substring(0, colon);
+        return host.isEmpty() ? null : host;
     }
 
-    private static int port(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
+    /**
+     * @return the port of {@code uri}, read from its raw authority, else the default port of its
+     *         scheme (443 for {@code https}, 80 otherwise), or -1 when the port is not a number
+     */
+    static int port(URI uri) {
+        String hostPort = hostPort(uri);
+        if (hostPort != null) {
+            int colon = hostPort.lastIndexOf(':');
+            if (colon > hostPort.lastIndexOf(']') && colon < hostPort.length() - 1) {
+                try {
+                    return Integer.parseInt(hostPort.substring(colon + 1));
+                } catch (NumberFormatException e) {
+                    return -1;
+                }
+            }
         }
         return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    private static String hostPort(URI uri) {
+        String authority = uri.getRawAuthority();
+        return authority == null ? null : authority.substring(authority.lastIndexOf('@') + 1);
     }
 
     private static String stripTrailingSlashes(String path) {
