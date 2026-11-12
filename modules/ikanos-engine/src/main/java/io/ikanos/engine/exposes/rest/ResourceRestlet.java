@@ -179,6 +179,11 @@ public class ResourceRestlet extends Restlet {
                             sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
                                     "An upstream call failed", "Call failed", e);
                             return true;
+                        } catch (InputRequiredException e) {
+                            // Unreachable while FlowCallValidator rejects a `call:` to a flow;
+                            // answers as the ref and steps branches do if that ever changes.
+                            sendInputRequired(response, e);
+                            return true;
                         } catch (Exception e) {
                             sendError(response, Status.SERVER_ERROR_INTERNAL,
                                     "Error while handling a consumed call",
