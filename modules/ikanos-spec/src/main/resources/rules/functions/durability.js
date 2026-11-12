@@ -89,7 +89,8 @@ function checkSealingKey(doc, control) {
     if (!keys.has(key)) {
       return [{
         message: "durability.sealingKey references key '" + key + "' on binding '" + ns
-          + "', but that key is not declared. Add it to binds[" + ns + "].keys.",
+          + "', but that key is not declared. Add it to the keys of the '" + ns
+          + "' entry in capability.binds.",
         path,
       }];
     }
@@ -98,7 +99,7 @@ function checkSealingKey(doc, control) {
   if (!bindings.allKeys.has(key)) {
     return [{
       message: "durability.sealingKey references key '" + key + "', but no binding declares "
-        + "it. Add it to the keys of an entry in 'binds'.",
+        + "it. Add it to the keys of an entry in 'capability.binds'.",
       path,
     }];
   }
