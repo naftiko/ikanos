@@ -2,12 +2,12 @@ ikanos: 1.0.0-beta9
 info:
   display: Sealing key unbound
   description: Negative fixture referencing a sealing key that no binding declares
-binds:
-- namespace: secrets
-  description: Deployment secrets
-  keys:
-    OTHER_KEY: other-key
 capability:
+  binds:
+  - namespace: secrets
+    description: Deployment secrets
+    keys:
+      OTHER_KEY: other-key
   aggregates:
   - display: departure flows
     namespace: departure
