@@ -50,6 +50,40 @@ public class HeadersTest {
     }
 
     @Test
+    public void resolveInputParametersShouldSetAcceptedMediaTypesWhenAcceptIsAHeaderInput() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
+
+        InputParameterSpec accept = new InputParameterSpec();
+        accept.setName("Accept");
+        accept.setIn("header");
+        accept.setValue("application/xml");
+
+        Resolver.resolveInputParametersToRequest(request, java.util.List.of(accept),
+                new ConcurrentHashMap<>());
+
+        assertEquals(org.restlet.data.MediaType.APPLICATION_XML,
+                request.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
+                "#1001: Restlet 3 only sends Accept from the client info, never from a raw header");
+    }
+
+    @Test
+    public void setHeadersShouldSetAgentWhenUserAgentIsAnAdapterHeader() {
+        HttpClientSpec spec = new HttpClientSpec("test", "https://api.example.com", null);
+        InputParameterSpec userAgent = new InputParameterSpec();
+        userAgent.setName("User-Agent");
+        userAgent.setIn("header");
+        userAgent.setValue("ikanos-test/1.0");
+        spec.setInputParameters(Map.of("User-Agent", userAgent));
+        Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
+
+        new HttpClientAdapter(null, spec).setHeaders(request);
+
+        assertEquals("ikanos-test/1.0", request.getClientInfo().getAgent(),
+                "#1001: Restlet 3 only sends User-Agent from the client info, never from a raw "
+                        + "header");
+    }
+
+    @Test
     public void resolveInputParametersUsesMustacheInValue() {
         Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
 

@@ -3152,7 +3152,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
+          "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Standard request headers (`Accept`, `If-None-Match`, `Range`, `User-Agent`, …) are forwarded too; headers that describe the body (`Content-Type`, …) always travel with it. A header the engine can never send upstream (`Host`, `Content-Length`, `Connection`, `Date`, `Expect`, `Accept-Encoding`, `Proxy-Authorization` or a response header such as `ETag`) fails the capability at load time and `ikanos validate`. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
           "minItems": 1
         }
       },

@@ -136,19 +136,11 @@ public final class ConsumedAuthentication {
                     // Encoded like every query parameter, so the API reads it unchanged (#841)
                     clientRequest.setResourceRef(
                             Resolver.appendQueryParameter(targetRef, key, value));
-                } else if ("Authorization".equalsIgnoreCase(key)) {
-                    ApiKeyAuthorizationHeaderHelper.ensureRegistered();
-                    ChallengeResponse rawChallenge =
-                            new ChallengeResponse(ApiKeyAuthorizationHeaderHelper.SCHEME);
-                    // setIdentifier (not setRawValue): formatResponse() short-circuits to
-                    // the raw value when it is set and never calls the registered helper,
-                    // which is what strips the technicalName + separator Restlet would
-                    // otherwise inject (see ApiKeyAuthorizationHeaderHelper's javadoc).
-                    rawChallenge.setIdentifier(value);
-                    clientRequest.setChallengeResponse(rawChallenge);
                 } else {
-                    // A header, also when placement is omitted, as the schema says (#840)
-                    clientRequest.getHeaders().add(key, value);
+                    // A header, also when placement is omitted, as the schema says (#840). A
+                    // standard header (Authorization #698, Cookie, …) is set through the
+                    // property Restlet writes it from, or it would be dropped (#1001).
+                    StandardRequestHeaders.set(clientRequest, key, value);
                 }
                 break;
 

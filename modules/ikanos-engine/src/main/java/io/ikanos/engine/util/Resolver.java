@@ -32,6 +32,7 @@ import tools.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -989,7 +990,8 @@ public class Resolver {
                 if ("header".equalsIgnoreCase(in)) {
                     // A list is comma-separated, the OpenAPI "simple" style for headers
                     List<String> elements = listElements(val);
-                    clientRequest.getHeaders().set(wireName,
+                    // A standard header (Accept, …) through its Restlet property (#1001)
+                    StandardRequestHeaders.set(clientRequest, wireName,
                             elements != null ? String.join(",", elements) : val.toString());
                 } else if ("query".equalsIgnoreCase(in)) {
                     String ref = clientRequest.getResourceRef().toString();

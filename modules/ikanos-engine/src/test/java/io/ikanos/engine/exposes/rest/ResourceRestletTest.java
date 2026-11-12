@@ -319,6 +319,74 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void copyTrustedHeadersShouldSetConditionWhenIfNoneMatchIsTrusted() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-None-Match", "\"v1\"");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-None-Match"));
+
+    assertEquals(java.util.List.of(org.restlet.data.Tag.parse("\"v1\"")),
+        to.getConditions().getNoneMatch(),
+        "#1001: Restlet 3 only sends If-None-Match from the request conditions, never from a raw "
+            + "header");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSetAcceptedMediaTypesWhenAcceptIsTrusted() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("accept", "application/json");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Accept"));
+
+    assertEquals(MediaType.APPLICATION_JSON,
+        to.getClientInfo().getAcceptedMediaTypes().get(0).getMetadata(),
+        "#1001: Restlet 3 only sends Accept from the client info, never from a raw header");
+  }
+
+  @Test
+  public void capabilityShouldRefuseTrustedHeaderTheConnectorSets() {
+    String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                            trustedHeaders:
+                              - Host
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "http://localhost:9/v1"
+                """.formatted(schemaVersion);
+
+    IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalArgumentException.class, () -> capabilityFromYaml(yaml),
+        "#1001: a trusted header the engine can never send must fail at load time, "
+            + "not be dropped on every request");
+    assertTrue(error.getMessage().contains("Host"), error.getMessage());
+  }
+
+  @Test
   public void sendResponseShouldFallbackToRawEntityAndHandleMappingExceptions() throws Exception {
     Capability capability = capabilityFromYaml(minimalCapabilityYaml());
     RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)

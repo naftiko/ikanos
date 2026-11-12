@@ -54,6 +54,7 @@ import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.ServerHost;
 import io.ikanos.engine.exposes.control.ControlServerAdapter;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.RestServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.BindingResolver;
@@ -225,6 +226,7 @@ public class Capability {
         // §6.5 design in blueprints/reverse-tunnel-private-network.md.
         // Templates are checked first, so a capability that cannot work never starts a tunnel.
         ConsumedTemplateValidator.validate(spec);
+        ForwardTrustedHeadersValidator.validate(spec);
         List<String> unsupportedAuthentication = ConsumedAuthentication.findUnsupported(spec);
         if (!unsupportedAuthentication.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));

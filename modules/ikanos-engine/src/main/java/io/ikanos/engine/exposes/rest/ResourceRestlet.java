@@ -27,6 +27,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -629,7 +630,11 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Copy a set of trusted headers from one request to another.
+     * Copy a set of trusted headers from one request to another. A standard header (If-None-Match,
+     * Accept, …) is set through the Restlet property the connector writes it from, since Restlet
+     * drops it when added as a raw header (#1001). A header that describes the body
+     * (Content-Type, …) is already forwarded with the entity. A value that cannot be parsed is
+     * not forwarded, with a warning that names the header but not the value.
      */
     void copyTrustedHeaders(Request from, Request to, Iterable<String> trustedHeaders) {
         if (trustedHeaders == null) {
@@ -639,8 +644,14 @@ public class ResourceRestlet extends Restlet {
         for (String trustedHeader : trustedHeaders) {
             String headerValue = from.getHeaders().getFirstValue(trustedHeader, true);
 
-            if (headerValue != null) {
-                to.getHeaders().add(trustedHeader, headerValue);
+            if (headerValue == null || StandardRequestHeaders.isEntityHeader(trustedHeader)) {
+                continue;
+            }
+            try {
+                StandardRequestHeaders.set(to, trustedHeader, headerValue);
+            } catch (IllegalArgumentException e) {
+                Context.getCurrentLogger().warning("Trusted header '" + trustedHeader
+                        + "' was not forwarded: " + e.getMessage());
             }
         }
     }

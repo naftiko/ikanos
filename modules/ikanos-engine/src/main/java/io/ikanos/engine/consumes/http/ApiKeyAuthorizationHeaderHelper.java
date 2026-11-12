@@ -72,6 +72,21 @@ class ApiKeyAuthorizationHeaderHelper extends AuthenticatorHelper {
         }
     }
 
+    /**
+     * @param value the complete {@code Authorization} header value, scheme included if any
+     * @return a challenge response that this helper writes onto the wire as {@code value},
+     *         unchanged
+     */
+    static ChallengeResponse verbatim(String value) {
+        ensureRegistered();
+        ChallengeResponse challenge = new ChallengeResponse(SCHEME);
+        // setIdentifier (not setRawValue): formatResponse() short-circuits to the raw value when
+        // it is set and never calls this helper, which is what strips the technicalName +
+        // separator Restlet would otherwise inject (see the class javadoc).
+        challenge.setIdentifier(value);
+        return challenge;
+    }
+
     @Override
     public void formatResponse(ChallengeWriter cw, ChallengeResponse challenge, Request request,
             Series<Header> httpHeaders) {

@@ -464,7 +464,8 @@ public class HttpClientAdapter extends ClientAdapter {
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
             if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
                     && !replaced.contains(param)) {
-                request.getHeaders().set(param.getName(), param.getValue());
+                // A standard header (User-Agent, …) through its Restlet property (#1001)
+                StandardRequestHeaders.set(request, param.getName(), param.getValue());
             }
         }
     }
