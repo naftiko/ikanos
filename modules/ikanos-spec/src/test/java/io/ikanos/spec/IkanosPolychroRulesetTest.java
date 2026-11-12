@@ -518,6 +518,14 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void rulesetShouldAcceptSnakeCaseMcpToolNames() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-tool-names-compliant.yaml");
+        assertEquals(0, result.exitCode(),
+            "#1006: snake_case MCP tool names, and a skill naming them, must lint clean.\n"
+                + result.output());
+    }
+
+    @Test
     public void skillAdapterRemovedRuleShouldFireForCapabilityExpose() {
         assertRuleFires("rules/spectral-skill-adapter-removed-violations.yaml",
             "ikanos-skill-adapter-removed");

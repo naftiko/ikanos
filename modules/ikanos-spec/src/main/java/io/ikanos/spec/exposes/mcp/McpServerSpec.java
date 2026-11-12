@@ -31,7 +31,10 @@ import io.ikanos.spec.exposes.ServerSpec;
  *   <li>{@code http} (default) — Streamable HTTP via Restlet, for networked deployments</li>
  *   <li>{@code stdio} — stdin/stdout JSON-RPC, for local IDE development</li>
  * </ul>
- * Tools, resources, prompts and skills are keyed by their name (kebab-case identifier).</p>
+ * Tools, resources, prompts and skills are keyed by their name. Resource and prompt names are
+ * kebab-case identifiers, skill names follow the Agent Skills format (lowercase kebab-case), and
+ * tool names also accept underscores, so a capability can keep the snake_case names of the MCP
+ * server it re-implements.</p>
  */
 @JsonDeserialize(using = ValueDeserializer.None.class)
 public class McpServerSpec extends ServerSpec {
