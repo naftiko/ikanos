@@ -33,6 +33,7 @@ public class RestServerAdapter extends ServerAdapter {
     public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
         this.router = new Router();
+        RestCacheControl.validate(serverSpec);
 
         for (RestServerResourceSpec res : getRestServerSpec().getResources().values()) {
             String pathTemplate = toUriTemplate(res.getPath());
