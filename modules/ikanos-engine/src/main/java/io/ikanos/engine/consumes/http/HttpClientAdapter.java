@@ -237,24 +237,33 @@ public class HttpClientAdapter extends ClientAdapter {
 
         Set<InputParameterSpec> replaced = replacedInputParameters(declared);
         boolean noCallParameters = parameters == null || parameters.isEmpty();
+        // The URI sees the call parameters and the in: path values only, so a query or header
+        // parameter of the same name never changes the path (#978)
+        Map<String, Object> uriParameters =
+                parameters == null ? new HashMap<>() : new HashMap<>(parameters);
+        Map<String, Object> pathValues = new HashMap<>();
 
         // Resolve every declared parameter once, in declaration order, before the URI is
         // rendered: a path variable needs no declaration and takes the call parameter of the same
         // name, but an in: path entry with a value sets it, and that value can use any earlier
         // parameter (#978). Query and header parameters are sent once the URI exists.
         List<Resolver.ResolvedInputParameter> resolved =
-                Resolver.resolveInputParameterValues(declared, parameters, replaced);
+                Resolver.resolveInputParameterValues(declared, parameters, replaced, pathValues);
+        uriParameters.putAll(pathValues);
+        if (parameters == null && uriParameters.isEmpty()) {
+            uriParameters = null;
+        }
 
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
         if (noCallParameters) {
-            rejectMissing("URI", clientResUri, parameters);
+            rejectMissing("URI", clientResUri, uriParameters);
         }
 
         // Resolve Mustache templates. Each substituted value is marked, then percent-encoded by
         // position, so a caller value stays one path segment or one query value
         // (GHSA-rvg4-2rxw-mc64).
-        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, parameters,
+        clientResUri = Resolver.resolveMustacheTemplate(clientResUri, uriParameters,
                 PathSegmentEncoder::mark);
 
         clientResUri = PathSegmentEncoder.encodeMarkedValues(clientResUri);

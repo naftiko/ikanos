@@ -735,6 +735,106 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void prepareShouldFailWhenAnExplicitPathValueCannotBeResolved() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected-id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42"))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected-id]",
+                error.getMessage(),
+                "#978: an explicit path value that cannot resolve must not fall back to the"
+                        + " caller's value");
+    }
+
+    @Test
+    public void prepareShouldIgnoreUnresolvableReplacedPathValueWhenTheCallerSuppliesOne()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected-id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                                inputParameters:
+                                  id:
+                                    in: path
+                        """));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42", request.getResourceRef().toString(),
+                "#978: a replaced broader path value is only a default (#909)");
+    }
+
+    @Test
+    public void prepareShouldNotLetAQueryParameterOfTheSameNameChangeTheCallerPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                sameNameQuerySpec(""));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42?id=all",
+                request.getResourceRef().toString(),
+                "#978: the URI only sees call parameters and in: path values");
+    }
+
+    @Test
+    public void prepareShouldNotLetAQueryParameterOfTheSameNameChangeAnExplicitPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                sameNameQuerySpec("value: \"7\""));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/7?id=all",
+                request.getResourceRef().toString(),
+                "#978: a query parameter of the same name never replaces an in: path value");
+    }
+
+    /** Resource {@code id: in: path} (plus {@code pathExtra}), operation {@code id: in: query}. */
+    private HttpClientSpec sameNameQuerySpec(String pathExtra) throws Exception {
+        return consumedSpec("""
+                resources:
+                  pets:
+                    path: "/pets/{{id}}"
+                    inputParameters:
+                      id:
+                        in: path
+                        %s
+                    operations:
+                      get-pet:
+                        method: GET
+                        inputParameters:
+                          id:
+                            in: query
+                            value: "all"
+                """.formatted(pathExtra));
+    }
+
+    @Test
     public void prepareShouldRejectMissingPathVariableWhenOnlyAConstantHeaderIsDeclared()
             throws Exception {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
