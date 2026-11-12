@@ -17,6 +17,7 @@ import org.restlet.Context;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
+import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.engine.exposes.mcp.processor.CacheHints;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
@@ -62,9 +63,8 @@ public class McpCallHandlersFactory {
         // (cacheScope: auto is derived)
         McpServerSpec spec = adapter.getMcpServerSpec();
         Logger logger = Context.getCurrentLogger();
-        logger.fine(() -> "MCP adapter " + spec.getNamespace() + " lists: cacheScope "
-                + CacheHints.scopeDecision(spec, null).scope() + " ("
-                + CacheHints.scopeDecision(spec, null).reason() + ")");
+        logger.fine(() -> describe(spec.getNamespace() + " lists",
+                CacheHints.scopeDecision(spec, null)));
         for (McpServerResourceSpec resource : spec.getResources().values()) {
             if (resource.getTtlMs() != null && resource.getTtlMs() < 0) {
                 logger.warning("MCP adapter '" + spec.getNamespace() + "', resource '"
@@ -77,10 +77,8 @@ public class McpCallHandlersFactory {
                 throw new IllegalArgumentException(
                         "MCP resource '" + resource.getName() + "': " + e.getMessage(), e);
             }
-            logger.fine(() -> "MCP adapter " + spec.getNamespace() + " resource "
-                    + resource.getName() + ": cacheScope "
-                    + CacheHints.scopeDecision(spec, resource).scope() + " ("
-                    + CacheHints.scopeDecision(spec, resource).reason() + ")");
+            logger.fine(() -> describe(spec.getNamespace() + " resource " + resource.getName(),
+                    CacheHints.scopeDecision(spec, resource)));
         }
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
@@ -127,5 +125,10 @@ public class McpCallHandlersFactory {
                     List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
         }
         return List.copyOf(handlers);
+    }
+
+    private static String describe(String subject, CacheScopes.Decision decision) {
+        return "MCP adapter " + subject + ": cacheScope " + decision.scope() + " ("
+                + decision.reason() + ")";
     }
 }

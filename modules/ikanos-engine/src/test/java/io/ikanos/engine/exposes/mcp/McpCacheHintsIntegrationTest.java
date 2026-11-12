@@ -44,22 +44,51 @@ class McpCacheHintsIntegrationTest {
 
     private static McpServerAdapter configured;
     private static McpServerAdapter unset;
+    private static McpServerAdapter auto;
+    private static McpServerAdapter authenticatedAuto;
 
     @BeforeAll
     static void buildAdapters() throws Exception {
         configured = adapter("ttlMs: 60000\n    cacheScope: public");
         unset = adapter("");
         auto = adapter("cacheScope: auto");
+        authenticatedAuto = adapter("cacheScope: auto\n    authentication:\n"
+                + "      type: \"bearer\"\n      token: \"cache-test-token\"");
     }
-
-    private static McpServerAdapter auto;
 
     @ParameterizedTest
     @ValueSource(strings = {"tools/list", "resources/list"})
-    void autoScopeShouldBePublicWhenTheAdapterDoesNotAuthenticate(String method) throws Exception {
+    void dispatchShouldReturnPublicScopeWhenAutoAndNoAuthentication(String method)
+            throws Exception {
         JsonNode result = dispatch(auto, method, JSON.createObjectNode());
 
         assertThat(result.path("cacheScope").asString()).isEqualTo("public");
+    }
+
+    @Test
+    void resourceReadShouldReturnPublicScopeWhenAutoAndNoAuthentication() throws Exception {
+        ObjectNode params = JSON.createObjectNode().put("uri", "docs://guide/guide.md");
+
+        assertThat(dispatch(auto, "resources/read", params).path("cacheScope").asString())
+                .isEqualTo("public");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tools/list", "resources/list"})
+    void dispatchShouldReturnPrivateScopeWhenAutoAndTheAdapterAuthenticates(String method)
+            throws Exception {
+        JsonNode result = dispatch(authenticatedAuto, method, JSON.createObjectNode());
+
+        assertThat(result.path("cacheScope").asString()).isEqualTo("private");
+    }
+
+    @Test
+    void resourceReadShouldReturnPrivateScopeWhenAutoAndTheAdapterAuthenticates()
+            throws Exception {
+        ObjectNode params = JSON.createObjectNode().put("uri", "docs://guide/guide.md");
+
+        assertThat(dispatch(authenticatedAuto, "resources/read", params).path("cacheScope")
+                .asString()).isEqualTo("private");
     }
 
     @ParameterizedTest
