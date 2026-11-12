@@ -99,7 +99,24 @@ public class ForwardAuthorizationIntegrationTest {
 
         assertEquals(200, response.statusCode());
         assertNull(receivedProxyAuthorization.get(),
-                "#1010: Proxy-Authorization must not reach the upstream when it is not in trustedHeaders");
+                "Proxy-Authorization, like any untrusted header, must not reach the upstream");
+    }
+
+    @Test
+    public void forwardShouldSendTheTargetCredentialWhenAuthorizationIsTrustedAndTheTargetDeclaresAuthentication()
+            throws Exception {
+        String targetAuthentication = """
+                      authentication:
+                        type: "bearer"
+                        token: "target-token"
+                """;
+        int port = start("", "Authorization", targetAuthentication);
+
+        HttpResponse<String> response = send(port, "Authorization", "Bearer caller-token");
+
+        assertEquals(200, response.statusCode());
+        assertEquals("Bearer target-token", receivedAuthorization.get(),
+                "#1010: a target that declares authentication sends its own credential, even when Authorization is trusted");
     }
 
     @Test
@@ -121,6 +138,11 @@ public class ForwardAuthorizationIntegrationTest {
     }
 
     private int start(String exposedAuthentication, String trustedHeader) throws Exception {
+        return start(exposedAuthentication, trustedHeader, "");
+    }
+
+    private int start(String exposedAuthentication, String trustedHeader,
+            String targetAuthentication) throws Exception {
         int port = freePort();
         String yaml = """
                 ikanos: "%s"
@@ -141,8 +163,9 @@ public class ForwardAuthorizationIntegrationTest {
                     - type: "http"
                       namespace: "up"
                       baseUri: "http://localhost:%d/v1"
+                %s
                 """.formatted(VersionHelper.getSchemaVersion(), port, exposedAuthentication,
-                trustedHeader, upstream.getAddress().getPort());
+                trustedHeader, upstream.getAddress().getPort(), targetAuthentication);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         adapter = new Capability(spec).getServerAdapters().get(0);
         adapter.start();
