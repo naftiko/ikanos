@@ -128,7 +128,7 @@ public final class ConsumedAuthentication {
                 String key = render(apiKeyAuth.getKey(), parameters, "apikey key");
                 String value = render(apiKeyAuth.getValue(), parameters, "apikey value");
                 if (key == null || value == null) {
-                    // The schema only requires type: never send "null", in a header or the query
+                    // A last guard: the capability already refuses to load without them (#964)
                     throw new IllegalArgumentException(
                             "An apikey credential needs a key and a value to be sent");
                 }
@@ -222,13 +222,14 @@ public final class ConsumedAuthentication {
     }
 
     /**
-     * Lists the consumed adapters whose authentication type {@link #apply} can't send, such as
-     * {@code oauth2}, which the schema allows on consumes, or a type written with another case.
-     * The capability refuses to load with one, rather than calling its upstream with no
-     * credential (#842).
+     * Lists the consumed adapters whose credential {@link #apply} can never send: a type it doesn't
+     * handle, such as {@code oauth2} or a type written with another case (#842), or an
+     * {@code apikey} without a {@code key} or a {@code value} (#964). The schema refuses both, but
+     * the engine loads a capability without checking the schema, and code can build a spec. The
+     * capability refuses to load with one, rather than failing every call to that upstream.
      *
      * @param spec the capability spec, may be null
-     * @return one message per such adapter, naming its namespace and the type
+     * @return one message per such adapter, naming its namespace and what is wrong, never a value
      */
     public static List<String> findUnsupported(IkanosSpec spec) {
         List<String> errors = new ArrayList<>();
@@ -246,12 +247,33 @@ public final class ConsumedAuthentication {
             AuthenticationSpec authentication = client instanceof HttpClientSpec http
                     ? http.getAuthentication()
                     : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
-            if (authentication != null && !isSupported(authentication.getType())) {
+            if (authentication == null) {
+                continue;
+            }
+            if (!isSupported(authentication.getType())) {
                 errors.add("consumes '" + client.getNamespace() + "': "
                         + unsupported(authentication.getType()));
+            } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+                String missing = missing(apiKey);
+                if (missing != null) {
+                    errors.add("consumes '" + client.getNamespace()
+                            + "': an apikey credential needs a key and a value, and this one has "
+                            + missing);
+                }
             }
         }
         return errors;
+    }
+
+    /** What an apikey lacks to be sent, such as "no value", or null when it has both. */
+    private static String missing(ApiKeyAuthenticationSpec apiKey) {
+        if (apiKey.getKey() == null && apiKey.getValue() == null) {
+            return "no key and no value";
+        }
+        if (apiKey.getKey() == null) {
+            return "no key";
+        }
+        return apiKey.getValue() == null ? "no value" : null;
     }
 
     /** {@code null} too: a spec built in code may have no type. */
