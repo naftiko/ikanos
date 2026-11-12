@@ -103,9 +103,43 @@ class ForwardStandardHeadersIntegrationTest {
                                 Accept:
                                   in: header
                                   value: "application/xml"
+                        prefs:
+                          path: "/prefs"
+                          operations:
+                            get-prefs:
+                              method: GET
+                              inputParameters:
+                                Cookie:
+                                  in: header
+                                  value: "lang=en"
                     - namespace: plain
                       type: http
                       baseUri: "http://localhost:%d/v1"
+                    - namespace: secured
+                      type: http
+                      baseUri: "http://localhost:%d/v1"
+                      inputParameters:
+                        Authorization:
+                          in: header
+                          value: "Bearer adapter-input"
+                      authentication:
+                        type: bearer
+                        token: "service-token"
+                      resources:
+                        account:
+                          path: "/account"
+                          operations:
+                            get-account:
+                              method: GET
+                        account-op:
+                          path: "/account-op"
+                          operations:
+                            get-account-op:
+                              method: GET
+                              inputParameters:
+                                Authorization:
+                                  in: header
+                                  value: "Bearer operation-input"
                   exposes:
                     - type: rest
                       address: "localhost"
@@ -118,6 +152,36 @@ class ForwardStandardHeadersIntegrationTest {
                             list:
                               method: GET
                               call: up.list
+                        prefs:
+                          path: "/prefs"
+                          operations:
+                            get:
+                              method: GET
+                              call: up.get-prefs
+                        account:
+                          path: "/account"
+                          operations:
+                            get:
+                              method: GET
+                              call: secured.get-account
+                        account-op:
+                          path: "/account-op"
+                          operations:
+                            get:
+                              method: GET
+                              call: secured.get-account-op
+                        secure:
+                          path: "/secure/{{path}}"
+                          forward:
+                            targetNamespace: secured
+                            trustedHeaders:
+                              - Authorization
+                        cookies:
+                          path: "/cookies/{{path}}"
+                          forward:
+                            targetNamespace: up
+                            trustedHeaders:
+                              - Cookie
                         proxy:
                           path: "/proxy/{{path}}"
                           forward:
@@ -134,13 +198,13 @@ class ForwardStandardHeadersIntegrationTest {
                               - User-Agent
                               - Referer
                               - Cookie
-                              - Authorization
                               - If-Range
                               - Max-Forwards
                               - From
                               - X-Request-Id
                 """.formatted(IKANOS, upstream.getAddress().getPort(),
-                upstream.getAddress().getPort(), restPort), IkanosSpec.class));
+                upstream.getAddress().getPort(), upstream.getAddress().getPort(), restPort),
+                IkanosSpec.class));
         capability.start();
     }
 
@@ -165,7 +229,6 @@ class ForwardStandardHeadersIntegrationTest {
         "User-Agent          | browser/2.0",
         "Referer             | http://app.example.org/page",
         "Cookie              | a=1",
-        "Authorization       | Bearer abc",
         "If-Range            | \"v1\"",
         "Max-Forwards        | 3",
         "From                | ops@example.org",
@@ -188,6 +251,101 @@ class ForwardStandardHeadersIntegrationTest {
         assertEquals(304, response.statusCode(),
                 "#1001: the upstream answers 304 to a matching If-None-Match, so the caller must "
                         + "get 304 back, not the full 200 the upstream sends without the header");
+    }
+
+    @Test
+    void forwardShouldAnswerBadRequestWhenPutHasUnquotedIfMatch() throws Exception {
+        HttpResponse<String> response = put("/proxy/files/1", "If-Match", "v1");
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(),
+                "a write whose If-Match cannot be parsed must not reach the upstream "
+                        + "unconditionally: " + received);
+    }
+
+    @Test
+    void forwardShouldAnswerBadRequestWhenPutHasInvalidIfUnmodifiedSince() throws Exception {
+        HttpResponse<String> response = put("/proxy/files/1", "If-Unmodified-Since",
+                "last tuesday");
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(), received.toString());
+    }
+
+    @Test
+    void forwardShouldSendGetWithoutConditionWhenIfNoneMatchCannotBeParsed() throws Exception {
+        HttpResponse<String> response = get("/proxy/files/1", "If-None-Match", "v1");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertNull(received.get("if-none-match"),
+                "a safe request goes out without the invalid condition");
+    }
+
+    @Test
+    void forwardShouldSendEveryLineWhenClientRepeatsCacheControl() throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + "/proxy/files/1"))
+                .header("Cache-Control", "no-cache")
+                .header("Cache-Control", "max-age=0")
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode(), response.body());
+        String sent = received.get("cache-control");
+        assertTrue(sent != null && sent.contains("no-cache") && sent.contains("max-age=0"),
+                "both Cache-Control lines must be forwarded: " + sent);
+    }
+
+    @Test
+    void forwardShouldSendAuthenticationCredentialWhenAuthorizationIsAlsoTrusted()
+            throws Exception {
+        HttpResponse<String> response = get("/secure/account", "Authorization",
+                "Bearer caller-token");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("Bearer service-token", received.get("authorization"),
+                "the target adapter's authentication wins over a trusted Authorization");
+    }
+
+    @Test
+    void forwardShouldMergeCallerCookieWithApiKeyCookie() throws Exception {
+        HttpResponse<String> response = get("/cookies/docs", "Cookie", "lang=fr");
+
+        assertEquals(200, response.statusCode(), response.body());
+        String sent = received.get("cookie");
+        assertTrue(sent != null && sent.contains("session=abc") && sent.contains("lang=fr"),
+                "the caller's cookie and the apikey cookie must both reach the upstream: "
+                        + sent);
+    }
+
+    @Test
+    void declaredOperationShouldSendAuthenticationWhenAdapterDeclaresAuthorizationInput()
+            throws Exception {
+        HttpResponse<String> response = get("/account", "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("Bearer service-token", received.get("authorization"),
+                "authentication wins over an adapter-level Authorization header input");
+    }
+
+    @Test
+    void declaredOperationShouldSendAuthenticationWhenOperationDeclaresAuthorizationInput()
+            throws Exception {
+        HttpResponse<String> response = get("/account-op", "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("Bearer service-token", received.get("authorization"),
+                "authentication wins over an operation-level Authorization header input");
+    }
+
+    @Test
+    void declaredOperationShouldMergeCookieInputWithApiKeyCookie() throws Exception {
+        HttpResponse<String> response = get("/prefs", "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        String sent = received.get("cookie");
+        assertTrue(sent != null && sent.contains("session=abc") && sent.contains("lang=en"),
+                "a Cookie header input and an apikey cookie must both reach the upstream: "
+                        + sent);
     }
 
     @Test
@@ -231,6 +389,15 @@ class ForwardStandardHeadersIntegrationTest {
         return client.send(HttpRequest.newBuilder(
                 URI.create("http://localhost:" + restPort + path))
                 .header(header, value)
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> put(String path, String header, String value) throws Exception {
+        return client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + path))
+                .header(header, value)
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{\"name\":\"plan\"}"))
                 .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
     }
 

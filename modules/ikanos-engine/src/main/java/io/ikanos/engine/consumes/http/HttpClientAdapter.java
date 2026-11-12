@@ -461,9 +461,13 @@ public class HttpClientAdapter extends ClientAdapter {
      * narrower value is the one sent (#909).
      */
     void setHeaders(Request request, Set<InputParameterSpec> replaced) {
+        boolean authenticated = getHttpClientSpec().getAuthentication() != null;
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
             if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
-                    && !replaced.contains(param)) {
+                    && !replaced.contains(param)
+                    // These headers run after authentication: the declared authentication
+                    // always wins for Authorization, as it does over an operation input (#1001)
+                    && !(authenticated && "Authorization".equalsIgnoreCase(param.getName()))) {
                 // A standard header (User-Agent, …) through its Restlet property (#1001)
                 StandardRequestHeaders.set(request, param.getName(), param.getValue());
             }

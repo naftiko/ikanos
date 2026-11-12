@@ -358,6 +358,100 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void copyTrustedHeadersShouldJoinEveryOccurrenceWhenHeaderIsRepeated() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Cache-Control", "no-cache");
+    from.getHeaders().add("Cache-Control", "max-age=0");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Cache-Control"));
+
+    assertEquals(2, to.getCacheDirectives().size(),
+        "every Cache-Control line the caller sent must be forwarded, not only the first");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldJoinCookieLinesWithSemicolonWhenCookieIsRepeated()
+      throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Cookie", "a=1");
+    from.getHeaders().add("Cookie", "b=2");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Cookie"));
+
+    assertEquals(2, to.getCookies().size(), to.getCookies().toString());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSetVerbatimAuthorizationWhenAuthorizationIsTrusted()
+      throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("Authorization", "Token abc");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("Authorization"));
+
+    assertNotNull(to.getChallengeResponse(),
+        "#1001: a trusted Authorization must be copied by copyTrustedHeaders itself");
+    assertEquals("Token abc", to.getChallengeResponse().getIdentifier());
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldRefuseUnquotedIfMatchWhenMethodIsPut() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.PUT, "http://localhost/source");
+    from.getHeaders().add("If-Match", "v1");
+    Request to = new Request(Method.PUT, "http://localhost/target");
+
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> restlet.copyTrustedHeaders(from, to, java.util.List.of("If-Match")),
+        "a PUT whose If-Match cannot be parsed must not go out as an unconditional write");
+  }
+
+  @Test
+  public void copyTrustedHeadersShouldSkipUnquotedIfNoneMatchWhenMethodIsGet() throws Exception {
+    Capability capability = capabilityFromYaml(minimalCapabilityYaml());
+    RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0)
+        .getSpec();
+    ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+        serverSpec.getResources().values().iterator().next());
+
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-None-Match", "v1");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, java.util.List.of("If-None-Match"));
+
+    assertTrue(to.getConditions().getNoneMatch().isEmpty(),
+        "a safe request goes out without the invalid condition, as RFC 9110 lets a server "
+            + "ignore it");
+  }
+
+  @Test
   public void capabilityShouldRefuseTrustedHeaderTheConnectorSets() {
     String yaml = """
                 ikanos: "%s"
