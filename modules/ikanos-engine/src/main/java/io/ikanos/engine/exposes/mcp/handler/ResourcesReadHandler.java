@@ -23,6 +23,7 @@ import io.ikanos.engine.exposes.mcp.SkillHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
+import io.ikanos.engine.exposes.mcp.processor.CacheHints;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -87,11 +88,17 @@ public class ResourcesReadHandler extends McpCallHandler {
     /** Reads a resource and returns its {@code ReadResourceResult}. */
     private ObjectNode readResource(String uri) throws Exception {
         // skill:// URIs are reserved for skills (SEP-2640) and served from their snapshot
-        List<ResourceHandler.ResourceContent> contents = SkillHandler.isSkillUri(uri)
-                && adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty()
+        boolean skill = SkillHandler.isSkillUri(uri)
+                && adapter.getSkillHandler() != null && !adapter.getSkillHandler().isEmpty();
+        List<ResourceHandler.ResourceContent> contents = skill
                 ? List.of(adapter.getSkillHandler().read(uri))
                 : adapter.getResourceHandler().read(uri);
         ObjectNode result = MAPPER.createObjectNode();
+        if (!skill) {
+            // A resource's own hints override the adapter's, which CacheDataAppender adds
+            CacheHints.forResource(adapter.getMcpServerSpec(),
+                    adapter.getResourceHandler().find(uri)).writeTo(result);
+        }
         ArrayNode contentsArray = result.putArray("contents");
         for (ResourceHandler.ResourceContent c : contents) {
             ObjectNode contentNode = MAPPER.createObjectNode();

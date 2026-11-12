@@ -150,21 +150,34 @@ public class ResourceHandler {
      * @throws IllegalArgumentException when no matching resource is found
      */
     public List<ResourceContent> read(String uri) throws Exception {
+        McpServerResourceSpec spec = find(uri);
+        if (spec == null) {
+            throw new IllegalArgumentException("Unknown resource URI: " + uri);
+        }
+        if (spec.isStatic()) {
+            return withResourceMeta(spec, readStatic(spec, uri));
+        }
+        return withResourceMeta(spec, readDynamic(spec, uri, matchTemplate(spec.getUri(), uri)));
+    }
+
+    /**
+     * Find the resource that serves {@code uri}: a static resource whose URI is {@code uri} or a
+     * prefix of it (file listings), or a dynamic resource whose URI or template matches it. The
+     * first declared match wins, as for {@link #read(String)}.
+     *
+     * @param uri the concrete resource URI requested by the agent
+     * @return the matching resource, or {@code null} when none matches
+     */
+    public McpServerResourceSpec find(String uri) {
         for (McpServerResourceSpec spec : resourceSpecs) {
-            if (spec.isStatic()) {
-                // Static resources: exact URI or prefix match for file listings
-                if (uriMatchesStatic(spec, uri)) {
-                    return withResourceMeta(spec, readStatic(spec, uri));
-                }
-            } else {
-                // Dynamic resources: exact or template match
-                Map<String, String> templateParams = matchTemplate(spec.getUri(), uri);
-                if (templateParams != null) {
-                    return withResourceMeta(spec, readDynamic(spec, uri, templateParams));
-                }
+            boolean matches = spec.isStatic()
+                    ? uriMatchesStatic(spec, uri)
+                    : matchTemplate(spec.getUri(), uri) != null;
+            if (matches) {
+                return spec;
             }
         }
-        throw new IllegalArgumentException("Unknown resource URI: " + uri);
+        return null;
     }
 
     /**
