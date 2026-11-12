@@ -51,6 +51,7 @@ public class McpServerResourceSpec {
     private final AtomicReference<McpResourceUiSpec> ui = new AtomicReference<>();
     private final AtomicReference<Integer> ttlMs = new AtomicReference<>();
     private final AtomicReference<String> cacheScope = new AtomicReference<>();
+    private final AtomicReference<Boolean> ttlFromUpstream = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
@@ -120,6 +121,16 @@ public class McpServerResourceSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getCacheScope() { return cacheScope.get(); }
     public void setCacheScope(String cacheScope) { this.cacheScope.set(cacheScope); }
+
+    /** Whether reads take their TTL from the upstream's caching headers, or {@code null}. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Boolean getTtlFromUpstream() { return ttlFromUpstream.get(); }
+    public void setTtlFromUpstream(Boolean ttlFromUpstream) {
+        this.ttlFromUpstream.set(ttlFromUpstream);
+    }
+
+    /** @return whether reads take their TTL from the upstream's caching headers */
+    public boolean isTtlFromUpstream() { return Boolean.TRUE.equals(ttlFromUpstream.get()); }
 
     @JsonIgnore
     public boolean isStatic() { return location.get() != null; }
