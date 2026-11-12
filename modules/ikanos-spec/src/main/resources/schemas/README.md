@@ -1438,6 +1438,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - The `trustedHeaders` array is mandatory and MUST contain at least one entry.
 - Header names in `trustedHeaders` are case-insensitive (following HTTP header conventions).
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
+- This includes `Authorization`: the caller's credential reaches the consumed source only when `Authorization` is listed. When the target adapter declares `authentication`, its own credential is sent instead.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example
