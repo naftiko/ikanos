@@ -20,6 +20,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
@@ -125,5 +126,44 @@ class DefinitionsDeserializationTest {
         assertEquals(List.of("line"), List.copyOf(aggregate.getDefinitions().getSchemas().keySet()));
         assertEquals("line", aggregate.getFlows().get("list-lines").getOutputParameters().get(0)
                 .getItems().getSchema());
+    }
+
+    @Test
+    void writeValueShouldKeepDollarRefAcrossTheRoundTripOfAnImport() throws Exception {
+        // An import deep-copies an aggregate through the serializers, before the definitions
+        // pass: a `$ref` dropped there would no longer be rejected.
+        AggregateSpec aggregate = yaml.readValue("""
+                display: "Ships"
+                namespace: ships
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                    fleet:
+                      type: object
+                      properties:
+                        lead: { schema: ship, $ref: "#/elsewhere" }
+                flows:
+                  get-ship:
+                    description: "Get a ship."
+                    inputParameters:
+                      ship: { schema: ship, $ref: "#/elsewhere", description: "Ship." }
+                    steps:
+                      ship: { type: call, call: erp.get-ship }
+                    mappings:
+                      - target: flagship
+                        value: "$.ship"
+                    outputParameters:
+                      flagship: { $ref: ship }
+                """, AggregateSpec.class);
+
+        AggregateSpec copy = yaml.readValue(yaml.writeValueAsBytes(aggregate),
+                AggregateSpec.class);
+
+        AggregateFlowSpec flow = copy.getFlows().get("get-ship");
+        assertEquals("#/elsewhere",
+                flow.getInputParameters().get("ship").getJsonSchemaRef());
+        assertEquals("ship", flow.getOutputParameters().get(0).getJsonSchemaRef());
+        assertEquals("#/elsewhere", copy.getDefinitions().getSchemas().get("fleet")
+                .getProperties().get(0).getJsonSchemaRef());
     }
 }
