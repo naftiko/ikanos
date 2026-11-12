@@ -32,9 +32,6 @@ import tools.jackson.databind.JsonNode;
  */
 public final class UpstreamTasks {
 
-    /** Most unfinished executions examined for one cancel. */
-    static final int SCAN_LIMIT = 10_000;
-
     private UpstreamTasks() {
     }
 
@@ -46,26 +43,41 @@ public final class UpstreamTasks {
      */
     public static int cancelUnder(Capability capability, JournaledRunner runner,
             ExecutionId root) {
-        String under = root.value() + "/";
-        List<ExecutionRecord> unfinished = new ArrayList<>();
-        unfinished.addAll(runner.list(ExecutionStatus.SUSPENDED, SCAN_LIMIT));
-        unfinished.addAll(runner.list(ExecutionStatus.RUNNING, SCAN_LIMIT));
         int cancelled = 0;
-        for (ExecutionRecord record : unfinished) {
-            if (!record.executionId().value().startsWith(under)) {
-                continue;
-            }
-            JsonNode task = UpstreamCall.openTask(runner.view(record.executionId()));
-            McpClientAdapter adapter = task == null ? null
-                    : adapterOf(capability, task.path("namespace").asString(null));
+        for (Waiting waiting : waitingUnder(runner, root)) {
+            McpClientAdapter adapter =
+                    adapterOf(capability, waiting.task().path("namespace").asString(null));
             if (adapter != null) {
-                adapter.cancelTask(task.path("taskId").asString(),
-                        task.path("credentials").asString(null));
-                runner.cancel(record.executionId());
+                adapter.cancelTask(waiting.task().path("taskId").asString(),
+                        waiting.task().path("credentials").asString(null));
+                runner.cancel(waiting.subRun());
                 cancelled++;
             }
         }
         return cancelled;
+    }
+
+    /** A sub-run waiting on an upstream task, and the task as its journal names it. */
+    record Waiting(ExecutionId subRun, JsonNode task) {
+    }
+
+    /**
+     * The unfinished sub-runs of {@code root}, at any depth, that wait on an upstream task. The
+     * index is queried by the root's ID prefix, so no number of other executions in the store
+     * can hide one.
+     */
+    static List<Waiting> waitingUnder(JournaledRunner runner, ExecutionId root) {
+        List<ExecutionRecord> unfinished = new ArrayList<>();
+        unfinished.addAll(runner.listUnder(root, ExecutionStatus.SUSPENDED));
+        unfinished.addAll(runner.listUnder(root, ExecutionStatus.RUNNING));
+        List<Waiting> waiting = new ArrayList<>();
+        for (ExecutionRecord record : unfinished) {
+            JsonNode task = UpstreamCall.openTask(runner.view(record.executionId()));
+            if (task != null) {
+                waiting.add(new Waiting(record.executionId(), task));
+            }
+        }
+        return waiting;
     }
 
     private static McpClientAdapter adapterOf(Capability capability, String namespace) {
