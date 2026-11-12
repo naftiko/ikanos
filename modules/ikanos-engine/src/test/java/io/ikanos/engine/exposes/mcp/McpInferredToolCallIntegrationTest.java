@@ -18,8 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.restlet.Application;
 import org.restlet.Component;
 import org.restlet.Request;
@@ -130,6 +133,86 @@ public class McpInferredToolCallIntegrationTest {
         assertTrue(e.getMessage().contains("MCP tool 'list-items'"), e.getMessage());
         assertTrue(e.getMessage().contains("'catalog'") && e.getMessage().contains("'archive'"),
                 e.getMessage());
+    }
+
+    @Test
+    public void newCapabilityShouldInferTheCallOntoAnImportedNamespace(@TempDir Path dir)
+            throws Exception {
+        writeImportedConsumes(dir, "get-item");
+
+        Capability capability = importingCapability(dir, null, "get-item");
+
+        McpServerSpec mcp = (McpServerSpec) capability.getSpec().getCapability().getExposes()
+                .get(0);
+        assertEquals("catalog.get-item", mcp.getTools().get("get-item").getCall().getOperation());
+    }
+
+    @Test
+    public void newCapabilityShouldInferTheCallOntoTheAliasOfAnImportedNamespace(
+            @TempDir Path dir) throws Exception {
+        writeImportedConsumes(dir, "get-item");
+
+        Capability capability = importingCapability(dir, "shop", "get-item");
+
+        McpServerSpec mcp = (McpServerSpec) capability.getSpec().getCapability().getExposes()
+                .get(0);
+        assertEquals("shop.get-item", mcp.getTools().get("get-item").getCall().getOperation(),
+                "the inferred call must target the 'as:' alias, not the imported namespace");
+    }
+
+    @Test
+    public void newCapabilityShouldFailWhenTheImportedNamespaceLacksTheToolName(
+            @TempDir Path dir) throws Exception {
+        writeImportedConsumes(dir, "list-items");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> importingCapability(dir, null, "get-item"));
+
+        assertTrue(e.getMessage().contains("MCP tool 'get-item'"), e.getMessage());
+    }
+
+    /** A {@code catalog} HTTP consumes file, beside the capability, with one operation. */
+    private static void writeImportedConsumes(Path dir, String operation) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                consumes:
+                  - type: "http"
+                    namespace: "catalog"
+                    baseUri: "https://catalog.example.com"
+                    resources:
+                      item:
+                        path: "/items/{{item-id}}"
+                        operations:
+                          %s:
+                            method: "GET"
+                """.formatted(IKANOS, operation);
+        Files.writeString(dir.resolve("catalog.consumes.yml"), yaml);
+    }
+
+    /** One MCP tool, without {@code call}, over the imported {@code catalog} consumes. */
+    private static Capability importingCapability(Path dir, String alias, String toolName)
+            throws Exception {
+        String as = alias != null ? "\n      as: \"" + alias + "\"" : "";
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - from: "./catalog.consumes.yml"
+                      import: "catalog"%s
+                  exposes:
+                    - type: "mcp"
+                      port: 0
+                      namespace: "tools"
+                      tools:
+                        %s:
+                          description: "Get one item"
+                          inputParameters:
+                            item-id:
+                              type: "string"
+                              description: "Item identifier"
+                """.formatted(IKANOS, as, toolName);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return new Capability(spec, dir.toString());
     }
 
     /** One consumed {@code get-item} operation and one MCP tool, without {@code call}. */
