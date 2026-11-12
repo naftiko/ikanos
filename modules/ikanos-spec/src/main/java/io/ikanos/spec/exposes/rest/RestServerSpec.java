@@ -16,9 +16,11 @@ package io.ikanos.spec.exposes.rest;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import tools.jackson.databind.ValueDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
+import io.ikanos.spec.DefinitionsSpec;
 import io.ikanos.spec.exposes.ServerSpec;
 
 /** Web API Server Specification Element */
@@ -30,6 +32,10 @@ public class RestServerSpec extends ServerSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String maxBinarySize;
+
+    /** Shared input parameter sets and schemas, visible to this namespace only (#1000). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<DefinitionsSpec> definitions = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = RestServerResourceMapDeserializer.class)
@@ -55,6 +61,13 @@ public class RestServerSpec extends ServerSpec {
      */
     public String getMaxBinarySize() { return maxBinarySize; }
     public void setMaxBinarySize(String maxBinarySize) { this.maxBinarySize = maxBinarySize; }
+
+    /**
+     * @return the shared definitions of this namespace, or {@code null} when none are declared.
+     *         Expanded at load time into the resources and operations that use them (#1000).
+     */
+    public DefinitionsSpec getDefinitions() { return definitions.get(); }
+    public void setDefinitions(DefinitionsSpec definitions) { this.definitions.set(definitions); }
 
     public Map<String, RestServerResourceSpec> getResources() { return resources; }
 
