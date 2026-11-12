@@ -82,6 +82,37 @@ class McpCacheHintsIntegrationTest {
     }
 
     @Test
+    void adapterShouldFailToStartWhenAResourceTtlIsNegative() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                  - type: mcp
+                    port: 9098
+                    namespace: bad-ttl
+                    description: "Invalid resource TTL"
+                    tools:
+                      hello:
+                        description: "Say hello"
+                        outputParameters:
+                          msg:
+                            type: string
+                            value: "hi"
+                    resources:
+                      guide:
+                        display: "Guide"
+                        uri: "docs://guide"
+                        description: "Static guide"
+                        location: "%s"
+                        ttlMs: -1
+                """.formatted(IKANOS, tempDir.toUri());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+
+        assertThatThrownBy(() -> new Capability(spec))
+                .hasStackTraceContaining("ttlMs must be zero or more");
+    }
+
+    @Test
     void resourceReadShouldFallBackToTheServerScopeWhenTheResourceSetsOnlyItsTtl()
             throws Exception {
         ObjectNode params = JSON.createObjectNode().put("uri", "news://feed/news.md");

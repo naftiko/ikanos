@@ -48,6 +48,16 @@ class CacheHintsTest {
     }
 
     @Test
+    void forResourceShouldRejectAnUnknownResourceScope() {
+        McpServerResourceSpec resource = new McpServerResourceSpec();
+        resource.setCacheScope("shared");
+
+        assertThatThrownBy(() -> CacheHints.forResource(new McpServerSpec(), resource))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cacheScope");
+    }
+
+    @Test
     void forResourceShouldRejectANegativeResourceTtl() {
         McpServerResourceSpec resource = new McpServerResourceSpec();
         resource.setTtlMs(-5);
