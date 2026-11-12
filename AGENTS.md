@@ -250,7 +250,7 @@ When designing or modifying a Capability:
 - Declare `semantics` (safe, idempotent, cacheable) on aggregate flows to describe domain behavior — the engine derives MCP `hints` automatically
 - Override only adapter-specific fields when using `ref` (e.g., `method` for REST, `hints` for MCP) — let the rest be inherited from the flow
 - Declare inputs and shapes that several MCP tools (or flows) repeat once, in the `definitions` of their MCP adapter (or aggregate), and reuse them with `inputParameterSets: [names]` and `schema: name` — they are expanded at load time, so `tools/list` stays the inline equivalent
-- Declare the hints most tools share (e.g. `readOnly: true`) once in the MCP exposes block's `hints`, and give a tool only the hint fields that differ — each field resolves from the tool's `hints`, then the flow's `semantics` (for `ref`), then the server's `hints`
+- Declare the hints most tools share (e.g. `readOnly: true`) once in the MCP exposes block's `hints`, and give a tool only the hint fields that differ — each field resolves from the tool's `hints`, then the flow's `semantics` (for `ref`), then the server's `hints`; a tool that declares `destructive: true` without `readOnly` resolves `readOnly` to `false`
 
 **Don't:**
 - Expose an `inputParameter` that is not used in any step

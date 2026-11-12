@@ -72,6 +72,13 @@ public class McpToolHintsSpec {
      * Merge two hint sets field by field: each non-null field of {@code override} wins over the
      * same field of {@code base}. Neither argument is modified.
      *
+     * <p>
+     * One exception: when {@code override} declares {@code destructive: true} without its own
+     * {@code readOnly}, the merged {@code readOnly} is {@code false}, not the base value. MCP reads
+     * {@code destructiveHint} only when {@code readOnlyHint} is false, so inheriting
+     * {@code readOnly: true} would advertise a destructive tool as read-only. An override that
+     * declares both keeps what it declares.
+     *
      * @param base the broader hints (e.g. the server defaults, or hints derived from semantics),
      *        may be null
      * @param override the more specific hints, may be null
@@ -85,8 +92,9 @@ public class McpToolHintsSpec {
         if (base == null) {
             return override;
         }
-        return new McpToolHintsSpec(
-                override.readOnly != null ? override.readOnly : base.readOnly,
+        Boolean readOnly = override.readOnly != null ? override.readOnly
+                : Boolean.TRUE.equals(override.destructive) ? Boolean.FALSE : base.readOnly;
+        return new McpToolHintsSpec(readOnly,
                 override.destructive != null ? override.destructive : base.destructive,
                 override.idempotent != null ? override.idempotent : base.idempotent,
                 override.openWorld != null ? override.openWorld : base.openWorld);

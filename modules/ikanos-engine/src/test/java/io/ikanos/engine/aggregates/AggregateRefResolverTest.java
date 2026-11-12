@@ -477,6 +477,18 @@ public class AggregateRefResolverTest {
         assertEquals(true, result.getOpenWorld()); // from explicit
     }
 
+    @Test
+    void mergeHintsShouldResolveReadOnlyFalseWhenExplicitDeclaresOnlyDestructive() {
+        // Flow semantics safe: true derive readOnly: true; the tool's own destructive: true wins.
+        McpToolHintsSpec derived = new McpToolHintsSpec(true, false, null, null);
+        McpToolHintsSpec explicit = new McpToolHintsSpec(null, true, null, null);
+
+        McpToolHintsSpec result = resolver.mergeHints(derived, explicit);
+
+        assertEquals(false, result.getReadOnly());
+        assertEquals(true, result.getDestructive());
+    }
+
     // ── resolve (full pipeline) ──
 
     @Test

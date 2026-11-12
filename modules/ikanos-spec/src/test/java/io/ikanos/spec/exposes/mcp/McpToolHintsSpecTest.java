@@ -124,4 +124,39 @@ public class McpToolHintsSpecTest {
         assertNull(base.getIdempotent());
         assertEquals(Boolean.TRUE, base.getOpenWorld());
     }
+
+    @Test
+    public void mergeShouldResolveReadOnlyFalseWhenOverrideDeclaresDestructiveWithoutReadOnly() {
+        // MCP reads destructiveHint only when readOnlyHint is false: a tool declared destructive
+        // must not inherit readOnly: true from a broader level (#981 review).
+        McpToolHintsSpec base = new McpToolHintsSpec(true, null, null, null);
+        McpToolHintsSpec override = new McpToolHintsSpec(null, true, null, null);
+
+        McpToolHintsSpec merged = McpToolHintsSpec.merge(base, override);
+
+        assertEquals(Boolean.FALSE, merged.getReadOnly());
+        assertEquals(Boolean.TRUE, merged.getDestructive());
+    }
+
+    @Test
+    public void mergeShouldKeepDeclaredReadOnlyWhenOverrideDeclaresBothReadOnlyAndDestructive() {
+        McpToolHintsSpec base = new McpToolHintsSpec(false, null, null, null);
+        McpToolHintsSpec override = new McpToolHintsSpec(true, true, null, null);
+
+        McpToolHintsSpec merged = McpToolHintsSpec.merge(base, override);
+
+        assertEquals(Boolean.TRUE, merged.getReadOnly());
+        assertEquals(Boolean.TRUE, merged.getDestructive());
+    }
+
+    @Test
+    public void mergeShouldInheritReadOnlyWhenOverrideDeclaresDestructiveFalse() {
+        McpToolHintsSpec base = new McpToolHintsSpec(true, null, null, null);
+        McpToolHintsSpec override = new McpToolHintsSpec(null, false, null, null);
+
+        McpToolHintsSpec merged = McpToolHintsSpec.merge(base, override);
+
+        assertEquals(Boolean.TRUE, merged.getReadOnly());
+        assertEquals(Boolean.FALSE, merged.getDestructive());
+    }
 }

@@ -1257,7 +1257,7 @@
         },
         "hints": {
           "$ref": "#/$defs/McpToolHints",
-          "description": "Default hints for every tool of this server. Each field is resolved on its own, from the most specific source to the broadest: the tool's own `hints`, then the hints derived from the `semantics` of the aggregate flow for a tool with `ref`, then these server `hints`. A tool only declares the fields that differ. The resolved hints are what `tools/list` advertises."
+          "description": "Default hints for every tool of this server. Each field is resolved on its own, from the most specific source to the broadest: the tool's own `hints`, then the hints derived from the `semantics` of the aggregate flow for a tool with `ref`, then these server `hints`. A tool only declares the fields that differ. A tool that declares `destructive: true` without its own `readOnly` resolves `readOnly` to `false`, so it is never advertised as read-only. The resolved hints are what `tools/list` advertises."
         },
         "tools": {
           "type": "object",
@@ -1531,7 +1531,7 @@
         },
         "hints": {
           "$ref": "#/$defs/McpToolHints",
-          "description": "Hints for this tool. Each declared field wins over the hints derived from the flow's `semantics` (for a tool with `ref`) and over the server's default `hints`."
+          "description": "Hints for this tool. Each declared field wins over the hints derived from the flow's `semantics` (for a tool with `ref`) and over the server's default `hints`. Declaring `destructive: true` without `readOnly` also resolves `readOnly` to `false`."
         },
         "ui": {
           "$ref": "#/$defs/McpToolUi"
