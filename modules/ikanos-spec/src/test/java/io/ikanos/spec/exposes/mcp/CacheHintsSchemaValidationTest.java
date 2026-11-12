@@ -72,6 +72,44 @@ class CacheHintsSchemaValidationTest {
         assertInvalid(mcp("cacheScope: " + scope));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ttlMs: 0", "ttlMs: 60000", "cacheScope: public", "cacheScope: private"})
+    void schemaShouldAcceptCacheHintsOnAResource(String line) throws Exception {
+        assertValid(mcpResource(line));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ttlMs: -1", "ttlMs: \"60000\"", "cacheScope: shared"})
+    void schemaShouldRejectInvalidCacheHintsOnAResource(String line) throws Exception {
+        assertInvalid(mcpResource(line));
+    }
+
+    static String mcpResource(String line) {
+        return """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                  - type: mcp
+                    port: 8080
+                    namespace: demo
+                    description: "Demo"
+                    tools:
+                      hello:
+                        description: "Say hello"
+                        outputParameters:
+                          msg:
+                            type: string
+                            value: "hi"
+                    resources:
+                      guide:
+                        display: "Guide"
+                        uri: "docs://guide"
+                        description: "Static guide"
+                        location: "file:///tmp/docs"
+                        %s
+                """.formatted(IKANOS, line);
+    }
+
     static String mcp(String line) {
         return """
                 ikanos: "%s"

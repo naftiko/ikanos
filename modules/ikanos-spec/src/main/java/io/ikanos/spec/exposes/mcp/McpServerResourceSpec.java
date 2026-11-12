@@ -49,6 +49,8 @@ public class McpServerResourceSpec {
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<String> location = new AtomicReference<>();
     private final AtomicReference<McpResourceUiSpec> ui = new AtomicReference<>();
+    private final AtomicReference<Integer> ttlMs = new AtomicReference<>();
+    private final AtomicReference<String> cacheScope = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
@@ -108,6 +110,16 @@ public class McpServerResourceSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public McpResourceUiSpec getUi() { return ui.get(); }
     public void setUi(McpResourceUiSpec ui) { this.ui.set(ui); }
+
+    /** Freshness hint for reads of this resource, or {@code null} to use the adapter's. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Integer getTtlMs() { return ttlMs.get(); }
+    public void setTtlMs(Integer ttlMs) { this.ttlMs.set(ttlMs); }
+
+    /** Cache scope for reads of this resource, or {@code null} to use the adapter's. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getCacheScope() { return cacheScope.get(); }
+    public void setCacheScope(String cacheScope) { this.cacheScope.set(cacheScope); }
 
     @JsonIgnore
     public boolean isStatic() { return location.get() != null; }
