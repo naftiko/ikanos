@@ -49,6 +49,17 @@ class McpCacheHintsIntegrationTest {
     static void buildAdapters() throws Exception {
         configured = adapter("ttlMs: 60000\n    cacheScope: public");
         unset = adapter("");
+        auto = adapter("cacheScope: auto");
+    }
+
+    private static McpServerAdapter auto;
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tools/list", "resources/list"})
+    void autoScopeShouldBePublicWhenTheAdapterDoesNotAuthenticate(String method) throws Exception {
+        JsonNode result = dispatch(auto, method, JSON.createObjectNode());
+
+        assertThat(result.path("cacheScope").asString()).isEqualTo("public");
     }
 
     @ParameterizedTest

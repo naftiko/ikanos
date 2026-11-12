@@ -24,6 +24,10 @@ import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
+import org.restlet.Context;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_METHOD;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_NAME;
@@ -44,9 +48,20 @@ public class McpCallHandlersFactory {
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
         DispatchPostProcessor cacheDataAppender =
                 new CacheDataAppender(CacheHints.forServer(adapter.getMcpServerSpec()));
-        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read
-        adapter.getMcpServerSpec().getResources().values()
-                .forEach(resource -> CacheHints.forResource(adapter.getMcpServerSpec(), resource));
+        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read,
+        // and say which scope each result gets and why (cacheScope: auto is derived)
+        McpServerSpec spec = adapter.getMcpServerSpec();
+        Logger logger = Context.getCurrentLogger();
+        logger.fine(() -> "MCP adapter " + spec.getNamespace() + " lists: cacheScope "
+                + CacheHints.scopeDecision(spec, null).scope() + " ("
+                + CacheHints.scopeDecision(spec, null).reason() + ")");
+        for (McpServerResourceSpec resource : spec.getResources().values()) {
+            CacheHints.forResource(spec, resource);
+            logger.fine(() -> "MCP adapter " + spec.getNamespace() + " resource "
+                    + resource.getName() + ": cacheScope "
+                    + CacheHints.scopeDecision(spec, resource).scope() + " ("
+                    + CacheHints.scopeDecision(spec, resource).reason() + ")");
+        }
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
         List<McpCallHandler> handlers = new ArrayList<>(List.of(
