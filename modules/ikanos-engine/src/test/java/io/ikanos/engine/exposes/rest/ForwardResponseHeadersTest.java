@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -33,8 +34,10 @@ import org.restlet.data.CacheDirective;
 import org.restlet.data.CookieSetting;
 import org.restlet.data.Dimension;
 import org.restlet.data.Method;
+import org.restlet.data.Status;
 import org.restlet.data.Warning;
 import org.restlet.representation.StringRepresentation;
+import io.ikanos.engine.LogCapture;
 
 /**
  * Unit tests for {@link ForwardResponseHeaders} (#1002).
@@ -129,17 +132,92 @@ public class ForwardResponseHeadersTest {
         assertEquals("https://elsewhere.example/x", location("https://elsewhere.example/x"));
     }
 
-    @Test
-    public void relayedLocationShouldKeepARelativeLocationOutsideTheBaseUriUnchanged() {
-        assertEquals("/other/1", location("/other/1"));
+    @ParameterizedTest
+    @ValueSource(strings = {"/other/1", "../../other", "/internal/x"})
+    public void relayedLocationShouldDropARelativeLocationThatResolvesOutsideTheBaseUri(
+            String raw) {
+        assertNull(location(raw), "a relative location outside the base is on the upstream");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"http://upstream:9090/v10/x", "http://upstream:9090/admin",
-            "http://UPSTREAM:9090/admin"})
+            "http://UPSTREAM:9090/admin", "//upstream:9090/admin", "https://upstream/v1/items",
+            "http://upstream:8443/v1/items", "http://upstream/v1/items",
+            "http://upstream:9090/v1/../admin"})
     public void relayedLocationShouldDropAnAbsoluteLocationOnTheUpstreamOutsideTheBaseUri(
             String raw) {
         assertNull(location(raw), "an upstream URL outside the base must not reach the caller");
+    }
+
+    @Test
+    public void relayedLocationShouldRewriteALocationUnderAnUnderscoreHostBaseUri() {
+        assertEquals("/proxy/items/42", ForwardResponseHeaders.relayedLocation(
+                "http://orders_api:8080/v1/items/42", "http://orders_api:8080/v1/items",
+                "http://orders_api:8080/v1", incoming()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://orders_api:8080/admin", "http://ORDERS_API:8080/admin",
+            "https://orders_api/v1/items"})
+    public void relayedLocationShouldDropALocationOnAnUnderscoreHostOutsideTheBaseUri(
+            String raw) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, "http://orders_api:8080/v1/items",
+                "http://orders_api:8080/v1", incoming()));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepTheFragment() {
+        assertEquals("/proxy/items/42#top", location(BASE_URI + "/items/42#top"));
+    }
+
+    @Test
+    public void relayedLocationShouldRewriteADotDotLocationThatResolvesInsideTheBaseUri() {
+        assertEquals("/proxy/x", ForwardResponseHeaders.relayedLocation("../x",
+                BASE_URI + "/items/7", BASE_URI, incoming()));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepPercentEncodingInThePath() {
+        assertEquals("/proxy/items/a%20b%2Fc", location(BASE_URI + "/items/a%20b%2Fc"));
+    }
+
+    @Test
+    public void relayedLocationShouldDropAnUnparseableLocation() {
+        assertNull(location("http://upstream:9090/v1/a b"));
+    }
+
+    @Test
+    public void relayedLocationShouldDropALocationWhenTheBaseUriIsUnparseable() {
+        assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
+                BASE_URI + "/items", "http://upstream:9090/v 1", incoming()));
+    }
+
+    @Test
+    public void relayedLocationShouldRewriteAContentLocationEqualToTheRequestUri() {
+        assertEquals("/proxy/items", location(BASE_URI + "/items"));
+    }
+
+    @Test
+    public void relayShouldResolveARelativeLocationAgainstTheBaseUriWhenTheRequestHasNoUri() {
+        Response from = new Response(new Request());
+        from.getHeaders().add("Location", "/v1/items/42");
+
+        assertEquals("/proxy/items/42", relayed(from).getLocationRef().getTargetRef().toString());
+    }
+
+    @Test
+    public void relayShouldLogADroppedLocationWithoutItsValue() {
+        Response from = upstreamResponse();
+        from.setStatus(Status.SUCCESS_CREATED);
+        from.getHeaders().add("Location", "http://upstream:9090/admin");
+
+        try (LogCapture logs = new LogCapture()) {
+            relayed(from);
+
+            String all = String.join(" | ", logs.messages());
+            assertTrue(all.contains("Location") && all.contains("201"), all);
+            assertFalse(all.contains("upstream:9090"), "the dropped value must not be logged");
+        }
     }
 
     @Test
