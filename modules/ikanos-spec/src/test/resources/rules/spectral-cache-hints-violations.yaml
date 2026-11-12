@@ -1,0 +1,122 @@
+# Spectral fixture — cache hint rules MUST FIRE (#1022):
+#   - ikanos-cache-public-forwards-credentials, once: the REST resource `proxy`
+#       forwards Authorization while the adapter answers public with a positive ttlMs
+#   - ikanos-cache-public-caller-dependent, five times: the authenticated REST adapter
+#       and its operation `list-items`, the unauthenticated REST operation `list-offers`
+#       (cookie input), the authenticated MCP adapter and its resource `orders`
+#   - ikanos-cache-ttl-from-upstream-no-effect, three times: a static resource, a
+#       resource with steps, and a resource calling an MCP consumed adapter
+ikanos: "1.0.0-beta10"
+info:
+  display: "Cache hint violations"
+  description: "Capability whose cache settings contradict what it declares."
+capability:
+  consumes:
+    - type: "http"
+      namespace: "shop"
+      baseUri: "https://shop.example.org/v1"
+      resources:
+        items:
+          path: "/items"
+          operations:
+            list-items:
+              method: "GET"
+    - type: "mcp"
+      namespace: "tools-upstream"
+      endpoint: "https://tools.example.org/mcp"
+      tools:
+        lookup:
+          hints:
+            readOnly: true
+  exposes:
+    - type: "rest"
+      port: 8080
+      namespace: "shop-rest"
+      ttlMs: 60000
+      cacheScope: "public"
+      authentication:
+        type: "bearer"
+        token: "{{API_TOKEN}}"
+      resources:
+        proxy:
+          path: "/proxy"
+          description: "Forwards the caller's token."
+          forward:
+            targetNamespace: "shop"
+            trustedHeaders:
+              - "Authorization"
+        items:
+          path: "/items"
+          description: "Items for the caller's tenant."
+          operations:
+            list-items:
+              method: "GET"
+              description: "List items."
+              cacheScope: "public"
+              inputParameters:
+                tenant:
+                  in: "header"
+                  type: "string"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8083
+      namespace: "offers-rest"
+      ttlMs: 60000
+      resources:
+        offers:
+          path: "/offers"
+          description: "Offers for the caller's session."
+          operations:
+            list-offers:
+              method: "GET"
+              description: "List offers."
+              cacheScope: "public"
+              inputParameters:
+                session:
+                  in: "cookie"
+                  type: "string"
+              call: "shop.list-items"
+    - type: "mcp"
+      port: 8081
+      namespace: "shop-mcp"
+      description: "Shop MCP server."
+      ttlMs: 60000
+      cacheScope: "public"
+      authentication:
+        type: "bearer"
+        token: "{{MCP_TOKEN}}"
+      tools:
+        hello:
+          description: "Say hello."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"
+      resources:
+        orders:
+          display: "Orders"
+          uri: "data://orders"
+          description: "The caller's orders."
+          cacheScope: "public"
+          call: "shop.list-items"
+        docs:
+          display: "Docs"
+          uri: "docs://shop"
+          description: "Static docs."
+          location: "file:///srv/docs"
+          ttlFromUpstream: true
+        summary:
+          display: "Summary"
+          uri: "data://summary"
+          description: "Composed summary."
+          ttlFromUpstream: true
+          steps:
+            items:
+              type: "call"
+              call: "shop.list-items"
+        lookup:
+          display: "Lookup"
+          uri: "data://lookup"
+          description: "Read through an MCP upstream."
+          ttlFromUpstream: true
+          call: "tools-upstream.lookup"
