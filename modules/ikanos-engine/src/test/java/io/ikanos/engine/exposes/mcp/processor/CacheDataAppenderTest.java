@@ -19,6 +19,7 @@ import io.ikanos.exception.ProcessorException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.ikanos.spec.util.IkanosMappers;
 
 class CacheDataAppenderTest {
@@ -38,5 +39,13 @@ class CacheDataAppenderTest {
         // Then
         assertThat(response.path("result").path("ttlMs").asInt()).isEqualTo(300);
         assertThat(response.path("result").path("cacheScope").asString()).isEqualTo("public");
+    }
+
+    @Test
+    void constructorShouldRejectANegativeTtl() {
+        // The engine does not validate the schema at load time, so the guard lives here too
+        assertThatThrownBy(() -> new CacheDataAppender(-1, "public"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ttlMs");
     }
 }
