@@ -16,15 +16,15 @@ package io.ikanos.engine.consumes.http;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Date;
-import java.util.stream.Collectors;
 import org.restlet.Request;
 import org.restlet.Response;
+import org.restlet.data.Header;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import org.restlet.representation.EmptyRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
+import org.restlet.util.Series;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
@@ -136,26 +136,20 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     }
 
     /**
-     * Freshness from the upstream's {@code Cache-Control}, {@code Expires} and {@code Date}
-     * headers. Only a successful (2xx) answer has any. Restlet parses these standard headers into
-     * the response and its entity instead of keeping them as raw headers, so they are read back
-     * from there.
+     * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
+     * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
+     * sent (an invalid {@code Expires} such as {@code 0} included). Only a successful (2xx) answer
+     * has any.
      */
     @Override
     public Freshness freshness() {
         if (response == null || !isSuccessful()) {
             return Freshness.UNKNOWN;
         }
-        String cacheControl = response.getCacheDirectives().isEmpty() ? null
-                : response.getCacheDirectives().stream()
-                        .map(d -> d.getValue() != null ? d.getName() + "=" + d.getValue()
-                                : d.getName())
-                        .collect(Collectors.joining(", "));
-        Representation entity = entity();
-        Date expires = entity != null ? entity.getExpirationDate() : null;
-        Date date = response.getDate();
-        return Freshness.of(cacheControl, expires != null ? expires.getTime() : null,
-                date != null ? date.getTime() : null, System.currentTimeMillis());
+        Series<Header> headers = response.getHeaders();
+        return Freshness.parse(headers.getValues("Cache-Control", ",", true),
+                headers.getFirstValue("Expires", true), headers.getFirstValue("Date", true),
+                headers.getFirstValue("Age", true), System.currentTimeMillis());
     }
 
     @Override
