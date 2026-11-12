@@ -16,6 +16,7 @@ package io.ikanos.engine.definitions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -85,6 +86,13 @@ public final class DefinitionsExpander {
      * expansion stops past this bound. Checking the definitions themselves costs nothing.
      */
     public static final int MAX_EXPANDED_NODES = 100_000;
+
+    /**
+     * Upper bound on the nesting depth of an expanded schema: its own nested declarations plus
+     * those of every schema it references, directly or not. It keeps a long chain of schemas
+     * that use each other from overflowing the stack of the recursive expansion.
+     */
+    public static final int MAX_EXPANDED_DEPTH = 64;
 
     /** A bare definition name: no qualifier, no pointer. */
     private static final Pattern BARE_NAME = Pattern.compile("[a-zA-Z0-9-]+");
@@ -193,6 +201,7 @@ public final class DefinitionsExpander {
         private final Set<String> usedSets = new HashSet<>();
         private final Set<String> usedSchemas = new HashSet<>();
         private final Set<String> cyclic = new HashSet<>();
+        private final Set<String> tooDeep = new HashSet<>();
         private final Set<String> checkedSchemas = new HashSet<>();
         private final Map<String, Long> sizes = new HashMap<>();
         private long expandedNodes;
@@ -409,7 +418,15 @@ public final class DefinitionsExpander {
                 return param;
             }
             if (param.getItems() != null) {
-                param.setItems(expandOutput(param.getItems(), location + ", items"));
+                OutputParameterSpec items = param.getItems();
+                OutputParameterSpec expanded = expandOutput(items, location + ", items");
+                // `items: { schema: name }` gives what a whole-array schema gives its items:
+                // only objects with properties, the only items an orchestrated output declares.
+                if (items.getSchema() != null && expanded != items
+                        && !isObjectWithProperties(expanded)) {
+                    expanded = null;
+                }
+                param.setItems(expanded);
             }
             List<OutputParameterSpec> properties = param.getProperties();
             for (int i = 0; i < properties.size(); i++) {
@@ -457,7 +474,8 @@ public final class DefinitionsExpander {
             }
             markUsed(name);
             checkSchema(name);
-            if (cyclic.contains(name) || !withinBudget(size(name))) {
+            if (cyclic.contains(name) || tooDeep.contains(name)
+                    || !withinBudget(size(name))) {
                 return null;
             }
             return instantiate(name);
@@ -486,20 +504,29 @@ public final class DefinitionsExpander {
 
         /** Mark a schema used, with every schema it references, directly or not. */
         private void markUsed(String name) {
-            if (!schemas.containsKey(name) || !usedSchemas.add(name)) {
-                return;
-            }
-            Set<String> references = new LinkedHashSet<>();
-            collectReferences(schemas.get(name), references);
-            for (String reference : references) {
-                markUsed(reference);
+            List<String> pending = new ArrayList<>(List.of(name));
+            while (!pending.isEmpty()) {
+                String next = pending.remove(pending.size() - 1);
+                if (schemas.containsKey(next) && usedSchemas.add(next)) {
+                    Set<String> references = new LinkedHashSet<>();
+                    collectReferences(schemas.get(next), references);
+                    pending.addAll(references);
+                }
             }
         }
 
-        /** Check the content of a schema, once, where it is declared. */
+        /**
+         * Check the content of a schema, once, where it is declared, then of the schemas it
+         * references, iteratively: a long chain of schemas never deepens the stack.
+         */
         void checkSchema(String name) {
-            if (checkedSchemas.add(name)) {
-                checkContent(schemas.get(name), owner + ", schema '" + name + "'", false);
+            List<String> pending = new ArrayList<>(List.of(name));
+            while (!pending.isEmpty()) {
+                String next = pending.remove(0);
+                if (schemas.containsKey(next) && checkedSchemas.add(next)) {
+                    checkContent(schemas.get(next), owner + ", schema '" + next + "'", false,
+                            pending);
+                }
             }
         }
 
@@ -508,6 +535,19 @@ public final class DefinitionsExpander {
          * beside its {@code schema:}, and the schema it references (checked where declared).
          */
         private void checkContent(InputParameterSpec param, String location, boolean topLevel) {
+            List<String> referenced = new ArrayList<>();
+            checkContent(param, location, topLevel, referenced);
+            for (String name : referenced) {
+                checkSchema(name);
+            }
+        }
+
+        /**
+         * @param referenced collects the schemas the declaration references, to be checked
+         *                   by the caller
+         */
+        private void checkContent(InputParameterSpec param, String location, boolean topLevel,
+                List<String> referenced) {
             if (param == null) {
                 return;
             }
@@ -515,22 +555,23 @@ public final class DefinitionsExpander {
             if (param.getSchema() != null) {
                 checkInputBesideSchema(param, location, topLevel);
                 if (lookupSchema(param.getSchema(), location) != null) {
-                    checkSchema(param.getSchema());
+                    referenced.add(param.getSchema());
                 }
                 return;
             }
-            checkContent(param.getItems(), location + ", items", false);
-            checkContent(param.getValues(), location + ", values", false);
+            checkContent(param.getItems(), location + ", items", false, referenced);
+            checkContent(param.getValues(), location + ", values", false, referenced);
             for (InputParameterSpec property : param.getProperties()) {
                 checkContent(property, location + ", property '" + property.getName() + "'",
-                        false);
+                        false, referenced);
             }
         }
 
         /** Whether a reference resolves to a schema whose expansion terminates. */
         private boolean expandable(String name) {
             return name != null && BARE_NAME.matcher(name).matches()
-                    && schemas.containsKey(name) && !cyclic.contains(name);
+                    && schemas.containsKey(name) && !cyclic.contains(name)
+                    && !tooDeep.contains(name);
         }
 
         /**
@@ -694,6 +735,16 @@ public final class DefinitionsExpander {
             addIf(extra, "items", param.getItems() != null);
             addIf(extra, "values", param.getValues() != null);
             addIf(extra, "properties", !param.getProperties().isEmpty());
+            addIf(extra, "const", param.getConstant() != null);
+            addIf(extra, "selector", param.getSelector() != null);
+            addIf(extra, "required", !param.getRequired().isEmpty());
+            addIf(extra, "enum", !param.getEnumeration().isEmpty());
+            addIf(extra, "maxLength", param.getMaxLength() != null);
+            addIf(extra, "precision", param.getPrecision() != null);
+            addIf(extra, "scale", param.getScale() != null);
+            addIf(extra, "contentEncoding", param.getContentEncoding() != null);
+            addIf(extra, "contentCompression", param.getContentCompression() != null);
+            addIf(extra, "contentMediaType", param.getContentMediaType() != null);
             if (!extra.isEmpty()) {
                 errors.add(location + ": 'schema: " + param.getSchema() + "' takes no other key"
                         + " in an output, found " + extra + ".");
@@ -708,40 +759,108 @@ public final class DefinitionsExpander {
 
         /**
          * Find the schemas that reference each other in a cycle, report each cycle once, and
-         * remember its members so that expansion never follows it.
+         * remember its members so that expansion never follows it. Then bound the depth of every
+         * other schema ({@link #MAX_EXPANDED_DEPTH}). Both walks are iterative, so a long chain
+         * of schemas does not overflow the stack.
          */
         private void findCycles() {
             Map<String, Integer> state = new LinkedHashMap<>();
+            List<String> finished = new ArrayList<>();
             for (String name : schemas.keySet()) {
-                visit(name, state, new ArrayList<>());
+                visit(name, state, finished);
+            }
+            boundDepth(finished);
+        }
+
+        /** Depth-first walk from a schema, recording schemas in the order they finish. */
+        private void visit(String root, Map<String, Integer> state, List<String> finished) {
+            if (state.containsKey(root)) {
+                return;
+            }
+            List<String> path = new ArrayList<>();
+            List<Iterator<String>> pending = new ArrayList<>();
+            state.put(root, 1);
+            path.add(root);
+            pending.add(references(root).iterator());
+            while (!pending.isEmpty()) {
+                Iterator<String> next = pending.get(pending.size() - 1);
+                if (!next.hasNext()) {
+                    String done = path.remove(path.size() - 1);
+                    pending.remove(pending.size() - 1);
+                    state.put(done, 2);
+                    finished.add(done);
+                    continue;
+                }
+                String reference = next.next();
+                Integer current = state.get(reference);
+                if (current == null) {
+                    state.put(reference, 1);
+                    path.add(reference);
+                    pending.add(references(reference).iterator());
+                } else if (current == 1) {
+                    List<String> cycle = new ArrayList<>(path.subList(path.indexOf(reference),
+                            path.size()));
+                    cyclic.addAll(cycle);
+                    cycle.add(reference);
+                    errors.add(owner + ": schemas reference each other in a cycle: "
+                            + String.join(" -> ", cycle) + ".");
+                }
             }
         }
 
-        private void visit(String name, Map<String, Integer> state, List<String> path) {
-            Integer current = state.get(name);
-            if (current != null && current == 2) {
-                return;
-            }
-            if (current != null && current == 1) {
-                List<String> cycle = new ArrayList<>(path.subList(path.indexOf(name),
-                        path.size()));
-                cyclic.addAll(cycle);
-                cycle.add(name);
-                errors.add(owner + ": schemas reference each other in a cycle: "
-                        + String.join(" -> ", cycle) + ".");
-                return;
-            }
-            state.put(name, 1);
-            path.add(name);
+        /** The schemas of this namespace that a schema references. */
+        private Set<String> references(String name) {
             Set<String> references = new LinkedHashSet<>();
             collectReferences(schemas.get(name), references);
-            for (String reference : references) {
-                if (schemas.containsKey(reference)) {
-                    visit(reference, state, path);
+            references.retainAll(schemas.keySet());
+            return references;
+        }
+
+        /**
+         * Compute the expanded depth of every schema, in the order they finished (a schema after
+         * the ones it references), and report the deepest schema of a chain past the bound
+         * once. The schemas that reference it are excluded too, without another error.
+         */
+        private void boundDepth(List<String> finished) {
+            Map<String, Integer> depths = new HashMap<>();
+            for (String name : finished) {
+                if (cyclic.contains(name)) {
+                    continue;
+                }
+                boolean inheritsTooDeep = false;
+                for (String reference : references(name)) {
+                    inheritsTooDeep |= tooDeep.contains(reference);
+                }
+                if (inheritsTooDeep) {
+                    tooDeep.add(name);
+                    continue;
+                }
+                int depth = depthOf(schemas.get(name), depths);
+                depths.put(name, depth);
+                if (depth > MAX_EXPANDED_DEPTH) {
+                    tooDeep.add(name);
+                    errors.add(owner + ", schema '" + name + "': it expands to more than "
+                            + MAX_EXPANDED_DEPTH + " nested levels, through the schemas it"
+                            + " uses. Expansion is bounded, so that a long chain of schemas"
+                            + " cannot exhaust the stack.");
                 }
             }
-            path.remove(path.size() - 1);
-            state.put(name, 2);
+        }
+
+        /** Nesting depth of a declaration; a reference counts one level plus its schema's depth. */
+        private int depthOf(InputParameterSpec param, Map<String, Integer> depths) {
+            if (param == null) {
+                return 0;
+            }
+            if (param.getSchema() != null) {
+                return 1 + depths.getOrDefault(param.getSchema(), 0);
+            }
+            int deepest = Math.max(depthOf(param.getItems(), depths),
+                    depthOf(param.getValues(), depths));
+            for (InputParameterSpec property : param.getProperties()) {
+                deepest = Math.max(deepest, depthOf(property, depths));
+            }
+            return 1 + deepest;
         }
 
         private static void collectReferences(InputParameterSpec param, Set<String> references) {
@@ -818,8 +937,7 @@ public final class DefinitionsExpander {
             }
         } else if ("array".equals(type)) {
             InputParameterSpec items = schema.getItems();
-            if (items != null && "object".equals(items.getType())
-                    && !items.getProperties().isEmpty()) {
+            if (items != null && isObjectWithProperties(items)) {
                 OutputParameterSpec itemsOutput = toOutput(items);
                 itemsOutput.setName(null);
                 output.setItems(itemsOutput);
@@ -843,6 +961,11 @@ public final class DefinitionsExpander {
             }
         }
         return false;
+    }
+
+    /** Whether a declaration is an object with properties: the only orchestrated items. */
+    static boolean isObjectWithProperties(StructureSpec<?> param) {
+        return "object".equals(param.getType()) && !param.getProperties().isEmpty();
     }
 
     /** Deep copy of an input declaration, so that every use of a definition owns its copy. */

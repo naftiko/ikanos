@@ -279,31 +279,39 @@ function checkConflicts(model, results) {
 }
 
 function checkCycles(model, results) {
+  // Iterative depth-first walk: a long chain of schemas must not overflow the
+  // call stack.
   const state = new Map(); // name -> 1 visiting, 2 done
-  const visit = (name, stack) => {
-    if (state.get(name) === 2) {
-      return;
+  const referenced = (name) => (model.schemaRefs.get(name) || [])
+    .map((ref) => ref.name)
+    .filter((ref) => typeof ref === "string" && ref in model.schemas);
+  for (const root of Object.keys(model.schemas)) {
+    if (state.has(root)) {
+      continue;
     }
-    if (state.get(name) === 1) {
-      const cycle = stack.slice(stack.indexOf(name)).concat(name);
-      results.push({
-        message: "Schemas reference each other in a cycle: " + cycle.join(" -> ") + ".",
-        path: model.defsPath.concat("schemas", cycle[0]),
-      });
-      return;
-    }
-    state.set(name, 1);
-    stack.push(name);
-    for (const ref of model.schemaRefs.get(name) || []) {
-      if (ref.name in model.schemas) {
-        visit(ref.name, stack);
+    const path = [root];
+    const pending = [referenced(root)[Symbol.iterator]()];
+    state.set(root, 1);
+    while (pending.length > 0) {
+      const step = pending[pending.length - 1].next();
+      if (step.done) {
+        state.set(path.pop(), 2);
+        pending.pop();
+        continue;
+      }
+      const name = step.value;
+      if (!state.has(name)) {
+        state.set(name, 1);
+        path.push(name);
+        pending.push(referenced(name)[Symbol.iterator]());
+      } else if (state.get(name) === 1) {
+        const cycle = path.slice(path.indexOf(name)).concat(name);
+        results.push({
+          message: "Schemas reference each other in a cycle: " + cycle.join(" -> ") + ".",
+          path: model.defsPath.concat("schemas", cycle[0]),
+        });
       }
     }
-    stack.pop();
-    state.set(name, 2);
-  };
-  for (const name of Object.keys(model.schemas)) {
-    visit(name, []);
   }
 }
 
