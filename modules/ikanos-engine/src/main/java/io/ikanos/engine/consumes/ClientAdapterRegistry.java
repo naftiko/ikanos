@@ -21,16 +21,18 @@ import java.util.Set;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.consumes.mcp.McpClientAdapter;
+import io.ikanos.engine.consumes.sql.SqlClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
+import io.ikanos.spec.consumes.sql.SqlClientSpec;
 
 /**
  * Registry of {@link ClientAdapterFactory} instances, keyed by {@code consumes} {@code type}.
  *
  * <p>Replaces the literal {@code "http".equals(type)} branch that used to live in
- * {@link Capability}. The core {@code http} and {@code mcp} factories are registered
+ * {@link Capability}. The core {@code http}, {@code mcp} and {@code sql} factories are registered
  * statically, so they never depend on service discovery. Optional factories are
  * discovered once with {@link ServiceLoader}, following the {@code ikanos-tunnel-ziti} precedent.
  * </p>
@@ -65,6 +67,20 @@ public final class ClientAdapterRegistry {
         }
     };
 
+    /** Built-in factory for {@code type: sql}. Tunnels do not apply to JDBC connections. */
+    static final ClientAdapterFactory SQL = new ClientAdapterFactory() {
+        @Override
+        public String type() {
+            return SqlClientSpec.TYPE;
+        }
+
+        @Override
+        public ClientAdapter create(Capability capability, ClientSpec spec,
+                Map<String, Tunnel> tunnels) {
+            return new SqlClientAdapter(capability, (SqlClientSpec) spec);
+        }
+    };
+
     private static volatile ClientAdapterRegistry defaultRegistry;
 
     private final Map<String, ClientAdapterFactory> factories;
@@ -73,6 +89,7 @@ public final class ClientAdapterRegistry {
         Map<String, ClientAdapterFactory> map = new LinkedHashMap<>();
         map.put(HTTP.type(), HTTP);
         map.put(MCP.type(), MCP);
+        map.put(SQL.type(), SQL);
         for (ClientAdapterFactory factory : discovered) {
             String type = factory.type();
             if (type == null || type.isBlank()) {
