@@ -437,4 +437,58 @@ class SqlClientAdapterTest {
 
         assertTrue(e.getMessage().contains("connection.properties.password"), e.getMessage());
     }
+
+    @Test
+    void bindShouldTypeAnAbsentStringInputAsVarchar() throws Exception {
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        io.ikanos.spec.InputParameterSpec input =
+                new io.ikanos.spec.InputParameterSpec("name", "string", null, null);
+
+        SqlBind.of(input, null, "erp.find").bind(statement, 1);
+
+        org.mockito.Mockito.verify(statement).setNull(1, java.sql.Types.VARCHAR);
+    }
+
+    @Test
+    void constructorShouldRefuseTwoInputsWithOnePlaceholder() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec("""
+                        find:
+                          description: Two inputs, one placeholder.
+                          statement: select id from customers where id = :id
+                          inputParameters:
+                            id: { type: string }
+                            other: { type: string, placeholder: id }
+                        """)));
+
+        assertTrue(e.getMessage().contains("':id' on two inputs"), e.getMessage());
+    }
+
+    @Test
+    void columnShouldReadAnUnsignedBigintPastLongMaxValue() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.BIGINT);
+        org.mockito.Mockito.when(meta.isSigned(1)).thenReturn(false);
+        org.mockito.Mockito.when(rs.getBigDecimal(1))
+                .thenReturn(new BigDecimal("18446744073709551615"));
+
+        JsonNode value = SqlRowDocument.column(rs, meta, 1, "ID");
+
+        assertEquals("18446744073709551615", value.toString());
+    }
+
+    @Test
+    void columnShouldKeepTheDecimalsOfAJsonColumn() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.OTHER);
+        org.mockito.Mockito.when(meta.getColumnTypeName(1)).thenReturn("jsonb");
+        org.mockito.Mockito.when(rs.getString(1)).thenReturn("{\"total\":12345678901234567890.12}");
+
+        JsonNode value = SqlRowDocument.column(rs, meta, 1, "PAYLOAD");
+
+        assertEquals(new BigDecimal("12345678901234567890.12"), value.get("total").decimalValue());
+    }
 }
