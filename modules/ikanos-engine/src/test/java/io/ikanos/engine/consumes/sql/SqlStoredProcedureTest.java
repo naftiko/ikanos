@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.sql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -348,6 +349,39 @@ class SqlStoredProcedureTest {
         order.verify(call).execute();
         order.verify(call).getObject(1);
         order.verify(connection).rollback();
+    }
+
+    @Test
+    void readShouldFailWhenTheCursorTransactionCannotBeRolledBack() throws Exception {
+        SqlClientSpec spec = spec("""
+                open-orders:
+                  description: Open orders, as a cursor.
+                  storedProcedure: open_orders
+                  readOnly: true
+                  outParameters:
+                    orders: { position: 1, sqlType: OTHER }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.getUpdateCount()).thenReturn(-1);
+        java.sql.SQLException rollback = new java.sql.SQLException("connection lost");
+        org.mockito.Mockito.doThrow(rollback).when(connection).rollback();
+        SqlClientAdapter.Procedure procedure = SqlClientAdapter
+                .buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("open-orders");
+
+        java.sql.SQLException thrown = assertThrows(java.sql.SQLException.class,
+                () -> adapter.read(connection, procedure, java.util.List.of()));
+        assertSame(rollback, thrown);
+
+        java.sql.SQLException failure = new java.sql.SQLException("cursor failed");
+        org.mockito.Mockito.when(call.getObject(1)).thenThrow(failure);
+        thrown = assertThrows(java.sql.SQLException.class,
+                () -> adapter.read(connection, procedure, java.util.List.of()));
+        assertSame(failure, thrown);
+        assertSame(rollback, thrown.getSuppressed()[0]);
     }
 
     @Test
