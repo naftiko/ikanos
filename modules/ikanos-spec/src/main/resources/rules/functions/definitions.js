@@ -12,7 +12,9 @@
  *   - "conflicts":  two sets of one tool or flow declare the same input;
  *   - "cycles":     schemas reference each other in a cycle;
  *   - "unused":     a set or schema that no tool or flow of the namespace
- *                   uses, directly or through another definition.
+ *                   uses, directly or through another definition;
+ *   - "outputKeywords": a schema used in an orchestrated output declares
+ *                   keywords that an output does not carry (informational).
  *
  * Covers MCP adapters and aggregates in a capability and at the root of a
  * standalone file. The engine and `ikanos validate` run the same checks when
@@ -35,6 +37,8 @@ export default function definitions(targetVal, options) {
       checkCycles(model, results);
     } else if (check === "unused") {
       checkUnused(model, results);
+    } else if (check === "outputKeywords") {
+      checkOutputKeywords(model, results);
     }
   }
   return results;
@@ -122,7 +126,7 @@ function walkOutput(node, path, refs) {
     return;
   }
   if (typeof node.schema === "string") {
-    refs.push({ kind: "schema", name: node.schema, path: path.concat("schema") });
+    refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
   const items = node.items;
   if (isObject(items) && typeof items.type !== "string" && typeof items.schema !== "string") {
@@ -201,7 +205,10 @@ function buildModel(owner) {
         walkOutput(p.value, unitPath.concat("outputParameters", ...p.locator), refs);
       }
     }
-    units.push({ name: u.key, unit, path: unitPath, refs });
+    const steps = unit.steps;
+    const orchestrated = Array.isArray(steps) ? steps.length > 0
+      : isObject(steps) && Object.keys(steps).length > 0;
+    units.push({ name: u.key, unit, path: unitPath, refs, orchestrated });
   }
 
   return { owner, sets, schemas, defsPath, setRefs, schemaRefs, units };
@@ -353,6 +360,88 @@ function checkUnused(model, results) {
           + " uses.",
         path: model.defsPath.concat("schemas", name),
       });
+    }
+  }
+}
+
+/** Keywords of a schema that an orchestrated output does not declare. */
+const INPUT_ONLY_KEYWORDS = ["description", "enum", "format", "minimum", "maximum", "required",
+  "additionalProperties"];
+
+function declares(node, keyword) {
+  const value = node[keyword];
+  return value !== undefined && value !== null && value !== false
+    && !(Array.isArray(value) && value.length === 0);
+}
+
+/**
+ * The input-only keywords a schema declares, on itself and on what an
+ * orchestrated output keeps of it: the properties of an object, and the items
+ * of an array when they are objects with properties. Iterative, and each
+ * schema is visited once, so cycles and long chains end.
+ */
+function droppedKeywords(model, name) {
+  const found = new Set();
+  const visited = new Set([name]);
+  const target = (node) => {
+    let current = node;
+    const seen = new Set();
+    while (isObject(current) && typeof current.schema === "string"
+        && current.schema in model.schemas && !seen.has(current.schema)) {
+      seen.add(current.schema);
+      current = model.schemas[current.schema];
+    }
+    return current;
+  };
+  const pending = [model.schemas[name]];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (!isObject(node)) {
+      continue;
+    }
+    for (const keyword of INPUT_ONLY_KEYWORDS) {
+      if (declares(node, keyword)) {
+        found.add(keyword);
+      }
+    }
+    if (typeof node.schema === "string") {
+      if (node.schema in model.schemas && !visited.has(node.schema)) {
+        visited.add(node.schema);
+        pending.push(model.schemas[node.schema]);
+      }
+      continue;
+    }
+    if (node.type === "object" && isObject(node.properties)) {
+      pending.push(...Object.values(node.properties));
+    } else if (node.type === "array") {
+      const items = target(node.items);
+      if (isObject(items) && items.type === "object" && isObject(items.properties)
+          && Object.keys(items.properties).length > 0) {
+        pending.push(node.items);
+      }
+    }
+  }
+  return INPUT_ONLY_KEYWORDS.filter((keyword) => found.has(keyword));
+}
+
+function checkOutputKeywords(model, results) {
+  for (const unit of model.units) {
+    if (!unit.orchestrated) {
+      continue;
+    }
+    for (const ref of unit.refs) {
+      if (!ref.output || typeof ref.name !== "string" || !(ref.name in model.schemas)) {
+        continue;
+      }
+      const dropped = droppedKeywords(model, ref.name);
+      if (dropped.length > 0) {
+        results.push({
+          message: "Schema '" + ref.name + "' is used in an orchestrated output, which does"
+            + " not carry its keywords " + dropped.join(", ") + ". An output keeps only the"
+            + " schema's type, properties, and items that are objects with properties.",
+          path: ref.path,
+        });
+      }
     }
   }
 }

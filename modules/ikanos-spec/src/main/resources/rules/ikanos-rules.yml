@@ -275,6 +275,23 @@ rules:
       functionOptions:
         check: unused
 
+  ikanos-definitions-output-keywords:
+    message: "{{error}}"
+    description: >
+      A schema used in an orchestrated (steps) output gives the output only its
+      `type` (`integer` becomes `number`), its `properties`, and its `items`
+      when they are objects with properties. Its input-only keywords
+      (`description`, `enum`, `format`, `minimum`, `maximum`, `required`,
+      `additionalProperties`) are not carried: this note flags them where the
+      schema is used, so that the drop is never silent.
+    severity: info
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: outputKeywords
+
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."
     description: >

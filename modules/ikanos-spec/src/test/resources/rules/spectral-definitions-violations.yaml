@@ -24,11 +24,29 @@ capability:
         inputParameterSets:
           key:
             id: { type: string, description: "Order ID." }
+        schemas:
+          status: { type: string, enum: [open, closed] }
+          order:
+            type: object
+            description: "An order."
+            required: [id]
+            properties:
+              id: { type: string, format: uuid }
+              status: { schema: status }
       flows:
         get-order:
           description: "Get an order."
           inputParameterSets: [missing-in-aggregate]
           call: erp.list-orders
+        find-order:
+          description: "Find an order."
+          steps:
+            order: { type: call, call: erp.list-orders }
+          mappings:
+            - target: order
+              value: "$.order"
+          outputParameters:
+            order: { schema: order }
   exposes:
     - type: mcp
       port: 3000
