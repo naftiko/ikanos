@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -924,19 +925,65 @@ public class OperationStepExecutor {
         String body = null;
         if (result != null) {
             cause = result.failureCause();
-            body = upstreamBody(result);
+            // Only an MCP tool returns the body: everywhere else it is released unread, so a
+            // large or endless error body is never buffered just to answer 502.
+            if (Boolean.TRUE.equals(KEEP_UPSTREAM_ERROR_BODY.get())) {
+                body = upstreamBody(result);
+            }
             result.release();
         }
         throw new StepFailedException(stepName, code, cause, body);
     }
 
-    /** The body of an upstream HTTP error, or {@code null} when there is none to keep. */
+    /**
+     * The most of an upstream error body an MCP tool returns to the agent. A larger body is left
+     * out, never buffered whole.
+     */
+    static final int MAX_UPSTREAM_ERROR_BODY_BYTES = 64 * 1024;
+
+    /** Set while an MCP tool runs: only then does a failed step keep the upstream error body. */
+    private static final ThreadLocal<Boolean> KEEP_UPSTREAM_ERROR_BODY = new ThreadLocal<>();
+
+    /**
+     * Keep the upstream error body on the {@link StepFailedException}s thrown on this thread
+     * until the returned scope is closed, for an MCP tool, which returns it to the agent (#925,
+     * #879). Flows called by the tool run on the same thread, so their failures keep it too.
+     *
+     * @return the scope, to close in a try-with-resources; it restores the previous setting
+     */
+    public static UpstreamErrorBodies keepUpstreamErrorBodies() {
+        Boolean previous = KEEP_UPSTREAM_ERROR_BODY.get();
+        KEEP_UPSTREAM_ERROR_BODY.set(Boolean.TRUE);
+        return () -> {
+            if (previous == null) {
+                KEEP_UPSTREAM_ERROR_BODY.remove();
+            } else {
+                KEEP_UPSTREAM_ERROR_BODY.set(previous);
+            }
+        };
+    }
+
+    /** The scope returned by {@link #keepUpstreamErrorBodies()}. */
+    @FunctionalInterface
+    public interface UpstreamErrorBodies extends AutoCloseable {
+        @Override
+        void close();
+    }
+
+    /**
+     * The body of an upstream HTTP error, read up to {@link #MAX_UPSTREAM_ERROR_BODY_BYTES} as
+     * UTF-8 (JSON's encoding), or {@code null} when there is none to keep.
+     */
     private static String upstreamBody(ConsumedResult result) {
         if (result.noResponseReceived() || !result.hasBody()) {
             return null;
         }
         try {
-            return result.text();
+            byte[] bytes = result.bytes(MAX_UPSTREAM_ERROR_BODY_BYTES);
+            return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+        } catch (BinarySizeExceededException e) {
+            return "The upstream error body was left out: it is larger than "
+                    + MAX_UPSTREAM_ERROR_BODY_BYTES + " bytes.";
         } catch (IOException | RuntimeException e) {
             return null;
         }
