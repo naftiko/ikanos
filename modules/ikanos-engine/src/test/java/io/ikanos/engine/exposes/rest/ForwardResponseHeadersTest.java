@@ -451,6 +451,27 @@ public class ForwardResponseHeadersTest {
         assertNull(relayed.getEntity().getLocationRef());
     }
 
+    private static Request incomingWithoutPath(String uri) {
+        return new Request(Method.GET, uri);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://upstream:9090/v1/items/42", "/v1/items", "items/42",
+            "http://upstream:9090/v1/"})
+    public void relayedLocationShouldDropALocationBelowTheBaseUriUnderAResourceWithoutPath(
+            String raw) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI, BASE_URI,
+                incomingWithoutPath("http://localhost:8080/status")), raw);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"http://upstream:9090/v1, /status", "http://upstream:9090/v1?page=2, /status?page=2"})
+    public void relayedLocationShouldRewriteTheBaseUriUnderAResourceWithoutPath(String raw,
+            String expected) {
+        assertEquals(expected, ForwardResponseHeaders.relayedLocation(raw, BASE_URI, BASE_URI,
+                incomingWithoutPath("http://localhost:8080/status")));
+    }
+
     @Test
     public void relayedLocationShouldDropALocationUnderBaseUriWhenTheExposedPathIsUnknown() {
         assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
@@ -544,6 +565,64 @@ public class ForwardResponseHeadersTest {
         from.getWarnings().add(new Warning());
 
         assertTrue(relayed(from).getWarnings().isEmpty(), "Warning is obsolete (RFC 9111)");
+    }
+
+    @Test
+    public void relayShouldCopyTheUpstreamDate() {
+        Response from = upstreamResponse();
+        Date date = new Date(1_672_653_600_000L);
+        from.setDate(date);
+
+        assertEquals(date, relayed(from).getDate());
+    }
+
+    @Test
+    public void relayShouldNotSetADateWhenTheUpstreamSentNone() {
+        assertNull(relayed(upstreamResponse()).getDate());
+    }
+
+    private static Response notModified(long expiresInSeconds) {
+        Response from = upstreamResponse();
+        from.setStatus(Status.REDIRECTION_NOT_MODIFIED);
+        Date date = new Date(1_672_653_600_000L);
+        from.setDate(date);
+        StringRepresentation entity = new StringRepresentation("");
+        entity.setExpirationDate(new Date(date.getTime() + expiresInSeconds * 1000));
+        from.setEntity(entity);
+        return from;
+    }
+
+    @Test
+    public void relayShouldSendTheExpiresOfANotModifiedAsMaxAge() {
+        Response relayed = relayed(notModified(60));
+
+        assertEquals(1, relayed.getCacheDirectives().size());
+        assertEquals("max-age", relayed.getCacheDirectives().get(0).getName());
+        assertEquals("60", relayed.getCacheDirectives().get(0).getValue());
+    }
+
+    @Test
+    public void relayShouldSendAnExpiredNotModifiedAsMaxAgeZero() {
+        assertEquals("0", relayed(notModified(-30)).getCacheDirectives().get(0).getValue());
+    }
+
+    @Test
+    public void relayShouldKeepTheMaxAgeOfANotModified() {
+        Response from = notModified(60);
+        from.getCacheDirectives().add(CacheDirective.maxAge(10));
+
+        Response relayed = relayed(from);
+
+        assertEquals(1, relayed.getCacheDirectives().size());
+        assertEquals("10", relayed.getCacheDirectives().get(0).getValue());
+    }
+
+    @Test
+    public void relayShouldNotTurnExpiresIntoMaxAgeOutsideANotModified() {
+        Response from = notModified(60);
+        from.setStatus(Status.SUCCESS_OK);
+
+        assertTrue(relayed(from).getCacheDirectives().isEmpty());
     }
 
     // --- Vary ---
@@ -753,7 +832,7 @@ public class ForwardResponseHeadersTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"Server", "Date", "Via", "Warning", "Access-Control-Allow-Origin",
+    @ValueSource(strings = {"Server", "Expect", "Via", "Warning", "Access-Control-Allow-Origin",
             "Authorization"})
     public void validateShouldRejectStandardHeaderThatCannotBeRelayed(String name) {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,

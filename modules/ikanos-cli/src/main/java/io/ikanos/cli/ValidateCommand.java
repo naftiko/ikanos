@@ -29,6 +29,7 @@ import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
+import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
 import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.IkanosSpec;
@@ -125,6 +126,9 @@ public class ValidateCommand implements Callable<Integer> {
                 headerErrors.addAll(ForwardTrustedHeadersValidator.findErrors(spec));
                 headerErrors.addAll(ConsumedHeaderValidator.findErrors(spec));
             }
+            // The trustedResponseHeaders lists the engine refuses at load time (#1002)
+            List<String> forwardErrors = spec != null
+                    ? ForwardResponseHeaders.findErrors(spec) : List.of();
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
@@ -150,7 +154,8 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Display validation result.
             if (schemaValid && templateErrors.isEmpty() && queryParameterErrors.isEmpty()
-                    && headerErrors.isEmpty() && definitions.errors().isEmpty()
+                    && headerErrors.isEmpty() && forwardErrors.isEmpty()
+                    && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
@@ -193,6 +198,10 @@ public class ValidateCommand implements Callable<Integer> {
                 for (String error : headerErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid header: "
                             + error);
+                    errorCount++;
+                }
+                for (String error : forwardErrors) {
+                    System.err.println("\n  [" + errorCount + "] " + error);
                     errorCount++;
                 }
                 for (String error : definitions.errors()) {
