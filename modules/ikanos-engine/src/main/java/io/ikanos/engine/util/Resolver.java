@@ -1195,12 +1195,12 @@ public class Resolver {
             // A templated precondition of an unsafe request that cannot be resolved is refused,
             // like one that cannot be parsed: omitting it would make the write unconditional
             // (#1001)
-            boolean guardsWrite = template != null && clientRequest != null
-                    && !notSent.contains(spec)
+            boolean conditionalWrite = clientRequest != null && !notSent.contains(spec)
                     && "header".equalsIgnoreCase(spec.getIn())
                     && StandardRequestHeaders.isConditional(wireName)
                     && clientRequest.getMethod() != null
                     && !clientRequest.getMethod().isSafe();
+            boolean guardsWrite = template != null && conditionalWrite;
             boolean unresolved = template != null
                     && (!missingVariables(template, parameters).isEmpty()
                             || rendersEmptyVariable(template, parameters));
@@ -1229,6 +1229,14 @@ public class Resolver {
                 continue;
             }
             if (guardsWrite && (val == null || val.toString().isBlank())) {
+                throw unresolvedPrecondition(wireName);
+            }
+            // A required precondition the caller left out (or sent empty) of a request that is
+            // not safe: sending the write without it would make it unconditional (#1001)
+            // A consumed input is required unless it says required: false; only MCP tool
+            // inputs default to optional (#977)
+            if (template == null && spec.isRequiredOrDefault(true) && conditionalWrite
+                    && (val == null || val.toString().isBlank())) {
                 throw unresolvedPrecondition(wireName);
             }
             if (val == null) {

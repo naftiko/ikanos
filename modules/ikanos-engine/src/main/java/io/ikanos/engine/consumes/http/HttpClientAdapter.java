@@ -351,6 +351,9 @@ public class HttpClientAdapter extends ClientAdapter {
             clientRequest.setEntity(resolvedBody, bodyMediaType);
         }
 
+        // A Content-Type input was resolved before the body existed (#1001)
+        StandardRequestHeaders.applyContentType(clientRequest);
+
         // Set authentication. Header parameters, the adapter's included, were already set with
         // their resolved values above: setting them again from their raw value sent a template
         // as text and ignored wireName (#1070).

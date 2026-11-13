@@ -34,6 +34,7 @@ import org.restlet.data.Preference;
 import org.restlet.data.Range;
 import org.restlet.data.Tag;
 import org.restlet.engine.header.CacheDirectiveReader;
+import org.restlet.engine.header.ContentType;
 import org.restlet.engine.header.CookieReader;
 import org.restlet.engine.header.HeaderReader;
 import org.restlet.engine.header.PreferenceReader;
@@ -89,6 +90,16 @@ public final class StandardRequestHeaders {
      * operation input) sets it and in whatever order.
      */
     static final String IF_RANGE_REFUSED = "io.ikanos.engine.ifRangeRefused";
+
+    /**
+     * Request attribute holding a {@code Content-Type} set before the request has a body: the
+     * body is built after the header inputs, so {@link #applyContentType} sets it then.
+     */
+    static final String PENDING_CONTENT_TYPE = "io.ikanos.engine.pendingContentType";
+
+    /** A media type: {@code type/subtype}, then optional parameters. */
+    private static final java.util.regex.Pattern MEDIA_TYPE = java.util.regex.Pattern
+            .compile("[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+\\s*(;.*)?");
 
     /** How the elements of a list-valued header are separated, for {@link #elements}. */
     enum Syntax {
@@ -149,6 +160,8 @@ public final class StandardRequestHeaders {
                 parse(value, Syntax.LIST,
                         list -> new CacheDirectiveReader(value).addValues(list))));
         SETTERS.put("Cookie", StandardRequestHeaders::mergeCookies);
+        // Restlet writes it from the body: kept until the body exists (applyContentType)
+        SETTERS.put("Content-Type", StandardRequestHeaders::setContentType);
         SETTERS.put("From", (request, value) -> request.getClientInfo().setFrom(value));
         SETTERS.put("If-Match", (request, value) -> replace(request.getConditions().getMatch(),
                 parse(value, Syntax.LIST, list -> new TagReader(value).addValues(list))));
@@ -316,6 +329,34 @@ public final class StandardRequestHeaders {
     public static void refuseIfRange(Request request) {
         request.getAttributes().put(IF_RANGE_REFUSED, Boolean.TRUE);
         request.setRanges(new ArrayList<>());
+    }
+
+    /**
+     * Sets the media type (and character set) of {@code value} on the body of {@code request},
+     * or keeps it for {@link #applyContentType} when the request has no body yet.
+     */
+    static void setContentType(Request request, String value) {
+        String trimmed = value.trim();
+        if (!MEDIA_TYPE.matcher(trimmed).matches()) {
+            throw new IllegalArgumentException("Not a media type");
+        }
+        ContentType contentType = new ContentType(trimmed);
+        request.getAttributes().put(PENDING_CONTENT_TYPE, contentType);
+        applyContentType(request);
+    }
+
+    /**
+     * Applies to the body of {@code request} the {@code Content-Type} a header input set before
+     * the body existed. Without a body there is nothing to describe, so nothing is sent.
+     */
+    public static void applyContentType(Request request) {
+        Object pending = request.getAttributes().get(PENDING_CONTENT_TYPE);
+        if (pending instanceof ContentType contentType && request.getEntity() != null) {
+            request.getEntity().setMediaType(contentType.getMediaType());
+            if (contentType.getCharacterSet() != null) {
+                request.getEntity().setCharacterSet(contentType.getCharacterSet());
+            }
+        }
     }
 
     /**
