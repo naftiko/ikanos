@@ -320,4 +320,49 @@ class SqlStoredProcedureTest {
 
         assertTrue(e.getMessage().contains("one type"), e.getMessage());
     }
+
+    @Test
+    void readShouldKeepATransactionOpenWhileItReadsACursorOut() throws Exception {
+        SqlClientSpec spec = spec("""
+                open-orders:
+                  description: Open orders, as a cursor.
+                  storedProcedure: open_orders
+                  readOnly: true
+                  outParameters:
+                    orders: { position: 1, sqlType: OTHER }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.getUpdateCount()).thenReturn(-1);
+
+        ConsumedResult result = adapter.read(connection,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("open-orders"),
+                java.util.List.of());
+
+        assertEquals(200, result.status());
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(connection, call);
+        order.verify(connection).setAutoCommit(false);
+        order.verify(call).execute();
+        order.verify(call).getObject(1);
+        order.verify(connection).rollback();
+    }
+
+    @Test
+    void readShouldStayInAutoCommitWithoutACursorOut() throws Exception {
+        SqlClientSpec spec = spec(GET_BALANCE);
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.getUpdateCount()).thenReturn(-1);
+
+        adapter.read(connection, SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                .get("get-account-balance"), java.util.List.of());
+
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).setAutoCommit(false);
+    }
 }
