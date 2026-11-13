@@ -99,16 +99,20 @@ final class SqlStatement {
     private final List<String> placeholders;
     private final List<String> keywords;
     private final List<Integer> depths;
+    /** Where each keyword starts in {@link #sql}. */
+    private final List<Integer> offsets;
     private final boolean terminated;
 
     private SqlStatement(String sql, Dialect dialect, String jdbcSql, List<String> placeholders,
-            List<String> keywords, List<Integer> depths, boolean terminated) {
+            List<String> keywords, List<Integer> depths, List<Integer> offsets,
+            boolean terminated) {
         this.sql = sql;
         this.dialect = dialect;
         this.jdbcSql = jdbcSql;
         this.placeholders = Collections.unmodifiableList(placeholders);
         this.keywords = Collections.unmodifiableList(keywords);
         this.depths = Collections.unmodifiableList(depths);
+        this.offsets = Collections.unmodifiableList(offsets);
         this.terminated = terminated;
     }
 
@@ -263,7 +267,42 @@ final class SqlStatement {
             throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
                     + " or MERGE (or a WITH that runs one); this WITH only reads");
         }
+        refuseSqlServerSelect(operation);
         return operation;
+    }
+
+    /** Set operators that join one SELECT to the next. */
+    private static final Set<String> SET_OPERATORS = Set.of("UNION", "ALL", "EXCEPT", "INTERSECT");
+
+    /**
+     * On SQL Server, refuse a {@code SELECT} outside parentheses that is not the source of an
+     * {@code INSERT}: SQL Server runs {@code UPDATE t SET a = 1 SELECT … INTO copy FROM t} as two
+     * statements. The source of an {@code INSERT} is its first {@code SELECT}, with no
+     * {@code VALUES} before it, and the ones a set operator joins to it.
+     */
+    private void refuseSqlServerSelect(String operation) {
+        if (dialect != Dialect.SQLSERVER) {
+            return;
+        }
+        boolean values = false;
+        boolean selected = false;
+        for (int i = 0; i < keywords.size(); i++) {
+            if (depths.get(i) != 0) {
+                continue;
+            }
+            String keyword = keywords.get(i);
+            if ("VALUES".equals(keyword)) {
+                values = true;
+            } else if ("SELECT".equals(keyword)) {
+                boolean insertSource = "INSERT".equals(operation) && !values && !selected;
+                boolean joined = selected && SET_OPERATORS.contains(keywords.get(i - 1));
+                if (!insertSource && !joined) {
+                    throw new IllegalArgumentException("a write statement runs one INSERT,"
+                            + " UPDATE, DELETE or MERGE; on SQL Server it also runs a SELECT");
+                }
+                selected = true;
+            }
+        }
     }
 
     /**
@@ -295,8 +334,9 @@ final class SqlStatement {
 
     /**
      * @return whether the statement has a {@code RETURNING} clause, or SQL Server's
-     *     {@code OUTPUT} clause: {@code OUTPUT} followed by {@code inserted.}, {@code deleted.} or
-     *     {@code $action}. A column named {@code output} is not one.
+     *     {@code OUTPUT} clause: {@code OUTPUT} outside parentheses, followed directly by
+     *     {@code inserted.}, {@code deleted.} or {@code $action}. A column named {@code output}
+     *     is not one, nor are columns {@code output, inserted} listed together.
      */
     boolean returnsRows() {
         for (int i = 0; i < keywords.size(); i++) {
@@ -304,12 +344,30 @@ final class SqlStatement {
             if ("RETURNING".equals(keyword)) {
                 return true;
             }
-            if ("OUTPUT".equals(keyword) && i + 1 < keywords.size()
-                    && Set.of("INSERTED", "DELETED", "ACTION").contains(keywords.get(i + 1))) {
+            if ("OUTPUT".equals(keyword) && dialect == Dialect.SQLSERVER && depths.get(i) == 0
+                    && i + 1 < keywords.size() && outputColumn(i)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * @return whether the keyword after the {@code OUTPUT} at {@code i} starts an output column:
+     *     {@code inserted.} or {@code deleted.}, or {@code $action}, with only spaces between
+     */
+    private boolean outputColumn(int i) {
+        String next = keywords.get(i + 1);
+        int start = offsets.get(i + 1);
+        String between = sql.substring(offsets.get(i) + keywords.get(i).length(), start).strip();
+        if ("ACTION".equals(next)) {
+            return "$".equals(between);
+        }
+        if (!between.isEmpty() || !("INSERTED".equals(next) || "DELETED".equals(next))) {
+            return false;
+        }
+        String after = sql.substring(start + next.length()).stripLeading();
+        return after.startsWith(".");
     }
 
     /** @return whether the keyword at {@code i} is a clause of another statement, not its own */
@@ -360,6 +418,7 @@ final class SqlStatement {
         List<String> placeholders = new ArrayList<>();
         List<String> keywords = new ArrayList<>();
         List<Integer> depths = new ArrayList<>();
+        List<Integer> offsets = new ArrayList<>();
         int depth = 0;
         int n = sql.length();
         int i = 0;
@@ -429,6 +488,7 @@ final class SqlStatement {
                 }
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
                 depths.add(depth);
+                offsets.add(i);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '?' && dialect == Dialect.POSTGRESQL) {
@@ -446,7 +506,7 @@ final class SqlStatement {
             }
         }
         return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords,
-                depths, ended);
+                depths, offsets, ended);
     }
 
     /**

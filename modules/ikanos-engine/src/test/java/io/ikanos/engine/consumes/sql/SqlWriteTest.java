@@ -359,6 +359,22 @@ class SqlWriteTest {
     }
 
     @Test
+    void buildProceduresShouldKeepTheTerminatorOfAMergeAfterALineComment() throws Exception {
+        SqlClientSpec spec = spec("""
+                upsert:
+                  description: Upserts one order.
+                  readOnly: false
+                  statement: "merge into orders o using (values (:id)) s (id) on o.id = s.id when matched then update set status = 'SEEN'; -- upsert"
+                  inputParameters:
+                    id: { type: integer }
+                """);
+
+        String jdbcSql = SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                .get("upsert").jdbcSql();
+        assertTrue(jdbcSql.endsWith("-- upsert\n;"), jdbcSql);
+    }
+
+    @Test
     void runWriteShouldFailWhenReadingTheGeneratedKeysFails() throws Exception {
         SqlClientSpec spec = spec("""
                 add:

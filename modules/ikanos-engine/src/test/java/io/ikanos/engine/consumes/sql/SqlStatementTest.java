@@ -326,12 +326,54 @@ class SqlStatementTest {
 
     @Test
     void returnsRowsShouldReadAnOutputClauseButNotAColumnNamedOutput() {
-        assertFalse(SqlStatement.parse("insert into audit (output) values (:value)")
+        SqlStatement.Dialect sqlServer = SqlStatement.Dialect.SQLSERVER;
+        assertFalse(SqlStatement.parse("insert into audit (output) values (:value)", sqlServer)
                 .returnsRows());
-        assertTrue(SqlStatement.parse("insert into t (a) output inserted.id values (1)")
-                .returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) output inserted.id values (1)",
+                sqlServer).returnsRows());
+        assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id when matched then"
+                + " delete output $action, deleted.id;", sqlServer).returnsRows());
         assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id")
                 .returnsRows());
+    }
+
+    @Test
+    void returnsRowsShouldNotReadOutputColumnsAsAnOutputClause() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            assertFalse(SqlStatement.parse("insert into audit (output, inserted)"
+                    + " values (:output, :inserted)", dialect).returnsRows(), dialect.name());
+            assertFalse(SqlStatement.parse("insert into audit select output, inserted from x",
+                    dialect).returnsRows(), dialect.name());
+        }
+        assertFalse(SqlStatement.parse("insert into t (a) output inserted.id values (1)",
+                SqlStatement.Dialect.POSTGRESQL).returnsRows());
+    }
+
+    @Test
+    void writeOperationShouldRefuseASecondSqlServerStatementThatSelects() {
+        for (String sql : List.of(
+                "update orders set status = 'SHIPPED' select id into orders_copy from orders"
+                        + " where id = 1",
+                "insert into t (a) values (1) select a into c from t",
+                "insert into t select 1 select a into c from t",
+                "delete from t where id = 1 select * from t")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER)
+                            .writeOperation(), sql);
+        }
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnInsertFromASelectOnSqlServer() {
+        for (String sql : List.of(
+                "insert into t (a) select a from s where id = :id",
+                "insert into t select a from s union all select a from u",
+                "update t set a = (select max(a) from s) where id = 1",
+                "with src as (select a from s) insert into t select a from src")) {
+            assertEquals(sql.substring(0, 6).equals("update") ? "UPDATE" : "INSERT",
+                    SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER).writeOperation(),
+                    sql);
+        }
     }
 
     @Test
