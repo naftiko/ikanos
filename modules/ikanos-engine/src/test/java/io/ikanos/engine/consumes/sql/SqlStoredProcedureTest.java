@@ -365,4 +365,27 @@ class SqlStoredProcedureTest {
 
         org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).setAutoCommit(false);
     }
+
+    @Test
+    void readShouldSurfaceAnErrorRaisedAfterTheFirstResultSet() throws Exception {
+        SqlClientSpec spec = spec(GET_BALANCE);
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        ResultSet rows = org.mockito.Mockito.mock(ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.execute()).thenReturn(true);
+        org.mockito.Mockito.when(call.getResultSet()).thenReturn(rows);
+        org.mockito.Mockito.when(rows.getMetaData()).thenReturn(meta);
+        org.mockito.Mockito.when(call.getMoreResults())
+                .thenThrow(new java.sql.SQLException("raised after the rows", "50000"));
+
+        java.sql.SQLException e = assertThrows(java.sql.SQLException.class,
+                () -> adapter.read(connection, SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                        .get("get-account-balance"), java.util.List.of()));
+
+        assertEquals("50000", e.getSQLState());
+    }
 }
