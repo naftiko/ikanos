@@ -42,8 +42,11 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
      * be served by a shared cache, so the more conservative one applies), else {@code Expires}
      * minus {@code Date} (or now when {@code Date} is absent). An {@code Expires} that cannot be
      * parsed, such as {@code 0}, means already expired (§5.3).</li>
-     * <li>{@code Age} is subtracted, so an answer that sat in an intermediate cache keeps only
-     * the freshness it has left (§4.2.3).</li>
+     * <li>The current age is subtracted, so an answer keeps only the freshness it has left
+     * (§4.2.3): the greater of {@code Age} (time spent in an intermediate cache) and the time
+     * elapsed since {@code Date}.</li>
+     * <li>Lifetime and age are computed in the {@code long} range; only the remaining TTL is
+     * capped to the int range.</li>
      * </ul>
      *
      * @param cacheControl the {@code Cache-Control} value (several headers joined by commas), or
@@ -51,7 +54,8 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
      * @param expires the {@code Expires} value, or {@code null}
      * @param date the {@code Date} value, or {@code null}
      * @param age the {@code Age} value, or {@code null}
-     * @param nowMillis the current time, used when {@code Date} is absent
+     * @param nowMillis the current time, to age the answer from {@code Date}, or to count
+     *        {@code Expires} from when {@code Date} is absent
      * @return the freshness; never {@code null}
      */
     public static Freshness parse(String cacheControl, String expires, String date, String age,
@@ -80,17 +84,21 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         if (sharedMaxAge != null && (lifetime == null || sharedMaxAge < lifetime)) {
             lifetime = sharedMaxAge;
         }
+        Long dateAt = date != null ? httpDate(date) : null;
         if (lifetime == null && expires != null) {
             Long expiresAt = httpDate(expires);
-            Long dateAt = date != null ? httpDate(date) : null;
             long from = dateAt != null ? dateAt : nowMillis;
             lifetime = expiresAt == null || expiresAt <= from ? 0L : expiresAt - from;
         }
         if (lifetime == null) {
             return new Freshness(null, privateOnly);
         }
+        // §4.2.3: the current age is at least the time since the upstream's Date, even when Age
+        // is absent or smaller (a clock ahead of ours gives no negative age)
         Long ageMillis = seconds(age);
-        long remaining = ageMillis != null ? Math.max(0L, lifetime - ageMillis) : lifetime;
+        long elapsed = dateAt != null ? Math.max(0L, nowMillis - dateAt) : 0L;
+        long currentAge = Math.max(ageMillis != null ? ageMillis : 0L, elapsed);
+        long remaining = Math.max(0L, lifetime - currentAge);
         return new Freshness(Math.min(remaining, Integer.MAX_VALUE), privateOnly);
     }
 
@@ -136,7 +144,11 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         return equals < 0 ? null : directive.substring(equals + 1).trim();
     }
 
-    /** {@code delta-seconds} as milliseconds, capped to the int range; {@code null} if invalid. */
+    /**
+     * {@code delta-seconds} as milliseconds, {@link Long#MAX_VALUE} when it overflows (callers cap
+     * only the final TTL, so a long lifetime minus a long age keeps what it has left);
+     * {@code null} if invalid.
+     */
     static Long seconds(String value) {
         if (value == null) {
             return null;
@@ -146,10 +158,9 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
             return null;
         }
         try {
-            long millis = Math.multiplyExact(Long.parseLong(digits), 1000L);
-            return Math.min(millis, Integer.MAX_VALUE);
+            return Math.multiplyExact(Long.parseLong(digits), 1000L);
         } catch (ArithmeticException | NumberFormatException tooLarge) {
-            return (long) Integer.MAX_VALUE;
+            return Long.MAX_VALUE;
         }
     }
 
