@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -105,6 +107,36 @@ class ConsumedHeaderValidatorTest {
                 """, "", ""));
 
         assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Host", "content-length", "Date", "Connection", "Accept-Encoding",
+            "Proxy-Authorization", "Set-Cookie"})
+    void findErrorsShouldRefuseAHeaderTheClientCanNeverSend(String name) throws Exception {
+        List<String> errors = ConsumedHeaderValidator.findErrors(spec("""
+                      inputParameters:
+                        %s:
+                          in: header
+                          value: "{{whatever}}"
+                """.formatted(name), "", ""));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains(name) && errors.get(0).contains("never"),
+                errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldRefuseAWireNameTheClientCanNeverSend() throws Exception {
+        List<String> errors = ConsumedHeaderValidator.findErrors(spec("", "", """
+                              inputParameters:
+                                target:
+                                  in: header
+                                  wireName: Host
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("up.list") && errors.get(0).contains("Host"),
+                errors.get(0));
     }
 
     @Test
