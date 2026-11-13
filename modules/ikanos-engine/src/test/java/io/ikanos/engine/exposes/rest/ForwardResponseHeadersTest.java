@@ -589,6 +589,7 @@ public class ForwardResponseHeadersTest {
         StringRepresentation entity = new StringRepresentation("");
         entity.setExpirationDate(new Date(date.getTime() + expiresInSeconds * 1000));
         from.setEntity(entity);
+        from.getCacheDirectives().add(CacheDirective.mustRevalidate());
         return from;
     }
 
@@ -596,14 +597,25 @@ public class ForwardResponseHeadersTest {
     public void relayShouldSendTheExpiresOfANotModifiedAsMaxAge() {
         Response relayed = relayed(notModified(60));
 
-        assertEquals(1, relayed.getCacheDirectives().size());
-        assertEquals("max-age", relayed.getCacheDirectives().get(0).getName());
-        assertEquals("60", relayed.getCacheDirectives().get(0).getValue());
+        assertEquals(2, relayed.getCacheDirectives().size());
+        assertEquals("must-revalidate", relayed.getCacheDirectives().get(0).getName());
+        assertEquals("max-age", relayed.getCacheDirectives().get(1).getName());
+        assertEquals("60", relayed.getCacheDirectives().get(1).getValue());
     }
 
     @Test
     public void relayShouldSendAnExpiredNotModifiedAsMaxAgeZero() {
-        assertEquals("0", relayed(notModified(-30)).getCacheDirectives().get(0).getValue());
+        assertEquals("0", relayed(notModified(-30)).getCacheDirectives().get(1).getValue());
+    }
+
+    @Test
+    public void relayShouldNotAddCacheControlToANotModifiedThatHasNone() {
+        // A cache replaces its stored Cache-Control (no-cache, for example) with the one of the
+        // 304, so a synthesized max-age would let it reuse the response without revalidation
+        Response from = notModified(60);
+        from.getCacheDirectives().clear();
+
+        assertTrue(relayed(from).getCacheDirectives().isEmpty());
     }
 
     @Test
@@ -613,8 +625,8 @@ public class ForwardResponseHeadersTest {
 
         Response relayed = relayed(from);
 
-        assertEquals(1, relayed.getCacheDirectives().size());
-        assertEquals("10", relayed.getCacheDirectives().get(0).getValue());
+        assertEquals(2, relayed.getCacheDirectives().size());
+        assertEquals("10", relayed.getCacheDirectives().get(1).getValue());
     }
 
     @Test
@@ -622,7 +634,7 @@ public class ForwardResponseHeadersTest {
         Response from = notModified(60);
         from.setStatus(Status.SUCCESS_OK);
 
-        assertTrue(relayed(from).getCacheDirectives().isEmpty());
+        assertEquals(1, relayed(from).getCacheDirectives().size());
     }
 
     // --- Vary ---
