@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
@@ -99,6 +100,13 @@ class McpCacheHintsIntegrationTest {
 
         assertThat(result.has("ttlMs")).isFalse();
         assertThat(result.has("cacheScope")).isFalse();
+    }
+
+    @Test
+    void negativeTtlShouldFailAdapterInitialization() {
+        assertThatThrownBy(() -> adapter("ttlMs: -1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ttlMs");
     }
 
     static McpServerAdapter adapter(String cacheLines) throws Exception {
