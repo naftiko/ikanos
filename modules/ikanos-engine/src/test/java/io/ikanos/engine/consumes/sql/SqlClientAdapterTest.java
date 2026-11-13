@@ -413,4 +413,28 @@ class SqlClientAdapterTest {
 
         assertNull(config.getDataSourceProperties().get("readOnlyMode"));
     }
+
+    @Test
+    void poolConfigShouldResolveDriverPropertiesFromBindings() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setProperties(Map.of("password", "{{DB_PASSWORD}}"));
+        io.ikanos.Capability capability = org.mockito.Mockito.mock(io.ikanos.Capability.class);
+        org.mockito.Mockito.when(capability.getBindings())
+                .thenReturn(Map.of("DB_PASSWORD", "s3cret"));
+
+        HikariConfig config = new SqlClientAdapter(capability, spec).poolConfig();
+
+        assertEquals("s3cret", config.getDataSourceProperties().get("password"));
+    }
+
+    @Test
+    void constructorShouldRefuseAnUnboundDriverProperty() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setProperties(Map.of("password", "{{DB_PASSWORD}}"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec));
+
+        assertTrue(e.getMessage().contains("connection.properties.password"), e.getMessage());
+    }
 }
