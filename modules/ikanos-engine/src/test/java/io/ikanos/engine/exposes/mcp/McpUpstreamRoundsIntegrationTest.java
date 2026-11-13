@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -57,6 +58,8 @@ public class McpUpstreamRoundsIntegrationTest {
     private final List<JsonNode> states = new CopyOnWriteArrayList<>();
     /** The key the upstream asks under. */
     private volatile String upstreamKey = "confirm";
+    /** When set, the upstream answers every call with it. */
+    private volatile String fixedReply;
 
     private Component upstream;
     private int upstreamPort;
@@ -92,6 +95,9 @@ public class McpUpstreamRoundsIntegrationTest {
     private JsonNode answer(JsonNode params) throws Exception {
         received.add(params.path("inputResponses"));
         states.add(params.path("requestState"));
+        if (fixedReply != null) {
+            return json.readTree(fixedReply);
+        }
         String state = params.path("requestState").asString("");
         if (state.equals("r2")) {
             return json.readTree("{\"resultType\":\"complete\",\"content\":[{\"type\":\"text\","
@@ -218,6 +224,20 @@ public class McpUpstreamRoundsIntegrationTest {
         params.put("taskId", taskId);
         params.putObject("inputResponses").set(key, json.readTree(answer));
         send(adapter, "tasks/update", params);
+    }
+
+    @Test
+    void anUnsupportedResultTypeShouldNotBecomeStepOutputInADurableMode() throws Exception {
+        fixedReply = "{\"resultType\":\"something-else\",\"structuredContent\":"
+                + "{\"cleared\":true}}";
+        McpServerAdapter adapter = start();
+
+        JsonNode result = call(adapter, null, null);
+
+        assertTrue(result.isMissingNode() || result.path("isError").asBoolean(false),
+                "The call fails: " + result);
+        assertFalse(result.toString().contains("\"cleared\":true"),
+                "The upstream's content is no step output: " + result);
     }
 
     @Test
