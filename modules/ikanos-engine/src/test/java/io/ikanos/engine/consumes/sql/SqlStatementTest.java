@@ -128,4 +128,32 @@ class SqlStatementTest {
                 .parse("select comment, replace(name, 'a', 'b'), 'delete' from t")
                 .nonReadKeyword());
     }
+
+    @Test
+    void parseShouldReadMysqlBackslashEscapesSoASecondStatementCannotHide() {
+        String sql = "select 'a\\'' from t; delete from t; -- '";
+
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(sql, true));
+    }
+
+    @Test
+    void parseShouldReadAMysqlHashCommentSoASecondStatementCannotHide() {
+        String sql = "select 1 # '\n; delete from t; -- '";
+
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(sql, true));
+    }
+
+    @Test
+    void parseShouldReadMysqlDoubleDashWithoutSpaceAsArithmetic() {
+        String sql = "select 1--1 from t; delete from t";
+
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(sql, true));
+    }
+
+    @Test
+    void parseShouldKeepStandardRulesOutsideMysql() {
+        assertEquals(List.of("id"),
+                SqlStatement.parse("select '#', $$:x$$ from t where id = :id", false)
+                        .placeholders());
+    }
 }

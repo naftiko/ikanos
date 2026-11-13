@@ -73,8 +73,13 @@ final class SqlRowDocument {
         ResultSetMetaData meta = resultSet.getMetaData();
         int columns = meta.getColumnCount();
         String[] labels = new String[columns];
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (int c = 1; c <= columns; c++) {
             labels[c - 1] = meta.getColumnLabel(c);
+            if (!seen.add(labels[c - 1])) {
+                throw new SqlClientException("column '" + labels[c - 1]
+                        + "' appears twice in the result; give each column its own alias");
+            }
         }
         while (resultSet.next()) {
             ObjectNode row = rows.addObject();

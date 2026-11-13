@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -48,12 +49,14 @@ import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
  *   <li><b>Build</b> — {@code connection.url}, {@code username} and {@code password} are
  *       resolved from the capability bindings once, never from call parameters, so a caller
  *       cannot choose the database. Driver properties that load classes or read local files are
- *       refused. Each statement is parsed once: its {@code :name} placeholders must match declared
- *       inputs, and it must read.</li>
- *   <li><b>Start</b> — a HikariCP pool is created without opening a connection, so a database
- *       that is down at start-up only fails the calls that need it.</li>
- *   <li><b>Call</b> — a pooled connection is set read-only where the driver allows it, the
- *       statement is prepared and bound, and its rows become the document of
+ *       refused. Each statement is parsed once, in the MySQL dialect for MySQL and MariaDB URLs:
+ *       its {@code :name} placeholders must match declared inputs, every {@code sqlType} must be a
+ *       JDBC type, and it must read.</li>
+ *   <li><b>Start</b> — a HikariCP pool is created. It opens its connections in the background
+ *       and {@code start()} does not wait for them, so a database that is down at start-up only
+ *       fails the calls that need it.</li>
+ *   <li><b>Call</b> — a pooled connection is set read-only, the statement is prepared and bound,
+ *       and its rows become the document of
  *       {@link SqlRowDocument}. Failures become a status mapped from the SQLState
  *       ({@link SqlConsumedResult#failure}); the driver detail goes to the log only.</li>
  * </ul>
@@ -99,10 +102,11 @@ public class SqlClientAdapter extends ClientAdapter {
         this.password = resolveFromBindings(namespace, "connection.password",
                 connection.getPassword(), bindings);
         this.jdbcUrl = JdbcUrl.check(namespace, url, connection.getProperties());
-        this.procedures = Collections.unmodifiableMap(buildProcedures(spec));
+        this.procedures = Collections.unmodifiableMap(buildProcedures(spec,
+                jdbcUrl.mysqlDialect()));
     }
 
-    private static Map<String, Procedure> buildProcedures(SqlClientSpec spec) {
+    static Map<String, Procedure> buildProcedures(SqlClientSpec spec, boolean mysql) {
         Map<String, Procedure> built = new LinkedHashMap<>();
         for (SqlProcedureSpec procedure : spec.getProcedures().values()) {
             String where = "consumes type sql '" + spec.getNamespace() + "' procedure '"
@@ -112,7 +116,7 @@ public class SqlClientAdapter extends ClientAdapter {
             }
             SqlStatement statement;
             try {
-                statement = SqlStatement.parse(procedure.getStatement());
+                statement = SqlStatement.parse(procedure.getStatement(), mysql);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
             }
@@ -121,6 +125,8 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where + " must read (SELECT, WITH or VALUES);"
                         + " it uses " + nonRead);
             }
+            procedure.getInputParameters()
+                    .forEach(input -> SqlBind.targetType(input, where));
             for (String placeholder : statement.placeholders()) {
                 if (inputFor(procedure, placeholder) == null) {
                     throw new IllegalArgumentException(where + " uses placeholder ':"
@@ -222,8 +228,10 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Ask for a read-only connection. Drivers that cannot change the flag on an open connection
-     * (SQLite) refuse; the statement check at build time remains the guard there.
+     * Ask for a read-only connection. How much that guards depends on the driver: PostgreSQL
+     * (with the {@code readOnlyMode=always} that {@link #poolConfig()} sets) and MySQL make the
+     * session read-only on the server; SQL Server, Oracle and SQLite treat it as a hint or refuse
+     * it. The statement check at build time and a read-only database user are the guard there.
      */
     private void readOnly(Connection connection) {
         try {
@@ -270,8 +278,13 @@ public class SqlClientAdapter extends ClientAdapter {
             config.setDriverClassName(connection.getDriverClassName());
         }
         connection.getProperties().forEach(config::addDataSourceProperty);
+        if ("postgresql".equals(jdbcUrl.system()) && !setsProperty(connection, "readOnlyMode")) {
+            // pgjdbc ignores setReadOnly(true) in autocommit unless readOnlyMode is always
+            config.addDataSourceProperty("readOnlyMode", "always");
+        }
         config.setAutoCommit(true);
-        // Do not connect at start: a database that is down only fails the calls that need it
+        // Do not wait for a connection at start: a database that is down only fails the calls
+        // that need it. The pool still opens its connections in the background.
         config.setInitializationFailTimeout(-1);
         SqlPoolSpec bounds = spec.getPool();
         if (bounds != null) {
@@ -289,6 +302,15 @@ public class SqlClientAdapter extends ClientAdapter {
             }
         }
         return config;
+    }
+
+    /** @return whether the URL or {@code connection.properties} sets {@code property} */
+    boolean setsProperty(SqlConnectionSpec connection, String property) {
+        Pattern inUrl = Pattern.compile("[?&;(,]\\s*" + Pattern.quote(property) + "\\s*=",
+                Pattern.CASE_INSENSITIVE);
+        return connection.getProperties().keySet().stream()
+                .anyMatch(key -> key.trim().equalsIgnoreCase(property))
+                || inUrl.matcher(JdbcUrl.percentDecoded(url)).find();
     }
 
     @Override
