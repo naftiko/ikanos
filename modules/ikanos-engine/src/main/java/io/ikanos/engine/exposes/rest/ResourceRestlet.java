@@ -26,6 +26,7 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
+import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
@@ -589,11 +590,9 @@ public class ResourceRestlet extends Restlet {
                         // Prepare the HTTP client request
                         String path = (String) request.getAttributes().get("path");
                         String normalizedPath = (path == null || path.isEmpty()) ? "" : "/" + path;
-                        String query = filterForwardedQuery(request.getResourceRef().getQuery(),
-                                forwardExcludedQueryNames(httpAdapter));
-                        String targetRef = forwardTargetRef(httpAdapter.getBaseUri(),
-                                normalizedPath, query);
-                        Request clientRequest = new Request(request.getMethod(), targetRef);
+                        String baseRef = forwardTargetRef(httpAdapter.getBaseUri(),
+                                normalizedPath, null);
+                        Request clientRequest = new Request(request.getMethod(), baseRef);
                         clientRequest.setEntity(request.getEntity());
 
                         // Copy trusted headers from the original request to the client request
@@ -607,6 +606,15 @@ public class ResourceRestlet extends Restlet {
                         // (e.g. bearer token from environment) can be resolved correctly
                         Resolver.resolveInputParametersToRequest(clientRequest,
                                 httpAdapter.getHttpClientSpec().getInputParameters(), parameters);
+
+                        // The caller's query, filtered with the same inputs and bindings that
+                        // authentication renders the consumed API key name with, goes before
+                        // the adapter's own query parameters
+                        String query = filterForwardedQuery(request.getResourceRef().getQuery(),
+                                forwardExcludedQueryNames(httpAdapter, parameters));
+                        clientRequest.setResourceRef(withCallerQuery(httpAdapter.getBaseUri(),
+                                normalizedPath, baseRef,
+                                clientRequest.getResourceRef().toString(), query));
 
                         // Set any authentication needed on the client request
                         Response clientResponse = new Response(clientRequest);
@@ -682,19 +690,43 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
+     * The forwarded target once the adapter's query input parameters are appended to
+     * {@code baseRef}: the caller's filtered query goes between the base URI's query and those
+     * parameters, as {@link #forwardTargetRef} places it.
+     *
+     * @param resolvedRef {@code baseRef} with the adapter's query parameters appended
+     */
+    static String withCallerQuery(String baseUri, String normalizedPath, String baseRef,
+            String resolvedRef, String callerQuery) {
+        if (callerQuery == null || callerQuery.isEmpty()) {
+            return resolvedRef;
+        }
+        String adapterQuery = resolvedRef.startsWith(baseRef)
+                && resolvedRef.length() > baseRef.length()
+                ? resolvedRef.substring(baseRef.length() + 1) : "";
+        return forwardTargetRef(baseUri, normalizedPath,
+                adapterQuery.isEmpty() ? callerQuery : callerQuery + '&' + adapterQuery);
+    }
+
+    /**
      * Names of the query parameters a forwarded request must not take from the caller: the
      * exposed adapter's API key when its placement is {@code query}, which must not reach the
      * upstream, and the parameters the consumed adapter sets itself, the names in the query of its
      * {@code baseUri} (percent-decoded), its {@code in: query} input parameters (by wire name) and
      * its API key when its placement is {@code query}, which the caller must not repeat or
-     * override. API key names are rendered with the capability bindings.
+     * override. The exposed API key name is rendered with the capability bindings; the consumed
+     * one with the resolved adapter inputs and the bindings, as authentication renders it.
+     *
+     * @param parameters the adapter's resolved input parameters
      */
-    Set<String> forwardExcludedQueryNames(HttpClientAdapter httpAdapter) {
+    Set<String> forwardExcludedQueryNames(HttpClientAdapter httpAdapter,
+            Map<String, Object> parameters) {
         Map<String, Object> bindings = getCapability().getBindings() != null
                 ? getCapability().getBindings() : Map.of();
         Set<String> names = new HashSet<>(baseUriQueryNames(httpAdapter.getBaseUri()));
         addQueryApiKeyName(getServerSpec().getAuthentication(), bindings, names);
-        addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(), bindings, names);
+        addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(),
+                ConsumedAuthentication.withBindings(parameters, bindings), names);
 
         List<InputParameterSpec> inputParameters =
                 httpAdapter.getHttpClientSpec().getInputParameters();
