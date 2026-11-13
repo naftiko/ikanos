@@ -80,7 +80,7 @@ class DefinitionsExpanderTest {
                   description: "List orders."
                   inputParameterSets: [odata-list]
                   inputParameters:
-                    filter: { type: string, description: "Mandatory filter." }
+                    filter: { type: string, description: "Mandatory filter.", required: true }
                   call: erp.list-orders
                 """);
 
