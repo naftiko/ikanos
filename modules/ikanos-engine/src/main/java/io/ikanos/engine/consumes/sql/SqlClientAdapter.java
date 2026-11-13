@@ -15,10 +15,12 @@ package io.ikanos.engine.consumes.sql;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,9 +30,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import javax.sql.DataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import tools.jackson.databind.JsonNode;
@@ -60,9 +64,11 @@ import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
  *       refused. Each statement is parsed once, in the MySQL dialect for MySQL and MariaDB URLs:
  *       each {@code {{name}}} placeholder must name a declared input, every {@code sqlType} must be a
  *       JDBC type, and it must read.</li>
- *   <li><b>Start</b> — a HikariCP pool is created. It opens its connections in the background
- *       and {@code start()} does not wait for them, so a database that is down at start-up only
- *       fails the calls that need it.</li>
+ *   <li><b>Start</b> — a HikariCP pool is created. With {@code discovery: verify} (the
+ *       default), the connection and every procedure are checked at once, so a typo stops the
+ *       capability; with {@code discovery: off}, {@code start()} does not wait for a connection
+ *       (the pool still opens its connections in the background), and a database that is down at
+ *       start-up only fails the calls that need it.</li>
  *   <li><b>Call</b> — a pooled connection is set read-only, the statement is prepared and bound,
  *       and its rows become the document of
  *       {@link SqlRowDocument}. Failures become a status mapped from the SQLState
@@ -115,6 +121,10 @@ public class SqlClientAdapter extends ClientAdapter {
 
     /** A generated-key column name, as {@code prepareStatement(sql, String[])} takes it. */
     private static final Pattern KEY_COLUMN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_$#]*$");
+
+    /** The cases a catalog may store an unquoted name in: as written, upper, lower. */
+    private static final List<UnaryOperator<String>> NAME_CASES = List.of(UnaryOperator.identity(),
+            name -> name.toUpperCase(Locale.ROOT), name -> name.toLowerCase(Locale.ROOT));
 
     /** A stored procedure name, optionally qualified by schema and catalog. */
     private static final Pattern STORED_PROCEDURE_NAME =
@@ -788,8 +798,9 @@ public class SqlClientAdapter extends ClientAdapter {
             return;
         }
         HikariConfig config = poolConfig();
+        HikariDataSource created;
         try {
-            pool = new HikariDataSource(config);
+            created = new HikariDataSource(config);
         } catch (RuntimeException e) {
             // Hikari's message quotes the JDBC URL with only password= masked, so a
             // user:password@ or user/password@ URL would reach the startup output in clear.
@@ -798,6 +809,101 @@ public class SqlClientAdapter extends ClientAdapter {
                     + "' (system " + jdbcUrl.system() + ") cannot create its connection pool: "
                     + poolFailure(e));
         }
+        if (getSqlClientSpec().isDiscoveryVerify()) {
+            try {
+                verify(created);
+            } catch (RuntimeException e) {
+                created.close();
+                throw e;
+            }
+        }
+        pool = created;
+    }
+
+    /**
+     * {@code discovery: verify}: open a connection, prepare every statement and read its
+     * metadata, which makes PostgreSQL, SQL Server and Oracle check the SQL on the server without
+     * running it, and look up every stored procedure in the catalog. Drivers that check SQL lazily
+     * (MySQL with client-side prepares) catch less: the check is best effort. Package-private for
+     * tests.
+     *
+     * @throws IllegalStateException naming each failing procedure and its SQLState, never the SQL
+     */
+    void verify(DataSource dataSource) {
+        List<String> problems = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection()) {
+            if (!connection.isValid(5)) {
+                throw new IllegalStateException("consumes type sql '" + getNamespace()
+                        + "' failed discovery: the connection is not valid");
+            }
+            DatabaseMetaData catalog = connection.getMetaData();
+            for (Procedure procedure : procedures.values()) {
+                String problem = procedure.isStored() ? checkStored(catalog, procedure)
+                        : checkStatement(connection, procedure);
+                if (problem != null) {
+                    problems.add("procedure '" + procedure.name() + "' " + problem);
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("consumes type sql '" + getNamespace() + "' ("
+                    + jdbcUrl.spanTarget() + ") failed discovery: cannot connect (SQLState "
+                    + e.getSQLState() + ")", e);
+        }
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException("consumes type sql '" + getNamespace() + "' ("
+                    + jdbcUrl.spanTarget() + ") failed discovery: " + String.join("; ", problems));
+        }
+        LOGGER.info("consumes type sql '" + getNamespace() + "' checked " + procedures.size()
+                + " procedures at start (best effort: some drivers check SQL only when it runs)");
+    }
+
+    private String checkStatement(Connection connection, Procedure procedure) {
+        try (PreparedStatement statement = prepare(connection, procedure)) {
+            try {
+                statement.getMetaData();
+                statement.getParameterMetaData();
+            } catch (SQLFeatureNotSupportedException lazy) {
+                // the driver checks the SQL when it runs
+            }
+            return null;
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING, "SQL procedure " + getNamespace() + "." + procedure.name()
+                    + " failed discovery with SQLState " + e.getSQLState(), e);
+            return "does not prepare (SQLState " + e.getSQLState() + ")";
+        }
+    }
+
+    /**
+     * Look up a stored procedure, or a function, by its last name part, in the schema and catalog
+     * the qualified name gives. Unquoted names are stored upper case by some databases (Oracle,
+     * HSQLDB) and lower case by others (PostgreSQL), so each case is tried.
+     */
+    static String checkStored(DatabaseMetaData catalog, Procedure procedure) {
+        String[] parts = procedure.spec().getStoredProcedure().trim().split("\\.");
+        String name = parts[parts.length - 1];
+        String schema = parts.length >= 2 ? parts[parts.length - 2] : null;
+        String database = parts.length == 3 ? parts[0] : null;
+        try {
+            for (UnaryOperator<String> caseOf : NAME_CASES) {
+                String inSchema = schema != null ? caseOf.apply(schema) : null;
+                String inDatabase = database != null ? caseOf.apply(database) : null;
+                try (ResultSet found = catalog.getProcedures(inDatabase, inSchema,
+                        caseOf.apply(name))) {
+                    if (found.next()) {
+                        return null;
+                    }
+                }
+                try (ResultSet found = catalog.getFunctions(inDatabase, inSchema,
+                        caseOf.apply(name))) {
+                    if (found.next()) {
+                        return null;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            return "could not be looked up (SQLState " + e.getSQLState() + ")";
+        }
+        return "names a stored procedure that the database does not list";
     }
 
     /** Why the pool could not be created, without the URL that Hikari's message carries. */
