@@ -1676,11 +1676,11 @@ Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: m
 - **`inputParameterSets: [names]`** on an MCP tool, a REST resource or operation, or an aggregate flow. The sets apply in order, then the unit's own `inputParameters`. An own entry replaces the set's entry of the same name whole, at the set entry's position: there is no partial override.
 - **`schema: name`** on a tool or flow input, in its `items` and `properties`, inside another schema, and in orchestrated (steps-mode) outputs, including `items: { schema: name }`.
 - On a **REST adapter**, a resource's sets become its own `inputParameters`, which its operations inherit as before. REST inputs are flat (`in`, `type`, `pattern`), so `schema: name` is not allowed on them: a REST adapter uses its schemas in the orchestrated outputs of its operations.
-- On a **`ref`** tool or operation, sets behave like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises.
+- On a **`ref`** MCP tool, sets behave like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises. A `ref` REST operation does not inherit its flow's inputs ([#1039](https://github.com/naftiko/ikanos/issues/1039)): it receives only its own and its resource's, inline or through sets.
 
 #### 3.22.3 Rules
 
-- Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool or an operation cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
+- Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool or an operation cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`; until [#1039](https://github.com/naftiko/ikanos/issues/1039), the REST operation still declares the flow's inputs itself).
 - Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
 - A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
 - Two sets of one tool, resource, operation or flow must not declare the same input.

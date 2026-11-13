@@ -1980,7 +1980,7 @@
     },
     "InputParameterSetNames": {
       "type": "array",
-      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool), REST adapter (for a resource or an operation) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` tool or operation, the sets act like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises.",
+      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool), REST adapter (for a resource or an operation) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` MCP tool, the sets act like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises. A `ref` REST operation does not inherit its flow's inputs (#1039): it receives only its own and its resource's, inline or through sets.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
