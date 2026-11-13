@@ -157,7 +157,7 @@ final class JdbcUrl {
         String database = null;
         Matcher hostForm = HOST_FORM.matcher(afterSystem);
         if (hostForm.find()) {
-            host = hostForm.group(1);
+            host = hostOf(hostForm.group(1));
             database = emptyToNull(hostForm.group(2));
         } else if (afterSystem.startsWith("@")) {
             String[] parts = afterSystem.substring(1).split("[:/]");
@@ -179,6 +179,21 @@ final class JdbcUrl {
             }
         }
         return new JdbcUrl(system, host, database);
+    }
+
+    /**
+     * @return the host name of an authority: MySQL's {@code (host=db,user=…,password=…)} and
+     *     {@code address=(host=db)(password=…)} forms give only their {@code host} value, and an
+     *     authority of another shape with {@code =} or {@code (} gives none, as it may carry
+     *     credentials
+     */
+    private static String hostOf(String authority) {
+        if (authority.indexOf('=') < 0 && authority.indexOf('(') < 0) {
+            return authority;
+        }
+        Matcher host = Pattern.compile("(?i)(?:^|[(,])\\s*host\\s*=\\s*([^,()\\s]+)")
+                .matcher(authority);
+        return host.find() ? host.group(1) : null;
     }
 
     private static String emptyToNull(String value) {

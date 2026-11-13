@@ -12,7 +12,9 @@
  * quoted identifiers, dollar-quoted strings, comments and `::` casts are
  * skipped. As in the engine, the `connection.url` sets the dialect when it is
  * a literal JDBC URL: block comments nest on PostgreSQL and SQL Server, and
- * `[...]` is a quoted identifier on SQL Server and SQLite.
+ * `[...]` is a quoted identifier on SQL Server and SQLite. On MySQL and
+ * MariaDB, `#` starts a comment, `--` does only before whitespace, a backslash
+ * escapes in quoted text, and there is no dollar quoting.
  */
 export default function sqlProcedures(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
@@ -52,6 +54,7 @@ function dialectOf(adapter) {
   return {
     nestedComments: name === "postgresql" || name === "sqlserver" || name === "jtds",
     brackets: name === "sqlserver" || name === "jtds" || name === "sqlite",
+    mysql: name === "mysql" || name === "mariadb",
   };
 }
 
@@ -92,7 +95,7 @@ function placeholders(sql, dialect = {}) {
   const n = sql.length;
   while (i < n) {
     const c = sql[i];
-    if (c === "-" && sql[i + 1] === "-") {
+    if (startsLineComment(sql, i, dialect.mysql)) {
       const end = sql.indexOf("\n", i);
       i = end < 0 ? n : end;
     } else if (c === "/" && sql[i + 1] === "*") {
@@ -100,9 +103,11 @@ function placeholders(sql, dialect = {}) {
     } else if (c === "[" && dialect.brackets) {
       i = endOfQuoted(sql, i, "]", false);
     } else if (c === "'" || c === '"' || c === "`") {
-      const backslash = c === "'" && i > 0 && /[Ee]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] || "");
+      const backslash = dialect.mysql
+        ? c !== "`"
+        : c === "'" && i > 0 && /[Ee]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] || "");
       i = endOfQuoted(sql, i, c, backslash);
-    } else if (c === "$" && !/\w/.test(sql[i - 1] || "") && !/\d/.test(sql[i + 1] || "")) {
+    } else if (!dialect.mysql && c === "$" && !/\w/.test(sql[i - 1] || "") && !/\d/.test(sql[i + 1] || "")) {
       const tag = /^\$\w*\$/.exec(sql.slice(i));
       if (tag) {
         const end = sql.indexOf(tag[0], i + tag[0].length);
@@ -121,6 +126,17 @@ function placeholders(sql, dialect = {}) {
     }
   }
   return found;
+}
+
+/** `--`, and on MySQL `#`; MySQL needs whitespace after `--`, as the engine reads it. */
+function startsLineComment(sql, i, mysql) {
+  if (mysql && sql[i] === "#") {
+    return true;
+  }
+  if (sql[i] !== "-" || sql[i + 1] !== "-") {
+    return false;
+  }
+  return !mysql || i + 2 >= sql.length || /\s/.test(sql[i + 2]);
 }
 
 /** The index just past the comment at `start`; nested comments count when the dialect nests them. */

@@ -82,6 +82,7 @@ public class SqlClientAdapter extends ClientAdapter {
     private final String url;
     private final String username;
     private final String password;
+    private final Map<String, String> properties;
     private final Map<String, Procedure> procedures;
     private volatile HikariDataSource pool;
 
@@ -101,7 +102,11 @@ public class SqlClientAdapter extends ClientAdapter {
                 connection.getUsername(), bindings);
         this.password = resolveFromBindings(namespace, "connection.password",
                 connection.getPassword(), bindings);
-        this.jdbcUrl = JdbcUrl.check(namespace, url, connection.getProperties());
+        Map<String, String> resolved = new LinkedHashMap<>();
+        connection.getProperties().forEach((key, value) -> resolved.put(key, resolveFromBindings(
+                namespace, "connection.properties." + key, value, bindings)));
+        this.properties = Collections.unmodifiableMap(resolved);
+        this.jdbcUrl = JdbcUrl.check(namespace, url, properties);
         this.procedures = Collections.unmodifiableMap(buildProcedures(spec,
                 jdbcUrl.dialect()));
     }
@@ -278,7 +283,7 @@ public class SqlClientAdapter extends ClientAdapter {
         if (connection.getDriverClassName() != null) {
             config.setDriverClassName(connection.getDriverClassName());
         }
-        connection.getProperties().forEach(config::addDataSourceProperty);
+        properties.forEach(config::addDataSourceProperty);
         if ("postgresql".equals(jdbcUrl.system()) && !setsProperty(connection, "readOnlyMode")) {
             // pgjdbc ignores setReadOnly(true) in autocommit unless readOnlyMode is always
             config.addDataSourceProperty("readOnlyMode", "always");

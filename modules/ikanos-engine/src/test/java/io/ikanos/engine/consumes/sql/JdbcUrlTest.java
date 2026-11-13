@@ -141,4 +141,19 @@ class JdbcUrlTest {
         assertTrue(JdbcUrl.parse("jdbc:mariadb://db/erp").mysqlDialect());
         assertFalse(JdbcUrl.parse("jdbc:postgresql://db/erp").mysqlDialect());
     }
+
+    @Test
+    void spanTargetShouldReadOnlyTheHostOfAMysqlKeyValueAuthority() {
+        JdbcUrl url = JdbcUrl.parse(
+                "jdbc:mysql://(host=db,port=3306,user=reader,password=s3cret)/erp");
+
+        assertEquals("mysql://db/erp", url.spanTarget());
+    }
+
+    @Test
+    void spanTargetShouldReadOnlyTheHostOfAMysqlAddressAuthority() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:mysql://address=(host=db)(password=s3cret)/erp");
+
+        assertEquals("mysql://db/erp", url.spanTarget());
+    }
 }

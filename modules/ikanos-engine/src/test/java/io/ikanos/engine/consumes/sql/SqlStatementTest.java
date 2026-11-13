@@ -206,4 +206,18 @@ class SqlStatementTest {
 
         assertEquals(List.of("i"), statement.placeholders());
     }
+
+    @Test
+    void parseShouldRefuseMysqlExecutableComments() {
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "SELECT 1 /*!50000 INTO OUTFILE 'export.txt' */", SqlStatement.Dialect.MYSQL));
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select 1 /*M! , sleep(10) */", SqlStatement.Dialect.MYSQL));
+    }
+
+    @Test
+    void parseShouldKeepOrdinaryCommentsAndHintsOnMysql() {
+        assertNull(SqlStatement.parse("select /*+ MAX_EXECUTION_TIME(1000) */ id /* note */"
+                + " from t", SqlStatement.Dialect.MYSQL).nonReadKeyword());
+    }
 }

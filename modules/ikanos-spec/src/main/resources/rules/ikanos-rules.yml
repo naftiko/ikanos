@@ -486,7 +486,7 @@ rules:
     then:
       function: pattern
       functionOptions:
-        match: "/^(\\s|\\(|--[^\\n]*\\n|\\/\\*[\\s\\S]*?\\*\\/)*(select|with|values)\\b/i"
+        match: "/^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|\\/\\*[\\s\\S]*?\\*\\/)*(select|with|values)\\b/i"
 
   ikanos-sql-placeholders-bound:
     message: "{{error}}"
