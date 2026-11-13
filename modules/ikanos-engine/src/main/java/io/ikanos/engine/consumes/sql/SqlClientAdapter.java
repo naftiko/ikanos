@@ -759,8 +759,9 @@ public class SqlClientAdapter extends ClientAdapter {
      * metadata is not read: some servers (SQL Server) cannot infer a parameter type for valid SQL
      * such as {@code :x IS NULL OR col = :x}, and the parse does not need it.
      *
-     * <p>Inputs with a known type are bound as typed {@code NULL}s first, as a call binds them:
-     * PostgreSQL cannot type {@code :id IS NULL} otherwise. On MySQL and MariaDB the result
+     * <p>Inputs with a known type are bound as typed {@code NULL}s first, as a call binds them
+     * (a {@code string} input without {@code sqlType} as VARCHAR): PostgreSQL cannot type
+     * {@code :id IS NULL} otherwise. On MySQL and MariaDB the result
      * metadata is not read: Connector/J's client-side prepares obtain it by running the query.
      * Preparing is the whole check there, and with server-side prepares it parses the SQL.</p>
      */
@@ -776,6 +777,7 @@ public class SqlClientAdapter extends ClientAdapter {
                 SqlBind typedNull = SqlBind.of(procedure.inputs().get(i), null, where, position,
                         procedure.inoutType(position));
                 if (typedNull.jdbcType() != null) {
+                    // a string input without sqlType too: SqlBind types its NULL as VARCHAR
                     typedNull.bind(statement);
                 }
             }

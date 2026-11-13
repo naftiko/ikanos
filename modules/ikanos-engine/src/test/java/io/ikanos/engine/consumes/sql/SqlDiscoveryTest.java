@@ -287,13 +287,14 @@ class SqlDiscoveryTest {
     private static final String BY_ID = """
             by-id:
               description: One customer, or all of them.
-              statement: select id from customers where :id is null or id = :id
+              statement: select id from customers where :id is null or name = :name
               inputParameters:
                 id: { type: integer }
+                name: { type: string }
             """;
 
     @Test
-    void checkStatementShouldBindTypedNullsBeforeReadingTheResultMetadata() throws Exception {
+    void checkStatementShouldBindTypedAndStringNullsBeforeReadingTheResultMetadata() throws Exception {
         adapter = new SqlClientAdapter(null, spec(url, "verify", BY_ID));
         Connection connection = org.mockito.Mockito.mock(Connection.class);
         PreparedStatement statement = org.mockito.Mockito.mock(PreparedStatement.class);
@@ -305,7 +306,7 @@ class SqlDiscoveryTest {
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(statement);
         order.verify(statement).setNull(1, java.sql.Types.BIGINT);
-        order.verify(statement).setNull(2, java.sql.Types.BIGINT);
+        order.verify(statement).setNull(2, java.sql.Types.VARCHAR);
         order.verify(statement).getMetaData();
     }
 
