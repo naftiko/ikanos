@@ -17,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -246,6 +249,32 @@ public class StdioIntegrationTest {
         assertEquals("2025-11-25", error.path("data").path("requested").asString());
         assertTrue(error.path("message").asString().contains(ProtocolDispatcher.MCP_PROTOCOL_VERSION),
                 "#732: the message must name the supported version");
+    }
+
+    @Test
+    public void stdioShouldWriteUtf8EvenToAPrintStreamWithAnotherCharset() throws Exception {
+        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().get(0);
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+
+        // The error echoes the requested version, so the response carries non-ASCII text.
+        String requested = "2025-ö-ß-€";
+        String input = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{"
+                + "\"protocolVersion\":\"" + requested + "\",\"capabilities\":{},"
+                + "\"clientInfo\":{\"name\":\"legacy-client\",\"version\":\"1.0.0\"}}}\n";
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        // Like System.out on a console whose code page is not UTF-8 (#1034).
+        PrintStream platformOut = new PrintStream(bytes, true, StandardCharsets.ISO_8859_1);
+
+        new StdioJsonRpcHandler(dispatcher,
+                new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), platformOut).run();
+
+        String output = assertDoesNotThrow(() -> StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes.toByteArray())).toString(),
+                "#1034: stdio output must be valid UTF-8");
+        JsonNode response = IkanosMappers.lenientJson().readTree(output.strip());
+        assertEquals(requested, response.path("error").path("data").path("requested").asString());
     }
 
     @Test
