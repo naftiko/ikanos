@@ -33,17 +33,15 @@ public class BindsImportStrategy implements ImportStrategy<BindingSpec> {
 
     @Override
     public List<BindingSpec> readSection(IkanosSpec source) {
-        // Standalone document: root-level binds
+        // Capability document: its sections live under capability only. A root section next
+        // to capability is not valid there (#955) and is never imported.
+        if (source.getCapability() != null) {
+            List<BindingSpec> section = source.getCapability().getBinds();
+            return section != null ? section : Collections.emptyList();
+        }
+        // Standalone file: the section is at the root
         if (source.getBinds() != null && !source.getBinds().isEmpty()) {
             return source.getBinds();
-        }
-        // Capability-wrapped form: capability.binds
-        // Note: binds is at the IkanosSpec root level, not under capability, but some
-        // documents may wrap it. Check capability.binds as fallback.
-        if (source.getCapability() != null
-                && source.getCapability().getBinds() != null
-                && !source.getCapability().getBinds().isEmpty()) {
-            return source.getCapability().getBinds();
         }
         return Collections.emptyList();
     }

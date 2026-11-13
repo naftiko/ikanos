@@ -52,6 +52,7 @@ def main():
     # example folder is covered automatically.
     search_paths = [
         "modules/ikanos-docs/tutorial",
+        ".github/e2e/resources/features",
     ]
     repo_root = Path(".")
     search_paths += [str(p) for p in repo_root.glob("modules/*/src/test/resources") if p.is_dir()]

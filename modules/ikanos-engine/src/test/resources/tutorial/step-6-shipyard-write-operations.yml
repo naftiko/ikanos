@@ -1,20 +1,19 @@
 ikanos: "1.0.0-beta10"
 
-binds:
-- namespace: "registry-env"
-  description: "Maritime Registry API credentials and config."
-  location: "file:///./shared/secrets.yaml"
-  keys:
-    REGISTRY_TOKEN: "registry-bearer-token"
-    REGISTRY_VERSION: "registry-api-version"
-    MCP_SERVER_TOKEN: "mcp-server-token"
-- namespace: "dockyard-env"
-  description: "Legacy Dockyard API credentials."
-  location: "file:///./shared/secrets.yaml"
-  keys:
-    DOCKYARD_API_KEY: "dockyard-api-key"
-
 capability:
+  binds:
+  - namespace: "registry-env"
+    description: "Maritime Registry API credentials and config."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      REGISTRY_TOKEN: "registry-bearer-token"
+      REGISTRY_VERSION: "registry-api-version"
+      MCP_SERVER_TOKEN: "mcp-server-token"
+  - namespace: "dockyard-env"
+    description: "Legacy Dockyard API credentials."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      DOCKYARD_API_KEY: "dockyard-api-key"
   consumes:
     - import: registry
       from: ./shared/step6-registry-consumes.yaml

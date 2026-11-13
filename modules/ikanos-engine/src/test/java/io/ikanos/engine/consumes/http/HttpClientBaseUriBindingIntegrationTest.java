@@ -48,7 +48,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Integration test: a consumed {@code baseUri} built from a binding reaches the bound host, a tool
  * argument with the same name cannot redirect the call, and an unbound placeholder fails the
- * capability at load time (#745).
+ * capability at load time (#745). The binding is declared under {@code capability.binds}, inline or
+ * imported from a shared binds file (#955).
  */
 class HttpClientBaseUriBindingIntegrationTest {
 
@@ -67,12 +68,41 @@ class HttpClientBaseUriBindingIntegrationTest {
         try {
             Path binds = tempDir.resolve("env.yaml");
             Files.writeString(binds, "LAGO_API_URL: \"http://localhost:" + port + "/api/v1\"\n");
-            Capability capability = load(capabilityYaml(binds.toUri().toString(),
-                    "\"{{LAGO_API_URL}}\""));
+            Capability capability = load(capabilityYaml(inlineBind(binds.toUri().toString()),
+                    "\"{{LAGO_API_URL}}\""), null);
 
             ObjectNode arguments = MAPPER.createObjectNode();
             arguments.put("LAGO_API_URL", "http://169.254.169.254/latest");
             JsonNode result = callTool(capability, "list-plans", arguments);
+
+            assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
+            assertEquals(1, hits.get(), "the bound upstream must receive the call");
+        } finally {
+            upstream.stop();
+        }
+    }
+
+    @Test
+    void toolCallShouldUseBaseUriFromBindingImportedIntoCapabilityBinds() throws Exception {
+        AtomicInteger hits = new AtomicInteger();
+        int port = findFreePort();
+        Component upstream = createUpstream(port, hits);
+        upstream.start();
+        try {
+            Path binds = tempDir.resolve("env.yaml");
+            Files.writeString(binds, "LAGO_API_URL: \"http://localhost:" + port + "/api/v1\"\n");
+            Files.writeString(tempDir.resolve("lago.binds.yml"), """
+                    ikanos: "%s"
+                    binds:
+                    %s""".formatted(schemaVersion, inlineBind(binds.toUri().toString())));
+            String importedBind = """
+                      - from: "./lago.binds.yml"
+                        import: "lago-env"
+                    """;
+            Capability capability = load(capabilityYaml(importedBind, "\"{{LAGO_API_URL}}\""),
+                    tempDir.toString());
+
+            JsonNode result = callTool(capability, "list-plans", MAPPER.createObjectNode());
 
             assertFalse(result.path("isError").asBoolean(), "tool call failed: " + result);
             assertEquals(1, hits.get(), "the bound upstream must receive the call");
@@ -87,20 +117,26 @@ class HttpClientBaseUriBindingIntegrationTest {
         Files.writeString(binds, "LAGO_API_URL: \"https://api.getlago.com/api/v1\"\n");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> load(capabilityYaml(binds.toUri().toString(),
-                        "\"https://{{LAGO_HOST}}/api/v1\"")));
+                () -> load(capabilityYaml(inlineBind(binds.toUri().toString()),
+                        "\"https://{{LAGO_HOST}}/api/v1\""), null));
         assertTrue(error.getMessage().contains("LAGO_HOST"), error.getMessage());
     }
 
-    private String capabilityYaml(String bindLocation, String baseUri) {
+    private static String inlineBind(String bindLocation) {
         return """
-                ikanos: "%s"
-                binds:
                   - namespace: "lago-env"
                     location: "%s"
                     keys:
                       LAGO_API_URL: "LAGO_API_URL"
+                """.formatted(bindLocation);
+    }
+
+    private String capabilityYaml(String bindsEntries, String baseUri) {
+        return """
+                ikanos: "%s"
                 capability:
+                  binds:
+                %s
                   consumes:
                     - namespace: lago
                       type: http
@@ -124,7 +160,7 @@ class HttpClientBaseUriBindingIntegrationTest {
                               description: "Unused; must not change the host"
                               required: false
                           call: lago.list-plans
-                """.formatted(schemaVersion, bindLocation, baseUri);
+                """.formatted(schemaVersion, bindsEntries.indent(2).stripTrailing(), baseUri);
     }
 
     private JsonNode callTool(Capability capability, String tool, ObjectNode arguments) {
@@ -163,9 +199,9 @@ class HttpClientBaseUriBindingIntegrationTest {
         return component;
     }
 
-    private static Capability load(String yaml) throws Exception {
+    private static Capability load(String yaml, String capabilityDir) throws Exception {
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
-        return new Capability(spec);
+        return new Capability(spec, capabilityDir);
     }
 
     private static int findFreePort() throws Exception {

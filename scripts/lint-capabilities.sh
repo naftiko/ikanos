@@ -26,8 +26,8 @@ cd "$(dirname "$0")/.." || exit 1
 SCHEMA="modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json"
 RULESET="modules/ikanos-spec/src/main/resources/rules/ikanos-rules.yml"
 
-# Capability files: tutorial, schema examples and test fixtures.
-INCLUDE='^modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|ikanos-spec/src/test/resources|ikanos-engine/src/test/resources)/.*\.ya?ml$'
+# Capability files: tutorial, schema examples, test fixtures and the e2e feature capabilities.
+INCLUDE='^(modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|ikanos-spec/src/test/resources|ikanos-engine/src/test/resources)|\.github/e2e/resources/features)/.*\.ya?ml$'
 # Not capabilities, or fixtures that must fail on purpose:
 # - secrets / sample data, OpenAPI documents, partial import sources
 # - capability-spurious-name.yml: invalid on purpose (schema test)
@@ -35,6 +35,10 @@ INCLUDE='^modules/(ikanos-docs/tutorial|ikanos-spec/src/main/resources/schemas|i
 # - ikanos-spec/src/test/resources/rules/: ruleset test fixtures, some must fail
 #   (checked by IkanosPolychroRulesetTest instead)
 EXCLUDE='(secrets|sample-users|/openapi/|/imports/|/capability-spurious-name\.yml$|/yaml-aliases/|^modules/ikanos-spec/src/test/resources/rules/)'
+# Rules let through for the e2e capabilities, which are still linted against the schema and
+# every other rule. They are reported as ALLOWED and never fail the lint:
+# - ikanos-oauth2-https-authserver: the e2e Keycloak serves plain HTTP in CI, on purpose.
+E2E_ALLOWED_RULES='["ikanos-oauth2-https-authserver"]'
 
 if ! TRACKED=$(git ls-files); then
   echo "Could not list the repository files with git." >&2
@@ -89,6 +93,11 @@ for f in $FILES; do
     failed=$((failed + 1))
     continue
   fi
+  allowed='[]'
+  if [[ "$f" == .github/e2e/* ]]; then
+    allowed=$(jq --argjson rules "$E2E_ALLOWED_RULES" '[.[] | select(.code | IN($rules[]))]' <<<"$out")
+    out=$(jq --argjson rules "$E2E_ALLOWED_RULES" '[.[] | select(.code | IN($rules[]) | not)]' <<<"$out")
+  fi
   e=$(jq '[.[] | select(.severity == "error")] | length' <<<"$out")
   w=$(jq '[.[] | select(.severity != "error")] | length' <<<"$out")
   errors=$((errors + e)); warnings=$((warnings + w))
@@ -99,6 +108,7 @@ for f in $FILES; do
     echo "WARN  $f"
   fi
   jq -r '.[] | "      \(.severity | ascii_upcase) line \(.range.startLine // "?") [\(.code)] \(.message)"' <<<"$out"
+  jq -r '.[] | "      ALLOWED line \(.range.startLine // "?") [\(.code)] \(.message)"' <<<"$allowed"
   annotate "$f" "$out"
 done
 

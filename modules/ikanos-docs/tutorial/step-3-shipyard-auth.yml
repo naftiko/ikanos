@@ -1,15 +1,14 @@
 ikanos: "1.0.0-beta10"
 
-binds:
-- namespace: "registry-env"
-  description: "Maritime Registry API credentials and config."
-  location: "file:///./shared/secrets.yaml"
-  keys:
-    REGISTRY_TOKEN: "registry-bearer-token"
-    REGISTRY_VERSION: "registry-api-version"
-    MCP_SERVER_TOKEN: "mcp-server-token"
-
 capability:
+  binds:
+  - namespace: "registry-env"
+    description: "Maritime Registry API credentials and config."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      REGISTRY_TOKEN: "registry-bearer-token"
+      REGISTRY_VERSION: "registry-api-version"
+      MCP_SERVER_TOKEN: "mcp-server-token"
   consumes:
   - namespace: registry
     type: http

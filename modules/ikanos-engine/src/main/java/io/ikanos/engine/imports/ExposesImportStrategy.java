@@ -35,15 +35,15 @@ public class ExposesImportStrategy implements ImportStrategy<ServerSpec> {
 
     @Override
     public List<ServerSpec> readSection(IkanosSpec source) {
-        // Standalone document: root-level exposes
+        // Capability document: its sections live under capability only. A root section next
+        // to capability is not valid there (#955) and is never imported.
+        if (source.getCapability() != null) {
+            List<ServerSpec> section = source.getCapability().getExposes();
+            return section != null ? section : Collections.emptyList();
+        }
+        // Standalone file: the section is at the root
         if (source.getExposes() != null && !source.getExposes().isEmpty()) {
             return source.getExposes();
-        }
-        // Capability-wrapped form: capability.exposes
-        if (source.getCapability() != null
-                && source.getCapability().getExposes() != null
-                && !source.getCapability().getExposes().isEmpty()) {
-            return source.getCapability().getExposes();
         }
         return Collections.emptyList();
     }

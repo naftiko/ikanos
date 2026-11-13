@@ -106,12 +106,12 @@ public class AuthenticationTest {
     private Capability getCapability() throws Exception {
         IkanosSpec spec = TestUtils.parseYaml("""
                 ikanos: "%s"
-                binds:
-                  - namespace: "registry"
-                    location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
-                    keys:
-                      notion_token: "notion_api_key"
                 capability:
+                  binds:
+                    - namespace: "registry"
+                      location: "file:///./src/test/resources/tutorial/shared/secrets.yaml"
+                      keys:
+                        notion_token: "notion_api_key"
                   exposes:
                     - type: "rest"
                       address: "localhost"
