@@ -262,6 +262,25 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldRejectMaxAffectedRowsOnARead() throws Exception {
+        String write = """
+                get-customer:
+                  description: Reads one order.
+                  readOnly: false
+                  maxAffectedRows: 1
+                  statement: select id from orders where id = :id
+                  inputParameters:
+                    id: { type: string }
+                """;
+
+        assertFalse(validate(capability(write.replace("readOnly: false", "readOnly: true")))
+                .isEmpty(), "maxAffectedRows needs readOnly: false");
+        assertFalse(validate(capability(write.replace("  readOnly: false\n", "")))
+                .isEmpty(),
+                "maxAffectedRows needs an explicit readOnly: false");
+    }
+
+    @Test
     void schemaShouldRejectAUrlThatIsNotJdbc() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("\"{{JDBC_URL}}\"",
                 "\"https://db.example.com\"");

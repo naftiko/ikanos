@@ -310,4 +310,27 @@ class SqlStatementTest {
         assertEquals("select id from t where payload ?? 'k' and tags ??| array['a'] and id = ?",
                 statement.jdbcSql());
     }
+
+    @Test
+    void writeOperationShouldAcceptAnOracleMergeWithADeleteWhereClause() {
+        assertEquals("MERGE", SqlStatement.parse("merge into t using s on (t.id = s.id)"
+                + " when matched then update set t.n = s.n delete where t.n = 0"
+                + " when not matched then insert (id, n) values (s.id, s.n)").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldStillRefuseADeleteAfterAWriteThatIsNotAMerge() {
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("update t set n = 0 where id = 1 delete where id = 2").writeOperation());
+    }
+
+    @Test
+    void returnsRowsShouldReadAnOutputClauseButNotAColumnNamedOutput() {
+        assertFalse(SqlStatement.parse("insert into audit (output) values (:value)")
+                .returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) output inserted.id values (1)")
+                .returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id")
+                .returnsRows());
+    }
 }

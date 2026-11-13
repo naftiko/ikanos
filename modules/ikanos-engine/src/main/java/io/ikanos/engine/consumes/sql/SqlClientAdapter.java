@@ -216,8 +216,7 @@ public class SqlClientAdapter extends ClientAdapter {
         }
         // A RETURNING (PostgreSQL, Oracle) or OUTPUT (SQL Server) clause returns rows itself
         boolean generatedKeys = ("INSERT".equals(operation) || "MERGE".equals(operation))
-                && !statement.keywords().contains("RETURNING")
-                && !statement.keywords().contains("OUTPUT");
+                && !statement.returnsRows();
         List<InputParameterSpec> inputs = new ArrayList<>();
         List<Integer> positions = new ArrayList<>();
         for (String placeholder : statement.placeholders()) {

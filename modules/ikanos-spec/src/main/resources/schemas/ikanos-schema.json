@@ -3206,6 +3206,21 @@
         "description"
       ],
       "additionalProperties": false,
+      "if": {
+        "required": [
+          "maxAffectedRows"
+        ]
+      },
+      "then": {
+        "required": [
+          "readOnly"
+        ],
+        "properties": {
+          "readOnly": {
+            "const": false
+          }
+        }
+      },
       "oneOf": [
         {
           "required": [

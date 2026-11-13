@@ -185,7 +185,8 @@ final class SqlStatement {
         String operation = null;
         for (int i = 0; i < keywords.size(); i++) {
             String keyword = keywords.get(i);
-            if (!WRITE_STARTS.contains(keyword) || isClause(i)) {
+            if (!WRITE_STARTS.contains(keyword) || isClause(i)
+                    || isMergeDeleteClause(operation, i)) {
                 continue;
             }
             if (depths.get(i) != 0) {
@@ -220,6 +221,35 @@ final class SqlStatement {
                 return false;
             }
             if (depths.get(j) == depth && "WHERE".equals(keywords.get(j))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return whether the keyword at {@code i} is Oracle's {@code DELETE WHERE} clause of a
+     *     {@code MERGE} ({@code WHEN MATCHED THEN UPDATE SET … DELETE WHERE …}), not a statement
+     */
+    private boolean isMergeDeleteClause(String operation, int i) {
+        return "MERGE".equals(operation) && "DELETE".equals(keywords.get(i))
+                && depths.get(i) == 0 && i + 1 < keywords.size()
+                && "WHERE".equals(keywords.get(i + 1)) && keywords.subList(0, i).contains("UPDATE");
+    }
+
+    /**
+     * @return whether the statement has a {@code RETURNING} clause, or SQL Server's
+     *     {@code OUTPUT} clause: {@code OUTPUT} followed by {@code inserted.}, {@code deleted.} or
+     *     {@code $action}. A column named {@code output} is not one.
+     */
+    boolean returnsRows() {
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
+            if ("RETURNING".equals(keyword)) {
+                return true;
+            }
+            if ("OUTPUT".equals(keyword) && i + 1 < keywords.size()
+                    && Set.of("INSERTED", "DELETED", "ACTION").contains(keywords.get(i + 1))) {
                 return true;
             }
         }
