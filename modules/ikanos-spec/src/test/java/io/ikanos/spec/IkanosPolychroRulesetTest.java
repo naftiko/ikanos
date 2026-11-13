@@ -690,6 +690,8 @@ public class IkanosPolychroRulesetTest {
         assertTrue(output.contains("ikanos-definitions-output-keywords"), output);
         assertTrue(output.contains("Schema 'order' is used in an orchestrated output, which does"
             + " not carry its keywords description, enum, format, required."), output);
+        assertTrue(output.contains("Schema 'closed' is used in an orchestrated output, which does"
+            + " not carry its keywords additionalProperties."), output);
     }
 
     @Test

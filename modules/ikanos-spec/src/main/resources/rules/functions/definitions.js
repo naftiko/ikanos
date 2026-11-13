@@ -368,9 +368,15 @@ function checkUnused(model, results) {
 const INPUT_ONLY_KEYWORDS = ["description", "enum", "format", "minimum", "maximum", "required",
   "additionalProperties"];
 
+/**
+ * Whether a schema declares a keyword. `false` is absent, except for
+ * `additionalProperties`, where it closes the object: a constraint the output
+ * drops.
+ */
 function declares(node, keyword) {
   const value = node[keyword];
-  return value !== undefined && value !== null && value !== false
+  return value !== undefined && value !== null
+    && (value !== false || keyword === "additionalProperties")
     && !(Array.isArray(value) && value.length === 0);
 }
 

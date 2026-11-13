@@ -33,6 +33,11 @@ capability:
             properties:
               id: { type: string, format: uuid }
               status: { schema: status }
+          closed:
+            type: object
+            additionalProperties: false
+            properties:
+              id: { type: string }
       flows:
         get-order:
           description: "Get an order."
@@ -45,8 +50,11 @@ capability:
           mappings:
             - target: order
               value: "$.order"
+            - target: closed
+              value: "$.order"
           outputParameters:
             order: { schema: order }
+            closed: { schema: closed }
   exposes:
     - type: mcp
       port: 3000
