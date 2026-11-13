@@ -60,6 +60,27 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
      */
     public static Freshness parse(String cacheControl, String expires, String date, String age,
             long nowMillis) {
+        return parse(cacheControl, expires, date, age, nowMillis, nowMillis);
+    }
+
+    /**
+     * Read freshness from raw response header values, as {@link #parse(String, String, String,
+     * String, long)} does, also counting the time the answer took to arrive: {@code Age} is
+     * corrected by the response delay, from when the request was sent to when the answer arrived
+     * ({@code corrected_age_value} of RFC 9111 4.2.3), so the time spent receiving the answer,
+     * body included, is deducted even when {@code Age} outweighs the time since {@code Date}.
+     *
+     * @param cacheControl the {@code Cache-Control} value, or {@code null}
+     * @param expires the {@code Expires} value, or {@code null}
+     * @param date the {@code Date} value, or {@code null}
+     * @param age the {@code Age} value, or {@code null}
+     * @param requestMillis when the request was sent
+     * @param responseMillis when the answer arrived; the freshness is measured at that time
+     * @return the freshness; never {@code null}
+     */
+    public static Freshness parse(String cacheControl, String expires, String date, String age,
+            long requestMillis, long responseMillis) {
+        long responseDelay = Math.max(0L, responseMillis - requestMillis);
         Long maxAge = null;
         Long sharedMaxAge = null;
         boolean privateOnly = false;
@@ -87,7 +108,7 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         Long dateAt = date != null ? httpDate(date) : null;
         if (lifetime == null && expires != null) {
             Long expiresAt = httpDate(expires);
-            long from = dateAt != null ? dateAt : nowMillis;
+            long from = dateAt != null ? dateAt : responseMillis;
             lifetime = expiresAt == null || expiresAt <= from ? 0L : expiresAt - from;
         }
         if (lifetime == null) {
@@ -96,13 +117,34 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         // §4.2.3: the current age is at least the time since the upstream's Date, even when Age
         // is absent or smaller (a clock ahead of ours gives no negative age)
         Long ageMillis = seconds(age);
-        long elapsed = dateAt != null ? Math.max(0L, nowMillis - dateAt) : 0L;
-        long currentAge = Math.max(ageMillis != null ? ageMillis : 0L, elapsed);
+        long elapsed = dateAt != null ? Math.max(0L, responseMillis - dateAt) : 0L;
+        long correctedAge = ageMillis == null ? 0L
+                : ageMillis > Long.MAX_VALUE - responseDelay ? Long.MAX_VALUE
+                        : ageMillis + responseDelay;
+        long currentAge = Math.max(correctedAge, elapsed);
         long remaining = Math.max(0L, lifetime - currentAge);
         return new Freshness(Math.min(remaining, Integer.MAX_VALUE), privateOnly);
     }
 
-    /** Split a {@code Cache-Control} value on commas that are not inside a quoted string. */
+    /**
+     * The same freshness, aged by the time the answer has spent here since it arrived (the
+     * resident time of RFC 9111 4.2.3), such as the time taken to download its body.
+     *
+     * @param residentMillis milliseconds since the answer arrived
+     * @return the aged freshness; this one when it has no TTL or no time has passed
+     */
+    public Freshness agedBy(long residentMillis) {
+        if (ttlMs == null || residentMillis <= 0) {
+            return this;
+        }
+        return new Freshness(Math.max(0L, ttlMs - residentMillis), privateOnly);
+    }
+
+    /**
+     * Split a {@code Cache-Control} value on commas that are not inside a quoted string. A
+     * quoted-pair ({@code \"} or {@code \\}) inside a quoted string does not end it (RFC 9110
+     * 5.6.4).
+     */
     static List<String> directives(String cacheControl) {
         List<String> result = new ArrayList<>();
         if (cacheControl == null) {
@@ -110,9 +152,14 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         }
         StringBuilder current = new StringBuilder();
         boolean quoted = false;
+        boolean escaped = false;
         for (int i = 0; i < cacheControl.length(); i++) {
             char c = cacheControl.charAt(i);
-            if (c == '"') {
+            if (escaped) {
+                escaped = false;
+            } else if (quoted && c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
                 quoted = !quoted;
             }
             if (c == ',' && !quoted) {

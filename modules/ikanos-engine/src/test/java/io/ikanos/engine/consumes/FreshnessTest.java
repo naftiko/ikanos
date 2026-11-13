@@ -185,6 +185,55 @@ class FreshnessTest {
     }
 
     @Test
+    void parseShouldNotLetAnEscapedQuoteHideAFollowingNoStore() {
+        assertThat(parse("max-age=300, extension=\"a\\\"b\", no-store", null, null, null)
+                .ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldNotLetAnEscapedQuoteHideATrailingPrivate() {
+        assertThat(parse("max-age=60, extension=\"a\\\"b, c\", private", null, null, null))
+                .isEqualTo(new Freshness(60_000L, true));
+    }
+
+    @Test
+    void parseShouldKeepAnEscapedBackslashInsideAQuotedValue() {
+        assertThat(parse("extension=\"a\\\\\", no-store", null, null, null).ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldCorrectTheAgeByTheResponseDelay() {
+        Freshness freshness = Freshness.parse("max-age=300", null, null, "290", NOW - 15_000L, NOW);
+
+        assertThat(freshness.ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldNotAddTheResponseDelayToTheTimeSinceDate() {
+        // 60 s since Date already includes the 15 s the answer took to arrive
+        Freshness freshness = Freshness.parse("max-age=300", null,
+                "Thu, 12 Nov 2026 09:59:00 GMT", "10", NOW - 15_000L, NOW);
+
+        assertThat(freshness.ttlMs()).isEqualTo(240_000L);
+    }
+
+    @Test
+    void agedByShouldDeductTheResidentTime() {
+        assertThat(new Freshness(60_000L, true).agedBy(10_000L))
+                .isEqualTo(new Freshness(50_000L, true));
+    }
+
+    @Test
+    void agedByShouldNotGoBelowZero() {
+        assertThat(new Freshness(1_000L, false).agedBy(10_000L).ttlMs()).isZero();
+    }
+
+    @Test
+    void agedByShouldKeepAnUnknownTtl() {
+        assertThat(Freshness.UNKNOWN.agedBy(10_000L)).isSameAs(Freshness.UNKNOWN);
+    }
+
+    @Test
     void parseShouldReadSeveralCacheControlHeadersJoinedByCommas() {
         assertThat(parse("public,max-age=30", null, null, null).ttlMs()).isEqualTo(30_000L);
     }
