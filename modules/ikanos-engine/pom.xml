@@ -206,6 +206,10 @@
                             org.restlet.ext.slf4j.Slf4jLoggerFacade
                         </org.restlet.engine.loggerFacadeClass>
                     </systemPropertyVariables>
+                    <!-- Read by RuntimeBindingIntegrationTest through a binds entry without location -->
+                    <environmentVariables>
+                        <IKANOS_TEST_BIND_TOKEN>env-s3cr3t</IKANOS_TEST_BIND_TOKEN>
+                    </environmentVariables>
                 </configuration>
             </plugin>
             <plugin>

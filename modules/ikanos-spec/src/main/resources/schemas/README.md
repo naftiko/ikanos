@@ -40,7 +40,7 @@ The JSON Schema for the Naftiko Specification is available in two forms:
 
 **Namespace**: A unique identifier for consumed sources, used for routing and mapping with the expose layer.
 
-**Bind**: A declaration that the capability binds to an external source of variables. The `location` URI identifies the provider (file, vault, GitHub secrets, etc.). When `location` is omitted, values are injected by the runtime environment. Variables are explicitly declared via a `keys` map using SCREAMING_SNAKE_CASE names.
+**Bind**: A declaration that the capability binds to an external source of variables. The `location` URI identifies the provider (file, vault, GitHub secrets, etc.). When `location` is omitted, values are read from environment variables. Variables are explicitly declared via a `keys` map using SCREAMING_SNAKE_CASE names.
 
 ### 1.3 Related Specifications.
 
@@ -1348,8 +1348,8 @@ HTTP Basic Authentication.
 ```yaml
 authentication:
   type: basic
-  username: admin
-  password: "secret_password"
+  username: "{{API_USER}}"
+  password: "{{API_PASSWORD}}"
 ```
 
 #### 3.17.2 API Key Authentication
@@ -1371,7 +1371,7 @@ API Key authentication via header or query parameter.
 authentication:
   type: apikey
   key: X-API-Key
-  value: "{{api_key}}"
+  value: "{{API_KEY}}"
   placement: header
 ```
 
@@ -1391,7 +1391,7 @@ Bearer token authentication.
 ```yaml
 authentication:
   type: bearer
-  token: "bearer_token"
+  token: "{{BEARER_TOKEN}}"
 ```
 
 #### 3.17.4 Digest Authentication
@@ -1411,13 +1411,14 @@ HTTP Digest Authentication.
 ```yaml
 authentication:
   type: digest
-  username: admin
-  password: "secret_password"
+  username: "{{API_USER}}"
+  password: "{{API_PASSWORD}}"
 ```
 
 #### 3.17.5 Rules
 
 - Only one authentication type can be used per authentication object.
+- A credential value is used as written, except for `{{VAR}}` expressions, which are resolved from `binds` (see 3.21) and, on a consumed adapter, from the call's parameters. To take a secret from an environment variable, declare it in a `binds` entry without `location` (see 3.20). There is no `$env.NAME` form: such a value is sent as literal text.
 - On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
@@ -1517,7 +1518,7 @@ Declares that the capability binds to an external source of variables. Bindings 
 | --- | --- | --- |
 | **namespace** | `string` | **REQUIRED**. Unique identifier for this binding (kebab-case). Used as qualifier in expressions for disambiguation. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **description** | `string` | *Recommended*. A meaningful description of the binding's purpose. In a world of agents, context is king. |
-| **location** | `string` (UriLocation) | URI identifying the value provider. The URI scheme expresses the resolution strategy (`file://`, `vault://`, `github-secrets://`, `k8s-secret://`, etc.). When omitted, values are injected by the runtime environment. MUST match pattern `^[a-zA-Z][a-zA-Z0-9+.-]*://` (RFC 3986 scheme). |
+| **location** | `string` (UriLocation) | URI identifying the value provider. The URI scheme expresses the resolution strategy (`file://`, `vault://`, `github-secrets://`, `k8s-secret://`, etc.). When omitted, each value in `keys` names an environment variable of the Ikanos process. MUST match pattern `^[a-zA-Z][a-zA-Z0-9+.-]*://` (RFC 3986 scheme). |
 | **keys** | `BindingKeys` | **REQUIRED**. Map of variable names (SCREAMING_SNAKE_CASE, `^[A-Z][A-Z0-9_]*$`) to source keys in the provider. |
 
 **Rules:**
@@ -1559,7 +1560,7 @@ Example: `{"NOTION_TOKEN": "NOTION_INTEGRATION_TOKEN"}` means the value of `NOTI
 - The `namespace` value MUST NOT collide with any `consumes` or `exposes` namespace to avoid ambiguity in expression resolution.
 - The `keys` map MUST contain at least one entry.
 - When `location` is present, it MUST be a valid URI matching the `UriLocation` pattern.
-- When `location` is omitted, the runtime environment is responsible for injecting the values.
+- When `location` is omitted, each value in `keys` names an environment variable of the Ikanos process, read when the capability loads. A missing variable stops the capability from loading, with an error naming it.
 - No additional properties are allowed.
 
 <aside>

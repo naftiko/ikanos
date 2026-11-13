@@ -183,7 +183,7 @@
         },
         "location": {
           "$ref": "#/$defs/UriLocation",
-          "description": "URI identifying the value provider. The URI scheme expresses the resolution strategy (file://, vault://, github-secrets://, k8s-secret://, etc.). When omitted, values are injected by the runtime environment."
+          "description": "URI identifying the value provider. The URI scheme expresses the resolution strategy (file://, vault://, github-secrets://, k8s-secret://, etc.). When omitted, each value in `keys` names an environment variable of the Ikanos process, read when the capability loads; a missing variable stops it from loading."
         },
         "keys": {
           "$ref": "#/$defs/BindingKeys",
@@ -3205,7 +3205,7 @@
     },
     "AuthBasic": {
       "type": "object",
-      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime \u2014 do not pre-encode them here. Use environment variable expressions (e.g. `$env.MY_PASSWORD`) to avoid hardcoding secrets.",
+      "description": "HTTP Basic authentication (`Authorization: Basic <base64(user:pass)>`). Credentials are base64-encoded by the framework at runtime \u2014 do not pre-encode them here. To avoid hardcoding secrets, use `{{VAR}}` expressions resolved from `binds` (e.g. `{{API_PASSWORD}}`).",
       "properties": {
         "type": {
           "type": "string",
@@ -3213,11 +3213,11 @@
         },
         "username": {
           "type": "string",
-          "description": "Username. Supports environment variable expressions (e.g. `$env.API_USER`)."
+          "description": "Username. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{API_USER}}`)."
         },
         "password": {
           "type": "string",
-          "description": "Password. Supports environment variable expressions (e.g. `$env.API_PASSWORD`). Never hardcode secrets in YAML."
+          "description": "Password. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{API_PASSWORD}}`). Never hardcode secrets in YAML."
         }
       },
       "required": [
@@ -3239,7 +3239,7 @@
         },
         "value": {
           "type": "string",
-          "description": "API key value. Supports environment variable expressions (e.g. `$env.NOTION_TOKEN`). Never hardcode secrets."
+          "description": "API key value. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{NOTION_TOKEN}}`). Never hardcode secrets."
         },
         "placement": {
           "type": "string",
@@ -3265,7 +3265,7 @@
         },
         "token": {
           "type": "string",
-          "description": "Bearer token value. Supports environment variable expressions (e.g. `$env.GITHUB_TOKEN`). Never hardcode secrets."
+          "description": "Bearer token value. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{GITHUB_TOKEN}}`). Never hardcode secrets."
         }
       },
       "required": [
@@ -3283,11 +3283,11 @@
         },
         "username": {
           "type": "string",
-          "description": "Username for digest auth. Supports environment variable expressions (e.g. `$env.API_USER`)."
+          "description": "Username for digest auth. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{API_USER}}`)."
         },
         "password": {
           "type": "string",
-          "description": "Password for digest auth. Supports environment variable expressions (e.g. `$env.API_PASSWORD`). Never hardcode secrets."
+          "description": "Password for digest auth. Supports `{{VAR}}` expressions resolved from `binds` (e.g. `{{API_PASSWORD}}`). Never hardcode secrets."
         }
       },
       "required": [
