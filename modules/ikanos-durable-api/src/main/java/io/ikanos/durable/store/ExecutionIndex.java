@@ -44,15 +44,8 @@ public interface ExecutionIndex {
      * @param value the label's value, or {@code null} for any value
      * @param createdBefore only executions created strictly before it, or {@code null} for all
      */
-    default List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
-            Instant createdBefore, int limit) {
-        return list(status, Integer.MAX_VALUE).stream()
-                .filter(record -> value == null ? record.labels().containsKey(key)
-                        : value.equals(record.labels().get(key)))
-                .filter(record -> createdBefore == null
-                        || record.createdAt().isBefore(createdBefore))
-                .limit(limit).toList();
-    }
+    List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
+            Instant createdBefore, int limit);
 
     /** Finds the executions labelled {@code key} = {@code value}, oldest first. */
     List<ExecutionRecord> findByLabel(String key, String value);
