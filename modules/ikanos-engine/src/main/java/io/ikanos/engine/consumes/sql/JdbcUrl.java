@@ -62,6 +62,10 @@ final class JdbcUrl {
      */
     private static final Pattern PROPERTY_NAME =
             Pattern.compile("[?&;:(,]\\s*([A-Za-z][A-Za-z0-9_.-]*)\\s*=");
+
+    /** A SQL Server braced property value, in which "}}" stands for "}". */
+    private static final Pattern BRACED_VALUE = Pattern.compile("\\{(?:\\}\\}|[^}])*\\}");
+
     private static final Pattern HOST_FORM =
             Pattern.compile("^(?:[^/]*@)?//(?:[^@/?;]*@)?([^/:?;]+)(?::\\d+)?(?:/([^?;/]*))?");
 
@@ -172,9 +176,11 @@ final class JdbcUrl {
                     : emptyToNull(slash < 0 ? path : path.substring(slash + 1));
         }
         if (database == null) {
+            // SQL Server braces a value that holds ; or = (a "}" inside it is written "}}"):
+            // a braced value, such as a password, is masked so none of it is read as a name.
             Matcher named = Pattern.compile("(?i)[;?&](?:databaseName|database)=([^;&]+)")
-                    .matcher(afterSystem);
-            if (named.find()) {
+                    .matcher(BRACED_VALUE.matcher(afterSystem).replaceAll("{}"));
+            if (named.find() && named.group(1).indexOf('{') < 0) {
                 database = named.group(1);
             }
         }

@@ -250,8 +250,10 @@ final class SqlStatement {
                 ended = true;
                 i++;
             } else if (isWordStart(c)) {
+                // $ continues an unquoted identifier (audit$delete is one name), though not a
+                // named placeholder
                 int end = i + 1;
-                while (end < n && isWordChar(sql.charAt(end))) {
+                while (end < n && (isWordChar(sql.charAt(end)) || sql.charAt(end) == '$')) {
                     end++;
                 }
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
