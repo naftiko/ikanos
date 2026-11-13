@@ -19,7 +19,6 @@ import io.ikanos.exception.ProcessorException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.ikanos.spec.util.IkanosMappers;
 
 class CacheDataAppenderTest {
@@ -42,10 +41,13 @@ class CacheDataAppenderTest {
     }
 
     @Test
-    void constructorShouldRejectANegativeTtl() {
-        // The engine does not validate the schema at load time, so the guard lives here too
-        assertThatThrownBy(() -> new CacheDataAppender(-1, "public"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("ttlMs");
+    void applyShouldSendZeroWhenTtlIsNegative() throws ProcessorException {
+        // SEP-2549: a negative ttlMs is treated as 0
+        ObjectNode response = mapper.createObjectNode();
+        response.set("result", mapper.createObjectNode());
+
+        new CacheDataAppender(-1, "public").apply(response);
+
+        assertThat(response.path("result").path("ttlMs").asInt(-1)).isZero();
     }
 }

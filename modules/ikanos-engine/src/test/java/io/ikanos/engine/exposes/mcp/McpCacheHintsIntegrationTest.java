@@ -14,7 +14,6 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +25,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
@@ -103,10 +103,17 @@ class McpCacheHintsIntegrationTest {
     }
 
     @Test
-    void negativeTtlShouldFailAdapterInitialization() {
-        assertThatThrownBy(() -> adapter("ttlMs: -1"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("ttlMs");
+    void negativeTtlShouldBeSentAsZeroWithAStartupWarningNamingTheAdapter() throws Exception {
+        // SEP-2549: a negative ttlMs is treated as 0; the capability still starts
+        try (LogCapture logs = new LogCapture()) {
+            McpServerAdapter negative = adapter("ttlMs: -1");
+
+            JsonNode result = dispatch(negative, "tools/list", JSON.createObjectNode());
+
+            assertThat(result.path("ttlMs").asInt(-1)).isZero();
+            assertThat(logs.messages()).anySatisfy(message -> assertThat(message)
+                    .contains("cache-hints").contains("ttlMs -1").contains("sending 0"));
+        }
     }
 
     static McpServerAdapter adapter(String cacheLines) throws Exception {

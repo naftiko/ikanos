@@ -1186,7 +1186,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2147483647,
-          "description": "Freshness hint, in milliseconds, returned as `ttlMs` on list, discover and read results (MCP 2026-07-28, SEP-2549): `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, `resources/read`, `server/discover`, and the skills methods when the server serves skills. A client may reuse a result until this much time has passed since it received it. Default: 0, meaning the client should fetch again every time. Tool calls and prompt gets carry no hint."
+          "description": "Freshness hint, in milliseconds, returned as `ttlMs` on list, discover and read results (MCP 2026-07-28, SEP-2549): `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, `resources/read`, `server/discover`, and the skills methods when the server serves skills. A client may reuse a result until this much time has passed since it received it. Default: 0, meaning the client should fetch again every time. A negative value fails validation; the engine still starts, sends 0 as SEP-2549 says, and logs a warning. Tool calls and prompt gets carry no hint."
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",

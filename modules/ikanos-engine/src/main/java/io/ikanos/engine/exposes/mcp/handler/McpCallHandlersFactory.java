@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
+import org.restlet.Context;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
@@ -41,6 +42,13 @@ public class McpCallHandlersFactory {
     public static List<McpCallHandler> createAll(McpServerAdapter adapter) {
         Integer ttlMs = adapter.getMcpServerSpec().getTtlMs();
         String cacheScope = adapter.getMcpServerSpec().getCacheScope();
+        if (ttlMs != null && ttlMs < 0) {
+            // MCP 2026-07-28 (SEP-2549): a negative ttlMs is treated as 0, so the server starts
+            // and sends 0. The schema's minimum still reports it to lint and ikanos validate.
+            Context.getCurrentLogger().warning("MCP adapter '"
+                    + adapter.getMcpServerSpec().getNamespace() + "': ttlMs " + ttlMs
+                    + " is negative, sending 0 instead (SEP-2549)");
+        }
 
         ObjectMapper mapper = IkanosMappers.json();
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
