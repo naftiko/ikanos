@@ -19,9 +19,10 @@ import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
 import org.eclipse.jetty.http.HttpHeader;
 import org.restlet.Client;
+import org.restlet.Request;
+import org.restlet.engine.Engine;
 import org.restlet.engine.adapter.ClientCall;
 import org.restlet.engine.adapter.JettyClientCall;
-import org.restlet.engine.Engine;
 import org.restlet.engine.connector.ConnectorHelper;
 import org.restlet.representation.Representation;
 
@@ -47,6 +48,14 @@ import org.restlet.representation.Representation;
  * with its {@link Engine}: {@link #ensureRegistered()} registers it.</p>
  */
 public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpClientHelper {
+
+    /**
+     * Request attribute that, set to {@link Boolean#TRUE}, makes the client return a redirect
+     * as is instead of following it. Forward mode sets it, so the caller gets the upstream
+     * {@code 3xx} with its {@code Location} relayed by the forward rules, instead of the gateway
+     * following it to wherever it points (#1002).
+     */
+    public static final String NO_REDIRECTS = "io.ikanos.engine.noRedirects";
 
     /**
      * Restlet calls this constructor reflectively when it resolves the helper class name.
@@ -86,11 +95,21 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
         }
     }
 
+    /**
+     * Creates the Jetty call. It sends the size of a known-size entity as {@code Content-Length}
+     * ({@link #setContentLength}), and does not follow redirects when {@code request} carries
+     * {@link #NO_REDIRECTS}. The client follows them otherwise (Restlet's
+     * {@code followRedirects} defaults to {@code true}, and an {@code awsSigV4} adapter turns it
+     * off for the whole client).
+     */
     @Override
-    public ClientCall create(org.restlet.Request request) {
+    public ClientCall create(Request request) {
         ClientCall call = super.create(request);
         if (call instanceof JettyClientCall jettyCall) {
             setContentLength(jettyCall.getRequest(), request.getEntity());
+            if (Boolean.TRUE.equals(request.getAttributes().get(NO_REDIRECTS))) {
+                jettyCall.getRequest().followRedirects(false);
+            }
         }
         return call;
     }
