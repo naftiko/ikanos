@@ -16,7 +16,6 @@ package io.ikanos.engine.exposes.mcp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -263,16 +262,11 @@ public final class InlineRounds {
         }
         lastSweep = now;
         Instant cutoff = now.minus(McpRequestState.TTL);
-        // Filtered before the limit: older suspended tasks or sub-runs, however many, cannot hide
-        // an expired call. Listed oldest first, and a round asks after the call starts: from the
-        // first execution started after the cutoff, none can be expired.
-        List<ExecutionRecord> candidates = runner.list(ExecutionStatus.SUSPENDED, Integer.MAX_VALUE)
-                .stream()
-                .takeWhile(record -> record.createdAt().isBefore(cutoff))
-                .filter(record -> MRTR.equals(record.labels().get(KIND)))
-                .limit(SWEEP_LIMIT)
-                .toList();
-        for (ExecutionRecord record : candidates) {
+        // Filtered by the store before the limit: older suspended tasks or sub-runs, however
+        // many, cannot hide an expired call. A round asks after the call starts, so a call
+        // started after the cutoff cannot be expired.
+        for (ExecutionRecord record : runner.listLabelled(ExecutionStatus.SUSPENDED, KIND, MRTR,
+                cutoff, SWEEP_LIMIT)) {
             // The journal is read only for the calls started before the cutoff.
             if (InputRounds.askedAt(runner.view(record.executionId()))
                     .orElse(record.createdAt()).isBefore(cutoff)) {
