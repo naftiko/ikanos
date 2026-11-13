@@ -443,6 +443,130 @@ class ServerAdapterAuthenticationTest {
                 verifier.verify("jos\u00e9", "p\u00e4ssw\u00f6rd-\u5bc6".toCharArray()));
     }
 
+    // #973 review: basic and digest get the load-time check bearer and apikey have (#856). The
+    // capability refuses to start rather than accept an empty or guessable credential.
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenPasswordIsPrefixPlusMisspelledVariable(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", challenge(type, "admin",
+                        "sk-{{API_KY}}")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " password of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains("has an empty part"), e.getMessage());
+        assertTrue(e.getMessage().contains("API_KY"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenPasswordIsPrefixPlusEmptyBinding(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", challenge(type, "admin",
+                        "sk-{{API_KEY}}")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " password of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenUsernameAndPasswordAreUnbound(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", challenge(type, "{{USER}}",
+                        "{{PASS}}")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " username of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains(" is empty"), e.getMessage());
+        assertTrue(e.getMessage().contains("USER"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenOnlyThePasswordIsUnbound(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", challenge(type,
+                        "{{API_KEY}}", "{{PASS}}")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " password of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains(" is empty"), e.getMessage());
+        assertTrue(e.getMessage().contains("PASS"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    /** Without binds, the template text would be the credential: it is refused too. */
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenCredentialsAreTemplatesWithoutBinds(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterFromYaml(REST_YAML.formatted(schemaVersion,
+                        challenge(type, "{{USER}}", "{{PASS}}"))));
+
+        assertTrue(e.getMessage().contains("USER"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenUsernameIsBoundToEmptyValue(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"\"\n", challenge(type, "{{API_KEY}}",
+                        "pa55word")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " username of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains(" is empty"), e.getMessage());
+        assertTrue(e.getMessage().contains("API_KEY"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWithABlankUsername(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterFromYaml(REST_YAML.formatted(schemaVersion,
+                        challenge(type, " ", "pa55word"))));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " username of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains(" is empty"), e.getMessage());
+    }
+
+    /** A declared empty password is refused; only an omitted one means an empty password. */
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWithADeclaredEmptyPassword(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterFromYaml(REST_YAML.formatted(schemaVersion,
+                        challenge(type, "admin", ""))));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " password of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains(" is empty"), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldStartWhenCredentialsAreBound(String type) throws Exception {
+        SecretVerifier verifier = verifier(adapterWithSecrets("api-key: \"s3cr3t\"\n",
+                challenge(type, "admin", "sk-{{API_KEY}}")));
+
+        assertEquals(Verifier.RESULT_VALID, verifier.verify("admin", "sk-s3cr3t".toCharArray()));
+        assertEquals(Verifier.RESULT_INVALID, verifier.verify("admin", "sk-".toCharArray()));
+    }
+
+    private static String challenge(String type, String username, String password) {
+        return """
+                      authentication:
+                        type: "%s"
+                        username: "%s"
+                        password: "%s"
+                """.formatted(type, username, password);
+    }
+
     private SecretVerifier verifier(String type, String username, String password)
             throws Exception {
         return verifier(adapterFromYaml(REST_YAML.formatted(schemaVersion, """

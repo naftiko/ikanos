@@ -195,11 +195,6 @@ public abstract class ServerAdapter extends Adapter {
             return next;
         }
 
-        if ("basic".equals(authentication.getType())
-                || "digest".equals(authentication.getType())) {
-            return buildChallengeAuthenticator(authentication, next);
-        }
-
         if ("oauth2".equals(authentication.getType())
                 && authentication instanceof OAuth2AuthenticationSpec oauth2) {
             return createOAuth2Restlet(oauth2, next);
@@ -207,6 +202,12 @@ public abstract class ServerAdapter extends Adapter {
 
         ServerAuthenticationRestlet.requireCredentials(authentication,
                 getCapability().getBindings(), describe());
+
+        if ("basic".equals(authentication.getType())
+                || "digest".equals(authentication.getType())) {
+            return buildChallengeAuthenticator(authentication, next);
+        }
+
         return new ServerAuthenticationRestlet(authentication, next, getCapability().getBindings());
     }
 

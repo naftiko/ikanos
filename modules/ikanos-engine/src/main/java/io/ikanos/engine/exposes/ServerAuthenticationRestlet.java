@@ -17,7 +17,9 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
@@ -139,10 +141,13 @@ public class ServerAuthenticationRestlet extends Restlet {
     }
 
     /**
-     * Checks, when the adapter is built, that the credentials a bearer or apikey authentication
-     * expects are not blank, not even in part: an empty expected credential would accept an empty
-     * one, and a partly empty one a guessable one (#856). Someone who wants no credential removes
-     * the authentication block instead.
+     * Checks, when the adapter is built, that the credentials a bearer, apikey, basic or digest
+     * authentication expects are not blank, not even in part: an empty expected credential would
+     * accept an empty one, and a partly empty one a guessable one (#856). Someone who wants no
+     * credential removes the authentication block instead.
+     *
+     * <p>A basic or digest password that is omitted stays an empty one, as decided in #699; a
+     * declared one follows the same rule as the username.</p>
      *
      * @param authentication the adapter's authentication, may be null
      * @param bindings the capability's bindings, may be null
@@ -156,6 +161,20 @@ public class ServerAuthenticationRestlet extends Restlet {
         } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
             requireNotBlank("apikey key", apiKey.getKey(), bindings, adapter);
             requireNotBlank("apikey value", apiKey.getValue(), bindings, adapter);
+        } else if (authentication instanceof BasicAuthenticationSpec basic) {
+            requireNotBlank("basic username", basic.getUsername(), bindings, adapter);
+            requireDeclaredPassword("basic password", basic.getPassword(), bindings, adapter);
+        } else if (authentication instanceof DigestAuthenticationSpec digest) {
+            requireNotBlank("digest username", digest.getUsername(), bindings, adapter);
+            requireDeclaredPassword("digest password", digest.getPassword(), bindings, adapter);
+        }
+    }
+
+    /** An omitted password is an empty one (#699); a declared one must not render blank. */
+    private static void requireDeclaredPassword(String credential, char[] password,
+            Map<String, Object> bindings, String adapter) {
+        if (password != null) {
+            requireNotBlank(credential, Secrets.password(password), bindings, adapter);
         }
     }
 
