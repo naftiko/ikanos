@@ -62,8 +62,7 @@ public class McpServerToolSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
-    private final Map<String, OperationStepSpec> steps =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, OperationStepSpec> steps = StepOrder.newSteps();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final java.util.List<StepOutputMappingSpec> mappings = new CopyOnWriteArrayList<>();

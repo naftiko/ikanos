@@ -74,6 +74,25 @@ public class StepOrderTest {
     }
 
     @Test
+    void stepsShouldCopyFromOneContainerToAnotherInOrder() {
+        AggregateFlowSpec flow = new AggregateFlowSpec();
+        McpServerToolSpec tool = new McpServerToolSpec();
+        McpServerResourceSpec resource = new McpServerResourceSpec();
+        RestServerOperationSpec operation = new RestServerOperationSpec();
+        flow.setSteps(ordered());
+
+        // A getter's map is the one the next setter receives: it must pass the order check.
+        tool.setSteps(flow.getSteps());
+        resource.setSteps(tool.getSteps());
+        operation.setSteps(resource.getSteps());
+        flow.setSteps(operation.getSteps());
+
+        List<String> expected = List.of("get-voyage", "get-ship", "list-crew");
+        assertEquals(expected, new ArrayList<>(operation.getSteps().keySet()));
+        assertEquals(expected, new ArrayList<>(flow.getSteps().keySet()));
+    }
+
+    @Test
     void setStepsShouldRejectAMapWithoutADefinedOrder() {
         Map<String, OperationStepSpec> unordered = new HashMap<>(ordered());
         assertThrows(IllegalArgumentException.class,

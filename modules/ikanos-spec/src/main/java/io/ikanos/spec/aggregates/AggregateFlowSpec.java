@@ -61,8 +61,7 @@ public class AggregateFlowSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
-    private final Map<String, OperationStepSpec> steps =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, OperationStepSpec> steps = StepOrder.newSteps();
 
     private final CopyOnWriteArrayList<StepOutputMappingSpec> mappings = new CopyOnWriteArrayList<>();
 

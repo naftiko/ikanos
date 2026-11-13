@@ -13,7 +13,6 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +51,7 @@ public class McpServerResourceSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
-    private final Map<String, OperationStepSpec> steps =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, OperationStepSpec> steps = StepOrder.newSteps();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
