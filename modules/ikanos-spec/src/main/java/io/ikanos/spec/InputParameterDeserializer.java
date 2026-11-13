@@ -69,6 +69,10 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setSqlType(node.get("sqlType").asString());
         }
 
+        if (node.has("position") && node.get("position").canConvertToInt()) {
+            spec.setPosition(node.get("position").asInt());
+        }
+
         if (node.has("style")) {
             spec.setStyle(node.get("style").asString());
         }

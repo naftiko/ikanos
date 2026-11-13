@@ -785,6 +785,22 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void sqlStoredProcedureReadOnlyRuleShouldFireWithoutReadOnly() {
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-stored-procedure-read-only"),
+            "Expected ikanos-sql-stored-procedure-read-only on get-balance.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlStoredProcedureParametersRuleShouldFireForAGapAndOutParametersOnAStatement() {
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-sql-stored-procedure-parameters"),
+            "Expected ikanos-sql-stored-procedure-parameters on get-balance and total.\n"
+                + result.output());
+    }
+
+    @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
         LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-compliant.yaml",
             "info");
