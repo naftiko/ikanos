@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
@@ -469,6 +470,93 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldKeepTheDefaultOfASetEntry() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    page-size: { type: integer, description: "Rows." }
+                  inputParameterSets:
+                    paging:
+                      top: { type: integer, description: "Rows.", default: 50 }
+                      order: { type: string, description: "Order.", enum: [a, d], default: a }
+                      size: { schema: page-size, description: "Page size.", default: 20 }
+                """, """
+                list-a:
+                  description: "List A."
+                  inputParameterSets: [paging]
+                  call: erp.list-a
+                list-b:
+                  description: "List B."
+                  inputParameterSets: [paging]
+                  call: erp.list-b
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        List<InputParameterSpec> inputs = tool(spec, "list-a").getInputParameters();
+        assertEquals(List.of("top", "order", "size"), names(inputs));
+        assertEquals(50, inputs.get(0).getDefaultValue().asInt());
+        assertEquals("a", inputs.get(1).getDefaultValue().asString());
+        assertEquals("integer", inputs.get(2).getType());
+        assertEquals(20, inputs.get(2).getDefaultValue().asInt());
+        assertTrue(InputDefaults.findErrors(spec).isEmpty(), InputDefaults.findErrors(spec)
+                .toString());
+    }
+
+    @Test
+    void expandAllShouldGiveASchemaTheDefaultOfItsUse() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    page-size: { type: integer, description: "Rows." }
+                """, """
+                list-calls:
+                  description: "List calls."
+                  inputParameters:
+                    top: { schema: page-size, description: "Rows.", default: 50 }
+                    skip: { schema: page-size, description: "Offset.", default: "ten" }
+                    limit: { schema: page-size, description: "Limit." }
+                  call: erp.list-calls
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        List<InputParameterSpec> inputs = tool(spec, "list-calls").getInputParameters();
+        assertEquals(50, inputs.get(0).getDefaultValue().asInt());
+        assertNull(inputs.get(2).getDefaultValue());
+        assertEquals(List.of("MCP tool 'tools.list-calls' input parameter 'skip': default does"
+                + " not match type 'integer'"), InputDefaults.findErrors(spec),
+                "The default of a use is checked against the expanded schema");
+    }
+
+    @Test
+    void expandAllShouldReportADefaultBesideANestedSchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    date-range: { type: string }
+                """, """
+                list-calls:
+                  description: "List calls."
+                  inputParameters:
+                    periods:
+                      type: array
+                      description: "Periods."
+                      items: { schema: date-range, default: "2026-01-01" }
+                  call: erp.list-calls
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains(
+                "'schema: date-range' takes no other key than 'description', found [default]"),
+                errors.toString());
+    }
+
+    @Test
     void expandAllShouldReportKeysBesideSchema() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:
@@ -485,8 +573,9 @@ class DefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("MCP adapter 'tools', tool 'list-calls', input 'period':"
-                + " 'schema: date-range' takes no other key than 'description' and 'required',"
-                + " found [type, format]. Change the schema, or declare the input inline."),
+                + " 'schema: date-range' takes no other key than 'description', 'required' and"
+                + " 'default', found [type, format]. Change the schema, or declare the input"
+                + " inline."),
                 errors);
     }
 

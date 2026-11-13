@@ -24,6 +24,7 @@ import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -100,19 +101,35 @@ public class ValidateCommand implements Callable<Integer> {
             // Compile consumed templates the way the engine renders them (#849), only once the
             // document matches the schema, so the spec can be read.
             boolean schemaValid = errors.isEmpty() && removedAdapters.isEmpty();
-            List<String> templateErrors = schemaValid ? templateErrors(dataNode) : List.of();
+            IkanosSpec spec = schemaValid
+                    ? IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class)
+                    : null;
+            List<String> templateErrors = spec != null
+                    ? ConsumedTemplateValidator.findErrors(spec) : List.of();
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
-            DefinitionsExpander.Result definitions = schemaValid ? definitions(dataNode)
+            DefinitionsExpander.Result definitions = spec != null
+                    ? DefinitionsExpander.expandAll(spec)
                     : new DefinitionsExpander.Result(List.of(), List.of());
 
+            // Check MCP tool input defaults against their type and enum (#979), which the
+            // schema cannot express, on the expanded inputs. A default on a required input is a
+            // warning only.
+            List<String> defaultErrors =
+                    spec != null ? InputDefaults.findErrors(spec) : List.of();
+            List<String> warnings = new ArrayList<>(definitions.warnings());
+            if (spec != null) {
+                warnings.addAll(InputDefaults.findWarnings(spec));
+            }
+
             // Display validation result.
-            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()) {
+            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()
+                    && defaultErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
-                printWarnings(definitions.warnings());
+                printWarnings(warnings);
                 return 0;
             } else {
                 System.err.println("✗ Validation failed!");
@@ -140,7 +157,12 @@ public class ValidateCommand implements Callable<Integer> {
                     System.err.println("\n  [" + errorCount + "] Invalid definitions: " + error);
                     errorCount++;
                 }
-                printWarnings(definitions.warnings());
+                for (String error : defaultErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid input default: "
+                            + error);
+                    errorCount++;
+                }
+                printWarnings(warnings);
                 return 1;
             }
             
@@ -156,32 +178,17 @@ public class ValidateCommand implements Callable<Integer> {
     }
     
     /**
-     * Template errors of the consumed HTTP adapters, read from the YAML tree (#849). Imported
-     * adapters are not resolved here; they are checked when the capability loads.
+     * Print warnings to standard output: they do not fail the validation.
      */
-    List<String> templateErrors(JsonNode dataNode) {
-        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return ConsumedTemplateValidator.findErrors(spec);
-    }
-
-    /**
-     * Expands the shared definitions of the document's MCP adapters and aggregates (#910) and
-     * returns what is wrong with them. Imported adapters and aggregates are not resolved here.
-     */
-    DefinitionsExpander.Result definitions(JsonNode dataNode) {
-        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
-        return DefinitionsExpander.expandAll(spec);
-    }
-
     private static void printWarnings(List<String> warnings) {
         if (warnings.isEmpty()) {
             return;
         }
         System.out.println("\nWarnings:");
-        int count = 1;
+        int warningCount = 1;
         for (String warning : warnings) {
-            System.out.println("\n  [" + count + "] " + warning);
-            count++;
+            System.out.println("\n  [" + warningCount + "] " + warning);
+            warningCount++;
         }
     }
 

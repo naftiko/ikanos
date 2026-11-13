@@ -1676,11 +1676,11 @@
     },
     "McpToolInputParameter": {
       "type": "object",
-      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required`).",
+      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
       "properties": {
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
+          "description": "The expected data type of the parameter. Defaults to `string`, so a string parameter can leave it out. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
           "enum": [
             "string",
             "number",
@@ -1688,7 +1688,8 @@
             "boolean",
             "array",
             "object"
-          ]
+          ],
+          "default": "string"
         },
         "description": {
           "type": "string",
@@ -1696,7 +1697,7 @@
         },
         "schema": {
           "$ref": "#/$defs/DefinitionName",
-          "description": "Name of a schema of the `definitions` of the same MCP adapter or aggregate. The input takes the schema's shape (its `required` list becomes the input's `requiredProperties`); beside `schema`, only `description` (which replaces the schema's) and `required` are allowed."
+          "description": "Name of a schema of the `definitions` of the same MCP adapter or aggregate. The input takes the schema's shape (its `required` list becomes the input's `requiredProperties`); beside `schema`, only `description` (which replaces the schema's), `required` and `default` are allowed."
         },
         "required": {
           "type": "boolean",
@@ -1733,21 +1734,13 @@
         "additionalProperties": {
           "type": "boolean",
           "description": "Whether an object parameter accepts properties beyond `properties`. Advertised to MCP clients in the tool's inputSchema; not enforced by Ikanos, which does not validate tool arguments against it."
+        },
+        "default": {
+          "description": "Value used when a call leaves this optional input out or passes null, written with the input's JSON type (a string, number, boolean, array or object). Advertised to MCP clients in the tool's inputSchema, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. `ikanos validate` and the engine reject a default that does not match `type` or `enum`. A default on a required input never applies and is reported as a warning. Only allowed on the parameter itself, not inside `items` or `properties`. Beside `schema`, it is checked against the type and enum of the expanded schema."
         }
       },
-      "anyOf": [
-        {
-          "required": [
-            "type",
-            "description"
-          ]
-        },
-        {
-          "required": [
-            "schema",
-            "description"
-          ]
-        }
+      "required": [
+        "description"
       ],
       "dependentSchemas": {
         "schema": {
@@ -1755,7 +1748,8 @@
             "enum": [
               "schema",
               "description",
-              "required"
+              "required",
+              "default"
             ]
           }
         }

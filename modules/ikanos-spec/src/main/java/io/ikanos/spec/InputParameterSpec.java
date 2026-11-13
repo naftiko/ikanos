@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
 import io.ikanos.spec.util.StructureSpec;
@@ -23,6 +24,12 @@ import io.ikanos.spec.util.StructureSpec;
 @JsonDeserialize(using = InputParameterDeserializer.class)
 @JsonSerialize(using = InputParameterSerializer.class)
 public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
+
+    /**
+     * Type of an MCP tool input ({@code McpToolInputParameter}) that declares none: MCP tool
+     * inputs, aggregate flow inputs and consumed MCP tool arguments (#986).
+     */
+    public static final String DEFAULT_MCP_TOOL_INPUT_TYPE = "string";
 
     private volatile String in;
 
@@ -70,6 +77,13 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     private volatile Boolean additionalProperties;
 
+    /**
+     * MCP tool input {@code default} (#979): the argument value used when a call leaves an
+     * optional input out or passes {@code null}, kept as written (any JSON type). {@code null}
+     * when none is declared.
+     */
+    private volatile JsonNode defaultValue;
+
     public InputParameterSpec() {
         super();
     }
@@ -88,6 +102,29 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
                 contentEncoding, contentCompression, contentMediaType, description);
         this.in = in;
         this.template = template;
+    }
+
+    /**
+     * Give every parameter without a {@code type} the MCP tool input default,
+     * {@link #DEFAULT_MCP_TOOL_INPUT_TYPE}. Called once, when an MCP tool, an aggregate flow or a
+     * consumed MCP tool receives its input parameters, so that every reader of
+     * {@link #getType()} (input schema, argument type check, exports) sees the default. Only the
+     * top-level parameters are defaulted: a nested {@code items}/{@code properties} schema keeps
+     * its own required {@code type}. REST inputs are never passed here. A parameter that
+     * references a schema of the definitions ({@code schema: name}) is left untyped: it takes the
+     * schema's type when the definitions are expanded, which sets the parameters again.
+     *
+     * @param params the parameters to update in place, may be {@code null}
+     */
+    public static void applyMcpToolInputDefaults(Iterable<InputParameterSpec> params) {
+        if (params == null) {
+            return;
+        }
+        for (InputParameterSpec param : params) {
+            if (param != null && param.getType() == null && param.getSchema() == null) {
+                param.setType(DEFAULT_MCP_TOOL_INPUT_TYPE);
+            }
+        }
     }
 
     public String getIn() {
@@ -207,6 +244,15 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setAdditionalProperties(Boolean additionalProperties) {
         this.additionalProperties = additionalProperties;
+    }
+
+    /** @return the declared {@code default}, or {@code null} when none is declared */
+    public JsonNode getDefaultValue() {
+        return defaultValue;
+    }
+
+    public void setDefaultValue(JsonNode defaultValue) {
+        this.defaultValue = defaultValue;
     }
 
 }

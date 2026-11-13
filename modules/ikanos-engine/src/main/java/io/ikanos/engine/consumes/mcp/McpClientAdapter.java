@@ -43,6 +43,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
@@ -163,9 +164,13 @@ public class McpClientAdapter extends ClientAdapter {
         if (tool == null) {
             return null;
         }
+        // The declared defaults when the calling step leaves an argument out (#979), applied
+        // before anything reads the parameters: the arguments and the credential templates see
+        // the same values
+        Map<String, Object> effective = InputDefaults.apply(tool.getInputParameters(), parameters);
         ObjectNode arguments = JSON.createObjectNode();
         for (InputParameterSpec param : tool.getInputParameters()) {
-            Object value = parameters != null ? parameters.get(param.getName()) : null;
+            Object value = effective != null ? effective.get(param.getName()) : null;
             if (value == null) {
                 if (param.isRequired()) {
                     throw new IllegalArgumentException("Missing required argument '"
@@ -177,7 +182,7 @@ public class McpClientAdapter extends ClientAdapter {
             arguments.set(param.getName(), JSON.valueToTree(value));
         }
         ConsumedOperationView view = ConsumedOperationView.of(tool, null, null);
-        Map<String, Object> templates = ConsumedAuthentication.withBindings(parameters,
+        Map<String, Object> templates = ConsumedAuthentication.withBindings(effective,
                 getCapability() != null ? getCapability().getBindings() : null);
         return new McpInvocation(this, operationName, arguments, view, templates);
     }

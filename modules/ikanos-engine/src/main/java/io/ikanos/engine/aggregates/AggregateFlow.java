@@ -23,6 +23,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
@@ -178,6 +179,10 @@ public class AggregateFlow {
         if (parameters != null) {
             merged.putAll(parameters);
         }
+
+        // Use the flow's input defaults for the inputs its caller (an MCP tool, a REST operation
+        // or another flow) left out (#979), before the flow's 'with' and templates read them
+        merged = InputDefaults.apply(getInputParameters(), merged);
 
         // Merge flow-level 'with' parameters
         OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, namespace);

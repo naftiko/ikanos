@@ -910,6 +910,51 @@ Used in exposed resources and operations. Extends the consumed variant with `typ
   description: Number of results per page (max 100)
 ```
 
+#### 3.12.3 McpToolInputParameter Object
+
+Used in the `inputParameters` map of MCP tools (exposed and consumed) and of aggregate flows, keyed by parameter name. The parameters become the properties of the tool's `inputSchema`.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | One of `string`, `number`, `integer`, `boolean`, `array`, `object`. Defaults to `string`, so a string parameter can leave it out. |
+| **description** | `string` | **REQUIRED**. Description of the parameter, for agent discovery. |
+| **required** | `boolean` | Whether the caller must send the parameter. |
+| **default** | any | Value used when a call leaves this optional input out or passes `null`, written with the input's JSON type. Advertised in the tool's `inputSchema`, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. |
+| **enum** | `string[]` | Allowed values, written as strings and emitted with the parameter's type. |
+| **format** | `string` | JSON Schema format hint (for example `date`, `uuid`). |
+| **minimum**, **maximum** | `number` | Inclusive bounds of a `number` or `integer` parameter. |
+| **items** | `McpToolInputSchema` | Schema of each element of an `array` parameter. |
+| **properties** | map of `McpToolInputSchema` | Properties of an `object` parameter. |
+| **requiredProperties** | `string[]` | Required property names of an `object` parameter, emitted as `required` in its schema. |
+| **additionalProperties** | `boolean` | Whether an `object` parameter accepts other properties. |
+
+**Rules:**
+
+- `enum`, `format`, `minimum`, `maximum`, `requiredProperties` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.
+- `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. An `enum` value is read as the `inputSchema` advertises it: on an `integer` parameter, `"50.0"` or `"1e2"` is advertised as a string, so a number default never matches it (write `"50"`). `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
+- A `default` on a `required: true` parameter never applies, since the caller must send it: `ikanos validate` and the engine report it as a warning.
+- `default` is only allowed on the parameter itself, not inside `items` or `properties`. It is kept when the parameter comes from an input parameter set, and allowed beside `schema: name`, where it is checked against the expanded schema (see [3.22 Definitions Object](#322-definitions-object)).
+- `type` only defaults on the parameter itself: a nested `McpToolInputSchema` under `items` or `properties` must declare it.
+
+**McpToolInputParameter Example:**
+
+```yaml
+inputParameters:
+  timePeriod:
+    type: "string"
+    description: "Calls and emails to use."
+    required: false
+    enum: ["LAST_7DAYS", "LAST_30DAYS", "LAST_90DAYS"]
+    default: "LAST_90DAYS"
+  size:
+    type: "integer"
+    description: "Page size."
+    required: false
+    default: 200
+```
+
 ---
 
 ### 3.13 OutputParameter Objects
@@ -1680,7 +1725,7 @@ Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: m
 #### 3.22.3 Rules
 
 - Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
-- Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
+- Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required` and `default`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
 - A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
 - Two sets of one tool or flow must not declare the same input.
 - Mapped (call-mode) outputs do not take `schema:`: they keep their JSONPath `mapping` on every leaf.

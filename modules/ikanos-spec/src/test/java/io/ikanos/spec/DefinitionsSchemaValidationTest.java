@@ -147,6 +147,36 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
+    void validateShouldAcceptDefaultBesideSchemaOnATopLevelInput() throws Exception {
+        List<Error> errors = schema.validate(mcp(DEFINITIONS, """
+                list-orders:
+                  description: "List orders."
+                  inputParameters:
+                    period:
+                      schema: date-range
+                      description: "Period."
+                      default: { from: "2026-01-01" }
+                  call: erp.list-orders
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectDefaultBesideSchemaInANestedSchema() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                list-orders:
+                  description: "List orders."
+                  inputParameters:
+                    periods:
+                      type: array
+                      description: "Periods."
+                      items: { schema: date-range, default: { from: "2026-01-01" } }
+                  call: erp.list-orders
+                """));
+    }
+
+    @Test
     void validateShouldRejectRequiredBesideSchemaInANestedSchema() throws Exception {
         assertRejected(mcp(DEFINITIONS, """
                 list-orders:
@@ -221,14 +251,17 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectInputWithNeitherTypeNorSchema() throws Exception {
-        assertRejected(mcp(DEFINITIONS, """
+    void validateShouldAcceptInputWithNeitherTypeNorSchemaAsAString() throws Exception {
+        // An MCP tool input without type is a string (#986), beside definitions too
+        List<Error> errors = schema.validate(mcp(DEFINITIONS, """
                 list-orders:
                   description: "List orders."
                   inputParameters:
                     period: { description: "Period." }
                   call: erp.list-orders
                 """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test
