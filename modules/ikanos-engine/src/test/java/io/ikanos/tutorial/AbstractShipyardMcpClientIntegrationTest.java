@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import io.github.microcks.testcontainers.MicrocksContainer;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 
 import tools.jackson.databind.JsonNode;
@@ -60,6 +59,10 @@ import io.ikanos.spec.util.IkanosMappers;
  * HTTP handshake helpers ({@code initialize}, {@code tools/list}, {@code tools/call}) and
  * all HTTP plumbing are provided here so concrete classes contain only their
  * scenario-specific tests and a {@code @BeforeEach startServer()}.</p>
+ *
+ * <p>The Microcks mock of the upstream APIs is started by the first tutorial class that runs
+ * and reused by the next ones, on the fixed port 8080 that the tutorial capabilities target.
+ * Tutorial classes must therefore not run in parallel.</p>
  */
 abstract class AbstractShipyardMcpClientIntegrationTest {
 
@@ -74,19 +77,20 @@ abstract class AbstractShipyardMcpClientIntegrationTest {
     protected String serverUrl;
     protected final ObjectMapper json = IkanosMappers.lenientJson();
     protected String mcpServerToken;
+    /**
+     * One Microcks container shared by every tutorial test class of the JVM. It is never
+     * closed explicitly: Testcontainers' Ryuk removes it when the JVM exits.
+     */
     @SuppressWarnings("resource")
     private static final MicrocksContainer microcks = new MicrocksContainer(DockerImageName.parse(System.getProperty("microcks.image")))
             .withMainArtifacts("openapi/naftiko-shipyard-legacy-dockyard-api.yaml", "openapi/naftiko-shipyard-maritime-registry-api.yaml");
 
     @BeforeAll
-    static void setup() {
-        microcks.setPortBindings(List.of("8080:8080"));
-        microcks.start();
-    }
-
-    @AfterAll
-    static void teardown() {
-        microcks.close();
+    static void startMicrocksOnce() {
+        if (!microcks.isRunning()) {
+            microcks.setPortBindings(List.of("8080:8080"));
+            microcks.start();
+        }
     }
 
     @AfterEach
