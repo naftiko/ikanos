@@ -1118,7 +1118,7 @@
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Scope sent in `Cache-Control` with `ttlMs`. `private` answers also send `Vary: Authorization`, and answers of an operation that reads an input from outside the URL (`in: header`, or the body) send `Vary: *`. `auto` gives `private` when the adapter authenticates its callers or the operation reads an input from outside the URL; `public` otherwise. Default: `private`."
+          "description": "Scope sent in `Cache-Control` with `ttlMs`. `private` answers also send `Vary: Authorization`, and answers of an operation that reads an input from outside the URL (`in: header`, or the body), or of an adapter that reads an `apikey` from a header other than `Authorization`, send `Vary: *`. `auto` gives `private` when the adapter authenticates its callers or the operation reads an input from outside the URL; `public` otherwise. Default: `private`."
         },
         "maxRequestsInProgress": {
           "type": "integer",
