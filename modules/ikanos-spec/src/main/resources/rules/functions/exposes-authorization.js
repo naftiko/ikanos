@@ -1,13 +1,16 @@
 /**
  * Spectral custom function: exposes-authorization
  *
- * Checks the `authorization` blocks of an exposed REST or MCP adapter (issue #999): on the adapter, on
- * its REST resources and operations, and on its MCP tools. Selected by `functionOptions.check`:
+ * Checks the `authorization` blocks of every exposed REST or MCP adapter (issue #999), under
+ * `capability.exposes` and in a standalone `exposes` file: on the adapter, on its REST resources and
+ * operations, and on its MCP tools. Run on the whole document (`given: "$"`) and builds each result
+ * path itself, like the other functions here, since Polychro passes no context. Selected by
+ * `functionOptions.check`:
  *
- * - `oauth2`: an `authorization` reads the claims of a validated OAuth 2.1 token, so the adapter must use
- *   `authentication: oauth2`, and an MCP adapter must not use the stdio transport, which carries
- *   no token. The schema checks the adapter-level `authorization`; this check covers every level. The
- *   engine refuses to start on the same problems.
+ * - `oauth2`: an `authorization` reads the claims of a validated OAuth 2.1 token, so the adapter
+ *   must use `authentication: oauth2`, and an MCP adapter must not use the stdio transport, which
+ *   carries no token. The schema checks the adapter-level `authorization`; this check covers every
+ *   level. The engine refuses to start on the same problems.
  * - `scopes`: every scope an `authorization` lists must be one the adapter recognizes, in
  *   `authentication.scopes`, so Protected Resource Metadata and the OpenAPI export advertise it.
  * - `unenforced`: an `oauth2` adapter lists `scopes` but declares no `authorization`. The scopes are
@@ -16,12 +19,31 @@
  *
  * Resources, operations and tools are read as maps keyed by name, or as lists of named entries.
  */
-export default function exposesAuthorization(adapter, options, context) {
-  if (!adapter || typeof adapter !== "object") {
+export default function exposesAuthorization(document, options) {
+  if (!document || typeof document !== "object") {
     return;
   }
   const check = options && options.check;
-  const declared = collectAuthorization(adapter, context.path);
+  const results = [];
+  const scan = (exposes, basePath) => {
+    if (!Array.isArray(exposes)) {
+      return;
+    }
+    exposes.forEach((adapter, index) => {
+      if (adapter && typeof adapter === "object"
+          && (adapter.type === "rest" || adapter.type === "mcp")) {
+        results.push(...checkAdapter(adapter, [...basePath, index], check));
+      }
+    });
+  };
+  scan(document.capability && document.capability.exposes, ["capability", "exposes"]);
+  scan(document.exposes, ["exposes"]);
+  return results;
+}
+
+/** The results of one check on one adapter, whose document path is `adapterPath`. */
+function checkAdapter(adapter, adapterPath, check) {
+  const declared = collectAuthorization(adapter, adapterPath);
   const authentication = adapter.authentication;
   const isOAuth2 = authentication && authentication.type === "oauth2";
 
@@ -32,10 +54,10 @@ export default function exposesAuthorization(adapter, options, context) {
         message: "'authentication.scopes' only lists the scopes this adapter recognizes: no call "
           + "requires them. Add 'authorization' to the adapter, a resource, an operation or a tool "
           + "to require scopes or claims.",
-        path: [...context.path, "authentication", "scopes"],
+        path: [...adapterPath, "authentication", "scopes"],
       }];
     }
-    return;
+    return [];
   }
 
   const results = [];

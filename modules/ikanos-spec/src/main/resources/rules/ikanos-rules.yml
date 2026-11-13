@@ -357,9 +357,7 @@ rules:
       to start on the same problems.
     severity: error
     recommended: true
-    given:
-      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
-      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    given: "$"
     then:
       function: exposes-authorization
       functionOptions:
@@ -374,9 +372,7 @@ rules:
       engine refuses to start otherwise.
     severity: error
     recommended: true
-    given:
-      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
-      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    given: "$"
     then:
       function: exposes-authorization
       functionOptions:
@@ -392,9 +388,7 @@ rules:
       adapter that lists scopes without any `authorization` may have relied on it.
     severity: warn
     recommended: true
-    given:
-      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
-      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    given: "$"
     then:
       function: exposes-authorization
       functionOptions:
