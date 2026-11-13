@@ -445,6 +445,43 @@ public class ResourceRestletTest {
   }
 
   @Test
+  public void copyTrustedHeadersShouldDropRangeWhenListedBeforeAnIfRangeThatCannotBeParsed()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-Range", "v1");
+    from.getHeaders().add("Range", "bytes=0-9");
+    Request to = new Request(Method.GET, "http://localhost/target");
+
+    restlet.copyTrustedHeaders(from, to, List.of("Range", "If-Range"));
+
+    assertTrue(to.getRanges().isEmpty(),
+        "the declaration order of trustedHeaders must not bring back the Range");
+  }
+
+  @Test
+  public void adapterRangeInputShouldNotBringBackTheRangeOfARefusedTrustedIfRange()
+      throws Exception {
+    ResourceRestlet restlet = minimalRestlet();
+    Request from = new Request(Method.GET, "http://localhost/source");
+    from.getHeaders().add("If-Range", "v1");
+    Request to = new Request(Method.GET, "http://localhost/target");
+    restlet.copyTrustedHeaders(from, to, List.of("If-Range"));
+
+    io.ikanos.spec.consumes.http.HttpClientSpec spec =
+        new io.ikanos.spec.consumes.http.HttpClientSpec("test", "http://localhost", null);
+    io.ikanos.spec.InputParameterSpec range = new io.ikanos.spec.InputParameterSpec();
+    range.setName("Range");
+    range.setIn("header");
+    range.setValue("bytes=0-9");
+    spec.setInputParameters(Map.of("Range", range));
+    new io.ikanos.engine.consumes.http.HttpClientAdapter(null, spec).setHeaders(to);
+
+    assertTrue(to.getRanges().isEmpty(),
+        "an adapter input must not reintroduce a Range whose If-Range was refused");
+  }
+
+  @Test
   public void copyTrustedHeadersShouldDropRangeWhenIfRangeCannotBeParsedOnGet()
       throws Exception {
     ResourceRestlet restlet = minimalRestlet();

@@ -463,6 +463,9 @@ public class HttpClientAdapter extends ClientAdapter {
     void setHeaders(Request request, Set<InputParameterSpec> replaced) {
         boolean authenticated = getHttpClientSpec().getAuthentication() != null;
         for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
+            // The header sent is the wire name, as in Resolver and ConsumedHeaderValidator
+            String wireName = param.getWireName() != null && !param.getWireName().isBlank()
+                    ? param.getWireName() : param.getName();
             if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
                     && !replaced.contains(param)
                     // A template was already resolved and applied by Resolver, before this
@@ -470,10 +473,10 @@ public class HttpClientAdapter extends ClientAdapter {
                     && !param.getValue().contains("{{")
                     // These headers run after authentication: the declared authentication
                     // always wins for Authorization, as it does over an operation input (#1001)
-                    && !(authenticated && "Authorization".equalsIgnoreCase(param.getName()))) {
+                    && !(authenticated && "Authorization".equalsIgnoreCase(wireName))) {
                 // A standard header (User-Agent, …) through its Restlet property (#1001). A
                 // static value was checked at load time (ConsumedHeaderValidator)
-                StandardRequestHeaders.setOrDrop(request, param.getName(), param.getValue());
+                StandardRequestHeaders.setOrDrop(request, wireName, param.getValue());
             }
         }
     }

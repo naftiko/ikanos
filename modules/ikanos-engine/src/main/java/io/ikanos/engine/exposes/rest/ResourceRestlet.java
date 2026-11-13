@@ -44,7 +44,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -659,7 +658,6 @@ public class ResourceRestlet extends Restlet {
             return;
         }
 
-        boolean ifRangeDropped = false;
         for (String trustedHeader : trustedHeaders) {
             String[] lines = from.getHeaders().getValuesArray(trustedHeader, true);
 
@@ -675,15 +673,12 @@ public class ResourceRestlet extends Restlet {
             String headerValue = StandardRequestHeaders.isListValued(trustedHeader)
                     ? String.join("Cookie".equalsIgnoreCase(trustedHeader) ? "; " : ", ", lines)
                     : lines[0];
+            // A refused If-Range also removes the Range, set before or after it, by any
+            // source (StandardRequestHeaders.IF_RANGE_REFUSED)
             if (!StandardRequestHeaders.setOrDrop(to, trustedHeader, headerValue)) {
                 Context.getCurrentLogger().warning("Trusted header '" + trustedHeader
                         + "' was not forwarded: its value cannot be parsed");
-                ifRangeDropped |= "If-Range".equalsIgnoreCase(trustedHeader);
             }
-        }
-        if (ifRangeDropped) {
-            // Without its If-Range, the Range could return part of a changed representation
-            to.setRanges(new ArrayList<>());
         }
     }
 

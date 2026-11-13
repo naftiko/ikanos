@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +25,7 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 
 public class HeadersTest {
@@ -83,6 +85,44 @@ public class HeadersTest {
         assertEquals("ikanos-test/1.0", request.getClientInfo().getAgent(),
                 "#1001: Restlet 3 only sends User-Agent from the client info, never from a raw "
                         + "header");
+    }
+
+    @Test
+    public void setHeadersShouldSendAnAdapterHeaderUnderItsWireName() {
+        HttpClientSpec spec = new HttpClientSpec("test", "https://api.example.com", null);
+        InputParameterSpec revision = new InputParameterSpec();
+        revision.setName("If-Match");
+        revision.setWireName("X-Revision");
+        revision.setIn("header");
+        revision.setValue("v1");
+        spec.setInputParameters(Map.of("If-Match", revision));
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/pages");
+
+        new HttpClientAdapter(null, spec).setHeaders(request);
+
+        assertEquals("v1", request.getHeaders().getFirstValue("X-Revision", true));
+        assertTrue(request.getConditions().getMatch().isEmpty(),
+                "the logical name If-Match is not the header sent: no precondition applies");
+    }
+
+    @Test
+    public void setHeadersShouldSendAnAdapterHeaderNamedAuthorizationUnderAnotherWireName() {
+        BearerAuthenticationSpec authentication = new BearerAuthenticationSpec();
+        authentication.setToken("secret");
+        HttpClientSpec spec = new HttpClientSpec("test", "https://api.example.com",
+                authentication);
+        InputParameterSpec token = new InputParameterSpec();
+        token.setName("Authorization");
+        token.setWireName("X-Api-Token");
+        token.setIn("header");
+        token.setValue("t-1");
+        spec.setInputParameters(Map.of("Authorization", token));
+        Request request = new Request(Method.GET, "https://api.example.com/v1/pages");
+
+        new HttpClientAdapter(null, spec).setHeaders(request);
+
+        assertEquals("t-1", request.getHeaders().getFirstValue("X-Api-Token", true),
+                "only the Authorization wire header yields to the declared authentication");
     }
 
     @Test

@@ -260,6 +260,42 @@ class StandardRequestHeadersTest {
     }
 
     @Test
+    void setOrDropShouldRemoveTheRangeWhenAnIfRangeSetAfterItIsRefused() {
+        StandardRequestHeaders.set(request, "Range", "bytes=0-9");
+
+        assertFalse(StandardRequestHeaders.setOrDrop(request, "If-Range", "v1"));
+
+        assertTrue(request.getRanges().isEmpty(),
+                "without its If-Range, the Range could return part of a changed representation");
+    }
+
+    @Test
+    void setShouldNotSetARangeOnceAnIfRangeWasRefused() {
+        assertFalse(StandardRequestHeaders.setOrDrop(request, "If-Range", "v1"));
+
+        StandardRequestHeaders.set(request, "Range", "bytes=0-9");
+
+        assertTrue(request.getRanges().isEmpty(),
+                "a Range set by a later source must not bring back an unconditional range");
+    }
+
+    @Test
+    void setShouldKeepTheRangeWhenTheIfRangeIsValid() {
+        StandardRequestHeaders.set(request, "Range", "bytes=0-9");
+        StandardRequestHeaders.set(request, "If-Range", "\"v1\"");
+
+        assertEquals(1, request.getRanges().size());
+    }
+
+    @Test
+    void setShouldStillRefuseAnInvalidRangeOnceAnIfRangeWasRefused() {
+        StandardRequestHeaders.setOrDrop(request, "If-Range", "v1");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> StandardRequestHeaders.set(request, "Range", "items=0-9"));
+    }
+
+    @Test
     void setIfRangeShouldSetDateWhenValueIsAnHttpDate() {
         StandardRequestHeaders.setIfRange(request, "Tue, 10 Nov 2026 08:00:00 GMT");
 
