@@ -324,6 +324,25 @@ public class HeadersTest {
         assertNotNull(request.getConditions().getRangeTag());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"{{etag}}", "blank"})
+    public void resolveInputParametersShouldKeepTheRangeOfAGetWhoseIfRangeTheRequestCarries(
+            String input) {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+        request.getConditions().setRangeTag(org.restlet.data.Tag.parse("\"v1\""));
+        request.setRanges(new java.util.ArrayList<>(List.of(new org.restlet.data.Range(0, 10))));
+        InputParameterSpec ifRange = "blank".equals(input) ? new InputParameterSpec()
+                : header("If-Range", input);
+        ifRange.setName("If-Range");
+        ifRange.setIn("header");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(ifRange),
+                new HashMap<>(Map.of("If-Range", " ", "other", "x")));
+
+        assertEquals(1, request.getRanges().size(), input);
+        assertNotNull(request.getConditions().getRangeTag(), input);
+    }
+
     private static InputParameterSpec suppliedIfMatch(boolean required) {
         InputParameterSpec spec = new InputParameterSpec();
         spec.setName("If-Match");

@@ -996,12 +996,14 @@ public class Resolver {
                 // that cannot be parsed: omitting it would make the write unconditional (#1001).
                 // Not when the input says required: false, nor when the request already carries
                 // that precondition, such as the caller's own trusted header in forward mode
-                boolean conditionalWrite = !notSent.contains(spec)
+                boolean precondition = !notSent.contains(spec)
                         && "header".equalsIgnoreCase(in)
-                        && StandardRequestHeaders.isConditional(wireName)
+                        && StandardRequestHeaders.isConditional(wireName);
+                boolean conditionalWrite = precondition
                         && clientRequest.getMethod() != null
                         && !clientRequest.getMethod().isSafe();
-                boolean carried = conditionalWrite
+                // Whatever the method: an If-Range the request carries keeps its Range
+                boolean carried = precondition
                         && StandardRequestHeaders.carriesPrecondition(clientRequest, wireName);
                 boolean guardsWrite = conditionalWrite && spec.isRequired() && !carried;
 
@@ -1041,6 +1043,10 @@ public class Resolver {
                     val = System.getenv(spec.getName());
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
+                }
+                if (carried && (val == null || val.toString().isBlank())) {
+                    // The precondition already on the request is kept as is
+                    continue;
                 }
                 // A required precondition the caller left out (or sent empty) of a request that
                 // is not safe: sending the write without it would make it unconditional (#1001)
