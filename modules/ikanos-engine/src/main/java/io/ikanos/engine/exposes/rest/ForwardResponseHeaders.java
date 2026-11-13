@@ -332,8 +332,9 @@ public final class ForwardResponseHeaders {
 
     /**
      * Decides what to send the caller for an upstream {@code Location} or
-     * {@code Content-Location}. The value is first resolved against the upstream request URI and
-     * normalized (so {@code ..} segments are applied).
+     * {@code Content-Location}. The value is first resolved against the upstream request URI
+     * (RFC 3986 section 5.2), which applies {@code .} and {@code ..} segments but keeps empty
+     * path segments, so {@code /items//42} stays distinct from {@code /items/42}.
      *
      * <ul>
      * <li>Same scheme, host and port as {@code upstreamBaseUri}, and under its path: the matching
@@ -343,6 +344,9 @@ public final class ForwardResponseHeaders {
      * another scheme or port, outside the base path): dropped, so the upstream host, and paths
      * that would point into the gateway's own namespace, never reach the caller.</li>
      * <li>A value on another host: relayed unchanged.</li>
+     * <li>A value that resolves to no host, such as {@code http:/admin} or {@code urn:x}:
+     * dropped. A client can read a scheme-qualified reference without an authority as relative
+     * to the gateway (RFC 3986 section 5.2.2, non-strict), outside the exposed resource.</li>
      * <li>A value or base URI that cannot be parsed: dropped.</li>
      * </ul>
      *
@@ -372,13 +376,19 @@ public final class ForwardResponseHeaders {
         // of the consumed adapter.
         boolean sameDocument = value.getScheme() == null && value.getRawAuthority() == null
                 && (value.getRawPath() == null || value.getRawPath().isEmpty());
-        URI resolved = (sameDocument ? target : target.resolve(value)).normalize();
+        URI resolved = resolve(target, sameDocument ? target : value);
+        if (resolved == null) {
+            return null;
+        }
         String query = !sameDocument ? resolved.getRawQuery()
                 : value.getRawQuery() != null ? value.getRawQuery()
                         : incoming.getResourceRef().getQuery();
         String fragment = sameDocument ? value.getRawFragment() : resolved.getRawFragment();
         String host = host(resolved);
-        if (host == null || !host.equalsIgnoreCase(host(base))) {
+        if (host == null) {
+            return null;
+        }
+        if (!host.equalsIgnoreCase(host(base))) {
             return raw;
         }
         String basePath = stripTrailingSlashes(base.getRawPath());
@@ -410,11 +420,84 @@ public final class ForwardResponseHeaders {
     }
 
     /**
+     * Resolves {@code value} against {@code target} as RFC 3986 section 5.2 does, on the raw
+     * components. {@link URI#resolve(URI)} and {@link URI#normalize()} also collapse empty path
+     * segments, which can name another resource.
+     *
+     * @return the resolved URI, or {@code null} when it has no authority (including a
+     *         scheme-qualified {@code value} without one) or cannot be parsed
+     */
+    static URI resolve(URI target, URI value) {
+        String scheme = value.getScheme() != null ? value.getScheme() : target.getScheme();
+        String authority;
+        String path;
+        if (value.getScheme() != null || value.getRawAuthority() != null) {
+            authority = value.getRawAuthority();
+            path = value.getRawPath();
+        } else {
+            authority = target.getRawAuthority();
+            path = value.getRawPath() == null ? "" : value.getRawPath();
+            if (!path.startsWith("/")) {
+                String targetPath = target.getRawPath() == null ? "" : target.getRawPath();
+                path = targetPath.isEmpty() ? "/" + path
+                        : targetPath.substring(0, targetPath.lastIndexOf('/') + 1) + path;
+            }
+        }
+        if (scheme == null || authority == null) {
+            return null;
+        }
+        StringBuilder resolved = new StringBuilder(scheme).append("://").append(authority)
+                .append(removeDotSegments(path == null ? "" : path));
+        if (value.getRawQuery() != null) {
+            resolved.append('?').append(value.getRawQuery());
+        }
+        if (value.getRawFragment() != null) {
+            resolved.append('#').append(value.getRawFragment());
+        }
+        return parse(resolved.toString());
+    }
+
+    /**
+     * Applies the plain {@code .} and {@code ..} segments of a raw path (RFC 3986 section
+     * 5.2.4), keeping empty segments. A {@code ..} that would climb above the root is kept, so
+     * {@link #hasDotSegment(String)} drops the value instead of pinning it to the root.
+     */
+    static String removeDotSegments(String path) {
+        if (path.isEmpty()) {
+            return path;
+        }
+        boolean absolute = path.startsWith("/");
+        String[] segments = (absolute ? path.substring(1) : path).split("/", -1);
+        List<String> output = new ArrayList<>();
+        for (int i = 0; i < segments.length; i++) {
+            String segment = segments[i];
+            boolean last = i == segments.length - 1;
+            if (segment.equals(".")) {
+                if (last) {
+                    output.add("");
+                }
+            } else if (segment.equals("..")) {
+                if (output.isEmpty() || output.get(output.size() - 1).equals("..")) {
+                    output.add("..");
+                } else {
+                    output.remove(output.size() - 1);
+                    if (last) {
+                        output.add("");
+                    }
+                }
+            } else {
+                output.add(segment);
+            }
+        }
+        return (absolute ? "/" : "") + String.join("/", output);
+    }
+
+    /**
      * @return {@code true} when a raw path segment is a dot segment, plain or percent-encoded
      *         ({@code ..}, {@code .}, {@code %2e%2e}, {@code .%2e}, {@code %2e.}, {@code %2e}, in
-     *         any case). {@link URI#normalize()} keeps a leading {@code ..} on an absolute path
-     *         and never decodes {@code %2e}, while WHATWG URL parsers apply both, so such a path
-     *         could leave the base once the caller follows it.
+     *         any case). {@link #removeDotSegments(String)} keeps a leading {@code ..} on an
+     *         absolute path and never decodes {@code %2e}, while WHATWG URL parsers apply both, so
+     *         such a path could leave the base once the caller follows it.
      */
     static boolean hasDotSegment(String rawPath) {
         for (String segment : rawPath.split("/", -1)) {

@@ -366,6 +366,55 @@ public class ForwardResponseHeadersTest {
         assertNull(location(raw), raw);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "http://upstream:9090/v1/items//42, /proxy/items//42",
+            "/v1/items//42, /proxy/items//42",
+            "items//42, /proxy/items//42",
+            "http://upstream:9090/v1/items//42/../43, /proxy/items//43",
+            "http://upstream:9090/v1/items/./42/, /proxy/items/42/"})
+    public void relayedLocationShouldKeepEmptyPathSegments(String raw, String expected) {
+        assertEquals(expected, location(raw));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http:/admin", "HTTP:/admin", "https:/admin", "http:admin",
+            "urn:example:admin", "mailto:ops@example.com"})
+    public void relayedLocationShouldDropASchemeQualifiedLocationWithoutAHost(String raw) {
+        assertNull(location(raw), raw);
+    }
+
+    @Test
+    public void relayShouldKeepEmptyPathSegmentsOfLocationAndContentLocation() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Location", BASE_URI + "/items//42");
+        from.getHeaders().add("Content-Location", BASE_URI + "/items//42");
+        StringRepresentation entity = new StringRepresentation("{}");
+        entity.setLocationRef(BASE_URI + "/items//42");
+        from.setEntity(entity);
+
+        Response relayed = relayed(from);
+
+        assertEquals("/proxy/items//42", relayed.getLocationRef().getTargetRef().toString());
+        assertEquals("/proxy/items//42",
+                relayed.getEntity().getLocationRef().getTargetRef().toString());
+    }
+
+    @Test
+    public void relayShouldDropAHostlessLocationAndContentLocation() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Location", "http:/admin");
+        from.getHeaders().add("Content-Location", "http:/admin");
+        StringRepresentation entity = new StringRepresentation("{}");
+        entity.setLocationRef("http:/admin");
+        from.setEntity(entity);
+
+        Response relayed = relayed(from);
+
+        assertNull(relayed.getLocationRef());
+        assertNull(relayed.getEntity().getLocationRef());
+    }
+
     @Test
     public void relayedLocationShouldDropALocationUnderBaseUriWhenTheExposedPathIsUnknown() {
         assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
