@@ -46,10 +46,10 @@ public final class RootSectionsValidator {
         if (spec == null || spec.getCapability() == null) {
             return;
         }
-        reject("consumes", spec.getConsumes());
-        reject("exposes", spec.getExposes());
-        reject("aggregates", spec.getAggregates());
-        reject("binds", spec.getBinds());
+        reject(spec, "consumes", spec.getConsumes());
+        reject(spec, "exposes", spec.getExposes());
+        reject(spec, "aggregates", spec.getAggregates());
+        reject(spec, "binds", spec.getBinds());
     }
 
     /**
@@ -65,8 +65,13 @@ public final class RootSectionsValidator {
                 + section + "'. Root '" + section + "' is only valid in a standalone shared file.";
     }
 
-    private static void reject(String section, List<?> entries) {
-        if (entries != null && !entries.isEmpty()) {
+    /**
+     * Reject a root section that the document declared, even empty ({@code binds: []}), or that
+     * holds entries added in code.
+     */
+    private static void reject(IkanosSpec spec, String section, List<?> entries) {
+        if (spec.getDeclaredRootSections().contains(section)
+                || (entries != null && !entries.isEmpty())) {
             throw new IllegalArgumentException(message(section));
         }
     }

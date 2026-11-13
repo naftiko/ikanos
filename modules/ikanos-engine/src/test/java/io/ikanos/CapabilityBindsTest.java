@@ -128,4 +128,19 @@ class CapabilityBindsTest {
                 () -> new Capability(spec, tempDir.toString()));
         assertTrue(error.getMessage().contains("capability." + section), error.getMessage());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"binds", "consumes", "exposes", "aggregates"})
+    void constructorShouldRejectEmptyRootSectionNextToCapability(String section)
+            throws Exception {
+        IkanosSpec spec = TestUtils.parseYaml("""
+                ikanos: "%s"
+                %s: []
+                capability:
+                %s""".formatted(IKANOS, section, EXPOSES));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new Capability(spec, tempDir.toString()));
+        assertTrue(error.getMessage().contains("capability." + section), error.getMessage());
+    }
 }

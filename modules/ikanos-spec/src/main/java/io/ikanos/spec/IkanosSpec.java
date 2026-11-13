@@ -13,11 +13,16 @@
  */
 package io.ikanos.spec;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSetter;
 
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
@@ -64,6 +69,12 @@ public class IkanosSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final List<AggregateSpec> aggregates;
 
+    /**
+     * The root sections the parsed document declared, even empty ones. The lists cannot tell an
+     * absent section from {@code binds: []}, and a capability document may declare neither.
+     */
+    private final Set<String> declaredRootSections = ConcurrentHashMap.newKeySet();
+
     public IkanosSpec(String ikanos, InfoSpec info, CapabilitySpec capability) {
         this.ikanos.set(ikanos);
         this.info.set(info);
@@ -98,6 +109,15 @@ public class IkanosSpec {
         return binds;
     }
 
+    @JsonSetter("binds")
+    public void setBinds(List<BindingSpec> binds) {
+        declaredRootSections.add("binds");
+        this.binds.clear();
+        if (binds != null) {
+            this.binds.addAll(binds);
+        }
+    }
+
     public CapabilitySpec getCapability() {
         return capability.get();
     }
@@ -110,12 +130,50 @@ public class IkanosSpec {
         return consumes;
     }
 
+    @JsonSetter("consumes")
+    public void setConsumes(List<ClientSpec> consumes) {
+        declaredRootSections.add("consumes");
+        this.consumes.clear();
+        if (consumes != null) {
+            this.consumes.addAll(consumes);
+        }
+    }
+
     public List<ServerSpec> getExposes() {
         return exposes;
     }
 
+    @JsonSetter("exposes")
+    public void setExposes(List<ServerSpec> exposes) {
+        declaredRootSections.add("exposes");
+        this.exposes.clear();
+        if (exposes != null) {
+            this.exposes.addAll(exposes);
+        }
+    }
+
     public List<AggregateSpec> getAggregates() {
         return aggregates;
+    }
+
+    @JsonSetter("aggregates")
+    public void setAggregates(List<AggregateSpec> aggregates) {
+        declaredRootSections.add("aggregates");
+        this.aggregates.clear();
+        if (aggregates != null) {
+            this.aggregates.addAll(aggregates);
+        }
+    }
+
+    /**
+     * The root {@code consumes}, {@code exposes}, {@code aggregates} and {@code binds} sections the
+     * parsed document declared, including empty ones.
+     *
+     * @return the declared section names, read-only
+     */
+    @JsonIgnore
+    public Set<String> getDeclaredRootSections() {
+        return Collections.unmodifiableSet(declaredRootSections);
     }
 
 }
