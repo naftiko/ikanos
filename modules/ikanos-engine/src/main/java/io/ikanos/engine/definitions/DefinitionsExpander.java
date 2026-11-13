@@ -54,7 +54,8 @@ import io.ikanos.spec.util.StructureSpec;
  *   <li>{@code schema: name} on an input (top level, {@code items}, {@code properties}), inside
  *       another schema, and in orchestrated (steps-mode) outputs, is replaced by a copy of the
  *       schema. Beside {@code schema:} an input only takes {@code description} (which replaces
- *       the schema's) and, at the top level, {@code required}; an output takes no other key.</li>
+ *       the schema's) and, at the top level, {@code required} and {@code default}; an output
+ *       takes no other key.</li>
  *   <li>In an output, a schema gives only what an orchestrated output can declare: its
  *       {@code type} ({@code integer} becomes {@code number}), its {@code properties}, and its
  *       {@code items} when they are objects with properties. Input-only keywords
@@ -783,12 +784,18 @@ public final class DefinitionsExpander {
             return node;
         }
 
-        /** Give an expanded schema the name, {@code required} and description of its use. */
+        /**
+         * Give an expanded schema the name, {@code required}, description and {@code default} of
+         * its use.
+         */
         private static void applyUseSite(InputParameterSpec use, InputParameterSpec resolved) {
             resolved.setName(use.getName());
             resolved.setDeclaredRequired(use.getDeclaredRequired());
             if (use.getDescription() != null) {
                 resolved.setDescription(use.getDescription());
+            }
+            if (use.getDefaultValue() != null) {
+                resolved.setDefaultValue(use.getDefaultValue().deepCopy());
             }
         }
 
@@ -866,6 +873,8 @@ public final class DefinitionsExpander {
             addIf(extra, topLevel ? "requiredProperties" : "required",
                     !param.getRequired().isEmpty()
                             || (!topLevel && param.getDeclaredRequired() != null));
+            // Like required, a default belongs to a top-level input only (#979)
+            addIf(extra, "default", !topLevel && param.getDefaultValue() != null);
             addIf(extra, "enum", !param.getEnumeration().isEmpty());
             addIf(extra, "format", param.getFormat() != null);
             addIf(extra, "minimum", param.getMinimum() != null);
@@ -879,7 +888,7 @@ public final class DefinitionsExpander {
             addIf(extra, "contentMediaType", param.getContentMediaType() != null);
             if (!extra.isEmpty()) {
                 errors.add(location + ": 'schema: " + param.getSchema() + "' takes no other key"
-                        + " than 'description'" + (topLevel ? " and 'required'" : "")
+                        + " than 'description'" + (topLevel ? ", 'required' and 'default'" : "")
                         + ", found " + extra + ". Change the schema, or declare the input"
                         + " inline.");
             }
@@ -1144,6 +1153,8 @@ public final class DefinitionsExpander {
         copy.setContentEncoding(source.getContentEncoding());
         copy.setContentCompression(source.getContentCompression());
         copy.setContentMediaType(source.getContentMediaType());
+        copy.setDefaultValue(source.getDefaultValue() != null
+                ? source.getDefaultValue().deepCopy() : null);
         copy.getRequired().addAll(source.getRequired());
         copy.getEnumeration().addAll(source.getEnumeration());
         copy.getExamples().addAll(source.getExamples());

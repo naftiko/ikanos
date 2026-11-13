@@ -935,7 +935,7 @@ Used in the `inputParameters` map of MCP tools (exposed and consumed) and of agg
 - `enum`, `format`, `minimum`, `maximum`, `requiredProperties` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos.
 - `default` must match `type` and, when present, `enum`, with no conversion: `"200"` is not an `integer`. An `enum` value is read as the `inputSchema` advertises it: on an `integer` parameter, `"50.0"` or `"1e2"` is advertised as a string, so a number default never matches it (write `"50"`). `ikanos validate` reports a mismatch as an error and the engine refuses to load the capability.
 - A `default` on a `required: true` parameter never applies, since the caller must send it: `ikanos validate` and the engine report it as a warning.
-- `default` is only allowed on the parameter itself, not inside `items` or `properties`.
+- `default` is only allowed on the parameter itself, not inside `items` or `properties`. It is kept when the parameter comes from an input parameter set, and allowed beside `schema: name`, where it is checked against the expanded schema (see [3.22 Definitions Object](#322-definitions-object)).
 - `type` only defaults on the parameter itself: a nested `McpToolInputSchema` under `items` or `properties` must declare it.
 
 **McpToolInputParameter Example:**
@@ -1725,7 +1725,7 @@ Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: m
 #### 3.22.3 Rules
 
 - Definitions are referenced by their bare name. They are local to their adapter or aggregate: qualified names (`a.b`) and `$ref` pointers are rejected, and a tool cannot use an aggregate's definitions (reuse across MCP and REST goes through an aggregate flow and `ref`).
-- Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
+- Beside `schema:`, an input only takes `description` (which replaces the schema's) and, at the top level, `required` and `default`. An output takes no other key. The schema's `required` list becomes the input's `requiredProperties`.
 - A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
 - Two sets of one tool or flow must not declare the same input.
 - Mapped (call-mode) outputs do not take `schema:`: they keep their JSONPath `mapping` on every leaf.
