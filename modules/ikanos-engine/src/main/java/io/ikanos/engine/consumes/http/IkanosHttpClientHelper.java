@@ -17,9 +17,13 @@ import java.util.List;
 import java.util.function.Function;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
+import org.eclipse.jetty.http.HttpHeader;
 import org.restlet.Client;
+import org.restlet.engine.adapter.ClientCall;
+import org.restlet.engine.adapter.JettyClientCall;
 import org.restlet.engine.Engine;
 import org.restlet.engine.connector.ConnectorHelper;
+import org.restlet.representation.Representation;
 
 /**
  * Restlet {@link org.restlet.engine.connector.HttpClientHelper} subclass used by every consumed
@@ -32,6 +36,11 @@ import org.restlet.engine.connector.ConnectorHelper;
  * without WWW-Authenticate header"), which Restlet then reports as {@code 1002 Internal
  * Connector Error} with no body. Many APIs answer {@code 401} that way, with the explanation
  * in a JSON body, so without this the agent never sees why the call failed (#925).</p>
+ *
+ * <p>It also sends the size of a request entity whose size is known as {@code Content-Length}
+ * ({@link #create}). Restlet's Jetty call drops that header and streams every entity, so Jetty
+ * sent it {@code Transfer-Encoding: chunked}, which S3 and MinIO refuse unless it is aws-chunked
+ * ({@code 411 MissingContentLength}): a forwarded upload or a JSON body to S3 failed (#954).</p>
  *
  * <p>Restlet instantiates this class reflectively from its name, see
  * {@link HttpClientAdapter#HTTP_CLIENT_HELPER_CLASS_NAME}, but only among the helpers registered
@@ -74,6 +83,29 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
         List<ConnectorHelper<Client>> clients = Engine.getInstance().getRegisteredClients();
         if (clients.stream().noneMatch(h -> h.getClass() == type)) {
             clients.add(factory.apply(null));
+        }
+    }
+
+    @Override
+    public ClientCall create(org.restlet.Request request) {
+        ClientCall call = super.create(request);
+        if (call instanceof JettyClientCall jettyCall) {
+            setContentLength(jettyCall.getRequest(), request.getEntity());
+        }
+        return call;
+    }
+
+    /**
+     * Package-private for testing. Sets {@code Content-Length} on the Jetty request to the size of
+     * the entity Restlet will stream, when that size is known, so that Jetty doesn't send it
+     * chunked. An unknown size ({@link Representation#UNKNOWN_SIZE}) is still sent chunked.
+     */
+    static void setContentLength(org.eclipse.jetty.client.Request jettyRequest,
+            Representation entity) {
+        if (jettyRequest != null && entity != null && entity.isAvailable()
+                && entity.getSize() >= 0) {
+            long size = entity.getSize();
+            jettyRequest.headers(headers -> headers.put(HttpHeader.CONTENT_LENGTH, size));
         }
     }
 
