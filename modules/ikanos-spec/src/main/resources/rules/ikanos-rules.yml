@@ -766,8 +766,9 @@ rules:
     message: "tunnel.identity must reference a declared binding."
     description: >
       When a ConsumesHttp 'tunnel' uses Mustache references in 'identity'
-      (for example `{{secrets.ZITI_IDENTITY}}`), every referenced namespace and key
-      must be declared in the document's 'binds' or 'capability.binds' section.
+      (for example `{{ZITI_IDENTITY}}` or `{{secrets.ZITI_IDENTITY}}`), every
+      referenced key, and namespace when given, must be declared in the document's
+      'binds' or 'capability.binds' section.
       Bare filesystem paths are accepted but discouraged.
     severity: error
     recommended: true

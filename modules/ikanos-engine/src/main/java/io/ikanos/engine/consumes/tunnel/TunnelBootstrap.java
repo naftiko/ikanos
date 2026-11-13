@@ -72,18 +72,17 @@ public final class TunnelBootstrap {
      * no-arg constructor required for {@link ServiceLoader} — while still letting providers
      * read per-deployment configuration.
      *
-     * <p><b>Bindings shape.</b> {@code bindings} is the same nested map structure consumed
-     * by {@link Resolver#resolveMustacheTemplate(String, Map)} elsewhere in the engine:
-     * a top-level namespace map whose values are themselves maps of {@code key → value}.
-     * For example, an identity template {@code "{{secrets.IDENT_PATH}}"} requires:
+     * <p><b>Bindings shape.</b> {@code bindings} is the capability's bindings, as
+     * {@link io.ikanos.engine.util.BindingResolver#resolveBindings} builds them: each key by its
+     * name, and each bind namespace as a map of its keys (#942). So both
+     * {@code "{{IDENT_PATH}}"} and {@code "{{secrets.IDENT_PATH}}"} resolve:
      * <pre>{@code
-     * Map.of("secrets", Map.of("IDENT_PATH", "/etc/ziti/app.json"))
+     * Map.of("IDENT_PATH", "/etc/ziti/app.json",
+     *        "secrets", Map.of("IDENT_PATH", "/etc/ziti/app.json"))
      * }</pre>
-     * A flat map (e.g. {@code Map.of("IDENT_PATH", "/etc/ziti/app.json")}) will not satisfy
-     * a {@code "{{secrets.IDENT_PATH}}"} template. To catch this early, {@link
-     * #resolveIdentity} fails fast when the raw identity contains a Mustache expression but
-     * resolution leaves any unresolved {@code {{...}}} marker in the output — see {@link
-     * #resolveIdentity} for the exact condition.
+     * {@link #resolveIdentity} fails fast when the raw identity contains a Mustache expression
+     * but resolves to nothing, or leaves a {@code {{...}}} marker, such as a misspelled
+     * namespace or key — see {@link #resolveIdentity} for the exact condition.
      *
      * <p>The per-type identity system property is cleared immediately after {@link
      * #loadTunnel(String)} returns. The context is constructed and cached by the SPI
@@ -105,8 +104,8 @@ public final class TunnelBootstrap {
      *
      * @param clientSpecs the list of {@code consumes:} client specs
      * @param readyTimeout maximum time to wait per tunnel for readiness
-     * @param bindings nested binding map for Mustache resolution of {@code tunnel.identity}
-     *     (shape: {@code namespace → key → value}); may be {@code null} or empty when no
+     * @param bindings the capability bindings for Mustache resolution of {@code tunnel.identity}
+     *     (each key by name, and under its namespace); may be {@code null} or empty when no
      *     Mustache substitution is needed
      * @return immutable map of {@code tunnel.type → Tunnel}
      */
@@ -196,10 +195,10 @@ public final class TunnelBootstrap {
      *
      * <p>If the raw identity contains a Mustache expression ({@code {{...}}}) and the
      * resolved value still contains an unresolved {@code {{...}}} marker, an
-     * {@link IllegalStateException} is thrown. This catches the common mistake of passing a
-     * flat map (e.g. {@code Map.of("IDENT", "...")}) when the template references a
-     * namespaced key (e.g. {@code "{{secrets.IDENT}}"}) — without this guard, the unresolved
-     * template would silently propagate to the SPI provider as a literal file path.
+     * {@link IllegalStateException} is thrown. This catches a reference no binding answers,
+     * such as a misspelled namespace or key in {@code "{{secrets.IDENT}}"} — without this guard,
+     * the unresolved template would silently propagate to the SPI provider as a literal file
+     * path.
      */
     static String resolveIdentity(TunnelConfigSpec spec, Map<String, Object> bindings) {
         if (spec instanceof ZitiTunnelConfigSpec ziti) {
@@ -212,18 +211,18 @@ public final class TunnelBootstrap {
             }
             String resolved = Resolver.resolveMustacheTemplate(raw, bindings);
             // Fail fast when the template was non-empty but resolution produced no output —
-            // this happens when the caller passes a flat binding map (or one missing the
-            // referenced namespace), because Resolver substitutes missing variables with the
-            // empty string. Without this guard, the SPI provider would silently start with
-            // an empty identity path.
+            // this happens when no binding answers the reference (a misspelled namespace or
+            // key), because Resolver substitutes missing variables with the empty string.
+            // Without this guard, the SPI provider would silently start with an empty
+            // identity path.
             boolean mustacheTemplate = raw.contains("{{");
             if (mustacheTemplate
                     && (resolved == null || resolved.isBlank() || resolved.contains("{{"))) {
                 throw new IllegalStateException(
                         "tunnel.identity Mustache expression '" + raw
                                 + "' could not be resolved against the provided bindings."
-                                + " Expected nested map shape (namespace -> key -> value),"
-                                + " e.g. {\"secrets\": {\"IDENT\": \"/etc/ziti/app.json\"}}.");
+                                + " Check that a binds entry declares the key, and the namespace"
+                                + " when one is given, as in {{IDENT}} or {{secrets.IDENT}}.");
             }
             return resolved;
         }

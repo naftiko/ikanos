@@ -18,8 +18,11 @@ import java.lang.Iterable;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import org.restlet.Context;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.spec.util.BindingSpec;
@@ -59,16 +62,62 @@ public class BindingResolver {
         }
 
         for (BindingSpec binding : binds) {
-            if (binding.getLocation() != null && !binding.getLocation().isEmpty()) {
-                Map<String, String> fileVars = resolveFileBinding(binding);
-                resolved.putAll(fileVars);
-            } else {
-                Map<String, String> runtimeVars = resolveRuntimeBinding(binding, context);
-                resolved.putAll(runtimeVars);
-            }
+            resolved.putAll(resolveOne(binding, context));
         }
 
         return resolved;
+    }
+
+    /**
+     * The bindings a capability renders its templates with: each key under its own name, as in
+     * {@code {{CRM_TOKEN}}}, and under its bind's namespace, as in {@code {{secrets.CRM_TOKEN}}},
+     * the form the examples, the schema and the rules teach (#942).
+     *
+     * <p>When two binds declare the same key, {@code {{KEY}}} gets the later one, as before; the
+     * namespaced form tells them apart. A key named like a namespace keeps its value under that
+     * name, so nothing that resolved before changes, and that bind is then only offered by key, with
+     * a warning that names the namespace but never a value.</p>
+     *
+     * @param binds the bind specifications, may be null
+     * @param context execution context for runtime bindings
+     * @return a new mutable map: each key to its value, each namespace to its keys and values
+     * @throws IOException if a file-based binding cannot be read
+     */
+    public Map<String, Object> resolveBindings(Iterable<BindingSpec> binds,
+            ExecutionContext context) throws IOException {
+        Map<String, Object> bindings = new HashMap<>();
+        if (binds == null) {
+            return bindings;
+        }
+        Map<String, Map<String, String>> byNamespace = new LinkedHashMap<>();
+        for (BindingSpec binding : binds) {
+            Map<String, String> values = resolveOne(binding, context);
+            bindings.putAll(values);
+            String namespace = binding.getNamespace();
+            if (namespace != null && !namespace.isBlank()) {
+                byNamespace.computeIfAbsent(namespace, name -> new LinkedHashMap<>())
+                        .putAll(values);
+            }
+        }
+        byNamespace.forEach((namespace, values) -> {
+            if (bindings.containsKey(namespace)) {
+                Context.getCurrentLogger().warning("The bind namespace '" + namespace
+                        + "' has the name of a bound key, which keeps that name: write its keys as "
+                        + String.join(", ", values.keySet().stream()
+                                .map(key -> "{{" + key + "}}").toList())
+                        + ", or rename the namespace or the key.");
+                return;
+            }
+            bindings.put(namespace, Collections.unmodifiableMap(values));
+        });
+        return bindings;
+    }
+
+    private Map<String, String> resolveOne(BindingSpec binding, ExecutionContext context)
+            throws IOException {
+        return binding.getLocation() != null && !binding.getLocation().isEmpty()
+                ? resolveFileBinding(binding)
+                : resolveRuntimeBinding(binding, context);
     }
 
     /**

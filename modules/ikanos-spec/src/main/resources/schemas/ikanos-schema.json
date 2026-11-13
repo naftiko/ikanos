@@ -2507,7 +2507,7 @@
         },
         "identity": {
           "type": "string",
-          "description": "Ziti identity used to authenticate to the controller. Recommended form: a Mustache expression resolved from `binds` (e.g. `{{secrets.ZITI_IDENTITY}}`). A bare filesystem path is allowed for local development but discouraged in production. The Polychro rule `ikanos-tunnel-identity-must-bind` requires Mustache references to resolve to an existing binding."
+          "description": "Ziti identity used to authenticate to the controller. Recommended form: a Mustache expression resolved from `binds`, by key or by bind namespace and key (e.g. `{{ZITI_IDENTITY}}` or `{{secrets.ZITI_IDENTITY}}`). A bare filesystem path is allowed for local development but discouraged in production. The Polychro rule `ikanos-tunnel-identity-must-bind` requires Mustache references to resolve to an existing binding."
         },
         "fallback": {
           "type": "string",

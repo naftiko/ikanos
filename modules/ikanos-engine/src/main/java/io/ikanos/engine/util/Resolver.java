@@ -212,9 +212,10 @@ public class Resolver {
 
     /**
      * The value JMustache would render for {@code {{name}}}, before formatting, or {@code null}
-     * when it is absent or null.
+     * when it is absent or null. A dotted name such as {@code secrets.CRM_TOKEN} is looked up the
+     * way JMustache does, through the nested maps (#942).
      */
-    static Object lookupVariable(String name, Map<String, Object> parameters) {
+    public static Object lookupVariable(String name, Map<String, Object> parameters) {
         Object[] found = new Object[1];
         // No default value: a missing or null variable makes JMustache throw.
         Mustache.Compiler compiler = Mustache.compiler().withFormatter(value -> {
