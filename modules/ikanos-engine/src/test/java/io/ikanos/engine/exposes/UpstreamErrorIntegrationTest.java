@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -24,10 +25,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.JsonNode;
@@ -62,18 +65,26 @@ class UpstreamErrorIntegrationTest {
     private static final ObjectMapper MAPPER = IkanosMappers.json();
     private static final String UPSTREAM_MARKER = "UPSTREAM-DETAIL-42";
     private static final Pattern REFERENCE = Pattern.compile("\\(reference: (\\S+)\\)");
+    /** The upstream status whose error body never ends. */
+    private static final int ENDLESS = 503;
 
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5)).build();
     private HttpServer upstream;
     private Capability capability;
     private int restPort;
+    private volatile boolean stopped;
 
     @BeforeEach
     void start() throws Exception {
         upstream = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        upstream.setExecutor(Executors.newCachedThreadPool());
         upstream.createContext("/", exchange -> {
             int status = Integer.parseInt(exchange.getRequestURI().getPath().substring(1));
+            if (status == ENDLESS) {
+                sendEndless(exchange);
+                return;
+            }
             byte[] body = ("{\"message\":\"Ship not found\",\"detail\":\"" + UPSTREAM_MARKER
                     + "\"}").getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -90,10 +101,69 @@ class UpstreamErrorIntegrationTest {
 
     @AfterEach
     void stop() throws Exception {
+        stopped = true;
         if (capability != null) {
             capability.stop();
         }
         upstream.stop(0);
+    }
+
+    /**
+     * An error body that never ends, until the reader goes away. Nothing but an MCP tool reads
+     * an error body, and it stops at the cap, so every answer still comes back.
+     */
+    private void sendEndless(com.sun.net.httpserver.HttpExchange exchange) {
+        byte[] chunk = "x".repeat(8192).getBytes(StandardCharsets.UTF_8);
+        try (exchange) {
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(ENDLESS, 0);
+            while (!stopped) {
+                exchange.getResponseBody().write(chunk);
+            }
+        } catch (IOException readerWentAway) {
+            // the body was released unread, or the cap was reached
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({"call", "steps", "ref", "ref-mapped"})
+    void restShouldAnswer502ForAnEndlessErrorBody(String mode) throws Exception {
+        try (LogCapture logs = new LogCapture()) {
+            HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                    URI.create("http://localhost:" + restPort + "/" + mode + "/" + ENDLESS))
+                    .timeout(Duration.ofSeconds(15)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(502, response.statusCode(), mode + ": " + response.body());
+            assertTrue(response.body().matches("An upstream call failed \\(reference: \\S+\\)"),
+                    response.body());
+        }
+    }
+
+    /**
+     * A {@code call:}, and a {@code ref:} to a flow with a single call, are left out: they pass
+     * the upstream result through and read the whole body, as they did before #879.
+     */
+    @Test
+    void mcpToolShouldLeaveOutAnErrorBodyPastTheCap() {
+        String mode = "steps";
+        JsonNode result = rpc("tools/call", params -> {
+            params.put("name", mode + "-" + ENDLESS);
+            params.putObject("arguments");
+        }).path("result");
+
+        assertTrue(result.path("isError").asBoolean(), mode + ": " + result);
+        assertEquals("The upstream error body was left out: it is larger than 65536 bytes.",
+                result.path("content").path(0).path("text").asString(), mode + ": " + result);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({"call", "steps"})
+    void mcpResourceShouldFailForAnEndlessErrorBody(String mode) {
+        JsonNode response = rpc("resources/read",
+                params -> params.put("uri", "demo://" + mode + "/" + ENDLESS));
+
+        assertEquals(-32603, response.path("error").path("code").asInt(), response.toString());
     }
 
     @ParameterizedTest(name = "{0} with upstream {1}")
@@ -173,7 +243,7 @@ class UpstreamErrorIntegrationTest {
         StringBuilder rest = new StringBuilder();
         StringBuilder tools = new StringBuilder();
         StringBuilder resources = new StringBuilder();
-        for (int status : new int[] {404, 500}) {
+        for (int status : new int[] {404, 500, ENDLESS}) {
             consumed.append("""
                             s%1$d:
                               path: "/%1$d"
