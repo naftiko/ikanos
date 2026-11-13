@@ -237,6 +237,28 @@ public class ForwardQueryIntegrationTest {
     }
 
     @Test
+    void forwardShouldDropTheConsumedApiKeyWhoseNameAnAdapterInputSets() throws Exception {
+        startCapability("", """
+                      authentication:
+                        type: "apikey"
+                        key: "{{key-name}}"
+                        value: "upstream-secret"
+                        placement: "query"
+                      inputParameters:
+                        - name: "key-name"
+                          in: "body"
+                          value: "key"
+                """);
+
+        Response response = get("/proxy/items?key=caller&limit=5");
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        // The key name is rendered with the adapter's inputs, as authentication renders it, so
+        // the caller's credential never precedes the configured one
+        assertEquals("limit=5&key=upstream-secret", receivedQuery.get());
+    }
+
+    @Test
     void forwardShouldDropCallerParametersPinnedInTheBaseUri() throws Exception {
         startCapability("", "?key=k&api%5Fversion=2", "");
 

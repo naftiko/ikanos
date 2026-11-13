@@ -43,6 +43,24 @@ public class ForwardQueryTest {
     }
 
     @Test
+    void withCallerQueryShouldPutTheCallerQueryBeforeTheAdapterQuery() {
+        assertEquals("http://h/v1/items?a=1&v=2",
+                ResourceRestlet.withCallerQuery("http://h/v1", "/items", "http://h/v1/items",
+                        "http://h/v1/items?v=2", "a=1"));
+        assertEquals("http://h/v1/items?key=k&a=1&v=2",
+                ResourceRestlet.withCallerQuery("http://h/v1?key=k", "/items",
+                        "http://h/v1/items?key=k", "http://h/v1/items?key=k&v=2", "a=1"),
+                "the base URI's query, then the caller's, then the adapter's");
+        assertEquals("http://h/v1/items?a=1",
+                ResourceRestlet.withCallerQuery("http://h/v1", "/items", "http://h/v1/items",
+                        "http://h/v1/items", "a=1"));
+        assertEquals("http://h/v1/items?v=2",
+                ResourceRestlet.withCallerQuery("http://h/v1", "/items", "http://h/v1/items",
+                        "http://h/v1/items?v=2", ""),
+                "no caller query leaves the adapter's");
+    }
+
+    @Test
     void filterForwardedQueryShouldDropPairsWhoseDecodedNameIsExcluded() {
         Set<String> excluded = Set.of("api_key", "api-version");
 
