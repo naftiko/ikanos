@@ -26,6 +26,7 @@ import org.restlet.data.Dimension;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -145,6 +146,45 @@ class RestCacheControlTest {
                 resource(), operation);
 
         assertThat(response.getDimensions()).contains(Dimension.UNSPECIFIED);
+    }
+
+    @Test
+    void applyShouldSendVaryStarWhenTheAdapterReadsAnApiKeyFromAHeader() {
+        RestServerSpec server = server(60_000, "private");
+        server.setAuthentication(new ApiKeyAuthenticationSpec("X-API-Key", "header", "{{KEY}}"));
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(),
+                new RestServerOperationSpec());
+
+        assertThat(response.getDimensions()).contains(Dimension.AUTHORIZATION,
+                Dimension.UNSPECIFIED);
+    }
+
+    @Test
+    void applyShouldSendVaryStarWhenAnApiKeyHasNoPlacement() {
+        // Without placement, the key is read from a header
+        RestServerSpec server = server(60_000, "private");
+        server.setAuthentication(new ApiKeyAuthenticationSpec("X-API-Key", null, "{{KEY}}"));
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(),
+                new RestServerOperationSpec());
+
+        assertThat(response.getDimensions()).contains(Dimension.UNSPECIFIED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"query", "header-authorization"})
+    void applyShouldNotSendVaryStarWhenTheApiKeyIsAlreadyInTheCacheKey(String where) {
+        RestServerSpec server = server(60_000, "private");
+        server.setAuthentication("query".equals(where)
+                ? new ApiKeyAuthenticationSpec("api_key", "query", "{{KEY}}")
+                : new ApiKeyAuthenticationSpec("Authorization", "header", "{{KEY}}"));
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(),
+                new RestServerOperationSpec());
+
+        assertThat(response.getDimensions()).contains(Dimension.AUTHORIZATION)
+                .doesNotContain(Dimension.UNSPECIFIED);
     }
 
     @Test
