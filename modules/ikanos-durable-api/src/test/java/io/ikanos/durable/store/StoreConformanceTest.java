@@ -296,6 +296,21 @@ public abstract class StoreConformanceTest {
     }
 
     @Test
+    void queueShouldTreatALeaseAsExpiredAtItsExpiryOnRenewAsOnClaim() {
+        stores.queue().enqueue(ID, NOW);
+        Lease first = stores.queue().claim("pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        clock.advance(Duration.ofSeconds(30));
+        assertFalse(stores.queue().renew(first, Duration.ofSeconds(30)),
+                "A lease at its expiry is free to claim, so it cannot be renewed");
+        stores.queue().enqueue(ID, clock.instant());
+        Lease second = stores.queue().claim("pod-b", Duration.ofSeconds(30)).orElseThrow();
+
+        assertEquals("pod-b", second.owner());
+        assertFalse(stores.queue().renew(first, Duration.ofSeconds(30)));
+    }
+
+    @Test
     void queueShouldClaimTheEarliestDueExecutionFirst() {
         stores.queue().enqueue(OTHER, NOW.minusSeconds(5));
         stores.queue().enqueue(ID, NOW.minusSeconds(10));
