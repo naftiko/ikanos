@@ -378,10 +378,42 @@ public class Resolver {
      *         which rendering reports on its own)
      */
     public static List<String> emptyVariables(String template, Map<String, Object> values) {
+        return variablesWhere(template, reference -> {
+            Object value = values == null ? null : lookupVariable(reference, values);
+            return value == null || value.toString().isBlank();
+        });
+    }
+
+    /**
+     * Lists the variables of a template that resolve to nothing in {@code parameters}: absent or
+     * null, in template order, each named by its full reference ({@code selected.id}, not
+     * {@code selected}). Unlike {@link #missingVariables(String, Map)}, a nested reference whose
+     * first segment is present is checked to its end. Unlike
+     * {@link #emptyVariables(String, Map)}, an empty value counts as resolved. Variables inside a
+     * section or an inverted section are not listed: they are optional by construction.
+     *
+     * @param template the template, may be null
+     * @param parameters the parameters the template is rendered with, may be null (then every
+     *        variable is listed)
+     * @return the unresolved variables, or an empty list (also for an invalid template, which
+     *         rendering reports on its own)
+     */
+    public static List<String> unresolvedVariables(String template,
+            Map<String, Object> parameters) {
+        return variablesWhere(template,
+                reference -> parameters == null || lookupVariable(reference, parameters) == null);
+    }
+
+    /**
+     * The top-level variables of a template, outside sections, that match {@code unusable}, by
+     * full reference and in template order.
+     */
+    private static List<String> variablesWhere(String template,
+            java.util.function.Predicate<String> unusable) {
         if (template == null || !template.contains("{{")) {
             return List.of();
         }
-        java.util.Set<String> empty = new java.util.LinkedHashSet<>();
+        java.util.Set<String> found = new java.util.LinkedHashSet<>();
         try {
             compileTemplate(template).visit(new Mustache.Visitor() {
                 @Override
@@ -392,12 +424,9 @@ public class Resolver {
                 @Override
                 public void visitVariable(String name) {
                     String reference = name.trim();
-                    if (reference.isEmpty() || ".".equals(reference)) {
-                        return;
-                    }
-                    Object value = values == null ? null : lookupVariable(reference, values);
-                    if (value == null || value.toString().isBlank()) {
-                        empty.add(reference);
+                    if (!reference.isEmpty() && !".".equals(reference)
+                            && unusable.test(reference)) {
+                        found.add(reference);
                     }
                 }
 
@@ -420,7 +449,7 @@ public class Resolver {
             logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
             return List.of();
         }
-        return List.copyOf(empty);
+        return List.copyOf(found);
     }
 
     /**
@@ -999,10 +1028,10 @@ public class Resolver {
      * Same, and also collects into {@code pathValues} the value of each {@code in: path}
      * parameter that has a {@code value} or {@code template}, for the URI (#978). A query or
      * header parameter of the same name then never changes the path. A path parameter that
-     * replaces the caller's value must resolve: when its template uses a variable that is absent,
-     * resolves to nothing (a nested reference such as {@code {{selected.id}}}) or cannot be
-     * rendered, the call fails rather than fall back to the caller's value. A replaced (broader)
-     * one is only a default and is left out instead.
+     * replaces the caller's value must resolve: when its template uses a variable that is absent
+     * or resolves to nothing, nested references such as {@code pet-{{selected.id}}} included, or
+     * it cannot be rendered, the call fails rather than fall back to the caller's value or send a
+     * partial one. A replaced (broader) one is only a default and is left out instead.
      *
      * @param pathValues receives the path values, or {@code null} when no URI is rendered
      * @throws IllegalArgumentException when an effective path value cannot be resolved
@@ -1024,7 +1053,7 @@ public class Resolver {
             boolean pathOverride = pathValues != null && pathTemplate != null
                     && !notSent.contains(spec);
             if (pathOverride) {
-                List<String> missing = missingVariables(pathTemplate, parameters);
+                List<String> missing = unresolvedVariables(pathTemplate, parameters);
                 if (!missing.isEmpty()) {
                     throw new IllegalArgumentException("Unresolved template parameters in path"
                             + " parameter '" + spec.getName() + "': " + missing);
@@ -1045,8 +1074,8 @@ public class Resolver {
             }
             if (val == null) {
                 if (pathOverride) {
-                    // A nested reference ({{selected.id}}) whose first segment is present but
-                    // whose value is absent: missingVariables only checks the first segment
+                    // Defensive: unresolvedVariables already rejects a whole-value reference
+                    // that resolves to nothing
                     String variable = wholeValueVariable(pathTemplate);
                     throw new IllegalArgumentException("Unresolved template parameters in path"
                             + " parameter '" + spec.getName() + "': ["

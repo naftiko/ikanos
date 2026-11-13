@@ -787,6 +787,58 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void prepareShouldFailWhenANestedPathValueReferenceInLiteralTextResolvesToNothing()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet-{{selected.id}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", Map.of()))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected.id]",
+                error.getMessage(),
+                "#978: a missing nested reference must not render a partial path value such as"
+                        + " pet-");
+    }
+
+    @Test
+    public void prepareShouldKeepAnOptionalSectionAndAnEmptyValueInAPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet{{selected.prefix}}{{#selected.id}}-{{selected.id}}{{/selected.id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        Request request = adapter.prepare("get-pet",
+                new HashMap<>(Map.of("id", "42", "selected", Map.of("prefix", ""))))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/pet", request.getResourceRef().toString(),
+                "#978: an optional section and an empty value are resolved, not missing");
+    }
+
+    @Test
     public void prepareShouldFailWhenAPathValueTemplateCannotBeRendered() throws Exception {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
                 consumedSpec("""
