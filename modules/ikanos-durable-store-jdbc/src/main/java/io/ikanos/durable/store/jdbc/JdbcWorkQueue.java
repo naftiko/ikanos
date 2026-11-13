@@ -99,12 +99,13 @@ final class JdbcWorkQueue implements WorkQueue {
     public boolean renew(Lease lease, Duration leaseFor) {
         return database.call(c -> {
             Instant now = clock.instant();
+            // Expired from expires_at on, as in claim: a claimable lease is never renewed.
             try (PreparedStatement s = c.prepareStatement("SELECT fencing_token, expires_at "
                     + "FROM leases WHERE execution_id = ? FOR UPDATE")) {
                 s.setString(1, lease.executionId().value());
                 try (ResultSet rs = s.executeQuery()) {
                     if (!rs.next() || rs.getLong(1) != lease.fencingToken()
-                            || JdbcDatabase.getInstant(rs, "expires_at").isBefore(now)) {
+                            || !JdbcDatabase.getInstant(rs, "expires_at").isAfter(now)) {
                         return false;
                     }
                 }
