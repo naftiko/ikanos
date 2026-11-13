@@ -244,7 +244,7 @@
     },
     "CacheScope": {
       "type": "string",
-      "description": "Whether a shared cache (gateway, proxy) may serve a result to a caller other than the one it was returned to. `public`: yes. `private`: no. `auto`: the engine decides from the spec; `private` when the adapter authenticates its callers (`authentication`) or identifies them (`trust`), `public` otherwise.",
+      "description": "Whether a shared cache (gateway, proxy) may serve a result to a caller other than the one it was returned to. `public`: yes. `private`: no. `auto`: the engine decides from the spec; `private` when the answer can depend on the caller, `public` otherwise (see each adapter's `cacheScope`).",
       "enum": [
         "public",
         "private",
@@ -1110,6 +1110,16 @@
           "$ref": "#/$defs/BinarySize",
           "description": "Maximum allowed binary response size before buffering. Accepts sizes like '512KiB', '10MiB', '1GiB'. Default: 10MiB. Can be overridden per consumed operation via `maxBinarySize`."
         },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "How long, in milliseconds, a successful `GET` answer stays fresh, sent as `Cache-Control` on every operation of this adapter (an operation's own `ttlMs` wins). `0` sends `no-store`; a positive value sends `max-age` in whole seconds, rounded up, with `public` or `private`. Unset (default) sends no `Cache-Control`. Other methods, error answers and `forward` answers never get one: a forward is a transparent proxy and its upstream decides."
+        },
+        "cacheScope": {
+          "$ref": "#/$defs/CacheScope",
+          "description": "Scope sent in `Cache-Control` with `ttlMs`. `private` answers also send `Vary: Authorization`, and answers of an operation that reads an input from outside the URL (`in: header`, or the body), or of an adapter that reads an `apikey` from a header other than `Authorization`, send `Vary: *`. `auto` gives `private` when the adapter authenticates its callers or the operation reads an input from outside the URL; `public` otherwise. Default: `private`."
+        },
         "maxRequestsInProgress": {
           "type": "integer",
           "minimum": 1,
@@ -1191,7 +1201,7 @@
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Returned as `cacheScope` alongside `ttlMs`. `public`: the result holds no user-specific data, so a shared gateway or proxy may serve it to any caller. `private`: a shared cache must not serve it to a different caller. On `resources/read`, a resource's own `cacheScope` takes precedence. Default: `private`."
+          "description": "Returned as `cacheScope` alongside `ttlMs`. `public`: the result holds no user-specific data, so a shared gateway or proxy may serve it to any caller. `private`: a shared cache must not serve it to a different caller. On `resources/read`, a resource's own `cacheScope` takes precedence. `auto` gives `private` when the adapter authenticates its callers (`authentication`) or identifies them (`trust`), `public` otherwise. Default: `private`."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
@@ -2237,6 +2247,16 @@
         "description": {
           "type": "string",
           "description": "Used to provide *meaningful* information about the operation. Remember, in a world of agents, context is king."
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "Overrides the adapter's `ttlMs` for this operation. Only `GET` answers get `Cache-Control`."
+        },
+        "cacheScope": {
+          "$ref": "#/$defs/CacheScope",
+          "description": "Overrides the adapter's `cacheScope` for this operation."
         },
         "method": {
           "type": "string",

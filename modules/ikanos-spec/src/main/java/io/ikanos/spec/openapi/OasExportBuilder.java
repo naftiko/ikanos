@@ -28,8 +28,10 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
+import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
@@ -183,6 +185,7 @@ public class OasExportBuilder {
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
+                documentCacheControl(restServer, opSpec, operation);
                 String pathKey = basePath;
 
                 PathItem pathItem = paths.get(pathKey);
@@ -199,6 +202,42 @@ public class OasExportBuilder {
         }
 
         return paths;
+    }
+
+    /**
+     * Document the {@code Cache-Control} header the engine sends on the successful answers of a
+     * {@code GET} operation whose {@code ttlMs} (or its adapter's) is set (#1021).
+     */
+    void documentCacheControl(RestServerSpec restServer, RestServerOperationSpec opSpec,
+            Operation operation) {
+        if (!"GET".equalsIgnoreCase(opSpec.getMethod()) || operation.getResponses() == null) {
+            return;
+        }
+        Integer ttlMs = opSpec.getTtlMs() != null ? opSpec.getTtlMs() : restServer.getTtlMs();
+        if (ttlMs == null) {
+            return;
+        }
+        String scope = opSpec.getCacheScope() != null ? opSpec.getCacheScope()
+                : restServer.getCacheScope() != null ? restServer.getCacheScope() : "private";
+        String value;
+        if (ttlMs == 0) {
+            value = "`no-store`.";
+        } else {
+            String maxAge = "max-age=" + (long) Math.ceil(ttlMs / 1000.0);
+            value = "auto".equals(scope)
+                    ? "`public, " + maxAge + "` or `private, " + maxAge + "`, derived by the"
+                            + " engine: private when the adapter authenticates its callers or the"
+                            + " operation reads an input from outside the URL."
+                    : "`" + scope + ", " + maxAge + "`.";
+        }
+        Header header = new Header()
+                .description("Sent by the engine on successful answers: " + value)
+                .schema(new StringSchema());
+        operation.getResponses().forEach((status, response) -> {
+            if (status.startsWith("2")) {
+                response.addHeaderObject("Cache-Control", header);
+            }
+        });
     }
 
     Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec) {

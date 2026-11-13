@@ -116,6 +116,20 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
+     * Commit an answer of {@code serverOp}, adding {@code Cache-Control} from {@code ttlMs} and
+     * {@code cacheScope} first (#1021), so the headers are set before the connector may send them.
+     * Only answers produced by the operation come through here; a {@code forward}, including one
+     * that a declared operation fell back to, commits without them.
+     */
+    private void commit(RestServerOperationSpec serverOp, Response response) {
+        if (response.getRequest() != null) {
+            RestCacheControl.apply(response.getRequest(), response, getServerSpec(),
+                    getResourceSpec(), serverOp);
+        }
+        response.commit();
+    }
+
+    /**
      * Prepare a client request context by looking for a call configuration in the operation steps.
      * If a valid call configuration is found, constructs a client request context with the
      * corresponding client request and adapter. If an invalid call format is found, sets the
@@ -208,7 +222,7 @@ public class ResourceRestlet extends Restlet {
                             if (mapped != null) {
                                 response.setStatus(Status.SUCCESS_OK);
                                 response.setEntity(mapped, MediaType.APPLICATION_JSON);
-                                response.commit();
+                                commit(serverOp, response);
                                 return true;
                             }
                         }
@@ -270,14 +284,14 @@ public class ResourceRestlet extends Restlet {
                 } else {
                     response.setStatus(Status.SUCCESS_NO_CONTENT);
                 }
-                response.commit();
+                commit(serverOp, response);
                 return true;
             }
 
             if (result.hasMappedOutput()) {
                 response.setStatus(Status.SUCCESS_OK);
                 response.setEntity(result.mappedOutput, MediaType.APPLICATION_JSON);
-                response.commit();
+                commit(serverOp, response);
                 return true;
             }
 
@@ -394,7 +408,7 @@ public class ResourceRestlet extends Restlet {
                     "Error building mock response", e);
         }
 
-        response.commit();
+        commit(serverOp, response);
     }
 
     /**
@@ -460,7 +474,7 @@ public class ResourceRestlet extends Restlet {
             response.setEntity(rawEntityOf(found));
         }
 
-        response.commit();
+        commit(serverOp, response);
     }
 
     /**
@@ -543,7 +557,7 @@ public class ResourceRestlet extends Restlet {
             }
 
             response.setEntity(new ByteArrayRepresentation(bytes, MediaType.valueOf(mediaType)));
-            response.commit();
+            commit(serverOp, response);
             return true;
         } catch (OperationStepExecutor.BinarySizeExceededException e) {
             Context.getCurrentLogger().warning("Binary response exceeded maxBinarySize: " + e);
@@ -552,12 +566,12 @@ public class ResourceRestlet extends Restlet {
                     "Upstream response exceeded maxBinarySize (limit=" + e.getMaxBytes()
                             + " bytes)",
                     MediaType.TEXT_PLAIN);
-            response.commit();
+            commit(serverOp, response);
             return true;
         } catch (IOException e) {
             sendError(response, Status.SERVER_ERROR_INTERNAL, "Error buffering binary response",
                     "Error buffering binary response", e);
-            response.commit();
+            commit(serverOp, response);
             return true;
         }
     }
