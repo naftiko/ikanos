@@ -1,0 +1,81 @@
+---
+# Spectral fixture — ikanos-authorization-oauth2, ikanos-authorization-scopes-declared and
+# ikanos-oauth2-scopes-not-enforced MUST NOT FIRE.
+#
+# REST and MCP adapters with `authentication: oauth2` require scopes and claims per
+# adapter, resource, operation and tool (issue #999). Every required scope is listed
+# in `authentication.scopes`.
+ikanos: "1.0.0-beta10"
+
+info:
+  display: "Authorization — compliant"
+  description: "Positive fixture: authorization blocks on OAuth 2.1 adapters."
+
+capability:
+  aggregates:
+    - namespace: "records"
+      flows:
+        read-record:
+          description: "Reads a record."
+          outputParameters:
+            status:
+              type: "string"
+              value: "read"
+        update-record:
+          description: "Updates a record."
+          outputParameters:
+            status:
+              type: "string"
+              value: "updated"
+  exposes:
+    - type: "rest"
+      port: 8080
+      path: "/api"
+      namespace: "records-rest"
+      authentication:
+        type: "oauth2"
+        authorizationServerUri: "https://idp.example.org/realms/app"
+        resource: "https://app.example.org/api"
+        scopes: ["records.read", "records.write"]
+      resources:
+        records:
+          path: "/records/{{id}}"
+          description: "A record."
+          authorization:
+            scopes: ["records.read"]
+          operations:
+            get-record:
+              method: "GET"
+              description: "Reads a record."
+              ref: "records.read-record"
+            update-record:
+              method: "PUT"
+              description: "Updates a record."
+              authorization:
+                scopes: ["records.write"]
+                claims:
+                  roles: ["editor", "admin"]
+              ref: "records.update-record"
+    - type: "mcp"
+      port: 8080
+      path: "/mcp"
+      namespace: "records-mcp"
+      description: "Record tools."
+      authentication:
+        type: "oauth2"
+        authorizationServerUri: "https://idp.example.org/realms/app"
+        resource: "https://app.example.org/mcp"
+        scopes: ["records.read", "records.write"]
+      authorization:
+        scopes: ["records.read"]
+      tools:
+        read-record:
+          description: "Reads a record."
+          ref: "records.read-record"
+        update-record:
+          description: "Updates a record."
+          authorization:
+            scopes: ["records.write"]
+            claims:
+              realm_access.roles: ["editor"]
+          ref: "records.update-record"

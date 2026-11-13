@@ -40,6 +40,7 @@ functions:
   - shared-listener-mounts
   - exposes-hosts-binds-ref
   - definitions
+  - exposes-authorization
 
 rules:
 
@@ -336,15 +337,68 @@ rules:
   ikanos-oauth2-scopes-defined:
     message: "OAuth2 authentication should define `scopes` for scope challenge support."
     description: >
-      Defining scopes enables the server to include scope information in
-      WWW-Authenticate challenges and Protected Resource Metadata, improving
-      client interoperability.
+      Defining scopes advertises them in Protected Resource Metadata
+      (`scopes_supported`) and in the OpenAPI export, improving client
+      interoperability. An `authorization` block may only ask for scopes listed here.
     severity: warn
     recommended: true
     given: "$.capability.exposes[*].authentication[?(@.type == 'oauth2')]"
     then:
       field: "scopes"
       function: truthy
+
+  ikanos-authorization-oauth2:
+    message: "{{error}}"
+    description: >
+      An `authorization` block (on an adapter, a REST resource or operation, or an MCP
+      tool) is checked against the claims of the OAuth 2.1 token the adapter
+      validated. It needs `authentication: oauth2` on the adapter, and cannot be
+      used on the MCP stdio transport, which carries no token. The engine refuses
+      to start on the same problems.
+    severity: error
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    then:
+      function: exposes-authorization
+      functionOptions:
+        check: oauth2
+
+  ikanos-authorization-scopes-declared:
+    message: "{{error}}"
+    description: >
+      Every scope listed in an `authorization` block must be one the adapter
+      recognizes, listed in `authentication.scopes`, so that Protected Resource
+      Metadata (`scopes_supported`) and the OpenAPI export advertise it. The
+      engine refuses to start otherwise.
+    severity: error
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    then:
+      function: exposes-authorization
+      functionOptions:
+        check: scopes
+
+  ikanos-oauth2-scopes-not-enforced:
+    message: "{{error}}"
+    description: >
+      `authentication.scopes` lists the scopes an OAuth 2.1 adapter recognizes;
+      a token does not need them to be accepted. Scopes and claims are required
+      with `authorization`, on the adapter or per resource, operation or tool. Up to
+      1.0.0-beta9 the engine required every listed scope on every call, so an
+      adapter that lists scopes without any `authorization` may have relied on it.
+    severity: warn
+    recommended: true
+    given:
+      - "$.capability.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+      - "$.exposes[?(@.type == 'rest' || @.type == 'mcp')]"
+    then:
+      function: exposes-authorization
+      functionOptions:
+        check: unenforced
 
   ikanos-exposes-mounts-distinct:
     message: >-

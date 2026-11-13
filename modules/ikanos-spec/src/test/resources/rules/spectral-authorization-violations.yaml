@@ -1,0 +1,90 @@
+---
+# Spectral fixture — ikanos-authorization-oauth2, ikanos-authorization-scopes-declared and
+# ikanos-oauth2-scopes-not-enforced MUST FIRE (issue #999).
+#
+# - records-bearer: an operation `authorization` on an adapter using bearer authentication.
+# - records-stdio: a tool `authorization` on the stdio transport.
+# - records-mcp: a tool requires a scope missing from `authentication.scopes`.
+# - records-legacy: an oauth2 adapter lists scopes without any `authorization`.
+ikanos: "1.0.0-beta10"
+
+info:
+  display: "Authorization — violations"
+  description: "Negative fixture: authorization blocks that cannot be enforced."
+
+binds:
+  - namespace: "secrets"
+    description: "Secrets injected by the runtime."
+    keys:
+      API_TOKEN: "api-token"
+
+capability:
+  aggregates:
+    - namespace: "records"
+      flows:
+        update-record:
+          description: "Updates a record."
+          outputParameters:
+            status:
+              type: "string"
+              value: "updated"
+  exposes:
+    - type: "rest"
+      port: 8080
+      path: "/api"
+      namespace: "records-bearer"
+      authentication:
+        type: "bearer"
+        token: "{{secrets.API_TOKEN}}"
+      resources:
+        records:
+          path: "/records/{{id}}"
+          description: "A record."
+          operations:
+            update-record:
+              method: "PUT"
+              description: "Updates a record."
+              authorization:
+                scopes: ["records.write"]
+              ref: "records.update-record"
+    - type: "mcp"
+      transport: "stdio"
+      namespace: "records-stdio"
+      description: "Record tools over stdio."
+      tools:
+        update-record:
+          description: "Updates a record."
+          authorization:
+            claims:
+              roles: ["editor"]
+          ref: "records.update-record"
+    - type: "mcp"
+      port: 8080
+      path: "/mcp"
+      namespace: "records-mcp"
+      description: "Record tools."
+      authentication:
+        type: "oauth2"
+        authorizationServerUri: "https://idp.example.org/realms/app"
+        resource: "https://app.example.org/mcp"
+        scopes: ["records.read"]
+      tools:
+        update-record:
+          description: "Updates a record."
+          authorization:
+            scopes: ["records.write"]
+          ref: "records.update-record"
+    - type: "mcp"
+      port: 8080
+      path: "/legacy"
+      namespace: "records-legacy"
+      description: "Record tools relying on the old scope gate."
+      authentication:
+        type: "oauth2"
+        authorizationServerUri: "https://idp.example.org/realms/app"
+        resource: "https://app.example.org/legacy"
+        scopes: ["records.write"]
+      tools:
+        update-record:
+          description: "Updates a record."
+          ref: "records.update-record"

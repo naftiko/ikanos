@@ -26,6 +26,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 import io.ikanos.spec.InputParameterMapDeserializer;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.spec.util.OperationStepSpec;
@@ -53,6 +54,7 @@ public class McpServerToolSpec {
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<McpToolHintsSpec> hints = new AtomicReference<>();
     private final AtomicReference<McpToolUiSpec> ui = new AtomicReference<>();
+    private final AtomicReference<AuthorizationSpec> authorization = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
@@ -150,6 +152,19 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public McpToolUiSpec getUi() { return ui.get(); }
     public void setUi(McpToolUiSpec ui) { this.ui.set(ui); }
+
+    /**
+     * @return the scopes or claims a call must carry ({@code authorization}), or {@code null} when
+     *         this level declares none.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public AuthorizationSpec getAuthorization() {
+        return authorization.get();
+    }
+
+    public void setAuthorization(AuthorizationSpec authorization) {
+        this.authorization.set(authorization);
+    }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getRef() { return ref.get(); }

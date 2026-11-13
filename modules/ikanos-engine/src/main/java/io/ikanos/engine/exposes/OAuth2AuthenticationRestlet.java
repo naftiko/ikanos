@@ -15,11 +15,8 @@ package io.ikanos.engine.exposes;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.logging.Level;
 import org.restlet.Client;
 import org.restlet.Context;
@@ -156,17 +153,19 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         JWTClaimsSet claims = jwt.getJWTClaimsSet();
         String error = validateClaims(claims);
         if (error != null) {
-            if (error.startsWith("insufficient_scope:")) {
-                String requiredScope = error.substring("insufficient_scope:".length()).trim();
-                forbidden(response, requiredScope);
-            } else {
-                unauthorized(response, "invalid_token", error);
-            }
+            unauthorized(response, "invalid_token", error);
             return;
         }
 
         request.getAttributes().put(VALIDATED_CLAIMS_ATTRIBUTE, claims);
         next.handle(request, response);
+
+        // A resource, operation or tool refused the token for its 'authorization' (#999): answer with
+        // the insufficient_scope challenge, built here so each adapter keeps its own parameters.
+        if (response.getAttributes().get(AccessControl.DENIAL_ATTRIBUTE)
+                instanceof AccessControl.Denial denial) {
+            forbidden(response, denial);
+        }
     }
 
     String extractBearerToken(Request request) {
@@ -236,20 +235,9 @@ public class OAuth2AuthenticationRestlet extends Restlet {
             }
         }
 
-        if (spec.getScopes() != null && !spec.getScopes().isEmpty()) {
-            Object scopeClaim = claims.getClaim("scope");
-            if (scopeClaim == null) {
-                return "insufficient_scope: " + spec.getScopes().get(0);
-            }
-            Set<String> tokenScopes =
-                    new HashSet<>(Arrays.asList(scopeClaim.toString().split("\\s+")));
-            for (String required : spec.getScopes()) {
-                if (!tokenScopes.contains(required)) {
-                    return "insufficient_scope: " + required;
-                }
-            }
-        }
-
+        // The adapter's 'scopes' are only the ones it recognizes: they are not required here.
+        // Scopes and claims are required per adapter, resource, operation or tool with 'authorization',
+        // checked by AccessControl once the request reaches them (#999).
         return null;
     }
 
@@ -261,13 +249,16 @@ public class OAuth2AuthenticationRestlet extends Restlet {
         response.setEntity("Unauthorized", MediaType.TEXT_PLAIN);
     }
 
-    protected void forbidden(Response response, String requiredScope) {
+    /**
+     * Answers {@code 403} with an {@code insufficient_scope} challenge (RFC 6750 §3.1) whose
+     * {@code scope} parameter lists the scopes the refused call requires, when it requires any.
+     */
+    protected void forbidden(Response response, AccessControl.Denial denial) {
         RejectedRequestBodies.discard(response.getRequest());
         response.setStatus(Status.CLIENT_ERROR_FORBIDDEN);
-        String scopeValue = spec.getScopes() != null ? String.join(" ", spec.getScopes()) : null;
+        String scopeValue = denial.scopes().isEmpty() ? null : String.join(" ", denial.scopes());
         addBearerChallenge(response,
-                buildBearerChallengeParams("insufficient_scope",
-                        "Required scope '" + requiredScope + "' not present in token",
+                buildBearerChallengeParams("insufficient_scope", denial.description(),
                         scopeValue));
         response.setEntity("Forbidden", MediaType.TEXT_PLAIN);
     }

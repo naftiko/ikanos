@@ -48,6 +48,7 @@ import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -174,12 +175,7 @@ public class OasExportBuilder {
         Paths paths = new Paths();
 
         for (RestServerResourceSpec resource : restServer.getResources().values()) {
-            String basePath = resource.getPath();
-            if (basePath == null) {
-            basePath = "/" + resource.getName();
-            }
-            // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+            String basePath = pathKeyOf(resource);
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
@@ -199,6 +195,15 @@ public class OasExportBuilder {
         }
 
         return paths;
+    }
+
+    /** The OpenAPI path of a resource, with Mustache segments {{var}} turned into {var}. */
+    private static String pathKeyOf(RestServerResourceSpec resource) {
+        String basePath = resource.getPath();
+        if (basePath == null) {
+            basePath = "/" + resource.getName();
+        }
+        return basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
     }
 
     Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec) {
@@ -457,7 +462,11 @@ public class OasExportBuilder {
                 Scopes oasScopes = new Scopes();
                 oauth2.getScopes().forEach(scope -> oasScopes.addString(scope, ""));
                 clientCredentials.setScopes(oasScopes);
-                requiredScopes = oauth2.getScopes();
+            }
+            // The adapter's scopes are only the ones it recognizes; a call requires the scopes of
+            // its 'authorization', exported per operation below when narrower than the adapter's (#999)
+            if (restServer.getAuthorization() != null) {
+                requiredScopes = restServer.getAuthorization().getScopes();
             }
             flows.setClientCredentials(clientCredentials);
             securityScheme.setFlows(flows);
@@ -468,6 +477,40 @@ public class OasExportBuilder {
 
         components.addSecuritySchemes(schemeName, securityScheme);
         openApi.setSecurity(List.of(new SecurityRequirement().addList(schemeName, requiredScopes)));
+        if (auth instanceof OAuth2AuthenticationSpec) {
+            buildOperationSecurity(restServer, openApi, schemeName);
+        }
+    }
+
+    /**
+     * Sets {@code security} on each operation whose resource or operation declares its own
+     * {@code authorization}, with the scopes of the nearest one, so the export reads the same
+     * inheritance as the engine. Required claims have no OpenAPI equivalent and are not exported.
+     */
+    void buildOperationSecurity(RestServerSpec restServer, OpenAPI openApi, String schemeName) {
+        if (openApi.getPaths() == null) {
+            return;
+        }
+        for (RestServerResourceSpec resource : restServer.getResources().values()) {
+            PathItem pathItem = openApi.getPaths().get(pathKeyOf(resource));
+            if (pathItem == null) {
+                continue;
+            }
+            for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
+                AuthorizationSpec requirement = AuthorizationSpec.nearest(
+                        restServer.getAuthorization(), resource.getAuthorization(), opSpec.getAuthorization());
+                if (requirement == null || requirement == restServer.getAuthorization()
+                        || opSpec.getMethod() == null) {
+                    continue;
+                }
+                Operation operation = pathItem.readOperationsMap().get(
+                        PathItem.HttpMethod.valueOf(opSpec.getMethod().toUpperCase()));
+                if (operation != null) {
+                    operation.setSecurity(List.of(new SecurityRequirement()
+                            .addList(schemeName, requirement.getScopes())));
+                }
+            }
+        }
     }
 
     private void setOperationOnPathItem(PathItem pathItem, String method, Operation operation) {

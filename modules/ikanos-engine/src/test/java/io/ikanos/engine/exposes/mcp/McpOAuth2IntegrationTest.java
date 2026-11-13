@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
@@ -24,6 +25,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -248,40 +250,149 @@ class McpOAuth2IntegrationTest {
     }
 
     @Test
-    void oauth2ShouldReturnForbiddenForInsufficientScope() throws Exception {
+    void oauth2ShouldNotRequireTheAdapterScopesOnEveryCall() throws Exception {
+        // #999: authentication.scopes only lists the scopes the adapter recognizes
         McpServerAdapter adapter = startOAuth2ServerWithScopes();
-        try (HttpClient client = HttpClient.newHttpClient()) {
-            String baseUrl = baseUrlFor(adapter);
+        try {
+            HttpResponse<String> response = sendDiscover(adapter,
+                    tokenFor(adapter, new JWTClaimsSet.Builder().claim("scope", "tools:read")));
 
+            assertEquals(200, response.statusCode(), response.body());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void toolAuthorizationShouldRefuseCallBeforeUpstreamWithInsufficientScope() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
             try {
-                String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
-                String token = signedJwt(new JWTClaimsSet.Builder()
-                        .issuer("http://127.0.0.1:" + mockAsPort)
-                        .audience(resourceUri)
-                        .expirationTime(new Date(System.currentTimeMillis() + 300_000))
-                        .claim("scope", "tools:read")
-                        .build());
+                HttpResponse<String> response = sendOrderStatusCall(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:read")
+                                .claim("roles", List.of("editor"))));
 
+                assertEquals(403, response.statusCode(), response.body());
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("error=\"insufficient_scope\""), wwwAuth);
+                assertTrue(wwwAuth.contains("scope=\"tools:execute\""), wwwAuth);
+                assertTrue(wwwAuth.contains("resource_metadata="), wwwAuth);
+            } finally {
+                adapter.stop();
+            }
+            assertTrue(upstream.requests().isEmpty(), "A refused call must not reach the upstream");
+        }
+    }
+
+    @Test
+    void toolAuthorizationShouldRefuseCallWhoseTokenLacksAnAllowedRole() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:execute")
+                                .claim("roles", List.of("viewer"))));
+
+                assertEquals(403, response.statusCode(), response.body());
+            } finally {
+                adapter.stop();
+            }
+            assertTrue(upstream.requests().isEmpty(), "A refused call must not reach the upstream");
+        }
+    }
+
+    @Test
+    void toolAuthorizationShouldReplaceTheAdapterAuthorization() throws Exception {
+        // The tool requires tools:execute and a role, not the adapter's tools:read
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scp", List.of("tools:execute"))
+                                .claim("roles", List.of("viewer", "editor"))));
+
+                assertEquals(200, response.statusCode(), response.body());
+                assertTrue(response.body().contains("shipped"), response.body());
+            } finally {
+                adapter.stop();
+            }
+            assertEquals(1, upstream.requests().size());
+        }
+    }
+
+    @Test
+    void toolsListShouldListToolsTheTokenCannotCall() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try (HttpClient client = HttpClient.newHttpClient()) {
+                String token = tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:read"));
                 HttpResponse<String> response = client.send(
-                        HttpRequest.newBuilder(URI.create(baseUrl))
-                                .POST(HttpRequest.BodyPublishers.ofString(discoverBody()))
+                        HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                                .POST(HttpRequest.BodyPublishers.ofString(toolsListBody()))
                                 .header("Content-Type", "application/json")
-                                .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
-                                .header("Mcp-Method", "server/discover")
+                                .header("MCP-Protocol-Version",
+                                        ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                                .header("Mcp-Method", "tools/list")
                                 .header("Authorization", "Bearer " + token)
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
 
-                assertEquals(403, response.statusCode(),
-                        "Token missing required scope should return 403");
-
-                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
-                assertTrue(wwwAuth.contains("insufficient_scope"));
-                assertTrue(wwwAuth.contains("resource_metadata"));
+                assertEquals(200, response.statusCode(), response.body());
+                assertTrue(response.body().contains("order-status"), response.body());
             } finally {
                 adapter.stop();
             }
         }
+    }
+
+    @Test
+    void adapterAuthorizationShouldRefuseOtherRequestsOfTokenWithoutItsScope() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendDiscover(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:execute")));
+
+                assertEquals(403, response.statusCode(), response.body());
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("scope=\"tools:read\""), wwwAuth);
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void requiresShouldFailStartupWhenItsScopeIsNotRecognized() {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: 0
+                      namespace: "oauth2-test-mcp"
+                      description: "OAuth2 protected MCP server"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:%d"
+                        resource: "http://127.0.0.1/mcp"
+                        scopes: ["tools:read"]
+                      tools:
+                        test-tool:
+                          description: "A test tool"
+                          authorization:
+                            scopes: ["tools:admin"]
+                          outputParameters:
+                            - type: "string"
+                              value: "ok"
+                  consumes: []
+                """.formatted(VersionHelper.getSchemaVersion(), mockAsPort);
+
+        Exception error = assertThrows(Exception.class,
+                () -> new Capability(YAML_MAPPER.readValue(yaml, IkanosSpec.class)));
+        assertTrue(messages(error).contains("'tools:admin'"), messages(error));
     }
 
     // ─── Server Helpers ─────────────────────────────────────────────────────────
@@ -491,6 +602,17 @@ class McpOAuth2IntegrationTest {
               trustedNetworks: ["127.0.0.0/8", "::1/128"]
             """;
 
+    /** A valid token for the adapter carrying exactly the given scopes and claims (#999). */
+    private String tokenWithClaims(McpServerAdapter adapter, JWTClaimsSet.Builder claims)
+            throws Exception {
+        String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
+        return signedJwt(claims
+                .issuer("http://127.0.0.1:" + mockAsPort)
+                .audience(resourceUri)
+                .expirationTime(new Date(System.currentTimeMillis() + 300_000))
+                .build());
+    }
+
     private String tokenFor(McpServerAdapter adapter, JWTClaimsSet.Builder claims)
             throws Exception {
         String resourceUri = "http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp";
@@ -614,6 +736,79 @@ class McpOAuth2IntegrationTest {
                 """.formatted(VersionHelper.getSchemaVersion(), port, mockAsPort, resourceUri);
 
         return startAdapter(yaml);
+    }
+
+    /**
+     * An OAuth2 MCP adapter requiring {@code tools:read} on every request, whose
+     * {@code order-status} tool (calling the stub) requires {@code tools:execute} and the
+     * {@code editor} or {@code admin} role instead (#999).
+     */
+    private McpServerAdapter startOAuth2ServerWithAuthorization(RecordingUpstream upstream)
+            throws Exception {
+        int port = findFreePort();
+        String resourceUri = "http://127.0.0.1:" + port + "/mcp";
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "OAuth2 MCP Test"
+                  description: "OAuth2 authorization integration test"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "oauth2-test-mcp"
+                      description: "OAuth2 protected MCP server with authorization"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:%d"
+                        resource: "%s"
+                        scopes: ["tools:read", "tools:execute"]
+                      authorization:
+                        scopes: ["tools:read"]
+                      tools:
+                        order-status:
+                          description: "Status of order 42"
+                          call: "shop.get-order"
+                          authorization:
+                            scopes: ["tools:execute"]
+                            claims:
+                              roles: ["editor", "admin"]
+                          outputParameters:
+                            - type: "string"
+                              mapping: "$.status"
+                %s""".formatted(VersionHelper.getSchemaVersion(), port, mockAsPort, resourceUri,
+                upstream.consumesYaml());
+        return startAdapter(yaml);
+    }
+
+    private static HttpResponse<String> sendOrderStatusCall(McpServerAdapter adapter, String token)
+            throws Exception {
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                    .POST(HttpRequest.BodyPublishers.ofString(orderStatusCallBody()))
+                    .header("Content-Type", "application/json")
+                    .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                    .header("Mcp-Method", "tools/call")
+                    .header("Mcp-Name", "order-status")
+                    .header("Authorization", "Bearer " + token)
+                    .build(), HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    private static String toolsListBody() {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\","
+                + "\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
+    }
+
+    /** The messages of an exception and of its causes, one per line. */
+    private static String messages(Throwable error) {
+        StringBuilder all = new StringBuilder();
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            all.append(cause.getMessage()).append('\n');
+        }
+        return all.toString();
     }
 
     private McpServerAdapter startAdapter(String yaml) throws Exception {
