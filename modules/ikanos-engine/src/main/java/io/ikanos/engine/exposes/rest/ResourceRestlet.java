@@ -166,11 +166,17 @@ public class ResourceRestlet extends Restlet {
                         try {
                             // Send the request to the target endpoint
                             found = invocation.invoke();
-                            if (found != null && found.noResponseReceived()) {
-                                return sendUpstreamUnreachable(response, found.status(),
-                                        "Call '" + serverOp.getCall().getOperation() + "'", found);
+                            // An upstream error is answered as in steps: mode, never passed
+                            // through (#879); no answer at all too (#873)
+                            if (found != null) {
+                                OperationStepExecutor.failIfUnsuccessful(
+                                        serverOp.getCall().getOperation(), found);
                             }
                             response.setStatus(statusOf(found));
+                        } catch (OperationStepExecutor.StepFailedException e) {
+                            sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
+                                    "An upstream call failed", "Call failed", e);
+                            return true;
                         } catch (Exception e) {
                             sendError(response, Status.SERVER_ERROR_INTERNAL,
                                     "Error while handling a consumed call",
@@ -281,12 +287,9 @@ public class ResourceRestlet extends Restlet {
                 return true;
             }
 
-            if (result.lastResult != null && result.lastResult.noResponseReceived()) {
-                return sendUpstreamUnreachable(response, result.lastResult.status(),
-                        "Aggregate flow '" + serverOp.getRef() + "'", result.lastResult);
-            }
-
             if (result.lastResult != null) {
+                // An upstream error is answered as in call: and steps: mode (#879)
+                OperationStepExecutor.failIfUnsuccessful(serverOp.getRef(), result.lastResult);
                 response.setStatus(statusOf(result.lastResult));
                 sendResponse(serverOp, response, result.lastResult);
                 return true;
@@ -411,21 +414,12 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * The consumed call got no HTTP answer (a connector code such as 1001, or none): answer
+     * A forwarded call got no HTTP answer (a connector code such as 1001, or none): answer
      * {@code 502} with an error reference, as a failed step does, rather than forwarding a code
      * that isn't an HTTP status (#873). The failure cause goes to the log line under the
-     * reference, so an operator can tell a refused connection from a timeout.
+     * reference, so an operator can tell a refused connection from a timeout. An HTTP error from
+     * the upstream is still passed through: {@code forward} is a proxy.
      */
-    private boolean sendUpstreamUnreachable(Response response, int status, String what,
-            ConsumedResult found) {
-        Throwable cause = null;
-        if (found != null) {
-            cause = found.failureCause();
-            found.release();
-        }
-        return sendUpstreamUnreachable(response, status, what, cause);
-    }
-
     private boolean sendUpstreamUnreachable(Response response, int status, String what,
             Throwable cause) {
         sendError(response, Status.SERVER_ERROR_BAD_GATEWAY, "An upstream call failed",

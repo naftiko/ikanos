@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -915,25 +916,86 @@ public class OperationStepExecutor {
      * {@code Location}. None of these carries the step output, so the sequence fails rather
      * than letting later steps read an empty or unrelated body.</p>
      */
-    static void failIfUnsuccessful(String stepName, ConsumedResult result) {
+    public static void failIfUnsuccessful(String stepName, ConsumedResult result) {
         if (result != null && result.isSuccessful()) {
             return;
         }
         int code = result != null ? result.status() : 0;
         Throwable cause = null;
+        String body = null;
         if (result != null) {
             cause = result.failureCause();
+            // Only an MCP tool returns the body: everywhere else it is released unread, so a
+            // large or endless error body is never buffered just to answer 502.
+            if (Boolean.TRUE.equals(KEEP_UPSTREAM_ERROR_BODY.get())) {
+                body = upstreamBody(result);
+            }
             result.release();
         }
-        throw new StepFailedException(stepName, code, cause);
+        throw new StepFailedException(stepName, code, cause, body);
+    }
+
+    /**
+     * The most of an upstream error body an MCP tool returns to the agent. A larger body is left
+     * out, never buffered whole.
+     */
+    static final int MAX_UPSTREAM_ERROR_BODY_BYTES = 64 * 1024;
+
+    /** Set while an MCP tool runs: only then does a failed step keep the upstream error body. */
+    private static final ThreadLocal<Boolean> KEEP_UPSTREAM_ERROR_BODY = new ThreadLocal<>();
+
+    /**
+     * Keep the upstream error body on the {@link StepFailedException}s thrown on this thread
+     * until the returned scope is closed, for an MCP tool, which returns it to the agent (#925,
+     * #879). Flows called by the tool run on the same thread, so their failures keep it too.
+     *
+     * @return the scope, to close in a try-with-resources; it restores the previous setting
+     */
+    public static UpstreamErrorBodies keepUpstreamErrorBodies() {
+        Boolean previous = KEEP_UPSTREAM_ERROR_BODY.get();
+        KEEP_UPSTREAM_ERROR_BODY.set(Boolean.TRUE);
+        return () -> {
+            if (previous == null) {
+                KEEP_UPSTREAM_ERROR_BODY.remove();
+            } else {
+                KEEP_UPSTREAM_ERROR_BODY.set(previous);
+            }
+        };
+    }
+
+    /** The scope returned by {@link #keepUpstreamErrorBodies()}. */
+    @FunctionalInterface
+    public interface UpstreamErrorBodies extends AutoCloseable {
+        @Override
+        void close();
+    }
+
+    /**
+     * The body of an upstream HTTP error, read up to {@link #MAX_UPSTREAM_ERROR_BODY_BYTES} as
+     * UTF-8 (JSON's encoding), or {@code null} when there is none to keep.
+     */
+    private static String upstreamBody(ConsumedResult result) {
+        if (result.noResponseReceived() || !result.hasBody()) {
+            return null;
+        }
+        try {
+            byte[] bytes = result.bytes(MAX_UPSTREAM_ERROR_BODY_BYTES);
+            return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+        } catch (BinarySizeExceededException e) {
+            return "The upstream error body was left out: it is larger than "
+                    + MAX_UPSTREAM_ERROR_BODY_BYTES + " bytes.";
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /**
      * Thrown when a call step in an orchestrated sequence receives a non-2xx response (or no
      * response at all). The remaining steps are not executed (#739).
      *
-     * <p>The message names the step and the HTTP status. The upstream body is not carried, so
-     * adapters cannot disclose it by accident.</p>
+     * <p>The message names the step and the HTTP status, never the upstream body. The body of an
+     * upstream HTTP error is kept in {@link #getUpstreamBody()} for MCP tools, which return it to
+     * the agent as a {@code call:} does (#925, #879); REST never returns it.</p>
      */
     public static class StepFailedException extends IllegalStateException {
 
@@ -941,6 +1003,7 @@ public class OperationStepExecutor {
 
         private final String stepName;
         private final int statusCode;
+        private final transient String upstreamBody;
 
         StepFailedException(String stepName, int statusCode) {
             this(stepName, statusCode, (Throwable) null);
@@ -951,19 +1014,25 @@ public class OperationStepExecutor {
          *        logged under the error reference, never returned to the caller
          */
         StepFailedException(String stepName, int statusCode, Throwable cause) {
-            this(stepName, statusCode, message(stepName, statusCode), cause);
+            this(stepName, statusCode, cause, null);
+        }
+
+        StepFailedException(String stepName, int statusCode, Throwable cause,
+                String upstreamBody) {
+            this(stepName, statusCode, message(stepName, statusCode), cause, upstreamBody);
         }
 
         private StepFailedException(String stepName, int statusCode, String message,
-                Throwable cause) {
+                Throwable cause, String upstreamBody) {
             super(message, cause);
             this.stepName = stepName;
             this.statusCode = statusCode;
+            this.upstreamBody = upstreamBody;
         }
 
         /**
          * Wrap a failure raised inside a called flow so that it names the calling step too.
-         * The status code of the innermost failure is kept, and no upstream body is added.
+         * The status code and the upstream body of the innermost failure are kept.
          *
          * @param callerStep the name of the step that called the flow
          * @param target     the qualified name of the called flow
@@ -972,7 +1041,7 @@ public class OperationStepExecutor {
         public StepFailedException calledFrom(String callerStep, String target) {
             return new StepFailedException(callerStep, statusCode,
                     "Step '" + callerStep + "' failed calling '" + target + "': " + getMessage(),
-                    this);
+                    this, upstreamBody);
         }
 
         private static String message(String stepName, int statusCode) {
@@ -1001,6 +1070,14 @@ public class OperationStepExecutor {
          */
         public int getStatusCode() {
             return statusCode;
+        }
+
+        /**
+         * @return the body of the upstream HTTP error, or {@code null}; for MCP tools only, never
+         *         for a REST answer or a log line
+         */
+        public String getUpstreamBody() {
+            return upstreamBody;
         }
     }
 

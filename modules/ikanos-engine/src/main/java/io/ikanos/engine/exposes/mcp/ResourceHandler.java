@@ -394,20 +394,6 @@ public class ResourceHandler {
         }
     }
 
-    /**
-     * A dynamic resource's consumed call got no HTTP answer (connection refused, timeout, unknown
-     * host). {@code ResourcesReadHandler} answers it with "An upstream call failed" and an error
-     * reference; the message and the cause are logged under the reference, never returned.
-     */
-    public static class UpstreamUnreachableException extends IllegalStateException {
-
-        private static final long serialVersionUID = 1L;
-
-        UpstreamUnreachableException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
-
     // ── Dynamic resource helpers ─────────────────────────────────────────────────────────────────
 
     private List<ResourceContent> readDynamic(McpServerResourceSpec spec, String uri,
@@ -420,14 +406,10 @@ public class ResourceHandler {
                 stepExecutor.execute(spec.getCall(), spec.getSteps(), parameters,
                         "Resource '" + spec.getName() + "'");
 
-        // A connector code such as 1001 is not an HTTP status: the upstream gave no answer, so
-        // fail with a reference rather than return empty contents (#873)
-        if (found != null && found.noResponseReceived()) {
-            int status = found.status();
-            Throwable cause = found.failureCause();
-            found.release();
-            throw new UpstreamUnreachableException("Resource '" + spec.getName()
-                    + "' got no response (status " + status + ")", cause);
+        // resources/read has no isError: an upstream error, or no answer at all, fails it with a
+        // reference, as in steps: mode, rather than return the error body as contents (#873, #879)
+        if (found != null) {
+            OperationStepExecutor.failIfUnsuccessful(spec.getName(), found);
         }
 
         // Binary path: the consumed operation declared `outputRawFormat: binary`. Buffer the raw
