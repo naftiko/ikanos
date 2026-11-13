@@ -23,7 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -34,7 +36,9 @@ import org.restlet.data.CacheDirective;
 import org.restlet.data.CookieSetting;
 import org.restlet.data.Dimension;
 import org.restlet.data.Method;
+import org.restlet.data.MediaType;
 import org.restlet.data.Status;
+import org.restlet.data.Tag;
 import org.restlet.data.Warning;
 import org.restlet.representation.StringRepresentation;
 import io.ikanos.engine.LogCapture;
@@ -71,7 +75,7 @@ public class ForwardResponseHeadersTest {
     private static Response relayed(Response from, List<String> trusted, Request request) {
         Response to = new Response(request);
         to.setEntity(from.getEntity());
-        ForwardResponseHeaders.relay(from, to, trusted, BASE_URI, true);
+        ForwardResponseHeaders.relay(from, to, trusted, BASE_URI, true, new HashSet<>());
         return to;
     }
 
@@ -201,6 +205,49 @@ public class ForwardResponseHeadersTest {
         assertEquals("/proxy/items", location(BASE_URI + "/items"));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "'?page=2', /proxy/items?page=2",
+            "'', /proxy/items",
+            "'#top', /proxy/items#top"})
+    public void relayedLocationShouldKeepTheRequestPathForASameDocumentReference(String raw,
+            String expected) {
+        assertEquals(expected, location(raw == null ? "" : raw));
+    }
+
+    @Test
+    public void relayedLocationShouldNeverInheritTheUpstreamQueryOfASameDocumentReference() {
+        String upstreamRequestUri = BASE_URI + "/items?api_key=SECRET";
+
+        assertEquals("/proxy/items#top", ForwardResponseHeaders.relayedLocation("#top",
+                upstreamRequestUri, BASE_URI, incoming()));
+        assertEquals("/proxy/items?q=1", ForwardResponseHeaders.relayedLocation("",
+                upstreamRequestUri, BASE_URI,
+                incoming("http://localhost:8080/proxy/items?q=1", "items")));
+        assertEquals("/proxy/items?page=2", ForwardResponseHeaders.relayedLocation("?page=2",
+                upstreamRequestUri, BASE_URI, incoming()));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "'?page=2', /proxy/items?page=2",
+            "'', /proxy/items?q=1",
+            "'#top', /proxy/items?q=1#top"})
+    public void relayShouldRewriteASameDocumentLocationAndContentLocationWithoutTheUpstreamQuery(
+            String raw, String expected) {
+        String value = raw == null ? "" : raw;
+        Response from = new Response(new Request(Method.GET, BASE_URI + "/items?api_key=SECRET"));
+        from.getHeaders().add("Location", value);
+        from.getHeaders().add("Content-Location", value);
+        from.setEntity(new StringRepresentation("{}"));
+
+        Response to = relayed(from, List.of(),
+                incoming("http://localhost:8080/proxy/items?q=1", "items"));
+
+        assertEquals(expected, to.getLocationRef().getTargetRef().toString());
+        assertEquals(expected, to.getEntity().getLocationRef().getTargetRef().toString());
+    }
+
     @Test
     public void relayShouldResolveARelativeLocationAgainstTheBaseUriWhenTheRequestHasNoUri() {
         Response from = new Response(new Request());
@@ -211,11 +258,18 @@ public class ForwardResponseHeadersTest {
 
     /** Relays a 201 (or {@code status}) whose Location is dropped, on its own exposed path. */
     private static void relayDroppedLocation(Status status, String exposedPath) {
+        relayDroppedLocation(status, exposedPath, new HashSet<>());
+    }
+
+    /** Same, with the warning flags of the exposed resource. */
+    private static void relayDroppedLocation(Status status, String exposedPath,
+            Set<String> warned) {
         Response from = upstreamResponse();
         from.setStatus(status);
         from.getHeaders().add("Location", "http://upstream:9090/secret-admin-path");
-        relayed(from, List.of(), incoming("http://localhost:8080" + exposedPath + "/items",
+        Response to = new Response(incoming("http://localhost:8080" + exposedPath + "/items",
                 "items"));
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, warned);
     }
 
     /** Levels of the events about a dropped Location, with the Restlet logger at DEBUG. */
@@ -256,14 +310,26 @@ public class ForwardResponseHeadersTest {
         ch.qos.logback.classic.Level previous = logger.getLevel();
         logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
         try (LogCapture logs = new LogCapture()) {
-            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx");
-            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx");
+            Set<String> warned = new HashSet<>();
+            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx", warned);
+            relayDroppedLocation(Status.REDIRECTION_FOUND, "/log-3xx", warned);
 
             assertEquals(List.of(ch.qos.logback.classic.Level.WARN,
                     ch.qos.logback.classic.Level.DEBUG), droppedLocationLevels(logs));
         } finally {
             logger.setLevel(previous);
         }
+    }
+
+    @Test
+    public void relayShouldKeepOneWarningFlagPerHeaderWhateverPathTheCallerSends() {
+        Set<String> warned = new HashSet<>();
+        for (int i = 0; i < 50; i++) {
+            relayDroppedLocation(Status.SUCCESS_CREATED, "/tenants/t" + i + "/proxy", warned);
+        }
+
+        assertEquals(Set.of("Location"), warned,
+                "caller-supplied path values must not grow the warning flags");
     }
 
     @Test
@@ -448,7 +514,7 @@ public class ForwardResponseHeadersTest {
                 "Bearer realm=\"billing-internal\", error=\"invalid_token\"");
         Response to = new Response(incoming());
 
-        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, false);
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, false, new HashSet<>());
 
         assertTrue(to.getChallengeRequests().isEmpty(),
                 "a challenge on Ikanos' own credential must not reach the caller");
@@ -509,6 +575,77 @@ public class ForwardResponseHeadersTest {
 
         assertNull(relayed(from, List.of("X-Request-Id")).getHeaders()
                 .getFirstValue("X-Internal-Node", true));
+    }
+
+    // --- Fields nominated by Connection (RFC 9110 section 7.6.1) ---
+
+    @Test
+    public void relayShouldNotCopyATrustedExtensionHeaderThatConnectionNominates() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Connection", "keep-alive, X-REQUEST-ID");
+        from.getHeaders().add("X-Request-Id", "r-1");
+        from.getHeaders().add("X-Trace", "t-1");
+
+        Response to = relayed(from, List.of("X-Request-Id", "X-Trace"));
+
+        assertNull(to.getHeaders().getFirstValue("X-Request-Id", true));
+        assertEquals("t-1", to.getHeaders().getFirstValue("X-Trace", true));
+    }
+
+    @Test
+    public void relayShouldReadEveryConnectionHeaderLine() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Connection", "close");
+        from.getHeaders().add("connection", "x-request-id");
+        from.getHeaders().add("X-Request-Id", "r-1");
+
+        assertNull(relayed(from, List.of("X-Request-Id")).getHeaders()
+                .getFirstValue("X-Request-Id", true));
+    }
+
+    @Test
+    public void relayShouldNotCopyTrustedCookiesWhenConnectionNominatesSetCookie() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Connection", "Set-Cookie");
+        from.getCookieSettings().add(new CookieSetting("session", "abc"));
+
+        assertTrue(relayed(from, List.of("set-cookie")).getCookieSettings().isEmpty());
+    }
+
+    @Test
+    public void relayShouldNotCopyDefaultHeadersThatConnectionNominates() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Connection", "Location, Cache-Control, Age, Retry-After");
+        from.getHeaders().add("Location", BASE_URI + "/items/42");
+        from.getCacheDirectives().add(CacheDirective.noStore());
+        from.setAge(30);
+        from.setRetryAfter(new Date(System.currentTimeMillis() + 120_000));
+
+        Response to = relayed(from);
+
+        assertNull(to.getLocationRef());
+        assertTrue(to.getCacheDirectives().isEmpty());
+        assertEquals(0, to.getAge());
+        assertNull(to.getRetryAfter());
+    }
+
+    @Test
+    public void relayShouldRemoveEntityMetadataThatConnectionNominatesButKeepTheContentType() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Connection", "ETag, Last-Modified, Content-Location");
+        from.getHeaders().add("Content-Location", BASE_URI + "/items/42");
+        StringRepresentation entity = new StringRepresentation("{}", MediaType.APPLICATION_JSON);
+        entity.setTag(new Tag("v1"));
+        entity.setModificationDate(new Date());
+        entity.setLocationRef(BASE_URI + "/items/42");
+        from.setEntity(entity);
+
+        Response to = relayed(from);
+
+        assertNull(to.getEntity().getTag());
+        assertNull(to.getEntity().getModificationDate());
+        assertNull(to.getEntity().getLocationRef());
+        assertEquals(MediaType.APPLICATION_JSON, to.getEntity().getMediaType());
     }
 
     // --- Load-time validation ---
