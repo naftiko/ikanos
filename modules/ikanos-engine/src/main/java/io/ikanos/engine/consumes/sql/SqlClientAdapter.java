@@ -735,7 +735,8 @@ public class SqlClientAdapter extends ClientAdapter {
             }
             DatabaseMetaData catalog = connection.getMetaData();
             for (Procedure procedure : procedures.values()) {
-                String problem = procedure.isStored() ? checkStored(catalog, procedure)
+                String problem = procedure.isStored()
+                        ? checkStored(catalog, procedure, jdbcUrl.system())
                         : checkStatement(connection, procedure);
                 if (problem != null) {
                     problems.add("procedure '" + procedure.name() + "' " + problem);
@@ -796,26 +797,34 @@ public class SqlClientAdapter extends ClientAdapter {
 
     /**
      * Look up a stored procedure, or a function, by its last name part. A qualified name is read
-     * both ways: {@code schema.proc} and {@code catalog.schema.proc}, and Oracle's
+     * as {@code schema.proc} and {@code catalog.schema.proc}. On Oracle it is also read as
      * {@code package.proc} and {@code schema.package.proc}, where the Oracle driver takes the
-     * package as the catalog. Unquoted names are stored upper case by some databases (Oracle,
+     * package as the catalog, and on MySQL and MariaDB as {@code database.proc}, where the
+     * driver takes the database as the catalog. Other databases read a qualifier as a schema,
+     * so the other readings would accept a name their call cannot reach. Unquoted names are stored upper case by some databases (Oracle,
      * HSQLDB) and lower case by others (PostgreSQL), so each case is tried. {@code _} and
      * {@code %} are escaped, since the metadata calls take patterns. A driver that does not
      * support {@code getFunctions} is only asked for procedures.
      */
-    static String checkStored(DatabaseMetaData catalog, Procedure procedure) {
+    static String checkStored(DatabaseMetaData catalog, Procedure procedure, String system) {
         String[] parts = procedure.spec().getStoredProcedure().trim().split("\\.");
         String name = parts[parts.length - 1];
+        boolean oracle = "oracle".equals(system);
+        boolean qualifierIsCatalog = oracle || "mysql".equals(system) || "mariadb".equals(system);
         // {catalog, schema} readings of the qualifier
         List<String[]> readings = new ArrayList<>();
         if (parts.length == 1) {
             readings.add(new String[] {null, null});
         } else if (parts.length == 2) {
             readings.add(new String[] {null, parts[0]});
-            readings.add(new String[] {parts[0], null});
+            if (qualifierIsCatalog) {
+                readings.add(new String[] {parts[0], null});
+            }
         } else {
             readings.add(new String[] {parts[0], parts[1]});
-            readings.add(new String[] {parts[1], parts[0]});
+            if (oracle) {
+                readings.add(new String[] {parts[1], parts[0]});
+            }
         }
         try {
             String escape = catalog.getSearchStringEscape();

@@ -16,6 +16,7 @@ package io.ikanos.engine.consumes.sql;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -250,19 +251,34 @@ class SqlDiscoveryTest {
     @Test
     void checkStoredShouldReadAQualifierAsAnOraclePackage() throws Exception {
         assertNull(SqlClientAdapter.checkStored(catalogListing("PKG", null, true),
-                storedNamed("pkg.get_name")));
+                storedNamed("pkg.get_name"), "oracle"));
+    }
+
+    @Test
+    void checkStoredShouldReadAQualifierAsAMysqlDatabase() throws Exception {
+        assertNull(SqlClientAdapter.checkStored(catalogListing("ERP", null, true),
+                storedNamed("erp.get_name"), "mysql"));
+    }
+
+    @Test
+    void checkStoredShouldReadAQualifierOnlyAsASchemaElsewhere() throws Exception {
+        // SQL Server catalog ERP lists dbo.get_name only: erp.get_name names schema erp
+        assertNotNull(SqlClientAdapter.checkStored(catalogListing("ERP", null, true),
+                storedNamed("erp.get_name"), "sqlserver"));
+        assertNotNull(SqlClientAdapter.checkStored(catalogListing("PKG", "HR", true),
+                storedNamed("hr.pkg.get_name"), "postgresql"));
     }
 
     @Test
     void checkStoredShouldReadAThreePartNameAsSchemaPackageProcedure() throws Exception {
         assertNull(SqlClientAdapter.checkStored(catalogListing("PKG", "HR", true),
-                storedNamed("hr.pkg.get_name")));
+                storedNamed("hr.pkg.get_name"), "oracle"));
     }
 
     @Test
     void checkStoredShouldKeepLookingWhenTheDriverHasNoGetFunctions() throws Exception {
         assertNull(SqlClientAdapter.checkStored(catalogListing(null, "HR", false),
-                storedNamed("hr.get_name")));
+                storedNamed("hr.get_name"), "h2"));
     }
 
     @Test
