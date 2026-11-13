@@ -95,6 +95,44 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldKeepAnUndeclaredRequiredFlagUndeclared() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    date-range:
+                      type: object
+                      properties:
+                        from: { type: string, format: date }
+                  inputParameterSets:
+                    paging:
+                      top: { type: integer, description: "Rows." }
+                      skip: { type: integer, description: "Offset.", required: false }
+                      cursor: { type: string, description: "Cursor.", required: true }
+                """, """
+                list-calls:
+                  description: "List calls."
+                  inputParameterSets: [paging]
+                  inputParameters:
+                    period: { schema: date-range, description: "Call period." }
+                    window: { schema: date-range, description: "Window.", required: true }
+                  call: erp.list-calls
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        List<InputParameterSpec> inputs = tool(spec, "list-calls").getInputParameters();
+        assertEquals(List.of("top", "skip", "cursor", "period", "window"), names(inputs));
+        assertNull(inputs.get(0).getDeclaredRequired(),
+                "A set entry that declares no required flag stays undeclared, as inline");
+        assertEquals(Boolean.FALSE, inputs.get(1).getDeclaredRequired());
+        assertEquals(Boolean.TRUE, inputs.get(2).getDeclaredRequired());
+        assertNull(inputs.get(3).getDeclaredRequired(),
+                "A schema use that declares no required flag stays undeclared, as inline");
+        assertEquals(Boolean.TRUE, inputs.get(4).getDeclaredRequired());
+    }
+
+    @Test
     void expandAllShouldGiveEveryToolItsOwnCopyOfASetEntry() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:

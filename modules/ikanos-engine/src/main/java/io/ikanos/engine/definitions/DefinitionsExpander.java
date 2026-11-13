@@ -786,7 +786,7 @@ public final class DefinitionsExpander {
         /** Give an expanded schema the name, {@code required} and description of its use. */
         private static void applyUseSite(InputParameterSpec use, InputParameterSpec resolved) {
             resolved.setName(use.getName());
-            resolved.setRequired(use.isRequired());
+            resolved.setDeclaredRequired(use.getDeclaredRequired());
             if (use.getDescription() != null) {
                 resolved.setDescription(use.getDescription());
             }
@@ -1124,7 +1124,7 @@ public final class DefinitionsExpander {
         copy.setJsonSchemaRef(source.getJsonSchemaRef());
         copy.setIn(source.getIn());
         copy.setTemplate(source.getTemplate());
-        copy.setRequired(source.isRequired());
+        copy.setDeclaredRequired(source.getDeclaredRequired());
         copy.setValue(source.getValue());
         copy.setWireName(source.getWireName());
         copy.setStyle(source.getStyle());

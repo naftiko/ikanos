@@ -127,6 +127,23 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         this.required = required;
     }
 
+    /**
+     * The {@code required} flag as declared, for copies that must keep an undeclared flag
+     * undeclared. {@link #getRequired()} is taken by the {@code required} list of an object.
+     *
+     * @return {@code true} or {@code false} as declared, or {@code null} when not declared
+     */
+    public Boolean getDeclaredRequired() {
+        return required;
+    }
+
+    /**
+     * @param required the declared {@code required} flag, or {@code null} to leave it undeclared
+     */
+    public void setDeclaredRequired(Boolean required) {
+        this.required = required;
+    }
+
     public String getValue() {
         return value;
     }
