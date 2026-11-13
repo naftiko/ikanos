@@ -255,7 +255,7 @@ class SqlClientAdapterTest {
         io.ikanos.spec.InputParameterSpec input =
                 new io.ikanos.spec.InputParameterSpec("amount", "number", null, null);
 
-        SqlBind.of(input, "1.25", "erp.find").bind(statement, 1);
+        SqlBind.of(input, "1.25", "erp.find", 1).bind(statement);
 
         org.mockito.Mockito.verify(statement).setBigDecimal(1, new BigDecimal("1.25"));
     }
@@ -445,7 +445,7 @@ class SqlClientAdapterTest {
         io.ikanos.spec.InputParameterSpec input =
                 new io.ikanos.spec.InputParameterSpec("name", "string", null, null);
 
-        SqlBind.of(input, null, "erp.find").bind(statement, 1);
+        SqlBind.of(input, null, "erp.find", 1).bind(statement);
 
         org.mockito.Mockito.verify(statement).setNull(1, java.sql.Types.VARCHAR);
     }

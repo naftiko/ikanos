@@ -42,8 +42,9 @@ import io.ikanos.spec.InputParameterSpec;
  *
  * @param value the converted value, or {@code null} for SQL {@code NULL}
  * @param jdbcType the {@link Types} code to bind with, or {@code null} to let the driver infer it
+ * @param position the 1-based position of the {@code ?} it fills
  */
-record SqlBind(Object value, Integer jdbcType) {
+record SqlBind(Object value, Integer jdbcType, int position) {
 
     /**
      * Convert a step value for one input.
@@ -51,9 +52,10 @@ record SqlBind(Object value, Integer jdbcType) {
      * @param input the declared input
      * @param raw the value from the step, may be null
      * @param where {@code <namespace>.<procedure>}, for error messages
+     * @param position the 1-based position of the {@code ?} it fills
      * @throws IllegalArgumentException when the value cannot be converted
      */
-    static SqlBind of(InputParameterSpec input, Object raw, String where) {
+    static SqlBind of(InputParameterSpec input, Object raw, String where, int position) {
         JDBCType target = targetType(input, where);
         Object value = unwrap(raw);
         if (value == null) {
@@ -61,25 +63,25 @@ record SqlBind(Object value, Integer jdbcType) {
             // of :name in ":name is null"
             Integer nullType = target != null ? target.getVendorTypeNumber()
                     : "string".equals(input.getType()) ? Integer.valueOf(Types.VARCHAR) : null;
-            return new SqlBind(null, nullType);
+            return new SqlBind(null, nullType, position);
         }
         if (value instanceof Collection<?> || value instanceof Map<?, ?>) {
             throw new IllegalArgumentException("Input '" + input.getName() + "' of SQL procedure "
                     + where + " must be a single value, not a list or an object");
         }
         if (target == null) {
-            return new SqlBind(value, null);
+            return new SqlBind(value, null, position);
         }
         try {
-            return new SqlBind(convert(value, target), target.getVendorTypeNumber());
+            return new SqlBind(convert(value, target), target.getVendorTypeNumber(), position);
         } catch (NumberFormatException | DateTimeParseException | ArithmeticException e) {
             throw new IllegalArgumentException("Input '" + input.getName()
                     + "' of SQL procedure " + where + " is not a valid " + target.getName());
         }
     }
 
-    /** Bind this value at a position of a prepared statement. */
-    void bind(PreparedStatement statement, int position) throws SQLException {
+    /** Bind this value at its position of a prepared statement. */
+    void bind(PreparedStatement statement) throws SQLException {
         if (value == null) {
             statement.setNull(position, jdbcType != null ? jdbcType : Types.NULL);
         } else if (jdbcType == null) {
@@ -96,13 +98,7 @@ record SqlBind(Object value, Integer jdbcType) {
     static JDBCType targetType(InputParameterSpec input, String where) {
         String sqlType = input.getSqlType();
         if (sqlType != null && !sqlType.isBlank()) {
-            try {
-                return JDBCType.valueOf(sqlType.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Input '" + input.getName()
-                        + "' of SQL procedure " + where + " declares unknown sqlType '" + sqlType
-                        + "'");
-            }
+            return jdbcType(sqlType, "Input '" + input.getName() + "'", where);
         }
         String type = input.getType();
         if (type == null) {
@@ -114,6 +110,27 @@ record SqlBind(Object value, Integer jdbcType) {
             case "boolean" -> JDBCType.BOOLEAN;
             default -> null;
         };
+    }
+
+    /**
+     * Read a {@code sqlType} name.
+     *
+     * @param sqlType a {@link JDBCType} name, in any case
+     * @param what what declares it, for error messages
+     * @param where {@code <namespace>.<procedure>}, for error messages
+     * @throws IllegalArgumentException when the name is missing or unknown
+     */
+    static JDBCType jdbcType(String sqlType, String what, String where) {
+        if (sqlType == null || sqlType.isBlank()) {
+            throw new IllegalArgumentException(what + " of SQL procedure " + where
+                    + " requires a sqlType");
+        }
+        try {
+            return JDBCType.valueOf(sqlType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(what + " of SQL procedure " + where
+                    + " declares unknown sqlType '" + sqlType + "'");
+        }
     }
 
     private static Object unwrap(Object raw) {

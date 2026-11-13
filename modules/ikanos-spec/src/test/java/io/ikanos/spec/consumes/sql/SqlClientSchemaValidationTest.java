@@ -152,6 +152,58 @@ class SqlClientSchemaValidationTest {
         assertFalse(validate(yaml).isEmpty(), "a procedure without a statement is invalid");
     }
 
+    private static final String GET_BALANCE = """
+            get-customer:
+              description: Balance of one account.
+              storedProcedure: dbo.usp_GetAccountBalance
+              readOnly: true
+              inputParameters:
+                account-id: { type: string, position: 1 }
+              outParameters:
+                balance: { position: 2, sqlType: DECIMAL }
+                currency: { position: 3, sqlType: VARCHAR }
+              outputParameters:
+                balance: { type: number, value: "$.out.balance" }
+            """;
+
+    @Test
+    void schemaShouldAcceptAStoredProcedureWithOutParameters() throws Exception {
+        List<Error> errors = validate(capability(GET_BALANCE));
+
+        assertTrue(errors.isEmpty(), "valid stored procedure must validate: " + errors);
+    }
+
+    @Test
+    void runtimeShouldReadStoredProcedureFields() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals("dbo.usp_GetAccountBalance", procedure.getStoredProcedure());
+        assertEquals(Boolean.TRUE, procedure.getReadOnly());
+        assertEquals(1, procedure.getInputParameters().get(0).getPosition());
+        SqlOutParameterSpec currency = procedure.getOutParameters().get("currency");
+        assertEquals("currency", currency.getName());
+        assertEquals(3, currency.getPosition());
+        assertEquals("VARCHAR", currency.getSqlType());
+    }
+
+    @Test
+    void schemaShouldRejectBothAStatementAndAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true",
+                "readOnly: true\n  statement: select 1"));
+
+        assertFalse(validate(yaml).isEmpty(), "statement and storedProcedure are exclusive");
+    }
+
+    @Test
+    void schemaShouldRejectAStoredProcedureNameThatIsNotAnIdentifier() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("dbo.usp_GetAccountBalance",
+                "\"x(); drop table t\""));
+
+        assertFalse(validate(yaml).isEmpty(), "storedProcedure must be a name");
+    }
+
     @Test
     void schemaShouldRejectAUrlThatIsNotJdbc() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("\"{{JDBC_URL}}\"",

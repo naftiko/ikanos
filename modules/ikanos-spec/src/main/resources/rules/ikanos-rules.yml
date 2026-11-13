@@ -504,6 +504,39 @@ rules:
     given: "$"
     then:
       function: sql-procedures
+      functionOptions:
+        check: placeholders
+
+  ikanos-sql-stored-procedure-read-only:
+    message: "A SQL `storedProcedure` must declare `readOnly`."
+    description: >
+      The engine cannot see inside a stored procedure, so it cannot tell whether
+      a call changes data. `readOnly: true` is the author's statement that it
+      does not; the engine refuses a stored procedure without the field when
+      the capability loads.
+    severity: error
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'sql')].procedures[?(@.storedProcedure)]"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.storedProcedure)]"
+    then:
+      field: "readOnly"
+      function: defined
+
+  ikanos-sql-stored-procedure-parameters:
+    message: "{{error}}"
+    description: >
+      A stored procedure binds its arguments by position: every input declares
+      a `position`, and positions across `inputParameters` and `outParameters`
+      are unique and contiguous from 1. An `INOUT` parameter takes the same
+      position in both. `outParameters` only apply to a `storedProcedure`.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: sql-procedures
+      functionOptions:
+        check: positions
 
   # MCP Apps (SEP-1865) — interactive ui:// views linked from exposed MCP tools
 

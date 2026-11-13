@@ -1,9 +1,10 @@
 # Spectral fixture — consumed SQL rules MUST NOT FIRE:
 #   bound credentials, read statements (with a leading comment, a CTE, a cast,
 #   a placeholder used twice and a colon inside a string literal), and every
-#   input used through its placeholder or its key. A PostgreSQL URL nests block
-#   comments, a SQL Server URL reads [...] as an identifier, and a MySQL URL
-#   reads # as a comment.
+#   input used through its placeholder or its key; a stored procedure with
+#   readOnly, an INOUT parameter and contiguous positions. A PostgreSQL URL
+#   nests block comments, a SQL Server URL reads [...] as an identifier, and a
+#   MySQL URL reads # as a comment.
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — compliant"
@@ -47,6 +48,18 @@ capability:
             since: { type: string, sqlType: TIMESTAMP }
           outputParameters:
             customers: { type: array, value: "$.rows" }
+        convert-amount:
+          description: Converts an amount in place (INOUT) and returns the rate.
+          storedProcedure: finance.convert_amount
+          readOnly: true
+          inputParameters:
+            amount: { type: number, position: 1, sqlType: DECIMAL }
+            currency: { type: string, position: 2 }
+          outParameters:
+            amount: { position: 1, sqlType: DECIMAL }
+            rate: { position: 3, sqlType: DECIMAL }
+          outputParameters:
+            amount: { type: number, value: "$.out.amount" }
     - type: sql
       namespace: pg
       description: "PostgreSQL database, read with nested comments."

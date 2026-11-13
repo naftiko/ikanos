@@ -46,6 +46,7 @@ final class SqlRowDocument {
 
     static final String ROWS = "rows";
     static final String ROW_COUNT = "rowCount";
+    static final String OUT = "out";
 
     /** Reads JSON columns; decimals inside them keep their precision, as NUMERIC columns do. */
     private static final ObjectMapper JSON = IkanosMappers.jsonBuilder()
@@ -162,6 +163,54 @@ final class SqlRowDocument {
                         : NODES.stringNode(value);
             }
         }
+    }
+
+    /**
+     * Convert a stored-procedure {@code OUT} value, read with {@code getObject}.
+     *
+     * @throws SQLException when a large object cannot be read
+     * @throws SqlClientException when the value is binary
+     */
+    static JsonNode value(Object value, String label) throws SQLException {
+        if (value == null) {
+            return NODES.nullNode();
+        }
+        if (value instanceof byte[] || value instanceof java.sql.Blob) {
+            throw new SqlClientException("out parameter '" + label
+                    + "' is binary, which SQL procedures do not return yet");
+        }
+        if (value instanceof BigDecimal decimal) {
+            return NODES.numberNode(decimal);
+        }
+        if (value instanceof java.math.BigInteger integer) {
+            return NODES.numberNode(integer);
+        }
+        if (value instanceof Double || value instanceof Float) {
+            return NODES.numberNode(((Number) value).doubleValue());
+        }
+        if (value instanceof Number number) {
+            return NODES.numberNode(number.longValue());
+        }
+        if (value instanceof Boolean bool) {
+            return NODES.booleanNode(bool);
+        }
+        if (value instanceof java.sql.Date date) {
+            return NODES.stringNode(date.toLocalDate().toString());
+        }
+        if (value instanceof java.sql.Time time) {
+            return NODES.stringNode(time.toLocalTime().toString());
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return NODES.stringNode(timestamp.toLocalDateTime().toString());
+        }
+        if (value instanceof java.sql.Clob clob) {
+            try {
+                return NODES.stringNode(clob.getSubString(1, (int) clob.length()));
+            } finally {
+                clob.free();
+            }
+        }
+        return NODES.stringNode(value.toString());
     }
 
     /**

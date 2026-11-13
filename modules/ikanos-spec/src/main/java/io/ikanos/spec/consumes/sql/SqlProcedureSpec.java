@@ -13,6 +13,9 @@
  */
 package io.ikanos.spec.consumes.sql;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.ikanos.spec.OperationSpec;
@@ -33,6 +36,10 @@ public class SqlProcedureSpec extends OperationSpec {
     public static final int DEFAULT_TIMEOUT_MS = 30_000;
 
     private final AtomicReference<String> statement = new AtomicReference<>();
+    private final AtomicReference<String> storedProcedure = new AtomicReference<>();
+    private final AtomicReference<Boolean> readOnly = new AtomicReference<>();
+    private final Map<String, SqlOutParameterSpec> outParameters =
+            Collections.synchronizedMap(new LinkedHashMap<>());
     private final AtomicReference<Integer> timeoutMs = new AtomicReference<>();
     private final AtomicReference<Integer> fetchSize = new AtomicReference<>();
 
@@ -48,6 +55,47 @@ public class SqlProcedureSpec extends OperationSpec {
 
     public void setStatement(String statement) {
         this.statement.set(statement);
+    }
+
+    /** @return the stored procedure or function to call by name, or {@code null} */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getStoredProcedure() {
+        return storedProcedure.get();
+    }
+
+    public void setStoredProcedure(String storedProcedure) {
+        this.storedProcedure.set(storedProcedure);
+    }
+
+    /**
+     * Whether the procedure only reads. Defaults to {@code true} for a statement, which is
+     * checked; a stored procedure is opaque to the engine, so it must say.
+     *
+     * @return the declared value, or {@code null} when absent
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Boolean getReadOnly() {
+        return readOnly.get();
+    }
+
+    public void setReadOnly(Boolean readOnly) {
+        this.readOnly.set(readOnly);
+    }
+
+    /** @return stored-procedure {@code OUT} and {@code INOUT} parameters, keyed by name */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public Map<String, SqlOutParameterSpec> getOutParameters() {
+        return outParameters;
+    }
+
+    public void setOutParameters(Map<String, SqlOutParameterSpec> values) {
+        outParameters.clear();
+        if (values != null) {
+            values.forEach((name, out) -> {
+                out.setName(name);
+                outParameters.put(name, out);
+            });
+        }
     }
 
     /** @return the query timeout in milliseconds, or {@code null} for the default */

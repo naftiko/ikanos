@@ -63,6 +63,11 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String sqlType;
 
     /**
+     * SQL stored procedures only: the 1-based position of this argument in the call.
+     */
+    private volatile Integer position;
+
+    /**
      * How a list value is serialized in a query parameter, as in OpenAPI: {@code form} (default),
      * {@code spaceDelimited} or {@code pipeDelimited}.
      */
@@ -186,6 +191,14 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setSqlType(String sqlType) {
         this.sqlType = sqlType;
+    }
+
+    public Integer getPosition() {
+        return position;
+    }
+
+    public void setPosition(Integer position) {
+        this.position = position;
     }
 
     public String getStyle() {

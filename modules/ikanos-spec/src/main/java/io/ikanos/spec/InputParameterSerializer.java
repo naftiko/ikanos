@@ -82,6 +82,10 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
             node.put("sqlType", spec.getSqlType());
         }
 
+        if (spec.getPosition() != null) {
+            node.put("position", spec.getPosition());
+        }
+
         if (spec.getStyle() != null) {
             node.put("style", spec.getStyle());
         }

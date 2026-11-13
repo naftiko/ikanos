@@ -1,34 +1,39 @@
 /**
  * Spectral custom function: sql-procedures
  *
- * Enforces `ikanos-sql-placeholders-bound` on every `consumes: type: sql`
- * procedure (root `consumes` and `capability.consumes`):
+ * Checks every `consumes: type: sql` procedure (root `consumes` and
+ * `capability.consumes`). `functionOptions.check` picks the rule:
  *
- * - every `:placeholder` in `statement` matches a declared input, through the
- *   input's `placeholder` or, without one, its key;
- * - every declared input is used by the statement.
- *
- * Placeholders are found the way the engine finds them: string literals,
- * quoted identifiers, dollar-quoted strings, comments and `::` casts are
- * skipped. As in the engine, the `connection.url` sets the dialect when it is
- * a literal JDBC URL: block comments nest on PostgreSQL and SQL Server, and
- * `[...]` is a quoted identifier on SQL Server and SQLite. On MySQL and
- * MariaDB, `#` starts a comment, `--` does only before whitespace, a backslash
- * escapes in quoted text, and there is no dollar quoting.
+ * - `placeholders` (`ikanos-sql-placeholders-bound`): every `:placeholder` in a
+ *   `statement` matches a declared input, through the input's `placeholder`
+ *   or, without one, its key; every declared input is used by the statement.
+ *   Placeholders are found the way the engine finds them: string literals,
+ *   quoted identifiers, dollar-quoted strings, comments and `::` casts are
+ *   skipped. As in the engine, the `connection.url` sets the dialect when it is
+ *   a literal JDBC URL: block comments nest on PostgreSQL and SQL Server, and
+ *   `[...]` is a quoted identifier on SQL Server and SQLite. On MySQL and
+ *   MariaDB, `#` starts a comment, `--` does only before whitespace, a
+ *   backslash escapes in quoted text, and there is no dollar quoting.
+ * - `positions` (`ikanos-sql-stored-procedure-parameters`): every input of a
+ *   `storedProcedure` declares a `position`; positions across inputs and
+ *   `outParameters` are unique and contiguous from 1, an `INOUT` parameter
+ *   taking the same position in both; `outParameters` only appear with a
+ *   `storedProcedure`.
  */
-export default function sqlProcedures(targetVal) {
+export default function sqlProcedures(targetVal, opts) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
   }
+  const check = opts && opts.check === "positions" ? checkPositions : checkPlaceholders;
   const results = [];
-  scanConsumes(targetVal.consumes, ["consumes"], results);
+  scanConsumes(targetVal.consumes, ["consumes"], check, results);
   if (targetVal.capability && typeof targetVal.capability === "object") {
-    scanConsumes(targetVal.capability.consumes, ["capability", "consumes"], results);
+    scanConsumes(targetVal.capability.consumes, ["capability", "consumes"], check, results);
   }
   return results;
 }
 
-function scanConsumes(consumes, basePath, results) {
+function scanConsumes(consumes, basePath, check, results) {
   if (!Array.isArray(consumes)) {
     return;
   }
@@ -37,11 +42,11 @@ function scanConsumes(consumes, basePath, results) {
       return;
     }
     for (const [name, procedure] of Object.entries(adapter.procedures)) {
-      if (!isObject(procedure) || typeof procedure.statement !== "string") {
+      if (!isObject(procedure)) {
         continue;
       }
       const path = [...basePath, index, "procedures", name];
-      checkPlaceholders(adapter.namespace, name, procedure, path, dialectOf(adapter), results);
+      check(adapter.namespace, name, procedure, path, dialectOf(adapter), results);
     }
   });
 }
@@ -59,7 +64,63 @@ function dialectOf(adapter) {
   };
 }
 
+function checkPositions(namespace, name, procedure, path, dialect, results) {
+  const where = "SQL procedure '" + namespace + "." + name + "'";
+  const outs = isObject(procedure.outParameters) ? procedure.outParameters : {};
+  if (typeof procedure.storedProcedure !== "string") {
+    if (Object.keys(outs).length > 0) {
+      results.push({
+        message: where + " declares outParameters, which only a storedProcedure can return.",
+        path: [...path, "outParameters"],
+      });
+    }
+    return;
+  }
+  const inputs = isObject(procedure.inputParameters) ? procedure.inputParameters : {};
+  const taken = new Map();
+  const claim = (kind, key, position) => {
+    const seen = taken.get(position) || {};
+    if (seen[kind]) {
+      results.push({
+        message: where + " declares two " + kind + " parameters at position " + position + ".",
+        path: [...path, kind === "input" ? "inputParameters" : "outParameters", key],
+      });
+    }
+    seen[kind] = key;
+    taken.set(position, seen);
+  };
+  for (const [key, input] of Object.entries(inputs)) {
+    const position = isObject(input) ? input.position : undefined;
+    if (!Number.isInteger(position) || position < 1) {
+      results.push({
+        message: where + " input '" + key + "' requires a position of 1 or more.",
+        path: [...path, "inputParameters", key],
+      });
+      continue;
+    }
+    claim("input", key, position);
+  }
+  for (const [key, out] of Object.entries(outs)) {
+    const position = isObject(out) ? out.position : undefined;
+    if (Number.isInteger(position) && position >= 1) {
+      claim("out", key, position);
+    }
+  }
+  const highest = Math.max(0, ...taken.keys());
+  for (let position = 1; position <= highest; position++) {
+    if (!taken.has(position)) {
+      results.push({
+        message: where + " has no parameter at position " + position + "; positions must be contiguous from 1.",
+        path: [...path, "storedProcedure"],
+      });
+    }
+  }
+}
+
 function checkPlaceholders(namespace, name, procedure, path, dialect, results) {
+  if (typeof procedure.statement !== "string") {
+    return;
+  }
   const used = placeholders(procedure.statement, dialect);
   const inputs = isObject(procedure.inputParameters) ? procedure.inputParameters : {};
   const byPlaceholder = new Map();
