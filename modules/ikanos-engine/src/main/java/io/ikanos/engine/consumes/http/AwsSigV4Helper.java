@@ -91,19 +91,19 @@ import org.restlet.util.Series;
  * as sent, so an escape in the path is encoded again. Query parameters are signed sorted and
  * URI-encoded: a {@code +} in the query is a literal plus sign, so encode spaces as {@code %20}.
  *
- * @see <a
- *     href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html">Create
- *     a signed AWS API request</a>
- *
  * <p><b>Origin.</b> A copy of Restlet's {@code org.restlet.ext.crypto.internal.HttpAwsSigV4Helper}
- * (restlet/restlet-framework-java#1663, Apache 2.0). Its logic is unchanged but for one fix: S3
- * decodes the whole path before splitting it into segments, so an encoded slash is signed as a
- * separator (Restlet decodes each segment after the split). Restlet ships it
+ * (restlet/restlet-framework-java#1663, Apache 2.0), identical to the one in Restlet 3.0,
+ * including its S3 fix (restlet/restlet-framework-java@f0663336): the whole path is decoded
+ * before it is split into segments, so an encoded slash is signed as a separator. Restlet ships it
  * from 3.0.0-m2, which requires Java 25 and replaces the Jetty client connectors this engine
  * extends with Netty. Once Ikanos moves to that Restlet, delete this class and use {@code
  * org.restlet.ext.crypto} with {@code ChallengeScheme.HTTP_AWS_SIGV4} instead (#954). Until then
  * it is registered with the Restlet {@link Engine} by {@link #ensureRegistered()}, like {@link
  * ApiKeyAuthorizationHeaderHelper}, under a scheme of the same name and technical name.
+ *
+ * @see <a
+ *     href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html">Create
+ *     a signed AWS API request</a>
  */
 class AwsSigV4Helper extends AuthenticatorHelper {
 

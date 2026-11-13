@@ -582,7 +582,7 @@ public class ResourceRestlet extends Restlet {
                         String targetRef = httpAdapter.getBaseUri()
                                 + normalizedPath;
                         Request clientRequest = new Request(request.getMethod(), targetRef);
-                        clientRequest.setEntity(request.getEntity());
+                        clientRequest.setEntity(sized(request));
 
                         // Copy trusted headers from the original request to the client request
                         copyTrustedHeaders(request, clientRequest,
@@ -646,6 +646,29 @@ public class ResourceRestlet extends Restlet {
             }
         }
         return false;
+    }
+
+    /**
+     * The inbound entity, with the size its {@code Content-Length} header gives when Restlet left
+     * it unknown, so that the forward sends it with that {@code Content-Length} rather than
+     * chunked: S3 and MinIO refuse an unsized body that isn't aws-chunked (#954).
+     */
+    static Representation sized(Request request) {
+        Representation entity = request.getEntity();
+        if (entity != null && entity.getSize() == Representation.UNKNOWN_SIZE) {
+            String length = request.getHeaders().getFirstValue("Content-Length", true);
+            if (length != null) {
+                try {
+                    long size = Long.parseLong(length.trim());
+                    if (size >= 0) {
+                        entity.setSize(size);
+                    }
+                } catch (NumberFormatException e) {
+                    // Left unknown: the entity is sent chunked
+                }
+            }
+        }
+        return entity;
     }
 
     /**

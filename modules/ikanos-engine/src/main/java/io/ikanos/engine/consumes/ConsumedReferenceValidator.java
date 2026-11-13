@@ -14,8 +14,10 @@
 package io.ikanos.engine.consumes;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -41,9 +43,19 @@ import io.ikanos.spec.util.OperationStepSpec;
  *       not checked here: exposers fall back to mock responses in that case.</li>
  *   <li>A REST {@code forward.targetNamespace} must name a consumed adapter of {@code type: http},
  *       the only protocol forward mode supports.</li>
+ *   <li>When that adapter signs with {@code awsSigV4}, {@code forward.trustedHeaders} must not
+ *       list an {@code x-amz-*} header. AWS reads several of them as part of the operation
+ *       ({@code x-amz-copy-source}, {@code x-amz-acl}, {@code x-amz-grant-*},
+ *       {@code x-amz-website-redirect-location}...), and a trusted one is signed with the
+ *       capability's key, so a caller could reach objects outside the forwarded prefix (#954).
+ *       It also keeps the engine's own {@code X-Amz-Date}, {@code X-Amz-Security-Token} and
+ *       {@code X-Amz-Content-Sha256} from being set by a caller.</li>
  * </ul>
  */
 public final class ConsumedReferenceValidator {
+
+    /** The prefix, in lower case, of the AWS headers a forward to an awsSigV4 adapter refuses. */
+    private static final String AMZ_HEADER_PREFIX = "x-amz-";
 
     private ConsumedReferenceValidator() {
     }
@@ -138,6 +150,20 @@ public final class ConsumedReferenceValidator {
             throw new IllegalArgumentException("Forward target namespace '" + target + "' of "
                     + where + " is a consumed adapter of type '" + adapter.getSpec().getType()
                     + "'. Forward mode needs a consumed adapter of type 'http'.");
+        }
+        HttpClientAdapter http = (HttpClientAdapter) adapter;
+        if (http.getHttpClientSpec().getAuthentication() instanceof AwsSigV4AuthenticationSpec
+                && forward.getTrustedHeaders() != null) {
+            for (String header : forward.getTrustedHeaders()) {
+                if (header != null
+                        && header.trim().toLowerCase(Locale.ROOT).startsWith(AMZ_HEADER_PREFIX)) {
+                    throw new IllegalArgumentException("Trusted header '" + header + "' of "
+                            + where + " can't be forwarded to '" + target + "', which signs "
+                            + "with awsSigV4: an x-amz-* header is part of the signed AWS "
+                            + "operation, so a caller could reach objects outside the "
+                            + "forwarded prefix. Remove it from trustedHeaders.");
+                }
+            }
         }
     }
 
