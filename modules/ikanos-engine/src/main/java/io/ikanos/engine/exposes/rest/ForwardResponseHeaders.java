@@ -348,6 +348,9 @@ public final class ForwardResponseHeaders {
      * dropped. A client can read a scheme-qualified reference without an authority as relative
      * to the gateway (RFC 3986 section 5.2.2, non-strict), outside the exposed resource.</li>
      * <li>A value or base URI that cannot be parsed: dropped.</li>
+     * <li>A value whose rewritten path would start with {@code //}, which only happens under a
+     * resource exposed at the root, such as {@code http://upstream/v1//evil.example/x}: dropped.
+     * The caller would read it as a scheme-relative reference to another host.</li>
      * </ul>
      *
      * <p>Scheme and host are compared case-insensitively, a default port is ignored, a trailing
@@ -409,6 +412,11 @@ public final class ForwardResponseHeaders {
         String rewritten = exposed + path.substring(basePath.length());
         if (rewritten.isEmpty()) {
             rewritten = "/";
+        }
+        if (rewritten.startsWith("//")) {
+            // Under a resource exposed at the root, a path that starts with an empty segment
+            // would be written as a scheme-relative reference, naming another host
+            return null;
         }
         if (query != null) {
             rewritten += "?" + query;
