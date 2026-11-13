@@ -684,14 +684,15 @@ public class ResourceRestlet extends Restlet {
     /**
      * Names of the query parameters a forwarded request must not take from the caller: the
      * exposed adapter's API key when its placement is {@code query}, which must not reach the
-     * upstream, and the parameters the consumed adapter sets itself, its {@code in: query} input
-     * parameters (by wire name) and its API key when its placement is {@code query}, which the
-     * caller must not override. API key names are rendered with the capability bindings.
+     * upstream, and the parameters the consumed adapter sets itself, the names in the query of its
+     * {@code baseUri} (percent-decoded), its {@code in: query} input parameters (by wire name) and
+     * its API key when its placement is {@code query}, which the caller must not repeat or
+     * override. API key names are rendered with the capability bindings.
      */
     Set<String> forwardExcludedQueryNames(HttpClientAdapter httpAdapter) {
         Map<String, Object> bindings = getCapability().getBindings() != null
                 ? getCapability().getBindings() : Map.of();
-        Set<String> names = new HashSet<>();
+        Set<String> names = new HashSet<>(baseUriQueryNames(httpAdapter.getBaseUri()));
         addQueryApiKeyName(getServerSpec().getAuthentication(), bindings, names);
         addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(), bindings, names);
 
@@ -703,6 +704,29 @@ public class ResourceRestlet extends Restlet {
                     names.add(spec.getWireName() != null && !spec.getWireName().isBlank()
                             ? spec.getWireName() : spec.getName());
                 }
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Names of the query parameters pinned in a base URI, percent-decoded the way
+     * {@link #filterForwardedQuery} decodes the caller's names, so a caller cannot repeat them
+     * (an upstream that takes the last value would then use the caller's).
+     *
+     * @return the names, empty when the base URI is null or has no query
+     */
+    static Set<String> baseUriQueryNames(String baseUri) {
+        Set<String> names = new HashSet<>();
+        int queryStart = baseUri == null ? -1 : baseUri.indexOf('?');
+        if (queryStart < 0) {
+            return names;
+        }
+        for (String pair : baseUri.substring(queryStart + 1).split("&")) {
+            int equals = pair.indexOf('=');
+            String rawName = equals < 0 ? pair : pair.substring(0, equals);
+            if (!rawName.isEmpty()) {
+                names.add(decodeQueryName(rawName));
             }
         }
         return names;

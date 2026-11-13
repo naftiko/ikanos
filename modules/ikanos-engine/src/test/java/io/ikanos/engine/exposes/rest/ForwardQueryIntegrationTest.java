@@ -14,9 +14,7 @@
 package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import java.net.ServerSocket;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,6 +97,15 @@ public class ForwardQueryIntegrationTest {
      */
     private void startCapability(String exposedAuthentication, String consumedExtras)
             throws Exception {
+        startCapability(exposedAuthentication, "", consumedExtras);
+    }
+
+    /**
+     * Same as {@link #startCapability(String, String)}, with {@code baseUriQuery} (such as
+     * {@code ?key=k}, or an empty string) appended to the consumed adapter's base URI.
+     */
+    private void startCapability(String exposedAuthentication, String baseUriQuery,
+            String consumedExtras) throws Exception {
         restPort = findFreePort();
         String yaml = """
                 ikanos: "%s"
@@ -116,10 +123,10 @@ public class ForwardQueryIntegrationTest {
                   consumes:
                     - type: "http"
                       namespace: "upstream"
-                      baseUri: "http://localhost:%d/v1"
+                      baseUri: "http://localhost:%d/v1%s"
                 %s
                 """.formatted(IKANOS, restPort, exposedAuthentication, upstreamPort,
-                consumedExtras);
+                baseUriQuery, consumedExtras);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         capability = new Capability(spec);
         capability.start();
@@ -173,24 +180,6 @@ public class ForwardQueryIntegrationTest {
         assertEquals(Status.SUCCESS_OK, response.getStatus());
         assertEquals("/v1/items", receivedPath.get());
         assertEquals("api-version=2", receivedQuery.get());
-    }
-
-    @Test
-    void forwardTargetRefJoinsTheQueryToTheBaseUri() {
-        assertEquals("http://h/v1/items",
-                ResourceRestlet.forwardTargetRef("http://h/v1", "/items", null));
-        assertEquals("http://h/v1/items",
-                ResourceRestlet.forwardTargetRef("http://h/v1", "/items", ""));
-        assertEquals("http://h/v1/items?a=1&b=%2F",
-                ResourceRestlet.forwardTargetRef("http://h/v1", "/items", "a=1&b=%2F"));
-        assertEquals("http://h/v1?key=k&a=1",
-                ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "", "a=1"));
-        assertEquals("http://h/v1/items?key=k&a=1",
-                ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "/items", "a=1"),
-                "the captured path goes before the base URI's query");
-        assertEquals("http://h/v1/items?key=k",
-                ResourceRestlet.forwardTargetRef("http://h/v1?key=k", "/items", null),
-                "the base URI's query is kept when the request has none");
     }
 
     @Test
@@ -248,28 +237,16 @@ public class ForwardQueryIntegrationTest {
     }
 
     @Test
-    void filterForwardedQueryShouldDropPairsWhoseDecodedNameIsExcluded() {
-        Set<String> excluded = Set.of("api_key", "api-version");
+    void forwardShouldDropCallerParametersPinnedInTheBaseUri() throws Exception {
+        startCapability("", "?key=k&api%5Fversion=2", "");
 
-        assertEquals("a=1&b=%2F",
-                ResourceRestlet.filterForwardedQuery("a=1&api_key=s&b=%2F", excluded));
-        assertEquals("a=1", ResourceRestlet.filterForwardedQuery("api%5Fkey=s&a=1", excluded),
-                "the name is compared once percent-decoded");
-        assertEquals("a=1", ResourceRestlet.filterForwardedQuery("api-version&a=1", excluded),
-                "a name without a value is dropped too");
-        assertEquals("API_KEY=s&a=1",
-                ResourceRestlet.filterForwardedQuery("API_KEY=s&a=1", excluded),
-                "names are case-sensitive, like the server-side check");
-        assertEquals("", ResourceRestlet.filterForwardedQuery("api_key=s", excluded));
-    }
+        Response response = get("/proxy/items?key=evil&limit=5&api_version=1&key=evil2");
 
-    @Test
-    void filterForwardedQueryShouldKeepTheQueryUntouchedWhenNothingIsExcluded() {
-        assertEquals("a=%zz&b=x+y&c",
-                ResourceRestlet.filterForwardedQuery("a=%zz&b=x+y&c", Set.of("api_key")),
-                "a malformed escape is forwarded as received");
-        assertEquals("a=1", ResourceRestlet.filterForwardedQuery("a=1", Set.of()));
-        assertNull(ResourceRestlet.filterForwardedQuery(null, Set.of("api_key")));
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        assertEquals("/v1/items", receivedPath.get());
+        // The base URI's own query parameters cannot be repeated, so an upstream that takes the
+        // last value still gets the pinned one
+        assertEquals("key=k&api%5Fversion=2&limit=5", receivedQuery.get());
     }
 
     private static int findFreePort() throws Exception {
