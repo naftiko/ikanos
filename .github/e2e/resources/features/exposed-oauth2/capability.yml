@@ -50,8 +50,8 @@ capability:
     # The engine auto-discovers the jwks_uri from:
     #   http://localhost:8180/realms/e2e-test/.well-known/oauth-authorization-server
     # `resource` is used as the expected `aud` claim in every JWT.
-    # NOTE: http:// is intentional for CI — the lint rule ikanos-oauth2-https-authserver
-    # only runs on modules/ikanos-docs/tutorial/** and does not cover .github/e2e/.
+    # NOTE: http:// is intentional for CI (plain-HTTP Keycloak). scripts/lint-capabilities.sh
+    # lints this file but lets the ikanos-oauth2-https-authserver rule through for .github/e2e/.
     authentication:
       type: oauth2
       authorizationServerUri: "http://localhost:8180/realms/e2e-test"
