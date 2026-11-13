@@ -189,7 +189,8 @@ public class ValidateCommandTest {
                       port: 3000
                       namespace: "proxy"
                       resources:
-                        - path: "/proxy/{{path}}"
+                        proxy:
+                          path: "/proxy/{{path}}"
                           forward:
                             targetNamespace: up
                             trustedResponseHeaders:
@@ -199,7 +200,8 @@ public class ValidateCommandTest {
         int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
         assertEquals(1, exitCode, "#1002: validate must refuse what the engine refuses to load");
-        assertTrue(errCapture.toString().contains("Transfer-Encoding"), errCapture.toString());
+        assertTrue(errCapture.toString().contains("Transfer-Encoding")
+                && errCapture.toString().contains("hop-by-hop"), errCapture.toString());
     }
 
     @Test
