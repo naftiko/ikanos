@@ -281,6 +281,26 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void bareDiscoveryOffShouldPassSchemaAndReadAsOffAtRuntime() throws Exception {
+        String yaml = capability(GET_CUSTOMER).replace("      pool:",
+                "      discovery: off\n      pool:");
+
+        assertTrue(validate(yaml).isEmpty(), "discovery: off must validate: " + validate(yaml));
+        SqlClientSpec sql = (SqlClientSpec) YAML.readValue(yaml, IkanosSpec.class)
+                .getCapability().getConsumes().get(0);
+        assertEquals(SqlClientSpec.DISCOVERY_OFF, sql.getDiscovery());
+        assertFalse(sql.isDiscoveryVerify());
+    }
+
+    @Test
+    void schemaShouldRejectAnUnknownDiscoveryMode() throws Exception {
+        String yaml = capability(GET_CUSTOMER).replace("      pool:",
+                "      discovery: sometimes\n      pool:");
+
+        assertFalse(validate(yaml).isEmpty(), "discovery is verify or off");
+    }
+
+    @Test
     void schemaShouldRejectAUrlThatIsNotJdbc() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("\"{{JDBC_URL}}\"",
                 "\"https://db.example.com\"");

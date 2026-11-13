@@ -107,13 +107,7 @@ public class McpClientSpec extends ClientSpec {
      * Jackson then hands the setter {@code "false"}. Map those back to the documented values.
      */
     static String normalize(String value, String defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        if ("false".equalsIgnoreCase(value) || "no".equalsIgnoreCase(value)) {
-            return DISCOVERY_OFF;
-        }
-        return value;
+        return normalizeOff(value, defaultValue);
     }
 
     /** @return {@code true} when the adapter must verify declared tools against the upstream */
