@@ -133,9 +133,13 @@ public final class ForwardResponseHeaders {
      * @param to the response to the caller, whose request is the incoming request
      * @param trustedResponseHeaders the extension headers and opt-in headers to relay
      * @param upstreamBaseUri the resolved base URI of the forward target
+     * @param relayChallenges whether to relay the upstream's {@code WWW-Authenticate}
+     *        challenges: only when the upstream judged the caller's own credential, that is when
+     *        the consumed adapter has no {@code authentication}. A challenge on the adapter's own
+     *        credential names an internal realm and tells the caller that credential is broken.
      */
     static void relay(Response from, Response to, List<String> trustedResponseHeaders,
-            String upstreamBaseUri) {
+            String upstreamBaseUri, boolean relayChallenges) {
         Request incoming = to.getRequest();
         String upstreamRequestUri = from.getRequest() == null
                 || from.getRequest().getResourceRef() == null ? upstreamBaseUri
@@ -173,7 +177,9 @@ public final class ForwardResponseHeaders {
             to.getDimensions().add(Dimension.UNSPECIFIED);
         }
         to.getAllowedMethods().addAll(from.getAllowedMethods());
-        to.setChallengeRequests(rawChallenges(from));
+        if (relayChallenges) {
+            to.setChallengeRequests(rawChallenges(from));
+        }
         to.getServerInfo().setAcceptingRanges(from.getServerInfo().isAcceptingRanges());
         to.setAge(from.getAge());
 

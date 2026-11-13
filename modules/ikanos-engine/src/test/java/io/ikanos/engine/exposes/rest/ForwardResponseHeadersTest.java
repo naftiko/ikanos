@@ -71,7 +71,7 @@ public class ForwardResponseHeadersTest {
     private static Response relayed(Response from, List<String> trusted, Request request) {
         Response to = new Response(request);
         to.setEntity(from.getEntity());
-        ForwardResponseHeaders.relay(from, to, trusted, BASE_URI);
+        ForwardResponseHeaders.relay(from, to, trusted, BASE_URI, true);
         return to;
     }
 
@@ -438,6 +438,20 @@ public class ForwardResponseHeadersTest {
 
         assertEquals(List.of("Negotiate"), relayed(from).getChallengeRequests().stream()
                 .map(c -> c.getScheme().getTechnicalName()).toList());
+    }
+
+    @Test
+    public void relayShouldDropChallengesOnTheConsumedAdaptersOwnCredential() {
+        Response from = upstreamResponse();
+        from.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
+        from.getHeaders().add("WWW-Authenticate",
+                "Bearer realm=\"billing-internal\", error=\"invalid_token\"");
+        Response to = new Response(incoming());
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, false);
+
+        assertTrue(to.getChallengeRequests().isEmpty(),
+                "a challenge on Ikanos' own credential must not reach the caller");
     }
 
     // --- Opt-in and extension headers ---

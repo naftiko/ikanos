@@ -97,11 +97,20 @@ public class ForwardResponseHeadersIntegrationTest {
                             targetNamespace: up
                             trustedResponseHeaders:
                               - Set-Cookie
+                        - path: "/secured/{{path}}"
+                          forward:
+                            targetNamespace: secured
                   consumes:
                     - type: "http"
                       namespace: "up"
                       baseUri: "http://localhost:%d/v1"
-                """.formatted(IKANOS, exposedPort, upstreamPort);
+                    - type: "http"
+                      namespace: "secured"
+                      baseUri: "http://localhost:%d/v1"
+                      authentication:
+                        type: bearer
+                        token: "expired-token"
+                """.formatted(IKANOS, exposedPort, upstreamPort, upstreamPort);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         adapter = new Capability(spec).getServerAdapters().get(0);
         adapter.start();
@@ -235,6 +244,27 @@ public class ForwardResponseHeadersIntegrationTest {
         assertEquals(401, response.statusCode());
         assertEquals("Basic realm=\"up\"",
                 response.headers().firstValue("WWW-Authenticate").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldAnswerBadGatewayWhenTheUpstreamRefusesTheAdaptersOwnCredential()
+            throws Exception {
+        HttpResponse<String> response = get("/secured/locked");
+
+        assertEquals(502, response.statusCode());
+        assertFalse(response.headers().firstValue("WWW-Authenticate").isPresent(),
+                "the upstream's challenge on Ikanos' own credential must not reach the caller");
+        assertTrue(response.body().startsWith("An upstream call failed (reference: "),
+                "got body: " + response.body());
+    }
+
+    @Test
+    public void forwardShouldRelayOtherAnswersWhenTheAdapterHasItsOwnCredential()
+            throws Exception {
+        HttpResponse<String> response = get("/secured/created");
+
+        assertEquals(201, response.statusCode());
+        assertEquals("/secured/items/42", response.headers().firstValue("Location").orElse(null));
     }
 
     @Test

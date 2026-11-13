@@ -611,10 +611,28 @@ public class ResourceRestlet extends Restlet {
                                     "Forward to '" + forwardSpec.getTargetNamespace() + "'",
                                     clientResponse.getStatus().getThrowable());
                         }
+                        // With an `authentication` on the consumed adapter, the upstream judged
+                        // Ikanos' own credential, not the caller's: a 401 then means that
+                        // credential is broken, which the caller can neither fix nor needs to
+                        // know, so it gets a 502 and the upstream's challenge is never relayed.
+                        boolean ownCredential =
+                                httpAdapter.getHttpClientSpec().getAuthentication() != null;
+                        if (ownCredential && forwardedStatus == Status.CLIENT_ERROR_UNAUTHORIZED
+                                .getCode()) {
+                            clientResponse.release();
+                            sendError(response, Status.SERVER_ERROR_BAD_GATEWAY,
+                                    "An upstream call failed", "Forward to '"
+                                            + forwardSpec.getTargetNamespace()
+                                            + "' was refused the consumed adapter's credential "
+                                            + "(HTTP 401)",
+                                    null);
+                            return true;
+                        }
                         response.setStatus(clientResponse.getStatus());
                         response.setEntity(clientResponse.getEntity());
                         ForwardResponseHeaders.relay(clientResponse, response,
-                                forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri());
+                                forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri(),
+                                !ownCredential);
                         response.commit();
                         return true;
                     } catch (Exception e) {
