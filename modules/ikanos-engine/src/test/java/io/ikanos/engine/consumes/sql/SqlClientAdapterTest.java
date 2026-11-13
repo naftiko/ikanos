@@ -232,6 +232,35 @@ class SqlClientAdapterTest {
     }
 
     @Test
+    void failureCauseShouldCarryTheSqlStateButNotTheDriverMessage() throws Exception {
+        started("""
+                missing:
+                  description: Reads a table that does not exist.
+                  statement: select * from no_such_table
+                """);
+
+        ConsumedResult result = call("missing", Map.of());
+
+        SQLException cause = assertInstanceOf(SQLException.class, result.failureCause());
+        assertFalse(cause.getMessage().toUpperCase().contains("NO_SUCH_TABLE"),
+                cause.getMessage());
+        assertNull(cause.getCause());
+        assertTrue(cause.getSQLState() != null && !cause.getSQLState().isEmpty());
+    }
+
+    @Test
+    void bindShouldKeepTheScaleOfADecimal() throws Exception {
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        io.ikanos.spec.InputParameterSpec input =
+                new io.ikanos.spec.InputParameterSpec("amount", "number", null, null);
+
+        SqlBind.of(input, "1.25", "erp.find").bind(statement, 1);
+
+        org.mockito.Mockito.verify(statement).setBigDecimal(1, new BigDecimal("1.25"));
+    }
+
+    @Test
     void invokeShouldFailWhenTheAdapterIsNotStarted() throws Exception {
         adapter = new SqlClientAdapter(null, spec(GET_CUSTOMER));
         ConsumedInvocation invocation = adapter.prepare("get-customer", Map.of("customer-id", "c1"));

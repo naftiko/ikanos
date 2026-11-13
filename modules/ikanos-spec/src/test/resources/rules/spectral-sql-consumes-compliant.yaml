@@ -1,7 +1,8 @@
 # Spectral fixture — consumed SQL rules MUST NOT FIRE:
 #   bound credentials, read statements (with a leading comment, a CTE, a cast,
 #   a placeholder used twice and a colon inside a string literal), and every
-#   input used through its placeholder or its key.
+#   input used through its placeholder or its key. A PostgreSQL URL nests block
+#   comments, and a SQL Server URL reads [...] as an identifier.
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — compliant"
@@ -45,6 +46,32 @@ capability:
             since: { type: string, sqlType: TIMESTAMP }
           outputParameters:
             customers: { type: array, value: "$.rows" }
+    - type: sql
+      namespace: pg
+      description: "PostgreSQL database, read with nested comments."
+      connection:
+        url: "jdbc:postgresql://db.internal:5432/erp"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        nested-comment:
+          description: A nested comment holds no placeholder.
+          statement: select /* outer /* inner */ :ignored */ name from customers where id = :id
+          inputParameters:
+            id: { type: string }
+    - type: sql
+      namespace: mssql
+      description: "SQL Server database, read with bracket identifiers."
+      connection:
+        url: "jdbc:sqlserver://wh.internal:1433;databaseName=billing"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        bracket-identifiers:
+          description: Bracket identifiers hold no placeholder.
+          statement: SELECT [delete], [tag:x] FROM inventory WHERE id = :id
+          inputParameters:
+            id: { type: string }
   exposes:
     - type: mcp
       namespace: erp-mcp

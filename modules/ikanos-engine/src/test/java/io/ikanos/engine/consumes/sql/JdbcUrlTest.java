@@ -54,6 +54,32 @@ class JdbcUrlTest {
     }
 
     @Test
+    void spanTargetShouldDropTheCredentialsOfAnOracleThinSidUrl() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:oracle:thin:scott/s3cret@ora.internal:1521:FIN");
+
+        assertEquals("oracle://ora.internal/FIN", url.spanTarget());
+        assertEquals("FIN", url.database());
+    }
+
+    @Test
+    void spanTargetShouldNotReadAnUnknownShapeThatCarriesAnAt() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:acme:admin/s3cret@db:9999:main");
+
+        assertFalse(url.spanTarget().contains("s3cret"), url.spanTarget());
+        assertEquals(null, url.database());
+    }
+
+    @Test
+    void dialectShouldFollowTheSubprotocol() {
+        assertEquals(SqlStatement.Dialect.SQLSERVER,
+                JdbcUrl.parse("jdbc:sqlserver://wh:1433").dialect());
+        assertEquals(SqlStatement.Dialect.POSTGRESQL,
+                JdbcUrl.parse("jdbc:postgresql://db/erp").dialect());
+        assertEquals(SqlStatement.Dialect.SQLITE, JdbcUrl.parse("jdbc:sqlite:x.db").dialect());
+        assertEquals(SqlStatement.Dialect.STANDARD, JdbcUrl.parse("jdbc:h2:mem:x").dialect());
+    }
+
+    @Test
     void spanTargetShouldNeverCarryCredentials() {
         JdbcUrl url = JdbcUrl.parse("jdbc:postgresql://admin:s3cret@db:5432/erp?password=x");
 

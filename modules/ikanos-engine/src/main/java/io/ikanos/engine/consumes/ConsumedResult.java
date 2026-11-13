@@ -123,6 +123,17 @@ public interface ConsumedResult {
     JsonNode document() throws IOException;
 
     /**
+     * Whether {@link #document()} is the adapter's native tree rather than a conversion of
+     * {@link #text()}. Steps then read the tree directly, so values that JSON text would round,
+     * such as SQL decimals, keep their precision.
+     *
+     * @return {@code true} when the tree is native; {@code false} by default
+     */
+    default boolean nativeDocument() {
+        return false;
+    }
+
+    /**
      * The body as raw bytes, enforcing a hard size cap while reading. Idempotent.
      *
      * @param maxBytes the cap in bytes
