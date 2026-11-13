@@ -32,7 +32,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -358,51 +357,6 @@ public class HttpClientAdapterTest {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
                 (HttpClientSpec) spec.getCapability().getConsumes().get(0));
         return adapter.prepare("list", arguments).getRequest();
-    }
-
-    @Test
-    public void prepareShouldSendAnIdempotencyKeyUnderTheDeclaredHeader() throws Exception {
-        String standard = prepareKeyed("book").getHeaders().getFirstValue("Idempotency-Key");
-        String named = prepareKeyed("register").getHeaders().getFirstValue("X-Request-Id");
-
-        assertNotNull(standard);
-        assertEquals(36, standard.length(), "A UUID");
-        assertNotNull(named);
-        assertNull(prepareKeyed("register").getHeaders().getFirstValue("Idempotency-Key"));
-        assertNull(prepareKeyed("cancel").getHeaders().getFirstValue("Idempotency-Key"),
-                "false sends no key");
-        assertNull(prepareKeyed("list").getHeaders().getFirstValue("Idempotency-Key"),
-                "No declaration, no key");
-    }
-
-    private Request prepareKeyed(String operation) throws Exception {
-        String yaml = """
-                ikanos: "%s"
-                capability:
-                  consumes:
-                    - type: http
-                      namespace: port
-                      baseUri: "https://port.example"
-                      resources:
-                        slots:
-                          path: "/slots"
-                          operations:
-                            book:
-                              method: POST
-                              idempotencyKey: true
-                            register:
-                              method: POST
-                              idempotencyKey: X-Request-Id
-                            cancel:
-                              method: DELETE
-                              idempotencyKey: false
-                            list:
-                              method: GET
-                """.formatted(VersionHelper.getSchemaVersion());
-        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
-        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
-                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
-        return adapter.prepare(operation, new HashMap<>()).getRequest();
     }
 
     private Request prepare(String operation, Map<String, Object> arguments) throws Exception {

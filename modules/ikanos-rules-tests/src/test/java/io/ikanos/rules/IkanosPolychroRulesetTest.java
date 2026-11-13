@@ -652,46 +652,6 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void idempotencyKeyRuleShouldWarnOnARead() {
-        assertWarnsOn("rules/polychro-consumed-http-warnings.yaml",
-            "ikanos-idempotency-key-on-safe-method", "'port.list-departure-slots'");
-    }
-
-    @Test
-    public void idempotencyKeyRuleShouldNotWarnOnAWrite() {
-        String output = lintFixture("rules/polychro-consumed-http-warnings.yaml").output();
-        assertTrue(output.lines().filter(line -> line.contains("ikanos-idempotency-key-"))
-                .noneMatch(line -> line.contains("book-departure-slot")
-                    || line.contains("register-arrival")),
-            "Expected no idempotency-key finding on a write.\n" + output);
-    }
-
-    @Test
-    public void paginationRulesShouldReportWhatTheEngineRefusesAtLoad() {
-        String fixture = "rules/polychro-pagination-violations.yaml";
-        assertRuleFires(fixture, "ikanos-pagination-unsafe-method");
-        assertWarnsOn(fixture, "ikanos-pagination-unsafe-method", "'registry.search-voyages'");
-        assertWarnsOn(fixture, "ikanos-pagination-page-size-required",
-            "'registry.list-voyages'");
-        assertWarnsOn(fixture, "ikanos-pagination-style-shape", "'registry.list-cargo'");
-    }
-
-    @Test
-    public void paginationBoundRuleShouldWarnOnALongDrainUnderNone() {
-        assertWarnsOn("rules/polychro-pagination-warnings.yaml",
-            "ikanos-pagination-large-bound-under-none", "'registry.list-voyage-cargo'");
-    }
-
-    @Test
-    public void paginationRulesShouldNotReportWellFormedDrains() {
-        String output = lintFixture("rules/polychro-pagination-warnings.yaml").output();
-        assertTrue(output.lines().filter(line -> line.contains("ikanos-pagination-"))
-                .allMatch(line -> line.contains("list-voyage-cargo")
-                    && line.contains("ikanos-pagination-large-bound-under-none")),
-            "Expected only the bound warning.\n" + output);
-    }
-
-    @Test
     public void elicitSafetyRuleShouldNotFireWhenTheQuestionComesBeforeAnyWrite() {
         String output = lintFixture("rules/polychro-durability-none-compliant.yaml").output();
         assertTrue(!output.contains("ikanos-elicit-"),

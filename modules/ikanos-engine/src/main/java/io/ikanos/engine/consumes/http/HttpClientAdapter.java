@@ -25,11 +25,9 @@ import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
-import io.ikanos.engine.execution.IdempotencyKeys;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.HttpClientOperationSpec;
-import io.ikanos.spec.consumes.http.HttpClientPaginationSpec;
 import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import static org.restlet.data.Protocol.HTTP;
@@ -110,15 +108,6 @@ public class HttpClientAdapter extends ClientAdapter {
                     TunnelAwareHttpClientHelper::new);
             this.httpClient = new Client(
                     restletContext, List.of(HTTP, HTTPS), TUNNEL_AWARE_HELPER_CLASS_NAME);
-        }
-        for (HttpClientResourceSpec resource : spec.getResources().values()) {
-            for (HttpClientOperationSpec operation : resource.getOperations().values()) {
-                HttpClientPaginationSpec pagination = paginationOf(operation);
-                if (pagination != null) {
-                    validatePagination(spec.getNamespace() + "." + operation.getName(),
-                            operation.getMethod(), pagination);
-                }
-            }
         }
     }
 
@@ -229,73 +218,7 @@ public class HttpClientAdapter extends ClientAdapter {
         if (clientOp == null) {
             return null;
         }
-        Request clientRequest = buildRequest(clientOp, parameters);
-        HttpClientPaginationSpec pagination = paginationOf(clientOp);
-        return pagination == null
-                ? new HttpInvocation(this, clientOp, clientRequest)
-                : new PaginatedHttpInvocation(this, clientOp, clientRequest, pagination,
-                        parameters);
-    }
 
-    /**
-     * The resolved pagination of an operation: its block over its resource's over the adapter's,
-     * field by field, or {@code null} when it does not page (no {@code style}).
-     */
-    HttpClientPaginationSpec paginationOf(HttpClientOperationSpec operation) {
-        HttpClientPaginationSpec resolved = HttpClientPaginationSpec.resolve(
-                getHttpClientSpec().getPagination(),
-                operation.getParentResource() instanceof HttpClientResourceSpec resource
-                        ? resource.getPagination() : null,
-                operation.getPagination());
-        return resolved != null && resolved.getStyle() != null ? resolved : null;
-    }
-
-    /**
-     * Refuses, when the capability loads, a pagination the engine could not follow: the same
-     * shapes the {@code ikanos-pagination-*} lint errors report while editing.
-     */
-    static void validatePagination(String label, String method,
-            HttpClientPaginationSpec pagination) {
-        String style = pagination.getStyle();
-        String problem = null;
-        if (!List.of("cursor", "nextLink", "page", "offset").contains(style)) {
-            problem = "an unknown style '" + style + "'";
-        } else if (pagination.getItems() == null || pagination.getItems().isBlank()) {
-            problem = "no `items` path";
-        } else if (method != null && !"GET".equalsIgnoreCase(method)) {
-            problem = "the unsafe method " + method + ": only a GET may be repeated per page";
-        } else if ("cursor".equals(style) && (pagination.getCursor() == null
-                || pagination.getCursor().getFrom() == null
-                || (pagination.getCursor().getParam() == null
-                        && pagination.getCursor().getHeader() == null))) {
-            problem = "style cursor without `cursor.from` and a `cursor.param` or `cursor.header`";
-        } else if ("nextLink".equals(style) && (pagination.getNextLink() == null
-                || pagination.getNextLink().getFrom() == null)) {
-            problem = "style nextLink without `nextLink.from`";
-        } else if ("page".equals(style) && (pagination.getPage() == null
-                || pagination.getPage().getParam() == null)) {
-            problem = "style page without `page.param`";
-        } else if ("offset".equals(style) && (pagination.getOffset() == null
-                || pagination.getOffset().getParam() == null)) {
-            problem = "style offset without `offset.param`";
-        } else if (("page".equals(style) || "offset".equals(style))
-                && (pagination.getPageSize() == null || pagination.getPageSize().getParam() == null
-                        || pagination.getPageSize().getValue() == null
-                        || pagination.getPageSize().getValue() < 1)) {
-            problem = "style " + style + " without a `pageSize`, which tells a last page";
-        }
-        if (problem != null) {
-            throw new IllegalArgumentException(
-                    "Consumed operation '" + label + "' declares pagination with " + problem);
-        }
-    }
-
-    /**
-     * Build the Restlet request of one consumed operation, as {@link #prepare} sends it first; a
-     * paginated call builds one per page, so each carries its authentication afresh.
-     */
-    Request buildRequest(HttpClientOperationSpec clientOp, Map<String, Object> parameters) {
-        String operationName = clientOp.getName();
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();
         rejectUnresolved("URI", clientResUri, parameters);
@@ -377,12 +300,7 @@ public class HttpClientAdapter extends ClientAdapter {
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
         setHeaders(clientRequest, replaced);
-        String keyHeader = clientOp.idempotencyKeyHeader();
-        if (keyHeader != null) {
-            // The same key on every attempt of a journaled step, so the upstream writes once.
-            clientRequest.getHeaders().set(keyHeader, IdempotencyKeys.forCurrentCall());
-        }
-        return clientRequest;
+        return new HttpInvocation(this, clientOp, clientRequest);
     }
 
     /**

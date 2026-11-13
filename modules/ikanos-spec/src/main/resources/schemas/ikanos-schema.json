@@ -2481,10 +2481,6 @@
           "$ref": "#/$defs/TunnelConfig",
           "description": "Optional reverse-tunnel transport for reaching APIs behind a firewall. When set, the engine dials the consumed API through the configured overlay instead of the public internet. The TLS / authentication layer declared via `authentication` runs unchanged on top of the tunnel.\n\n**Engine support** \u2014 declarative only in this schema version; runtime engine wiring lands in a later release. Capabilities that declare `tunnel:` parse and validate today, but the engine still dials the public `baseUri` directly until the embedded tunnel feature is enabled. See the Reverse Tunnel guide for the sidecar pattern that works today."
         },
-        "pagination": {
-          "$ref": "#/$defs/ConsumedHttpPagination",
-          "description": "Default pagination for every operation of this adapter; a resource or operation block wins, field by field."
-        },
         "resources": {
           "type": "object",
           "propertyNames": {
@@ -2578,10 +2574,6 @@
             "$ref": "#/$defs/ConsumedInputParameter"
           },
           "description": "Resource-level parameters shared by all operations, keyed by parameter name."
-        },
-        "pagination": {
-          "$ref": "#/$defs/ConsumedHttpPagination",
-          "description": "Default pagination for the operations of this resource; an operation block wins, field by field."
         },
         "operations": {
           "type": "object",
@@ -2680,22 +2672,6 @@
         "body": {
           "$ref": "#/$defs/RequestBody",
           "description": "Optional request body (POST/PUT/PATCH). Choose the variant matching the upstream API content-type: `json`, `text`/`xml`/`sparql`, `formUrlEncoded`, `multipartForm`, or a raw string."
-        },
-        "idempotencyKey": {
-          "description": "Declares that the upstream deduplicates this operation's requests by an idempotency key, and sends one. `true` sends it as `Idempotency-Key` (the IETF HTTPAPI draft, used by most payment and logistics APIs); a header name sends it under that name, for an upstream that predates the draft; `false` or absent sends none.\n\n**Value** — inside a durable execution, a name-based UUID (version 5) of the execution and the step's path: the same on every attempt of the step, also after a restart, so the upstream makes the write once. Outside one, a random UUID per call.\n**See also** — `ikanos-idempotency-key-on-safe-method`: a `GET` has no use for it.",
-          "oneOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9!#$%&'*+.^_`|~-]+$"
-            }
-          ]
-        },
-        "pagination": {
-          "$ref": "#/$defs/ConsumedHttpPagination",
-          "description": "How this operation pages. See `ConsumedHttpPagination`."
         }
       },
       "required": [
@@ -2736,183 +2712,6 @@
             "ref"
           ]
         }
-      ],
-      "additionalProperties": false
-    },
-    "ConsumedHttpPagination": {
-      "type": "object",
-      "description": "How a consumed HTTP operation pages, so one call drains the whole list within bounds. Declared on an operation, or as a default on its resource or adapter: the narrowest level wins, field by field. An operation pages only when its resolved block has a `style`, and only with a safe method (`GET`). **Styles** \u2014 `cursor` (a token from each page, sent back as a parameter or header), `nextLink` (the next page's URL, from the `Link` header or the body, followed on the same origin only), `page` (a page number) and `offset` (an offset and a limit). **Result** \u2014 the concatenation of each page's `items` array, in page order; `outputParameters` apply to it. **Bounds** \u2014 reaching `maxPages` or `maxItems` fails the call rather than truncating the list. **Durability** \u2014 inside a durable execution, each page is journaled with its position, so a drain cut short resumes at the next page.",
-      "properties": {
-        "style": {
-          "type": "string",
-          "enum": [
-            "cursor",
-            "nextLink",
-            "page",
-            "offset"
-          ],
-          "description": "How the next page is found."
-        },
-        "items": {
-          "type": "string",
-          "description": "JSONPath of the array of items in each page, such as `$.data` or `$` for a page that is an array."
-        },
-        "cursor": {
-          "type": "object",
-          "description": "For `style: cursor`.",
-          "properties": {
-            "from": {
-              "description": "Where the next token is: a JSONPath into the body, or `{header: <name>}`. The end is reached when it is absent, null or empty.",
-              "oneOf": [
-                {
-                  "type": "string",
-                  "description": "A JSONPath into each page's body."
-                },
-                {
-                  "$ref": "#/$defs/PaginationHeaderRef"
-                }
-              ]
-            },
-            "param": {
-              "type": "string",
-              "description": "Query parameter that sends the token back."
-            },
-            "header": {
-              "type": "string",
-              "description": "Request header that sends the token back, instead of a query parameter."
-            }
-          },
-          "required": [
-            "from"
-          ],
-          "additionalProperties": false
-        },
-        "nextLink": {
-          "type": "object",
-          "description": "For `style: nextLink`.",
-          "properties": {
-            "from": {
-              "description": "Where the next page's URL is: `{header: Link}` for an RFC 8288 `rel=\"next\"` link, or a JSONPath into the body. The end is reached when there is none.",
-              "oneOf": [
-                {
-                  "type": "string",
-                  "description": "A JSONPath into each page's body."
-                },
-                {
-                  "$ref": "#/$defs/PaginationHeaderRef"
-                }
-              ]
-            }
-          },
-          "required": [
-            "from"
-          ],
-          "additionalProperties": false
-        },
-        "page": {
-          "type": "object",
-          "description": "For `style: page`.",
-          "properties": {
-            "param": {
-              "type": "string",
-              "description": "Query parameter carrying the page number."
-            },
-            "start": {
-              "type": "integer",
-              "default": 1,
-              "description": "Number of the first page."
-            },
-            "total": {
-              "description": "The total number of pages: a JSONPath into the body, or `{header: <name>}`.",
-              "oneOf": [
-                {
-                  "type": "string",
-                  "description": "A JSONPath into each page's body."
-                },
-                {
-                  "$ref": "#/$defs/PaginationHeaderRef"
-                }
-              ]
-            }
-          },
-          "required": [
-            "param"
-          ],
-          "additionalProperties": false
-        },
-        "offset": {
-          "type": "object",
-          "description": "For `style: offset`.",
-          "properties": {
-            "param": {
-              "type": "string",
-              "description": "Query parameter carrying the offset, from 0."
-            },
-            "total": {
-              "description": "The total number of items: a JSONPath into the body, or `{header: <name>}` such as `X-Total-Count`.",
-              "oneOf": [
-                {
-                  "type": "string",
-                  "description": "A JSONPath into each page's body."
-                },
-                {
-                  "$ref": "#/$defs/PaginationHeaderRef"
-                }
-              ]
-            }
-          },
-          "required": [
-            "param"
-          ],
-          "additionalProperties": false
-        },
-        "pageSize": {
-          "type": "object",
-          "description": "The page size to ask for. Required by `page` and `offset`, whose end is a page that is not full.",
-          "properties": {
-            "param": {
-              "type": "string",
-              "description": "Query parameter carrying the page size."
-            },
-            "value": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Items asked for per page. A page with fewer ends a `page` or `offset` drain."
-            }
-          },
-          "required": [
-            "param",
-            "value"
-          ],
-          "additionalProperties": false
-        },
-        "maxPages": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 20,
-          "description": "Most pages one drain fetches, the first included. Reaching it fails the call."
-        },
-        "maxItems": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 10000,
-          "description": "Most items one drain collects. Going past it fails the call."
-        }
-      },
-      "additionalProperties": false
-    },
-    "PaginationHeaderRef": {
-      "type": "object",
-      "description": "A value read from a response header instead of the body.",
-      "properties": {
-        "header": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9!#$%&'*+.^_`|~-]+$",
-          "description": "Name of the response header."
-        }
-      },
-      "required": [
-        "header"
       ],
       "additionalProperties": false
     },

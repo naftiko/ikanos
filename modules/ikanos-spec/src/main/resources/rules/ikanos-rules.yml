@@ -43,7 +43,6 @@ functions:
   - shared-listener-mounts
   - exposes-hosts-binds-ref
   - durability
-  - consumed-http
 
 rules:
 
@@ -269,80 +268,6 @@ rules:
       function: durability
       functionOptions:
         check: sealing-key-binds
-
-  ikanos-idempotency-key-on-safe-method:
-    message: "{{error}}"
-    description: >
-      `idempotencyKey` tells Ikanos that the upstream deduplicates a write by
-      key, so a retried booking or payment is made once. A `GET` reads, and is
-      safe to repeat without it: the header is noise for the upstream. Remove
-      `idempotencyKey`, or check the operation's method.
-    severity: warn
-    recommended: true
-    given: "$"
-    then:
-      function: consumed-http
-      functionOptions:
-        check: idempotency-key-safe-method
-
-  ikanos-pagination-style-shape:
-    message: "{{error}}"
-    description: >
-      A paginated operation follows its `style` with the matching sub-block:
-      `cursor.from` and `cursor.param` (or `cursor.header`), `nextLink.from`,
-      `page.param` or `offset.param`, plus `items`, the JSONPath of each page's
-      array. The block resolves field by field, the operation's over its
-      resource's over its adapter's. The engine refuses the capability at load
-      without them.
-    severity: error
-    recommended: true
-    given: "$"
-    then:
-      function: consumed-http
-      functionOptions:
-        check: pagination-style-shape
-
-  ikanos-pagination-unsafe-method:
-    message: "{{error}}"
-    description: >
-      Paging repeats the request once per page. A write repeated per page is
-      never what an author means, so only a GET may page; a search API that
-      pages over POST waits for a way to declare that operation safe.
-    severity: error
-    recommended: true
-    given: "$"
-    then:
-      function: consumed-http
-      functionOptions:
-        check: pagination-unsafe-method
-
-  ikanos-pagination-page-size-required:
-    message: "{{error}}"
-    description: >
-      A `page` or `offset` drain ends on a page that is not full, so it needs
-      the size it asked for: declare `pageSize` with its `param` and `value`.
-    severity: error
-    recommended: true
-    given: "$"
-    then:
-      function: consumed-http
-      functionOptions:
-        check: pagination-page-size-required
-
-  ikanos-pagination-large-bound-under-none:
-    message: "{{error}}"
-    description: >
-      Under the `none` durability mode a drain runs inside one call and its
-      time budget, and nothing survives a restart. A drain of more than 100
-      pages belongs in a task with a durability mode, where each page is
-      journaled and a restart resumes at the next one.
-    severity: warn
-    recommended: true
-    given: "$"
-    then:
-      function: consumed-http
-      functionOptions:
-        check: pagination-large-bound-under-none
 
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."
