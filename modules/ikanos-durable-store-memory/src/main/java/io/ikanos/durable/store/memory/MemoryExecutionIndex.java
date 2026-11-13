@@ -13,6 +13,7 @@
  */
 package io.ikanos.durable.store.memory;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,16 @@ final class MemoryExecutionIndex implements ExecutionIndex {
         return records.values().stream().filter(r -> r.status() == status)
                 .filter(r -> r.executionId().value().startsWith(prefix))
                 .sorted(Comparator.comparing(ExecutionRecord::createdAt)).toList();
+    }
+
+    @Override
+    public List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
+            Instant createdBefore, int limit) {
+        return records.values().stream().filter(r -> r.status() == status)
+                .filter(r -> value == null ? r.labels().containsKey(key)
+                        : value.equals(r.labels().get(key)))
+                .filter(r -> createdBefore == null || r.createdAt().isBefore(createdBefore))
+                .sorted(Comparator.comparing(ExecutionRecord::createdAt)).limit(limit).toList();
     }
 
     @Override

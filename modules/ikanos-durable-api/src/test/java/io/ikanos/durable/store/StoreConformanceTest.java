@@ -226,6 +226,41 @@ public abstract class StoreConformanceTest {
     }
 
     @Test
+    void indexShouldListByStatusAndLabelBeforeACutoffUpToTheLimit() {
+        ExecutionId a = labelled("a", ExecutionStatus.SUSPENDED, NOW, "mrtr");
+        ExecutionId b = labelled("b", ExecutionStatus.SUSPENDED, NOW.plusSeconds(1), "task");
+        stores.index().create(new ExecutionRecord(new ExecutionId("c"), "sha256:tree", "e",
+                ExecutionStatus.SUSPENDED, NOW.plusSeconds(2), null, Map.of()));
+        labelled("d", ExecutionStatus.RUNNING, NOW.plusSeconds(3), "mrtr");
+        ExecutionId e = labelled("e", ExecutionStatus.SUSPENDED, NOW.plusSeconds(4), "mrtr");
+        ExecutionId f = labelled("f", ExecutionStatus.SUSPENDED, NOW.plusSeconds(10), "mrtr");
+        ExecutionId g = labelled("g", ExecutionStatus.SUSPENDED, NOW.plusSeconds(5), "mrtr");
+        Instant cutoff = NOW.plusSeconds(10);
+
+        assertEquals(List.of(a, e), ids(stores.index().listLabelled(ExecutionStatus.SUSPENDED,
+                "kind", "mrtr", cutoff, 2)), "Filtered before the limit");
+        assertEquals(List.of(a, e, g), ids(stores.index().listLabelled(
+                ExecutionStatus.SUSPENDED, "kind", "mrtr", cutoff, 10)),
+                "Created strictly before the cutoff");
+        assertEquals(List.of(a, e, g, f), ids(stores.index().listLabelled(
+                ExecutionStatus.SUSPENDED, "kind", "mrtr", null, 10)));
+        assertEquals(List.of(a, b, e, g, f), ids(stores.index().listLabelled(
+                ExecutionStatus.SUSPENDED, "kind", null, null, 10)), "Any value of the label");
+    }
+
+    private ExecutionId labelled(String id, ExecutionStatus status, Instant createdAt,
+            String kind) {
+        ExecutionId executionId = new ExecutionId(id);
+        stores.index().create(new ExecutionRecord(executionId, "sha256:tree", "e", status,
+                createdAt, null, Map.of("kind", kind, "owner", "o")));
+        return executionId;
+    }
+
+    private static List<ExecutionId> ids(List<ExecutionRecord> records) {
+        return records.stream().map(ExecutionRecord::executionId).toList();
+    }
+
+    @Test
     void indexShouldFindExecutionsByLabel() {
         stores.index().create(record(OTHER, NOW.plusSeconds(10)));
         stores.index().create(record(ID, NOW));

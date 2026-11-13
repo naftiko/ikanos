@@ -147,6 +147,18 @@ public final class JournaledRunner implements Runner {
         return stores.index().listUnder(root.value() + "/", status);
     }
 
+    /**
+     * Up to {@code limit} executions with {@code status} and a label {@code key}, oldest first,
+     * filtered by the store before the limit.
+     *
+     * @param value the label's value, or {@code null} for any value
+     * @param createdBefore only executions created strictly before it, or {@code null} for all
+     */
+    public List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
+            Instant createdBefore, int limit) {
+        return stores.index().listLabelled(status, key, value, createdBefore, limit);
+    }
+
     /** Up to {@code limit} executions with {@code status}, oldest first. */
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return stores.index().list(status, limit);

@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -123,6 +124,29 @@ final class JdbcExecutionIndex implements ExecutionIndex {
                     s.setString(1, status.name());
                     s.setString(2, pattern);
                 }));
+    }
+
+    @Override
+    public List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
+            Instant createdBefore, int limit) {
+        // Filtered and limited in the query, so labels are read for the listed executions only.
+        String sql = "SELECT " + COLUMNS + " FROM executions e WHERE status = ? AND EXISTS "
+                + "(SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "
+                + "AND l.label_key = ?" + (value != null ? " AND l.label_value = ?" : "") + ")"
+                + (createdBefore != null ? " AND created_at < ?" : "")
+                + " ORDER BY created_at, execution_id LIMIT ?";
+        return database.call(c -> select(c, sql, s -> {
+            int i = 1;
+            s.setString(i++, status.name());
+            s.setString(i++, key);
+            if (value != null) {
+                s.setString(i++, value);
+            }
+            if (createdBefore != null) {
+                JdbcDatabase.setInstant(s, i++, createdBefore);
+            }
+            s.setInt(i, limit);
+        }));
     }
 
     @Override

@@ -13,6 +13,7 @@
  */
 package io.ikanos.durable.store;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import io.ikanos.durable.ExecutionId;
@@ -34,6 +35,24 @@ public interface ExecutionIndex {
 
     /** Lists up to {@code limit} executions with {@code status}, oldest first. */
     List<ExecutionRecord> list(ExecutionStatus status, int limit);
+
+    /**
+     * Lists up to {@code limit} executions with {@code status} and a label {@code key}, oldest
+     * first, filtered before the limit: executions without the label, however many, never take a
+     * place.
+     *
+     * @param value the label's value, or {@code null} for any value
+     * @param createdBefore only executions created strictly before it, or {@code null} for all
+     */
+    default List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
+            Instant createdBefore, int limit) {
+        return list(status, Integer.MAX_VALUE).stream()
+                .filter(record -> value == null ? record.labels().containsKey(key)
+                        : value.equals(record.labels().get(key)))
+                .filter(record -> createdBefore == null
+                        || record.createdAt().isBefore(createdBefore))
+                .limit(limit).toList();
+    }
 
     /** Finds the executions labelled {@code key} = {@code value}, oldest first. */
     List<ExecutionRecord> findByLabel(String key, String value);

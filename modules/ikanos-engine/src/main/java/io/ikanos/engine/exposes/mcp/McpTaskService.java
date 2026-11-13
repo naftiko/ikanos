@@ -205,11 +205,14 @@ public final class McpTaskService {
             return 0;
         }
         int resumed = 0;
+        // Tasks only, filtered by the store before the limit: inline calls and sub-runs, however
+        // many, never take a task's place.
         List<ExecutionRecord> unfinished = new ArrayList<>(
-                runner.list(ExecutionStatus.RUNNING, RESUME_LIMIT));
+                runner.listLabelled(ExecutionStatus.RUNNING, TASK_ID, null, null, RESUME_LIMIT));
         // A waiting task resumes too: answers delivered just before the process stopped are in
         // its inbox; without them, it waits again at once, running nothing.
-        unfinished.addAll(runner.list(ExecutionStatus.SUSPENDED, RESUME_LIMIT));
+        unfinished.addAll(runner.listLabelled(ExecutionStatus.SUSPENDED, TASK_ID, null, null,
+                RESUME_LIMIT));
         for (ExecutionRecord record : unfinished) {
             if (!record.labels().containsKey(TASK_ID) || isRunning(record.executionId())
                     || record.entry() == null) {

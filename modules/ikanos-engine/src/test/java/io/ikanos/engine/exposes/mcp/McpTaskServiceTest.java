@@ -447,6 +447,30 @@ public class McpTaskServiceTest {
     }
 
     @Test
+    void olderInlineCallsShouldNotHideATaskFromResume() {
+        Stores stores = MemoryStoreProvider.openStores(Clock.systemUTC());
+        JournaledRunner runner = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "sha256:spec");
+        // More inline calls in flight than one resume examines, all older than the task.
+        Instant older = Instant.now().minus(Duration.ofDays(1));
+        for (int i = 0; i < McpTaskService.RESUME_LIMIT; i++) {
+            stores.index().create(new ExecutionRecord(ExecutionId.random(), "sha256:spec",
+                    "mrtr:ops/tools/call/ask", ExecutionStatus.RUNNING, older, null,
+                    Map.of(InlineRounds.KIND, InlineRounds.MRTR)));
+        }
+        // A task recorded without its arguments: resume fails it, once it examines it.
+        ExecutionId task = ExecutionId.random();
+        stores.index().create(new ExecutionRecord(task, "sha256:spec",
+                "mcp:shipyard-ops/clear-for-departure", ExecutionStatus.RUNNING, Instant.now(),
+                null, Map.of(McpTaskService.TASK_ID, "task-1")));
+
+        new McpTaskService(runner, Clock.systemUTC(), null).resume(
+                (entry, arguments) -> () -> IkanosMappers.json().createObjectNode());
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(task).orElseThrow());
+    }
+
+    @Test
     void resumeShouldFailATaskWhoseArgumentsWereNeverRecorded() {
         Stores stores = MemoryStoreProvider.openStores(Clock.systemUTC());
         JournaledRunner beforeCrash = new JournaledRunner(FaultInjectingStores.wrap(stores,
