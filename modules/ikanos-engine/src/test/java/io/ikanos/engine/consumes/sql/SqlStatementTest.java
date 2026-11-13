@@ -346,6 +346,63 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseASqlServerStatementWithoutASeparator() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = 1"
+                        + " print 'done'", SqlStatement.Dialect.SQLSERVER).writeOperation());
+
+        assertTrue(e.getMessage().contains("PRINT"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "insert into t (a) values (1) declare @x int", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+        // only the SET of an UPDATE belongs to it
+        e = assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "update t set a = 1 where id = 1 set nocount on", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+        assertTrue(e.getMessage().contains("SET"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldAcceptTheSetOfAnUpdateOnSqlServer() {
+        assertEquals("UPDATE", SqlStatement.parse("update orders set status = :status"
+                + " where id = :id", SqlStatement.Dialect.SQLSERVER).writeOperation());
+        assertEquals("MERGE", SqlStatement.parse("merge into t using s on t.id = s.id"
+                + " when matched then update set t.n = s.n"
+                + " when not matched then insert (id, n) values (s.id, s.n);",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        // a T-SQL keyword is no statement keyword elsewhere
+        assertEquals("INSERT", SqlStatement.parse("insert into audit (print) values (1)",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldNotReadABracketIdentifierAsWhere() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.SQLITE)) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("UPDATE orders SET [where] = 1", dialect)
+                            .writeOperation(), dialect.name());
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+            assertEquals("DELETE", SqlStatement.parse(
+                    "delete from orders where [where] = 1", dialect).writeOperation());
+        }
+    }
+
+    @Test
+    void writeOperationShouldNotReadAWhereHiddenInANestedComment() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.POSTGRESQL, SqlStatement.Dialect.SQLSERVER)) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("update orders set status = 'SHIPPED'"
+                            + " /* outer /* inner */ where id = 1 */", dialect).writeOperation(),
+                    dialect.name());
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+        }
+    }
+
+    @Test
     void parseShouldRecordAnAuthoredTerminator() {
         assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id"
                 + " when matched then update set t.n = s.n;").terminated());

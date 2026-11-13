@@ -36,9 +36,9 @@ import java.util.Set;
  *
  * <p>On PostgreSQL and SQL Server, block comments nest. On SQL Server and SQLite, {@code […]} is
  * a quoted identifier. SQL Server also runs a batch whose statements are not separated by
- * {@code ;}, so there the statement keywords of T-SQL are refused anywhere in a read
- * ({@link #SQLSERVER_STATEMENT_KEYWORDS}); they are reserved words, so no unquoted column can
- * carry them.</p>
+ * {@code ;}, so there the statement keywords of T-SQL are refused anywhere in a read or a
+ * write, but for the {@code SET} of an {@code UPDATE} ({@link #SQLSERVER_STATEMENT_KEYWORDS});
+ * they are reserved words, so no unquoted column can carry them.</p>
  *
  * <p>The SQL itself is sent to the driver verbatim otherwise: Ikanos never rewrites the dialect.</p>
  */
@@ -173,6 +173,32 @@ final class SqlStatement {
             "SHUTDOWN", "WAITFOR", "KILL");
 
     /**
+     * On SQL Server, which runs a batch whose statements are not separated by {@code ;}, find a
+     * T-SQL statement keyword ({@link #SQLSERVER_STATEMENT_KEYWORDS}) in a write, as a read is
+     * checked. The {@code SET} of an {@code UPDATE} (one per {@code UPDATE}, a {@code MERGE}
+     * branch included) is part of it; any other {@code SET} starts a statement of its own.
+     *
+     * @return the first such keyword, or {@code null} when there is none or the database is not
+     *     SQL Server
+     */
+    private String sqlServerStatementKeyword() {
+        if (dialect != Dialect.SQLSERVER) {
+            return null;
+        }
+        int pendingSets = 0;
+        for (String keyword : keywords) {
+            if ("UPDATE".equals(keyword)) {
+                pendingSets++;
+            } else if ("SET".equals(keyword) && pendingSets > 0) {
+                pendingSets--;
+            } else if (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)) {
+                return keyword;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Classify a statement declared {@code readOnly: false}.
      *
      * <p>It must run exactly one {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE},
@@ -205,6 +231,12 @@ final class SqlStatement {
                         + " DELETE or MERGE; it also runs " + keyword
                         + " (quote it if it names a column)");
             }
+        }
+        String other = sqlServerStatementKeyword();
+        if (other != null) {
+            throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                    + " DELETE or MERGE; on SQL Server it also runs " + other
+                    + " (quote it if it names a column)");
         }
         String operation = null;
         for (int i = 0; i < keywords.size(); i++) {
