@@ -300,10 +300,11 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldRejectReadOnlyFalseUntilWritesAreSupported() throws Exception {
-        String yaml = capability(GET_BALANCE.replace("readOnly: true", "readOnly: false"));
+    void schemaShouldRejectMaxAffectedRowsOnAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true",
+                "readOnly: false\n  maxAffectedRows: 1"));
 
-        assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
+        assertFalse(validate(yaml).isEmpty(), "maxAffectedRows applies to statements only");
     }
 
     @Test

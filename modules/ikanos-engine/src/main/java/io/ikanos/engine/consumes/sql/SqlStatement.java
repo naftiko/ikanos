@@ -98,14 +98,16 @@ final class SqlStatement {
     private final String jdbcSql;
     private final List<String> placeholders;
     private final List<String> keywords;
+    private final List<Integer> depths;
 
     private SqlStatement(String sql, Dialect dialect, String jdbcSql, List<String> placeholders,
-            List<String> keywords) {
+            List<String> keywords, List<Integer> depths) {
         this.sql = sql;
         this.dialect = dialect;
         this.jdbcSql = jdbcSql;
         this.placeholders = Collections.unmodifiableList(placeholders);
         this.keywords = Collections.unmodifiableList(keywords);
+        this.depths = Collections.unmodifiableList(depths);
     }
 
     /** @return the statement as authored */
@@ -156,48 +158,79 @@ final class SqlStatement {
     /**
      * Classify a statement declared {@code readOnly: false}.
      *
-     * <p>It must start with {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE}, or be
-     * a {@code WITH} that runs one of them. Anything else is refused, which keeps out DDL
-     * ({@code CREATE}, {@code ALTER}, {@code DROP}), {@code TRUNCATE}, grants, maintenance
-     * ({@code VACUUM}, {@code ANALYZE}, {@code REINDEX}) and procedure calls, which belong in
-     * {@code storedProcedure}. An {@code UPDATE} or {@code DELETE} must be followed by a
-     * {@code WHERE}: without one it changes every row. A {@code MERGE} branch
-     * ({@code THEN UPDATE}), MySQL's {@code ON DUPLICATE KEY UPDATE} and a locking
-     * {@code FOR UPDATE} are not statements of their own and need none.</p>
+     * <p>It must run exactly one {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE},
+     * as its main statement: first, or after a {@code WITH} whose parts only read. Anything else
+     * is refused. That keeps out DDL ({@code CREATE}, {@code ALTER}, {@code DROP}),
+     * {@code TRUNCATE}, grants, maintenance ({@code VACUUM}, {@code ANALYZE}, {@code REINDEX}) and
+     * procedure calls, which belong in {@code storedProcedure}. It also keeps out a write inside a
+     * {@code WITH} or a subquery: the driver reports only the main statement's row count, so such a
+     * write would escape {@code maxAffectedRows}.</p>
+     *
+     * <p>An {@code UPDATE} or {@code DELETE} needs a {@code WHERE} of its own, at its own level of
+     * parentheses: a {@code WHERE} in a subquery does not limit the rows it changes. A
+     * {@code MERGE} branch ({@code THEN UPDATE}), an upsert ({@code ON CONFLICT DO UPDATE},
+     * {@code ON DUPLICATE KEY UPDATE}) and a locking {@code FOR UPDATE} are clauses, not
+     * statements, and need none.</p>
      *
      * @return the write operation, such as {@code UPDATE}, for the span
      * @throws IllegalArgumentException naming the keyword that is refused
      */
     String writeOperation() {
         String first = firstKeyword();
-        String operation = WRITE_STARTS.contains(first) ? first : null;
-        if (operation == null && "WITH".equals(first)) {
-            for (int i = 1; i < keywords.size() && operation == null; i++) {
-                if (WRITE_STARTS.contains(keywords.get(i)) && !isClause(i)) {
-                    operation = keywords.get(i);
-                }
-            }
-        }
-        if (operation == null) {
+        if (!WRITE_STARTS.contains(first) && !"WITH".equals(first)) {
             throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
                     + " or MERGE (or a WITH that runs one); it starts with "
                     + (first.isEmpty() ? "nothing" : first));
         }
+        String operation = null;
         for (int i = 0; i < keywords.size(); i++) {
             String keyword = keywords.get(i);
-            if (("UPDATE".equals(keyword) || "DELETE".equals(keyword)) && !isClause(i)
-                    && !keywords.subList(i + 1, keywords.size()).contains("WHERE")) {
+            if (!WRITE_STARTS.contains(keyword) || isClause(i)) {
+                continue;
+            }
+            if (depths.get(i) != 0) {
+                throw new IllegalArgumentException(keyword + " inside a WITH or a subquery is"
+                        + " refused: its rows would not count against maxAffectedRows");
+            }
+            if (operation != null) {
+                throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                        + " DELETE or MERGE; it also runs " + keyword);
+            }
+            operation = keyword;
+            if (("UPDATE".equals(keyword) || "DELETE".equals(keyword)) && !hasOwnWhere(i)) {
                 throw new IllegalArgumentException(keyword
                         + " without WHERE would change every row; add a WHERE clause");
             }
         }
+        if (operation == null) {
+            throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
+                    + " or MERGE (or a WITH that runs one); this WITH only reads");
+        }
         return operation;
     }
 
+    /**
+     * @return whether a {@code WHERE} follows the keyword at {@code i} at the same level of
+     *     parentheses, before that level closes
+     */
+    boolean hasOwnWhere(int i) {
+        int depth = depths.get(i);
+        for (int j = i + 1; j < keywords.size(); j++) {
+            if (depths.get(j) < depth) {
+                return false;
+            }
+            if (depths.get(j) == depth && "WHERE".equals(keywords.get(j))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return whether the keyword at {@code i} is a clause of another statement, not its own */
-    private boolean isClause(int i) {
+    boolean isClause(int i) {
         String previous = i > 0 ? keywords.get(i - 1) : "";
-        return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous);
+        return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous)
+                || "DO".equals(previous);
     }
 
     /**
@@ -240,6 +273,8 @@ final class SqlStatement {
         StringBuilder out = new StringBuilder(sql.length());
         List<String> placeholders = new ArrayList<>();
         List<String> keywords = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>();
+        int depth = 0;
         int n = sql.length();
         int i = 0;
         boolean ended = false;
@@ -307,6 +342,7 @@ final class SqlStatement {
                     end++;
                 }
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
+                depths.add(depth);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '?' && dialect == Dialect.POSTGRESQL) {
@@ -314,11 +350,17 @@ final class SqlStatement {
                 out.append("??");
                 i++;
             } else {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth = Math.max(0, depth - 1);
+                }
                 out.append(c);
                 i++;
             }
         }
-        return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords);
+        return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords,
+                depths);
     }
 
     /**

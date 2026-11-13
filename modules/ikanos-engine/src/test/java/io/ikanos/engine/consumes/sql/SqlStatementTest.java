@@ -123,9 +123,24 @@ class SqlStatementTest {
     }
 
     @Test
-    void writeOperationShouldNameTheWriteOfADataModifyingCte() {
-        assertEquals("DELETE", SqlStatement
-                .parse("with d as (delete from t where id = :id returning *) select * from d")
+    void writeOperationShouldRefuseADataModifyingCteWhoseRowsTheDriverWouldNotCount() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("with d as (delete from t where id > 0 returning *)"
+                        + " select count(*) from d").writeOperation());
+
+        assertTrue(e.getMessage().contains("inside a WITH"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAWriteAfterAWithThatOnlyReads() {
+        assertEquals("UPDATE", SqlStatement.parse("with x as (select id from s where flag)"
+                + " update t set n = 0 where id in (select id from x)").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseTwoWrites() {
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("with d as (delete from t where id = :id) insert into log values (1)")
                 .writeOperation());
     }
 
@@ -143,12 +158,18 @@ class SqlStatementTest {
     }
 
     @Test
-    void writeOperationShouldRefuseAnUpdateInACteWithoutWhere() {
+    void writeOperationShouldRefuseAnUpdateWhoseOnlyWhereIsInASubquery() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> SqlStatement.parse("with u as (update t set n = 0 returning *) select 1")
+                () -> SqlStatement.parse("update t set n = (select max(n) from s where s.id = 1)")
                         .writeOperation());
 
         assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnOnConflictDoUpdateUpsert() {
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values (:id, 1)"
+                + " on conflict (id) do update set n = t.n + 1").writeOperation());
     }
 
     @Test

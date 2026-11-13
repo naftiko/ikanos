@@ -284,4 +284,36 @@ class SqlWriteTest {
 
         assertFalse(e.getMessage().isBlank());
     }
+
+    @Test
+    void constructorShouldRefuseMaxAffectedRowsOnAStoredProcedure() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec("""
+                        cancel-order:
+                          description: Cancels an order.
+                          storedProcedure: cancel_order
+                          readOnly: false
+                          maxAffectedRows: 1
+                          inputParameters:
+                            id: { type: integer, position: 1 }
+                        """)));
+
+        assertTrue(e.getMessage().contains("maxAffectedRows"), e.getMessage());
+    }
+
+    @Test
+    void invokeShouldLeaveThePooledConnectionInAutoCommitAfterAWrite() throws Exception {
+        call("""
+                mark-shipped:
+                  description: Marks one order as shipped.
+                  readOnly: false
+                  statement: update orders set status = 'SHIPPED' where id = :id
+                  inputParameters:
+                    id: { type: integer }
+                """, "mark-shipped", Map.of("id", 1));
+
+        try (java.sql.Connection pooled = adapter.dataSource().getConnection()) {
+            assertTrue(pooled.getAutoCommit());
+        }
+    }
 }

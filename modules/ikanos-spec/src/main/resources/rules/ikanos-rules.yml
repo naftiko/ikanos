@@ -516,10 +516,12 @@ rules:
     message: "{{error}}"
     description: >
       A SQL procedure with `readOnly: false` changes data. An exposed MCP tool
-      that calls it must not claim `hints.readOnly: true`, a REST operation
-      that calls it must not use GET or HEAD, and an aggregate flow that calls
-      it must not declare `semantics.safe: true`: agents and clients rely on
-      those claims to call without asking.
+      that reaches it must not claim `hints.readOnly: true`, an MCP resource
+      must not reach it, a REST operation that reaches it must not use GET or
+      HEAD, and an aggregate flow that reaches it must not declare
+      `semantics.safe: true`: agents and clients rely on those claims to call
+      without asking. A target reaches a procedure through its `call`, its
+      steps, its `ref`, and the flows those name, followed transitively.
     severity: warn
     recommended: true
     given: "$"

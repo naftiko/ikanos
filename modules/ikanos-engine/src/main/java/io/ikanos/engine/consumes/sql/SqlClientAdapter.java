@@ -166,6 +166,11 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where
                         + " declares maxAffectedRows, which only applies with readOnly: false");
             }
+            if (hasStored && procedure.getMaxAffectedRows() != null) {
+                throw new IllegalArgumentException(where + " declares maxAffectedRows on a"
+                        + " storedProcedure; drivers do not report the rows a procedure changes,"
+                        + " so the cap could not hold");
+            }
             procedure.getInputParameters()
                     .forEach(input -> SqlBind.targetType(input, where));
             Procedure parsed = hasStatement ? statementProcedure(procedure, where, dialect)
@@ -500,6 +505,11 @@ public class SqlClientAdapter extends ClientAdapter {
     /**
      * Run one write call as one transaction: commit when it succeeds, roll back on any error, and
      * roll back when it changed more rows than {@code maxAffectedRows}. The engine never retries.
+     *
+     * <p>Auto-commit is not switched back here: HikariCP restores it when the connection returns
+     * to the pool, after rolling back anything left uncommitted. Switching it back by hand would
+     * commit the open transaction when a rollback had failed. A connection whose rollback failed
+     * is evicted from the pool.</p>
      */
     ConsumedResult executeWrite(HikariDataSource current, Procedure procedure,
             List<SqlBind> binds) {
@@ -509,15 +519,15 @@ public class SqlClientAdapter extends ClientAdapter {
                 ConsumedResult result = runWrite(connection, procedure, binds);
                 if (result.isSuccessful()) {
                     connection.commit();
-                } else {
-                    connection.rollback();
+                } else if (!rollback(connection, procedure)) {
+                    current.evictConnection(connection);
                 }
                 return result;
             } catch (SQLException | RuntimeException e) {
-                rollback(connection, procedure);
+                if (!rollback(connection, procedure)) {
+                    current.evictConnection(connection);
+                }
                 throw e;
-            } finally {
-                connection.setAutoCommit(true);
             }
         } catch (SQLException e) {
             log(procedure, e);
@@ -586,20 +596,24 @@ public class SqlClientAdapter extends ClientAdapter {
             if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
                 ObjectNode out = document.putObject(SqlRowDocument.OUT);
                 for (SqlOutParameterSpec param : procedure.outs()) {
-                    out.set(param.getName(), SqlRowDocument.value(
-                            call.getObject(param.getPosition()), param.getName()));
+                    out.set(param.getName(), SqlRowDocument.out(call, param.getPosition(),
+                            JDBCType.valueOf(param.getSqlType().trim()
+                                    .toUpperCase(Locale.ROOT)), param.getName()));
                 }
             }
             return SqlConsumedResult.success(procedure.view(), document);
         }
     }
 
-    private void rollback(Connection connection, Procedure procedure) {
+    /** @return whether the rollback succeeded */
+    boolean rollback(Connection connection, Procedure procedure) {
         try {
             connection.rollback();
+            return true;
         } catch (SQLException e) {
             LOGGER.log(Level.WARNING, "Rollback failed for SQL procedure " + getNamespace() + "."
-                    + procedure.name(), e);
+                    + procedure.name() + "; evicting the connection", e);
+            return false;
         }
     }
 
