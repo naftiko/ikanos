@@ -1652,7 +1652,7 @@
     },
     "McpTrust": {
       "type": "object",
-      "description": "Agent identity trust for an HTTP MCP adapter. The identity is recorded on traces and logs for audit only: it never authorizes a request and is never forwarded to consumed APIs.",
+      "description": "Agent identity trust for an HTTP MCP adapter. The identity is recorded on traces and logs for audit only: it never authorizes a request and is never forwarded to consumed APIs by itself. To pass the caller's identity on, a capability reads the validated token explicitly with `{{auth.claims...}}` templates or `forward.identityHeaders` (`authentication: oauth2`).",
       "properties": {
         "mode": {
           "type": "string",
@@ -4308,12 +4308,55 @@
           },
           "description": "Allowlist of upstream response header names relayed to the caller, on top of the ones relayed by default. By default, forward mode relays the status, the body and its headers (`Content-Type`, `Content-Disposition`, `ETag`, `Last-Modified`, `Expires`, ...) and the standard response headers `Location`, `Retry-After`, `Cache-Control`, `Vary`, `Allow`, `WWW-Authenticate`, `Accept-Ranges`, `Age` and `Date`. The `Expires` of a `304` that has `Cache-Control` directives but no `max-age` is added as `max-age`; a `304` without `Cache-Control` loses its `Expires`. `WWW-Authenticate` is relayed only when the target adapter has no `authentication`; with one, an upstream `401` judged the capability's own credential and becomes a `502`. A `Location` or `Content-Location` under the target adapter's `baseUri` is rewritten to a path-absolute reference under the exposed resource (e.g. `/proxy/items/42`); any other one on the upstream host (relative, scheme-relative, another scheme or port, outside the `baseUri`, or with a dot segment such as `..` or `%2e%2e`) is dropped, and one on another host is relayed unchanged. Under a resource without `{{path}}`, only a location equal to the `baseUri` is relayed (as the exposed path). A `Vary` field the engine cannot model (e.g. `Cookie`) is relayed as `Vary: *`. List here the extension headers to relay (e.g. `X-Request-Id`), and `Set-Cookie`, which is never relayed without this opt-in; a relayed cookie keeps its `Path` and `Domain` as the upstream set them. A location, or a listed header such as `Link` or `Refresh`, whose query carries a parameter the engine added to the upstream request (a query-placed `apikey`, an adapter `in: query` input) is not relayed. Names are case-insensitive. Hop-by-hop headers (`Connection`, `Keep-Alive`, `Transfer-Encoding`, ...), `Content-Length` and the other standard headers that the engine sets itself (`Server`, `Via`, CORS headers, request headers) cannot be listed: the capability fails to load, and `ikanos validate` fails. Example: `[\"X-Request-Id\", \"X-RateLimit-Remaining\"]`.",
           "minItems": 1
+        },
+        "identityHeaders": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/IdentityHeader"
+          },
+          "minProperties": 1,
+          "description": "Headers the engine sets on the forwarded request from the caller's validated OAuth 2.1 token, keyed by header name, so the upstream can trust who is calling. Each one is always set by the engine: any copy the client sent is removed first, even when the header is listed in `trustedHeaders`. Needs `authentication: oauth2` on the adapter. A standard header the HTTP connector sets itself, such as `Authorization`, `Host` or `User-Agent`, cannot be used: the capability does not start. Example: `{ X-User-Id: sub, X-User-Roles: roles }`."
         }
       },
       "required": [
         "targetNamespace"
       ],
       "additionalProperties": false
+    },
+    "IdentityHeader": {
+      "description": "The claim of the caller's validated token a forwarded identity header carries. Written as the claim name (`sub`), or as an object to say what happens when the token does not carry it. A claim name that is not a claim of its own is read as a path into nested claims, such as `realm_access.roles`. An array claim is sent comma-separated. A value longer than 256 characters, or with characters other than letters, digits and `. _ ~ : @ / + = | -`, counts as missing.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "claim": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Claim name, or a dotted path into nested claims."
+            },
+            "ifMissing": {
+              "type": "string",
+              "enum": [
+                "fail",
+                "omit"
+              ],
+              "default": "fail",
+              "description": "When the token does not carry the claim: `fail` (default) refuses the call with `403` before any upstream request; `omit` forwards the request without the header."
+            }
+          },
+          "required": [
+            "claim"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "Authentication": {
       "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2` and with `awsSigV4`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",

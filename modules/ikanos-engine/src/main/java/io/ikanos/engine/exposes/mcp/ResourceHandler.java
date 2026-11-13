@@ -32,6 +32,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.util.BinarySize;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 
@@ -435,6 +436,8 @@ public class ResourceHandler {
             Map<String, String> templateParams) throws Exception {
 
         Map<String, Object> parameters = new HashMap<>(templateParams);
+        // The caller's validated claims, for {{auth.claims...}} templates (#998)
+        CallerClaims.putInto(parameters, CallerClaims.current());
         OperationStepExecutor.mergeWithParameters(spec.getWith(), parameters, namespace);
 
         ConsumedResult found =
