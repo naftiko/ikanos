@@ -88,9 +88,13 @@ class SecretsTest {
         assertTrue(Secrets.matches(new char[0], new char[0]));
     }
 
+    /**
+     * Only {@code Secrets} calls {@code MessageDigest.isEqual}: a private copy of the comparison
+     * is how the two sides drifted before. This checks that call only; a class comparing a
+     * credential another way, such as with {@code String.equals}, is not caught here.
+     */
     @Test
-    void onlySecretsShouldCompareCredentials() throws Exception {
-        // A private copy is how the two sides drifted before; the engine has one comparison
+    void onlySecretsShouldCallMessageDigestIsEqual() throws Exception {
         Path main = Path.of("src/main/java/io/ikanos");
         List<String> found;
         try (Stream<Path> files = Files.walk(main)) {
