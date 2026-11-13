@@ -3625,8 +3625,17 @@
             "statement"
           ],
           "not": {
-            "required": [
-              "storedProcedure"
+            "anyOf": [
+              {
+                "required": [
+                  "storedProcedure"
+                ]
+              },
+              {
+                "required": [
+                  "outParameters"
+                ]
+              }
             ]
           }
         },
@@ -3639,6 +3648,15 @@
             "required": [
               "statement"
             ]
+          },
+          "properties": {
+            "inputParameters": {
+              "additionalProperties": {
+                "required": [
+                  "position"
+                ]
+              }
+            }
           }
         }
       ]
