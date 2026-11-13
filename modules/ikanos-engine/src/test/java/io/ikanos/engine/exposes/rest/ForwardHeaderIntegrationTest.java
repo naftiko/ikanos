@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,6 +35,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 
 public class ForwardHeaderIntegrationTest {
 
@@ -114,6 +116,67 @@ public class ForwardHeaderIntegrationTest {
                     "Notion-Version should be set from inputParameters.value in forward mode");
         } finally {
           mockServer.stop();
+        }
+    }
+
+    @Test
+    public void forwardShouldNotSendATemplatedAdapterHeaderAsRawText() throws Exception {
+        AtomicReference<String> receivedTenant = new AtomicReference<>("not called");
+        int mockPort = findFreePort();
+        Component mockServer = new Component();
+        mockServer.getServers().add(Protocol.HTTP, mockPort);
+        mockServer.getDefaultHost().attach(new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                receivedTenant.set(request.getHeaders().getFirstValue("X-Tenant", true));
+                response.setStatus(Status.SUCCESS_OK);
+                response.setEntity("{\"ok\":true}", MediaType.APPLICATION_JSON);
+            }
+        });
+        mockServer.start();
+
+        try {
+            String yaml = """
+                    ikanos: "%s"
+                    capability:
+                      exposes:
+                        - type: "rest"
+                          address: "localhost"
+                          port: 0
+                          namespace: "sample"
+                          resources:
+                            pages:
+                              path: "/pages/{{path}}"
+                              forward:
+                                targetNamespace: upstream
+                      consumes:
+                        - type: "http"
+                          namespace: "upstream"
+                          baseUri: "http://localhost:%d/v1"
+                          inputParameters:
+                            X-Tenant:
+                              in: "header"
+                              value: "{{tenant}}"
+                    """.formatted(VersionHelper.getSchemaVersion(), mockPort);
+            IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+            Capability capability = new Capability(spec);
+            RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(0);
+            RestServerSpec serverSpec = (RestServerSpec) adapter.getSpec();
+            ResourceRestlet restlet = new ResourceRestlet(capability, serverSpec,
+                    serverSpec.getResources().get("pages"));
+
+            Request request = new Request(org.restlet.data.Method.GET,
+                    "http://localhost/pages/one");
+            request.getAttributes().put("path", "one");
+            Response response = new Response(request);
+
+            assertTrue(restlet.handleFromForwardSpec(request, response));
+            assertEquals(Status.SUCCESS_OK, response.getStatus());
+            assertNull(receivedTenant.get(),
+                    "#1070: a templated adapter-level header with no value to resolve must not"
+                            + " be forwarded as its raw template text");
+        } finally {
+            mockServer.stop();
         }
     }
 
