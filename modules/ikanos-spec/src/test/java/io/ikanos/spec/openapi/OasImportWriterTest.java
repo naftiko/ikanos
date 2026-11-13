@@ -207,6 +207,30 @@ public class OasImportWriterTest {
     }
 
     @Test
+    void toDocumentShouldKeepLocationOnlyPathParameterThatOverridesABroaderValue() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec operationId = new InputParameterSpec();
+        operationId.setName("id");
+        operationId.setIn("path");
+        operation.setInputParameters(Map.of("id", operationId));
+        HttpClientSpec adapter = adapterWithOperation(operation);
+        InputParameterSpec resourceId = new InputParameterSpec();
+        resourceId.setName("id");
+        resourceId.setIn("path");
+        resourceId.setValue("default");
+        adapter.getResources().get("items").setInputParameters(Map.of("id", resourceId));
+
+        JsonNode document = writer.toDocument(adapter);
+        JsonNode inputs = operationNode(document).path("inputParameters");
+
+        assertEquals("path", inputs.path("id").path("in").asString(),
+                "#978: the operation's location-only id replaces the resource value \"default\""
+                        + " with the call parameter, so dropping it changes the request path");
+        assertFalse(inputs.path("id").has("value"));
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
     void toDocumentShouldKeepPathParameterWithValue() {
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
         InputParameterSpec version = new InputParameterSpec();
