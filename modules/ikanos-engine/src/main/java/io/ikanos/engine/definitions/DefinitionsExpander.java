@@ -861,8 +861,11 @@ public final class DefinitionsExpander {
             addIf(extra, "items", param.getItems() != null);
             addIf(extra, "values", param.getValues() != null);
             addIf(extra, "properties", !param.getProperties().isEmpty());
+            // A nested input takes no required flag either, true or false: only a top-level
+            // input is required or not, and the flag would not reach the advertised schema
             addIf(extra, topLevel ? "requiredProperties" : "required",
-                    !param.getRequired().isEmpty());
+                    !param.getRequired().isEmpty()
+                            || (!topLevel && param.getDeclaredRequired() != null));
             addIf(extra, "enum", !param.getEnumeration().isEmpty());
             addIf(extra, "format", param.getFormat() != null);
             addIf(extra, "minimum", param.getMinimum() != null);
