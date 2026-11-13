@@ -4,8 +4,9 @@
 #   - ikanos-sql-placeholders-bound, twice: a placeholder without an input,
 #       and an input the statement never uses
 #   - ikanos-sql-stored-procedure-read-only (a stored procedure without readOnly)
-#   - ikanos-sql-stored-procedure-parameters, twice: a gap at position 2,
-#       and outParameters on a statement
+#   - ikanos-sql-stored-procedure-parameters, twice: one gap at position 2
+#       (positions 1 and 100000: the first gap only), and outParameters on a
+#       statement
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — violations"
@@ -31,12 +32,12 @@ capability:
           outputParameters:
             name: { type: string, value: "$.rows[0].name" }
         get-balance:
-          description: Balance of one account, positions 1 and 3 only.
+          description: Balance of one account, positions 1 and 100000 only.
           storedProcedure: dbo.usp_GetBalance
           inputParameters:
             account-id: { type: string, position: 1 }
           outParameters:
-            balance: { position: 3, sqlType: DECIMAL }
+            balance: { position: 100000, sqlType: DECIMAL }
           outputParameters:
             balance: { type: number, value: "$.out.balance" }
         total:
