@@ -123,6 +123,50 @@ class FreshnessTest {
     }
 
     @Test
+    void parseShouldKeepTheRemainingFreshnessOfALongLivedAnswer() {
+        assertThat(parse("max-age=2592000", null, null, "2500000").ttlMs())
+                .isEqualTo(92_000_000L);
+    }
+
+    @Test
+    void parseShouldSubtractBeforeCappingAHugeLifetime() {
+        assertThat(parse("max-age=99999999999", null, null, "99999999998").ttlMs())
+                .isEqualTo(1_000L);
+    }
+
+    @Test
+    void parseShouldTreatAnExpiresPastAnOldDateAsExpiredWithoutAge() {
+        // Date 10:00, Expires 10:05, received at 10:10
+        assertThat(Freshness.parse(null, "Thu, 12 Nov 2026 10:05:00 GMT", DATE, null,
+                NOW + 600_000L).ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldAgeAMaxAgeFromAnOldDateWithoutAge() {
+        // Date 10:00, max-age ten minutes, received at 10:05
+        assertThat(Freshness.parse("max-age=600", null, DATE, null, NOW + 300_000L).ttlMs())
+                .isEqualTo(300_000L);
+    }
+
+    @Test
+    void parseShouldUseTheTimeSinceDateWhenItExceedsTheAge() {
+        assertThat(Freshness.parse("max-age=600", null, DATE, "60", NOW + 300_000L).ttlMs())
+                .isEqualTo(300_000L);
+    }
+
+    @Test
+    void parseShouldUseTheAgeWhenItExceedsTheTimeSinceDate() {
+        assertThat(Freshness.parse("max-age=600", null, DATE, "400", NOW + 300_000L).ttlMs())
+                .isEqualTo(200_000L);
+    }
+
+    @Test
+    void parseShouldIgnoreADateAheadOfTheLocalClock() {
+        assertThat(Freshness.parse("max-age=60", null, DATE, null, NOW - 30_000L).ttlMs())
+                .isEqualTo(60_000L);
+    }
+
+    @Test
     void parseShouldReportAPrivateAnswer() {
         assertThat(parse("private, max-age=60", null, null, null).privateOnly()).isTrue();
     }

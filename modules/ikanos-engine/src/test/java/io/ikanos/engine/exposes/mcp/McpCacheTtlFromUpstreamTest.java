@@ -71,14 +71,15 @@ class McpCacheTtlFromUpstreamTest {
 
     @Test
     void readShouldTakeTheTtlFromTheUpstreamMaxAge() {
-        assertThat(read("data://fresh").path("ttlMs").asInt(-1)).isEqualTo(300_000);
+        // the upstream's Date is to the second, so the time since it is deducted too
+        assertThat(read("data://fresh").path("ttlMs").asInt(-1)).isBetween(290_000, 300_000);
     }
 
     @Test
     void readShouldMakeTheScopePrivateWhenTheUpstreamAnswerIsPrivate() {
         JsonNode result = read("data://personal");
 
-        assertThat(result.path("ttlMs").asInt(-1)).isEqualTo(60_000);
+        assertThat(result.path("ttlMs").asInt(-1)).isBetween(50_000, 60_000);
         assertThat(result.path("cacheScope").asString()).isEqualTo("private");
     }
 
