@@ -1096,7 +1096,7 @@ public class Resolver {
             return;
         }
         applyInputParametersToRequest(clientRequest,
-                resolveInputParameterValues(specs, parameters, notSent));
+                resolveInputParameterValues(clientRequest, specs, parameters, notSent, null));
     }
 
     /** One input parameter to send, with its value resolved once. */
@@ -1110,27 +1110,27 @@ public class Resolver {
      * caller supplied (#909). Each template is resolved exactly once, so the URI and the request
      * that {@link #applyInputParametersToRequest} completes see the same value.
      *
-     * @return the parameters to send, with their values, in declaration order
-     */
-    public static List<ResolvedInputParameter> resolveInputParameterValues(
-            List<InputParameterSpec> specs, Map<String, Object> parameters,
-            Set<InputParameterSpec> notSent) {
-        return resolveInputParameterValues(specs, parameters, notSent, null);
-    }
-
-    /**
-     * Same, and also collects into {@code pathValues} the value of each {@code in: path}
-     * parameter that has a {@code value} or {@code template}, for the URI (#978). A query or
-     * header parameter of the same name then never changes the path. A path parameter that
-     * replaces the caller's value must resolve: when its template uses a variable that is absent
-     * or resolves to nothing, nested references such as {@code pet-{{selected.id}}} included, or
-     * it cannot be rendered, the call fails rather than fall back to the caller's value or send a
-     * partial one. A replaced (broader) one is only a default and is left out instead.
+     * <p>It also collects into {@code pathValues} the value of each {@code in: path} parameter
+     * that has a {@code value} or {@code template}, for the URI (#978). A query or header
+     * parameter of the same name then never changes the path. A path parameter that replaces the
+     * caller's value must resolve: when its template uses a variable that is absent or resolves to
+     * nothing, nested references such as {@code pet-{{selected.id}}} included, or it cannot be
+     * rendered, the call fails rather than fall back to the caller's value or send a partial one.
+     * A replaced (broader) one is only a default and is left out instead.</p>
      *
+     * <p>A templated precondition header ({@code If-Match}, {@code If-None-Match},
+     * {@code If-Unmodified-Since}, {@code If-Range}) of a request whose method is not safe must
+     * resolve too: omitting it would make the write unconditional, so the call fails (#1001).</p>
+     *
+     * @param clientRequest the request the values are for, whose method tells whether a
+     *        precondition guards a write; {@code null} when there is none
      * @param pathValues receives the path values, or {@code null} when no URI is rendered
+     * @return the parameters to send, with their values, in declaration order
      * @throws IllegalArgumentException when an effective path value cannot be resolved
+     * @throws StandardRequestHeaders.InvalidPreconditionException when a precondition of a
+     *         request that is not safe has no value
      */
-    public static List<ResolvedInputParameter> resolveInputParameterValues(
+    public static List<ResolvedInputParameter> resolveInputParameterValues(Request clientRequest,
             List<InputParameterSpec> specs, Map<String, Object> parameters,
             Set<InputParameterSpec> notSent, Map<String, Object> pathValues) {
         List<ResolvedInputParameter> resolved = new java.util.ArrayList<>();
@@ -1153,6 +1153,21 @@ public class Resolver {
                             + " parameter '" + spec.getName() + "': " + missing);
                 }
             }
+            String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
+            String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
+                    ? spec.getWireName() : spec.getName();
+            // A templated precondition of an unsafe request that cannot be resolved is refused,
+            // like one that cannot be parsed: omitting it would make the write unconditional
+            // (#1001)
+            boolean guardsWrite = template != null && clientRequest != null
+                    && !notSent.contains(spec)
+                    && "header".equalsIgnoreCase(spec.getIn())
+                    && StandardRequestHeaders.isConditional(wireName)
+                    && clientRequest.getMethod() != null
+                    && !clientRequest.getMethod().isSafe();
+            if (guardsWrite && !missingVariables(template, parameters).isEmpty()) {
+                throw unresolvedPrecondition(wireName);
+            }
             Object val;
             try {
                 val = resolveInputParameterValue(spec, parameters);
@@ -1165,6 +1180,9 @@ public class Resolver {
                 }
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
                 continue;
+            }
+            if (guardsWrite && (val == null || val.toString().isBlank())) {
+                throw unresolvedPrecondition(wireName);
             }
             if (val == null) {
                 if (pathOverride) {
@@ -1279,6 +1297,13 @@ public class Resolver {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    private static StandardRequestHeaders.InvalidPreconditionException unresolvedPrecondition(
+            String header) {
+        // Names the header, never a value
+        return new StandardRequestHeaders.InvalidPreconditionException(
+                "No value for the " + header + " header of a request that is not safe");
     }
 
     /**

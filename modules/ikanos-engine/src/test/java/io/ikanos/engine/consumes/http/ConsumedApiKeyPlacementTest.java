@@ -55,6 +55,20 @@ class ConsumedApiKeyPlacementTest {
         assertEquals("Token k1", request.getChallengeResponse().getIdentifier());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"header", "query"})
+    void applyShouldClearAnEarlierAuthorizationWhenTheKeyIsSentElsewhere(String placement) {
+        Request request = new Request(Method.GET, TARGET);
+        StandardRequestHeaders.set(request, "Authorization", "Bearer caller-token");
+
+        ConsumedAuthentication.apply(new ApiKeyAuthenticationSpec("X-Api-Key", placement, "k1"),
+                null, request, TARGET, Map.of());
+
+        assertNull(request.getChallengeResponse(),
+                "#1001: the declared authentication owns Authorization, so no other credential "
+                        + "goes out beside the API key");
+    }
+
     @Test
     void applyShouldPutTheKeyInTheQueryWhateverTheCaseOfThePlacement() {
         Request request = new Request(Method.GET, TARGET);
