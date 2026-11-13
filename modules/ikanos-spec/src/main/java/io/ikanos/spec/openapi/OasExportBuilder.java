@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
@@ -57,6 +59,12 @@ import io.ikanos.spec.exposes.ServerSpec;
  * Builds an OpenAPI {@link OpenAPI} POJO from a Ikanos capability spec's REST adapter.
  */
 public class OasExportBuilder {
+
+    /** A Mustache path variable, {@code {{name}}}; the name follows the parameter key pattern. */
+    private static final Pattern PATH_VARIABLE = Pattern.compile("\\{\\{([\\w-]+)\\}\\}");
+
+    /** An OpenAPI path template variable, {@code {name}}, once Mustache variables are converted. */
+    private static final Pattern OAS_PATH_VARIABLE = Pattern.compile("\\{([\\w-]+)\\}");
 
     /**
      * A REST exposed parameter cannot declare {@code required} in the schema, so the export keeps
@@ -178,8 +186,7 @@ public class OasExportBuilder {
             if (basePath == null) {
             basePath = "/" + resource.getName();
             }
-            // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+            basePath = toOpenApiPath(basePath);
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 Operation operation = buildOperation(resource, opSpec);
@@ -237,18 +244,10 @@ public class OasExportBuilder {
                     bodyRequired.add(inputParam.getName());
                 }
             } else {
-                Parameter param = new Parameter();
-                param.setName(inputParam.getName());
-                param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
-                param.setRequired(
-                        inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
-                param.setSchema(buildInputSchema(inputParam));
-                if (inputParam.getDescription() != null) {
-                    param.setDescription(inputParam.getDescription());
-                }
-                params.add(param);
+                params.add(buildParameter(inputParam));
             }
         }
+        addPathParameters(resource, params);
 
         if (!params.isEmpty()) {
             operation.setParameters(params);
@@ -283,6 +282,56 @@ public class OasExportBuilder {
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    Parameter buildParameter(InputParameterSpec inputParam) {
+        Parameter param = new Parameter();
+        param.setName(inputParam.getName());
+        param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
+        // OpenAPI requires every path parameter to be required
+        param.setRequired("path".equals(param.getIn())
+                || inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
+        param.setSchema(buildInputSchema(inputParam));
+        if (inputParam.getDescription() != null) {
+            param.setDescription(inputParam.getDescription());
+        }
+        return param;
+    }
+
+    /** Converts Mustache segments {@code {{var}}} to the OpenAPI form {@code {var}}. */
+    static String toOpenApiPath(String path) {
+        return PATH_VARIABLE.matcher(path).replaceAll("{$1}");
+    }
+
+    /**
+     * Adds a path parameter for each variable of the resource path that the operation does not
+     * declare (#978): OpenAPI requires one per path template variable. The path may use the
+     * Mustache form {@code {{name}}} or the URI template form {@code {name}}. A resource-level
+     * {@code in: path} declaration gives its type and description; otherwise the parameter is a
+     * required string.
+     */
+    void addPathParameters(RestServerResourceSpec resource, List<Parameter> params) {
+        if (resource.getPath() == null) {
+            return;
+        }
+        Matcher variable = OAS_PATH_VARIABLE.matcher(toOpenApiPath(resource.getPath()));
+        while (variable.find()) {
+            String name = variable.group(1);
+            boolean present = params.stream()
+                    .anyMatch(p -> "path".equals(p.getIn()) && name.equals(p.getName()));
+            if (present) {
+                continue;
+            }
+            InputParameterSpec declared = resource.getInputParameters().stream()
+                    .filter(p -> "path".equals(p.getIn()) && name.equals(p.getName()))
+                    .findFirst().orElse(null);
+            if (declared != null) {
+                params.add(buildParameter(declared));
+            } else {
+                params.add(new Parameter().name(name).in("path").required(true)
+                        .schema(typedSchema("string")));
+            }
+        }
     }
 
     /**

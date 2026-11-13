@@ -13,8 +13,10 @@
  */
 package io.ikanos.spec.openapi;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.spec.InputParameterSpec;
@@ -41,7 +43,10 @@ import io.ikanos.spec.util.VersionHelper;
  *       property;</li>
  *   <li>input parameters keep only {@code in}, {@code value} and the query serialization
  *       fields {@code wireName}, {@code style} and {@code explode}
- *       ({@code ConsumedInputParameter});</li>
+ *       ({@code ConsumedInputParameter}); an {@code in: path} parameter without a {@code value}
+ *       is left out, since the path variable takes the call parameter of the same name; on a
+ *       resource or an operation, an {@code in: query} parameter with none of the other fields is
+ *       written as a name in the {@code queryParameters} list instead (#987);</li>
  *   <li>named output parameters become {@code {type, value}} with the JsonPath as {@code value}
  *       ({@code ConsumedOutputParameter}); unnamed outputs (a whole-response array or scalar) are
  *       dropped, since the raw response is already returned when none are declared.</li>
@@ -69,7 +74,9 @@ public class OasImportWriter {
         adapter.put("type", "http");
         putIfPresent(adapter, "namespace", httpClient.getNamespace());
         putIfPresent(adapter, "baseUri", httpClient.getBaseUri());
-        putInputParameters(adapter, httpClient.getInputParameters());
+        Map<String, InputParameterSpec> adapterPath = broaderPathParameters(Map.of(),
+                httpClient.getInputParameters());
+        putInputParameters(adapter, httpClient.getInputParameters(), false, Map.of());
         if (httpClient.getAuthentication() != null) {
             adapter.set("authentication", authenticationNode(httpClient.getAuthentication()));
         }
@@ -77,7 +84,7 @@ public class OasImportWriter {
         ObjectNode resources = NODES.objectNode();
         for (Map.Entry<String, HttpClientResourceSpec> entry
                 : httpClient.getResources().entrySet()) {
-            resources.set(entry.getKey(), resourceNode(entry.getValue()));
+            resources.set(entry.getKey(), resourceNode(entry.getValue(), adapterPath));
         }
         if (!resources.isEmpty()) {
             adapter.set("resources", resources);
@@ -85,29 +92,33 @@ public class OasImportWriter {
         return adapter;
     }
 
-    ObjectNode resourceNode(HttpClientResourceSpec resource) {
+    ObjectNode resourceNode(HttpClientResourceSpec resource,
+            Map<String, InputParameterSpec> broaderPath) {
         ObjectNode node = NODES.objectNode();
         putIfPresent(node, "path", resource.getPath());
         putIfPresent(node, "display", resource.getDisplay());
         putIfPresent(node, "description", resource.getDescription());
         putTags(node, resource.getTags());
-        putInputParameters(node, resource.getInputParameters());
+        putInputParameters(node, resource.getInputParameters(), true, broaderPath);
+        Map<String, InputParameterSpec> resourcePath = broaderPathParameters(broaderPath,
+                resource.getInputParameters());
 
         ObjectNode operations = node.putObject("operations");
         for (Map.Entry<String, HttpClientOperationSpec> entry
                 : resource.getOperations().entrySet()) {
-            operations.set(entry.getKey(), operationNode(entry.getValue()));
+            operations.set(entry.getKey(), operationNode(entry.getValue(), resourcePath));
         }
         return node;
     }
 
-    ObjectNode operationNode(HttpClientOperationSpec operation) {
+    ObjectNode operationNode(HttpClientOperationSpec operation,
+            Map<String, InputParameterSpec> broaderPath) {
         ObjectNode node = NODES.objectNode();
         putIfPresent(node, "method", operation.getMethod());
         putIfPresent(node, "display", operation.getDisplay());
         putIfPresent(node, "description", operation.getDescription());
         putTags(node, operation.getTags());
-        putInputParameters(node, operation.getInputParameters());
+        putInputParameters(node, operation.getInputParameters(), true, broaderPath);
         putIfPresent(node, "outputRawFormat", operation.getOutputRawFormat());
         putIfPresent(node, "outputSchema", operation.getOutputSchema());
 
@@ -146,12 +157,39 @@ public class OasImportWriter {
         return node;
     }
 
-    private static void putInputParameters(ObjectNode parent, List<InputParameterSpec> params) {
+    /**
+     * The {@code in: path} parameters in effect below a level: the broader ones, each replaced by
+     * a declaration of the same name at this level, as the engine does (#909).
+     */
+    private static Map<String, InputParameterSpec> broaderPathParameters(
+            Map<String, InputParameterSpec> broader, List<InputParameterSpec> params) {
+        Map<String, InputParameterSpec> result = new HashMap<>(broader);
+        if (params != null) {
+            for (InputParameterSpec param : params) {
+                if ("path".equalsIgnoreCase(param.getIn())) {
+                    result.put(param.getName(), param);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void putInputParameters(ObjectNode parent, List<InputParameterSpec> params,
+            boolean queryParameterList, Map<String, InputParameterSpec> broaderPath) {
         if (params == null || params.isEmpty()) {
             return;
         }
-        ObjectNode inputs = parent.putObject("inputParameters");
+        ObjectNode inputs = NODES.objectNode();
+        ArrayNode queryNames = NODES.arrayNode();
         for (InputParameterSpec param : params) {
+            if (isLocationOnlyPathParameter(param)
+                    && !overridesBroaderPathValue(param, broaderPath)) {
+                continue;
+            }
+            if (queryParameterList && isLocationOnlyQueryParameter(param)) {
+                queryNames.add(param.getName());
+                continue;
+            }
             ObjectNode input = NODES.objectNode();
             putIfPresent(input, "in", param.getIn());
             putIfPresent(input, "value", param.getValue());
@@ -162,6 +200,45 @@ public class OasImportWriter {
             }
             inputs.set(param.getName(), input);
         }
+        if (!inputs.isEmpty()) {
+            parent.set("inputParameters", inputs);
+        }
+        if (!queryNames.isEmpty()) {
+            parent.set("queryParameters", queryNames);
+        }
+    }
+
+    /**
+     * An {@code in: query} parameter that sets none of the fields this writer keeps
+     * ({@code value}, {@code wireName}, {@code style}, {@code explode}) only says "send the call
+     * parameter of this name in the query", which the {@code queryParameters} list says in one
+     * word (#987).
+     */
+    static boolean isLocationOnlyQueryParameter(InputParameterSpec param) {
+        return "query".equalsIgnoreCase(param.getIn()) && param.getValue() == null
+                && param.getWireName() == null && param.getStyle() == null
+                && param.getExplode() == null;
+    }
+
+    /**
+     * A {@code {{name}}} variable of the resource path takes the call parameter of the same name
+     * (#978), so an {@code in: path} parameter without a {@code value} says nothing the path does
+     * not already say. {@code wireName}, {@code style} and {@code explode} only apply to a query
+     * parameter.
+     */
+    static boolean isLocationOnlyPathParameter(InputParameterSpec param) {
+        return "path".equalsIgnoreCase(param.getIn()) && param.getValue() == null;
+    }
+
+    /**
+     * A location-only {@code in: path} parameter still says something when a broader level sets a
+     * {@code value} for the same name: it replaces that value with the call parameter, so it must
+     * be written.
+     */
+    private static boolean overridesBroaderPathValue(InputParameterSpec param,
+            Map<String, InputParameterSpec> broaderPath) {
+        InputParameterSpec broader = broaderPath.get(param.getName());
+        return broader != null && broader.getValue() != null;
     }
 
     private static void putTags(ObjectNode parent, List<String> tags) {

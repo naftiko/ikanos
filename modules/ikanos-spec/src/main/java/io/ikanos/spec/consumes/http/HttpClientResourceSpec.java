@@ -15,11 +15,18 @@ package io.ikanos.spec.consumes.http;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
+import io.ikanos.spec.InputParameterMapDeserializer;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.ResourceSpec;
 
 /**
@@ -28,12 +35,25 @@ import io.ikanos.spec.ResourceSpec;
  * <h2>Thread safety</h2>
  * The {@code operations} map is a synchronized {@link LinkedHashMap} preserving YAML insertion
  * order (critical for call-reference resolution). This satisfies SonarQube rule {@code java:S3077}.
+ *
+ * <h2>Query parameter names</h2>
+ * {@code queryParameters} names are expanded into {@code in: query} input parameters (see
+ * {@link QueryParameterNames}), whichever of {@code inputParameters} and {@code queryParameters}
+ * is set first, so {@link #getInputParameters()} returns both forms. Serialization writes both
+ * as declared, not the expanded entries, so a copy read back from it (an import deep-copies its
+ * entry through YAML) keeps the names that the load-time check reports.
  */
 public class HttpClientResourceSpec extends ResourceSpec {
 
     @JsonDeserialize(using = HttpClientOperationMapDeserializer.class)
     private final Map<String, HttpClientOperationSpec> operations =
             Collections.synchronizedMap(new LinkedHashMap<>());
+
+    /** The {@code inputParameters} as declared, before the query parameter names are added. */
+    private final AtomicReference<Map<String, InputParameterSpec>> declaredInputParameters =
+            new AtomicReference<>(Map.of());
+
+    private final List<String> queryParameters = new CopyOnWriteArrayList<>();
 
     public HttpClientResourceSpec() {
         this(null, null, null, null);
@@ -61,5 +81,56 @@ public class HttpClientResourceSpec extends ResourceSpec {
                 this.operations.put(name, op);
             });
         }
+    }
+
+    /**
+     * The declared {@code inputParameters} followed by one {@code in: query} parameter per
+     * {@code queryParameters} name. Not serialized: see {@link #serializedInputParameters()}.
+     */
+    @Override
+    @JsonIgnore
+    public List<InputParameterSpec> getInputParameters() {
+        return super.getInputParameters();
+    }
+
+    /** The {@code inputParameters} as declared, without the query parameter names. */
+    @JsonProperty("inputParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<InputParameterSpec> serializedInputParameters() {
+        return List.copyOf(declaredInputParameters.get().values());
+    }
+
+    @Override
+    @JsonProperty("inputParameters")
+    @JsonDeserialize(using = InputParameterMapDeserializer.class)
+    public void setInputParameters(Map<String, InputParameterSpec> params) {
+        declaredInputParameters.set(new LinkedHashMap<>(params != null ? params : Map.of()));
+        super.setInputParameters(
+                QueryParameterNames.expand(declaredInputParameters.get(), queryParameters));
+    }
+
+    /** The {@code queryParameters} list, as declared (#987). */
+    @JsonProperty("queryParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getQueryParameters() {
+        return List.copyOf(queryParameters);
+    }
+
+    public void setQueryParameters(List<String> names) {
+        queryParameters.clear();
+        if (names != null) {
+            names.stream().filter(java.util.Objects::nonNull).forEach(queryParameters::add);
+        }
+        super.setInputParameters(
+                QueryParameterNames.expand(declaredInputParameters.get(), queryParameters));
+    }
+
+    /**
+     * @param where the resource, for the messages
+     * @return one message per {@code queryParameters} name also declared in this resource's
+     *         {@code inputParameters} or listed twice
+     */
+    public List<String> queryParameterErrors(String where) {
+        return QueryParameterNames.errors(declaredInputParameters.get(), queryParameters, where);
     }
 }

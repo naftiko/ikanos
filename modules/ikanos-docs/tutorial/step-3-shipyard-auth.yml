@@ -35,9 +35,6 @@ capability:
         operations:
           get-ship:
             method: GET
-            inputParameters:
-              imo_number:
-                in: path
   exposes:
   - type: mcp
     address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.

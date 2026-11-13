@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
+import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.spec.IkanosSpec;
@@ -101,6 +102,8 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             boolean schemaValid = errors.isEmpty() && removedAdapters.isEmpty();
             List<String> templateErrors = schemaValid ? templateErrors(dataNode) : List.of();
+            List<String> queryParameterErrors = schemaValid ? queryParameterErrors(dataNode)
+                    : List.of();
 
             // Expand the shared definitions the way the engine does at load time (#910), on the
             // document's own MCP adapters and aggregates: imported ones are checked on load.
@@ -108,7 +111,8 @@ public class ValidateCommand implements Callable<Integer> {
                     : new DefinitionsExpander.Result(List.of(), List.of());
 
             // Display validation result.
-            if (schemaValid && templateErrors.isEmpty() && definitions.errors().isEmpty()) {
+            if (schemaValid && templateErrors.isEmpty() && queryParameterErrors.isEmpty()
+                    && definitions.errors().isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -134,6 +138,11 @@ public class ValidateCommand implements Callable<Integer> {
                 for (String error : templateErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid consumed template: "
                             + error);
+                    errorCount++;
+                }
+                for (String error : queryParameterErrors) {
+                    System.err.println("\n  [" + errorCount
+                            + "] Invalid consumed query parameter: " + error);
                     errorCount++;
                 }
                 for (String error : definitions.errors()) {
@@ -162,6 +171,16 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Names of a consumed {@code queryParameters} list that are also declared in the
+     * {@code inputParameters} of the same resource or operation (#987). A name listed twice is
+     * already a schema error.
+     */
+    List<String> queryParameterErrors(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        return ConsumedQueryParameterValidator.findErrors(spec);
     }
 
     /**

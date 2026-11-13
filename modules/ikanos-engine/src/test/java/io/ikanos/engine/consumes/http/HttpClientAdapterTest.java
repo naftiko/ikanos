@@ -537,6 +537,472 @@ public class HttpClientAdapterTest {
                 invocation.getRequest().getResourceRef().toString());
     }
 
+    @Test
+    public void prepareShouldSubstituteUndeclaredPathVariablesWhenNoInputParameterIsDeclared()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "acme", "invoice_id", "inv-1"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/acme/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: a {{name}} path variable takes the call parameter of the same name, with"
+                        + " no inputParameters entry");
+    }
+
+    @Test
+    public void prepareShouldPercentEncodeUndeclaredPathVariableAsOneSegment() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "a/../b", "invoice_id", "2026 #3"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/a%2F..%2Fb/invoices/2026%20%233",
+                request.getResourceRef().toString(),
+                "#978: an undeclared path variable is percent-encoded as one path segment, like a"
+                        + " declared one (GHSA-rvg4-2rxw-mc64)");
+    }
+
+    @Test
+    public void prepareShouldSubstituteUndeclaredPathVariableAfterABoundBaseUri()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(
+                getMockCapability(Map.of("API_URL", "https://eu.api.example.com/v2")),
+                undeclaredPathSpec("{{API_URL}}"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("account_id", "acme", "invoice_id", "a b"))).getRequest();
+
+        assertEquals("https://eu.api.example.com/v2/accounts/acme/invoices/a%20b",
+                request.getResourceRef().toString(),
+                "#978: the baseUri comes from the bindings and the undeclared path variables of"
+                        + " the resource path from the call");
+    }
+
+    @Test
+    public void prepareShouldSubstituteTheValueOfAnExplicitPathParameter() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                explicitPathValueSpec());
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(
+                Map.of("invoice_id", "inv-1"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/default/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: an explicit in: path entry can give the path variable a value");
+    }
+
+    @Test
+    public void prepareShouldNotSendUndeclaredCallParameterAsQueryParameter() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                undeclaredPathSpec("https://api.example.com/v1"));
+
+        Request request = adapter.prepare("get-invoice", new HashMap<>(Map.of(
+                "account_id", "acme", "invoice_id", "inv-1", "expand", "lines"))).getRequest();
+
+        assertEquals("https://api.example.com/v1/accounts/acme/invoices/inv-1",
+                request.getResourceRef().toString(),
+                "#978: only path variables are inferred; a query parameter must be declared");
+    }
+
+    private HttpClientSpec undeclaredPathSpec(String baseUri) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: billing
+                      baseUri: "%s"
+                      resources:
+                        invoice:
+                          path: "/accounts/{{account_id}}/invoices/{{invoice_id}}"
+                          operations:
+                            get-invoice:
+                              method: GET
+                """.formatted(VersionHelper.getSchemaVersion(), baseUri);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
+    private HttpClientSpec explicitPathValueSpec() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: billing
+                      baseUri: "https://api.example.com/v1"
+                      resources:
+                        invoice:
+                          path: "/accounts/{{account_id}}/invoices/{{invoice_id}}"
+                          inputParameters:
+                            account_id:
+                              in: path
+                              value: "default"
+                          operations:
+                            get-invoice:
+                              method: GET
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
+    @Test
+    public void prepareShouldResolvePathValueFromAnEarlierQueryParameterWhenNoCallParameter()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        inputParameters:
+                          version:
+                            in: query
+                            value: "v2"
+                        resources:
+                          pets:
+                            path: "/{{api-version}}/pets"
+                            inputParameters:
+                              api-version:
+                                in: path
+                                value: "{{version}}"
+                            operations:
+                              list-pets:
+                                method: GET
+                        """));
+
+        Request request = adapter.prepare("list-pets", new HashMap<>()).getRequest();
+
+        assertEquals("https://api.example.com/v1/v2/pets?version=v2",
+                request.getResourceRef().toString(),
+                "#978: a path value is resolved in declaration order, so it can use an earlier"
+                        + " query parameter, before the URI is rendered");
+    }
+
+    @Test
+    public void prepareShouldKeepCallerPathValueWhenANarrowerDeclarationReplacesABroaderValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                replacedPathValueSpec());
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42", request.getResourceRef().toString(),
+                "#978: a replaced broader value never overwrites the caller's value (#909)");
+    }
+
+    @Test
+    public void prepareShouldUseBroaderPathValueAsDefaultWhenTheCallerSuppliesNone()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                replacedPathValueSpec());
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("other", "x")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/default",
+                request.getResourceRef().toString(),
+                "#978: a replaced broader value still acts as the default (#909)");
+    }
+
+    @Test
+    public void prepareShouldResolveAPathValueTemplateOnlyOnce() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "prefix-{{id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                                inputParameters:
+                                  ref:
+                                    in: query
+                                    value: "{{id}}"
+                        """));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/prefix-42?ref=prefix-42",
+                request.getResourceRef().toString(),
+                "#978: the URI and the later query parameter see the same, once-resolved value");
+    }
+
+    @Test
+    public void prepareShouldFailWhenAnExplicitPathValueCannotBeResolved() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected-id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42"))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected-id]",
+                error.getMessage(),
+                "#978: an explicit path value that cannot resolve must not fall back to the"
+                        + " caller's value");
+    }
+
+    @Test
+    public void prepareShouldFailWhenANestedPathValueReferenceResolvesToNothing()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected.id}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", Map.of()))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected.id]",
+                error.getMessage(),
+                "#978: a nested reference that resolves to nothing must not fall back to the"
+                        + " caller's value");
+    }
+
+    @Test
+    public void prepareShouldFailWhenANestedPathValueReferenceInLiteralTextResolvesToNothing()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet-{{selected.id}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", Map.of()))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': [selected.id]",
+                error.getMessage(),
+                "#978: a missing nested reference must not render a partial path value such as"
+                        + " pet-");
+    }
+
+    @Test
+    public void prepareShouldKeepAnOptionalSectionAndAnEmptyValueInAPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet{{selected.prefix}}{{#selected.id}}-{{selected.id}}{{/selected.id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        Request request = adapter.prepare("get-pet",
+                new HashMap<>(Map.of("id", "42", "selected", Map.of("prefix", ""))))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/pet", request.getResourceRef().toString(),
+                "#978: an optional section and an empty value are resolved, not missing");
+    }
+
+    @Test
+    public void prepareShouldFailWhenAPathValueTemplateCannotBeRendered() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "pet-{{selected}}"
+                            operations:
+                              get-pet:
+                                method: DELETE
+                        """));
+        IllegalStateException renderingError = new IllegalStateException("cannot render");
+        Object unrenderable = new Object() {
+            @Override
+            public String toString() {
+                throw renderingError;
+            }
+        };
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet",
+                        new HashMap<>(Map.of("id", "42", "selected", unrenderable))));
+
+        assertEquals("Unresolved template parameters in path parameter 'id': rendering failed",
+                error.getMessage(),
+                "#978: a path value that fails to render must not fall back to the caller's"
+                        + " value");
+    }
+
+    @Test
+    public void prepareShouldIgnoreUnresolvableReplacedPathValueWhenTheCallerSuppliesOne()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "{{selected-id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                                inputParameters:
+                                  id:
+                                    in: path
+                        """));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42", request.getResourceRef().toString(),
+                "#978: a replaced broader path value is only a default (#909)");
+    }
+
+    @Test
+    public void prepareShouldNotLetAQueryParameterOfTheSameNameChangeTheCallerPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                sameNameQuerySpec(""));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/42?id=all",
+                request.getResourceRef().toString(),
+                "#978: the URI only sees call parameters and in: path values");
+    }
+
+    @Test
+    public void prepareShouldNotLetAQueryParameterOfTheSameNameChangeAnExplicitPathValue()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                sameNameQuerySpec("value: \"7\""));
+
+        Request request = adapter.prepare("get-pet", new HashMap<>(Map.of("id", "42")))
+                .getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/7?id=all",
+                request.getResourceRef().toString(),
+                "#978: a query parameter of the same name never replaces an in: path value");
+    }
+
+    /** Resource {@code id: in: path} (plus {@code pathExtra}), operation {@code id: in: query}. */
+    private HttpClientSpec sameNameQuerySpec(String pathExtra) throws Exception {
+        return consumedSpec("""
+                resources:
+                  pets:
+                    path: "/pets/{{id}}"
+                    inputParameters:
+                      id:
+                        in: path
+                        %s
+                    operations:
+                      get-pet:
+                        method: GET
+                        inputParameters:
+                          id:
+                            in: query
+                            value: "all"
+                """.formatted(pathExtra));
+    }
+
+    @Test
+    public void prepareShouldRejectMissingPathVariableWhenOnlyAConstantHeaderIsDeclared()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        inputParameters:
+                          Accept:
+                            in: header
+                            value: "application/json"
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", new HashMap<>()));
+
+        assertEquals("Unresolved template parameters in URI: [id]", error.getMessage(),
+                "#858: a declared constant must not hide a path variable the call did not supply");
+    }
+
+    private HttpClientSpec replacedPathValueSpec() throws Exception {
+        return consumedSpec("""
+                resources:
+                  pets:
+                    path: "/pets/{{id}}"
+                    inputParameters:
+                      id:
+                        in: path
+                        value: "default"
+                    operations:
+                      get-pet:
+                        method: GET
+                        inputParameters:
+                          id:
+                            in: path
+                """);
+    }
+
+    /** An http adapter {@code pets} on {@code https://api.example.com/v1}; body is indented. */
+    private HttpClientSpec consumedSpec(String body) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: pets
+                      baseUri: "https://api.example.com/v1"
+                """.formatted(VersionHelper.getSchemaVersion())
+                + body.indent(6);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        return (HttpClientSpec) spec.getCapability().getConsumes().get(0);
+    }
+
     private HttpClientAdapter pagesAdapter() {
         HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
         HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",

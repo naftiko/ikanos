@@ -254,6 +254,68 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldAcceptAQueryParametersList() {
+        int exitCode = new CommandLine(new ValidateCommand())
+                .execute(queryParametersCapability("[state, page]", "").toString());
+
+        assertEquals(0, exitCode, "#987: " + errCapture);
+    }
+
+    @Test
+    public void callShouldFailWhenAQueryParameterNameIsAlsoInInputParameters() {
+        Path yaml = queryParametersCapability("[state, page]", """
+                              inputParameters:
+                                state:
+                                  in: "query"
+                """);
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode);
+        assertTrue(errCapture.toString().contains("Invalid consumed query parameter: svc.list"
+                + " declares 'state' in both inputParameters and queryParameters"),
+                errCapture.toString());
+    }
+
+    @Test
+    public void callShouldFailWhenAQueryParameterNameIsListedTwice() {
+        int exitCode = new CommandLine(new ValidateCommand())
+                .execute(queryParametersCapability("[state, state]", "").toString());
+
+        assertEquals(1, exitCode, "#987: the schema requires unique names");
+        assertTrue(errCapture.toString().contains("queryParameters"), errCapture.toString());
+    }
+
+    private Path queryParametersCapability(String names, String operationInputParameters) {
+        Path yaml = tempDir.resolve("query-parameters.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "svc"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          queryParameters: [per_page]
+                          operations:
+                            list:
+                              method: "GET"
+                              queryParameters: %s
+                %s  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      tools:
+                        list:
+                          description: "List items"
+                          call: "svc.list"
+                """.formatted(IKANOS, names, operationInputParameters)));
+        return yaml;
+    }
+
+    @Test
     public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
         Path yaml = tempDir.resolve("alias.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """

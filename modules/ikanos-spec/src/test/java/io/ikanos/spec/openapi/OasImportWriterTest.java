@@ -125,12 +125,13 @@ public class OasImportWriterTest {
         version.setValue("2024-01-01");
         operation.setInputParameters(Map.of("limit", limit, "Api-Version", version));
 
-        JsonNode inputs = operationNode(writer.toDocument(adapterWithOperation(operation)))
-                .path("inputParameters");
+        JsonNode node = operationNode(writer.toDocument(adapterWithOperation(operation)));
+        JsonNode inputs = node.path("inputParameters");
 
-        assertEquals("query", inputs.path("limit").path("in").asString());
-        assertEquals(1, inputs.path("limit").size(),
+        // #987: a query parameter left with only its location is written in queryParameters
+        assertEquals("[\"limit\"]", node.path("queryParameters").toString(),
                 "#871: ConsumedInputParameter has no type, description or required");
+        assertFalse(inputs.has("limit"));
         assertEquals("header", inputs.path("Api-Version").path("in").asString());
         assertEquals("2024-01-01", inputs.path("Api-Version").path("value").asString());
     }
@@ -168,6 +169,109 @@ public class OasImportWriterTest {
     }
 
     @Test
+    void toDocumentShouldOmitPathParameterThatOnlyGivesItsLocation() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec petId = new InputParameterSpec();
+        petId.setName("petId");
+        petId.setIn("path");
+        petId.setType("string");
+        petId.setDescription("The pet identifier.");
+        InputParameterSpec fields = new InputParameterSpec();
+        fields.setName("fields");
+        fields.setIn("query");
+        operation.setInputParameters(Map.of("petId", petId, "fields", fields));
+
+        JsonNode operationNode = operationNode(writer.toDocument(adapterWithOperation(operation)));
+        JsonNode inputs = operationNode.path("inputParameters");
+
+        assertFalse(inputs.has("petId"),
+                "#978: a {{name}} path variable takes the call parameter of the same name, so a"
+                        + " location-only in: path entry is not written");
+        assertEquals("fields", operationNode.path("queryParameters").path(0).asString(),
+                "#987: a location-only query parameter is still written, as a queryParameters name");
+    }
+
+    @Test
+    void toDocumentShouldOmitInputParametersWhenOnlyLocationOnlyPathParametersExist() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec petId = new InputParameterSpec();
+        petId.setName("petId");
+        petId.setIn("path");
+        operation.setInputParameters(Map.of("petId", petId));
+
+        JsonNode document = writer.toDocument(adapterWithOperation(operation));
+
+        assertFalse(operationNode(document).has("inputParameters"),
+                "#978: no empty inputParameters map should be written");
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepLocationOnlyPathParameterThatOverridesABroaderValue() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec operationId = new InputParameterSpec();
+        operationId.setName("id");
+        operationId.setIn("path");
+        operation.setInputParameters(Map.of("id", operationId));
+        HttpClientSpec adapter = adapterWithOperation(operation);
+        InputParameterSpec resourceId = new InputParameterSpec();
+        resourceId.setName("id");
+        resourceId.setIn("path");
+        resourceId.setValue("default");
+        adapter.getResources().get("items").setInputParameters(Map.of("id", resourceId));
+
+        JsonNode document = writer.toDocument(adapter);
+        JsonNode inputs = operationNode(document).path("inputParameters");
+
+        assertEquals("path", inputs.path("id").path("in").asString(),
+                "#978: the operation's location-only id replaces the resource value \"default\""
+                        + " with the call parameter, so dropping it changes the request path");
+        assertFalse(inputs.path("id").has("value"));
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepPathParameterWithValue() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec version = new InputParameterSpec();
+        version.setName("version");
+        version.setIn("path");
+        version.setValue("v2");
+        operation.setInputParameters(Map.of("version", version));
+
+        JsonNode inputs = operationNode(writer.toDocument(adapterWithOperation(operation)))
+                .path("inputParameters");
+
+        assertEquals("path", inputs.path("version").path("in").asString());
+        assertEquals("v2", inputs.path("version").path("value").asString());
+    }
+
+    @Test
+    void toDocumentShouldWriteImportedPathVariableInTheTemplateOnly() {
+        File file = new File("src/test/resources/openapi/petstore-3.0.yaml");
+        OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)
+                .getOpenAPI();
+        HttpClientSpec adapter = new OasImportConverter().convert(openApi).getHttpClient();
+
+        JsonNode resources = writer.toDocument(adapter).path("consumes").path(0)
+                .path("resources");
+
+        List<String> pathParameters = new java.util.ArrayList<>();
+        resources.forEach(resource -> resource.path("operations").forEach(operation ->
+                operation.path("inputParameters").properties().forEach(input -> {
+                    if ("path".equals(input.getValue().path("in").asString())) {
+                        pathParameters.add(input.getKey());
+                    }
+                })));
+        assertTrue(pathParameters.isEmpty(),
+                "#978: the imported path variables are in the path template only, but got: "
+                        + pathParameters);
+        List<String> paths = new java.util.ArrayList<>();
+        resources.forEach(resource -> paths.add(resource.path("path").asString()));
+        assertTrue(paths.contains("/pets/{{petId}}"), "got: " + paths);
+    }
+
+    @Test
     void toDocumentShouldKeepQuerySerializationFieldsFromImportedSpec() {
         File file = new File("src/test/resources/openapi/edge-cases.yaml");
         OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)
@@ -181,6 +285,124 @@ public class OasImportWriterTest {
         assertEquals("status[]", inputs.path("status").path("wireName").asString());
         assertFalse(inputs.path("ids").path("explode").asBoolean(true));
         assertEquals("pipeDelimited", inputs.path("tags").path("style").asString());
+    }
+
+    @Test
+    void toDocumentShouldListLocationOnlyQueryParametersInDeclarationOrder() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        java.util.LinkedHashMap<String, InputParameterSpec> params =
+                new java.util.LinkedHashMap<>();
+        for (String name : List.of("state", "page", "per_page")) {
+            InputParameterSpec param = new InputParameterSpec();
+            param.setName(name);
+            param.setIn("query");
+            params.put(name, param);
+        }
+        operation.setInputParameters(params);
+
+        JsonNode document = writer.toDocument(adapterWithOperation(operation));
+        JsonNode node = operationNode(document);
+
+        assertEquals("[\"state\",\"page\",\"per_page\"]", node.path("queryParameters").toString(),
+                "#987: location-only query parameters should be written as a list of names");
+        assertFalse(node.has("inputParameters"),
+                "#987: no inputParameters entry should be left when all were listed");
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepQueryParametersWithAValueInInputParameters() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec format = new InputParameterSpec();
+        format.setName("format");
+        format.setIn("query");
+        format.setValue("json");
+        operation.setInputParameters(Map.of("format", format));
+
+        JsonNode node = operationNode(writer.toDocument(adapterWithOperation(operation)));
+
+        assertEquals("json", node.path("inputParameters").path("format").path("value")
+                .asString());
+        assertFalse(node.has("queryParameters"));
+    }
+
+    @Test
+    void toDocumentShouldListResourceLevelLocationOnlyQueryParameters() {
+        HttpClientSpec adapter = adapterWithOperation(new HttpClientOperationSpec());
+        InputParameterSpec page = new InputParameterSpec();
+        page.setName("page");
+        page.setIn("query");
+        adapter.getResources().get("items").setInputParameters(Map.of("page", page));
+
+        JsonNode document = writer.toDocument(adapter);
+        JsonNode resource = document.path("consumes").path(0).path("resources").path("items");
+
+        assertEquals("[\"page\"]", resource.path("queryParameters").toString());
+        assertFalse(resource.has("inputParameters"));
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+    }
+
+    @Test
+    void toDocumentShouldKeepAdapterLevelQueryParametersInInputParameters() {
+        HttpClientSpec adapter = adapterWithOperation(new HttpClientOperationSpec());
+        InputParameterSpec key = new InputParameterSpec();
+        key.setName("api_key");
+        key.setIn("query");
+        adapter.setInputParameters(Map.of("api_key", key));
+
+        JsonNode adapterNode = writer.toDocument(adapter).path("consumes").path(0);
+
+        assertEquals("query", adapterNode.path("inputParameters").path("api_key").path("in")
+                .asString(), "#987: an adapter has no queryParameters list");
+        assertFalse(adapterNode.has("queryParameters"));
+    }
+
+    @Test
+    void toDocumentShouldNotLeaveAnEmptyInputParametersObject() {
+        HttpClientOperationSpec operation = new HttpClientOperationSpec();
+        InputParameterSpec page = new InputParameterSpec();
+        page.setName("page");
+        page.setIn("query");
+        operation.setInputParameters(Map.of("page", page));
+
+        JsonNode node = operationNode(writer.toDocument(adapterWithOperation(operation)));
+
+        assertFalse(node.has("inputParameters"));
+    }
+
+    @Test
+    void toDocumentShouldWriteADocumentThatReadsBackToTheSameInputParameters() throws Exception {
+        File file = new File("src/test/resources/openapi/petstore-3.0.yaml");
+        OpenAPI openApi = new OpenAPIParser().readLocation(file.getAbsolutePath(), null, null)
+                .getOpenAPI();
+        HttpClientSpec imported = new OasImportConverter().convert(openApi).getHttpClient();
+
+        JsonNode document = writer.toDocument(imported);
+        String yaml = IkanosMappers.yaml().writeValueAsString(document);
+        HttpClientSpec reread = (HttpClientSpec) IkanosMappers.lenientYaml()
+                .readValue(yaml, io.ikanos.spec.IkanosSpec.class).getConsumes().get(0);
+
+        for (Map.Entry<String, HttpClientResourceSpec> resource
+                : imported.getResources().entrySet()) {
+            for (Map.Entry<String, HttpClientOperationSpec> operation
+                    : resource.getValue().getOperations().entrySet()) {
+                HttpClientOperationSpec rereadOperation = reread.getResources()
+                        .get(resource.getKey()).getOperations().get(operation.getKey());
+                // #978: a location-only in: path entry is not written, since the {{name}}
+                // path variable already takes the call parameter of the same name.
+                assertEquals(locations(operation.getValue().getInputParameters().stream()
+                                .filter(p -> !OasImportWriter.isLocationOnlyPathParameter(p))
+                                .toList()),
+                        locations(rereadOperation.getInputParameters()),
+                        "#987: " + operation.getKey() + " should read back the same parameters");
+            }
+        }
+    }
+
+    private static java.util.Set<String> locations(List<InputParameterSpec> params) {
+        java.util.Set<String> result = new java.util.TreeSet<>();
+        params.forEach(p -> result.add(p.getName() + "@" + p.getIn()));
+        return result;
     }
 
     @Test
