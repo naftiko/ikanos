@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import io.ikanos.durable.ActionExecutor;
 import io.ikanos.durable.ActionOutcome;
 import io.ikanos.durable.Command;
@@ -182,6 +183,37 @@ public final class JournaledRunner implements Runner {
                 return;
             }
             new Run(ExecutionRequest.of(executionId, null)).fail(failure);
+        } catch (ConcurrentAppendException e) {
+            throw new IllegalStateException(
+                    "Another owner appended to the journal of " + executionId, e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Ends an execution with {@code failure} only if, under its lock, it still has
+     * {@code expected} status and {@code condition} holds for its journal as read then: a
+     * decision made on an earlier read never ends a run that moved on since, such as one that
+     * resumed and asked again.
+     *
+     * @param expected a status that has not ended, such as {@code SUSPENDED}
+     * @return whether the execution was failed
+     */
+    public boolean failIf(ExecutionId executionId, ExecutionStatus expected,
+            Predicate<ExecutionView> condition, Failure failure) {
+        ReentrantLock lock = lockOf(executionId);
+        lock.lock();
+        try {
+            if (status(executionId).orElse(null) != expected) {
+                return false;
+            }
+            Run run = new Run(ExecutionRequest.of(executionId, null));
+            if (!condition.test(run)) {
+                return false;
+            }
+            run.fail(failure);
+            return true;
         } catch (ConcurrentAppendException e) {
             throw new IllegalStateException(
                     "Another owner appended to the journal of " + executionId, e);

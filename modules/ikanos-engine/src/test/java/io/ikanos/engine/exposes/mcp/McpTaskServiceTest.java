@@ -41,9 +41,13 @@ import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.core.JournaledRunner;
+import io.ikanos.durable.store.ConcurrentAppendException;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.FaultInjectingStores;
+import io.ikanos.durable.store.JournalEntry;
+import io.ikanos.durable.store.JournalStore;
+import io.ikanos.durable.store.StoreFeature;
 import io.ikanos.durable.store.Stores;
 import io.ikanos.durable.store.memory.MemoryStoreProvider;
 import io.ikanos.engine.execution.Durability;
@@ -103,6 +107,80 @@ public class McpTaskServiceTest {
                 McpRequestState.TTL.plusMinutes(1)), null).sweepUnanswered();
 
         assertEquals(ExecutionStatus.FAILED, runner.status(round.executionId()).orElseThrow());
+    }
+
+    @Test
+    void anAnswerResumingACallWhileTheSweepRunsShouldKeepTheRoundItAsksThen() {
+        Instant start = Instant.parse("2026-11-13T10:00:00Z");
+        Clock asking = Clock.fixed(start, java.time.ZoneOffset.UTC);
+        Clock answering = Clock.offset(asking, McpRequestState.TTL.minusMinutes(1));
+        Clock sweeping = Clock.offset(asking, McpRequestState.TTL.plusMinutes(1));
+        HookedJournal journal = new HookedJournal(MemoryStoreProvider.openStores(asking));
+        JournaledRunner runner = new JournaledRunner(journal.stores, new JsonPayloadCodec(),
+                asking, "test");
+        AtomicInteger rounds = new AtomicInteger();
+        Callable<JsonNode> work = askingAgain(rounds);
+        String entry = "mrtr:ops/tools/call/ask";
+        InlineRounds.Round first = new McpTaskService(runner, asking, null)
+                .inRounds(entry, "alice", null, null, 0, null, work);
+        // Once the sweep has read the call's journal, and before it fails the call, an answer
+        // comes with a still valid state: the call resumes and asks again.
+        journal.afterNextRead(() -> new McpTaskService(runner, answering, null)
+                .inRounds(entry, "alice", null, first.executionId(), first.round(), accept(),
+                        work));
+        List<ExecutionId> cancelled = new CopyOnWriteArrayList<>();
+
+        new McpTaskService(runner, sweeping, null).whenCancelled(cancelled::add)
+                .sweepUnanswered();
+
+        assertEquals(2, rounds.get(), "The answer resumed the call");
+        assertEquals(ExecutionStatus.SUSPENDED, runner.status(first.executionId()).orElseThrow(),
+                "The round asked a minute before the sweep is not expired");
+        assertTrue(cancelled.isEmpty(), "Nothing the call waits on is cancelled");
+    }
+
+    /** A journal that runs a hook once, after a read and before the reader gets its entries. */
+    private static final class HookedJournal implements JournalStore {
+        private final JournalStore delegate;
+        private final Stores stores;
+        private final java.util.concurrent.atomic.AtomicReference<Runnable> hook =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        HookedJournal(Stores base) {
+            this.delegate = base.journal();
+            this.stores = new Stores(this, base.index(), base.queue(), base.inbox(),
+                    base.blobs(), base::close);
+        }
+
+        void afterNextRead(Runnable action) {
+            hook.set(action);
+        }
+
+        @Override
+        public java.util.Set<StoreFeature> features() {
+            return delegate.features();
+        }
+
+        @Override
+        public void append(ExecutionId executionId, long expectedSequence, long fencingToken,
+                List<JournalEntry> entries) throws ConcurrentAppendException {
+            delegate.append(executionId, expectedSequence, fencingToken, entries);
+        }
+
+        @Override
+        public List<JournalEntry> read(ExecutionId executionId) {
+            List<JournalEntry> entries = delegate.read(executionId);
+            Runnable action = hook.getAndSet(null);
+            if (action != null) {
+                action.run();
+            }
+            return entries;
+        }
+
+        @Override
+        public void truncate(ExecutionId executionId) {
+            delegate.truncate(executionId);
+        }
     }
 
     @Test

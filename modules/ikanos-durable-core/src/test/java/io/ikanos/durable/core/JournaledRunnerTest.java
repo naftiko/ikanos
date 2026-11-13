@@ -320,6 +320,25 @@ public class JournaledRunnerTest {
     }
 
     @Test
+    void failIfShouldFailOnlyWhenTheStatusAndConditionStillHoldUnderTheLock() {
+        runner.run(ExecutionRequest.of(ID, null), CLEARANCE, recording);
+        Failure expired = new Failure("expired", "Unanswered");
+
+        assertFalse(runner.failIf(ID, ExecutionStatus.RUNNING, view -> true, expired),
+                "Not in the expected status");
+        assertFalse(runner.failIf(ID, ExecutionStatus.SUSPENDED,
+                view -> view.outcome(SCREEN).isEmpty(), expired), "The condition no longer holds");
+        assertFalse(runner.failIf(new ExecutionId("unknown"), ExecutionStatus.SUSPENDED,
+                view -> true, expired));
+        assertEquals(ExecutionStatus.SUSPENDED, runner.status(ID).orElseThrow());
+
+        assertTrue(runner.failIf(ID, ExecutionStatus.SUSPENDED,
+                view -> view.outcome(SCREEN).isPresent(), expired));
+        assertEquals("expired", assertInstanceOf(ExecutionResult.Failed.class,
+                runner.result(ID).orElseThrow()).failure().errorClass());
+    }
+
+    @Test
     void createShouldBeIdempotent() {
         assertTrue(runner.create(ExecutionRequest.of(ID, null), "mcp:shipyard-ops"));
         assertFalse(runner.create(ExecutionRequest.of(ID, null), "mcp:shipyard-ops"));
