@@ -13,7 +13,10 @@
     <mdcAttributesIncluded>trace_id,span_id,agent_id</mdcAttributesIncluded>
   </appender>
 
+  <!-- Console logs go to stderr: on an MCP stdio adapter, stdout carries only JSON-RPC messages
+       (issue #1033). -->
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
     <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
       <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - traceId=%X{trace_id} spanId=%X{span_id}%replace( agentId=%X{agent_id}){' agentId=$', ''} - %msg%n</pattern>
     </encoder>
