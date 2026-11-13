@@ -1,0 +1,118 @@
+# SQL client example — read statements (issue #1051).
+#
+# A capability reads ERP customer rows from PostgreSQL (`consumes: type: sql`),
+# joins each one with its CRM account owner over HTTP in an aggregate flow, and
+# re-exposes the result as an MCP tool.
+#
+# The JDBC URL and the credentials come from `binds`, resolved once when the
+# capability loads. Caller values reach the database only as bind variables.
+# Ikanos ships no JDBC driver: add the PostgreSQL driver jar to the class path
+# (in the image, the `/app/lib` extension directory).
+ikanos: "1.0.0-beta10"
+
+info:
+  display: "Customer 360 — SQL client example"
+  description: "Join ERP customer rows with CRM ownership and re-expose the result."
+
+binds:
+  - namespace: "erp-db"
+    description: "ERP database connection."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      JDBC_URL: "erp-jdbc-url"
+      DB_USER: "erp-db-user"
+      DB_PASSWORD: "erp-db-password"
+  - namespace: "secrets"
+    description: "CRM credential."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      CRM_TOKEN: "crm-bearer-token"
+
+capability:
+  consumes:
+    - type: "sql"
+      namespace: "erp"
+      description: "ERP customer master data on PostgreSQL."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      pool:
+        maxSize: 5
+      procedures:
+        get-customer:
+          description: "One customer by id."
+          statement: |
+            select c.id, c.name, c.email, c.crm_account_id
+            from public.customers c
+            where c.id = :customerId
+          inputParameters:
+            customer-id:
+              type: "string"
+              description: "ERP customer id."
+              placeholder: "customerId"
+          outputParameters:
+            name: { type: "string", value: "$.rows[0].name" }
+            email: { type: "string", value: "$.rows[0].email" }
+            account-id: { type: "string", value: "$.rows[0].crm_account_id" }
+
+    - type: "http"
+      namespace: "crm"
+      baseUri: "https://crm.internal.example/api"
+      authentication:
+        type: "bearer"
+        token: "{{CRM_TOKEN}}"
+      resources:
+        accounts:
+          path: "/accounts/{{account-id}}"
+          operations:
+            get-account:
+              method: "GET"
+              inputParameters:
+                account-id:
+                  in: "path"
+              outputParameters:
+                owner: { type: "string", value: "$.owner" }
+
+  aggregates:
+    - display: "Customer 360"
+      namespace: "customer"
+      flows:
+        customer-overview:
+          description: "ERP customer with its CRM account owner."
+          inputParameters:
+            customer-id:
+              type: "string"
+              required: true
+              description: "ERP customer id."
+          steps:
+            cust:
+              type: "call"
+              call: "erp.get-customer"
+              with:
+                customer-id: "{{customer-id}}"
+            acct:
+              type: "call"
+              call: "crm.get-account"
+              with:
+                account-id: "{{cust.account-id}}"
+          mappings:
+            - target: "name"
+              value: "$.cust.name"
+            - target: "email"
+              value: "$.cust.email"
+            - target: "owner"
+              value: "$.acct.owner"
+          outputParameters:
+            name: { type: "string" }
+            email: { type: "string" }
+            owner: { type: "string" }
+
+  exposes:
+    - type: "mcp"
+      namespace: "customer-mcp"
+      port: 3001
+      tools:
+        customer-overview:
+          description: "ERP customer with its CRM account owner."
+          ref: "customer.customer-overview"

@@ -590,6 +590,46 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Consumed SQL rules (#1051)
+    // ────────────────────────────────────────────────────────────────
+
+    private long findings(ProcessResult result, String ruleId) {
+        return result.output().lines().filter(line -> line.contains(ruleId)).count();
+    }
+
+    @Test
+    public void sqlNoInlineCredentialsRuleShouldFireForLiteralUsernameAndPassword() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-sql-no-inline-credentials"),
+            "Expected ikanos-sql-no-inline-credentials on username and password.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlStatementReadOnlyRuleShouldFireForADeleteStatement() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-statement-read-only"),
+            "Expected ikanos-sql-statement-read-only on the DELETE statement.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlPlaceholdersBoundRuleShouldFireForUnmatchedPlaceholderAndUnusedInput() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-sql-placeholders-bound"),
+            "Expected ikanos-sql-placeholders-bound on :custId and on customer-id.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-compliant.yaml",
+            "info");
+        assertTrue(!result.output().contains("ikanos-sql-"),
+            "Expected no consumed SQL findings.\n" + result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Flow composition rules (#794)
     // ────────────────────────────────────────────────────────────────
 

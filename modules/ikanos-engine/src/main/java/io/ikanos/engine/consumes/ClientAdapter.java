@@ -74,21 +74,7 @@ public abstract class ClientAdapter extends Adapter {
         if (uri == null || !uri.contains("{{")) {
             return uri;
         }
-        Map<String, Object> scope = bindings != null ? bindings : Map.of();
-        String resolved = Resolver.resolveMustacheTemplate(uri, scope);
-        List<String> missing = new ArrayList<>();
-        Matcher placeholder = PLACEHOLDER.matcher(uri);
-        while (placeholder.find()) {
-            String name = placeholder.group(1).trim();
-            if (!scope.containsKey(name) && !missing.contains(name)) {
-                missing.add(name);
-            }
-        }
-        if (!missing.isEmpty() || resolved.contains("{{")) {
-            throw new IllegalArgumentException("consumes '" + namespace + "' " + field
-                    + " references unbound variables " + missing
-                    + ". Declare them in a binds entry.");
-        }
+        String resolved = resolveFromBindings(namespace, field, uri, bindings);
         try {
             URI parsed = new URI(resolved);
             String scheme = parsed.getScheme();
@@ -101,6 +87,43 @@ public abstract class ClientAdapter extends Adapter {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("consumes '" + namespace + "' " + field
                     + " does not resolve to a valid URI");
+        }
+        return resolved;
+    }
+
+    /**
+     * Resolve a consumed connection value (a URI, a JDBC URL, a database user or password)
+     * against the capability bindings, once, when the adapter is built. Call parameters are never
+     * used, so a caller cannot choose the upstream or its credentials. A value without
+     * placeholders is returned unchanged.
+     *
+     * @param namespace the consumes namespace, for error messages
+     * @param field the field name, for error messages
+     * @param value the value as written, may be null
+     * @param bindings the capability bindings, may be null
+     * @return the resolved value
+     * @throws IllegalArgumentException when a placeholder is not bound. The resolved value is not
+     *     echoed, as it may come from a secret store.
+     */
+    protected static String resolveFromBindings(String namespace, String field, String value,
+            Map<String, Object> bindings) {
+        if (value == null || !value.contains("{{")) {
+            return value;
+        }
+        Map<String, Object> scope = bindings != null ? bindings : Map.of();
+        String resolved = Resolver.resolveMustacheTemplate(value, scope);
+        List<String> missing = new ArrayList<>();
+        Matcher placeholder = PLACEHOLDER.matcher(value);
+        while (placeholder.find()) {
+            String name = placeholder.group(1).trim();
+            if (!scope.containsKey(name) && !missing.contains(name)) {
+                missing.add(name);
+            }
+        }
+        if (!missing.isEmpty() || resolved.contains("{{")) {
+            throw new IllegalArgumentException("consumes '" + namespace + "' " + field
+                    + " references unbound variables " + missing
+                    + ". Declare them in a binds entry.");
         }
         return resolved;
     }

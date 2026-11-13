@@ -25,12 +25,15 @@
             "$ref": "#/$defs/ConsumesMcp"
           },
           {
+            "$ref": "#/$defs/ConsumesSql"
+          },
+          {
             "$ref": "#/$defs/ImportEntry"
           }
         ]
       },
       "minItems": 1,
-      "description": "External adapters declared at file scope. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), or an `ImportEntry` (with a `from` URI). Standalone consumes files use this section at root."
+      "description": "External adapters declared at file scope. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), an inline `ConsumesSql` (`type: sql`), or an `ImportEntry` (with a `from` URI). Standalone consumes files use this section at root."
     },
     "exposes": {
       "type": "array",
@@ -908,7 +911,7 @@
         },
         "consumes": {
           "type": "array",
-          "description": "Consumed client adapters. Inline `ConsumesHttp` or `ConsumesMcp` entries, or `ImportEntry` references to a shared consumes file.",
+          "description": "Consumed client adapters. Inline `ConsumesHttp`, `ConsumesMcp` or `ConsumesSql` entries, or `ImportEntry` references to a shared consumes file.",
           "items": {
             "oneOf": [
               {
@@ -916,6 +919,9 @@
               },
               {
                 "$ref": "#/$defs/ConsumesMcp"
+              },
+              {
+                "$ref": "#/$defs/ConsumesSql"
               },
               {
                 "$ref": "#/$defs/ImportEntry"
@@ -3016,6 +3022,227 @@
       "required": [
         "description"
       ],
+      "additionalProperties": false
+    },
+    "ConsumesSql": {
+      "type": "object",
+      "description": "Inline relational database adapter. Declares the procedures a capability may call over JDBC, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**When to use** \u2014 Read data that lives behind SQL, without custom Java or an ETL job.\n**Execution model** \u2014 Each call borrows a pooled connection, binds the step's values as JDBC bind variables, runs the procedure and returns one JSON row document, `{rows, rowCount}`. Only declared procedures are reachable; caller input never enters the SQL text. Ikanos ships no JDBC driver: the operator adds the driver for their database to the class path (in the image, the `/app/lib` extension directory).\n**See also** \u2014 `ConsumesHttp`, `ConsumesMcp`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target: `call: namespace.procedure`."
+        },
+        "type": {
+          "type": "string",
+          "const": "sql"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human- and agent-readable description of this database."
+        },
+        "connection": {
+          "$ref": "#/$defs/SqlConnection"
+        },
+        "pool": {
+          "$ref": "#/$defs/SqlPool"
+        },
+        "procedures": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedSqlProcedure"
+          },
+          "minProperties": 1,
+          "description": "Callable procedures, keyed by procedure name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "connection",
+        "procedures"
+      ],
+      "additionalProperties": false
+    },
+    "SqlConnection": {
+      "type": "object",
+      "description": "JDBC connection of a `ConsumesSql` entry. Placeholders (`{{JDBC_URL}}`, `jdbc:postgresql://{{DB_HOST}}/erp`) are resolved once at load time from `binds`, never from call parameters; an unbound placeholder fails the capability at startup. Driver properties that load classes, read local files or run scripts (`allowLoadLocalInfile`, `allowUrlInLocalInfile`, `autoDeserialize`, `socketFactory`, `sslfactory`, `sslhostnameverifier`, `loggerFile`, `INIT`) are refused in `url` and `properties`.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "JDBC URL, such as `jdbc:postgresql://db.internal:5432/erp`, or a placeholder resolving to one.",
+          "pattern": "^(jdbc:.+|\\{\\{[A-Za-z0-9_.-]+\\}\\})$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Database user. Take it from `binds` (`{{DB_USER}}`)."
+        },
+        "password": {
+          "type": "string",
+          "description": "Database password. Take it from `binds` (`{{DB_PASSWORD}}`); a literal password is a lint error."
+        },
+        "driverClassName": {
+          "type": "string",
+          "description": "JDBC driver class, only for drivers that do not register themselves."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Driver properties, passed to the driver as written."
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "SqlPool": {
+      "type": "object",
+      "description": "Connection pool bounds. One pool per `ConsumesSql` entry; an absent field keeps the pool's default.",
+      "properties": {
+        "maxSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of connections. Default 10."
+        },
+        "minIdle": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum number of idle connections. Default: `maxSize`."
+        },
+        "connectionTimeoutMs": {
+          "type": "integer",
+          "minimum": 250,
+          "description": "How long a call waits for a free connection before it fails with 503. Default 30000."
+        },
+        "maxLifetimeMs": {
+          "type": "integer",
+          "minimum": 30000,
+          "description": "Maximum lifetime of a pooled connection. Default 1800000."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConsumedSqlProcedure": {
+      "type": "object",
+      "description": "One SQL procedure. `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables. A statement must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the procedure, for authors and agents. Never copied to an exposed tool."
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Inline SQL. Caller values reach it only through `:name` placeholders, each matching an input's `placeholder` or key. String literals, quoted identifiers, comments and `::` casts are not placeholders."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedSqlInputParameter"
+          },
+          "description": "Bound values, keyed by name. Values come from the calling step's `with`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the row document `{rows, rowCount}`, such as `$.rows[0].name` or `$.rows`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Query timeout, rounded up to whole seconds. Default 30000. A timeout fails the call with 504."
+        },
+        "fetchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "JDBC fetch size hint: how many rows the driver reads per round trip."
+        }
+      },
+      "required": [
+        "description",
+        "statement"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedSqlInputParameter": {
+      "type": "object",
+      "description": "One bound value of a SQL procedure.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean"
+          ],
+          "description": "Type of the value. Without `sqlType`, `integer`, `number` and `boolean` values given as text are converted before binding."
+        },
+        "description": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the step must supply the value. Default `true`; an absent optional value is bound as SQL `NULL`."
+        },
+        "placeholder": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Name of the `:placeholder` in the statement, when it differs from the key. Needed for kebab-case keys (`updated-since` binds `:updatedSince`)."
+        },
+        "sqlType": {
+          "type": "string",
+          "enum": [
+            "BIT",
+            "BOOLEAN",
+            "TINYINT",
+            "SMALLINT",
+            "INTEGER",
+            "BIGINT",
+            "REAL",
+            "FLOAT",
+            "DOUBLE",
+            "NUMERIC",
+            "DECIMAL",
+            "CHAR",
+            "VARCHAR",
+            "LONGVARCHAR",
+            "NCHAR",
+            "NVARCHAR",
+            "LONGNVARCHAR",
+            "CLOB",
+            "NCLOB",
+            "DATE",
+            "TIME",
+            "TIMESTAMP",
+            "TIME_WITH_TIMEZONE",
+            "TIMESTAMP_WITH_TIMEZONE",
+            "OTHER"
+          ],
+          "description": "`java.sql.JDBCType` the value is bound as. Text is converted to the type first: ISO-8601 for dates and times, decimal for numbers."
+        }
+      },
       "additionalProperties": false
     },
     "OperationStepBase": {
