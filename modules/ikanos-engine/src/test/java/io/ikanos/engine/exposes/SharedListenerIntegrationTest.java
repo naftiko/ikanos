@@ -36,6 +36,7 @@ import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 
 /**
  * End-to-end tests of adapters sharing one listener (issue #893): a capability is started
@@ -218,7 +219,10 @@ class SharedListenerIntegrationTest {
 
     @Test
     void adaptersOnTheirOwnPortsShouldKeepDedicatedServers() throws Exception {
-        int other = freePort();
+        // Both at once, so the REST and MCP adapters can't be handed the same port (#971).
+        int[] ports = TestUtils.freePorts(2);
+        port = ports[0];
+        int other = ports[1];
         start(restAt("") + """
                     - type: "mcp"
                       address: "localhost"

@@ -264,6 +264,9 @@ class ControlPortHttpIntegrationTest {
     }
 
     private void start(Setup setup) throws Exception {
+        // The upstream binds port 0 first: started after freePorts(2), it could be handed one of
+        // the two ports just closed, and the capability would then fail to bind.
+        int upstreamPort = setup.rest ? startUpstream() : 0;
         int[] ports = TestUtils.freePorts(2);
         controlPort = ports[0];
         StringBuilder yaml = new StringBuilder("""
@@ -287,7 +290,6 @@ class ControlPortHttpIntegrationTest {
                     """);
         }
         if (setup.rest) {
-            int upstreamPort = startUpstream();
             restPort = ports[1];
             yaml.append("""
                         - type: "rest"
