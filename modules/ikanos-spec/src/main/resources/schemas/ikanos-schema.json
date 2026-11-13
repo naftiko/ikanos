@@ -3153,10 +3153,11 @@
         "storedProcedure": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_$#]*(\\.[A-Za-z_][A-Za-z0-9_$#]*){0,2}$",
-          "description": "Name of the stored procedure or function to call, optionally qualified (`dbo.usp_GetAccountBalance`, `finance.reports.month_end`). The adapter calls `{call <name>(?, ...)}` with one `?` per position."
+          "description": "Name of the stored procedure or function to call, optionally qualified (`dbo.usp_GetAccountBalance`, `finance.reports.month_end`). The adapter calls `{call <name>(?, ...)}` with one `?` per position, so a function's return value is not read: on PostgreSQL a function's result comes back as rows, and a `CREATE PROCEDURE` needs `escapeSyntaxCallMode=callIfNoReturn` in the URL."
         },
         "readOnly": {
           "type": "boolean",
+          "const": true,
           "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say: `true` runs it on a read-only connection where the driver supports it. `false` is not supported yet."
         },
         "outParameters": {
@@ -3316,9 +3317,11 @@
             "TIMESTAMP",
             "TIME_WITH_TIMEZONE",
             "TIMESTAMP_WITH_TIMEZONE",
+            "ARRAY",
+            "REF_CURSOR",
             "OTHER"
           ],
-          "description": "`java.sql.JDBCType` the value is registered as."
+          "description": "`java.sql.JDBCType` the value is registered as, and read back as. A cursor (`REF_CURSOR`, or `OTHER` for a PostgreSQL `refcursor`) becomes an array of rows."
         },
         "description": {
           "type": "string"

@@ -15,6 +15,8 @@ package io.ikanos.engine.consumes.sql;
 
 import java.math.BigDecimal;
 import java.sql.Array;
+import java.sql.CallableStatement;
+import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -166,14 +168,99 @@ final class SqlRowDocument {
     }
 
     /**
-     * Convert a stored-procedure {@code OUT} value, read with {@code getObject}.
+     * Read a stored-procedure {@code OUT} value by the type it was registered as, the way
+     * {@link #column} reads a result-set column: exact numerics keep their precision, dates and
+     * times become ISO-8601 strings, and a cursor becomes the array of its rows, closed once read.
      *
-     * @throws SQLException when a large object cannot be read
+     * @param call the executed call
+     * @param position the parameter position
+     * @param type the declared {@code sqlType}
+     * @param label the parameter name, for error messages
+     * @throws SQLException when the driver fails
+     * @throws SqlClientException when the value is binary
+     */
+    static JsonNode out(CallableStatement call, int position, JDBCType type, String label)
+            throws SQLException {
+        switch (type) {
+            case BOOLEAN, BIT -> {
+                boolean value = call.getBoolean(position);
+                return call.wasNull() ? NODES.nullNode() : NODES.booleanNode(value);
+            }
+            case TINYINT, SMALLINT, INTEGER, BIGINT -> {
+                long value = call.getLong(position);
+                return call.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
+            }
+            case NUMERIC, DECIMAL -> {
+                BigDecimal value = call.getBigDecimal(position);
+                return value == null ? NODES.nullNode() : NODES.numberNode(value);
+            }
+            case REAL, FLOAT, DOUBLE -> {
+                double value = call.getDouble(position);
+                return call.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
+            }
+            case DATE -> {
+                return outTemporal(call, position, LocalDate.class);
+            }
+            case TIME -> {
+                return outTemporal(call, position, LocalTime.class);
+            }
+            case TIME_WITH_TIMEZONE -> {
+                return outTemporal(call, position, OffsetTime.class);
+            }
+            case TIMESTAMP -> {
+                return outTemporal(call, position, LocalDateTime.class);
+            }
+            case TIMESTAMP_WITH_TIMEZONE -> {
+                return outTemporal(call, position, OffsetDateTime.class);
+            }
+            case CHAR, VARCHAR, LONGVARCHAR, NCHAR, NVARCHAR, LONGNVARCHAR -> {
+                String value = call.getString(position);
+                return value == null ? NODES.nullNode() : NODES.stringNode(value);
+            }
+            case ARRAY -> {
+                Array array = call.getArray(position);
+                if (array == null) {
+                    return NODES.nullNode();
+                }
+                try {
+                    return JSON.valueToTree(array.getArray());
+                } finally {
+                    array.free();
+                }
+            }
+            default -> {
+                return value(call.getObject(position), label);
+            }
+        }
+    }
+
+    private static JsonNode outTemporal(CallableStatement call, int position, Class<?> type)
+            throws SQLException {
+        Object value;
+        try {
+            value = call.getObject(position, type);
+        } catch (SQLException | RuntimeException unsupported) {
+            value = call.getString(position);
+        }
+        return value == null ? NODES.nullNode() : NODES.stringNode(value.toString());
+    }
+
+    /**
+     * Convert a stored-procedure {@code OUT} value read with {@code getObject}, for the types
+     * {@link #out} does not read directly. A cursor ({@link ResultSet}) becomes the array of its
+     * rows and is closed.
+     *
+     * @throws SQLException when a large object or a cursor cannot be read
      * @throws SqlClientException when the value is binary
      */
     static JsonNode value(Object value, String label) throws SQLException {
         if (value == null) {
             return NODES.nullNode();
+        }
+        if (value instanceof ResultSet cursor) {
+            try (cursor) {
+                return read(cursor).get(ROWS);
+            }
         }
         if (value instanceof byte[] || value instanceof java.sql.Blob) {
             throw new SqlClientException("out parameter '" + label

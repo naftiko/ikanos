@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.sql;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.logging.Level;
@@ -89,6 +91,19 @@ public class SqlClientAdapter extends ClientAdapter {
 
         boolean isStored() {
             return statement == null;
+        }
+
+        /**
+         * @return the {@code sqlType} of the {@code OUT} half of an {@code INOUT} parameter at
+         *     {@code position}, which its input half is bound as, or {@code null}
+         */
+        JDBCType inoutType(int position) {
+            for (SqlOutParameterSpec out : outs) {
+                if (out.getPosition() == position) {
+                    return JDBCType.valueOf(out.getSqlType().trim().toUpperCase(Locale.ROOT));
+                }
+            }
+            return null;
         }
     }
 
@@ -235,6 +250,13 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where
                         + " declares two out parameters at position " + position);
             }
+            InputParameterSpec inout = inputsByPosition.get(position);
+            if (inout != null && inout.getSqlType() != null && !inout.getSqlType().isBlank()
+                    && !inout.getSqlType().trim().equalsIgnoreCase(out.getSqlType().trim())) {
+                throw new IllegalArgumentException(where + " declares INOUT position "
+                        + position + " as " + inout.getSqlType() + " in and " + out.getSqlType()
+                        + " out; an INOUT parameter has one type");
+            }
         }
         int highest = Math.max(
                 inputsByPosition.isEmpty() ? 0 : inputsByPosition.lastKey(),
@@ -304,7 +326,8 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException("Missing required input '" + input.getName()
                         + "' for SQL procedure " + where);
             }
-            binds.add(SqlBind.of(input, value, where, procedure.positions().get(i)));
+            int position = procedure.positions().get(i);
+            binds.add(SqlBind.of(input, value, where, position, procedure.inoutType(position)));
         }
         return new SqlInvocation(this, procedure, List.copyOf(binds));
     }
@@ -342,8 +365,9 @@ public class SqlClientAdapter extends ClientAdapter {
                 if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
                     ObjectNode out = document.putObject(SqlRowDocument.OUT);
                     for (SqlOutParameterSpec param : procedure.outs()) {
-                        out.set(param.getName(), SqlRowDocument.value(
-                                call.getObject(param.getPosition()), param.getName()));
+                        out.set(param.getName(), SqlRowDocument.out(call, param.getPosition(),
+                                JDBCType.valueOf(param.getSqlType().trim()
+                                        .toUpperCase(Locale.ROOT)), param.getName()));
                     }
                 }
                 return SqlConsumedResult.success(procedure.view(), document);

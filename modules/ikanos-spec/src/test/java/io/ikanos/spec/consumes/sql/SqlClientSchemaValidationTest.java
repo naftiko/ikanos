@@ -241,4 +241,11 @@ class SqlClientSchemaValidationTest {
 
         assertFalse(validate(yaml).isEmpty(), "placeholder must be a SQL identifier");
     }
+
+    @Test
+    void schemaShouldRejectReadOnlyFalseUntilWritesAreSupported() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true", "readOnly: false"));
+
+        assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
+    }
 }

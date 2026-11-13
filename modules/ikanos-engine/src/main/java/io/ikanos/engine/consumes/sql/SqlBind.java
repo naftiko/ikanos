@@ -56,7 +56,16 @@ record SqlBind(Object value, Integer jdbcType, int position) {
      * @throws IllegalArgumentException when the value cannot be converted
      */
     static SqlBind of(InputParameterSpec input, Object raw, String where, int position) {
-        JDBCType target = targetType(input, where);
+        return of(input, raw, where, position, null);
+    }
+
+    /**
+     * Convert a step value for one input, bound as {@code bindType} when it is not null: the
+     * {@code OUT} type of an {@code INOUT} parameter, so both halves agree.
+     */
+    static SqlBind of(InputParameterSpec input, Object raw, String where, int position,
+            JDBCType bindType) {
+        JDBCType target = bindType != null ? bindType : targetType(input, where);
         Object value = unwrap(raw);
         if (value == null) {
             // a string input without sqlType is still typed: PostgreSQL cannot infer the type
