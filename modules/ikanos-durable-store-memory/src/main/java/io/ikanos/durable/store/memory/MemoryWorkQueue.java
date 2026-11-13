@@ -58,13 +58,14 @@ final class MemoryWorkQueue implements WorkQueue {
 
     @Override
     public synchronized boolean renew(Lease lease, Duration leaseFor) {
+        Instant now = clock.instant();
         Lease current = leases.get(lease.executionId());
         if (current == null || current.fencingToken() != lease.fencingToken()
-                || current.expiresAt().isBefore(clock.instant())) {
+                || !isLeased(lease.executionId(), now)) {
             return false;
         }
         leases.put(lease.executionId(), new Lease(lease.executionId(), lease.owner(),
-                lease.fencingToken(), clock.instant().plus(leaseFor)));
+                lease.fencingToken(), now.plus(leaseFor)));
         return true;
     }
 
@@ -76,6 +77,7 @@ final class MemoryWorkQueue implements WorkQueue {
         }
     }
 
+    /** A lease is held strictly before its expiry, and free to claim from that instant on. */
     private boolean isLeased(ExecutionId executionId, Instant now) {
         Lease lease = leases.get(executionId);
         return lease != null && lease.expiresAt().isAfter(now);
