@@ -10,7 +10,9 @@
  *
  * Placeholders are found the way the engine finds them: string literals,
  * quoted identifiers, dollar-quoted strings, comments and `::` casts are
- * skipped.
+ * skipped. As in the engine, the `connection.url` sets the dialect when it is
+ * a literal JDBC URL: block comments nest on PostgreSQL and SQL Server, and
+ * `[...]` is a quoted identifier on SQL Server and SQLite.
  */
 export default function sqlProcedures(targetVal) {
   if (!targetVal || typeof targetVal !== "object") {
@@ -37,13 +39,24 @@ function scanConsumes(consumes, basePath, results) {
         continue;
       }
       const path = [...basePath, index, "procedures", name];
-      checkPlaceholders(adapter.namespace, name, procedure, path, results);
+      checkPlaceholders(adapter.namespace, name, procedure, path, dialectOf(adapter), results);
     }
   });
 }
 
-function checkPlaceholders(namespace, name, procedure, path, results) {
-  const used = placeholders(procedure.statement);
+/** The lexical rules of the adapter's database, read from a literal JDBC URL. */
+function dialectOf(adapter) {
+  const url = isObject(adapter.connection) ? adapter.connection.url : undefined;
+  const system = typeof url === "string" ? /^jdbc:([A-Za-z0-9]+):/i.exec(url.trim()) : null;
+  const name = system ? system[1].toLowerCase() : "";
+  return {
+    nestedComments: name === "postgresql" || name === "sqlserver" || name === "jtds",
+    brackets: name === "sqlserver" || name === "jtds" || name === "sqlite",
+  };
+}
+
+function checkPlaceholders(namespace, name, procedure, path, dialect, results) {
+  const used = placeholders(procedure.statement, dialect);
   const inputs = isObject(procedure.inputParameters) ? procedure.inputParameters : {};
   const byPlaceholder = new Map();
   for (const [key, input] of Object.entries(inputs)) {
@@ -73,7 +86,7 @@ function checkPlaceholders(namespace, name, procedure, path, results) {
 }
 
 /** The `:name` placeholders of a statement, in order, outside literals and comments. */
-function placeholders(sql) {
+function placeholders(sql, dialect = {}) {
   const found = [];
   let i = 0;
   const n = sql.length;
@@ -83,8 +96,9 @@ function placeholders(sql) {
       const end = sql.indexOf("\n", i);
       i = end < 0 ? n : end;
     } else if (c === "/" && sql[i + 1] === "*") {
-      const end = sql.indexOf("*/", i + 2);
-      i = end < 0 ? n : end + 2;
+      i = endOfBlockComment(sql, i, dialect.nestedComments);
+    } else if (c === "[" && dialect.brackets) {
+      i = endOfQuoted(sql, i, "]", false);
     } else if (c === "'" || c === '"' || c === "`") {
       const backslash = c === "'" && i > 0 && /[Ee]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] || "");
       i = endOfQuoted(sql, i, c, backslash);
@@ -107,6 +121,27 @@ function placeholders(sql) {
     }
   }
   return found;
+}
+
+/** The index just past the comment at `start`; nested comments count when the dialect nests them. */
+function endOfBlockComment(sql, start, nested) {
+  let depth = 0;
+  let i = start;
+  while (i + 1 < sql.length) {
+    if (sql[i] === "/" && sql[i + 1] === "*" && (nested || depth === 0)) {
+      depth++;
+      i += 2;
+    } else if (sql[i] === "*" && sql[i + 1] === "/") {
+      depth--;
+      i += 2;
+      if (depth === 0) {
+        return i;
+      }
+    } else {
+      i++;
+    }
+  }
+  return sql.length;
 }
 
 function endOfQuoted(sql, start, quote, backslash) {

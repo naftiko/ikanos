@@ -31,9 +31,10 @@ import io.ikanos.spec.util.IkanosMappers;
  *
  * <p>On success, it holds the row document built in the invocation and returns it from
  * {@link #document()} directly. On failure, it carries an HTTP-equivalent status mapped from the
- * SQLState at the source, a generic reason and no body: the SQLState, vendor code and driver
- * message reach the log through {@link #failureCause()}, never the caller, since a driver message
- * can quote SQL text, schema names or values.</p>
+ * SQLState at the source, a generic reason and no body. The driver message reaches the log
+ * only, written by the adapter: {@link #failureCause()} carries the reason, SQLState and vendor
+ * code, never the driver message or its causes, since a driver message can quote SQL text, schema
+ * names or values and the failure cause is recorded in telemetry.</p>
  */
 final class SqlConsumedResult implements ConsumedResult {
 
@@ -74,7 +75,17 @@ final class SqlConsumedResult implements ConsumedResult {
      */
     static SqlConsumedResult failure(ConsumedOperationView operation, SQLException e) {
         int status = status(e);
-        return new SqlConsumedResult(operation, null, status, reason(status), e);
+        return new SqlConsumedResult(operation, null, status, reason(status),
+                sanitized(e, reason(status)));
+    }
+
+    /**
+     * The failure cause handed on: the reason, SQLState and vendor code only. Callers record it in
+     * telemetry with its message and causes, and a driver message can quote SQL text or bound
+     * values; the original exception is logged by the adapter before this point.
+     */
+    static SQLException sanitized(SQLException e, String reason) {
+        return new SQLException(reason, e.getSQLState(), e.getErrorCode());
     }
 
     /** A call that ran but returned something the adapter cannot carry: 502. */
@@ -147,6 +158,11 @@ final class SqlConsumedResult implements ConsumedResult {
     @Override
     public JsonNode document() {
         return document;
+    }
+
+    @Override
+    public boolean nativeDocument() {
+        return true;
     }
 
     @Override

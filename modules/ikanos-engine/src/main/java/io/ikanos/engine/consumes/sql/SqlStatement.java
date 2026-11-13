@@ -34,6 +34,12 @@ import java.util.Set;
  * {@code --} as a comment only when whitespace follows, and no dollar quoting. Reading MySQL text
  * with the standard rules would let {@code 'a\''} or {@code # '} hide a second statement.</p>
  *
+ * <p>On PostgreSQL and SQL Server, block comments nest. On SQL Server and SQLite, {@code […]} is
+ * a quoted identifier. SQL Server also runs a batch whose statements are not separated by
+ * {@code ;}, so there the statement keywords of T-SQL are refused anywhere in a read
+ * ({@link #SQLSERVER_STATEMENT_KEYWORDS}); they are reserved words, so no unquoted column can
+ * carry them.</p>
+ *
  * <p>The SQL itself is sent to the driver verbatim otherwise: Ikanos never rewrites the dialect.</p>
  */
 final class SqlStatement {
@@ -52,14 +58,51 @@ final class SqlStatement {
     static final Set<String> NON_READ_KEYWORDS =
             Set.of("INSERT", "UPDATE", "DELETE", "MERGE", "INTO");
 
+    /**
+     * T-SQL keywords that start a statement other than a read. SQL Server accepts
+     * {@code SELECT 1 DROP TABLE t} as two statements, so a read that holds one of them is
+     * refused. All are reserved words in T-SQL. {@code FETCH} is left out: a read uses it in
+     * {@code OFFSET … FETCH NEXT}.
+     */
+    static final Set<String> SQLSERVER_STATEMENT_KEYWORDS = Set.of("ALTER", "BACKUP", "BEGIN",
+            "BREAK", "BULK", "CHECKPOINT", "CLOSE", "COMMIT", "CONTINUE", "CREATE", "DBCC",
+            "DEALLOCATE", "DECLARE", "DENY", "DROP", "DUMP", "EXEC", "EXECUTE", "GOTO", "GRANT",
+            "IF", "KILL", "LOAD", "OPEN", "PRINT", "RAISERROR", "READTEXT", "RECONFIGURE",
+            "RESTORE", "RETURN", "REVERT", "REVOKE", "ROLLBACK", "SAVE", "SET", "SETUSER",
+            "SHUTDOWN", "TRUNCATE", "UPDATETEXT", "USE", "WAITFOR", "WHILE", "WRITETEXT");
+
+    /** How a statement is read: the lexical rules that differ between databases. */
+    enum Dialect {
+        /** Standard SQL lexing, for databases not listed below. */
+        STANDARD,
+        /** MySQL and MariaDB: backslash escapes, {@code #} comments, no dollar quoting. */
+        MYSQL,
+        /** PostgreSQL: nested block comments. */
+        POSTGRESQL,
+        /** SQL Server: nested block comments, {@code […]} identifiers, unseparated batches. */
+        SQLSERVER,
+        /** SQLite: {@code […]} identifiers. */
+        SQLITE;
+
+        boolean nestedComments() {
+            return this == POSTGRESQL || this == SQLSERVER;
+        }
+
+        boolean bracketIdentifiers() {
+            return this == SQLSERVER || this == SQLITE;
+        }
+    }
+
     private final String sql;
+    private final Dialect dialect;
     private final String jdbcSql;
     private final List<String> placeholders;
     private final List<String> keywords;
 
-    private SqlStatement(String sql, String jdbcSql, List<String> placeholders,
+    private SqlStatement(String sql, Dialect dialect, String jdbcSql, List<String> placeholders,
             List<String> keywords) {
         this.sql = sql;
+        this.dialect = dialect;
         this.jdbcSql = jdbcSql;
         this.placeholders = Collections.unmodifiableList(placeholders);
         this.keywords = Collections.unmodifiableList(keywords);
@@ -99,7 +142,8 @@ final class SqlStatement {
             return firstKeyword().isEmpty() ? "(empty)" : firstKeyword();
         }
         for (String keyword : keywords) {
-            if (NON_READ_KEYWORDS.contains(keyword)) {
+            if (NON_READ_KEYWORDS.contains(keyword) || (dialect == Dialect.SQLSERVER
+                    && SQLSERVER_STATEMENT_KEYWORDS.contains(keyword))) {
                 return keyword;
             }
         }
@@ -115,7 +159,7 @@ final class SqlStatement {
      *     unterminated literal, identifier or comment. The message never quotes the SQL.
      */
     static SqlStatement parse(String sql) {
-        return parse(sql, false);
+        return parse(sql, Dialect.STANDARD);
     }
 
     /**
@@ -127,6 +171,19 @@ final class SqlStatement {
      * @throws IllegalArgumentException as {@link #parse(String)}
      */
     static SqlStatement parse(String sql, boolean mysql) {
+        return parse(sql, mysql ? Dialect.MYSQL : Dialect.STANDARD);
+    }
+
+    /**
+     * Parse an authored statement in a dialect.
+     *
+     * @param sql the statement as written in the capability
+     * @param dialect the database's lexical rules
+     * @return the parsed statement
+     * @throws IllegalArgumentException as {@link #parse(String)}
+     */
+    static SqlStatement parse(String sql, Dialect dialect) {
+        boolean mysql = dialect == Dialect.MYSQL;
         if (sql == null || sql.isBlank()) {
             throw new IllegalArgumentException("statement is empty");
         }
@@ -148,16 +205,17 @@ final class SqlStatement {
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
-                int end = sql.indexOf("*/", i + 2);
-                if (end < 0) {
-                    throw new IllegalArgumentException("statement has an unterminated comment");
-                }
-                out.append(sql, i, end + 2);
-                i = end + 2;
+                int end = endOfBlockComment(sql, i, dialect.nestedComments());
+                out.append(sql, i, end);
+                i = end;
             } else if (c == '\'') {
                 boolean backslashEscapes = mysql || (i > 0 && (sql.charAt(i - 1) == 'E'
                         || sql.charAt(i - 1) == 'e') && (i < 2 || !isWordChar(sql.charAt(i - 2))));
                 int end = endOfQuoted(sql, i, '\'', backslashEscapes);
+                out.append(sql, i, end);
+                i = end;
+            } else if (c == '[' && dialect.bracketIdentifiers()) {
+                int end = endOfQuoted(sql, i, ']', false);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '"' || c == '`') {
@@ -200,7 +258,31 @@ final class SqlStatement {
                 i++;
             }
         }
-        return new SqlStatement(sql, out.toString().strip(), placeholders, keywords);
+        return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords);
+    }
+
+    /**
+     * @return the index just past the {@code *}{@code /} that closes the comment at {@code start},
+     *     counting nested comments when the dialect nests them
+     */
+    private static int endOfBlockComment(String sql, int start, boolean nested) {
+        int depth = 0;
+        int i = start;
+        while (i + 1 < sql.length()) {
+            if (sql.charAt(i) == '/' && sql.charAt(i + 1) == '*' && (nested || depth == 0)) {
+                depth++;
+                i += 2;
+            } else if (sql.charAt(i) == '*' && sql.charAt(i + 1) == '/') {
+                depth--;
+                i += 2;
+                if (depth == 0) {
+                    return i;
+                }
+            } else {
+                i++;
+            }
+        }
+        throw new IllegalArgumentException("statement has an unterminated comment");
     }
 
     private static boolean startsComment(String sql, int i, boolean mysql) {

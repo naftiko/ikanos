@@ -103,10 +103,11 @@ public class SqlClientAdapter extends ClientAdapter {
                 connection.getPassword(), bindings);
         this.jdbcUrl = JdbcUrl.check(namespace, url, connection.getProperties());
         this.procedures = Collections.unmodifiableMap(buildProcedures(spec,
-                jdbcUrl.mysqlDialect()));
+                jdbcUrl.dialect()));
     }
 
-    static Map<String, Procedure> buildProcedures(SqlClientSpec spec, boolean mysql) {
+    static Map<String, Procedure> buildProcedures(SqlClientSpec spec,
+            SqlStatement.Dialect dialect) {
         Map<String, Procedure> built = new LinkedHashMap<>();
         for (SqlProcedureSpec procedure : spec.getProcedures().values()) {
             String where = "consumes type sql '" + spec.getNamespace() + "' procedure '"
@@ -116,7 +117,7 @@ public class SqlClientAdapter extends ClientAdapter {
             }
             SqlStatement statement;
             try {
-                statement = SqlStatement.parse(procedure.getStatement(), mysql);
+                statement = SqlStatement.parse(procedure.getStatement(), dialect);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
             }

@@ -280,12 +280,13 @@ public class OperationStepExecutor {
                         // Store call output for lookup references when response is valid JSON.
                         // text() memoizes the body so exposers can still read or forward it.
                         // Binary bodies are never JSON, and reading them as text would replace
-                        // the original bytes with a decoded string, so they are skipped.
+                        // the original bytes with a decoded string, so they are skipped. A
+                        // native tree (SQL rows) is read as is: reparsing its text would round
+                        // its decimals.
                         if (lastResult.hasBody() && !lastResult.operation().isBinary()) {
                             try {
-                                String responseText = lastResult.text();
-                                if (responseText != null) {
-                                    JsonNode rawOutput = mapper.readTree(responseText);
+                                JsonNode rawOutput = stepDocument(lastResult);
+                                if (rawOutput != null) {
                                     JsonNode stepOutput =
                                             resolveStepOutput(lastResult.operation(), rawOutput);
                                     stepContext.storeStepOutput(callStep.getName(), stepOutput);
@@ -479,6 +480,15 @@ public class OperationStepExecutor {
             throw new IllegalArgumentException(
                     "Error resolving request parameters: " + e.getMessage(), e);
         }
+    }
+
+    /** @return the body of a call step's result as a tree, or {@code null} when it has none */
+    private JsonNode stepDocument(ConsumedResult result) throws IOException {
+        if (result.nativeDocument()) {
+            return result.document();
+        }
+        String responseText = result.text();
+        return responseText != null ? mapper.readTree(responseText) : null;
     }
 
     /**
