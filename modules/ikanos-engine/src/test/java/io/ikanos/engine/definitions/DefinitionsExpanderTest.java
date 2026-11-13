@@ -643,6 +643,39 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldBoundASetUsedByManyToolsWithoutCopyingItPastTheBound() throws Exception {
+        // One set of 2,000 entries used by 2,000 tools: 4,000,000 declarations once expanded.
+        int size = 2_000;
+        StringBuilder definitions = new StringBuilder(
+                "definitions:\n  inputParameterSets:\n    wide:\n");
+        for (int i = 0; i < size; i++) {
+            definitions.append("      p").append(i).append(": { type: string }\n");
+        }
+        StringBuilder tools = new StringBuilder();
+        for (int i = 0; i < size; i++) {
+            tools.append("t").append(i).append(":\n")
+                    .append("  description: \"Tool.\"\n")
+                    .append("  inputParameterSets: [wide]\n")
+                    .append("  call: erp.t").append(i).append("\n");
+        }
+        IkanosSpec spec = mcp(definitions.toString(), tools.toString());
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools': its definitions expand to more than "
+                + DefinitionsExpander.MAX_EXPANDED_NODES + " parameter declarations. Expansion"
+                + " is bounded, so that a document cannot multiply itself without limit."),
+                errors);
+        long materialized = 0;
+        for (McpServerToolSpec tool : ((McpServerSpec) spec.getCapability().getExposes().get(0))
+                .getTools().values()) {
+            materialized += tool.getInputParameters().size();
+        }
+        assertTrue(materialized <= DefinitionsExpander.MAX_EXPANDED_NODES,
+                "Set entries are charged before they are copied: " + materialized + " copies");
+    }
+
+    @Test
     void expandAllShouldChargeTheBoundWithTheDeclarationsEmittedOnly() throws Exception {
         // Each level uses the next one twice: one use of s0 emits 2^15 - 1 = 32,767
         // declarations, below the bound, however many times the schemas are checked.

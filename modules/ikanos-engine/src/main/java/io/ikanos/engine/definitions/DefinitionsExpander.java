@@ -16,6 +16,7 @@ package io.ikanos.engine.definitions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -74,9 +75,10 @@ import io.ikanos.spec.util.StructureSpec;
  * beside {@code schema:}, and {@code schema:} in an output that is not orchestrated. Warning: a
  * definition that no unit uses. Each definition's content is checked once, as declared, without
  * expanding it. Expansion is bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per
- * namespace (an inline declaration counts one, a schema use the size of the copy it emits: for
- * an orchestrated output, the size of the output shape it gives, without the branches an output
- * does not declare), so a document cannot multiply itself without limit.</p>
+ * namespace (an inline declaration counts one, a schema use or a set entry the size of the copy
+ * it emits, charged before the copy is made: for an orchestrated output, the size of the output
+ * shape it gives, without the branches an output does not declare), so a document cannot
+ * multiply itself without limit.</p>
  */
 public final class DefinitionsExpander {
 
@@ -206,6 +208,7 @@ public final class DefinitionsExpander {
         private final Set<String> checkedSchemas = new HashSet<>();
         private final Map<String, Long> sizes = new HashMap<>();
         private final Map<String, Long> outputSizes = new HashMap<>();
+        private final Map<InputParameterSpec, Long> entrySizes = new IdentityHashMap<>();
         private long expandedNodes;
         private boolean overBudget;
 
@@ -318,7 +321,16 @@ public final class DefinitionsExpander {
                             continue;
                         }
                         origins.put(param.getName(), setName);
-                        merged.put(param.getName(), copy(param));
+                        if (own.containsKey(param.getName())) {
+                            // Replaced whole by the unit's own entry: nothing to emit.
+                            merged.put(param.getName(), null);
+                            continue;
+                        }
+                        // Charge the copy before making it: past the budget, nothing is copied.
+                        if (!withinBudget(entrySize(param))) {
+                            break;
+                        }
+                        merged.put(param.getName(), instantiateNode(param));
                     }
                 }
             }
@@ -326,10 +338,14 @@ public final class DefinitionsExpander {
             Map<String, InputParameterSpec> expanded = new LinkedHashMap<>();
             for (Map.Entry<String, InputParameterSpec> entry : merged.entrySet()) {
                 String key = entry.getKey();
-                String where = origins.containsKey(key) && !own.containsKey(key)
-                        ? setLocation(origins.get(key), key)
-                        : location + ", input '" + key + "'";
-                expanded.put(key, expandInput(entry.getValue(), where, true));
+                if (own.containsKey(key)) {
+                    expanded.put(key, expandInput(entry.getValue(),
+                            location + ", input '" + key + "'", true));
+                } else {
+                    // A set entry, already expanded and charged; its content is checked once,
+                    // at the set, by finish().
+                    expanded.put(key, entry.getValue());
+                }
             }
             return expanded;
         }
@@ -480,7 +496,18 @@ public final class DefinitionsExpander {
                 }
                 return null;
             }
-            usedSets.add(name);
+            if (usedSets.add(name)) {
+                // Its entries are expanded without resolveSchema: mark their schemas used here.
+                Set<String> references = new LinkedHashSet<>();
+                for (InputParameterSpec param : set.values()) {
+                    collectReferences(param, references);
+                }
+                for (String reference : references) {
+                    if (schemas.containsKey(reference)) {
+                        markUsed(reference);
+                    }
+                }
+            }
             return set;
         }
 
@@ -619,6 +646,14 @@ public final class DefinitionsExpander {
             return name != null && BARE_NAME.matcher(name).matches()
                     && schemas.containsKey(name) && !cyclic.contains(name)
                     && !tooDeep.contains(name);
+        }
+
+        /**
+         * Number of parameter declarations a set entry emits once expanded, computed once per
+         * entry, whatever the number of units that use its set, without materializing it.
+         */
+        private long entrySize(InputParameterSpec param) {
+            return entrySizes.computeIfAbsent(param, this::sizeOf);
         }
 
         /**
