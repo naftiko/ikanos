@@ -516,8 +516,9 @@ rules:
     message: "{{error}}"
     description: >
       A SQL procedure with `readOnly: false` changes data. An exposed MCP tool
-      that reaches it must not claim `hints.readOnly: true`, an MCP resource
-      must not reach it, a REST operation that reaches it must not use GET or
+      that reaches it must not claim `hints.readOnly: true`, nor inherit it
+      from the `hints` of its MCP exposes block, an MCP resource must not
+      reach it, a REST operation that reaches it must not use GET or
       HEAD, and an aggregate flow that reaches it must not declare
       `semantics.safe: true`: agents and clients rely on those claims to call
       without asking. A target reaches a procedure through its `call`, its

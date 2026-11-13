@@ -1,0 +1,67 @@
+# Spectral fixture — SQL write tools that inherit readOnly from the MCP exposes block.
+# The MCP exposes block declares `hints: { readOnly: true }` as the default of
+# every tool, and the tools below declare no readOnly of their own, so each
+# resolves readOnly: true.
+# MUST FIRE ikanos-sql-write-exposure (warn) three times:
+#   - a tool with no hints that calls the write
+#   - a tool whose hints set another field only, reaching the write in a step
+#   - a tool reaching the write through `ref` to a flow without semantics
+# MUST NOT FIRE on the tool that calls the read procedure.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL rules — writes inheriting readOnly"
+  description: "Fixture where SQL write tools inherit readOnly true from the MCP exposes block."
+capability:
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        get-order:
+          description: Reads one order.
+          statement: select id, status from orders where id = :id
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            rows: { type: array, value: "$.rows" }
+        mark-shipped:
+          description: Marks one paid order as shipped.
+          readOnly: false
+          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            updated: { type: number, value: "$.rowCount" }
+  aggregates:
+    - display: Orders
+      namespace: orders
+      flows:
+        settle:
+          description: Settles one order.
+          call: erp.mark-shipped
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      hints: { readOnly: true }
+      tools:
+        get-order:
+          description: Reads an order.
+          call: erp.get-order
+        ship:
+          description: Ships an order.
+          call: erp.mark-shipped
+        ship-again:
+          description: Ships an order in a step.
+          hints: { idempotent: true }
+          steps:
+            ship:
+              type: call
+              call: erp.mark-shipped
+        settle:
+          description: Settles an order through a flow.
+          ref: orders.settle

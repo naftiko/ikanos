@@ -21,7 +21,8 @@
  *   `storedProcedure`.
  * - `exposure` (`ikanos-sql-write-exposure`): a procedure with
  *   `readOnly: false` is not reached by an MCP tool claiming
- *   `hints.readOnly: true`, an MCP resource, a REST GET or HEAD operation, or
+ *   `hints.readOnly: true`, or inheriting it from the `hints` of its MCP
+ *   exposes block, an MCP resource, a REST GET or HEAD operation, or
  *   an aggregate flow declaring `semantics.safe: true`. A target reaches a
  *   procedure through its `call`, its steps' `call`, its `ref`, and any flow
  *   those name, followed transitively.
@@ -189,10 +190,18 @@ function checkExposure(targetVal) {
     if (adapter.type === "mcp" && isObject(adapter.tools)) {
       for (const [name, tool] of Object.entries(adapter.tools)) {
         const write = writeReached(tool, writes, flows);
-        if (write && isObject(tool.hints) && tool.hints.readOnly === true) {
+        if (!write) {
+          continue;
+        }
+        if (isObject(tool) && isObject(tool.hints) && tool.hints.readOnly === true) {
           results.push({
             message: "MCP tool '" + name + "' claims hints.readOnly: true but calls SQL write procedure '" + write + "'.",
             path: [...base, "tools", name, "hints", "readOnly"],
+          });
+        } else if (inheritsReadOnly(tool, adapter, capability)) {
+          results.push({
+            message: "MCP tool '" + name + "' inherits hints.readOnly: true from its exposes block but calls SQL write procedure '" + write + "'; declare hints.readOnly: false on the tool.",
+            path: [...base, "tools", name],
           });
         }
       }
@@ -238,6 +247,46 @@ function checkExposure(targetVal) {
     }
   }
   return results;
+}
+
+/**
+ * Whether an MCP tool resolves `readOnly: true` from the server's default `hints`, as
+ * McpServerSpec.resolveToolHints does: the tool's own `readOnly` wins; a tool declaring
+ * `destructive: true` without `readOnly` resolves to false; for a `ref` tool, a flow declaring
+ * `semantics.safe` decides (a safe flow that writes is reported on the flow); otherwise the
+ * exposes block's `hints.readOnly` applies.
+ */
+function inheritsReadOnly(tool, adapter, capability) {
+  if (!isObject(adapter.hints) || adapter.hints.readOnly !== true) {
+    return false;
+  }
+  const hints = isObject(tool) && isObject(tool.hints) ? tool.hints : {};
+  if (typeof hints.readOnly === "boolean" || hints.destructive === true) {
+    return false;
+  }
+  if (isObject(tool) && typeof tool.ref === "string") {
+    const flow = flowNamed(capability, tool.ref);
+    if (flow && isObject(flow.semantics) && typeof flow.semantics.safe === "boolean") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** The aggregate flow a `<aggregate namespace>.<flow name>` reference names, or null. */
+function flowNamed(capability, ref) {
+  const aggregates = Array.isArray(capability.aggregates) ? capability.aggregates : [];
+  for (const aggregate of aggregates) {
+    if (!isObject(aggregate) || !isObject(aggregate.flows)) {
+      continue;
+    }
+    for (const [name, flow] of Object.entries(aggregate.flows)) {
+      if (aggregate.namespace + "." + name === ref && isObject(flow)) {
+        return flow;
+      }
+    }
+  }
+  return null;
 }
 
 function checkPositions(namespace, name, procedure, path, dialect, results) {
