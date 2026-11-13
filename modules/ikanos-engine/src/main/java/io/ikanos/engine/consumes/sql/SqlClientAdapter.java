@@ -796,37 +796,42 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Look up a stored procedure, or a function, by its last name part. A qualified name is read
-     * as {@code schema.proc} and {@code catalog.schema.proc}. On Oracle it is also read as
+     * Look up a stored procedure, or a function, by its last name part. A qualified name is read as
+     * {@code schema.proc} and {@code catalog.schema.proc}. On Oracle it is also read as
      * {@code package.proc} and {@code schema.package.proc}, where the Oracle driver takes the
-     * package as the catalog, and on MySQL and MariaDB as {@code database.proc}, where the
-     * driver takes the database as the catalog. Other databases read a qualifier as a schema,
-     * so the other readings would accept a name their call cannot reach. Unquoted names are stored upper case by some databases (Oracle,
-     * HSQLDB) and lower case by others (PostgreSQL), so each case is tried. {@code _} and
-     * {@code %} are escaped, since the metadata calls take patterns. A driver that does not
-     * support {@code getFunctions} is only asked for procedures.
+     * package as the catalog, and on MySQL and MariaDB as {@code database.proc}, the database read as a
+     * catalog or a schema as their driver's {@code databaseTerm} says. Other databases read a
+     * qualifier as a schema, so the other readings would accept a name their call cannot reach.
+     * Unquoted names are stored upper case by some databases (Oracle, HSQLDB) and lower case by
+     * others (PostgreSQL), so each case is tried. {@code _} and {@code %} are escaped, since the
+     * metadata calls take patterns. A driver that does not support {@code getFunctions} is only
+     * asked for procedures.
      */
     static String checkStored(DatabaseMetaData catalog, Procedure procedure, String system) {
         String[] parts = procedure.spec().getStoredProcedure().trim().split("\\.");
         String name = parts[parts.length - 1];
         boolean oracle = "oracle".equals(system);
-        boolean qualifierIsCatalog = oracle || "mysql".equals(system) || "mariadb".equals(system);
-        // {catalog, schema} readings of the qualifier
-        List<String[]> readings = new ArrayList<>();
-        if (parts.length == 1) {
-            readings.add(new String[] {null, null});
-        } else if (parts.length == 2) {
-            readings.add(new String[] {null, parts[0]});
-            if (qualifierIsCatalog) {
-                readings.add(new String[] {parts[0], null});
-            }
-        } else {
-            readings.add(new String[] {parts[0], parts[1]});
-            if (oracle) {
-                readings.add(new String[] {parts[1], parts[0]});
-            }
-        }
+        boolean mysql = "mysql".equals(system) || "mariadb".equals(system);
         try {
+            // {catalog, schema} readings of the qualifier. MySQL and MariaDB call a database
+            // either a catalog or a schema (databaseTerm) and ignore the other argument, so only
+            // the one their driver uses is read: the other would match any database.
+            List<String[]> readings = new ArrayList<>();
+            if (parts.length == 1) {
+                readings.add(new String[] {null, null});
+            } else if (parts.length == 2) {
+                if (!mysql || catalog.supportsSchemasInProcedureCalls()) {
+                    readings.add(new String[] {null, parts[0]});
+                }
+                if (oracle || (mysql && catalog.supportsCatalogsInProcedureCalls())) {
+                    readings.add(new String[] {parts[0], null});
+                }
+            } else {
+                readings.add(new String[] {parts[0], parts[1]});
+                if (oracle) {
+                    readings.add(new String[] {parts[1], parts[0]});
+                }
+            }
             String escape = catalog.getSearchStringEscape();
             boolean functions = true;
             for (UnaryOperator<String> caseOf : NAME_CASES) {

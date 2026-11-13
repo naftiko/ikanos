@@ -216,6 +216,10 @@ class SqlDiscoveryTest {
                     switch (method.getName()) {
                         case "getSearchStringEscape":
                             return "\\";
+                        case "supportsCatalogsInProcedureCalls":
+                            return true; // MySQL's default databaseTerm=CATALOG
+                        case "supportsSchemasInProcedureCalls":
+                            return false;
                         case "getFunctions":
                             if (!functions) {
                                 throw new SQLFeatureNotSupportedException("no functions");
@@ -257,6 +261,14 @@ class SqlDiscoveryTest {
     @Test
     void checkStoredShouldReadAQualifierAsAMysqlDatabase() throws Exception {
         assertNull(SqlClientAdapter.checkStored(catalogListing("ERP", null, true),
+                storedNamed("erp.get_name"), "mysql"));
+    }
+
+    @Test
+    void checkStoredShouldNotReadAMysqlDatabaseAsTheSchemaItsDriverIgnores() throws Exception {
+        // Connector/J ignores the schema argument under databaseTerm=CATALOG, so a schema
+        // reading would list get_name from any database
+        assertNotNull(SqlClientAdapter.checkStored(catalogListing(null, "ERP", true),
                 storedNamed("erp.get_name"), "mysql"));
     }
 
