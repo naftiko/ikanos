@@ -52,6 +52,8 @@ public abstract class ServerSpec {
 
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
 
+    private final AtomicReference<AuthorizationSpec> authorization = new AtomicReference<>();
+
     /** How many requests the adapter works on at once, or null for the engine's default (#920). */
     private final AtomicReference<Integer> maxRequestsInProgress = new AtomicReference<>();
 
@@ -166,6 +168,19 @@ public abstract class ServerSpec {
 
     public void setAuthentication(AuthenticationSpec authentication) {
         this.authentication.set(authentication);
+    }
+
+    /**
+     * @return the scopes or claims a call must carry ({@code authorization}), or {@code null} when
+     *         this level declares none.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public AuthorizationSpec getAuthorization() {
+        return authorization.get();
+    }
+
+    public void setAuthorization(AuthorizationSpec authorization) {
+        this.authorization.set(authorization);
     }
 
     public Integer getMaxRequestsInProgress() {

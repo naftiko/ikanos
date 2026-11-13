@@ -33,6 +33,7 @@ import io.ikanos.engine.consumes.http.IkanosHttpClientHelper;
 import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.ResourceHandler;
 import io.ikanos.engine.observability.OtelRestletBridge;
@@ -127,7 +128,11 @@ public class ResourceRestlet extends Restlet {
             boolean handled = handleFromOperationSpec(request, response);
 
             if (!handled && getResourceSpec().getForward() != null) {
-                handled = handleFromForwardSpec(request, response);
+                // A forwarded call has no operation: the resource's (else adapter's) authorization
+                handled = !AccessControl.enforce(
+                        AccessControl.effective(getServerSpec(), getResourceSpec(), null),
+                        request, response)
+                        || handleFromForwardSpec(request, response);
             }
 
             if (!handled) {
@@ -177,6 +182,14 @@ public class ResourceRestlet extends Restlet {
         for (RestServerOperationSpec serverOp : getResourceSpec().getOperations().values()) {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
+
+                // Refuse a token that lacks the operation's scopes or claims before reading any
+                // input or calling any upstream (#999)
+                if (!AccessControl.enforce(
+                        AccessControl.effective(getServerSpec(), getResourceSpec(), serverOp),
+                        request, response)) {
+                    return true;
+                }
 
                 // Build request-scoped input parameter map (resource + operation). A value that
                 // does not match its declared type is the caller's error.
