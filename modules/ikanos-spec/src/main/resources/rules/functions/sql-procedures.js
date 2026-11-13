@@ -19,10 +19,17 @@
  *   `outParameters` are unique and contiguous from 1, an `INOUT` parameter
  *   taking the same position in both; `outParameters` only appear with a
  *   `storedProcedure`.
+ * - `exposure` (`ikanos-sql-write-exposure`): a procedure with
+ *   `readOnly: false` is not called by an MCP tool claiming
+ *   `hints.readOnly: true`, a REST GET or HEAD operation, or an aggregate flow
+ *   declaring `semantics.safe: true`.
  */
 export default function sqlProcedures(targetVal, opts) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
+  }
+  if (opts && opts.check === "exposure") {
+    return checkExposure(targetVal);
   }
   const check = opts && opts.check === "positions" ? checkPositions : checkPlaceholders;
   const results = [];
@@ -62,6 +69,97 @@ function dialectOf(adapter) {
     mysql: name === "mysql" || name === "mariadb",
     sqlite: name === "sqlite",
   };
+}
+
+function writeProcedures(targetVal) {
+  const writes = new Set();
+  const collect = (consumes) => {
+    if (!Array.isArray(consumes)) {
+      return;
+    }
+    for (const adapter of consumes) {
+      if (!adapter || adapter.type !== "sql" || !isObject(adapter.procedures)) {
+        continue;
+      }
+      for (const [name, procedure] of Object.entries(adapter.procedures)) {
+        if (isObject(procedure) && procedure.readOnly === false) {
+          writes.add(adapter.namespace + "." + name);
+        }
+      }
+    }
+  };
+  collect(targetVal.consumes);
+  if (isObject(targetVal.capability)) {
+    collect(targetVal.capability.consumes);
+  }
+  return writes;
+}
+
+function checkExposure(targetVal) {
+  const writes = writeProcedures(targetVal);
+  const results = [];
+  if (writes.size === 0 || !isObject(targetVal.capability)) {
+    return results;
+  }
+  const capability = targetVal.capability;
+  const exposes = Array.isArray(capability.exposes) ? capability.exposes : [];
+  exposes.forEach((adapter, index) => {
+    if (!isObject(adapter)) {
+      return;
+    }
+    const base = ["capability", "exposes", index];
+    if (adapter.type === "mcp" && isObject(adapter.tools)) {
+      for (const [name, tool] of Object.entries(adapter.tools)) {
+        if (isObject(tool) && writes.has(tool.call) && isObject(tool.hints)
+            && tool.hints.readOnly === true) {
+          results.push({
+            message: "MCP tool '" + name + "' claims hints.readOnly: true but calls SQL write procedure '" + tool.call + "'.",
+            path: [...base, "tools", name, "hints", "readOnly"],
+          });
+        }
+      }
+    }
+    if (adapter.type === "rest" && isObject(adapter.resources)) {
+      for (const [resourceName, resource] of Object.entries(adapter.resources)) {
+        const operations = isObject(resource) && isObject(resource.operations) ? resource.operations : {};
+        for (const [name, operation] of Object.entries(operations)) {
+          const method = isObject(operation) && typeof operation.method === "string"
+            ? operation.method.toUpperCase() : "";
+          if (writes.has(operation.call) && (method === "GET" || method === "HEAD")) {
+            results.push({
+              message: "REST operation '" + name + "' uses " + method + " but calls SQL write procedure '" + operation.call + "'.",
+              path: [...base, "resources", resourceName, "operations", name, "method"],
+            });
+          }
+        }
+      }
+    }
+  });
+  const aggregates = Array.isArray(capability.aggregates) ? capability.aggregates : [];
+  aggregates.forEach((aggregate, index) => {
+    const flows = isObject(aggregate) && isObject(aggregate.flows) ? aggregate.flows : {};
+    for (const [name, flow] of Object.entries(flows)) {
+      if (!isObject(flow) || !isObject(flow.semantics) || flow.semantics.safe !== true) {
+        continue;
+      }
+      const calls = [flow.call];
+      if (isObject(flow.steps)) {
+        for (const step of Object.values(flow.steps)) {
+          if (isObject(step)) {
+            calls.push(step.call);
+          }
+        }
+      }
+      const write = calls.find((call) => writes.has(call));
+      if (write) {
+        results.push({
+          message: "Aggregate flow '" + name + "' declares semantics.safe: true but calls SQL write procedure '" + write + "'.",
+          path: ["capability", "aggregates", index, "flows", name, "semantics", "safe"],
+        });
+      }
+    }
+  });
+  return results;
 }
 
 function checkPositions(namespace, name, procedure, path, dialect, results) {

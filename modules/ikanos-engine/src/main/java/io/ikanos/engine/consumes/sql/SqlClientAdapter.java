@@ -83,11 +83,14 @@ public class SqlClientAdapter extends ClientAdapter {
      * @param positions the position of each entry of {@code inputs}
      * @param outs the {@code OUT} and {@code INOUT} parameters, by position
      * @param view the output declarations
-     * @param operation the span operation: {@code SELECT} or {@code CALL}
+     * @param operation the span operation: {@code SELECT}, {@code CALL}, or the write keyword
+     * @param readOnly whether the procedure only reads; {@code false} runs it in a transaction
+     * @param generatedKeys whether to ask the driver for the keys an {@code INSERT} generates
      */
     record Procedure(String name, SqlProcedureSpec spec, SqlStatement statement, String jdbcSql,
             List<InputParameterSpec> inputs, List<Integer> positions,
-            List<SqlOutParameterSpec> outs, ConsumedOperationView view, String operation) {
+            List<SqlOutParameterSpec> outs, ConsumedOperationView view, String operation,
+            boolean readOnly, boolean generatedKeys) {
 
         boolean isStored() {
             return statement == null;
@@ -158,9 +161,10 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where
                         + " requires exactly one of statement and storedProcedure");
             }
-            if (Boolean.FALSE.equals(procedure.getReadOnly())) {
+            if (procedure.getMaxAffectedRows() != null
+                    && !Boolean.FALSE.equals(procedure.getReadOnly())) {
                 throw new IllegalArgumentException(where
-                        + " declares readOnly: false; write procedures are not supported yet");
+                        + " declares maxAffectedRows, which only applies with readOnly: false");
             }
             procedure.getInputParameters()
                     .forEach(input -> SqlBind.targetType(input, where));
@@ -183,10 +187,20 @@ public class SqlClientAdapter extends ClientAdapter {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
         }
-        String nonRead = statement.nonReadKeyword();
-        if (nonRead != null) {
-            throw new IllegalArgumentException(where + " must read (SELECT, WITH or VALUES);"
-                    + " it uses " + nonRead);
+        boolean readOnly = !Boolean.FALSE.equals(procedure.getReadOnly());
+        String operation = "SELECT";
+        if (readOnly) {
+            String nonRead = statement.nonReadKeyword();
+            if (nonRead != null) {
+                throw new IllegalArgumentException(where + " must read (SELECT, WITH or VALUES)"
+                        + " unless it declares readOnly: false; it uses " + nonRead);
+            }
+        } else {
+            try {
+                operation = statement.writeOperation();
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
+            }
         }
         java.util.Set<String> declared = new java.util.HashSet<>();
         for (InputParameterSpec input : procedure.getInputParameters()) {
@@ -195,6 +209,10 @@ public class SqlClientAdapter extends ClientAdapter {
                         + placeholderOf(input) + "' on two inputs");
             }
         }
+        // A RETURNING (PostgreSQL, Oracle) or OUTPUT (SQL Server) clause returns rows itself
+        boolean generatedKeys = ("INSERT".equals(operation) || "MERGE".equals(operation))
+                && !statement.keywords().contains("RETURNING")
+                && !statement.keywords().contains("OUTPUT");
         List<InputParameterSpec> inputs = new ArrayList<>();
         List<Integer> positions = new ArrayList<>();
         for (String placeholder : statement.placeholders()) {
@@ -208,7 +226,8 @@ public class SqlClientAdapter extends ClientAdapter {
         }
         return new Procedure(procedure.getName(), procedure, statement, statement.jdbcSql(),
                 List.copyOf(inputs), List.copyOf(positions), List.of(),
-                ConsumedOperationView.of(procedure, null, null), "SELECT");
+                ConsumedOperationView.of(procedure, null, null), operation, readOnly,
+                generatedKeys);
     }
 
     /**
@@ -275,7 +294,8 @@ public class SqlClientAdapter extends ClientAdapter {
         return new Procedure(procedure.getName(), procedure, null, call.toString(),
                 List.copyOf(inputsByPosition.values()), List.copyOf(inputsByPosition.keySet()),
                 List.copyOf(outsByPosition.values()),
-                ConsumedOperationView.of(procedure, null, null), "CALL");
+                ConsumedOperationView.of(procedure, null, null), "CALL",
+                procedure.getReadOnly(), false);
     }
 
     /** @return the input whose placeholder (or, without one, whose key) is {@code name} */
@@ -338,6 +358,9 @@ public class SqlClientAdapter extends ClientAdapter {
         if (current == null) {
             throw new IllegalStateException("consumes type sql '" + getNamespace()
                     + "' is not started");
+        }
+        if (!procedure.readOnly()) {
+            return executeWrite(current, procedure, binds);
         }
         try (Connection connection = current.getConnection()) {
             return read(connection, procedure, binds);
@@ -417,9 +440,7 @@ public class SqlClientAdapter extends ClientAdapter {
 
     private ConsumedResult readStatement(Connection connection, Procedure procedure,
             List<SqlBind> binds) throws SQLException {
-        try (PreparedStatement statement = procedure.isStored()
-                ? connection.prepareCall(procedure.jdbcSql())
-                : connection.prepareStatement(procedure.jdbcSql())) {
+        try (PreparedStatement statement = prepare(connection, procedure)) {
             statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
             if (procedure.spec().getFetchSize() != null) {
                 statement.setFetchSize(procedure.spec().getFetchSize());
@@ -474,6 +495,125 @@ public class SqlClientAdapter extends ClientAdapter {
             resultSet = statement.getMoreResults();
         }
         return resultSet;
+    }
+
+    /**
+     * Run one write call as one transaction: commit when it succeeds, roll back on any error, and
+     * roll back when it changed more rows than {@code maxAffectedRows}. The engine never retries.
+     */
+    ConsumedResult executeWrite(HikariDataSource current, Procedure procedure,
+            List<SqlBind> binds) {
+        try (Connection connection = current.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                ConsumedResult result = runWrite(connection, procedure, binds);
+                if (result.isSuccessful()) {
+                    connection.commit();
+                } else {
+                    connection.rollback();
+                }
+                return result;
+            } catch (SQLException | RuntimeException e) {
+                rollback(connection, procedure);
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            log(procedure, e);
+            return SqlConsumedResult.failure(procedure.view(), e);
+        } catch (SqlClientException e) {
+            LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
+                    + " failed: " + e.getMessage());
+            return SqlConsumedResult.failure(procedure.view(), e);
+        }
+    }
+
+    private ConsumedResult runWrite(Connection connection, Procedure procedure,
+            List<SqlBind> binds) throws SQLException {
+        try (PreparedStatement statement = prepare(connection, procedure)) {
+            statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            for (SqlBind bind : binds) {
+                bind.bind(statement);
+            }
+            if (statement instanceof CallableStatement call) {
+                registerOuts(call, procedure);
+            }
+            // Walk every result: the first result set (RETURNING, OUTPUT, a procedure's rows)
+            // becomes the rows, and the update counts add up to the rows changed
+            ObjectNode document = null;
+            long changed = 0;
+            boolean counted = false;
+            boolean resultSet = statement.execute();
+            while (true) {
+                if (resultSet) {
+                    try (ResultSet rows = statement.getResultSet()) {
+                        if (document == null) {
+                            document = SqlRowDocument.read(rows);
+                        }
+                    }
+                } else {
+                    int count = statement.getUpdateCount();
+                    if (count == -1) {
+                        break;
+                    }
+                    changed += count;
+                    counted = true;
+                }
+                resultSet = statement.getMoreResults();
+            }
+            if (document == null) {
+                document = SqlRowDocument.empty();
+            }
+            long rowCount = counted ? changed : document.get(SqlRowDocument.ROW_COUNT).asLong();
+            document.put(SqlRowDocument.ROW_COUNT, rowCount);
+            Integer max = procedure.spec().getMaxAffectedRows();
+            if (max != null && rowCount > max) {
+                LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
+                        + " would change " + rowCount + " rows, more than maxAffectedRows " + max
+                        + "; rolled back");
+                return SqlConsumedResult.tooManyRows(procedure.view(), rowCount, max);
+            }
+            if (procedure.generatedKeys()) {
+                try (ResultSet keys = statement.getGeneratedKeys()) {
+                    document.set(SqlRowDocument.GENERATED_KEYS,
+                            SqlRowDocument.read(keys).get(SqlRowDocument.ROWS));
+                } catch (SQLException noKeys) {
+                    LOGGER.log(Level.FINE, "No generated keys for SQL procedure {0}",
+                            procedure.name());
+                }
+            }
+            if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
+                ObjectNode out = document.putObject(SqlRowDocument.OUT);
+                for (SqlOutParameterSpec param : procedure.outs()) {
+                    out.set(param.getName(), SqlRowDocument.value(
+                            call.getObject(param.getPosition()), param.getName()));
+                }
+            }
+            return SqlConsumedResult.success(procedure.view(), document);
+        }
+    }
+
+    private void rollback(Connection connection, Procedure procedure) {
+        try {
+            connection.rollback();
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING, "Rollback failed for SQL procedure " + getNamespace() + "."
+                    + procedure.name(), e);
+        }
+    }
+
+    /** Prepare the statement or the stored-procedure call of a procedure. */
+    static PreparedStatement prepare(Connection connection, Procedure procedure)
+            throws SQLException {
+        if (procedure.isStored()) {
+            return connection.prepareCall(procedure.jdbcSql());
+        }
+        if (procedure.generatedKeys()) {
+            return connection.prepareStatement(procedure.jdbcSql(),
+                    java.sql.Statement.RETURN_GENERATED_KEYS);
+        }
+        return connection.prepareStatement(procedure.jdbcSql());
     }
 
     private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {

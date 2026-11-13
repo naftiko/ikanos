@@ -638,6 +638,23 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void sqlWriteStatementRuleShouldFireForATruncate() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-write-statement"),
+            "Expected ikanos-sql-write-statement on empty-orders." + System.lineSeparator()
+                + result.output());
+    }
+
+    @Test
+    public void sqlWriteExposureRuleShouldFireForAReadOnlyToolAndARestGet() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-violations.yaml",
+            "warn");
+        assertEquals(2, findings(result, "ikanos-sql-write-exposure"),
+            "Expected ikanos-sql-write-exposure on the MCP tool and the REST GET."
+                + System.lineSeparator() + result.output());
+    }
+
+    @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
         ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-compliant.yaml",
             "info");

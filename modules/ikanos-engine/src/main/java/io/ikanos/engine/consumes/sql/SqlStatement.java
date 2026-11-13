@@ -150,6 +150,56 @@ final class SqlStatement {
         return null;
     }
 
+    /** Keywords that start a statement that writes rows. */
+    static final Set<String> WRITE_STARTS = Set.of("INSERT", "UPDATE", "DELETE", "MERGE");
+
+    /**
+     * Classify a statement declared {@code readOnly: false}.
+     *
+     * <p>It must start with {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE}, or be
+     * a {@code WITH} that runs one of them. Anything else is refused, which keeps out DDL
+     * ({@code CREATE}, {@code ALTER}, {@code DROP}), {@code TRUNCATE}, grants, maintenance
+     * ({@code VACUUM}, {@code ANALYZE}, {@code REINDEX}) and procedure calls, which belong in
+     * {@code storedProcedure}. An {@code UPDATE} or {@code DELETE} must be followed by a
+     * {@code WHERE}: without one it changes every row. A {@code MERGE} branch
+     * ({@code THEN UPDATE}), MySQL's {@code ON DUPLICATE KEY UPDATE} and a locking
+     * {@code FOR UPDATE} are not statements of their own and need none.</p>
+     *
+     * @return the write operation, such as {@code UPDATE}, for the span
+     * @throws IllegalArgumentException naming the keyword that is refused
+     */
+    String writeOperation() {
+        String first = firstKeyword();
+        String operation = WRITE_STARTS.contains(first) ? first : null;
+        if (operation == null && "WITH".equals(first)) {
+            for (int i = 1; i < keywords.size() && operation == null; i++) {
+                if (WRITE_STARTS.contains(keywords.get(i)) && !isClause(i)) {
+                    operation = keywords.get(i);
+                }
+            }
+        }
+        if (operation == null) {
+            throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
+                    + " or MERGE (or a WITH that runs one); it starts with "
+                    + (first.isEmpty() ? "nothing" : first));
+        }
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
+            if (("UPDATE".equals(keyword) || "DELETE".equals(keyword)) && !isClause(i)
+                    && !keywords.subList(i + 1, keywords.size()).contains("WHERE")) {
+                throw new IllegalArgumentException(keyword
+                        + " without WHERE would change every row; add a WHERE clause");
+            }
+        }
+        return operation;
+    }
+
+    /** @return whether the keyword at {@code i} is a clause of another statement, not its own */
+    private boolean isClause(int i) {
+        String previous = i > 0 ? keywords.get(i - 1) : "";
+        return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous);
+    }
+
     /**
      * Parse an authored statement.
      *

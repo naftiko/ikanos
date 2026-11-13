@@ -93,6 +93,16 @@ final class SqlConsumedResult implements ConsumedResult {
         return new SqlConsumedResult(operation, null, 502, reason(502), e);
     }
 
+    /**
+     * A write that would change more rows than its {@code maxAffectedRows}: 409, rolled back, so
+     * nothing changed.
+     */
+    static SqlConsumedResult tooManyRows(ConsumedOperationView operation, long changed, int max) {
+        return new SqlConsumedResult(operation, null, 409,
+                "The call would change more rows than allowed", new SqlClientException(
+                        "would change " + changed + " rows, more than maxAffectedRows " + max));
+    }
+
     static int status(SQLException e) {
         String state = e.getSQLState();
         if (e instanceof SQLTimeoutException || "57014".equals(state)) {

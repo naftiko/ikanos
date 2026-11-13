@@ -7,6 +7,9 @@
 #   - ikanos-sql-stored-procedure-parameters, twice: one gap at position 2
 #       (positions 1 and 100000: the first gap only), and outParameters on a
 #       statement
+#   - ikanos-sql-write-statement (a TRUNCATE declared readOnly: false)
+#   - ikanos-sql-write-exposure (warn), twice: an MCP tool claiming
+#       readOnly and a REST GET, both calling a write procedure
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — violations"
@@ -47,6 +50,18 @@ capability:
             total: { position: 1, sqlType: DECIMAL }
           outputParameters:
             total: { type: number, value: "$.rows[0].total" }
+        empty-orders:
+          description: Not a row change.
+          readOnly: false
+          statement: truncate table orders
+        mark-shipped:
+          description: Marks one paid order as shipped.
+          readOnly: false
+          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            updated: { type: number, value: "$.rowCount" }
   exposes:
     - type: mcp
       namespace: erp-mcp
@@ -56,3 +71,22 @@ capability:
           description: One customer by id.
           hints: { readOnly: true }
           call: erp.get-customer
+        mark-shipped:
+          description: Marks one order as shipped.
+          hints: { readOnly: true }
+          call: erp.mark-shipped
+    - type: rest
+      namespace: erp-rest
+      port: 3002
+      resources:
+        orders:
+          path: /orders/{id}/ship
+          description: Ship an order.
+          operations:
+            ship:
+              method: GET
+              call: erp.mark-shipped
+              inputParameters:
+                id: { in: path, type: string, description: Order id }
+              with:
+                id: "{{id}}"

@@ -123,6 +123,43 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldNameTheWriteOfADataModifyingCte() {
+        assertEquals("DELETE", SqlStatement
+                .parse("with d as (delete from t where id = :id returning *) select * from d")
+                .writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnUpsertWhoseUpdateIsAClause() {
+        assertEquals("INSERT", SqlStatement.parse(
+                "insert into t (id, n) values (:id, 1) on duplicate key update n = n + 1")
+                .writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAWithThatOnlyReads() {
+        assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("with x as (select 1) select * from x").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAnUpdateInACteWithoutWhere() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("with u as (update t set n = 0 returning *) select 1")
+                        .writeOperation());
+
+        assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldRefuseACallToAProcedure() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("call settle_invoices()").writeOperation());
+
+        assertTrue(e.getMessage().contains("CALL"), e.getMessage());
+    }
+
+    @Test
     void nonReadKeywordShouldIgnoreKeywordsInLiteralsAndOrdinaryColumns() {
         assertNull(SqlStatement
                 .parse("select comment, replace(name, 'a', 'b'), 'delete' from t")

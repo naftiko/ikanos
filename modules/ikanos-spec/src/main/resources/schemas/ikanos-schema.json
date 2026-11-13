@@ -3129,7 +3129,7 @@
     },
     "ConsumedSqlProcedure": {
       "type": "object",
-      "description": "One SQL procedure: either a `statement` or a `storedProcedure`. A `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables. It must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only. A `storedProcedure` is called by name, with inputs bound by `position` and `outParameters` registered as `OUT`; it must declare `readOnly`.",
+      "description": "One SQL procedure: either a `statement` or a `storedProcedure`. A `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables, and it holds one statement only. It reads (`SELECT`, `WITH` or `VALUES`) unless it declares `readOnly: false`, which lets it write (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, or a `WITH` that does) in one transaction per call; DDL, `TRUNCATE`, grants and maintenance are never accepted, nor an `UPDATE` or `DELETE` without `WHERE`. A `storedProcedure` is called by name, with inputs bound by `position` and `outParameters` registered as `OUT`; it must declare `readOnly`.",
       "properties": {
         "display": {
           "type": "string",
@@ -3157,8 +3157,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "const": true,
-          "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say: `true` runs it on a read-only connection where the driver supports it. `false` is not supported yet."
+          "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say. `true` runs on a read-only connection where the driver supports it. `false` lets the procedure write: each call is one transaction, committed on success and rolled back on any error. The engine never retries a call."
         },
         "outParameters": {
           "type": "object",
@@ -3185,7 +3184,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/ConsumedOutputParameter"
           },
-          "description": "Values extracted with JsonPath from the row document `{rows, out, rowCount}`, such as `$.rows[0].name`, `$.rows` or `$.out.balance`."
+          "description": "Values extracted with JsonPath from the row document `{rows, out, rowCount, generatedKeys}`, such as `$.rows[0].name`, `$.out.balance`, or, for a write, `$.rowCount` (rows changed) and `$.generatedKeys[0].id`."
         },
         "timeoutMs": {
           "type": "integer",
@@ -3196,6 +3195,11 @@
           "type": "integer",
           "minimum": 1,
           "description": "JDBC fetch size hint: how many rows the driver reads per round trip."
+        },
+        "maxAffectedRows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Write procedures only: the most rows one call may change. Past it, the call rolls back and fails with 409, so nothing changes."
         }
       },
       "required": [

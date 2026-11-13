@@ -49,6 +49,7 @@ final class SqlRowDocument {
     static final String ROWS = "rows";
     static final String ROW_COUNT = "rowCount";
     static final String OUT = "out";
+    static final String GENERATED_KEYS = "generatedKeys";
 
     /** Reads JSON columns; decimals inside them keep their precision, as NUMERIC columns do. */
     private static final ObjectMapper JSON = IkanosMappers.jsonBuilder()
