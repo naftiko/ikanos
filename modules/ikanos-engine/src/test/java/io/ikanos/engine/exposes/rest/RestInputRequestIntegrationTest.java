@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -160,6 +161,29 @@ public class RestInputRequestIntegrationTest {
                       book-through-a-call:
                         description: Book and ask through the flow that does, as its call.
                         call: departure.book-then-confirm
+                      confirm-twice:
+                        description: Ask to confirm a departure, then to confirm it again.
+                        steps:
+                          first:
+                            type: elicit
+                            message: Confirm the departure?
+                            fields:
+                              confirmed:
+                                type: boolean
+                                description: Whether the departure is confirmed
+                          second:
+                            type: elicit
+                            message: Confirm it again?
+                            fields:
+                              confirmed:
+                                type: boolean
+                                description: Whether the departure is confirmed again
+                        mappings:
+                        - target: confirmed
+                          value: $.second.confirmed
+                        outputParameters:
+                          confirmed:
+                            type: boolean
                       confirm-through-a-call:
                         description: Ask through the flow that asks.
                         steps:
@@ -190,6 +214,12 @@ public class RestInputRequestIntegrationTest {
                           called:
                             method: POST
                             ref: departure.book-through-a-call
+                      twice:
+                        path: /twice
+                        operations:
+                          twice:
+                            method: POST
+                            ref: departure.confirm-twice
                       nested:
                         path: /nested
                         operations:
@@ -329,6 +359,29 @@ public class RestInputRequestIntegrationTest {
         Response again = send(adapter, Method.GET, location, null);
         assertEquals(Status.SUCCESS_OK, again.getStatus(), "GET returns the recorded response");
         assertEquals(1, bookings.get());
+    }
+
+    @Test
+    void getOnAnEarlierRoundsLocationShouldReturnALocationThatAnswersTheCurrentRound()
+            throws Exception {
+        RestServerAdapter adapter = rest(load(MEMORY));
+        Response first = send(adapter, Method.POST, "/twice", null);
+        String firstLocation = first.getLocationRef().getPath();
+        Response second = send(adapter, Method.POST, firstLocation, answer(first, "accept"));
+        assertEquals(Status.SUCCESS_ACCEPTED, second.getStatus());
+
+        // The client lost the second response and recovers it from the first Location.
+        Response recovered = send(adapter, Method.GET, firstLocation, null);
+
+        assertEquals(Status.SUCCESS_ACCEPTED, recovered.getStatus());
+        assertEquals("Confirm it again?", body(recovered).path("inputRequests")
+                .path("steps/second").path("params").path("message").asString(),
+                String.valueOf(body(recovered)));
+        String location = recovered.getLocationRef().getPath();
+        assertNotEquals(firstLocation, location, "The first round's handle answers nothing now");
+        Response done = send(adapter, Method.POST, location, answer(recovered, "accept"));
+        assertEquals(Status.SUCCESS_OK, done.getStatus());
+        assertTrue(body(done).path("confirmed").asBoolean(), String.valueOf(body(done)));
     }
 
     @Test
