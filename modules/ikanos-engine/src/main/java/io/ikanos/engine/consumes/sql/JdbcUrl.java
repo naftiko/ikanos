@@ -115,7 +115,18 @@ final class JdbcUrl {
 
     /** @return whether the database reads backslash escapes in literals and {@code #} comments */
     boolean mysqlDialect() {
-        return "mysql".equals(system) || "mariadb".equals(system);
+        return dialect() == SqlStatement.Dialect.MYSQL;
+    }
+
+    /** @return the dialect statements are read in, from the driver subprotocol */
+    SqlStatement.Dialect dialect() {
+        return switch (system) {
+            case "mysql", "mariadb" -> SqlStatement.Dialect.MYSQL;
+            case "postgresql" -> SqlStatement.Dialect.POSTGRESQL;
+            case "sqlserver", "jtds" -> SqlStatement.Dialect.SQLSERVER;
+            case "sqlite" -> SqlStatement.Dialect.SQLITE;
+            default -> SqlStatement.Dialect.STANDARD;
+        };
     }
 
     private static void refuseIfDenied(String namespace, String property, String where) {
@@ -136,6 +147,11 @@ final class JdbcUrl {
         // Oracle: jdbc:oracle:thin:@//host:1521/service or jdbc:oracle:thin:@host:1521:sid
         if (afterSystem.startsWith("thin:")) {
             afterSystem = afterSystem.substring(5);
+            // jdbc:oracle:thin:user/password@host:1521:sid: drop the credentials
+            int at = afterSystem.lastIndexOf('@');
+            if (at > 0) {
+                afterSystem = afterSystem.substring(at);
+            }
         }
         String host = null;
         String database = null;
@@ -148,10 +164,12 @@ final class JdbcUrl {
             host = parts.length > 0 ? emptyToNull(parts[0]) : null;
             database = parts.length > 2 ? emptyToNull(parts[2]) : null;
         } else if (!afterSystem.isEmpty()) {
-            // A file or in-memory database: the last path segment, without its properties
+            // A file or in-memory database: the last path segment, without its properties.
+            // A shape with an @ is not one of those and may carry credentials: it is not read.
             String path = afterSystem.split("[?;]", 2)[0];
             int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-            database = emptyToNull(slash < 0 ? path : path.substring(slash + 1));
+            database = path.indexOf('@') >= 0 ? null
+                    : emptyToNull(slash < 0 ? path : path.substring(slash + 1));
         }
         if (database == null) {
             Matcher named = Pattern.compile("(?i)[;?&](?:databaseName|database)=([^;&]+)")

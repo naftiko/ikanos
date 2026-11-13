@@ -80,6 +80,10 @@ record SqlBind(Object value, Integer jdbcType) {
             statement.setNull(position, jdbcType != null ? jdbcType : Types.NULL);
         } else if (jdbcType == null) {
             statement.setObject(position, value);
+        } else if (value instanceof BigDecimal decimal
+                && (jdbcType == Types.NUMERIC || jdbcType == Types.DECIMAL)) {
+            // setObject(i, x, NUMERIC) may assume scale 0 and round 1.25 to 1
+            statement.setBigDecimal(position, decimal);
         } else {
             statement.setObject(position, value, jdbcType);
         }

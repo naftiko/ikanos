@@ -156,4 +156,54 @@ class SqlStatementTest {
                 SqlStatement.parse("select '#', $$:x$$ from t where id = :id", false)
                         .placeholders());
     }
+
+    @Test
+    void nonReadKeywordShouldRefuseASqlServerStatementWithoutASeparator() {
+        assertEquals("DROP", SqlStatement.parse("SELECT 1 DROP TABLE customers",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+        assertEquals("EXEC", SqlStatement.parse("select 1 exec sp_who",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+    }
+
+    @Test
+    void nonReadKeywordShouldAcceptAnOffsetFetchReadOnSqlServer() {
+        assertNull(SqlStatement.parse("select id from t order by id offset 10 rows"
+                + " fetch next 5 rows only", SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+    }
+
+    @Test
+    void parseShouldCountNestedBlockCommentsOnPostgresql() {
+        SqlStatement statement = SqlStatement.parse(
+                "select /* outer /* inner */ :ignored */ :id", SqlStatement.Dialect.POSTGRESQL);
+
+        assertEquals(List.of("id"), statement.placeholders());
+    }
+
+    @Test
+    void parseShouldNotNestBlockCommentsOutsideDialectsThatDo() {
+        assertEquals(List.of("x"), SqlStatement.parse("select /* a /* b */ :x",
+                SqlStatement.Dialect.STANDARD).placeholders());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select /* a /* b */ 1", SqlStatement.Dialect.POSTGRESQL));
+    }
+
+    @Test
+    void parseShouldReadBracketIdentifiersOnSqlServerAndSqlite() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.SQLITE)) {
+            SqlStatement statement = SqlStatement.parse(
+                    "SELECT [delete], [tag:x], [a]]b] FROM inventory WHERE id = :id", dialect);
+
+            assertNull(statement.nonReadKeyword(), dialect.name());
+            assertEquals(List.of("id"), statement.placeholders(), dialect.name());
+        }
+    }
+
+    @Test
+    void parseShouldKeepPostgresqlArrayBrackets() {
+        SqlStatement statement = SqlStatement.parse("select tags[:i] from t",
+                SqlStatement.Dialect.POSTGRESQL);
+
+        assertEquals(List.of("i"), statement.placeholders());
+    }
 }
