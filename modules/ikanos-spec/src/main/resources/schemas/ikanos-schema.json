@@ -3432,10 +3432,12 @@
         },
         "key": {
           "type": "string",
+          "minLength": 1,
           "description": "Name of the header or query parameter (e.g. `X-Api-Key`, `api_key`, `Authorization`)."
         },
         "value": {
           "type": "string",
+          "minLength": 1,
           "description": "API key value. Supports environment variable expressions (e.g. `$env.NOTION_TOKEN`). Never hardcode secrets."
         },
         "placement": {
