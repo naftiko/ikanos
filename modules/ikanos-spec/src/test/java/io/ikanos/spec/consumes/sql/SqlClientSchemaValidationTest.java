@@ -284,4 +284,25 @@ class SqlClientSchemaValidationTest {
 
         assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
     }
+
+    @Test
+    void schemaShouldRejectOutParametersOnAStatement() throws Exception {
+        String yaml = capability("""
+                get-customer:
+                  description: Statements return no OUT parameters.
+                  statement: select 1
+                  outParameters:
+                    total: { position: 1, sqlType: DECIMAL }
+                """);
+
+        assertFalse(validate(yaml).isEmpty(), "outParameters need a storedProcedure");
+    }
+
+    @Test
+    void schemaShouldRequireAPositionOnStoredProcedureInputs() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("{ type: string, position: 1 }",
+                "{ type: string }"));
+
+        assertFalse(validate(yaml).isEmpty(), "a stored-procedure input needs a position");
+    }
 }

@@ -413,6 +413,7 @@ public class SqlClientAdapter extends ClientAdapter {
             } else {
                 document = SqlRowDocument.empty();
             }
+            drainResults(statement);
             if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
                 ObjectNode out = document.putObject(SqlRowDocument.OUT);
                 for (SqlOutParameterSpec param : procedure.outs()) {
@@ -422,6 +423,17 @@ public class SqlClientAdapter extends ClientAdapter {
                 }
             }
             return SqlConsumedResult.success(procedure.view(), document);
+        }
+    }
+
+    /**
+     * Read past the remaining results and update counts. SQL Server reports an error raised after
+     * a procedure's first result set only when the results are walked, and fills OUT values only
+     * after the last one: closing the statement first would report success.
+     */
+    static void drainResults(PreparedStatement statement) throws SQLException {
+        while (statement.getMoreResults() || statement.getUpdateCount() != -1) {
+            // the rows of later result sets are not returned
         }
     }
 
