@@ -26,6 +26,10 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ActionExecutor;
 import io.ikanos.durable.ActionFailedException;
@@ -37,6 +41,8 @@ import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.Failure;
 import io.ikanos.durable.Interpreter;
 import io.ikanos.durable.NodePath;
+import io.ikanos.durable.store.ExecutionIndex;
+import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.JournalEntry;
 import io.ikanos.durable.store.PayloadCodec;
@@ -172,7 +178,7 @@ public class JournaledRunnerTest {
                 JournalEntry.Kind.ACTION_SCHEDULED, JournalEntry.Kind.ACTION_SUCCEEDED,
                 JournalEntry.Kind.ACTION_SCHEDULED, JournalEntry.Kind.ACTION_SUCCEEDED,
                 JournalEntry.Kind.EXECUTION_COMPLETED), kinds);
-        assertEquals("task-1/steps/screen", new String(stores.journal().read(ID).get(1).payload(),
+        assertEquals("task-1:steps/screen", new String(stores.journal().read(ID).get(1).payload(),
                 StandardCharsets.UTF_8), "A scheduled action carries its idempotency key");
     }
 
@@ -344,6 +350,137 @@ public class JournaledRunnerTest {
         Interpreter timer = view -> List.of(new Command.StartTimer(SCREEN, Duration.ofMinutes(2)));
         assertThrows(IllegalStateException.class,
                 () -> runner.run(ExecutionRequest.of(ID, null), timer, recording));
+    }
+
+    @Test
+    void cancelShouldNotOverwriteAnEndReachedAfterItReadTheStatus() {
+        runner.run(ExecutionRequest.of(ID, null), CLEARANCE, recording);
+        runner.deliver(ID, CONFIRM, true);
+        StaleIndex index = new StaleIndex(stores.index());
+        JournaledRunner racing = new JournaledRunner(new Stores(stores.journal(), index,
+                stores.queue(), stores.inbox(), stores.blobs()), STRINGS, CLOCK, "sha256:tree");
+        // The cancel reads SUSPENDED; the run completes before the cancel writes its status.
+        index.afterNextFind = () -> racing.run(ExecutionRequest.of(ID, null), CLEARANCE,
+                recording);
+
+        racing.cancel(ID);
+
+        assertEquals(ExecutionStatus.COMPLETED, racing.status(ID).orElseThrow(),
+                "The index must agree with the journal's EXECUTION_COMPLETED");
+        assertEquals(new ExecutionResult.Completed("result of book-slot"),
+                racing.result(ID).orElseThrow());
+    }
+
+    @Test
+    void theJournaledIdempotencyKeyShouldBeTheOneTheExecutorReceives() {
+        ExecutionId nested = new ExecutionId("task-1/steps");
+        List<String> received = new ArrayList<>();
+        ActionExecutor keys = request -> {
+            received.add(request.idempotencyKey());
+            return "ok";
+        };
+
+        runner.run(new ExecutionRequest(nested, null, Map.of(CONFIRM, true), null), CLEARANCE,
+                keys);
+
+        List<String> journaled = stores.journal().read(nested).stream()
+                .filter(e -> e.kind() == JournalEntry.Kind.ACTION_SCHEDULED)
+                .map(e -> new String(e.payload(), StandardCharsets.UTF_8)).toList();
+        assertEquals(List.of("task-1/steps:steps/screen", "task-1/steps:steps/book-slot"),
+                journaled);
+        assertEquals(journaled, received);
+    }
+
+    @Test
+    void locksShouldBeReleasedOnceRunsEnd() {
+        runner.run(ExecutionRequest.of(ID, null), CLEARANCE, recording);
+        runner.start(ExecutionRequest.of(new ExecutionId("task-2"), "voyage"), "mcp:x", Map.of());
+        runner.fail(new ExecutionId("task-2"), new Failure("spec-changed", "changed"));
+        runner.run(new ExecutionRequest(new ExecutionId("task-1/steps"), null,
+                Map.of(CONFIRM, true), null), CLEARANCE, recording);
+
+        assertEquals(0, runner.lockCount(), "A lock must not outlive the runs of its execution");
+    }
+
+    @Test
+    void aLockAwaitedByAnotherRunShouldBeKeptUntilThatRunEnds() throws Exception {
+        CountDownLatch inScreen = new CountDownLatch(1);
+        CountDownLatch finishScreen = new CountDownLatch(1);
+        ActionExecutor blocking = request -> {
+            inScreen.countDown();
+            try {
+                assertTrue(finishScreen.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "screened";
+        };
+        List<ExecutionResult> results = new CopyOnWriteArrayList<>();
+        Thread first = new Thread(() -> results.add(
+                runner.run(ExecutionRequest.of(ID, null), CLEARANCE, blocking)));
+        first.start();
+        assertTrue(inScreen.await(10, TimeUnit.SECONDS));
+        assertEquals(1, runner.lockCount());
+        Thread second = new Thread(() -> results.add(runner.run(
+                new ExecutionRequest(ID, null, Map.of(CONFIRM, true), null), CLEARANCE,
+                recording)));
+        second.start();
+
+        finishScreen.countDown();
+        first.join(10_000);
+        second.join(10_000);
+
+        assertEquals(2, results.size(), "Both runs must end");
+        assertEquals(ExecutionStatus.COMPLETED, runner.status(ID).orElseThrow());
+        assertEquals(0, runner.lockCount());
+    }
+
+    /** An index whose next {@code find} answers what it read, after running a hook. */
+    private static final class StaleIndex implements ExecutionIndex {
+
+        private final ExecutionIndex delegate;
+        Runnable afterNextFind;
+
+        StaleIndex(ExecutionIndex delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean create(ExecutionRecord record) {
+            return delegate.create(record);
+        }
+
+        @Override
+        public Optional<ExecutionRecord> find(ExecutionId executionId) {
+            Optional<ExecutionRecord> found = delegate.find(executionId);
+            Runnable hook = afterNextFind;
+            afterNextFind = null;
+            if (hook != null) {
+                hook.run();
+            }
+            return found;
+        }
+
+        @Override
+        public void updateStatus(ExecutionId executionId, ExecutionStatus status) {
+            delegate.updateStatus(executionId, status);
+        }
+
+        @Override
+        public boolean compareAndSetStatus(ExecutionId executionId, ExecutionStatus expected,
+                ExecutionStatus status) {
+            return delegate.compareAndSetStatus(executionId, expected, status);
+        }
+
+        @Override
+        public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
+            return delegate.list(status, limit);
+        }
+
+        @Override
+        public List<ExecutionRecord> findByLabel(String key, String value) {
+            return delegate.findByLabel(key, value);
+        }
     }
 
     @Test

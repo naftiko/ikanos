@@ -104,6 +104,20 @@ final class JdbcExecutionIndex implements ExecutionIndex {
     }
 
     @Override
+    public boolean compareAndSetStatus(ExecutionId executionId, ExecutionStatus expected,
+            ExecutionStatus status) {
+        return database.call(c -> {
+            try (PreparedStatement s = c.prepareStatement(
+                    "UPDATE executions SET status = ? WHERE execution_id = ? AND status = ?")) {
+                s.setString(1, status.name());
+                s.setString(2, executionId.value());
+                s.setString(3, expected.name());
+                return s.executeUpdate() == 1;
+            }
+        });
+    }
+
+    @Override
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return database.call(c -> select(c, "SELECT " + COLUMNS + " FROM executions "
                 + "WHERE status = ? ORDER BY created_at, execution_id LIMIT ?", s -> {
