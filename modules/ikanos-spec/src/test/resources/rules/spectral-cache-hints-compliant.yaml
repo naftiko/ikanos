@@ -1,0 +1,111 @@
+# Spectral fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
+# spectral-cache-hints-violations.yaml, with scopes left to auto or private, public
+# only where nothing depends on the caller or nothing is sent, and ttlFromUpstream
+# only on a single HTTP call.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Cache hints compliant"
+  description: "Capability whose cache settings match what it declares."
+capability:
+  consumes:
+    - type: "http"
+      namespace: "shop"
+      description: "Shop API."
+      baseUri: "https://shop.example.org/v1"
+      resources:
+        items:
+          path: "/items"
+          operations:
+            list-items:
+              method: "GET"
+  exposes:
+    - type: "rest"
+      port: 8080
+      namespace: "shop-rest"
+      ttlMs: 60000
+      cacheScope: "auto"
+      authentication:
+        type: "bearer"
+        token: "{{API_TOKEN}}"
+      resources:
+        items:
+          path: "/items"
+          description: "Items for the caller's tenant."
+          operations:
+            list-items:
+              method: "GET"
+              description: "List items."
+              cacheScope: "private"
+              inputParameters:
+                tenant:
+                  in: "header"
+                  type: "string"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8082
+      namespace: "catalog-rest"
+      ttlMs: 300000
+      cacheScope: "public"
+      resources:
+        catalog:
+          path: "/catalog/{{category}}"
+          description: "Public catalogue."
+          operations:
+            list-catalog:
+              method: "GET"
+              description: "List the catalogue."
+              inputParameters:
+                category:
+                  in: "path"
+                  type: "string"
+                page:
+                  in: "query"
+                  type: "string"
+              call: "shop.list-items"
+            add-to-catalog:
+              method: "POST"
+              description: "Add to the catalogue; writes never get Cache-Control."
+              inputParameters:
+                item:
+                  type: "string"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8083
+      namespace: "uncached-rest"
+      cacheScope: "public"
+      resources:
+        offers:
+          path: "/offers"
+          description: "No ttlMs, so no Cache-Control is sent."
+          operations:
+            list-offers:
+              method: "GET"
+              description: "List offers."
+              inputParameters:
+                tenant:
+                  in: "header"
+                  type: "string"
+              call: "shop.list-items"
+    - type: "mcp"
+      port: 8081
+      namespace: "shop-mcp"
+      description: "Shop MCP server."
+      ttlMs: 60000
+      cacheScope: "auto"
+      authentication:
+        type: "bearer"
+        token: "{{MCP_TOKEN}}"
+      tools:
+        hello:
+          description: "Say hello."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"
+      resources:
+        rates:
+          display: "Rates"
+          uri: "data://rates"
+          description: "Rates from one HTTP call."
+          ttlFromUpstream: true
+          call: "shop.list-items"

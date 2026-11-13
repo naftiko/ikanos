@@ -590,6 +590,37 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Cache hint rules (#1022)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void cachePublicCallerDependentRuleShouldWarnOnEachCallerDependentPublicScope() {
+        assertEquals(5, countFindings("rules/spectral-cache-hints-violations.yaml",
+            "ikanos-cache-public-caller-dependent"));
+    }
+
+    @Test
+    public void cacheTtlFromUpstreamRuleShouldWarnWhereItHasNoEffect() {
+        assertEquals(3, countFindings("rules/spectral-cache-hints-violations.yaml",
+            "ikanos-cache-ttl-from-upstream-no-effect"));
+    }
+
+    @Test
+    public void cacheHintRulesShouldNotFireWhenScopesAreAutoOrPrivate() {
+        ProcessResult result = lintFixtureAtSeverity("rules/spectral-cache-hints-compliant.yaml",
+            "info");
+        assertEquals(0, result.exitCode(),
+            "Expected the compliant cache hints fixture to lint cleanly.\n" + result.output());
+        assertFalse(result.output().contains("ikanos-cache-"),
+            "Expected no cache hint findings.\n" + result.output());
+    }
+
+    private long countFindings(String fixturePath, String ruleId) {
+        ProcessResult result = lintFixtureAtSeverity(fixturePath, "warn");
+        return result.output().lines().filter(line -> line.contains(ruleId)).count();
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Flow composition rules (#794)
     // ────────────────────────────────────────────────────────────────
 

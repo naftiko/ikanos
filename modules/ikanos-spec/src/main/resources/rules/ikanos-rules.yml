@@ -20,6 +20,7 @@
 #   4. Control port                 — control adapter constraints
 #   5. Script steps                 — script step defaults
 #   6. Imports                      — unified import directive validation (§11 of blueprint)
+#   7. Cache hints                  — ttlMs / cacheScope / ttlFromUpstream against the spec
 
 extends: []
 
@@ -38,6 +39,7 @@ functions:
   - flow-calls
   - mcp-trust-networks
   - shared-listener-mounts
+  - cache-hints
   - exposes-hosts-binds-ref
 
 rules:
@@ -814,3 +816,37 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "^https?://[^/]+\\.(com|net|org|io|co|app|dev|cloud|ai)(:|/|$)"
+
+  # Cache hints (MCP 2026-07-28 ttlMs/cacheScope, REST Cache-Control) — #1022
+
+  ikanos-cache-public-caller-dependent:
+    message: "{{error}}"
+    description: >
+      A `cacheScope: public` lets a shared cache serve a result to any caller. When
+      the adapter authenticates its callers (or, for MCP, identifies them through
+      `trust`), or a REST `GET` operation that sends `Cache-Control` reads an input
+      from outside the URL (a header, or the body), the result may depend on who is
+      calling. It can be intended, for a public catalogue behind authentication, so
+      this is a warning; `auto` derives the safe scope.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: cache-hints
+      functionOptions:
+        check: caller-dependent
+
+  ikanos-cache-ttl-from-upstream-no-effect:
+    message: "{{error}}"
+    description: >
+      `ttlFromUpstream` reads the TTL from the caching headers of a single HTTP
+      upstream answer. It has no effect on a static resource (`location`), a
+      resource with `steps`, or a resource that calls an MCP consumed adapter, which
+      sends no HTTP caching headers. Set `ttlMs` instead.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: cache-hints
+      functionOptions:
+        check: ttl-from-upstream-no-effect
