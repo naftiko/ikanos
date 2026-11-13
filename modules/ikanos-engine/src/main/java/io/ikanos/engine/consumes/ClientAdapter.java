@@ -80,7 +80,8 @@ public abstract class ClientAdapter extends Adapter {
         Matcher placeholder = PLACEHOLDER.matcher(uri);
         while (placeholder.find()) {
             String name = placeholder.group(1).trim();
-            if (!scope.containsKey(name) && !missing.contains(name)) {
+            // As Mustache looks it up, so {{secrets.PORT}} is found under its namespace (#942)
+            if (Resolver.lookupVariable(name, scope) == null && !missing.contains(name)) {
                 missing.add(name);
             }
         }
