@@ -20,10 +20,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,7 +160,7 @@ class SqlDiscoveryTest {
     }
 
     @Test
-    void startShouldNotConnectWhenDiscoveryIsOff() throws Exception {
+    void startShouldNotWaitForAConnectionWhenDiscoveryIsOff() throws Exception {
         adapter = new SqlClientAdapter(null, spec("jdbc:hsqldb:hsql://127.0.0.1:1/none", "off",
                 VALID));
 
@@ -183,5 +190,97 @@ class SqlDiscoveryTest {
         spec.setDiscovery(null);
 
         assertTrue(spec.isDiscoveryVerify());
+    }
+
+    @Test
+    void startShouldNotReadAnUnderscoreAsAWildcard() throws Exception {
+        adapter = new SqlClientAdapter(null, spec(url, "verify", VALID.replace(
+                "storedProcedure: get_name", "storedProcedure: get_nam_")));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, adapter::start);
+
+        assertTrue(e.getMessage().contains("procedure 'get-name'"), e.getMessage());
+    }
+
+    @Test
+    void escapePatternShouldEscapeUnderscorePercentAndTheEscapeItself() {
+        assertEquals("get\\_name\\%\\\\", SqlClientAdapter.escapePattern("get_name%\\", "\\"));
+    }
+
+    /** Catalog that lists one procedure, at {@code catalog} / {@code schema}, upper case. */
+    private static DatabaseMetaData catalogListing(String catalog, String schema,
+            boolean functions) {
+        return (DatabaseMetaData) Proxy.newProxyInstance(getClass(DatabaseMetaData.class),
+                new Class<?>[] {DatabaseMetaData.class}, (proxy, method, args) -> {
+                    switch (method.getName()) {
+                        case "getSearchStringEscape":
+                            return "\\";
+                        case "getFunctions":
+                            if (!functions) {
+                                throw new SQLFeatureNotSupportedException("no functions");
+                            }
+                            return rows(false);
+                        case "getProcedures":
+                            return rows(Objects.equals(args[0], catalog)
+                                    && Objects.equals(args[1], schema)
+                                    && "GET\\_NAME".equals(args[2]));
+                        default:
+                            throw new UnsupportedOperationException(method.getName());
+                    }
+                });
+    }
+
+    private static ClassLoader getClass(Class<?> type) {
+        return type.getClassLoader() != null ? type.getClassLoader()
+                : SqlDiscoveryTest.class.getClassLoader();
+    }
+
+    private static ResultSet rows(boolean found) {
+        return (ResultSet) Proxy.newProxyInstance(SqlDiscoveryTest.class.getClassLoader(),
+                new Class<?>[] {ResultSet.class},
+                (proxy, method, args) -> "next".equals(method.getName()) ? found : null);
+    }
+
+    private SqlClientAdapter.Procedure storedNamed(String name) throws Exception {
+        return SqlClientAdapter.buildProcedures(spec(url, "verify",
+                VALID.replace("storedProcedure: get_name", "storedProcedure: " + name)), SqlStatement.Dialect.STANDARD)
+                .get("get-name");
+    }
+
+    @Test
+    void checkStoredShouldReadAQualifierAsAnOraclePackage() throws Exception {
+        assertNull(SqlClientAdapter.checkStored(catalogListing("PKG", null, true),
+                storedNamed("pkg.get_name")));
+    }
+
+    @Test
+    void checkStoredShouldReadAThreePartNameAsSchemaPackageProcedure() throws Exception {
+        assertNull(SqlClientAdapter.checkStored(catalogListing("PKG", "HR", true),
+                storedNamed("hr.pkg.get_name")));
+    }
+
+    @Test
+    void checkStoredShouldKeepLookingWhenTheDriverHasNoGetFunctions() throws Exception {
+        assertNull(SqlClientAdapter.checkStored(catalogListing(null, "HR", false),
+                storedNamed("hr.get_name")));
+    }
+
+    @Test
+    void checkStatementShouldNotNeedParameterMetadata() throws Exception {
+        adapter = new SqlClientAdapter(null, spec(url, "verify", VALID));
+        PreparedStatement statement = (PreparedStatement) Proxy.newProxyInstance(
+                SqlDiscoveryTest.class.getClassLoader(), new Class<?>[] {PreparedStatement.class},
+                (proxy, method, args) -> {
+                    if ("getParameterMetaData".equals(method.getName())) {
+                        throw new SQLException("cannot infer the type of @P0", "S0001");
+                    }
+                    return null;
+                });
+        Connection connection = (Connection) Proxy.newProxyInstance(
+                SqlDiscoveryTest.class.getClassLoader(), new Class<?>[] {Connection.class},
+                (proxy, method, args) -> method.getName().startsWith("prepare") ? statement : null);
+
+        assertNull(adapter.checkStatement(connection, SqlClientAdapter.buildProcedures(
+                spec(url, "verify", VALID), SqlStatement.Dialect.STANDARD).get("get-customer")));
     }
 }
