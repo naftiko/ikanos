@@ -340,38 +340,7 @@ public class SqlClientAdapter extends ClientAdapter {
                     + "' is not started");
         }
         try (Connection connection = current.getConnection()) {
-            readOnly(connection);
-            try (PreparedStatement statement = procedure.isStored()
-                    ? connection.prepareCall(procedure.jdbcSql())
-                    : connection.prepareStatement(procedure.jdbcSql())) {
-                statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
-                if (procedure.spec().getFetchSize() != null) {
-                    statement.setFetchSize(procedure.spec().getFetchSize());
-                }
-                for (SqlBind bind : binds) {
-                    bind.bind(statement);
-                }
-                if (statement instanceof CallableStatement call) {
-                    registerOuts(call, procedure);
-                }
-                ObjectNode document;
-                if (firstResultSet(statement)) {
-                    try (ResultSet rows = statement.getResultSet()) {
-                        document = SqlRowDocument.read(rows);
-                    }
-                } else {
-                    document = SqlRowDocument.empty();
-                }
-                if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
-                    ObjectNode out = document.putObject(SqlRowDocument.OUT);
-                    for (SqlOutParameterSpec param : procedure.outs()) {
-                        out.set(param.getName(), SqlRowDocument.out(call, param.getPosition(),
-                                JDBCType.valueOf(param.getSqlType().trim()
-                                        .toUpperCase(Locale.ROOT)), param.getName()));
-                    }
-                }
-                return SqlConsumedResult.success(procedure.view(), document);
-            }
+            return read(connection, procedure, binds);
         } catch (SQLException e) {
             log(procedure, e);
             return SqlConsumedResult.failure(procedure.view(), e);
@@ -379,6 +348,80 @@ public class SqlClientAdapter extends ClientAdapter {
             LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
                     + " failed: " + e.getMessage());
             return SqlConsumedResult.failure(procedure.view(), e);
+        }
+    }
+
+    /**
+     * Run one read on a pooled connection. A procedure with a cursor {@code OUT} runs in a
+     * transaction, rolled back once its rows are read: PostgreSQL closes a {@code refcursor} at
+     * the end of the transaction, which in auto-commit is the call itself. HikariCP restores
+     * auto-commit when the connection returns to the pool. Package-private for tests.
+     */
+    ConsumedResult read(Connection connection, Procedure procedure, List<SqlBind> binds)
+            throws SQLException {
+        readOnly(connection);
+        boolean cursor = returnsCursor(procedure);
+        if (cursor) {
+            connection.setAutoCommit(false);
+        }
+        try {
+            return readStatement(connection, procedure, binds);
+        } finally {
+            if (cursor) {
+                try {
+                    connection.rollback();
+                } catch (SQLException e) {
+                    LOGGER.log(Level.FINE, "Rollback after SQL procedure {0} failed",
+                            procedure.name());
+                }
+            }
+        }
+    }
+
+    /** @return whether an {@code OUT} parameter is a cursor: {@code REF_CURSOR} or {@code OTHER} */
+    static boolean returnsCursor(Procedure procedure) {
+        for (SqlOutParameterSpec out : procedure.outs()) {
+            String type = out.getSqlType() != null
+                    ? out.getSqlType().trim().toUpperCase(Locale.ROOT) : "";
+            if ("REF_CURSOR".equals(type) || "OTHER".equals(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ConsumedResult readStatement(Connection connection, Procedure procedure,
+            List<SqlBind> binds) throws SQLException {
+        try (PreparedStatement statement = procedure.isStored()
+                ? connection.prepareCall(procedure.jdbcSql())
+                : connection.prepareStatement(procedure.jdbcSql())) {
+            statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            if (procedure.spec().getFetchSize() != null) {
+                statement.setFetchSize(procedure.spec().getFetchSize());
+            }
+            for (SqlBind bind : binds) {
+                bind.bind(statement);
+            }
+            if (statement instanceof CallableStatement call) {
+                registerOuts(call, procedure);
+            }
+            ObjectNode document;
+            if (firstResultSet(statement)) {
+                try (ResultSet rows = statement.getResultSet()) {
+                    document = SqlRowDocument.read(rows);
+                }
+            } else {
+                document = SqlRowDocument.empty();
+            }
+            if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
+                ObjectNode out = document.putObject(SqlRowDocument.OUT);
+                for (SqlOutParameterSpec param : procedure.outs()) {
+                    out.set(param.getName(), SqlRowDocument.out(call, param.getPosition(),
+                            JDBCType.valueOf(param.getSqlType().trim()
+                                    .toUpperCase(Locale.ROOT)), param.getName()));
+                }
+            }
+            return SqlConsumedResult.success(procedure.view(), document);
         }
     }
 

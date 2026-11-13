@@ -16,6 +16,11 @@ package io.ikanos.spec.consumes.sql;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * One {@code OUT} or {@code INOUT} parameter of a stored procedure, keyed under
@@ -45,6 +50,7 @@ public class SqlOutParameterSpec {
         return position.get();
     }
 
+    @JsonDeserialize(using = ExactPosition.class)
     public void setPosition(Integer position) {
         this.position.set(position);
     }
@@ -64,5 +70,19 @@ public class SqlOutParameterSpec {
 
     public void setDescription(String description) {
         this.description.set(description);
+    }
+
+    /**
+     * Reads a position only when it is an exactly integral number: {@code 2.5} is left unset, so
+     * the missing-position check rejects it, rather than being truncated to {@code 2}.
+     */
+    static final class ExactPosition extends ValueDeserializer<Integer> {
+
+        @Override
+        public Integer deserialize(JsonParser parser, DeserializationContext context) {
+            JsonNode node = parser.objectReadContext().readTree(parser);
+            return node.canConvertToInt() && node.canConvertToExactIntegral() ? node.asInt()
+                    : null;
+        }
     }
 }

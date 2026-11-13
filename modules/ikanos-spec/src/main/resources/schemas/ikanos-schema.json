@@ -3206,13 +3206,23 @@
         {
           "required": [
             "statement"
-          ]
+          ],
+          "not": {
+            "required": [
+              "storedProcedure"
+            ]
+          }
         },
         {
           "required": [
             "storedProcedure",
             "readOnly"
-          ]
+          ],
+          "not": {
+            "required": [
+              "statement"
+            ]
+          }
         }
       ]
     },
