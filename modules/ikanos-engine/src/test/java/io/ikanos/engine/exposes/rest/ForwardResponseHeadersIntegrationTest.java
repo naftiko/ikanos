@@ -98,6 +98,17 @@ public class ForwardResponseHeadersIntegrationTest {
             exchange.getResponseHeaders().put("ETag", List.of("\"v2\""));
             exchange.getResponseHeaders().put("Date",
                     List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now)));
+            exchange.getResponseHeaders().put("Cache-Control", List.of("must-revalidate"));
+            exchange.getResponseHeaders().put("Expires",
+                    List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now.plusSeconds(120))));
+            exchange.sendResponseHeaders(304, -1);
+            exchange.close();
+        });
+        upstream.createContext("/v1/not-modified-expires-only", exchange -> {
+            ZonedDateTime now = ZonedDateTime.now(java.time.ZoneOffset.UTC);
+            exchange.getResponseHeaders().put("ETag", List.of("\"v2\""));
+            exchange.getResponseHeaders().put("Date",
+                    List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now)));
             exchange.getResponseHeaders().put("Expires",
                     List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now.plusSeconds(120))));
             exchange.sendResponseHeaders(304, -1);
@@ -329,7 +340,17 @@ public class ForwardResponseHeadersIntegrationTest {
         assertEquals(304, response.statusCode());
         assertEquals("\"v2\"", response.headers().firstValue("ETag").orElse(null));
         String cacheControl = response.headers().firstValue("Cache-Control").orElse("");
-        assertTrue(cacheControl.matches("max-age=1[01][0-9]|max-age=120"), cacheControl);
+        assertTrue(cacheControl.matches("must-revalidate, ?max-age=(1[01][0-9]|120)"),
+                cacheControl);
+    }
+
+    @Test
+    public void forwardShouldNotAddCacheControlToANotModifiedWithOnlyExpires() throws Exception {
+        HttpResponse<String> response = get("/proxy/not-modified-expires-only");
+
+        assertEquals(304, response.statusCode());
+        assertEquals(null, response.headers().firstValue("Cache-Control").orElse(null),
+                "the cache would replace a stored no-cache with a synthesized max-age");
     }
 
     @Test

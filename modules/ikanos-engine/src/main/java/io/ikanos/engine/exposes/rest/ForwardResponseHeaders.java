@@ -276,14 +276,18 @@ public final class ForwardResponseHeaders {
      * Keeps the freshness an upstream {@code 304} gives through {@code Expires}. Restlet's server
      * connector writes only {@code ETag} and {@code Content-Location} from the entity of a
      * {@code 304}, so a cache refreshing its stored response (RFC 9111 section 4.3.4) would never
-     * see the new {@code Expires}. When the answer has no {@code max-age}, the same lifetime is
-     * sent as {@code max-age}: {@code Expires} minus the upstream's {@code Date}, or minus now
-     * when it has none, and at least 0.
+     * see the new {@code Expires}. When the answer has {@code Cache-Control} directives but no
+     * {@code max-age}, the same lifetime is added as {@code max-age}: {@code Expires} minus the
+     * upstream's {@code Date}, or minus now when it has none, and at least 0. A {@code 304}
+     * without {@code Cache-Control} gets none: the cache would replace the stored
+     * {@code Cache-Control} with it (RFC 9111 section 3.2) and lose a {@code no-cache}, so its
+     * {@code Expires} is lost instead, a limitation of the server connector.
      */
     static void keepExpiresOfNotModified(Response from, Response to, Set<String> nominated) {
         Representation entity = from.getEntity();
         if (nominated.contains("expires") || nominated.contains("cache-control")
-                || entity == null || entity.getExpirationDate() == null) {
+                || entity == null || entity.getExpirationDate() == null
+                || to.getCacheDirectives().isEmpty()) {
             return;
         }
         for (CacheDirective directive : to.getCacheDirectives()) {
