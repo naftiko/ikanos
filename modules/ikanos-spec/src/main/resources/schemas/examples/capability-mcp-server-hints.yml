@@ -17,14 +17,13 @@ info:
   display: "Gong — MCP server default hints example"
   description: "Declare read-only hints once on the server and override them on the write tools only."
 
-binds:
-  - namespace: "secrets"
-    description: "Credentials for the Gong API."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      GONG_TOKEN: "gong-bearer-token"
-
 capability:
+  binds:
+    - namespace: "secrets"
+      description: "Credentials for the Gong API."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        GONG_TOKEN: "gong-bearer-token"
   consumes:
     - type: "http"
       namespace: "gong"
