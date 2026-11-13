@@ -25,6 +25,7 @@ import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
+import org.restlet.data.MediaType;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.data.Method;
@@ -35,6 +36,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -569,6 +571,81 @@ public class HttpClientAdapterTest {
 
         assertEquals("application/vnd.api+json", request.getEntity().getMediaType().toString(),
                 "#1001: a Content-Type input must not be dropped as a raw standard header");
+    }
+
+    @Test
+    public void prepareShouldKeepTheMultipartBoundaryWhenAContentTypeInputIsSet()
+            throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      inputParameters:
+                        Content-Type:
+                          in: header
+                          value: "{{ct}}"
+                      resources:
+                        files:
+                          path: "/files"
+                          operations:
+                            upload:
+                              method: POST
+                              inputParameters:
+                                Content-Type:
+                                  in: header
+                                  value: "multipart/form-data"
+                              body:
+                                type: multipartForm
+                                data:
+                                  - name: note
+                                    value: hello
+                            upload-inherited:
+                              method: POST
+                              body:
+                                type: multipartForm
+                                data:
+                                  - name: note
+                                    value: hello
+                            form:
+                              method: POST
+                              body:
+                                type: formUrlEncoded
+                                data:
+                                  a: b
+                            upload-templated:
+                              method: POST
+                              inputParameters:
+                                Content-Type:
+                                  in: header
+                                  value: "{{ct}}"
+                              body:
+                                type: multipartForm
+                                data:
+                                  - name: note
+                                    value: hello
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
+
+        for (String operation : new String[] {"upload", "upload-inherited"}) {
+            MediaType multipart = adapter.prepare(operation,
+                    new HashMap<>(Map.of("ct", "multipart/form-data"))).getRequest().getEntity()
+                    .getMediaType();
+            assertTrue(multipart.equals(MediaType.MULTIPART_FORM_DATA, true)
+                    && multipart.getParameters().getFirstValue("boundary") != null,
+                    "#1001: the multipart body must keep the media type carrying its boundary ("
+                            + operation + "), got " + multipart);
+        }
+        Request form = adapter.prepare("form",
+                new HashMap<>(Map.of("ct", "application/json"))).getRequest();
+        assertTrue(form.getEntity().getMediaType().equals(MediaType.APPLICATION_WWW_FORM, true),
+                "#1001: got " + form.getEntity().getMediaType());
+        assertThrows(IllegalArgumentException.class, () -> adapter.prepare("upload-templated",
+                new HashMap<>(Map.of("ct", "application/json"))));
     }
 
     private HttpClientAdapter pagesAdapter() {

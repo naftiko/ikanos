@@ -350,7 +350,7 @@ public class Resolver {
     }
 
     /** Written for a variable with no usable value, so it can be found in the output. */
-    private static final String EMPTY_VARIABLE = " empty ";
+    private static final String EMPTY_VARIABLE = "\0empty\0";
 
     /**
      * Tells whether rendering {@code template} with {@code parameters} writes a variable that has
@@ -992,25 +992,38 @@ public class Resolver {
                 String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
                         ? spec.getWireName() : spec.getName();
 
+                // A precondition of an unsafe request that has no value is refused, like one
+                // that cannot be parsed: omitting it would make the write unconditional (#1001).
+                // Not when the input says required: false, nor when the request already carries
+                // that precondition, such as the caller's own trusted header in forward mode
+                boolean conditionalWrite = !notSent.contains(spec)
+                        && "header".equalsIgnoreCase(in)
+                        && StandardRequestHeaders.isConditional(wireName)
+                        && clientRequest.getMethod() != null
+                        && !clientRequest.getMethod().isSafe();
+                boolean carried = conditionalWrite
+                        && StandardRequestHeaders.carriesPrecondition(clientRequest, wireName);
+                boolean guardsWrite = conditionalWrite && spec.isRequired() && !carried;
+
                 if (template != null) {
-                    // A templated precondition of an unsafe request that cannot be resolved is
-                    // refused, like one that cannot be parsed: omitting it would make the write
-                    // unconditional (#1001)
-                    boolean guardsWrite = !notSent.contains(spec)
-                            && "header".equalsIgnoreCase(in)
-                            && StandardRequestHeaders.isConditional(wireName)
-                            && clientRequest.getMethod() != null
-                            && !clientRequest.getMethod().isSafe();
                     boolean unresolved = !missingVariables(template, parameters).isEmpty()
                             || rendersEmptyVariable(template, parameters);
                     if (guardsWrite && unresolved) {
                         throw unresolvedPrecondition(wireName);
+                    }
+                    if (unresolved && carried) {
+                        // The precondition already on the request is kept as is
+                        continue;
                     }
                     if (unresolved && !notSent.contains(spec) && "header".equalsIgnoreCase(in)
                             && "If-Range".equalsIgnoreCase(wireName)) {
                         // Left out, the If-Range would let a Range return part of a changed
                         // representation: the request asks for the whole one instead (#1001)
                         StandardRequestHeaders.refuseIfRange(clientRequest);
+                        continue;
+                    }
+                    if (unresolved && conditionalWrite) {
+                        // required: false: left out, as the input declares
                         continue;
                     }
                     boolean noParameters = parameters == null || parameters.isEmpty();
@@ -1023,9 +1036,6 @@ public class Resolver {
                     }
                     // A whole-value placeholder keeps the parameter's type (#880)
                     val = Resolver.resolveValue(template, parameters);
-                    if (guardsWrite && (val == null || val.toString().isBlank())) {
-                        throw unresolvedPrecondition(wireName);
-                    }
                 } else if ("environment".equalsIgnoreCase(in)) {
                     // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
                     val = System.getenv(spec.getName());
@@ -1034,13 +1044,11 @@ public class Resolver {
                 }
                 // A required precondition the caller left out (or sent empty) of a request that
                 // is not safe: sending the write without it would make it unconditional (#1001)
-                if (template == null && spec.isRequired() && !notSent.contains(spec)
-                        && "header".equalsIgnoreCase(in)
-                        && StandardRequestHeaders.isConditional(wireName)
-                        && clientRequest.getMethod() != null
-                        && !clientRequest.getMethod().isSafe()
-                        && (val == null || val.toString().isBlank())) {
-                    throw unresolvedPrecondition(wireName);
+                if (conditionalWrite && (val == null || val.toString().isBlank())) {
+                    if (guardsWrite) {
+                        throw unresolvedPrecondition(wireName);
+                    }
+                    continue;
                 }
 
                 if (val == null) {

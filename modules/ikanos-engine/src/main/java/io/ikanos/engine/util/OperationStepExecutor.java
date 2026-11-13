@@ -479,6 +479,10 @@ public class OperationStepExecutor {
         }
         try {
             return findClientRequestFor(target.namespace(), target.name(), stepParams);
+        } catch (StandardRequestHeaders.InvalidPreconditionException e) {
+            // Kept as is, so a step calling a flow whose own call step raised it can still tell
+            // bad input (400) from a server error (#1001)
+            throw e;
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "Error resolving request parameters: " + e.getMessage(), e);

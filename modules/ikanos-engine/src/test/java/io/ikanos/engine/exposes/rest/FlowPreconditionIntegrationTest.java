@@ -88,6 +88,16 @@ class FlowPreconditionIntegrationTest {
                         update:
                           description: "Update an item if it did not change"
                           call: up.update-item
+                        update-steps:
+                          description: "Update an item if it did not change, in a step"
+                          inputParameters:
+                            etag:
+                              type: string
+                              description: "Entity tag the update is conditional on"
+                          steps:
+                            update:
+                              type: call
+                              call: up.update-item
                   exposes:
                     - type: rest
                       address: "localhost"
@@ -119,6 +129,31 @@ class FlowPreconditionIntegrationTest {
                                 update:
                                   type: call
                                   call: catalog.update
+                        flow-steps-ref:
+                          path: "/flow-steps-ref"
+                          operations:
+                            put:
+                              method: PUT
+                              inputParameters:
+                                etag:
+                                  in: query
+                                  type: string
+                                  description: "Entity tag the update is conditional on"
+                              ref: catalog.update-steps
+                        flow-steps-step:
+                          path: "/flow-steps-step"
+                          operations:
+                            put:
+                              method: PUT
+                              inputParameters:
+                                etag:
+                                  in: query
+                                  type: string
+                                  description: "Entity tag the update is conditional on"
+                              steps:
+                                update:
+                                  type: call
+                                  call: catalog.update-steps
                 """.formatted(IKANOS, upstream.getAddress().getPort(), restPort),
                 IkanosSpec.class));
         capability.start();
@@ -159,6 +194,28 @@ class FlowPreconditionIntegrationTest {
                 "#1001: an invalid precondition raised in a flow called by a step is bad input, "
                         + "not a server error: " + response.body());
         assertFalse(response.body().contains("v1"), "the error must not echo the value");
+        assertTrue(upstreamCalls.isEmpty(), upstreamCalls.toString());
+    }
+
+    @Test
+    void flowWithItsOwnCallStepShouldSendQuotedIfMatchUpstream() throws Exception {
+        HttpResponse<String> response = put("/flow-steps-step?etag=%22v1%22");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(List.of("PUT \"v1\""), upstreamCalls);
+    }
+
+    @Test
+    void flowWithItsOwnCallStepShouldAnswerBadRequestWhenIfMatchCannotBeParsed()
+            throws Exception {
+        for (String path : List.of("/flow-steps-step", "/flow-steps-ref")) {
+            HttpResponse<String> response = put(path + "?etag=v1");
+
+            assertEquals(400, response.statusCode(),
+                    "#1001: an invalid precondition raised by the call step of a called flow is "
+                            + "bad input, not a server error (" + path + "): " + response.body());
+            assertFalse(response.body().contains("v1"), "the error must not echo the value");
+        }
         assertTrue(upstreamCalls.isEmpty(), upstreamCalls.toString());
     }
 

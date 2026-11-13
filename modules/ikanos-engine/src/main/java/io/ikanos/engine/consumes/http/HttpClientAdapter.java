@@ -19,6 +19,7 @@ import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Reference;
+import org.restlet.engine.header.ContentType;
 import org.restlet.representation.ByteArrayRepresentation;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
@@ -326,8 +327,21 @@ public class HttpClientAdapter extends ClientAdapter {
             clientRequest.setEntity(resolvedBody, bodyMediaType);
         }
 
-        // A Content-Type input was resolved before the body existed (#1001)
-        StandardRequestHeaders.applyContentType(clientRequest);
+        // A Content-Type input was resolved before the body existed (#1001). A multipartForm or
+        // formUrlEncoded body keeps the media type of the encoding the engine produced, so the
+        // multipart boundary is never lost. An operation-level input that does not describe that
+        // encoding is refused, at load when static (ConsumedHeaderValidator); one inherited from
+        // the adapter or the resource still describes the bodies of other operations
+        if (!encodesBody(clientOp.getBody())) {
+            StandardRequestHeaders.applyContentType(clientRequest);
+        } else if (declaresContentType(clientOp.getInputParameters())
+                && clientRequest.getAttributes().get(
+                        StandardRequestHeaders.PENDING_CONTENT_TYPE) instanceof ContentType input
+                && !describesEncodedBody(clientOp.getBody(), input.getMediaType())) {
+            throw new IllegalArgumentException("The Content-Type input of operation '"
+                    + operationName + "' does not describe its "
+                    + ((Map<?, ?>) clientOp.getBody()).get("type") + " body");
+        }
 
         // Set authentication and headers
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
@@ -389,6 +403,55 @@ public class HttpClientAdapter extends ClientAdapter {
             throw new IllegalArgumentException(
                     "Unresolved template parameters in " + where + ": " + missing);
         }
+    }
+
+    /**
+     * @return {@code true} when {@code bodySpec} is a {@code multipartForm} or
+     *         {@code formUrlEncoded} body, whose media type describes the encoding the engine
+     *         produces (with the multipart boundary), so no {@code Content-Type} input can
+     *         replace it
+     */
+    static boolean encodesBody(Object bodySpec) {
+        if (!(bodySpec instanceof Map<?, ?> bodyMap)) {
+            return false;
+        }
+        String type = String.valueOf(bodyMap.get("type"));
+        return "multipartForm".equalsIgnoreCase(type) || "formUrlEncoded".equalsIgnoreCase(type);
+    }
+
+    /**
+     * @return {@code true} when {@code mediaType} describes the encoding of the
+     *         {@code multipartForm} ({@code multipart/*}) or {@code formUrlEncoded}
+     *         ({@code application/x-www-form-urlencoded}) body {@code bodySpec}
+     */
+    static boolean describesEncodedBody(Object bodySpec, MediaType mediaType) {
+        if (!(bodySpec instanceof Map<?, ?> bodyMap) || mediaType == null) {
+            return false;
+        }
+        String type = String.valueOf(bodyMap.get("type"));
+        if ("multipartForm".equalsIgnoreCase(type)) {
+            return "multipart".equalsIgnoreCase(mediaType.getMainType());
+        }
+        return "formUrlEncoded".equalsIgnoreCase(type)
+                && mediaType.equals(MediaType.APPLICATION_WWW_FORM, true);
+    }
+
+    /**
+     * @return {@code true} when {@code parameters} declare a {@code Content-Type} header input
+     */
+    static boolean declaresContentType(List<InputParameterSpec> parameters) {
+        if (parameters == null) {
+            return false;
+        }
+        for (InputParameterSpec parameter : parameters) {
+            String name = parameter.getWireName() != null && !parameter.getWireName().isBlank()
+                    ? parameter.getWireName() : parameter.getName();
+            if ("header".equalsIgnoreCase(parameter.getIn())
+                    && "Content-Type".equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

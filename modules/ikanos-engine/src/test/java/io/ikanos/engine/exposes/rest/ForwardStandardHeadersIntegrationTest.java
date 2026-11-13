@@ -254,6 +254,12 @@ class ForwardStandardHeadersIntegrationTest {
                           path: "/guarded/{{path}}"
                           forward:
                             targetNamespace: guarded
+                        guarded-trusted:
+                          path: "/guarded-trusted/{{path}}"
+                          forward:
+                            targetNamespace: guarded
+                            trustedHeaders:
+                              - If-Match
                         keyed:
                           path: "/keyed/{{path}}"
                           forward:
@@ -440,6 +446,17 @@ class ForwardStandardHeadersIntegrationTest {
         assertTrue(received.isEmpty(),
                 "#1001: a forwarded write whose adapter If-Match cannot be resolved must not "
                         + "reach the upstream unconditionally: " + received);
+    }
+
+    @Test
+    void forwardShouldSendTheCallersTrustedIfMatchWhenTheAdapterIfMatchHasNoValue()
+            throws Exception {
+        HttpResponse<String> response = put("/guarded-trusted/items/1", "If-Match", ETAG);
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(ETAG, received.get("if-match"),
+                "#1001: the caller's own If-Match already guards the write, so the adapter's "
+                        + "unresolved one must not refuse it");
     }
 
     @Test

@@ -147,6 +147,38 @@ public class HeadersTest {
                 "#1001: leaving the If-Match out would make the write unconditional");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"{{etag}}", "{{#etag}}{{etag}}{{/etag}}", "W/\"{{etag}}\""})
+    public void resolveInputParametersShouldLeaveOutAnOptionalTemplatedIfMatchOfAPut(
+            String template) {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        InputParameterSpec optional = ifMatch(template);
+        optional.setRequired(false);
+
+        Resolver.resolveInputParametersToRequest(request, List.of(optional),
+                new ConcurrentHashMap<>(Map.of("other", "x")));
+
+        assertTrue(request.getConditions().getMatch().isEmpty(),
+                "#1001: required: false leaves an unresolved precondition out");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{{etag}}", "required"})
+    public void resolveInputParametersShouldKeepAnIfMatchTheRequestAlreadyCarries(
+            String template) {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        StandardRequestHeaders.set(request, "If-Match", "\"v1\"");
+        InputParameterSpec input = "required".equals(template) ? suppliedIfMatch(true)
+                : ifMatch(template);
+
+        Resolver.resolveInputParametersToRequest(request, List.of(input),
+                new ConcurrentHashMap<>());
+
+        assertEquals("\"v1\"", request.getConditions().getMatch().get(0).format(),
+                "#1001: a precondition already on the request, such as a trusted header in "
+                        + "forward mode, is not refused");
+    }
+
     @Test
     public void resolveInputParametersShouldRefuseAnIfMatchOfAPutWhoseVariableIsMissing() {
         Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
