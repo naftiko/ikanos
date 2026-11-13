@@ -175,6 +175,34 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenAForwardTrustsAResponseHeaderItCanNeverRelay() {
+        Path yaml = tempDir.resolve("bad-response-header.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "up"
+                      baseUri: "https://api.example.com"
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "proxy"
+                      resources:
+                        - path: "/proxy/{{path}}"
+                          forward:
+                            targetNamespace: up
+                            trustedResponseHeaders:
+                              - Transfer-Encoding
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#1002: validate must refuse what the engine refuses to load");
+        assertTrue(errCapture.toString().contains("Transfer-Encoding"), errCapture.toString());
+    }
+
+    @Test
     public void callShouldNameAYamlAliasInsteadOfReportingASchemaMismatch() {
         Path yaml = tempDir.resolve("alias.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """

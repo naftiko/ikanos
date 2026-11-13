@@ -23,6 +23,7 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
+import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
@@ -100,9 +101,13 @@ public class ValidateCommand implements Callable<Integer> {
             // document matches the schema, so the spec can be read.
             List<String> templateErrors = errors.isEmpty() && removedAdapters.isEmpty()
                     ? templateErrors(dataNode) : List.of();
+            // The trustedResponseHeaders lists the engine refuses at load time (#1002)
+            List<String> forwardErrors = errors.isEmpty() && removedAdapters.isEmpty()
+                    ? forwardErrors(dataNode) : List.of();
 
             // Display validation result.
-            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()) {
+            if (removedAdapters.isEmpty() && errors.isEmpty() && templateErrors.isEmpty()
+                    && forwardErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -129,6 +134,10 @@ public class ValidateCommand implements Callable<Integer> {
                             + error);
                     errorCount++;
                 }
+                for (String error : forwardErrors) {
+                    System.err.println("\n  [" + errorCount + "] " + error);
+                    errorCount++;
+                }
                 return 1;
             }
             
@@ -150,6 +159,15 @@ public class ValidateCommand implements Callable<Integer> {
     List<String> templateErrors(JsonNode dataNode) {
         IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
         return ConsumedTemplateValidator.findErrors(spec);
+    }
+
+    /**
+     * Errors of the {@code forward.trustedResponseHeaders} lists, read from the YAML tree: the
+     * same check the engine runs when the capability loads (#1002).
+     */
+    List<String> forwardErrors(JsonNode dataNode) {
+        IkanosSpec spec = IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class);
+        return ForwardResponseHeaders.findErrors(spec);
     }
 
     /**

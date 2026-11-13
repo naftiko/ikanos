@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,6 +48,8 @@ public class ForwardResponseHeadersIntegrationTest {
 
     private static final String IKANOS = VersionHelper.getSchemaVersion();
 
+    private static volatile String upstreamDate;
+
     private static HttpServer upstream;
     private static ServerAdapter adapter;
     private static int upstreamPort;
@@ -75,6 +78,31 @@ public class ForwardResponseHeadersIntegrationTest {
         respond("/v1/busy", 503, Map.of("Retry-After", List.of("120")));
         respond("/v1/locked", 401, Map.of("WWW-Authenticate", List.of("Basic realm=\"up\"")));
         respond("/v1/read-only", 405, Map.of("Allow", List.of("GET, HEAD")));
+        upstream.createContext("/v1/dated", exchange -> {
+            // The JDK server writes its own Date when the headers are sent: the body comes
+            // later, so a Date the gateway wrote itself would be at least a second later
+            exchange.getResponseHeaders().put("Expires", List.of("Mon, 02 Jan 2023 10:01:00 GMT"));
+            byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            upstreamDate = exchange.getResponseHeaders().getFirst("Date");
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        upstream.createContext("/v1/not-modified", exchange -> {
+            ZonedDateTime now = ZonedDateTime.now(java.time.ZoneOffset.UTC);
+            exchange.getResponseHeaders().put("ETag", List.of("\"v2\""));
+            exchange.getResponseHeaders().put("Date",
+                    List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now)));
+            exchange.getResponseHeaders().put("Expires",
+                    List.of(DateTimeFormatter.RFC_1123_DATE_TIME.format(now.plusSeconds(120))));
+            exchange.sendResponseHeaders(304, -1);
+            exchange.close();
+        });
         upstream.start();
 
         exposedPort = freePort();
@@ -282,6 +310,26 @@ public class ForwardResponseHeadersIntegrationTest {
         assertEquals("\"v1\"", response.headers().firstValue("ETag").orElse(null));
         assertEquals("attachment; filename=\"my plan.pdf\"",
                 response.headers().firstValue("Content-Disposition").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldRelayTheUpstreamDateThatItsExpiresIsRelativeTo() throws Exception {
+        HttpResponse<String> response = get("/proxy/dated");
+
+        assertNotNull(upstreamDate);
+        assertEquals(upstreamDate, response.headers().firstValue("Date").orElse(null));
+        assertEquals("Mon, 02 Jan 2023 10:01:00 GMT",
+                response.headers().firstValue("Expires").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldRelayTheExpiresOfANotModifiedAsMaxAge() throws Exception {
+        HttpResponse<String> response = get("/proxy/not-modified");
+
+        assertEquals(304, response.statusCode());
+        assertEquals("\"v2\"", response.headers().firstValue("ETag").orElse(null));
+        String cacheControl = response.headers().firstValue("Cache-Control").orElse("");
+        assertTrue(cacheControl.matches("max-age=1[01][0-9]|max-age=120"), cacheControl);
     }
 
     @Test
