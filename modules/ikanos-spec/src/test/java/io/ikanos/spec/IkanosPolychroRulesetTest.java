@@ -684,6 +684,15 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsOutputKeywordsRuleShouldNoteKeywordsAnOutputDoesNotCarry() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        String output = result.output();
+        assertTrue(output.contains("ikanos-definitions-output-keywords"), output);
+        assertTrue(output.contains("Schema 'order' is used in an orchestrated output, which does"
+            + " not carry its keywords description, enum, format, required."), output);
+    }
+
+    @Test
     public void definitionsRulesShouldNotFireForCompliantDefinitions() {
         ProcessResult result = lintFixtureAtSeverity("rules/spectral-definitions-compliant.yaml",
             "warn");
