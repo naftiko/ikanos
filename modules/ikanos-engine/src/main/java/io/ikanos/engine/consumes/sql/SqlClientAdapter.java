@@ -758,9 +758,27 @@ public class SqlClientAdapter extends ClientAdapter {
      * Prepare a statement and read its result metadata, which makes the server parse it. Parameter
      * metadata is not read: some servers (SQL Server) cannot infer a parameter type for valid SQL
      * such as {@code :x IS NULL OR col = :x}, and the parse does not need it.
+     *
+     * <p>Inputs with a known type are bound as typed {@code NULL}s first, as a call binds them:
+     * PostgreSQL cannot type {@code :id IS NULL} otherwise. On MySQL and MariaDB the result
+     * metadata is not read: Connector/J's client-side prepares obtain it by running the query.
+     * Preparing is the whole check there, and with server-side prepares it parses the SQL.</p>
      */
     String checkStatement(Connection connection, Procedure procedure) {
         try (PreparedStatement statement = prepare(connection, procedure)) {
+            if (jdbcUrl.mysqlDialect()) {
+                return null;
+            }
+            statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            String where = getNamespace() + "." + procedure.name();
+            for (int i = 0; i < procedure.inputs().size(); i++) {
+                int position = procedure.positions().get(i);
+                SqlBind typedNull = SqlBind.of(procedure.inputs().get(i), null, where, position,
+                        procedure.inoutType(position));
+                if (typedNull.jdbcType() != null) {
+                    typedNull.bind(statement);
+                }
+            }
             try {
                 statement.getMetaData();
             } catch (SQLFeatureNotSupportedException lazy) {

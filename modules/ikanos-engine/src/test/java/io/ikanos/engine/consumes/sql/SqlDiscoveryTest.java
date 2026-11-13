@@ -283,4 +283,45 @@ class SqlDiscoveryTest {
         assertNull(adapter.checkStatement(connection, SqlClientAdapter.buildProcedures(
                 spec(url, "verify", VALID), SqlStatement.Dialect.STANDARD).get("get-customer")));
     }
+
+    private static final String BY_ID = """
+            by-id:
+              description: One customer, or all of them.
+              statement: select id from customers where :id is null or id = :id
+              inputParameters:
+                id: { type: integer }
+            """;
+
+    @Test
+    void checkStatementShouldBindTypedNullsBeforeReadingTheResultMetadata() throws Exception {
+        adapter = new SqlClientAdapter(null, spec(url, "verify", BY_ID));
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        PreparedStatement statement = org.mockito.Mockito.mock(PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+
+        assertNull(adapter.checkStatement(connection, SqlClientAdapter.buildProcedures(
+                spec(url, "verify", BY_ID), SqlStatement.Dialect.STANDARD).get("by-id")));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(statement);
+        order.verify(statement).setNull(1, java.sql.Types.BIGINT);
+        order.verify(statement).setNull(2, java.sql.Types.BIGINT);
+        order.verify(statement).getMetaData();
+    }
+
+    @Test
+    void checkStatementShouldNotReadResultMetadataOnMysql() throws Exception {
+        String mysql = "jdbc:mysql://db.internal:3306/erp";
+        adapter = new SqlClientAdapter(null, spec(mysql, "verify", BY_ID));
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        PreparedStatement statement = org.mockito.Mockito.mock(PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+
+        assertNull(adapter.checkStatement(connection, SqlClientAdapter.buildProcedures(
+                spec(mysql, "verify", BY_ID), SqlStatement.Dialect.MYSQL).get("by-id")));
+
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).getMetaData();
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).execute();
+    }
 }
