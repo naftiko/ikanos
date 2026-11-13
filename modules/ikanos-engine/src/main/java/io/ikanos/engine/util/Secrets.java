@@ -40,8 +40,9 @@ public final class Secrets {
 
     /**
      * The text of a basic or digest password. The schema doesn't require one, and an omitted
-     * password is an empty one: an exposed adapter then accepts an empty password, and a consumed
-     * adapter sends one.
+     * password is an empty one (#699): an exposed adapter then accepts an empty password, and a
+     * consumed adapter sends one. A declared password that renders blank, even in part, stops an
+     * exposed adapter from starting.
      *
      * @param password the password from the spec, may be null
      * @return its text, empty if {@code password} is null
