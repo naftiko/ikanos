@@ -1201,9 +1201,19 @@ public class Resolver {
                     && StandardRequestHeaders.isConditional(wireName)
                     && clientRequest.getMethod() != null
                     && !clientRequest.getMethod().isSafe();
-            if (guardsWrite && (!missingVariables(template, parameters).isEmpty()
-                    || rendersEmptyVariable(template, parameters))) {
+            boolean unresolved = template != null
+                    && (!missingVariables(template, parameters).isEmpty()
+                            || rendersEmptyVariable(template, parameters));
+            if (guardsWrite && unresolved) {
                 throw unresolvedPrecondition(wireName);
+            }
+            if (unresolved && clientRequest != null && !notSent.contains(spec)
+                    && "header".equalsIgnoreCase(spec.getIn())
+                    && "If-Range".equalsIgnoreCase(wireName)) {
+                // Left out, the If-Range would let a Range return part of a changed
+                // representation: the request asks for the whole one instead (#1001)
+                StandardRequestHeaders.refuseIfRange(clientRequest);
+                continue;
             }
             Object val;
             try {

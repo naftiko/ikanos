@@ -239,9 +239,7 @@ public final class StandardRequestHeaders {
             setter.accept(request, value);
         } catch (RuntimeException e) {
             if ("If-Range".equalsIgnoreCase(name)) {
-                // Sent alone, the Range would no longer depend on the representation (#1001)
-                request.getAttributes().put(IF_RANGE_REFUSED, Boolean.TRUE);
-                request.setRanges(new ArrayList<>());
+                refuseIfRange(request);
             }
             throw new IllegalArgumentException("Invalid value for the " + name + " header");
         }
@@ -307,6 +305,17 @@ public final class StandardRequestHeaders {
      */
     public static String notSendableReason(String name) {
         return name == null ? null : NOT_SENDABLE.get(name);
+    }
+
+    /**
+     * Marks the {@code If-Range} of {@code request} as refused, because its value cannot be
+     * parsed or resolved: its {@code Range}, set before or after, is never sent, since sent alone
+     * it would no longer depend on the representation (#1001). The request then asks for the
+     * whole representation.
+     */
+    public static void refuseIfRange(Request request) {
+        request.getAttributes().put(IF_RANGE_REFUSED, Boolean.TRUE);
+        request.setRanges(new ArrayList<>());
     }
 
     /**
