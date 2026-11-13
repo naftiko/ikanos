@@ -22,6 +22,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.networknt.schema.Error;
 import com.networknt.schema.Schema;
@@ -97,6 +98,41 @@ class ConsumesAuthenticationSchemaValidationTest {
         assertTrue(errors.stream()
                 .anyMatch(e -> e.toString().contains("required property 'key'")),
                 errors.toString());
+    }
+
+    /** #1004 review: an empty key or value can't be sent either. */
+    @ParameterizedTest(name = "consumes type {0}, empty {1}")
+    @CsvSource({"http,key", "http,value", "mcp,key", "mcp,value"})
+    void schemaShouldRejectAnEmptyApiKeyOnAConsumedAdapter(String type, String empty)
+            throws Exception {
+        List<Error> errors = validate(consumed(type, """
+                type: "apikey"
+                        %s""".formatted(emptyOne(empty))), "");
+
+        assertTrue(errors.stream().anyMatch(e -> e.toString().contains(
+                "/authentication/" + empty + ": must be at least 1 characters long")),
+                errors.toString());
+    }
+
+    @ParameterizedTest(name = "empty {0}")
+    @ValueSource(strings = {"key", "value"})
+    void schemaShouldRejectAnEmptyApiKeyOnAnExposedAdapter(String empty) throws Exception {
+        List<Error> errors = validate(consumed("http", """
+                type: "bearer"
+                        token: "{{TOKEN}}\""""), """
+                      authentication:
+                        type: "apikey"
+                        %s
+                """.formatted(emptyOne(empty)));
+
+        assertTrue(errors.stream().anyMatch(e -> e.toString().contains(
+                "/authentication/" + empty + ": must be at least 1 characters long")),
+                errors.toString());
+    }
+
+    private static String emptyOne(String empty) {
+        return "key".equals(empty) ? "key: \"\"\n        value: \"{{API_KEY}}\""
+                : "key: \"X-Api-Key\"\n        value: \"\"";
     }
 
     @ParameterizedTest(name = "consumes type {0}")

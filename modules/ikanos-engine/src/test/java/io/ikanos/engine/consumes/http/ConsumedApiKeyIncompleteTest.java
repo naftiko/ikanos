@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.data.Method;
@@ -176,6 +177,58 @@ class ConsumedApiKeyIncompleteTest {
 
         assertTrue(e.getMessage().contains("'docs'"), e.getMessage());
         assertTrue(e.getMessage().contains("no " + missing), e.getMessage());
+    }
+
+    // #1004 review: a blank key or value can't be sent either. Rendering "" gives "", since
+    // there is no variable to miss, and apply would send an empty header, or one with no name.
+
+    @ParameterizedTest(name = "key \"{0}\", value \"{1}\"")
+    @CsvSource(value = {"'' | {{KEY}} | an empty key", "X-Api-Key | '' | an empty value",
+            "X-Api-Key | '   ' | an empty value", "'' | '' | an empty key and an empty value",
+            "'' | | an empty key and no value"}, delimiter = '|')
+    void findUnsupportedShouldReportABlankKeyOrValue(String key, String value, String lacks) {
+        List<String> errors = ConsumedAuthentication.findUnsupported(spec(apiKey(key, value)));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'crm'"), errors.get(0));
+        assertTrue(errors.get(0).endsWith("this one has " + lacks), errors.get(0));
+    }
+
+    @ParameterizedTest(name = "blank {0}")
+    @ValueSource(strings = {"key", "value"})
+    void capabilityShouldRefuseToLoadAnHttpUpstreamWithABlankApiKey(String blank) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> loadHttp(blankOne(blank)));
+
+        assertTrue(e.getMessage().contains("'crm'"), e.getMessage());
+        assertTrue(e.getMessage().contains("an empty " + blank), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "blank {0}")
+    @ValueSource(strings = {"key", "value"})
+    void capabilityShouldRefuseToLoadAnMcpUpstreamWithABlankApiKey(String blank) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> loadMcp(blankOne(blank)));
+
+        assertTrue(e.getMessage().contains("'docs'"), e.getMessage());
+        assertTrue(e.getMessage().contains("an empty " + blank), e.getMessage());
+    }
+
+    @ParameterizedTest(name = "key \"{0}\", value \"{1}\"")
+    @CsvSource(value = {"'' | static", "' ' | static", "X-Api-Key | ''", "X-Api-Key | ' '"},
+            delimiter = '|')
+    void applyShouldRefuseABlankKeyOrValue(String key, String value) {
+        Request request = new Request(Method.GET, TARGET);
+
+        assertThrows(IllegalArgumentException.class, () -> ConsumedAuthentication
+                .apply(apiKey(key, value), null, request, TARGET, Map.of()));
+        assertTrue(request.getHeaders().isEmpty(), request.getHeaders().toString());
+        assertEquals(TARGET, request.getResourceRef().toString());
+    }
+
+    private static String blankOne(String blank) {
+        return "key".equals(blank) ? "key: \"\"\n        value: \"static\""
+                : "key: \"X-Api-Key\"\n        value: \"\"";
     }
 
     @Test

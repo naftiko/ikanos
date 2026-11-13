@@ -127,7 +127,7 @@ public final class ConsumedAuthentication {
                 ApiKeyAuthenticationSpec apiKeyAuth = (ApiKeyAuthenticationSpec) authenticationSpec;
                 String key = render(apiKeyAuth.getKey(), parameters, "apikey key");
                 String value = render(apiKeyAuth.getValue(), parameters, "apikey value");
-                if (key == null || value == null) {
+                if (key == null || key.isBlank() || value == null || value.isBlank()) {
                     // A last guard: the capability already refuses to load without them (#964)
                     throw new IllegalArgumentException(
                             "An apikey credential needs a key and a value to be sent");
@@ -265,15 +265,25 @@ public final class ConsumedAuthentication {
         return errors;
     }
 
-    /** What an apikey lacks to be sent, such as "no value", or null when it has both. */
+    /**
+     * What an apikey lacks to be sent, such as "no value" or "an empty key", or null when it has
+     * both. A blank key or value would send an empty header, or a header with no name.
+     */
     private static String missing(ApiKeyAuthenticationSpec apiKey) {
-        if (apiKey.getKey() == null && apiKey.getValue() == null) {
-            return "no key and no value";
+        String key = lacking(apiKey.getKey(), "key");
+        String value = lacking(apiKey.getValue(), "value");
+        if (key != null && value != null) {
+            return key + " and " + value;
         }
-        if (apiKey.getKey() == null) {
-            return "no key";
+        return key != null ? key : value;
+    }
+
+    /** "no key" when absent, "an empty key" when blank, or null when it has text. */
+    private static String lacking(String text, String what) {
+        if (text == null) {
+            return "no " + what;
         }
-        return apiKey.getValue() == null ? "no value" : null;
+        return text.isBlank() ? "an empty " + what : null;
     }
 
     /** {@code null} too: a spec built in code may have no type. */
