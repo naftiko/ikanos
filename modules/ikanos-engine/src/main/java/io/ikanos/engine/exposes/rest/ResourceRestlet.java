@@ -82,6 +82,12 @@ public class ResourceRestlet extends Restlet {
     /** Set while an operation runs as a round of input requests: a question ends the round. */
     private static final ThreadLocal<Boolean> IN_ROUND = ThreadLocal.withInitial(() -> false);
 
+    /**
+     * The location headers already warned about when forward mode drops them, kept per resource
+     * so the set is bounded by the headers, whatever paths the callers send.
+     */
+    private final Set<String> droppedLocationWarnings = ConcurrentHashMap.newKeySet();
+
     public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
             RestServerResourceSpec resourceSpec) {
         this(capability, serverSpec, resourceSpec, null);
@@ -786,7 +792,7 @@ public class ResourceRestlet extends Restlet {
                         response.setEntity(clientResponse.getEntity());
                         ForwardResponseHeaders.relay(clientResponse, response,
                                 forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri(),
-                                !ownCredential);
+                                !ownCredential, droppedLocationWarnings);
                         response.commit();
                         return true;
                     } catch (StandardRequestHeaders.InvalidPreconditionException e) {
