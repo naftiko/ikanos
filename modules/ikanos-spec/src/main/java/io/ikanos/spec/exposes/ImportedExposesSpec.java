@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.exposes;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.ValueDeserializer;
@@ -99,6 +100,7 @@ public class ImportedExposesSpec extends ServerSpec {
      * Returns the effective namespace for this import: the alias if set, otherwise the source
      * namespace. May be called only after the import has been parsed (both fields populated).
      */
+    @JsonIgnore
     public String getEffectiveNamespace() {
         if (importNamespace == null) {
             throw new IllegalStateException(
