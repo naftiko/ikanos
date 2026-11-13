@@ -45,6 +45,7 @@ import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.representation.ByteArrayRepresentation;
@@ -60,6 +61,12 @@ public class ResourceRestlet extends Restlet {
     private final RestServerSpec serverSpec;
     private final RestServerResourceSpec resourceSpec;
     private final OperationStepExecutor stepExecutor;
+
+    /**
+     * The location headers already warned about when forward mode drops them, kept per resource
+     * so the set is bounded by the headers, whatever paths the callers send.
+     */
+    private final Set<String> droppedLocationWarnings = ConcurrentHashMap.newKeySet();
 
     public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
             RestServerResourceSpec resourceSpec) {
@@ -632,7 +639,7 @@ public class ResourceRestlet extends Restlet {
                         response.setEntity(clientResponse.getEntity());
                         ForwardResponseHeaders.relay(clientResponse, response,
                                 forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri(),
-                                !ownCredential);
+                                !ownCredential, droppedLocationWarnings);
                         response.commit();
                         return true;
                     } catch (Exception e) {

@@ -16,11 +16,11 @@ package io.ikanos.engine.exposes.rest;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.restlet.Context;
 import org.restlet.Request;
@@ -82,12 +82,6 @@ public final class ForwardResponseHeaders {
     /** Dot segments, plain or percent-encoded, in lower case. */
     static final Set<String> DOT_SEGMENTS = Set.of("..", ".", "%2e%2e", ".%2e", "%2e.", "%2e");
 
-    /**
-     * The resources and headers already warned about a dropped location, so an upstream that
-     * always answers that way does not flood the log: later drops are logged at {@code FINE}.
-     */
-    private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
-
     /** {@code Vary} field names that Restlet maps to a {@link Dimension}. */
     static final Set<String> VARY_DIMENSIONS = Set.of("accept", "accept-charset",
             "accept-encoding", "accept-language", "authorization", "user-agent", "origin", "*");
@@ -137,51 +131,69 @@ public final class ForwardResponseHeaders {
      *        challenges: only when the upstream judged the caller's own credential, that is when
      *        the consumed adapter has no {@code authentication}. A challenge on the adapter's own
      *        credential names an internal realm and tells the caller that credential is broken.
+     * @param warned the location headers already warned about for the exposed resource, owned by
+     *        that resource so the set stays bounded: later drops are logged at {@code FINE}
      */
     static void relay(Response from, Response to, List<String> trustedResponseHeaders,
-            String upstreamBaseUri, boolean relayChallenges) {
+            String upstreamBaseUri, boolean relayChallenges, Set<String> warned) {
         Request incoming = to.getRequest();
+        // RFC 9110 section 7.6.1: an intermediary removes every field the Connection header
+        // nominates, whatever the allow-list says.
+        Set<String> nominated = connectionOptions(from);
         String upstreamRequestUri = from.getRequest() == null
                 || from.getRequest().getResourceRef() == null ? upstreamBaseUri
                         : from.getRequest().getResourceRef().toString();
 
-        String location = from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
+        String location = nominated.contains("location") ? null
+                : from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
         String relayedLocation = location == null ? null
                 : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming);
         if (location != null && relayedLocation == null) {
-            logDropped(HeaderConstants.HEADER_LOCATION, from, resourceKey(incoming,
-                    upstreamBaseUri));
+            logDropped(HeaderConstants.HEADER_LOCATION, from, warned);
         }
         to.setLocationRef(verbatim(relayedLocation));
 
         Representation entity = to.getEntity();
         if (entity != null) {
-            String contentLocation = from.getHeaders()
-                    .getFirstValue(HeaderConstants.HEADER_CONTENT_LOCATION, true);
+            String contentLocation = nominated.contains("content-location") ? null
+                    : from.getHeaders().getFirstValue(HeaderConstants.HEADER_CONTENT_LOCATION,
+                            true);
             if (contentLocation != null || entity.getLocationRef() != null) {
                 String relayedContentLocation = contentLocation == null ? null
                         : relayedLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
                                 incoming);
                 if (contentLocation != null && relayedContentLocation == null) {
-                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from,
-                            resourceKey(incoming, upstreamBaseUri));
+                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from, warned);
                 }
                 entity.setLocationRef(verbatim(relayedContentLocation));
             }
+            removeNominatedEntityHeaders(entity, nominated);
         }
 
-        to.setRetryAfter(from.getRetryAfter());
-        to.setCacheDirectives(new ArrayList<>(from.getCacheDirectives()));
-        to.getDimensions().addAll(from.getDimensions());
-        if (variesOnUnknownField(from)) {
-            to.getDimensions().add(Dimension.UNSPECIFIED);
+        if (!nominated.contains("retry-after")) {
+            to.setRetryAfter(from.getRetryAfter());
         }
-        to.getAllowedMethods().addAll(from.getAllowedMethods());
-        if (relayChallenges) {
+        if (!nominated.contains("cache-control")) {
+            to.setCacheDirectives(new ArrayList<>(from.getCacheDirectives()));
+        }
+        if (!nominated.contains("vary")) {
+            to.getDimensions().addAll(from.getDimensions());
+            if (variesOnUnknownField(from)) {
+                to.getDimensions().add(Dimension.UNSPECIFIED);
+            }
+        }
+        if (!nominated.contains("allow")) {
+            to.getAllowedMethods().addAll(from.getAllowedMethods());
+        }
+        if (relayChallenges && !nominated.contains("www-authenticate")) {
             to.setChallengeRequests(rawChallenges(from));
         }
-        to.getServerInfo().setAcceptingRanges(from.getServerInfo().isAcceptingRanges());
-        to.setAge(from.getAge());
+        if (!nominated.contains("accept-ranges")) {
+            to.getServerInfo().setAcceptingRanges(from.getServerInfo().isAcceptingRanges());
+        }
+        if (!nominated.contains("age")) {
+            to.setAge(from.getAge());
+        }
 
         if (trustedResponseHeaders == null) {
             return;
@@ -192,6 +204,7 @@ public final class ForwardResponseHeaders {
                 listed.add(name.trim().toLowerCase(Locale.ROOT));
             }
         }
+        listed.removeAll(nominated);
         for (String key : listed) {
             if (SET_COOKIE.equals(key)) {
                 to.getCookieSettings().addAll(from.getCookieSettings());
@@ -207,10 +220,48 @@ public final class ForwardResponseHeaders {
     }
 
     /**
-     * @return a key naming the exposed resource of {@code incoming} and its forward target
+     * @return the field names, in lower case, that the upstream's {@code Connection} headers
+     *         nominate as connection options
      */
-    private static String resourceKey(Request incoming, String upstreamBaseUri) {
-        return exposedPath(incoming) + " -> " + upstreamBaseUri;
+    static Set<String> connectionOptions(Response from) {
+        Set<String> options = new HashSet<>();
+        for (Header header : from.getHeaders()) {
+            if (!header.getName().equalsIgnoreCase(HeaderConstants.HEADER_CONNECTION)) {
+                continue;
+            }
+            for (String token : header.getValue().split(",")) {
+                String key = token.trim().toLowerCase(Locale.ROOT);
+                if (!key.isEmpty()) {
+                    options.add(key);
+                }
+            }
+        }
+        return options;
+    }
+
+    /**
+     * Removes from the relayed entity the optional metadata headers that {@code Connection}
+     * nominates. {@code Content-Type}, {@code Content-Encoding}, {@code Content-Range} and
+     * {@code Content-MD5} describe the bytes themselves and are kept: RFC 9110 section 7.6.1
+     * forbids a sender to nominate a field meant for every recipient of the content, and
+     * dropping them would make the caller misread the body.
+     */
+    static void removeNominatedEntityHeaders(Representation entity, Set<String> nominated) {
+        if (nominated.contains("content-disposition")) {
+            entity.setDisposition(null);
+        }
+        if (nominated.contains("content-language")) {
+            entity.getLanguages().clear();
+        }
+        if (nominated.contains("etag")) {
+            entity.setTag(null);
+        }
+        if (nominated.contains("last-modified")) {
+            entity.setModificationDate(null);
+        }
+        if (nominated.contains("expires")) {
+            entity.setExpirationDate(null);
+        }
     }
 
     /**
@@ -218,11 +269,13 @@ public final class ForwardResponseHeaders {
      * never the value, which can carry the upstream host. The first redirect or {@code 201}
      * without its location for a given resource and header is worth a warning; anything else is
      * logged at {@code FINE}.
+     *
+     * @param warned the headers already warned about, owned by the exposed resource
      */
-    static void logDropped(String headerName, Response from, String resourceKey) {
+    static void logDropped(String headerName, Response from, Set<String> warned) {
         int status = from.getStatus() == null ? 0 : from.getStatus().getCode();
         boolean warnable = (status >= 300 && status < 400) || status == 201;
-        Level level = warnable && WARNED.add(resourceKey + " " + headerName) ? Level.WARNING
+        Level level = warnable && warned.add(headerName) ? Level.WARNING
                 : Level.FINE;
         Context.getCurrentLogger().log(level, () -> "Forward mode did not relay the upstream "
                 + headerName + " header of a " + status + " response: it points at the "
@@ -312,8 +365,18 @@ public final class ForwardResponseHeaders {
             return null;
         }
         URI requestUri = parse(upstreamRequestUri);
-        URI resolved = (requestUri != null && requestUri.isAbsolute() ? requestUri : base)
-                .resolve(value).normalize();
+        URI target = requestUri != null && requestUri.isAbsolute() ? requestUri : base;
+        // A same-document reference (empty, query-only or fragment-only) keeps the whole request
+        // path (RFC 3986 section 5.2.2), which URI.resolve does not do, and an inherited query
+        // is the caller's own: the upstream request's query can carry a query-placed credential
+        // of the consumed adapter.
+        boolean sameDocument = value.getScheme() == null && value.getRawAuthority() == null
+                && (value.getRawPath() == null || value.getRawPath().isEmpty());
+        URI resolved = (sameDocument ? target : target.resolve(value)).normalize();
+        String query = !sameDocument ? resolved.getRawQuery()
+                : value.getRawQuery() != null ? value.getRawQuery()
+                        : incoming.getResourceRef().getQuery();
+        String fragment = sameDocument ? value.getRawFragment() : resolved.getRawFragment();
         String host = host(resolved);
         if (host == null || !host.equalsIgnoreCase(host(base))) {
             return raw;
@@ -337,11 +400,11 @@ public final class ForwardResponseHeaders {
         if (rewritten.isEmpty()) {
             rewritten = "/";
         }
-        if (resolved.getRawQuery() != null) {
-            rewritten += "?" + resolved.getRawQuery();
+        if (query != null) {
+            rewritten += "?" + query;
         }
-        if (resolved.getRawFragment() != null) {
-            rewritten += "#" + resolved.getRawFragment();
+        if (fragment != null) {
+            rewritten += "#" + fragment;
         }
         return rewritten;
     }
