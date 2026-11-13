@@ -77,7 +77,7 @@ public final class StandardRequestHeaders {
 
         private static final long serialVersionUID = 1L;
 
-        InvalidPreconditionException(String message) {
+        public InvalidPreconditionException(String message) {
             super(message);
         }
     }
@@ -357,11 +357,14 @@ public final class StandardRequestHeaders {
 
     private static List<Range> ranges(String value) {
         String trimmed = value.trim();
-        if (!trimmed.startsWith("bytes=")) {
+        // Range unit names are case-insensitive (RFC 9110 section 14.1); Restlet's reader only
+        // reads the lower-case one
+        if (!trimmed.regionMatches(true, 0, "bytes=", 0, "bytes=".length())) {
             throw new IllegalArgumentException("Only byte ranges can be sent");
         }
-        List<Range> parsed = RangeReader.read(trimmed);
-        if (parsed.size() != elements(trimmed.substring("bytes=".length()), Syntax.LIST)) {
+        String rangeSet = trimmed.substring("bytes=".length());
+        List<Range> parsed = RangeReader.read("bytes=" + rangeSet);
+        if (parsed.size() != elements(rangeSet, Syntax.LIST)) {
             throw new IllegalArgumentException("Not a valid range list");
         }
         return parsed;

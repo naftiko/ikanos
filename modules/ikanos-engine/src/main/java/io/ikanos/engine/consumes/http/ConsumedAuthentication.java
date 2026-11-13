@@ -86,6 +86,10 @@ public final class ConsumedAuthentication {
             }
             return;
         }
+        // The declared authentication owns Authorization, whatever its type: an apikey sent in
+        // another header or in the query never goes out beside the Authorization of an input or
+        // of a trusted caller header (#1001)
+        clientRequest.setChallengeResponse(null);
 
         ChallengeResponse challengeResponse;
         String type = authenticationSpec.getType();

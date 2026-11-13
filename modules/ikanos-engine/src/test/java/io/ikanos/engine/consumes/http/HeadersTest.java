@@ -15,7 +15,9 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -123,6 +125,66 @@ public class HeadersTest {
 
         assertEquals("t-1", request.getHeaders().getFirstValue("X-Api-Token", true),
                 "only the Authorization wire header yields to the declared authentication");
+    }
+
+    private static InputParameterSpec ifMatch(String value) {
+        InputParameterSpec ifMatch = new InputParameterSpec();
+        ifMatch.setName("If-Match");
+        ifMatch.setIn("header");
+        ifMatch.setValue(value);
+        return ifMatch;
+    }
+
+    @Test
+    public void resolveInputParametersShouldRefuseAnUnresolvedIfMatchOfAPutWithNoParameters() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(ifMatch("{{etag}}")), new ConcurrentHashMap<>()),
+                "#1001: leaving the If-Match out would make the write unconditional");
+    }
+
+    @Test
+    public void resolveInputParametersShouldRefuseAnIfMatchOfAPutWhoseVariableIsMissing() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        Map<String, Object> params = new ConcurrentHashMap<>(Map.of("other", "x"));
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(ifMatch("W/\"{{etag}}\"")), params));
+    }
+
+    @Test
+    public void resolveInputParametersShouldRefuseAnIfMatchOfAPutWhosePlaceholderIsNull() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        Map<String, Object> params = new HashMap<>();
+        params.put("etag", null);
+        params.put("other", "x");
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(ifMatch("{{etag}}")), params));
+    }
+
+    @Test
+    public void resolveInputParametersShouldLeaveOutAnUnresolvedIfMatchOfAGet() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(ifMatch("{{etag}}")),
+                new ConcurrentHashMap<>());
+
+        assertTrue(request.getConditions().getMatch().isEmpty());
+    }
+
+    @Test
+    public void resolveInputParametersShouldSendAResolvedIfMatchOfAPut() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(ifMatch("{{etag}}")),
+                new ConcurrentHashMap<>(Map.of("etag", "\"v1\"")));
+
+        assertEquals(1, request.getConditions().getMatch().size());
     }
 
     @Test

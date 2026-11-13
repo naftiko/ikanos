@@ -147,6 +147,20 @@ class ForwardStandardHeadersIntegrationTest {
                           operations:
                             get-tpl:
                               method: GET
+                    - namespace: guarded
+                      type: http
+                      baseUri: "http://localhost:%d/v1"
+                      inputParameters:
+                        If-Match:
+                          in: header
+                          value: "{{etag}}"
+                    - namespace: keyed
+                      type: http
+                      baseUri: "http://localhost:%d/v1"
+                      authentication:
+                        type: apikey
+                        key: X-Api-Key
+                        value: "service-key"
                     - namespace: secured
                       type: http
                       baseUri: "http://localhost:%d/v1"
@@ -236,6 +250,16 @@ class ForwardStandardHeadersIntegrationTest {
                           path: "/tplfwd/{{path}}"
                           forward:
                             targetNamespace: templated
+                        guarded:
+                          path: "/guarded/{{path}}"
+                          forward:
+                            targetNamespace: guarded
+                        keyed:
+                          path: "/keyed/{{path}}"
+                          forward:
+                            targetNamespace: keyed
+                            trustedHeaders:
+                              - Authorization
                         secure:
                           path: "/secure/{{path}}"
                           forward:
@@ -269,6 +293,7 @@ class ForwardStandardHeadersIntegrationTest {
                               - From
                               - X-Request-Id
                 """.formatted(IKANOS, upstream.getAddress().getPort(),
+                upstream.getAddress().getPort(), upstream.getAddress().getPort(),
                 upstream.getAddress().getPort(), upstream.getAddress().getPort(),
                 upstream.getAddress().getPort(), restPort),
                 IkanosSpec.class));
@@ -389,6 +414,52 @@ class ForwardStandardHeadersIntegrationTest {
         assertTrue(received.isEmpty(),
                 "#1001: a declared write whose If-Match cannot be parsed must not reach the "
                         + "upstream unconditionally: " + received);
+    }
+
+    @Test
+    void declaredOperationShouldAnswerBadRequestWhenPutIfMatchInputHasNoValue()
+            throws Exception {
+        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+                URI.create("http://localhost:" + restPort + "/items"))
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{}"))
+                .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(),
+                "#1001: a declared write whose templated If-Match has no value must not reach "
+                        + "the upstream unconditionally: " + received);
+    }
+
+    @Test
+    void forwardShouldAnswerBadRequestWhenAdapterIfMatchTemplateHasNoValueOnAPut()
+            throws Exception {
+        HttpResponse<String> response = put("/guarded/items/1", "X-Unused", "x");
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(),
+                "#1001: a forwarded write whose adapter If-Match cannot be resolved must not "
+                        + "reach the upstream unconditionally: " + received);
+    }
+
+    @Test
+    void forwardShouldLeaveOutAnUnresolvedAdapterIfMatchOnAGet() throws Exception {
+        HttpResponse<String> response = get("/guarded/items/1", "X-Unused", "x");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertNull(received.get("if-match"));
+    }
+
+    @Test
+    void forwardShouldNotSendATrustedAuthorizationBesideAnApiKeyInAnotherHeader()
+            throws Exception {
+        HttpResponse<String> response = get("/keyed/account", "Authorization",
+                "Bearer caller-token");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("service-key", received.get("x-api-key"));
+        assertNull(received.get("authorization"),
+                "#1001: the declared authentication owns Authorization");
     }
 
     @Test

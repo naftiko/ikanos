@@ -953,8 +953,21 @@ public class Resolver {
                 String in = spec.getIn() == null ? "body" : spec.getIn();
                 Object val = null;
                 String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
+                String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
+                        ? spec.getWireName() : spec.getName();
 
                 if (template != null) {
+                    // A templated precondition of an unsafe request that cannot be resolved is
+                    // refused, like one that cannot be parsed: omitting it would make the write
+                    // unconditional (#1001)
+                    boolean guardsWrite = !notSent.contains(spec)
+                            && "header".equalsIgnoreCase(in)
+                            && StandardRequestHeaders.isConditional(wireName)
+                            && clientRequest.getMethod() != null
+                            && !clientRequest.getMethod().isSafe();
+                    if (guardsWrite && !missingVariables(template, parameters).isEmpty()) {
+                        throw unresolvedPrecondition(wireName);
+                    }
                     boolean noParameters = parameters == null || parameters.isEmpty();
                     if (noParameters && !missingVariables(template, parameters).isEmpty()) {
                         // Nothing can be substituted: omit the parameter, so an optional one is
@@ -965,6 +978,9 @@ public class Resolver {
                     }
                     // A whole-value placeholder keeps the parameter's type (#880)
                     val = Resolver.resolveValue(template, parameters);
+                    if (guardsWrite && (val == null || val.toString().isBlank())) {
+                        throw unresolvedPrecondition(wireName);
+                    }
                 } else if ("environment".equalsIgnoreCase(in)) {
                     // The operator's value, never a call parameter (GHSA-23xc-9c84-r6qv)
                     val = System.getenv(spec.getName());
@@ -985,8 +1001,6 @@ public class Resolver {
                     parameters.put(spec.getName(), val);
                 }
 
-                String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
-                        ? spec.getWireName() : spec.getName();
                 if ("header".equalsIgnoreCase(in)) {
                     // A list is comma-separated, the OpenAPI "simple" style for headers
                     List<String> elements = listElements(val);
@@ -1012,6 +1026,13 @@ public class Resolver {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    private static StandardRequestHeaders.InvalidPreconditionException unresolvedPrecondition(
+            String header) {
+        // Names the header, never a value
+        return new StandardRequestHeaders.InvalidPreconditionException(
+                "No value for the " + header + " header of a request that is not safe");
     }
 
     /**
