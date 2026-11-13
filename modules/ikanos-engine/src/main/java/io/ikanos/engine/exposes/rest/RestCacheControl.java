@@ -24,6 +24,7 @@ import org.restlet.data.Dimension;
 import org.restlet.data.Method;
 import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -38,8 +39,9 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
  * upstream decides, since the caller's credentials may be passed to it. A TTL of 0 sends
  * {@code no-store}; a positive one sends {@code public} or {@code private} with {@code max-age} in
  * whole seconds, rounded up. A {@code private} answer also sends {@code Vary: Authorization}, and an
- * answer that reads an input from outside the URL sends {@code Vary: *}, since that input is not
- * part of the cache key and Restlet cannot name arbitrary headers in {@code Vary}.</p>
+ * answer that reads an input from outside the URL, or an API key from a header other than
+ * {@code Authorization}, sends {@code Vary: *}, since that header is not part of the cache key and
+ * Restlet cannot name arbitrary headers in {@code Vary}.</p>
  */
 final class RestCacheControl {
 
@@ -85,9 +87,24 @@ final class RestCacheControl {
         if (CacheScopes.PRIVATE.equals(scope)) {
             response.getDimensions().add(Dimension.AUTHORIZATION);
         }
-        if (inputOutsideUrl(server, resource, operation) != null) {
+        if (inputOutsideUrl(server, resource, operation) != null
+                || apiKeyHeader(server) != null) {
             response.getDimensions().add(Dimension.UNSPECIFIED);
         }
+    }
+
+    /**
+     * The header an API key is read from, when the adapter authenticates with one in a header
+     * other than {@code Authorization} (which {@code Vary: Authorization} already covers), or
+     * {@code null}. A key in the query string is part of the URL, and so of the cache key.
+     */
+    static String apiKeyHeader(RestServerSpec server) {
+        if (server.getAuthentication() instanceof ApiKeyAuthenticationSpec apiKey
+                && !apiKey.isQueryPlacement() && apiKey.getKey() != null
+                && !"Authorization".equalsIgnoreCase(apiKey.getKey().trim())) {
+            return apiKey.getKey();
+        }
+        return null;
     }
 
     /** The operation's {@code ttlMs}, else the adapter's, else {@code null}. */
