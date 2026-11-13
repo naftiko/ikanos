@@ -14,7 +14,13 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
@@ -50,6 +56,7 @@ class McpCacheTtlFromUpstreamTest {
     private static final ObjectMapper JSON = IkanosMappers.json();
 
     private static Component upstream;
+    private static ServerSocket slowUpstream;
     private static McpServerAdapter adapter;
 
     @BeforeAll
@@ -60,13 +67,16 @@ class McpCacheTtlFromUpstreamTest {
         }
         upstream = upstream(port);
         upstream.start();
-        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(capability(port), IkanosSpec.class);
+        slowUpstream = slowUpstream();
+        IkanosSpec spec = IkanosMappers.lenientYaml()
+                .readValue(capability(port, slowUpstream.getLocalPort()), IkanosSpec.class);
         adapter = (McpServerAdapter) new Capability(spec).getServerAdapters().get(0);
     }
 
     @AfterAll
     static void stop() throws Exception {
         upstream.stop();
+        slowUpstream.close();
     }
 
     @Test
@@ -98,7 +108,14 @@ class McpCacheTtlFromUpstreamTest {
 
     @Test
     void readShouldSubtractTheAgeOfACachedUpstreamAnswer() {
-        assertThat(read("data://aged").path("ttlMs").asInt(-1)).isEqualTo(10_000);
+        // the time since the headers arrived is deducted too
+        assertThat(read("data://aged").path("ttlMs").asInt(-1)).isBetween(9_000, 10_000);
+    }
+
+    @Test
+    void readShouldDeductTheTimeSpentDownloadingTheBody() {
+        // max-age=300 with Age 299 leaves one second, and the body takes longer than that
+        assertThat(read("data://slow").path("ttlMs").asInt(-1)).isZero();
     }
 
     @Test
@@ -119,7 +136,7 @@ class McpCacheTtlFromUpstreamTest {
         return McpCacheHintsIntegrationTest.dispatch(adapter, "resources/read", params);
     }
 
-    static String capability(int port) {
+    static String capability(int port, int slowPort) {
         return """
                 ikanos: "%s"
                 capability:
@@ -168,6 +185,12 @@ class McpCacheTtlFromUpstreamTest {
                         description: "max-age=300, Age 290"
                         call: api.aged
                         ttlFromUpstream: true
+                      slow:
+                        display: "Slow"
+                        uri: "data://slow"
+                        description: "max-age=300, Age 299, body sent after 1.5 s"
+                        call: slowapi.slow
+                        ttlFromUpstream: true
                       plain:
                         display: "Plain"
                         uri: "data://plain"
@@ -215,7 +238,16 @@ class McpCacheTtlFromUpstreamTest {
                         operations:
                           plain:
                             method: GET
-                """.formatted(IKANOS, port);
+                  - type: http
+                    namespace: slowapi
+                    baseUri: "http://localhost:%d/v1"
+                    resources:
+                      slow:
+                        path: "/slow"
+                        operations:
+                          slow:
+                            method: GET
+                """.formatted(IKANOS, port, slowPort);
     }
 
     static Component upstream(int port) {
@@ -247,6 +279,44 @@ class McpCacheTtlFromUpstreamTest {
                 response.setAge(290);
             }
         };
+    }
+
+    /**
+     * A raw HTTP upstream that sends its headers (one second of freshness left), then the body
+     * 1.5 s later, so the body download takes longer than the freshness left.
+     */
+    static ServerSocket slowUpstream() throws IOException {
+        ServerSocket server = new ServerSocket(0);
+        Thread thread = new Thread(() -> {
+            while (!server.isClosed()) {
+                try (Socket socket = server.accept()) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.US_ASCII));
+                    String line;
+                    while ((line = in.readLine()) != null && !line.isEmpty()) {
+                        // skip the request line and headers
+                    }
+                    OutputStream out = socket.getOutputStream();
+                    byte[] body = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+                    out.write(("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                            + "Cache-Control: max-age=300\r\nAge: 299\r\nContent-Length: "
+                            + body.length + "\r\nConnection: close\r\n\r\n")
+                            .getBytes(StandardCharsets.US_ASCII));
+                    out.flush();
+                    Thread.sleep(1_500);
+                    out.write(body);
+                    out.flush();
+                } catch (IOException closed) {
+                    // the test is over, or the client went away
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }, "slow-upstream");
+        thread.setDaemon(true);
+        thread.start();
+        return server;
     }
 
     static Restlet answer(List<CacheDirective> directives, Long expiresInMillis) {
