@@ -537,6 +537,40 @@ public class HttpClientAdapterTest {
                 invocation.getRequest().getResourceRef().toString());
     }
 
+    @Test
+    public void prepareShouldSendTheContentTypeOfAHeaderInputWithTheBody() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      resources:
+                        things:
+                          path: "/things"
+                          operations:
+                            create:
+                              method: POST
+                              inputParameters:
+                                Content-Type:
+                                  in: header
+                                  value: "{{ct}}"
+                              body:
+                                type: json
+                                data: '{"a":1}'
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
+
+        Request request = adapter.prepare("create",
+                new HashMap<>(Map.of("ct", "application/vnd.api+json"))).getRequest();
+
+        assertEquals("application/vnd.api+json", request.getEntity().getMediaType().toString(),
+                "#1001: a Content-Type input must not be dropped as a raw standard header");
+    }
+
     private HttpClientAdapter pagesAdapter() {
         HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
         HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",

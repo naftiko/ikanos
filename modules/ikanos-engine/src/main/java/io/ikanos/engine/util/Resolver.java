@@ -1032,6 +1032,16 @@ public class Resolver {
                 } else if (parameters != null && parameters.containsKey(spec.getName())) {
                     val = parameters.get(spec.getName());
                 }
+                // A required precondition the caller left out (or sent empty) of a request that
+                // is not safe: sending the write without it would make it unconditional (#1001)
+                if (template == null && spec.isRequired() && !notSent.contains(spec)
+                        && "header".equalsIgnoreCase(in)
+                        && StandardRequestHeaders.isConditional(wireName)
+                        && clientRequest.getMethod() != null
+                        && !clientRequest.getMethod().isSafe()
+                        && (val == null || val.toString().isBlank())) {
+                    throw unresolvedPrecondition(wireName);
+                }
 
                 if (val == null) {
                     continue;

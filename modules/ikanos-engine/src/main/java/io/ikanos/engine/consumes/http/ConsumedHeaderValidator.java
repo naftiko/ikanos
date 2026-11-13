@@ -105,6 +105,15 @@ public final class ConsumedHeaderValidator {
                         + " " + reason);
                 continue;
             }
+            // Restlet writes these from the body, which the operation's body builds; only
+            // Content-Type can be set from an input (StandardRequestHeaders.applyContentType)
+            if (StandardRequestHeaders.isEntityHeader(name)
+                    && !StandardRequestHeaders.isSetThroughProperty(name)) {
+                errors.add(where + " header input '" + name + "' can never be sent: " + name
+                        + " describes the request body, which the engine builds from the "
+                        + "operation's body");
+                continue;
+            }
             // Resolver sends the value, else the template (Resolver.resolveInputParametersToRequest)
             String value = parameter.getValue() != null ? parameter.getValue()
                     : parameter.getTemplate();

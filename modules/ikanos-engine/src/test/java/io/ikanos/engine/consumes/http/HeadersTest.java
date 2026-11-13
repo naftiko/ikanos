@@ -252,6 +252,88 @@ public class HeadersTest {
         assertNotNull(request.getConditions().getRangeTag());
     }
 
+    private static InputParameterSpec suppliedIfMatch(boolean required) {
+        InputParameterSpec spec = new InputParameterSpec();
+        spec.setName("If-Match");
+        spec.setIn("header");
+        spec.setRequired(required);
+        return spec;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"absent", "null", "blank"})
+    public void resolveInputParametersShouldRefuseARequiredIfMatchOfAPutTheCallerLeftOut(
+            String supplied) {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        Map<String, Object> params = new HashMap<>(Map.of("other", "x"));
+        if (!"absent".equals(supplied)) {
+            params.put("If-Match", "null".equals(supplied) ? null : " ");
+        }
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(suppliedIfMatch(true)), params),
+                supplied + ": a required If-Match left out would make the write unconditional");
+    }
+
+    @Test
+    public void resolveInputParametersShouldLeaveOutAnOptionalIfMatchOfAPutTheCallerLeftOut() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(suppliedIfMatch(false)),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertTrue(request.getConditions().getMatch().isEmpty());
+    }
+
+    @Test
+    public void resolveInputParametersShouldLeaveOutARequiredIfMatchOfAGetTheCallerLeftOut() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(suppliedIfMatch(true)),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertTrue(request.getConditions().getMatch().isEmpty());
+    }
+
+    @Test
+    public void resolveInputParametersShouldSendARequiredIfMatchOfAPutTheCallerSupplied() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(suppliedIfMatch(true)),
+                new HashMap<>(Map.of("If-Match", "\"v1\"")));
+
+        assertEquals(1, request.getConditions().getMatch().size());
+    }
+
+    @Test
+    public void resolveInputParametersUsesMustacheInValueForTheContentTypeOfTheBody() {
+        Request request = new Request(Method.POST, "https://api.example.com/v1/items");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Content-Type", "{{type}}; charset=utf-8")),
+                new HashMap<>(Map.of("type", "application/vnd.api+json")));
+        request.setEntity("{}", MediaType.APPLICATION_JSON);
+        StandardRequestHeaders.applyContentType(request);
+
+        assertEquals("application/vnd.api+json",
+                request.getEntity().getMediaType().toString());
+        assertEquals("UTF-8", request.getEntity().getCharacterSet().getName());
+    }
+
+    @Test
+    public void resolveInputParametersShouldSetTheContentTypeOfABodyAlreadySet() {
+        Request request = new Request(Method.POST, "https://api.example.com/v1/items");
+        request.setEntity("{}", MediaType.APPLICATION_JSON);
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Content-Type", "application/merge-patch+json")),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertEquals("application/merge-patch+json",
+                request.getEntity().getMediaType().toString());
+    }
+
     @Test
     public void resolveInputParametersShouldLeaveOutAnUnresolvedIfMatchOfAGet() {
         Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");

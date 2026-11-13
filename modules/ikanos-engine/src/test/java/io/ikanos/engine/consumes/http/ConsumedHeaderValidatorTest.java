@@ -125,6 +125,38 @@ class ConsumedHeaderValidatorTest {
                 errors.get(0));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"Content-Language", "Content-Encoding", "Content-Disposition",
+            "Content-MD5", "Content-Range", "Content-Location"})
+    void findErrorsShouldRefuseABodyHeaderOtherThanContentType(String name) throws Exception {
+        List<String> errors = ConsumedHeaderValidator.findErrors(spec("""
+                      inputParameters:
+                        %s:
+                          in: header
+                          value: "{{whatever}}"
+                """.formatted(name), "", ""));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains(name) && errors.get(0).contains("body"),
+                errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldAcceptAContentTypeInputAndRefuseAnInvalidOne() throws Exception {
+        assertTrue(ConsumedHeaderValidator.findErrors(spec("""
+                      inputParameters:
+                        Content-Type:
+                          in: header
+                          value: "application/json"
+                """, "", "")).isEmpty());
+        assertEquals(1, ConsumedHeaderValidator.findErrors(spec("""
+                      inputParameters:
+                        Content-Type:
+                          in: header
+                          value: "json"
+                """, "", "")).size());
+    }
+
     @Test
     void findErrorsShouldRefuseAWireNameTheClientCanNeverSend() throws Exception {
         List<String> errors = ConsumedHeaderValidator.findErrors(spec("", "", """

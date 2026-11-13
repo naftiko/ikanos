@@ -326,6 +326,9 @@ public class HttpClientAdapter extends ClientAdapter {
             clientRequest.setEntity(resolvedBody, bodyMediaType);
         }
 
+        // A Content-Type input was resolved before the body existed (#1001)
+        StandardRequestHeaders.applyContentType(clientRequest);
+
         // Set authentication and headers
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
