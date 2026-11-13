@@ -207,6 +207,51 @@ public class HeadersTest {
         assertEquals(1, request.getConditions().getMatch().size(), template);
     }
 
+    private static InputParameterSpec header(String name, String value) {
+        InputParameterSpec spec = ifMatch(value);
+        spec.setName(name);
+        return spec;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{{etag}}", "\"{{etag}}\"", "{{order.etag}}", "\"{{order.etag}}\""})
+    public void resolveInputParametersShouldNotSendTheRangeOfAGetWhoseIfRangeIsUnresolved(
+            String template) {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), header("If-Range", template)),
+                orderWithoutEtag());
+
+        assertTrue(request.getRanges().isEmpty(),
+                template + ": a Range without its If-Range could return part of a changed "
+                        + "representation");
+        assertEquals(null, request.getConditions().getRangeTag());
+    }
+
+    @Test
+    public void resolveInputParametersShouldNotSendTheRangeOfAGetWhoseIfRangeHasNoParameters() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+        request.setRanges(new java.util.ArrayList<>(List.of(new org.restlet.data.Range(0, 10))));
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("If-Range", "{{etag}}")), new ConcurrentHashMap<>());
+
+        assertTrue(request.getRanges().isEmpty());
+    }
+
+    @Test
+    public void resolveInputParametersShouldSendTheRangeOfAGetWhoseIfRangeIsResolved() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), header("If-Range", "\"{{order.id}}\"")),
+                orderWithoutEtag());
+
+        assertEquals(1, request.getRanges().size());
+        assertNotNull(request.getConditions().getRangeTag());
+    }
+
     @Test
     public void resolveInputParametersShouldLeaveOutAnUnresolvedIfMatchOfAGet() {
         Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");

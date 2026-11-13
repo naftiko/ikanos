@@ -25,10 +25,11 @@ import io.ikanos.spec.consumes.http.HttpClientResourceSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 
 /**
- * Refuses a static value of a consumed {@code in: header} input that the engine can never send,
- * such as {@code If-Match: v1} (an unquoted entity tag) or {@code Range: items=0-9} (#1001). Such a
- * value used to fail or be dropped on every call; it now fails the capability at load time and
- * {@code ikanos validate}. A value that holds a {@code {{…}}} template is only known per call and
+ * Refuses a consumed {@code in: header} input that the HTTP client can never send, such as
+ * {@code Host}, {@code Content-Length} or a response header, whatever its value, and a static
+ * value the engine can never send, such as {@code If-Match: v1} (an unquoted entity tag) or
+ * {@code Range: items=0-9} (#1001). Such an input used to fail or be dropped on every call; it
+ * now fails the capability at load time and {@code ikanos validate}. A value that holds a {@code {{…}}} template is only known per call and
  * is checked then. Messages name the adapter, the operation and the header, never the value.
  */
 public final class ConsumedHeaderValidator {
@@ -92,15 +93,24 @@ public final class ConsumedHeaderValidator {
             return;
         }
         for (InputParameterSpec parameter : parameters) {
-            // Resolver sends the value, else the template (Resolver.resolveInputParametersToRequest)
-            String value = parameter.getValue() != null ? parameter.getValue()
-                    : parameter.getTemplate();
-            if (!"header".equalsIgnoreCase(parameter.getIn()) || value == null
-                    || value.contains("{{")) {
+            if (!"header".equalsIgnoreCase(parameter.getIn())) {
                 continue;
             }
             String name = parameter.getWireName() != null && !parameter.getWireName().isBlank()
                     ? parameter.getWireName() : parameter.getName();
+            // Whatever its value: the client connector never sends it (#1001)
+            String reason = StandardRequestHeaders.notSendableReason(name);
+            if (reason != null) {
+                errors.add(where + " header input '" + name + "' can never be sent: " + name
+                        + " " + reason);
+                continue;
+            }
+            // Resolver sends the value, else the template (Resolver.resolveInputParametersToRequest)
+            String value = parameter.getValue() != null ? parameter.getValue()
+                    : parameter.getTemplate();
+            if (value == null || value.contains("{{")) {
+                continue;
+            }
             if (!StandardRequestHeaders.isSetThroughProperty(name)) {
                 continue;
             }
