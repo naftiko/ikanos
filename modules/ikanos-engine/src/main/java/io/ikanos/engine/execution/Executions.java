@@ -236,6 +236,11 @@ public final class Executions {
         }
         if (result instanceof ExecutionResult.Failed failed) {
             // A failure recorded by an earlier run of a journaled execution: no exception here.
+            // A decline is raised as one again, so a retry after a restart still answers 409.
+            if (InputDeclinedException.class.getSimpleName()
+                    .equals(failed.failure().errorClass())) {
+                return new InputDeclinedException(failed.failure().message());
+            }
             return new IllegalStateException(failed.failure().message());
         }
         return new IllegalStateException("The execution did not complete: " + result);
