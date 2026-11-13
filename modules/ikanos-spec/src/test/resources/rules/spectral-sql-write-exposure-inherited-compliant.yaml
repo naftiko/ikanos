@@ -1,0 +1,74 @@
+# Spectral fixture — SQL write tools that override the readOnly default of the
+# MCP exposes block. The block declares `hints: { readOnly: true }`.
+# MUST NOT FIRE ikanos-sql-write-exposure:
+#   - a tool that calls the read procedure and inherits readOnly: true
+#   - a write tool declaring readOnly: false
+#   - a write tool declaring destructive: true without readOnly, which
+#       resolves to readOnly: false
+#   - a write tool reaching the write through `ref` to a flow declaring
+#       semantics.safe: false, which resolves to readOnly: false
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL rules — writes overriding inherited readOnly"
+  description: "Fixture where SQL write tools override the readOnly default of the MCP exposes block."
+capability:
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        get-order:
+          description: Reads one order.
+          statement: select id, status from orders where id = :id
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            rows: { type: array, value: "$.rows" }
+        mark-shipped:
+          description: Marks one paid order as shipped.
+          readOnly: false
+          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            updated: { type: number, value: "$.rowCount" }
+        cancel:
+          description: Deletes one unpaid order.
+          readOnly: false
+          statement: delete from orders where id = :id and status = 'NEW'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            deleted: { type: number, value: "$.rowCount" }
+  aggregates:
+    - display: Orders
+      namespace: orders
+      flows:
+        settle:
+          description: Settles one order.
+          semantics: { safe: false }
+          call: erp.mark-shipped
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      hints: { readOnly: true }
+      tools:
+        get-order:
+          description: Reads an order.
+          call: erp.get-order
+        ship:
+          description: Ships an order.
+          hints: { readOnly: false }
+          call: erp.mark-shipped
+        cancel:
+          description: Cancels an order.
+          hints: { destructive: true }
+          call: erp.cancel
+        settle:
+          description: Settles an order through a flow.
+          ref: orders.settle
