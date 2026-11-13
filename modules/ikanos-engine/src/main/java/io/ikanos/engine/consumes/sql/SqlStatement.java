@@ -205,6 +205,11 @@ final class SqlStatement {
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
+                if (mysql && executableComment(sql, i)) {
+                    throw new IllegalArgumentException("statement holds a MySQL executable"
+                            + " comment (/*! ... */ or /*M! ... */), which runs its content;"
+                            + " write that SQL outside a comment");
+                }
                 int end = endOfBlockComment(sql, i, dialect.nestedComments());
                 out.append(sql, i, end);
                 i = end;
@@ -283,6 +288,11 @@ final class SqlStatement {
             }
         }
         throw new IllegalArgumentException("statement has an unterminated comment");
+    }
+
+    /** @return whether the comment at {@code i} is MySQL's {@code /*!} or MariaDB's {@code /*M!} */
+    private static boolean executableComment(String sql, int i) {
+        return sql.startsWith("/*!", i) || sql.regionMatches(true, i, "/*M!", 0, 4);
     }
 
     private static boolean startsComment(String sql, int i, boolean mysql) {
