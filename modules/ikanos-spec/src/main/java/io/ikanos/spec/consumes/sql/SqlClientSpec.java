@@ -43,7 +43,7 @@ public class SqlClientSpec extends ClientSpec {
     /** {@code discovery: verify} — check the connection and every procedure at start. */
     public static final String DISCOVERY_VERIFY = "verify";
 
-    /** {@code discovery: off} — no start-up connection. */
+    /** {@code discovery: off} — start-up does not wait for a connection. */
     public static final String DISCOVERY_OFF = OFF;
 
     private final AtomicReference<String> description = new AtomicReference<>();

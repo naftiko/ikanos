@@ -707,7 +707,9 @@ public class SqlClientAdapter extends ClientAdapter {
         if (getSqlClientSpec().isDiscoveryVerify()) {
             try {
                 verify(created);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | Error e) {
+                // an Error too: a pre-JDBC 4 driver throws AbstractMethodError, and the pool's
+                // threads must not outlive a failed start
                 created.close();
                 throw e;
             }
@@ -752,11 +754,15 @@ public class SqlClientAdapter extends ClientAdapter {
                 + " procedures at start (best effort: some drivers check SQL only when it runs)");
     }
 
-    private String checkStatement(Connection connection, Procedure procedure) {
+    /**
+     * Prepare a statement and read its result metadata, which makes the server parse it. Parameter
+     * metadata is not read: some servers (SQL Server) cannot infer a parameter type for valid SQL
+     * such as {@code :x IS NULL OR col = :x}, and the parse does not need it.
+     */
+    String checkStatement(Connection connection, Procedure procedure) {
         try (PreparedStatement statement = prepare(connection, procedure)) {
             try {
                 statement.getMetaData();
-                statement.getParameterMetaData();
             } catch (SQLFeatureNotSupportedException lazy) {
                 // the driver checks the SQL when it runs
             }
@@ -769,29 +775,51 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Look up a stored procedure, or a function, by its last name part, in the schema and catalog
-     * the qualified name gives. Unquoted names are stored upper case by some databases (Oracle,
-     * HSQLDB) and lower case by others (PostgreSQL), so each case is tried.
+     * Look up a stored procedure, or a function, by its last name part. A qualified name is read
+     * both ways: {@code schema.proc} and {@code catalog.schema.proc}, and Oracle's
+     * {@code package.proc} and {@code schema.package.proc}, where the Oracle driver takes the
+     * package as the catalog. Unquoted names are stored upper case by some databases (Oracle,
+     * HSQLDB) and lower case by others (PostgreSQL), so each case is tried. {@code _} and
+     * {@code %} are escaped, since the metadata calls take patterns. A driver that does not
+     * support {@code getFunctions} is only asked for procedures.
      */
     static String checkStored(DatabaseMetaData catalog, Procedure procedure) {
         String[] parts = procedure.spec().getStoredProcedure().trim().split("\\.");
         String name = parts[parts.length - 1];
-        String schema = parts.length >= 2 ? parts[parts.length - 2] : null;
-        String database = parts.length == 3 ? parts[0] : null;
+        // {catalog, schema} readings of the qualifier
+        List<String[]> readings = new ArrayList<>();
+        if (parts.length == 1) {
+            readings.add(new String[] {null, null});
+        } else if (parts.length == 2) {
+            readings.add(new String[] {null, parts[0]});
+            readings.add(new String[] {parts[0], null});
+        } else {
+            readings.add(new String[] {parts[0], parts[1]});
+            readings.add(new String[] {parts[1], parts[0]});
+        }
         try {
+            String escape = catalog.getSearchStringEscape();
+            boolean functions = true;
             for (UnaryOperator<String> caseOf : NAME_CASES) {
-                String inSchema = schema != null ? caseOf.apply(schema) : null;
-                String inDatabase = database != null ? caseOf.apply(database) : null;
-                try (ResultSet found = catalog.getProcedures(inDatabase, inSchema,
-                        caseOf.apply(name))) {
-                    if (found.next()) {
-                        return null;
+                String pattern = escapePattern(caseOf.apply(name), escape);
+                for (String[] reading : readings) {
+                    String inDatabase = reading[0] != null ? caseOf.apply(reading[0]) : null;
+                    String inSchema = reading[1] != null
+                            ? escapePattern(caseOf.apply(reading[1]), escape) : null;
+                    try (ResultSet found = catalog.getProcedures(inDatabase, inSchema, pattern)) {
+                        if (found.next()) {
+                            return null;
+                        }
                     }
-                }
-                try (ResultSet found = catalog.getFunctions(inDatabase, inSchema,
-                        caseOf.apply(name))) {
-                    if (found.next()) {
-                        return null;
+                    if (functions) {
+                        try (ResultSet found = catalog.getFunctions(inDatabase, inSchema,
+                                pattern)) {
+                            if (found.next()) {
+                                return null;
+                            }
+                        } catch (SQLFeatureNotSupportedException | AbstractMethodError none) {
+                            functions = false;
+                        }
                     }
                 }
             }
@@ -799,6 +827,21 @@ public class SqlClientAdapter extends ClientAdapter {
             return "could not be looked up (SQLState " + e.getSQLState() + ")";
         }
         return "names a stored procedure that the database does not list";
+    }
+
+    /** @return {@code value} with the metadata pattern characters {@code _} and {@code %} escaped */
+    static String escapePattern(String value, String escape) {
+        if (escape == null || escape.isEmpty()) {
+            return value;
+        }
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (char c : value.toCharArray()) {
+            if (c == '_' || c == '%' || escape.indexOf(c) >= 0) {
+                escaped.append(escape);
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
     }
 
     HikariConfig poolConfig() {
