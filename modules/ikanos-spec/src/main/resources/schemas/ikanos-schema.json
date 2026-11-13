@@ -3627,7 +3627,8 @@
         },
         {
           "required": [
-            "storedProcedure"
+            "storedProcedure",
+            "readOnly"
           ]
         }
       ]

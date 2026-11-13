@@ -189,6 +189,23 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldRequireReadOnlyOnAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("  readOnly: true\n", ""));
+
+        assertFalse(validate(yaml).isEmpty(), "a storedProcedure must declare readOnly");
+    }
+
+    @Test
+    void runtimeShouldNotTruncateAFractionalPosition() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE.replace("position: 1 }",
+                "position: 1.5 }")), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals(null, procedure.getInputParameters().get(0).getPosition());
+    }
+
+    @Test
     void schemaShouldRejectBothAStatementAndAStoredProcedure() throws Exception {
         String yaml = capability(GET_BALANCE.replace("readOnly: true",
                 "readOnly: true\n  statement: select 1"));
