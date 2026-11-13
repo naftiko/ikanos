@@ -49,6 +49,7 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Calls an S3-like upstream with {@code awsSigV4} authentication through a capability, and checks
@@ -119,7 +120,7 @@ public class AwsSigV4IntegrationTest {
     private Capability start(String authentication) throws Exception {
         restPort = findFreePort();
         String yaml = """
-                ikanos: "0.4"
+                ikanos: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -151,7 +152,8 @@ public class AwsSigV4IntegrationTest {
                                 type: "json"
                                 data:
                                   note: "{{note}}"
-                """.formatted(restPort, upstreamPort, authentication);
+                """.formatted(VersionHelper.getSchemaVersion(), restPort, upstreamPort,
+                        authentication);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         capability = new Capability(spec);
         capability.start();
@@ -296,7 +298,7 @@ public class AwsSigV4IntegrationTest {
     void refusesAwsSigV4OnAnExposedAdapter() throws Exception {
         int restPort = findFreePort();
         String yaml = """
-                ikanos: "0.4"
+                ikanos: "%s"
                 capability:
                   exposes:
                     - type: "rest"
@@ -313,7 +315,8 @@ public class AwsSigV4IntegrationTest {
                     - type: "http"
                       namespace: "store"
                       baseUri: "http://localhost:%d/documents"
-                """.formatted(restPort, auth(null), upstreamPort);
+                """.formatted(VersionHelper.getSchemaVersion(), restPort, auth(null),
+                        upstreamPort);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
 
         IllegalArgumentException error =
