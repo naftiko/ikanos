@@ -47,8 +47,7 @@ public class RestServerOperationSpec extends OperationSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
-    private final Map<String, OperationStepSpec> steps =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<String, OperationStepSpec> steps = StepOrder.newSteps();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<StepOutputMappingSpec> mappings = new CopyOnWriteArrayList<>();
