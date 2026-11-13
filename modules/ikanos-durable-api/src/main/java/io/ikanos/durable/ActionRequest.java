@@ -43,6 +43,18 @@ public record ActionRequest(ExecutionId executionId, NodePath path, Object actio
      * has the effect once. The engine does not forward it to consumed operations yet.</p>
      */
     public String idempotencyKey() {
+        return idempotencyKey(executionId, path);
+    }
+
+    /**
+     * The idempotency key of the action at {@code path} in {@code executionId}:
+     * {@code <execution-id>:<path>}, the one form that executors receive and runners journal.
+     * The separator is {@code :} because an execution ID can contain {@code /}, as a nested
+     * execution's does.
+     */
+    public static String idempotencyKey(ExecutionId executionId, NodePath path) {
+        Objects.requireNonNull(executionId, "executionId");
+        Objects.requireNonNull(path, "path");
         return executionId.value() + ":" + path.value();
     }
 }

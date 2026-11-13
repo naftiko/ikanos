@@ -21,7 +21,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -106,6 +109,12 @@ public final class McpTaskService {
     /** Most unfinished tasks resumed at once. */
     static final int RESUME_LIMIT = 10_000;
 
+    /**
+     * Most tasks whose last update time is kept in memory; the oldest is forgotten first, and
+     * reports its creation time again, as every task does after a restart.
+     */
+    static final int LAST_UPDATED_LIMIT = 10_000;
+
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final ObjectMapper MAPPER = IkanosMappers.json();
 
@@ -113,8 +122,14 @@ public final class McpTaskService {
     private final Clock clock;
     private final Long ttlMs;
     private final Map<ExecutionId, Future<?>> running = new ConcurrentHashMap<>();
-    private final Map<ExecutionId, Instant> lastUpdated = new ConcurrentHashMap<>();
-    private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    private final Map<ExecutionId, Instant> lastUpdated = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<ExecutionId, Instant> eldest) {
+                    return size() > LAST_UPDATED_LIMIT;
+                }
+            });
+    private final ExecutorService workers;
     private final AtomicBoolean draining = new AtomicBoolean();
 
     /**
@@ -122,9 +137,15 @@ public final class McpTaskService {
      *        {@code null} when unbounded
      */
     public McpTaskService(JournaledRunner runner, Clock clock, Long ttlMs) {
+        this(runner, clock, ttlMs, Executors.newVirtualThreadPerTaskExecutor());
+    }
+
+    /** With the executor that runs the tasks, for the tests. */
+    McpTaskService(JournaledRunner runner, Clock clock, Long ttlMs, ExecutorService workers) {
         this.runner = runner;
         this.clock = clock;
         this.ttlMs = ttlMs;
+        this.workers = workers;
     }
 
     /**
@@ -199,7 +220,9 @@ public final class McpTaskService {
 
     private void submit(ExecutionId executionId, Callable<JsonNode> work) {
         ExecutionRequest request = ExecutionRequest.of(executionId, null);
-        Future<?> future = workers.submit(() -> {
+        // Registered before it can run, and removed by the task itself once it ends (or by done()
+        // when it is cancelled before it starts): an entry never outlives its task.
+        FutureTask<Void> task = new FutureTask<>(() -> {
             try {
                 runner.run(request, interpreter(), action -> {
                     try {
@@ -223,11 +246,30 @@ public final class McpTaskService {
                 lastUpdated.put(executionId, clock.instant());
                 running.remove(executionId);
             }
-        });
-        if (!future.isDone()) {
-            // Kept for tasks/cancel; a task that already ended has nothing left to interrupt.
-            running.put(executionId, future);
+            return null;
+        }) {
+            @Override
+            protected void done() {
+                running.remove(executionId, this);
+            }
+        };
+        running.put(executionId, task);
+        try {
+            workers.execute(task);
+        } catch (RuntimeException e) {
+            running.remove(executionId, task);
+            throw e;
         }
+    }
+
+    /** The number of tasks tracked as running, for the tests. */
+    int runningCount() {
+        return running.size();
+    }
+
+    /** The number of tasks whose last update time is kept, for the tests. */
+    int lastUpdatedCount() {
+        return lastUpdated.size();
     }
 
     /**

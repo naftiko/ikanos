@@ -46,6 +46,21 @@ final class MemoryExecutionIndex implements ExecutionIndex {
     }
 
     @Override
+    public boolean compareAndSetStatus(ExecutionId executionId, ExecutionStatus expected,
+            ExecutionStatus status) {
+        boolean[] set = new boolean[1];
+        records.computeIfPresent(executionId, (id, r) -> {
+            if (r.status() != expected) {
+                return r;
+            }
+            set[0] = true;
+            return new ExecutionRecord(r.executionId(), r.specDigest(), r.entry(), status,
+                    r.createdAt(), r.deadline(), r.labels());
+        });
+        return set[0];
+    }
+
+    @Override
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return records.values().stream().filter(r -> r.status() == status)
                 .sorted(Comparator.comparing(ExecutionRecord::createdAt)).limit(limit).toList();

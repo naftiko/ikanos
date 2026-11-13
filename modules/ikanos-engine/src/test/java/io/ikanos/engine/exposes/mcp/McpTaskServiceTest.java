@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -175,6 +176,90 @@ public class McpTaskServiceTest {
                 .asString());
         assertEquals(List.of("book-slot", "declare"), invoked,
                 "The booking finished before the drain is not made again");
+    }
+
+    @Test
+    void aTaskThatEndsBeforeItIsRegisteredShouldLeaveNoRunningEntry() {
+        // Runs each task on the submitting thread: the task ends before submit returns, which is
+        // what a fast task on a worker thread can do.
+        McpTaskService direct = new McpTaskService(Durability.fromSpec(
+                new DurabilitySpec("memory")).runner(), Clock.systemUTC(), null, new DirectExecutor());
+
+        String taskId = direct.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                IkanosMappers.json().createObjectNode(),
+                () -> IkanosMappers.json().createObjectNode()).path("taskId").asString();
+
+        assertEquals(0, direct.runningCount(), "An ended task must not stay registered");
+        assertEquals("completed", direct.get(taskId, "agent-7").orElseThrow().path("status")
+                .asString());
+    }
+
+    @Test
+    void aRunningTaskShouldBeRegisteredUntilItEnds() throws Exception {
+        CountDownLatch inWork = new CountDownLatch(1);
+        CountDownLatch finishWork = new CountDownLatch(1);
+        service.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                IkanosMappers.json().createObjectNode(), () -> {
+                    inWork.countDown();
+                    assertTrue(finishWork.await(10, TimeUnit.SECONDS));
+                    return IkanosMappers.json().createObjectNode();
+                });
+        assertTrue(inWork.await(10, TimeUnit.SECONDS));
+        assertEquals(1, service.runningCount());
+
+        finishWork.countDown();
+        assertEquals(0, service.drain(Duration.ofSeconds(10)));
+
+        assertEquals(0, service.runningCount());
+    }
+
+    @Test
+    void theLastUpdateTimesKeptShouldBeBounded() {
+        McpTaskService direct = new McpTaskService(Durability.fromSpec(
+                new DurabilitySpec("memory")).runner(), Clock.systemUTC(), null, new DirectExecutor());
+        for (int i = 0; i <= McpTaskService.LAST_UPDATED_LIMIT; i++) {
+            direct.create("mcp:shipyard-ops/clear-for-departure", "agent-7", null,
+                    () -> IkanosMappers.json().createObjectNode());
+        }
+
+        assertEquals(McpTaskService.LAST_UPDATED_LIMIT, direct.lastUpdatedCount());
+    }
+
+    /** Runs every task on the calling thread. */
+    private static final class DirectExecutor extends AbstractExecutorService {
+
+        private boolean shutdown;
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
+        }
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
     }
 
     @Test
