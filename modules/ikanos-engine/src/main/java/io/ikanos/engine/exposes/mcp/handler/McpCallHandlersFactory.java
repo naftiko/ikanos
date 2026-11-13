@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
+import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.engine.exposes.mcp.processor.CacheHints;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
@@ -24,6 +25,10 @@ import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
+import org.restlet.Context;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_METHOD;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_NAME;
@@ -44,9 +49,17 @@ public class McpCallHandlersFactory {
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
         DispatchPostProcessor cacheDataAppender =
                 new CacheDataAppender(CacheHints.forServer(adapter.getMcpServerSpec()));
-        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read
-        adapter.getMcpServerSpec().getResources().values()
-                .forEach(resource -> CacheHints.forResource(adapter.getMcpServerSpec(), resource));
+        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read,
+        // and say which scope each result gets and why (cacheScope: auto is derived)
+        McpServerSpec spec = adapter.getMcpServerSpec();
+        Logger logger = Context.getCurrentLogger();
+        logger.fine(() -> describe(spec.getNamespace() + " lists",
+                CacheHints.scopeDecision(spec, null)));
+        for (McpServerResourceSpec resource : spec.getResources().values()) {
+            CacheHints.forResource(spec, resource);
+            logger.fine(() -> describe(spec.getNamespace() + " resource " + resource.getName(),
+                    CacheHints.scopeDecision(spec, resource)));
+        }
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
         List<McpCallHandler> handlers = new ArrayList<>(List.of(
@@ -80,5 +93,10 @@ public class McpCallHandlersFactory {
                     List.of(protocolsVersionsValidator), List.of(cacheDataAppender, serverDataAppender)));
         }
         return List.copyOf(handlers);
+    }
+
+    private static String describe(String subject, CacheScopes.Decision decision) {
+        return "MCP adapter " + subject + ": cacheScope " + decision.scope() + " ("
+                + decision.reason() + ")";
     }
 }

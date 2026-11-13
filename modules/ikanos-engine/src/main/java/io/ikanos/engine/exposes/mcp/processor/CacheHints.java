@@ -15,15 +15,20 @@ package io.ikanos.engine.exposes.mcp.processor;
 
 import java.util.Objects;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 
 /**
  * The cache hints of one MCP result (MCP 2026-07-28, SEP-2549): {@code ttlMs} and
  * {@code cacheScope}.
  *
  * <p>The adapter's values apply to every list and read; a resource's own values override them on
- * {@code resources/read} of that resource, field by field.</p>
+ * {@code resources/read} of that resource, field by field. A {@code cacheScope} of {@code auto} is
+ * then resolved by {@link CacheScopes}: {@code private} when the adapter authenticates its callers
+ * or identifies them through {@code trust}, {@code public} otherwise. Ikanos lists and resource reads do not otherwise vary by caller:
+ * resource inputs come from the URI, and upstream credentials from the operator's binds.</p>
  *
  * @param ttlMs freshness in milliseconds, zero or more
  * @param cacheScope {@code public} or {@code private}
@@ -34,7 +39,7 @@ public record CacheHints(int ttlMs, String cacheScope) {
     public static final int DEFAULT_TTL_MS = 0;
 
     /** Default scope: the safe one, never shared across callers. */
-    public static final String DEFAULT_SCOPE = "private";
+    public static final String DEFAULT_SCOPE = CacheScopes.PRIVATE;
 
     public CacheHints {
         // MCP 2026-07-28 (SEP-2549): ttlMs is an integer of zero or more, cacheScope is public
@@ -44,28 +49,51 @@ public record CacheHints(int ttlMs, String cacheScope) {
             throw new IllegalArgumentException("MCP ttlMs must be zero or more, got " + ttlMs);
         }
         Objects.requireNonNull(cacheScope, "cacheScope");
-        if (!"public".equals(cacheScope) && !"private".equals(cacheScope)) {
+        // auto is resolved by CacheScopes before a CacheHints is built, so it is refused here too
+        if (!CacheScopes.PUBLIC.equals(cacheScope) && !CacheScopes.PRIVATE.equals(cacheScope)) {
             throw new IllegalArgumentException(
-                    "MCP cacheScope must be public or private, got '" + cacheScope + "'");
+                    "MCP cacheScope must be public or private (auto is resolved first), got '"
+                            + cacheScope + "'");
         }
     }
 
     /** The adapter's hints, used for lists and for resources that set none. */
     public static CacheHints forServer(McpServerSpec server) {
-        return of(server.getTtlMs(), server.getCacheScope(),
-                new CacheHints(DEFAULT_TTL_MS, DEFAULT_SCOPE));
+        return forResource(server, null);
     }
 
     /** The hints for reads of {@code resource}: its own values, else the adapter's. */
     public static CacheHints forResource(McpServerSpec server, McpServerResourceSpec resource) {
-        CacheHints serverHints = forServer(server);
-        return resource == null ? serverHints
-                : of(resource.getTtlMs(), resource.getCacheScope(), serverHints);
+        Integer ttlMs = resource != null && resource.getTtlMs() != null
+                ? resource.getTtlMs() : server.getTtlMs();
+        return new CacheHints(ttlMs != null ? ttlMs : DEFAULT_TTL_MS,
+                scopeDecision(server, resource).scope());
     }
 
-    static CacheHints of(Integer ttlMs, String cacheScope, CacheHints fallback) {
-        return new CacheHints(ttlMs != null ? ttlMs : fallback.ttlMs(),
-                cacheScope != null ? cacheScope : fallback.cacheScope());
+    /**
+     * The scope for reads of {@code resource} (or for lists when it is {@code null}), and why.
+     */
+    public static CacheScopes.Decision scopeDecision(McpServerSpec server,
+            McpServerResourceSpec resource) {
+        String declared = resource != null && resource.getCacheScope() != null
+                ? resource.getCacheScope() : server.getCacheScope();
+        return CacheScopes.resolve(declared != null ? declared : DEFAULT_SCOPE,
+                callerDependence(server));
+    }
+
+    /** Why results of this adapter can depend on the caller, or {@code null}. */
+    static String callerDependence(McpServerSpec server) {
+        if (server.getAuthentication() != null) {
+            return "the adapter authenticates its callers, so a shared cache must not reuse a"
+                    + " result for another caller";
+        }
+        McpTrustSpec trust = server.getTrust();
+        if (trust != null && !McpTrustSpec.MODE_NONE.equals(trust.getMode())) {
+            return "callers are identified (trust: " + trust.getMode() + "), so they are"
+                    + " authenticated upstream of the adapter, and a shared cache must not reuse"
+                    + " a result for another caller";
+        }
+        return null;
     }
 
     /** Write both hints on {@code result}, replacing any already there. */

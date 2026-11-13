@@ -244,10 +244,11 @@
     },
     "CacheScope": {
       "type": "string",
-      "description": "Whether a shared cache (gateway, proxy) may serve a result to a caller other than the one it was returned to. `public`: yes. `private`: no.",
+      "description": "Whether a shared cache (gateway, proxy) may serve a result to a caller other than the one it was returned to. `public`: yes. `private`: no. `auto`: the engine decides from the spec; `private` when the adapter authenticates its callers (`authentication`) or identifies them (`trust`), `public` otherwise.",
       "enum": [
         "public",
-        "private"
+        "private",
+        "auto"
       ]
     },
     "ConsumedInputParameter": {
