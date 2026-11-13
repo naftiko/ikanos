@@ -30,6 +30,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ public class ForwardResponseHeadersIntegrationTest {
     private static volatile String upstreamDate;
 
     private static HttpServer upstream;
+    private static final AtomicInteger redirectTargetHits = new AtomicInteger();
+    private static final List<String> otherHostKeys = new CopyOnWriteArrayList<>();
+    private static HttpServer otherHost;
     private static ServerAdapter adapter;
     private static int upstreamPort;
     private static int exposedPort;
@@ -78,6 +83,29 @@ public class ForwardResponseHeadersIntegrationTest {
         respond("/v1/busy", 503, Map.of("Retry-After", List.of("120")));
         respond("/v1/locked", 401, Map.of("WWW-Authenticate", List.of("Basic realm=\"up\"")));
         respond("/v1/read-only", 405, Map.of("Allow", List.of("GET, HEAD")));
+        respond("/v1/moved", 302, Map.of("Location",
+                List.of("http://localhost:" + upstreamPort + "/v1/moved-target")));
+        respond("/v1/moved-outside", 307, Map.of("Location",
+                List.of("http://localhost:" + upstreamPort + "/internal/secret")));
+        otherHost = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        otherHost.createContext("/", exchange -> {
+            otherHostKeys.add(String.valueOf(exchange.getRequestHeaders().getFirst("X-API-Key")));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        otherHost.start();
+        respond("/v1/cross-host", 302, Map.of("Location",
+                List.of("http://127.0.0.1:" + otherHost.getAddress().getPort() + "/landing")));
+        upstream.createContext("/v1/moved-target", exchange -> {
+            redirectTargetHits.incrementAndGet();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        upstream.createContext("/internal", exchange -> {
+            redirectTargetHits.incrementAndGet();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
         upstream.createContext("/v1/dated", exchange -> {
             // The JDK server writes its own Date when the headers are sent: the body comes
             // later, so a Date the gateway wrote itself would be at least a second later
@@ -139,6 +167,9 @@ public class ForwardResponseHeadersIntegrationTest {
                         - path: "/secured/{{path}}"
                           forward:
                             targetNamespace: secured
+                        - path: "/keyed/{{path}}"
+                          forward:
+                            targetNamespace: keyed
                   consumes:
                     - type: "http"
                       namespace: "up"
@@ -149,7 +180,14 @@ public class ForwardResponseHeadersIntegrationTest {
                       authentication:
                         type: bearer
                         token: "expired-token"
-                """.formatted(IKANOS, exposedPort, upstreamPort, upstreamPort);
+                    - type: "http"
+                      namespace: "keyed"
+                      baseUri: "http://localhost:%d/v1"
+                      inputParameters:
+                        X-API-Key:
+                          in: header
+                          value: "adapter-secret"
+                """.formatted(IKANOS, exposedPort, upstreamPort, upstreamPort, upstreamPort);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         adapter = new Capability(spec).getServerAdapters().get(0);
         adapter.start();
@@ -162,6 +200,9 @@ public class ForwardResponseHeadersIntegrationTest {
         }
         if (upstream != null) {
             upstream.stop(0);
+        }
+        if (otherHost != null) {
+            otherHost.stop(0);
         }
     }
 
@@ -202,6 +243,34 @@ public class ForwardResponseHeadersIntegrationTest {
             throws Exception {
         assertEquals("/proxy/items/43",
                 get("/proxy/relative").headers().firstValue("Location").orElse(null));
+    }
+
+    @Test
+    public void forwardShouldRelayARedirectInsteadOfFollowingIt() throws Exception {
+        HttpResponse<String> moved = get("/proxy/moved");
+        HttpResponse<String> outside = get("/proxy/moved-outside");
+
+        assertEquals(302, moved.statusCode(), moved.body());
+        assertEquals("/proxy/moved-target", moved.headers().firstValue("Location").orElse(null));
+        assertEquals(307, outside.statusCode(), outside.body());
+        assertFalse(outside.headers().firstValue("Location").isPresent(),
+                "the upstream host must not reach the caller");
+        assertEquals(0, redirectTargetHits.get(),
+                "#1002: the gateway must not follow the upstream redirect itself");
+    }
+
+    @Test
+    public void forwardShouldRelayARedirectToAnotherHostWithoutSendingTheAdaptersKeyThere()
+            throws Exception {
+        HttpResponse<String> response = get("/keyed/cross-host");
+
+        assertEquals(302, response.statusCode(), response.body());
+        assertEquals("http://127.0.0.1:" + otherHost.getAddress().getPort() + "/landing",
+                response.headers().firstValue("Location").orElse(null),
+                "a location on another host is relayed as is");
+        assertTrue(otherHostKeys.isEmpty(),
+                "#1002: the gateway must not follow the redirect, which sent the adapter's "
+                        + "X-API-Key to the other host: " + otherHostKeys);
     }
 
     @Test

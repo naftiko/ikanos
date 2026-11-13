@@ -90,7 +90,6 @@ public class ForwardResponseHeadersTest {
     @CsvSource({
             "http://upstream:9090/v1/items/42, /proxy/items/42",
             "http://upstream:9090/v1/items?page=2, /proxy/items?page=2",
-            "http://upstream:9090/v1, /proxy",
             "/v1/items/43, /proxy/items/43",
             "items/44, /proxy/items/44",
             "HTTP://UPSTREAM:9090/v1/items/45, /proxy/items/45"})
@@ -470,6 +469,15 @@ public class ForwardResponseHeadersTest {
             String expected) {
         assertEquals(expected, ForwardResponseHeaders.relayedLocation(raw, BASE_URI, BASE_URI,
                 incomingWithoutPath("http://localhost:8080/status")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://upstream:9090/v1", "http://upstream:9090/v1/",
+            "http://upstream:9090/v1?page=2", "/v1", "/v1/"})
+    public void relayedLocationShouldDropTheBaseUriUnderAResourceWithPath(String raw) {
+        // /proxy and /proxy/ match no route /proxy/{path}: the forwarded path cannot be empty
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
+                incoming()), raw);
     }
 
     @Test

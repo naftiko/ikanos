@@ -18,7 +18,10 @@ import java.util.function.Function;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
 import org.restlet.Client;
+import org.restlet.Request;
 import org.restlet.engine.Engine;
+import org.restlet.engine.adapter.ClientCall;
+import org.restlet.engine.adapter.JettyClientCall;
 import org.restlet.engine.connector.ConnectorHelper;
 
 /**
@@ -38,6 +41,14 @@ import org.restlet.engine.connector.ConnectorHelper;
  * with its {@link Engine}: {@link #ensureRegistered()} registers it.</p>
  */
 public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpClientHelper {
+
+    /**
+     * Request attribute that, set to {@link Boolean#TRUE}, makes the client return a redirect
+     * as is instead of following it. Forward mode sets it, so the caller gets the upstream
+     * {@code 3xx} with its {@code Location} relayed by the forward rules, instead of the gateway
+     * following it to wherever it points (#1002).
+     */
+    public static final String NO_REDIRECTS = "io.ikanos.engine.noRedirects";
 
     /**
      * Restlet calls this constructor reflectively when it resolves the helper class name.
@@ -75,6 +86,21 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
         if (clients.stream().noneMatch(h -> h.getClass() == type)) {
             clients.add(factory.apply(null));
         }
+    }
+
+    /**
+     * Creates the Jetty call, which does not follow redirects when {@code request} carries
+     * {@link #NO_REDIRECTS}. The client follows them otherwise (Restlet's
+     * {@code followRedirects} defaults to {@code true}).
+     */
+    @Override
+    public ClientCall create(Request request) {
+        ClientCall call = super.create(request);
+        if (Boolean.TRUE.equals(request.getAttributes().get(NO_REDIRECTS))
+                && call instanceof JettyClientCall jettyCall) {
+            jettyCall.getRequest().followRedirects(false);
+        }
+        return call;
     }
 
     /**

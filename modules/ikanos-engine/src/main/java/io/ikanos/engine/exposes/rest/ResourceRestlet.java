@@ -27,6 +27,7 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.consumes.http.IkanosHttpClientHelper;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -590,6 +591,10 @@ public class ResourceRestlet extends Restlet {
                                 + normalizedPath;
                         Request clientRequest = new Request(request.getMethod(), targetRef);
                         clientRequest.setEntity(request.getEntity());
+                        // The caller gets the upstream redirect, with its Location relayed by
+                        // the forward rules, rather than the gateway following it (#1002)
+                        clientRequest.getAttributes().put(IkanosHttpClientHelper.NO_REDIRECTS,
+                                Boolean.TRUE);
 
                         // Copy trusted headers from the original request to the client request
                         copyTrustedHeaders(request, clientRequest,

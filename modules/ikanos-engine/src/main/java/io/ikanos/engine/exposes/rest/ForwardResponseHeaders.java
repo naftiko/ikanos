@@ -433,6 +433,8 @@ public final class ForwardResponseHeaders {
      * <li>Under a resource without {@code {{path}}}, which forwards to the base URI only, a value
      * below the base URI: dropped, since no exposed path routes to it. A value equal to the base
      * URI is rewritten to the exposed path.</li>
+     * <li>Under a resource with {@code {{path}}}, a value equal to the base URI (with or without
+     * a trailing slash): dropped, since its route needs a non-empty forwarded path.</li>
      * <li>A value whose rewritten path would start with {@code //}, which only happens under a
      * resource exposed at the root, such as {@code http://upstream/v1//evil.example/x}: dropped.
      * The caller would read it as a scheme-relative reference to another host.</li>
@@ -498,6 +500,13 @@ public final class ForwardResponseHeaders {
         if (!incoming.getAttributes().containsKey("path") && !suffix.isEmpty()) {
             // A resource without {{path}} forwards to the base URI only and routes no sub-path,
             // so a location below the base URI has no exposed counterpart
+            return null;
+        }
+        if (incoming.getAttributes().containsKey("path")
+                && (suffix.isEmpty() || suffix.equals("/"))) {
+            // Under {{path}}, the route needs a non-empty path after the exposed one, so the
+            // base URI itself has no exposed counterpart: neither /proxy nor /proxy/ matches
+            // /proxy/{path}
             return null;
         }
         String rewritten = exposed + suffix;
